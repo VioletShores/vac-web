@@ -524,7 +524,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <div class="header">
         <div class="header-eyebrow" id="successEyebrow">AUTHENTICATED ✓</div>
         <div class="header-title" id="successTitle">You're Authenticated</div>
-        <div class="header-sub">Your identity is cryptographically bound. Get vouched by another authenticated human to become Verified.</div>
+        <div class="header-sub">Your identity is cryptographically verified. Vouches from other verified humans strengthen your trust score.</div>
     </div>
 
     <!-- Identity card — compact -->
@@ -554,7 +554,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="share-url" id="shareUrl" onclick="copyShareUrl()"></div>
         <div id="copyFeedback" style="font-family: var(--mono); font-size: 11px; color: var(--success); text-align: center; height: 16px;"></div>
         <div style="border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px;">
-            <div style="font-family: var(--mono); font-size: 12px; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Invite someone to vouch for you</div><div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 10px;">A vouch from another verified human upgrades your trust level.</div>
+            <div style="font-family: var(--mono); font-size: 12px; color: var(--text-secondary); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px; font-weight: 600;">Invite someone to vouch for you</div><div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 10px;">Vouches from other verified humans strengthen your trust score and unlock messaging.</div>
             <div class="form-row">
                 <input class="form-input" id="recipientName" type="text" placeholder="Their name">
                 <input class="form-input" id="recipientEmail" type="email" placeholder="email@example.com">
@@ -568,7 +568,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
     <!-- Secondary actions -->
     <div style="display: flex; gap: 10px; margin-top: 12px;">
-        <button class="btn-secondary" onclick="openMessage()" style="flex: 1; opacity: 0.4; cursor: not-allowed;" disabled title="Get vouched by another human first">Send Message</button>
+        <button class="btn-secondary" onclick="openMessage()" style="flex: 1; opacity: 0.4; cursor: not-allowed;" disabled title="Get a vouch to unlock messaging">Send Message</button>
         <a href="javascript:openDashboard()" style="flex: 1; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); text-decoration: none; padding: 10px;">My Dashboard &rarr;</a>
     </div>
 
