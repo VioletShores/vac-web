@@ -4,29 +4,32 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VAC Groups</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
 <style>
-:root { --bg: #0D1117; --surface: #161B22; --surface-raised: #1C2128; --border: #30363D; --text-primary: #F0F6FC; --text-secondary: #C9D1D9; --text-tertiary: #8B949E; --text-quaternary: #6E7681; --purple: #6C5CE7; --purple-bg: rgba(108,92,231,0.08); --purple-border: rgba(108,92,231,0.25); --teal: #00CEC9; --teal-bg: rgba(0,206,201,0.08); --success: #3FB950; --success-bg: rgba(63,185,80,0.08); --success-border: rgba(63,185,80,0.2); --warning: #D29922; --warning-bg: rgba(210,153,34,0.08); --error: #F85149; --error-bg: rgba(248,81,73,0.08); --radius: 10px; --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+:root { --bg: #0D1117; --surface: #161B22; --surface-raised: #1C2128; --border: #30363D; --text-primary: #F0F6FC; --text-secondary: #C9D1D9; --text-tertiary: #8B949E; --text-quaternary: #6E7681; --purple: #6C5CE7; --purple-bg: rgba(108,92,231,0.08); --purple-border: rgba(108,92,231,0.25); --teal: #00CEC9; --teal-bg: rgba(0,206,201,0.08); --success: #3FB950; --success-bg: rgba(63,185,80,0.08); --success-border: rgba(63,185,80,0.2); --warning: #D29922; --warning-bg: rgba(210,153,34,0.08); --error: #F85149; --error-bg: rgba(248,81,73,0.08); --error-border: rgba(248,81,73,0.2); --radius: 10px; --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font); background: var(--bg); color: var(--text-secondary); line-height: 1.6; }
 .nav { border-bottom: 1px solid var(--border); padding: 12px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }
-.nav-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 8px; }
+.nav-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
 .nav-brand { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-primary); letter-spacing: 2px; text-decoration: none; display: flex; align-items: center; gap: 8px; }
 .nav-brand span { font-weight: 400; color: var(--text-tertiary); }
+.nav-status { font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-quaternary); letter-spacing: 1px; }
 .page { max-width: 720px; margin: 0 auto; padding: 20px 20px 80px; }
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }
 .card-body { padding: 16px; }
-.section-title { font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); letter-spacing: 1.5px; text-transform: uppercase; margin: 20px 0 10px; }
-
-/* Quorum ring */
-.quorum-ring { position: relative; width: 120px; height: 120px; margin: 0 auto 12px; }
+.card-header { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+.section-title { font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); letter-spacing: 1.5px; text-transform: uppercase; margin: 20px 0 10px; display: flex; align-items: center; justify-content: space-between; }
+.hero { text-align: center; margin-bottom: 24px; }
+.hero-eyebrow { font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+.hero-title { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px; }
+.hero-sub { font-size: 13px; color: var(--text-tertiary); max-width: 500px; margin: 0 auto; }
+.quorum-ring { position: relative; width: 120px; height: 120px; margin: 0 auto 12px; flex-shrink: 0; }
 .quorum-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .quorum-ring-bg { fill: none; stroke: var(--border); stroke-width: 6; }
 .quorum-ring-fill { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
 .quorum-ring-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .quorum-pct { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--text-primary); }
 .quorum-label { font-family: var(--mono); font-size: 9px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; }
-
-/* Member list */
 .member-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .member-row:last-child { border-bottom: none; }
 .member-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -38,183 +41,253 @@ body { font-family: var(--font); background: var(--bg); color: var(--text-second
 .member-vote { font-family: var(--mono); font-size: 9px; padding: 2px 6px; border-radius: 3px; }
 .member-vote.approve { background: var(--success-bg); color: var(--success); }
 .member-vote.deny { background: var(--error-bg); color: var(--error); }
+.member-vote.abstain { background: var(--warning-bg); color: var(--warning); }
 .member-vote.waiting { background: var(--surface-raised); color: var(--text-quaternary); }
-
-/* Live tree */
-.tree-container { padding: 16px 0; }
-.tree-node { position: relative; margin-left: 24px; padding: 8px 0; }
-.tree-node:before { content: ''; position: absolute; left: -16px; top: 0; bottom: 0; width: 2px; background: var(--purple-border); }
-.tree-node:last-child:before { bottom: 50%; }
-.tree-node:after { content: ''; position: absolute; left: -16px; top: 20px; width: 12px; height: 2px; background: var(--purple-border); }
-.tree-node-card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
-.tree-node-card.root { border-color: var(--purple-border); background: var(--purple-bg); }
-.tree-node-card.active { border-left: 3px solid var(--success); }
-.tree-node-card.revoked { border-left: 3px solid var(--error); opacity: 0.6; }
-.tree-node-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
-.tree-node-icon.human { background: var(--purple-bg); border: 1px solid var(--purple-border); }
-.tree-node-icon.agent { background: var(--teal-bg); border: 1px solid rgba(0,206,201,0.2); }
-.tree-node-name { font-size: 12px; font-weight: 600; color: var(--text-primary); }
-.tree-node-meta { font-family: var(--mono); font-size: 9px; color: var(--text-quaternary); }
-.tree-root { padding-left: 0; margin-left: 0; }
-.tree-root:before, .tree-root:after { display: none; }
-
-/* Presence map placeholder */
-.presence-map { height: 160px; background: var(--surface-raised); border: 1px dashed var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); margin: 12px 0; }
-
-/* Model selector */
+.presence-map { height: 80px; background: var(--surface-raised); border: 1px dashed var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); margin: 12px 0; }
 .model-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
-.model-chip { font-family: var(--mono); font-size: 10px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text-tertiary); cursor: pointer; }
+.model-chip { font-family: var(--mono); font-size: 10px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text-tertiary); cursor: pointer; transition: all 0.15s; }
 .model-chip:hover { border-color: var(--purple-border); color: var(--purple); }
 .model-chip.active { border-color: var(--purple); background: var(--purple-bg); color: var(--purple); }
 .model-desc { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); padding: 8px 12px; background: var(--surface-raised); border-radius: 6px; margin-bottom: 12px; }
-
-.btn { font-family: var(--mono); font-size: 11px; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--purple-border); background: var(--purple-bg); color: var(--purple); cursor: pointer; }
+.btn { font-family: var(--mono); font-size: 11px; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--purple-border); background: var(--purple-bg); color: var(--purple); cursor: pointer; transition: all 0.15s; }
 .btn:hover { background: var(--purple); color: white; }
-.btn.secondary { background: transparent; color: var(--text-tertiary); border-color: var(--border); }
-input,select { font-family: var(--mono); font-size: 12px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; color: var(--text-primary); width: 100%; }
-label { font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 4px; }
-.form-row { margin-bottom: 12px; }
+.btn.success { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }
+.btn.success:hover { background: var(--success); color: white; }
+.btn.danger { border-color: var(--error-border); background: var(--error-bg); color: var(--error); }
+.btn.danger:hover { background: var(--error); color: white; }
+.btn.warn { border-color: rgba(210,153,34,0.3); background: var(--warning-bg); color: var(--warning); }
+input, select, textarea { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text-primary); width: 100%; }
+input:focus, textarea:focus { outline: none; border-color: var(--purple); }
+textarea { min-height: 60px; resize: vertical; }
+.form-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block; }
+.form-group { margin-bottom: 12px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vote-bar { display: flex; gap: 8px; margin: 16px 0; }
+.vote-bar .btn { flex: 1; text-align: center; padding: 12px; font-size: 13px; font-weight: 600; }
+.patent-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--purple); background: var(--purple-bg); border: 1px solid var(--purple-border); border-radius: 4px; padding: 4px 10px; }
+.patent-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); }
+.status-pill { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; }
+.status-pill.open { background: var(--purple-bg); color: var(--purple); }
+.status-pill.approved { background: var(--success-bg); color: var(--success); }
+.status-pill.denied { background: var(--error-bg); color: var(--error); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.animate { animation: fadeIn 0.3s ease; }
 </style>
 </head>
 <body>
 <div class="nav"><div class="nav-inner">
-    <a href="/" class="nav-brand">
-        <svg width="18" height="18" viewBox="0 0 100 100"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="5"/><polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.1" stroke="#6C5CE7" stroke-width="2.5"/></svg>
-        VAC <span>GROUPS</span>
-    </a>
+    <a href="/" class="nav-brand">\u2B21 VAC <span>GROUPS</span></a>
+    <div class="nav-status" id="navStatus">GOVERNANCE</div>
 </div></div>
 <div class="page" id="content"></div>
 <script>
-const API='https://vac-system-production.up.railway.app';
-const params=new URLSearchParams(location.search);
-const sessionId=params.get('session');
-const groupId=params.get('group');
-const demo=params.get('demo')==='true';
-
-const MODELS={
-    majority:{name:'Majority',desc:'More than 50% of verified members must approve. Remote voting allowed.',icon:'🗳️',threshold:50,presence:false},
-    supermajority:{name:'Supermajority',desc:'At least 67% of verified members must approve. Remote voting allowed.',icon:'⚖️',threshold:67,presence:false},
-    unanimous:{name:'Unanimous',desc:'Every member must verify and approve. One objection blocks the decision.',icon:'🤝',threshold:100,presence:false},
-    n_of_m:{name:'N-of-M',desc:'A specific number (N) of the total members (M) must approve.',icon:'🔢',threshold:null,presence:false},
-    cultural_hui:{name:'Cultural Hui',desc:'Requires physical co-presence within a defined location. Supermajority of those present must approve. Inspired by Māori hui protocol — kanohi ki te kanohi (face to face).',icon:'🏛️',threshold:67,presence:true},
+const API = 'https://vac-system-production.up.railway.app';
+const params = new URLSearchParams(location.search);
+const sessionParam = params.get('session');
+const groupParam = params.get('group');
+const emailParam = params.get('email') || '';
+const MODELS = {
+    majority: { name:'Majority', desc:'More than 50% of verified members must approve.', icon:'\u{1F5F3}\uFE0F', threshold:50, presence:false },
+    supermajority: { name:'Supermajority', desc:'At least 67% of verified members must approve.', icon:'\u2696\uFE0F', threshold:67, presence:false },
+    unanimous: { name:'Unanimous', desc:'Every member must verify and approve. One objection blocks.', icon:'\u{1F91D}', threshold:100, presence:false },
+    n_of_m: { name:'N-of-M', desc:'A specific number (N) of total members (M) must approve.', icon:'\u{1F522}', threshold:null, presence:false },
+    cultural_hui: { name:'Cultural Hui', desc:'Physical co-presence required. Supermajority of present members approve. Inspired by M\u0101ori hui \u2014 kanohi ki te kanohi.', icon:'\u{1F3DB}\uFE0F', threshold:67, presence:true },
 };
+let currentGroup = null, currentSession = null, selectedModel = 'cultural_hui';
 
-function init(){
-    if(sessionId)return loadSession(sessionId);
-    if(groupId)return loadGroup(groupId);
-    if(demo)return showDemo();
-    showCreate();
+function init() {
+    if (sessionParam) return loadSession(sessionParam);
+    if (groupParam) return loadGroup(groupParam);
+    showLanding();
 }
 
-function showDemo(){
-    const demoGroup={name:'VAC Protocol Council',description:'Core governance body',members:['rob@vacprotocol.org','shan@folioai.com','jason@investor.com','alex@techcorp.io'],quorum_model:'cultural_hui',require_presence:true,presence_radius_km:0.5,presence_location:{lat:-33.8688,lng:151.2093,name:'Sydney CBD'},vote_threshold_pct:67};
-    const demoSession={session_id:'gsess-demo',group_id:'grp-demo',group_name:'VAC Protocol Council',action:'Approve Series A term sheet',description:'$2M raise at $15M post-money from LAUNCH Fund',quorum_model:'cultural_hui',require_presence:true,presence_location:{lat:-33.8688,lng:151.2093,name:'Sydney CBD'},votes:[
-        {email:'rob@vacprotocol.org',vote:'approve',verified:true,trust_score:0.92,is_present:true,voted_at:new Date().toISOString()},
-        {email:'shan@folioai.com',vote:'approve',verified:true,trust_score:0.95,is_present:true,voted_at:new Date().toISOString()},
-        {email:'jason@investor.com',vote:'approve',verified:true,trust_score:0.88,is_present:false,voted_at:new Date().toISOString()},
-    ],present_members:['rob@vacprotocol.org','shan@folioai.com'],status:'open'};
-    const demoTree={tree:{jti:'vat_root_001',agent_id:'coordinator-001',depth:0,trust_score:0.92,status:'active',delegation_policy:{allowed:true,max_children:5,current_children:2},children:[
-        {jti:'vat_c_res',agent_id:'researcher-007',depth:1,trust_score:0.78,status:'active',delegation_policy:{allowed:true,max_children:3,current_children:1},children:[
-            {jti:'vat_c_dc',agent_id:'data-collector-003',depth:2,trust_score:0.65,status:'active',delegation_policy:{allowed:false},children:[]},
-        ]},
-        {jti:'vat_c_wr',agent_id:'writer-003',depth:1,trust_score:0.71,status:'active',delegation_policy:{allowed:false},children:[]},
-    ]}};
-    renderAll(demoGroup,demoSession,demoTree);
+function showLanding() {
+    document.getElementById('content').innerHTML = `
+    <div class="hero">
+        <div class="hero-eyebrow">Claims 168\u2013241 \u00B7 Collective Governance</div>
+        <div class="hero-title">Groups & Governance</div>
+        <div class="hero-sub">Verified identity + physical co-presence. Decisions enforced by math, not minutes.</div>
+    </div>
+    <div id="groupList"></div>
+    <div class="section-title">Create Group</div>
+    <div class="card"><div class="card-body">
+        <div class="form-group"><label class="form-label">Group Name</label><input id="grpName" value="VAC Protocol Council"></div>
+        <div class="form-group"><label class="form-label">Description</label><input id="grpDesc" value="Core governance body for VAC Protocol decisions"></div>
+        <div class="form-group"><label class="form-label">Members (email, one per line)</label><textarea id="grpMembers" rows="4">rob@violetshores.com\nrobzag@gmail.com\njason@calacanis.com\nshan@folioai.com</textarea></div>
+        <div class="card-header" style="margin-top:16px;">Quorum Model</div>
+        <div class="model-chips" id="modelChips"></div>
+        <div class="model-desc" id="modelDesc"></div>
+        <div class="form-row" id="presenceRow" style="display:none;">
+            <div class="form-group"><label class="form-label">Meeting Location</label><input id="grpLocation" value="Sydney CBD"></div>
+            <div class="form-group"><label class="form-label">Radius (km)</label><input id="grpRadius" type="number" value="0.5" step="0.1"></div>
+        </div>
+        <button class="btn" onclick="createGroup()" style="margin-top:8px;">Create Group</button>
+    </div></div>`;
+    renderModelChips();
+    loadGroupList();
 }
 
-function renderAll(group,session,tree){
-    let h='';
-    // Live delegation tree
-    h+=`<div class="section-title">Live Delegation Tree</div>`;
-    h+=`<div class="card"><div class="card-body"><div class="tree-container">`;
-    h+=renderTreeNode(tree.tree,true);
-    h+=`</div></div></div>`;
+function renderModelChips() {
+    document.getElementById('modelChips').innerHTML = Object.entries(MODELS).map(([k,v]) =>
+        '<div class="model-chip '+(k===selectedModel?'active':'')+'" onclick="selectModel(\''+k+'\')">'+v.icon+' '+v.name+'</div>'
+    ).join('');
+    document.getElementById('modelDesc').textContent = MODELS[selectedModel].desc;
+    document.getElementById('presenceRow').style.display = MODELS[selectedModel].presence ? 'grid' : 'none';
+}
+function selectModel(m) { selectedModel = m; renderModelChips(); }
 
-    // Group governance session
-    h+=`<div class="section-title">Group Governance · ${group.name}</div>`;
-    h+=`<div class="card"><div class="card-body">`;
-    h+=`<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">${session.action}</div>`;
-    h+=`<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">${session.description}</div>`;
-    // Model badge
-    const m=MODELS[group.quorum_model]||MODELS.majority;
-    h+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="font-size:16px;">${m.icon}</span><span style="font-family:var(--mono);font-size:11px;font-weight:600;color:var(--purple);">${m.name}</span></div>`;
-    h+=`<div class="model-desc">${m.desc}</div>`;
-    // Presence requirement
-    if(group.require_presence){
-        h+=`<div class="presence-map">📍 ${group.presence_location?.name||'Meeting point'} · Within ${group.presence_radius_km}km radius required</div>`;
-    }
-    // Quorum ring
-    const votes=session.votes||[];
-    const approvals=votes.filter(v=>v.vote==='approve'&&v.verified);
-    const presentApprovals=approvals.filter(v=>v.is_present);
-    const total=group.members.length;
-    const votePct=total>0?Math.round(approvals.length/total*100):0;
-    const presentPct=total>0?Math.round(presentApprovals.length/total*100):0;
-    const effectivePct=group.require_presence?presentPct:votePct;
-    const threshPct=group.vote_threshold_pct;
-    const met=effectivePct>=threshPct;
-    const ringColor=met?'var(--success)':effectivePct>threshPct/2?'var(--warning)':'var(--error)';
-    const circ=2*Math.PI*52;
-    const dashOff=circ-(effectivePct/100)*circ;
+async function loadGroupList() {
+    try {
+        const r = await fetch(API+'/v1/groups?email='+encodeURIComponent(emailParam));
+        const d = await r.json();
+        if (d.groups && d.groups.length > 0) {
+            document.getElementById('groupList').innerHTML = '<div class="section-title">Your Groups</div>' +
+                d.groups.map(g => '<div class="card animate" style="cursor:pointer" onclick="location.href=\'/groups?group='+g.group_id+'&email='+encodeURIComponent(emailParam)+'\'"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+g.name+'</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">'+g.member_count+' members \u00B7 '+(MODELS[g.quorum_model]?.icon||'')+' '+g.quorum_model+'</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div></div>').join('');
+        }
+    } catch(e) {}
+}
 
-    h+=`<div style="display:flex;align-items:center;gap:24px;margin:16px 0;">`;
-    h+=`<div class="quorum-ring"><svg viewBox="0 0 120 120"><circle class="quorum-ring-bg" cx="60" cy="60" r="52"/><circle class="quorum-ring-fill" cx="60" cy="60" r="52" stroke="${ringColor}" stroke-dasharray="${circ}" stroke-dashoffset="${dashOff}"/></svg><div class="quorum-ring-text"><div class="quorum-pct">${effectivePct}%</div><div class="quorum-label">${group.require_presence?'Present+Approved':'Approved'}</div></div></div>`;
-    h+=`<div style="flex:1;">`;
-    h+=`<div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-bottom:6px;">THRESHOLD: ${threshPct}%</div>`;
-    h+=`<div style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);">${approvals.length} of ${total} verified approvals</div>`;
-    if(group.require_presence){h+=`<div style="font-family:var(--mono);font-size:12px;color:var(--teal);">${presentApprovals.length} of ${total} physically present</div>`;}
-    h+=`<div style="margin-top:8px;font-family:var(--mono);font-size:11px;font-weight:600;color:${met?'var(--success)':'var(--warning)'};">${met?'✓ Quorum Met':'⏳ Quorum Not Yet Met'}</div>`;
-    h+=`</div></div>`;
+async function createGroup() {
+    const name = document.getElementById('grpName').value.trim();
+    const members = document.getElementById('grpMembers').value.trim().split('\n').map(e=>e.trim()).filter(Boolean);
+    if (!name || members.length < 2) { alert('Need name + 2 members'); return; }
+    const body = { name, description: document.getElementById('grpDesc').value.trim(), members, quorum_model: selectedModel, require_presence: MODELS[selectedModel].presence, presence_radius_km: parseFloat(document.getElementById('grpRadius')?.value)||0.5 };
+    if (MODELS[selectedModel].presence) body.presence_location = { lat:-33.8688, lng:151.2093, name: document.getElementById('grpLocation')?.value||'Sydney CBD' };
+    try {
+        const r = await fetch(API+'/v1/groups', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+        const d = await r.json();
+        if (d.group_id) location.href = '/groups?group='+d.group_id+'&email='+encodeURIComponent(emailParam);
+    } catch(e) { alert(e.message); }
+}
 
-    // Member votes
-    h+=`<div style="margin-top:12px;">`;
-    group.members.forEach(email=>{
-        const vote=votes.find(v=>v.email===email);
-        const isPresent=(session.present_members||[]).includes(email);
-        const name=email.split('@')[0].replace(/\./g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-        const dotClass=vote?.verified?(isPresent?'present':'verified'):'pending';
-        const voteClass=vote?vote.vote:'waiting';
-        const voteLabel=vote?vote.vote.toUpperCase():'WAITING';
-        const trustStr=vote?.trust_score?` · ${(vote.trust_score*100).toFixed(0)}%`:'';
-        const presenceStr=group.require_presence?(isPresent?' · 📍 Present':' · Remote'):'';
-        h+=`<div class="member-row"><div class="member-dot ${dotClass}"></div><div class="member-name">${name}</div><div class="member-meta">${email}${trustStr}${presenceStr}</div><span class="member-vote ${voteClass}">${voteLabel}</span></div>`;
+async function loadGroup(gid) {
+    try {
+        const g = await(await fetch(API+'/v1/groups/'+gid)).json();
+        currentGroup = g;
+        let sessions = [];
+        try { sessions = (await(await fetch(API+'/v1/groups/sessions?group_id='+gid)).json()).sessions||[]; } catch(e){}
+        renderGroupDetail(g, sessions);
+    } catch(e) { showLanding(); }
+}
+
+function renderGroupDetail(group, sessions) {
+    const m = MODELS[group.quorum_model]||MODELS.majority;
+    const verified = group.members_detail?.filter(m=>m.verified).length||0;
+    let h = '<div style="margin-bottom:16px"><div style="font-size:20px;font-weight:800;color:var(--text-primary)">'+group.name+'</div>';
+    h += '<div style="font-size:13px;color:var(--text-tertiary);margin-top:4px">'+(group.description||'')+'</div>';
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span style="font-size:16px">'+m.icon+'</span><span style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+m.name+'</span><span style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">\u00B7 '+group.member_count+' members \u00B7 '+verified+' verified</span></div></div>';
+    if (group.require_presence && group.presence_location) h += '<div class="presence-map">\u{1F4CD} '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km</div>';
+    h += '<div class="section-title">Members</div><div class="card"><div class="card-body">';
+    (group.members_detail||group.members.map(e=>({email:e,verified:false,trust_score:0}))).forEach(mem => {
+        const name = (mem.name||mem.email.split('@')[0]).replace(/\b\w/g,c=>c.toUpperCase());
+        h += '<div class="member-row"><div class="member-dot '+(mem.verified?'verified':'pending')+'"></div><div class="member-name">'+name+'</div><div class="member-meta">'+mem.email+' \u00B7 '+(mem.verified?(mem.trust_score*100).toFixed(0)+'%':'not verified')+'</div></div>';
     });
-    h+=`</div></div></div>`;
-
-    // Quorum models reference
-    h+=`<div class="section-title">Governance Models</div>`;
-    h+=`<div class="model-chips">`;
-    Object.entries(MODELS).forEach(([k,v])=>{
-        const isActive=k===group.quorum_model;
-        h+=`<div class="model-chip ${isActive?'active':''}">${v.icon} ${v.name}${v.presence?' · Presence':''}${v.threshold?` · ${v.threshold}%`:''}</div>`;
-    });
-    h+=`</div>`;
-
-    document.getElementById('content').innerHTML=h;
+    h += '</div></div>';
+    h += '<div class="section-title">Sessions <button class="btn" onclick="showStartSession()" style="font-size:10px;padding:4px 10px">+ Start Session</button></div><div id="sessionForm"></div>';
+    if (sessions.length) {
+        sessions.forEach(s => {
+            const sc = s.status==='approved'?'approved':s.status==='denied'?'denied':'open';
+            h += '<div class="card animate" style="cursor:pointer" onclick="location.href=\'/groups?session='+s.session_id+'&email='+encodeURIComponent(emailParam)+'\'"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+s.action+'</div><span class="status-pill '+sc+'">'+s.status.toUpperCase()+'</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:4px">'+(s.votes||[]).length+' votes</div></div></div>';
+        });
+    } else h += '<div style="font-family:var(--mono);font-size:12px;color:var(--text-quaternary);padding:16px 0">No sessions yet. Start one to begin a vote.</div>';
+    h += '<div style="text-align:center;margin-top:24px"><div class="patent-badge"><span class="dot"></span>Claims 168\u2013241</div></div>';
+    document.getElementById('content').innerHTML = h;
 }
 
-function renderTreeNode(node,isRoot){
-    if(!node)return'';
-    const isHuman=node.depth===0;
-    const statusClass=node.status==='revoked'?'revoked':'active';
-    const iconClass=isHuman?'human':'agent';
-    const icon=isHuman?'👤':'🤖';
-    const dp=node.delegation_policy||{};
-    const childSlots=dp.allowed!==false?`${dp.current_children||0}/${dp.max_children||'∞'} children`:'delegation off';
-    let h=`<div class="tree-node ${isRoot?'tree-root':''}"><div class="tree-node-card ${isRoot?'root':statusClass}"><div class="tree-node-icon ${iconClass}">${icon}</div><div style="flex:1;"><div class="tree-node-name">${node.agent_id}</div><div class="tree-node-meta">d${node.depth} · ${(node.trust_score*100).toFixed(0)}% · ${childSlots}</div></div><span style="font-family:var(--mono);font-size:9px;color:${node.status==='active'?'var(--success)':'var(--error)'};">${node.status.toUpperCase()}</span></div>`;
-    if(node.children&&node.children.length>0){
-        node.children.forEach(c=>{h+=renderTreeNode(c,false);});
+function showStartSession() {
+    document.getElementById('sessionForm').innerHTML = '<div class="card animate"><div class="card-body"><div class="card-header">Start Governance Session</div><div class="form-group"><label class="form-label">Proposal</label><input id="sessAction" value="Approve $2M raise at $15M post-money from LAUNCH Fund"></div><div class="form-group"><label class="form-label">Description</label><textarea id="sessDesc">Investment terms: $2M at $15M post-money. 2-year cliff, 4-year vest. Board observer seat.</textarea></div><div style="display:flex;gap:8px"><button class="btn" onclick="startSession()">Start Session</button><button class="btn" style="border-color:var(--border);color:var(--text-tertiary)" onclick="document.getElementById(\'sessionForm\').innerHTML=\'\'">Cancel</button></div></div></div>';
+}
+
+async function startSession() {
+    const action = document.getElementById('sessAction').value.trim();
+    if (!action) return;
+    try {
+        const d = await(await fetch(API+'/v1/groups/session', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ group_id:currentGroup.group_id, action, description:document.getElementById('sessDesc').value.trim() }) })).json();
+        if (d.session_id) location.href = '/groups?session='+d.session_id+'&email='+encodeURIComponent(emailParam);
+    } catch(e) { alert(e.message); }
+}
+
+async function loadSession(sid) {
+    try {
+        currentSession = await(await fetch(API+'/v1/groups/session/'+sid)).json();
+        currentGroup = await(await fetch(API+'/v1/groups/'+currentSession.group_id)).json();
+        renderSession(currentGroup, currentSession);
+    } catch(e) { showLanding(); }
+}
+
+function renderSession(group, session) {
+    const m = MODELS[group.quorum_model]||MODELS.majority;
+    const votes = session.votes||[];
+    const approvals = votes.filter(v=>v.vote==='approve'&&v.verified);
+    const presentApprovals = approvals.filter(v=>v.is_present);
+    const total = group.members?.length||group.member_count;
+    const votePct = total>0?Math.round(approvals.length/total*100):0;
+    const presentPct = total>0?Math.round(presentApprovals.length/total*100):0;
+    const effectivePct = group.require_presence?presentPct:votePct;
+    const threshPct = group.vote_threshold_pct;
+    const met = effectivePct >= threshPct;
+    const ringColor = met?'var(--success)':effectivePct>threshPct/2?'var(--warning)':'var(--purple)';
+    const circ = 2*Math.PI*52;
+    const dashOff = circ-(effectivePct/100)*circ;
+    const sc = session.status==='approved'?'approved':session.status==='denied'?'denied':'open';
+
+    let h = '<div style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:16px">'+m.icon+'</span><span style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+m.name+'</span><span class="status-pill '+sc+'">'+session.status.toUpperCase()+'</span></div>';
+    h += '<div style="font-size:20px;font-weight:800;color:var(--text-primary)">'+session.action+'</div>';
+    h += '<div style="font-size:13px;color:var(--text-tertiary);margin-top:4px">'+(session.description||'')+'</div>';
+    h += '<div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:8px">'+group.name+'</div></div>';
+
+    if (group.require_presence && group.presence_location) h += '<div class="presence-map">\u{1F4CD} '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km</div>';
+
+    h += '<div class="card"><div class="card-body"><div style="display:flex;align-items:center;gap:24px">';
+    h += '<div class="quorum-ring"><svg viewBox="0 0 120 120"><circle class="quorum-ring-bg" cx="60" cy="60" r="52"/><circle class="quorum-ring-fill" cx="60" cy="60" r="52" stroke="'+ringColor+'" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOff+'"/></svg><div class="quorum-ring-text"><div class="quorum-pct">'+effectivePct+'%</div><div class="quorum-label">'+(group.require_presence?'Present':'Approved')+'</div></div></div>';
+    h += '<div style="flex:1"><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-bottom:6px">THRESHOLD: '+threshPct+'%</div>';
+    h += '<div style="font-family:var(--mono);font-size:12px;color:var(--text-secondary)">'+approvals.length+' of '+total+' verified approvals</div>';
+    if (group.require_presence) h += '<div style="font-family:var(--mono);font-size:12px;color:var(--teal)">'+presentApprovals.length+' of '+total+' physically present</div>';
+    h += '<div style="margin-top:8px;font-family:var(--mono);font-size:11px;font-weight:600;color:'+(met?'var(--success)':'var(--warning)')+';">'+(met?'\u2713 Quorum Met':'\u23F3 Quorum Not Yet Met')+'</div></div></div></div></div>';
+
+    if (session.status === 'open') {
+        const hasVoted = emailParam && votes.some(v=>v.email===emailParam.toLowerCase());
+        if (hasVoted) {
+            const mv = votes.find(v=>v.email===emailParam.toLowerCase());
+            h += '<div class="card"><div class="card-body" style="text-align:center"><div style="font-family:var(--mono);font-size:12px;color:var(--text-tertiary)">You voted: <strong style="color:'+(mv.vote==='approve'?'var(--success)':'var(--error)')+'">'+mv.vote.toUpperCase()+'</strong></div></div></div>';
+        } else {
+            h += '<div class="card"><div class="card-body"><div class="card-header">Cast Your Vote</div><div class="form-group"><label class="form-label">Your Email</label><input id="voteEmail" value="'+emailParam+'"></div><div class="vote-bar"><button class="btn success" onclick="submitVote(\'approve\')">\u2713 Approve</button><button class="btn danger" onclick="submitVote(\'deny\')">\u2717 Deny</button><button class="btn warn" onclick="submitVote(\'abstain\')">\u2014 Abstain</button></div></div></div>';
+        }
+    } else if (session.status === 'approved') {
+        h += '<div class="card" style="border-color:var(--success-border)"><div class="card-body" style="text-align:center"><div style="font-size:20px;margin-bottom:4px">\u2713</div><div style="font-size:14px;font-weight:700;color:var(--success)">Decision Approved</div><div style="font-size:12px;color:var(--text-tertiary)">Quorum met. Decision recorded on-chain.</div></div></div>';
     }
-    h+=`</div>`;
-    return h;
+
+    h += '<div class="section-title">Member Votes</div><div class="card"><div class="card-body">';
+    const members = group.members_detail || group.members.map(e=>({email:e,name:e.split('@')[0]}));
+    members.forEach(mem => {
+        const email = (mem.email||'').toLowerCase();
+        const vote = votes.find(v=>v.email===email);
+        const isPresent = (session.present_members||[]).includes(email);
+        const name = (mem.name||email.split('@')[0]).replace(/\b\w/g,c=>c.toUpperCase());
+        const dotClass = vote?.verified?(isPresent?'present':'verified'):'pending';
+        const voteClass = vote?vote.vote:'waiting';
+        const voteLabel = vote?vote.vote.toUpperCase():'WAITING';
+        h += '<div class="member-row"><div class="member-dot '+dotClass+'"></div><div class="member-name">'+name+'</div><div class="member-meta">'+email+(vote?.trust_score?' \u00B7 '+(vote.trust_score*100).toFixed(0)+'%':'')+(group.require_presence?(isPresent?' \u00B7 \u{1F4CD}':' \u00B7 Remote'):'')+'</div><span class="member-vote '+voteClass+'">'+voteLabel+'</span></div>';
+    });
+    h += '</div></div>';
+    h += '<div style="text-align:center;margin-top:24px"><div class="patent-badge"><span class="dot"></span>Claims 168\u2013241</div></div>';
+    document.getElementById('content').innerHTML = h;
+    document.getElementById('navStatus').textContent = session.session_id||'SESSION';
 }
 
-function showCreate(){
-    document.getElementById('content').innerHTML=`<div style="text-align:center;margin-top:60px;"><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px;">Groups & Governance</div><div style="font-size:13px;color:var(--text-quaternary);margin-bottom:16px;">Collective decisions with verified identity + physical presence.</div><a href="/groups?demo=true" style="font-family:var(--mono);font-size:11px;color:var(--purple);">View demo →</a></div>`;
+async function submitVote(voteType) {
+    const email = document.getElementById('voteEmail')?.value.trim();
+    if (!email) { alert('Enter email'); return; }
+    let loc = null;
+    if (currentGroup?.require_presence && navigator.geolocation) {
+        try { const p = await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000})); loc = {lat:p.coords.latitude,lng:p.coords.longitude}; } catch(e){}
+    }
+    try {
+        const d = await(await fetch(API+'/v1/groups/session/'+currentSession.session_id+'/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,vote:voteType,location:loc}) })).json();
+        if (d.session_id || d.status==='already_voted') await loadSession(currentSession.session_id);
+        else alert(d.detail||'Vote failed');
+    } catch(e) { alert(e.message); }
 }
-
-async function loadSession(id){try{const r=await fetch(`${API}/v1/groups/session/${id}`);const s=await r.json();const g=await(await fetch(`${API}/v1/groups/${s.group_id}`)).json();renderAll(g,s,{tree:{}});}catch(e){showDemo();}}
-async function loadGroup(id){try{const g=await(await fetch(`${API}/v1/groups/${id}`)).json();renderAll(g,{votes:[],present_members:[],status:'no session'},null);}catch(e){showDemo();}}
 
 init();
 </script>
