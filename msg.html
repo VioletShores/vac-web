@@ -258,6 +258,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="form-group">
             <label class="form-label">Recipient Email</label>
             <input class="form-input" id="composeRecipientEmail" type="email" placeholder="jason@launch.co">
+            <div id="contactsList" style="display:none;margin-top:6px;"></div>
         </div>
     </div>
     <div class="form-group">
@@ -285,7 +286,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <!-- Voice/video recording UI (hidden by default) -->
     <div id="mediaRecordSection" style="display:none;">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
-            <video id="msgVideoPreview" autoplay playsinline muted style="width:100%;border-radius:6px;max-height:320px;object-fit:cover;display:none;transform:scaleX(-1);"></video>
+            <video id="msgVideoPreview" autoplay playsinline muted style="width:100%;border-radius:6px;max-height:200px;object-fit:cover;display:none;transform:scaleX(-1);"></video>
             <div id="msgAudioViz" style="display:none;height:60px;display:flex;align-items:flex-end;justify-content:center;gap:3px;padding:8px 0;">
             </div>
             <div style="text-align:center;margin-top:10px;">
@@ -472,7 +473,42 @@ function init() {
         if (fromName) document.getElementById('composeSenderName').value = fromName;
         if (replyTo) document.getElementById('composeRecipientEmail').value = replyTo;
         if (toEmail) document.getElementById('composeRecipientEmail').value = toEmail;
+        // Load contacts for sender
+        if (fromEmail) fetchContacts(fromEmail);
     }
+}
+
+async function fetchContacts(senderEmail) {
+    if (!senderEmail) return;
+    try {
+        const resp = await fetch(`${API_BASE}/v1/user/${encodeURIComponent(senderEmail)}/contacts`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const contacts = data.contacts || [];
+        const listEl = document.getElementById('contactsList');
+        if (contacts.length === 0) { listEl.style.display = 'none'; return; }
+        
+        listEl.style.display = 'block';
+        listEl.innerHTML = '<div style="font-size:11px;color:#8B949E;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your Contacts</div>' +
+            contacts.map(c => {
+                const state = c.state || 'unknown';
+                const stateColor = state === 'mutual' ? '#3FB950' : state === 'vouched' ? '#D29922' : '#8B949E';
+                const stateIcon = state === 'mutual' ? '✓✓' : state === 'vouched' ? '✓' : '○';
+                const name = c.name || c.email;
+                return `<button onclick="selectContact('${c.email}', '${(c.name || '').replace(/'/g, "\\'")}');" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:#161B22;border:1px solid #30363D;border-radius:6px;margin-bottom:4px;cursor:pointer;color:#C9D1D9;font-size:13px;text-align:left;">
+                    <span style="color:${stateColor};font-size:12px;">${stateIcon}</span>
+                    <span style="flex:1;">${name}</span>
+                    <span style="font-size:11px;color:#6E7681;">${state}</span>
+                </button>`;
+            }).join('');
+    } catch (e) {
+        console.warn('Failed to load contacts:', e);
+    }
+}
+
+function selectContact(email, name) {
+    document.getElementById('composeRecipientEmail').value = email;
+    if (name) document.getElementById('composeRecipientName').value = name;
 }
 
 function showView(id) {
@@ -529,8 +565,18 @@ function renderMessage(msg) {
         subEl.style.display = 'block';
     }
 
-    // Body
-    document.getElementById('readBody').textContent = msg.content;
+    // Body — video playback + text content
+    const bodyEl = document.getElementById('readBody');
+    if (msg.message_type === 'video_clip' || msg.message_type === 'voice_note') {
+        const mediaEl = msg.message_type === 'video_clip'
+            ? `<video controls playsinline style="width:100%;max-height:400px;border-radius:8px;margin-bottom:12px;background:#000;" src="${API_BASE}/v1/msg/${msg.message_id}/video"></video>`
+            : `<audio controls style="width:100%;margin-bottom:12px;" src="${API_BASE}/v1/msg/${msg.message_id}/video"></audio>`;
+        // Extract text caption (after the media label line)
+        const lines = (msg.content || '').split('\n').filter(l => !l.startsWith('🎥') && !l.startsWith('🎙️')).join('\n').trim();
+        bodyEl.innerHTML = mediaEl + (lines ? `<div style="white-space:pre-wrap;margin-top:8px;">${lines}</div>` : '');
+    } else {
+        bodyEl.textContent = msg.content;
+    }
 
     // Meta
     const created = msg.created_at ? new Date(msg.created_at).toLocaleString() : '—';
@@ -630,6 +676,23 @@ async function sendMessage() {
         }
 
         sentResult = await resp.json();
+        
+        // Upload video/audio blob if recorded
+        if (hasRecording && sentResult.message_id) {
+            try {
+                btn.textContent = 'Uploading media…';
+                const blob = new Blob(msgChunks, { type: msgRecorder?.mimeType || 'video/webm' });
+                const formData = new FormData();
+                formData.append('video', blob, `${sentResult.message_id}.webm`);
+                await fetch(`${API_BASE}/v1/msg/${sentResult.message_id}/video`, {
+                    method: 'POST',
+                    body: formData,
+                });
+            } catch (uploadErr) {
+                console.warn('Video upload failed:', uploadErr);
+            }
+        }
+        
         showSent(sentResult);
     } catch (e) {
         errEl.textContent = e.message || 'Failed to send message.';
@@ -781,6 +844,19 @@ if (recipientEmailInput) {
         clearTimeout(_debounce);
         _debounce = setTimeout(checkTrustForProtection, 600);
     });
+}
+
+// Fetch contacts when sender email is entered
+const senderEmailInput = document.getElementById('composeSenderEmail');
+if (senderEmailInput) {
+    let _senderDebounce = null;
+    senderEmailInput.addEventListener('blur', () => {
+        clearTimeout(_senderDebounce);
+        const email = senderEmailInput.value.trim();
+        if (email && email.includes('@')) fetchContacts(email);
+    });
+    // Also fetch on load if pre-filled
+    if (senderEmailInput.value.trim()) fetchContacts(senderEmailInput.value.trim());
 }
 
 async function checkTrustForProtection() {
