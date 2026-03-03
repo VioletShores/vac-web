@@ -338,21 +338,33 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         Enable Camera & Microphone
     </button>
     <div id="cameraError" class="error-msg" style="display:none;"></div>
-    <div id="preRecordChecklist" style="display:none; margin-top: 10px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
-        <div style="font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Pre-Recording Check</div>
-        <div style="display: flex; flex-direction: column; gap: 4px;">
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer;">
-                <input type="checkbox" class="pre-check" style="width: 16px; height: 16px; accent-color: var(--purple);" onchange="checkReady()">
-                <span>I can see my face clearly</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer;">
-                <input type="checkbox" class="pre-check" style="width: 16px; height: 16px; accent-color: var(--purple);" onchange="checkReady()">
-                <span>Good lighting (no backlight)</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer;">
-                <input type="checkbox" class="pre-check" style="width: 16px; height: 16px; accent-color: var(--purple);" onchange="checkReady()">
-                <span>Quiet environment</span>
-            </label>
+    <div id="preRecordChecklist" style="display:none; margin-top: clamp(6px, 1vh, 10px);">
+        <!-- Audio level bar — overlaid on camera feed bottom -->
+        <div id="avAudioBar" style="display:none; margin-bottom: 6px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span id="avMicIcon" style="font-size: 14px;">🎤</span>
+                <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; overflow: hidden;">
+                    <div id="avAudioLevel" style="height: 100%; width: 0%; background: var(--success); border-radius: 4px; transition: width 75ms, background 150ms;"></div>
+                </div>
+                <span id="avAudioPct" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); min-width: 28px; text-align: right;">0%</span>
+            </div>
+            <div id="avMicStatus" style="font-size: 10px; color: var(--text-quaternary); margin-top: 3px;">Say something to test your microphone…</div>
+        </div>
+        <!-- Auto-check status rows -->
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: clamp(11px, 1.3vw, 12px);">
+                <span id="avFaceStatus" style="width: 16px; text-align: center;">⏳</span>
+                <span id="avFaceLabel" style="flex: 1; color: var(--text-secondary);">Detecting face…</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: clamp(11px, 1.3vw, 12px);">
+                <span id="avLightStatus" style="width: 16px; text-align: center;">⏳</span>
+                <span id="avLightLabel" style="flex: 1; color: var(--text-secondary);">Checking lighting…</span>
+                <span id="avLuxValue" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary);"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; font-size: clamp(11px, 1.3vw, 12px);">
+                <span id="avMicCheckStatus" style="width: 16px; text-align: center;">⏳</span>
+                <span id="avMicCheckLabel" style="flex: 1; color: var(--text-secondary);">Waiting for audio…</span>
+            </div>
         </div>
     </div>
     <div style="text-align: center; margin-top: 16px;">
@@ -683,9 +695,10 @@ async function requestCamera() {
         btn.textContent = 'Proceed to Challenge';
         btn.disabled = true;
         btn.onclick = goToChallenge;
-        // Show pre-recording checklist
+        // Show pre-recording checklist and start automated AV checks
         document.getElementById('preRecordChecklist').style.display = 'block';
-        checkReady();
+        document.getElementById('avAudioBar').style.display = 'block';
+        startAVChecks();
         // Fetch adaptive modality requirements
         fetchModalityRequirements();
     } catch (e) {
@@ -696,19 +709,138 @@ async function requestCamera() {
     }
 }
 
-// Pre-recording readiness check
-function checkReady() {
-    const checks = document.querySelectorAll('.pre-check');
-    const allChecked = Array.from(checks).every(c => c.checked);
-    const btn = document.getElementById('btnCamera');
-    if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready')) {
-        btn.disabled = !allChecked;
-        btn.textContent = allChecked ? 'Ready — Proceed to Challenge' : 'Proceed to Challenge';
+// --- Automated AV Checks (adapted from folioAI) ---
+let avCheckFrame = null;
+let avAudioCtx = null;
+let avAnalyser = null;
+let avChecks = { face: false, light: false, mic: false };
+
+function startAVChecks() {
+    // Set up audio analyser
+    try {
+        avAudioCtx = new AudioContext();
+        if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
+        avAnalyser = avAudioCtx.createAnalyser();
+        avAnalyser.fftSize = 256;
+        const source = avAudioCtx.createMediaStreamSource(mediaStream);
+        source.connect(avAnalyser);
+    } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
+
+    // Create hidden canvas for brightness analysis
+    const canvas = document.createElement('canvas');
+    canvas.width = 160; canvas.height = 90;
+    const ctx = canvas.getContext('2d');
+
+    function runAVFrame() {
+        const video = document.getElementById('cameraPreview');
+        if (!video || video.paused) { avCheckFrame = requestAnimationFrame(runAVFrame); return; }
+
+        // 1. Brightness check
+        try {
+            ctx.drawImage(video, 0, 0, 160, 90);
+            const imgData = ctx.getImageData(0, 0, 160, 90).data;
+            let totalBright = 0;
+            for (let i = 0; i < imgData.length; i += 16) {
+                totalBright += (0.299 * imgData[i] + 0.587 * imgData[i+1] + 0.114 * imgData[i+2]);
+            }
+            const avgBright = Math.round(totalBright / (imgData.length / 16));
+            document.getElementById('avLuxValue').textContent = avgBright;
+
+            if (avgBright < 50) {
+                setAVStatus('light', '✗', 'Too dark — add more light', 'var(--error)');
+                avChecks.light = false;
+            } else if (avgBright < 80) {
+                setAVStatus('light', '~', 'Could be brighter', 'var(--warning)');
+                avChecks.light = true; // Acceptable
+            } else if (avgBright > 220) {
+                setAVStatus('light', '~', 'Too bright — reduce backlight', 'var(--warning)');
+                avChecks.light = false;
+            } else {
+                setAVStatus('light', '✓', 'Lighting good', 'var(--success)');
+                avChecks.light = true;
+            }
+
+            // 2. Face detection (simple: check center region has skin-tone pixels)
+            const cx = 80, cy = 45, r = 20;
+            let skinPixels = 0, total = 0;
+            for (let y = cy - r; y < cy + r; y++) {
+                for (let x = cx - r; x < cx + r; x++) {
+                    const idx = (y * 160 + x) * 4;
+                    const red = imgData[idx], green = imgData[idx+1], blue = imgData[idx+2];
+                    // Simple skin-tone heuristic
+                    if (red > 80 && green > 40 && blue > 20 && red > green && (red - green) > 10) skinPixels++;
+                    total++;
+                }
+            }
+            const skinRatio = skinPixels / total;
+            if (skinRatio > 0.3) {
+                setAVStatus('face', '✓', 'Face detected', 'var(--success)');
+                avChecks.face = true;
+            } else {
+                setAVStatus('face', '⏳', 'Position face in oval', 'var(--text-quaternary)');
+                avChecks.face = false;
+            }
+        } catch (e) { /* canvas errors are non-fatal */ }
+
+        // 3. Audio level
+        if (avAnalyser) {
+            const dataArray = new Uint8Array(avAnalyser.fftSize);
+            avAnalyser.getByteTimeDomainData(dataArray);
+            let maxDev = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                const dev = Math.abs(dataArray[i] - 128);
+                if (dev > maxDev) maxDev = dev;
+            }
+            const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            const bar = document.getElementById('avAudioLevel');
+            const pct = document.getElementById('avAudioPct');
+            bar.style.width = level + '%';
+            pct.textContent = level + '%';
+            if (level > 80) { bar.style.background = 'var(--error)'; }
+            else if (level > 50) { bar.style.background = 'var(--warning)'; }
+            else if (level > 5) { bar.style.background = 'var(--success)'; }
+            else { bar.style.background = 'var(--text-quaternary)'; }
+
+            if (level > 5) {
+                setAVStatus('mic', '✓', 'Microphone working', 'var(--success)');
+                avChecks.mic = true;
+            }
+        }
+
+        // Update proceed button
+        updateAVReady();
+        avCheckFrame = requestAnimationFrame(runAVFrame);
     }
+    avCheckFrame = requestAnimationFrame(runAVFrame);
+}
+
+function setAVStatus(check, icon, label, color) {
+    const statusMap = { face: 'avFaceStatus', light: 'avLightStatus', mic: 'avMicCheckStatus' };
+    const labelMap = { face: 'avFaceLabel', light: 'avLightLabel', mic: 'avMicCheckLabel' };
+    const statusEl = document.getElementById(statusMap[check]);
+    const labelEl = document.getElementById(labelMap[check]);
+    if (statusEl) { statusEl.textContent = icon; statusEl.style.color = color; }
+    if (labelEl) { labelEl.textContent = label; }
+}
+
+function updateAVReady() {
+    const btn = document.getElementById('btnCamera');
+    const allGood = avChecks.face && avChecks.light && avChecks.mic;
+    if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready')) {
+        btn.disabled = !allGood;
+        btn.textContent = allGood ? 'Ready — Proceed to Challenge' : 'Proceed to Challenge';
+    }
+}
+
+function stopAVChecks() {
+    if (avCheckFrame) { cancelAnimationFrame(avCheckFrame); avCheckFrame = null; }
+    if (avAudioCtx) { avAudioCtx.close().catch(() => {}); avAudioCtx = null; }
+    avAnalyser = null;
 }
 
 // STEP 1 → 2: Challenge
 function goToChallenge() {
+    stopAVChecks(); // Clean up audio context and animation frame
     const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
     document.getElementById('challengeText').textContent = `"${phrase}"`;
     const recVid = document.getElementById('videoPreviewRec');
