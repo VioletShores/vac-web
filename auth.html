@@ -431,7 +431,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             </div>
             <div class="camera-challenge">
                 <div class="camera-challenge-text" id="challengeText">Loading challenge…</div>
-                <div class="camera-challenge-sub">Read this aloud while looking at the camera</div>
+                <div class="camera-challenge-sub">Look at the camera the whole time</div>
             </div>
         </div>
     </div>
@@ -1025,7 +1025,9 @@ function goToChallenge() {
     const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
     const digits = (fingerFallback === 'voice') ? [] : (challengeData?.digits || []);
     const digitStr = digits.join(', ');
-    document.getElementById('challengeText').innerHTML = `"${phrase}"<br><span style="font-size:12px;opacity:0.5;margin-top:6px;display:inline-block">Then show fingers: ${digitStr}</span>`;
+    var greetPart = phrase.replace(/,\s*\d[\d\s,]*$/, '');
+    var digitWords = digits.map(function(d) { return d; }).join(' then ');
+    document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers and say each number:<br><strong>' + digitWords + '</strong></span>';
     // Accessibility fallback link
     if (!document.getElementById('fingerFallback')) {
         const fb = document.createElement('div');
