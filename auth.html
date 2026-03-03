@@ -1830,6 +1830,10 @@ async function sendToRecipient() {
             fb.textContent = `Vouch request sent to ${email} ✓`;
             fb.style.color = 'var(--success)';
             fb.style.display = 'block';
+            btn.textContent = 'Sent ✓';
+            btn.style.opacity = '0.6';
+            btn.style.cursor = 'default';
+            return; // stay disabled
         } else {
             fb.textContent = data.detail || 'Failed to send — try again';
             fb.style.color = 'var(--error)';
