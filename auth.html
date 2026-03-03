@@ -802,12 +802,42 @@ function startAVChecks() {
     canvas.width = 160; canvas.height = 90;
     const ctx = canvas.getContext('2d');
 
+    let avLastCheck = 0;
+    let avFaceGoodCount = 0;
+
     function runAVFrame() {
         const video = document.getElementById('videoPreview');
         if (!video || video.paused || video.readyState < 2) { avCheckFrame = requestAnimationFrame(runAVFrame); return; }
 
-        // Ensure AudioContext is running (Chrome suspends until user gesture)
-        if (avAudioCtx && avAudioCtx.state === 'suspended') avAudioCtx.resume();
+        // Audio bar runs every frame for smooth real-time feel
+        if (avAnalyser) {
+            if (avAudioCtx && avAudioCtx.state === 'suspended') avAudioCtx.resume();
+            const dataArray = new Uint8Array(avAnalyser.fftSize);
+            avAnalyser.getByteTimeDomainData(dataArray);
+            let maxDev = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                const dev = Math.abs(dataArray[i] - 128);
+                if (dev > maxDev) maxDev = dev;
+            }
+            const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            const bar = document.getElementById('avAudioLevel');
+            const pct = document.getElementById('avAudioPct');
+            bar.style.width = level + '%';
+            pct.textContent = level + '%';
+            if (level > 80) { bar.style.background = 'var(--error)'; }
+            else if (level > 50) { bar.style.background = 'var(--warning)'; }
+            else if (level > 5) { bar.style.background = 'var(--success)'; }
+            else { bar.style.background = 'var(--text-quaternary)'; }
+            if (level > 5 && !avChecks.mic) {
+                setAVStatus('mic', 'good', 'Mic: working');
+                avChecks.mic = true;
+            }
+        }
+
+        // Face + light checks throttled to ~4fps — prevents jitter
+        const now = performance.now();
+        if (now - avLastCheck >= 250) {
+            avLastCheck = now;
 
         // 1. Brightness check
         try {
@@ -865,43 +895,22 @@ function startAVChecks() {
             const motionRatio = ovalPixels > 0 ? motionPixels / ovalPixels : 0;
             // Face = edges (features) + motion (alive). Need both.
             const hasFaceEdges = edgeRatio > 0.12;
-            const hasMotion = motionRatio > 0.02; // even slight head movement triggers this
+            const hasMotion = motionRatio > 0.02;
             if (hasFaceEdges && hasMotion) {
-                setAVStatus('face', 'good', 'Face: detected');
-                avChecks.face = true;
-            } else if (hasFaceEdges && !hasMotion) {
-                setAVStatus('face', 'checking', 'Face: hold still but stay natural');
-                avChecks.face = false;
+                avFaceGoodCount = Math.min(avFaceGoodCount + 1, 5);
             } else {
+                avFaceGoodCount = Math.max(avFaceGoodCount - 1, 0);
+            }
+            // Sticky: need 2+ good frames to confirm, drop below 1 to lose
+            if (avFaceGoodCount >= 2) {
+                if (!avChecks.face) setAVStatus('face', 'good', 'Face: detected');
+                avChecks.face = true;
+            } else if (avFaceGoodCount === 0) {
                 setAVStatus('face', 'checking', 'Face: position in oval');
                 avChecks.face = false;
             }
         } catch (e) { /* canvas errors are non-fatal */ }
-
-        // 3. Audio level
-        if (avAnalyser) {
-            const dataArray = new Uint8Array(avAnalyser.fftSize);
-            avAnalyser.getByteTimeDomainData(dataArray);
-            let maxDev = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-                const dev = Math.abs(dataArray[i] - 128);
-                if (dev > maxDev) maxDev = dev;
-            }
-            const level = Math.min(100, Math.round((maxDev / 128) * 100));
-            const bar = document.getElementById('avAudioLevel');
-            const pct = document.getElementById('avAudioPct');
-            bar.style.width = level + '%';
-            pct.textContent = level + '%';
-            if (level > 80) { bar.style.background = 'var(--error)'; }
-            else if (level > 50) { bar.style.background = 'var(--warning)'; }
-            else if (level > 5) { bar.style.background = 'var(--success)'; }
-            else { bar.style.background = 'var(--text-quaternary)'; }
-
-            if (level > 5) {
-                setAVStatus('mic', 'good', 'Mic: working');
-                avChecks.mic = true;
-            }
-        }
+        } // end throttle block
 
         // Update proceed button
         updateAVReady();
