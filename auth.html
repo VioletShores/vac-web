@@ -1713,29 +1713,23 @@ function showSuccess() {
     modEl.innerHTML += '<div style="text-align:center;padding:10px 0 0;font-size:10px;color:var(--text-quaternary)">Powered by Gemini + Deepgram</div>';
 
     // proof section removed
-    // Chain display
-    const chainEl = document.getElementById('chainDisplay');
-    const nodes = (r.chain || []).map((c, i) => ({
-        icon: i === 0 ? '👤' : '🤖',
-        cls: i === 0 ? 'human' : 'agent',
-        name: c.agent,
-        scope: i === 0 ? 'Root authority · 5 resources · 5 actions' : i === 1 ? '2 resources · read, summarise' : '1 resource · read only',
-        trust: c.trust,
-    }));
-    chainEl.innerHTML = nodes.map((n, i) => {
-        const arrow = i < nodes.length - 1 ? '<div class="chain-arrow">↓ delegates (scope narrows)</div>' : '';
-        const trustCls = n.trust >= 0.9 ? 'high' : 'mid';
-        return `
-            <div class="chain-node-result">
-                <div class="chain-icon ${n.cls}">${n.icon}</div>
-                <div class="chain-info">
-                    <div class="chain-agent-name">${n.name}</div>
-                    <div class="chain-scope">${n.scope}</div>
-                </div>
-                <div class="chain-trust ${trustCls}">${n.trust.toFixed(2)}</div>
-            </div>
-            ${arrow}`;
-    }).join('');
+    // Chain display — state-aware: only show real data
+    var chainEl = document.getElementById('chainDisplay');
+    var realChain = (r.chain || []).filter(function(c) { return c.agent; });
+    var humanNode = realChain.length > 0 ? realChain[0] : { agent: d.name, trust: bio.overall_score };
+    var agentNodes = realChain.slice(1);
+    var trustCls = humanNode.trust >= 0.8 ? 'high' : 'mid';
+    var html = '<div class="chain-node-result"><div class="chain-icon human">\ud83d\udc64</div><div class="chain-info"><div class="chain-agent-name">' + humanNode.agent + '</div><div class="chain-scope">Root authority \u00b7 Verified human</div></div><div class="chain-trust ' + trustCls + '">' + humanNode.trust.toFixed(2) + '</div></div>';
+    if (agentNodes.length > 0) {
+        agentNodes.forEach(function(a) {
+            html += '<div class="chain-arrow">\u2193 delegates (scope narrows)</div>';
+            html += '<div class="chain-node-result"><div class="chain-icon agent">\ud83e\udd16</div><div class="chain-info"><div class="chain-agent-name">' + a.agent + '</div><div class="chain-scope">' + (a.scope || 'Delegated agent') + '</div></div><div class="chain-trust mid">' + a.trust.toFixed(2) + '</div></div>';
+        });
+    } else {
+        html += '<div class="chain-arrow" style="opacity:0.3">\u2193 delegates (scope narrows)</div>';
+        html += '<div class="chain-node-result" style="opacity:0.25;border-style:dashed"><div class="chain-icon agent">\ud83e\udd16</div><div class="chain-info"><div class="chain-agent-name" style="color:var(--text-quaternary)">No agents delegated yet</div><div class="chain-scope">Delegate an AI agent to act on your behalf with scoped permissions</div></div></div>';
+    }
+    chainEl.innerHTML = html;
 
     // Share URL
     document.getElementById('shareUrl').textContent = r.share_url;
