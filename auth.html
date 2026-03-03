@@ -1254,8 +1254,13 @@ async function runRealVerification(videoBlob) {
         });
 
         if (!resp.ok) {
-            const errText = await resp.text();
-            throw new Error(`Server error ${resp.status}: ${errText.substring(0, 200)}`);
+            var errText = await resp.text();
+            var errDetail = '';
+            try {
+                var errJson = JSON.parse(errText);
+                errDetail = errJson.detail || errJson.message || errText;
+            } catch(x) { errDetail = errText; }
+            throw new Error('Server error ' + resp.status + ': ' + errDetail.substring(0, 300));
         }
 
         authResult = await resp.json();
@@ -1313,11 +1318,20 @@ async function runRealVerification(videoBlob) {
             msg = 'Your challenge expired or the server restarted. Not your fault.';
             tip = 'Tap Retry for a fresh challenge. This usually resolves on retry.';
         } else if (msg.indexOf('400') >= 0) {
-            msg = 'The server could not process your recording. This can happen with very short or silent recordings.';
-            tip = 'Speak clearly and hold your fingers up near your face. Tap Retry to try again.';
-        } else if (msg.indexOf('500') >= 0 || msg.indexOf('502') >= 0 || msg.indexOf('503') >= 0) {
-            msg = 'Our verification servers are temporarily busy. This is not your fault.';
-            tip = 'Wait a few seconds and tap Retry. If it keeps happening, try again in a minute.';
+        } else if (msg.indexOf("Liveness") >= 0 || msg.indexOf("live person") >= 0) {
+            msg = "Face liveness check did not pass. Make sure your face is clearly visible.";
+            tip = "Look directly at the camera in good lighting. Avoid shadows.";
+        } else if (msg.indexOf("authenticity") >= 0) {
+            msg = "Video authenticity check did not pass.";
+            tip = "Try again in better lighting with a clearer camera angle.";
+        } else if (msg.indexOf("Challenge verification") >= 0) {
+            msg = "Could not match what you said to the challenge phrase.";
+            tip = "Speak each word and number slowly and clearly. Tap Retry.";
+        } else if (msg.indexOf("400") >= 0) {
+            msg = "The server could not process your recording.";
+            tip = "Speak clearly, keep face and fingers visible. Tap Retry.";
+        } else if (msg.indexOf("500")>=0) {
+            msg="Servers temporarily busy.";tip="Wait and tap Retry.";
         } else {
             msg = "Something went wrong during verification.";
             tip = "Tap Retry to try again. Speak clearly and keep your face and fingers visible.";
