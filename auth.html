@@ -817,19 +817,19 @@ function startAVChecks() {
                 totalBright += (0.299 * imgData[i] + 0.587 * imgData[i+1] + 0.114 * imgData[i+2]);
             }
             const avgBright = Math.round(totalBright / (imgData.length / 16));
-            document.getElementById('avLuxValue').textContent = avgBright;
+            document.getElementById('avLuxValue').textContent = '(' + avgBright + ')';
 
             if (avgBright < 50) {
-                setAVStatus('light', 'bad', 'Too dark');
+                setAVStatus('light', 'bad', 'Light: too dark');
                 avChecks.light = false;
             } else if (avgBright < 80) {
-                setAVStatus('light', 'warn', 'Dim');
+                setAVStatus('light', 'warn', 'Light: dim');
                 avChecks.light = true; // Acceptable
             } else if (avgBright > 220) {
-                setAVStatus('light', 'warn', 'Bright');
+                setAVStatus('light', 'warn', 'Light: too bright');
                 avChecks.light = false;
             } else {
-                setAVStatus('light', 'good', 'Good');
+                setAVStatus('light', 'good', 'Light: good');
                 avChecks.light = true;
             }
 
@@ -847,10 +847,10 @@ function startAVChecks() {
             }
             const skinRatio = skinPixels / total;
             if (skinRatio > 0.3) {
-                setAVStatus('face', 'good', 'Detected');
+                setAVStatus('face', 'good', 'Face: detected');
                 avChecks.face = true;
             } else {
-                setAVStatus('face', 'checking', 'Scanning');
+                setAVStatus('face', 'checking', 'Face: scanning…');
                 avChecks.face = false;
             }
         } catch (e) { /* canvas errors are non-fatal */ }
@@ -875,7 +875,7 @@ function startAVChecks() {
             else { bar.style.background = 'var(--text-quaternary)'; }
 
             if (level > 5) {
-                setAVStatus('mic', 'good', 'Working');
+                setAVStatus('mic', 'good', 'Mic: working');
                 avChecks.mic = true;
             }
         }
