@@ -619,13 +619,27 @@ function renderMessage(msg) {
         chainEl.innerHTML = msg.sender_chain.map((c, i) => {
             const cls = i === 0 ? 'human' : 'agent';
             const icon = i === 0 ? '👤' : '🤖';
+            // Handle both flat format {agent, trust} and nested {claims: {sub, vac_trust_score}}
+            const claims = c.claims || c;
+            const name = c.agent || c.name || claims.email || (claims.sub || '').replace('agent:', '') || msg.sender_name || 'Unknown';
+            const trust = c.trust ?? claims.vac_trust_score ?? msg.sender_trust_score ?? 0;
             return `
                 <div class="chain-node">
                     <div class="chain-node-icon ${cls}">${icon}</div>
-                    <div class="chain-node-name">${c.agent || c.name || 'Unknown'}</div>
-                    <div class="chain-node-score">${(c.trust || 0).toFixed(2)}</div>
+                    <div class="chain-node-name">${name}</div>
+                    <div class="chain-node-score">${Number(trust).toFixed(2)}</div>
                 </div>`;
         }).join('');
+        document.getElementById('chainSection').style.display = 'block';
+    } else if (msg.sender_currently_verified || msg.sender_trust_score > 0) {
+        // No chain in memory but sender was verified — show minimal chain
+        const chainEl = document.getElementById('chainNodes');
+        chainEl.innerHTML = `
+            <div class="chain-node">
+                <div class="chain-node-icon human">👤</div>
+                <div class="chain-node-name">${msg.sender_name || msg.sender_email}</div>
+                <div class="chain-node-score">${(msg.sender_trust_score || 0).toFixed(2)}</div>
+            </div>`;
         document.getElementById('chainSection').style.display = 'block';
     }
 
