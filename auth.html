@@ -1362,7 +1362,7 @@ function updateModality(elId, status, score, modName, detail) {
         if (!existing) {
             var detDiv = document.createElement('div');
             detDiv.className = 'mod-detail-expand';
-            detDiv.style.cssText = 'font-size:11px;color:var(--text-quaternary);padding:4px 0 6px 24px;line-height:1.5;font-family:var(--mono);display:none';
+            detDiv.style.cssText = 'width:100%;font-size:11px;color:var(--text-quaternary);padding:4px 0 6px 24px;line-height:1.5;font-family:var(--mono);display:none';
             el.appendChild(detDiv);
             el.style.cursor = 'pointer';
             el.onclick = function(){var d=this.querySelector('.mod-detail-expand');if(d)d.style.display=d.style.display==='none'?'block':'none';};
