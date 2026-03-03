@@ -545,10 +545,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </div>
     </div>
 
-    <!-- Primary CTA: Share -->
-    
+    <!-- Proof section -->
+    <details id="authProofDetails" style="margin:10px 0">
+        <summary style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);cursor:pointer;letter-spacing:1px">HOW WE AUTHENTICATED YOU</summary>
+        <div id="proofContent" style="font-size:12px;color:var(--text-secondary);line-height:1.8;margin-top:8px;padding:8px 12px;background:var(--surface);border-radius:8px">Loading...</div>
+    </details>
 
     <!-- Share card -->
+    <!-- Share card div below -->
     <div class="share-card" style="border-color:var(--teal);border-width:1.5px">
         <div style="font-family: var(--mono); font-size: 13px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; font-weight: 600;">Share your proof</div>
         <div class="share-url" id="shareUrl" onclick="copyShareUrl()"></div>
@@ -1312,9 +1316,9 @@ async function runRealVerification(videoBlob) {
         clearInterval(progressTimer);
         var msg = e.message || 'Network error';
         var tip = '';
-        if (msg.indexOf('expired challenge') >= 0 || msg.indexOf('Invalid or expired') >= 0) {
-            msg = 'Your challenge timed out. This happens if you wait too long before recording.';
-            tip = 'Tap Retry below to get a fresh challenge. Start recording within a minute of seeing your challenge phrase.';
+        if (msg.indexOf('expired challenge') >= 0 || msg.indexOf('Invalid or expired') >= 0 || msg.indexOf('Challenge not found') >= 0) {
+            msg = 'Your challenge expired or the server restarted. Not your fault.';
+            tip = 'Tap Retry for a fresh challenge. It will work on the next attempt.';
         } else if (msg.indexOf('400') >= 0) {
             msg = 'The server could not process your recording. This can happen with very short or silent recordings.';
             tip = 'Speak clearly and hold your fingers up near your face. Tap Retry to try again.';
@@ -1664,6 +1668,30 @@ function showSuccess() {
             '<span>' + icon + '</span><span style="flex:1;color:var(--text-secondary)">' + name + '</span><span style="font-family:var(--mono);font-size:12px;color:var(--teal)">' + pct + '</span></summary>' +
             '<div style="font-size:12px;color:var(--text-tertiary);line-height:1.6;padding:4px 0 8px 28px">' + desc + extraInfo + '</div></details>';
     }).join('');
+
+    // Populate proof section
+    var proofEl = document.getElementById('proofContent');
+    if (proofEl && mods.length > 0) {
+        var p = '';
+        for (var mi = 0; mi < mods.length; mi++) {
+            var m = mods[mi];
+            var icon = m.score >= 0.5 ? '✅' : '❌';
+            var name = modNames[m.name] || m.name.replace(/_/g, ' ');
+            var pct = m.score ? (m.score * 100).toFixed(0) + '%' : '--';
+            p += icon + ' <strong>' + name + ':</strong> ' + pct + '<br>';
+        }
+        if (r.challenge && r.challenge.transcript) {
+            p += '<br><strong>What we heard:</strong> “' + r.challenge.transcript + '”<br>';
+            p += '<strong>What we expected:</strong> “' + r.challenge.phrase + '”<br>';
+        }
+        if (r.biometric_verification && r.biometric_verification.raw_results && r.biometric_verification.raw_results.finger_gesture) {
+            var fg = r.biometric_verification.raw_results.finger_gesture;
+            if (fg.digits_seen) p += '<strong>Fingers seen:</strong> ' + JSON.stringify(fg.digits_seen) + ' (expected: ' + JSON.stringify(fg.digits_expected) + ')<br>';
+            if (fg.digit_timestamps && fg.digit_timestamps.length) p += '<strong>Timestamps:</strong> ' + fg.digit_timestamps.map(function(t,i){ return fg.digits_seen[i] + ' fingers @ ' + t.toFixed(1) + 's'; }).join(', ') + '<br>';
+        }
+        p += '<br><em style="font-size:11px;opacity:0.5">Engines: Gemini (vision) + Deepgram (audio)</em>';
+        proofEl.innerHTML = p;
+    }
 
 
     // Transcript display
