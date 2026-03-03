@@ -274,7 +274,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </svg>
         <div class="nav-wordmark">VAC <span>VERIFY</span></div>
     </a>
-    <div class="nav-mode">AUTHENTICATE</div>
+    <div style="display:flex;align-items:center;gap:10px"><a href="javascript:openDashboard()" id="navDashboard" style="display:none;font-family:var(--mono);font-size:10px;color:var(--text-tertiary);text-decoration:none;letter-spacing:0.5px">DASHBOARD</a><div class="nav-mode">AUTHENTICATE</div></div>
 </div>
 </div>
 
@@ -595,7 +595,6 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </details>
     </div>
 
-    <div style="text-align:center;margin-top:16px"><a href="javascript:openDashboard()" style="font-family:var(--mono);font-size:11px;color:var(--text-quaternary);text-decoration:none">My Dashboard &rarr;</a></div>
     <div class="footer-tagline">Math so neither party has to rely on trust alone.</div>
 </div>
 
@@ -1606,6 +1605,7 @@ async function retryVerification() {
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
+    try{document.getElementById("navDashboard").style.display="inline";}catch(x){}
     const r = authResult;
     const bio = r.biometric_verification;
 
