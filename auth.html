@@ -833,22 +833,35 @@ function startAVChecks() {
                 avChecks.light = true;
             }
 
-            // 2. Face detection (simple: check center region has skin-tone pixels)
-            const cx = 80, cy = 45, r = 20;
-            let skinPixels = 0, total = 0;
-            for (let y = cy - r; y < cy + r; y++) {
-                for (let x = cx - r; x < cx + r; x++) {
+            // 2. Face detection — scan full frame for skin, measure cluster size + position
+            let skinPixels = 0, skinXsum = 0, skinYsum = 0, totalPixels = 0;
+            for (let y = 10; y < 80; y += 2) {
+                for (let x = 20; x < 140; x += 2) {
                     const idx = (y * 160 + x) * 4;
                     const red = imgData[idx], green = imgData[idx+1], blue = imgData[idx+2];
-                    // Simple skin-tone heuristic
-                    if (red > 80 && green > 40 && blue > 20 && red > green && (red - green) > 10) skinPixels++;
-                    total++;
+                    totalPixels++;
+                    if (red > 80 && green > 40 && blue > 20 && red > green && (red - green) > 10) {
+                        skinPixels++;
+                        skinXsum += x;
+                        skinYsum += y;
+                    }
                 }
             }
-            const skinRatio = skinPixels / total;
-            if (skinRatio > 0.3) {
-                setAVStatus('face', 'good', 'Face: detected');
-                avChecks.face = true;
+            const skinRatio = skinPixels / totalPixels;
+            if (skinRatio > 0.15) {
+                const avgX = skinXsum / skinPixels; // center = 80
+                const avgY = skinYsum / skinPixels; // center = 45
+                // Size check: skin should fill ~20-60% of sampled area for good framing
+                if (skinRatio < 0.20) {
+                    setAVStatus('face', 'warn', 'Face: move closer');
+                    avChecks.face = false;
+                } else if (skinRatio > 0.65) {
+                    setAVStatus('face', 'warn', 'Face: too close');
+                    avChecks.face = true; // still usable
+                } else {
+                    setAVStatus('face', 'good', 'Face: detected');
+                    avChecks.face = true;
+                }
             } else {
                 setAVStatus('face', 'checking', 'Face: scanning…');
                 avChecks.face = false;
