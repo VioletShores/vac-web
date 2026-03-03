@@ -1580,12 +1580,17 @@ async function fetchModalityRequirements() {
         const policy = data.modality_policy;
         if (!policy) return;
 
-        // Show adaptive bar
+        // Show adaptive bar ONLY when trust graph actually reduces requirements
+        // First auth = no trust data = full verification = don't show confusing "3 of 6" message
         const bar = document.getElementById('adaptiveAuthBar');
         const lvl = policy.label.toLowerCase();
-        bar.className = `adaptive-auth-bar ${lvl}`;
-        bar.textContent = `${policy.label}: ${policy.total_required} of ${policy.total_available} modalities required`;
-        bar.style.display = 'block';
+        if (policy.total_required < policy.total_available && data.trust_relationship?.total_vouches > 0) {
+            bar.className = `adaptive-auth-bar ${lvl}`;
+            bar.textContent = `${policy.label}: ${policy.total_required} of ${policy.total_available} modalities required`;
+            bar.style.display = 'block';
+        } else {
+            bar.style.display = 'none';
+        }
 
         // Update chips: dim optional/can-skip
         const chips = document.querySelectorAll('#modalityChips .mod-chip');
