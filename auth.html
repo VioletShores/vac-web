@@ -1319,8 +1319,8 @@ async function runRealVerification(videoBlob) {
             msg = 'Our verification servers are temporarily busy. This is not your fault.';
             tip = 'Wait a few seconds and tap Retry. If it keeps happening, try again in a minute.';
         } else {
-            msg = "Something went wrong — most likely your challenge timed out.";
-            tip = "Tap Retry for a fresh challenge. Press Start and complete the recording promptly.";
+            msg = "Something went wrong during verification.";
+            tip = "Tap Retry to try again. Speak clearly and keep your face and fingers visible.";
         }
         stepEl.textContent = 'Verification error';
         detailEl.textContent = msg;
@@ -1330,7 +1330,7 @@ async function runRealVerification(videoBlob) {
         retryEl.style.display = 'block';
         document.getElementById("failReasons").parentElement.style.display="none";
         document.getElementById('retryTipsList').textContent = tip;
-        try{document.getElementById("modalityToggle").style.display="none";document.getElementById("engineToggle").style.display="none";}catch(x){}
+        try{document.getElementById("modalityToggle").style.display="none";document.getElementById("underHoodContainer").style.display="none";}catch(x){}
         retryAttempts++;
         document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
         if (retryAttempts >= MAX_RETRIES) {
