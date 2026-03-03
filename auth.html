@@ -1605,7 +1605,7 @@ async function retryVerification() {
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
-    try{document.getElementById("navDashboard").style.display="inline";}catch(x){}
+    // Dashboard hidden until vouch flow exists
     const r = authResult;
     const bio = r.biometric_verification;
 
