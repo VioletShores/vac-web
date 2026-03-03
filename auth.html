@@ -489,7 +489,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </div>
     </div>
     <!-- Under the Hood — engine analysis details -->
-    <div class="modality-results" id="underHoodContainer" style="margin-top: clamp(8px, 1vh, 12px);">
+    <div class="modality-results" id="underHoodContainer" style="display:none;margin-top: clamp(8px, 1vh, 12px);">
         <div class="modality-toggle" onclick="toggleUnderHood()">
             <span class="toggle-label">Under the Hood</span>
             <span class="toggle-summary" id="hoodSummary" style="color: var(--text-tertiary);">Gemini + Deepgram</span>
@@ -529,14 +529,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
     <!-- Identity card — compact -->
     <div class="chain-result" style="text-align: center;">
-        <svg width="40" height="40" viewBox="0 0 100 100" style="margin-bottom: 12px;" id="successIcon">
+        <svg width="40" height="40" viewBox="0 0 100 100" style="margin-bottom: 6px;" id="successIcon">
             <polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#3FB950" stroke-width="4"/>
             <polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#3FB950" fill-opacity="0.1" stroke="#3FB950" stroke-width="2"/>
             <path d="M35 50 L45 60 L65 40" fill="none" stroke="#3FB950" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <div style="font-size: 20px; font-weight: 700; color: var(--text-primary);" id="successName"></div>
-        <div style="font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); margin-top: 4px;" id="successOrg"></div>
-        <div style="font-family: var(--mono); font-size: 13px; color: var(--teal); margin-top: 8px;" id="successScore"></div>
+        <div style="font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); margin-top: 2px;" id="successOrg"></div>
+        <div style="font-family: var(--mono); font-size: 13px; color: var(--teal); margin-top: 4px;" id="successScore"></div>
         <div style="margin-top: 12px;">
             <button onclick="document.getElementById('successModalities').classList.toggle('open');this.querySelector('.dd-arrow').classList.toggle('open')" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--text-tertiary);font-family:var(--mono);font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color 0.2s">
                 View modalities <span class="dd-arrow" style="display:inline-block;transition:transform 0.2s;font-size:8px">&#9660;</span>
@@ -546,10 +546,6 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     </div>
 
     <!-- Proof section -->
-    <details id="authProofDetails" style="margin:10px 0">
-        <summary style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);cursor:pointer;letter-spacing:1px">HOW WE AUTHENTICATED YOU</summary>
-        <div id="proofContent" style="font-size:12px;color:var(--text-secondary);line-height:1.8;margin-top:8px;padding:8px 12px;background:var(--surface);border-radius:8px">Loading...</div>
-    </details>
 
     <!-- Share card -->
     <!-- Share card div below -->
@@ -1293,7 +1289,7 @@ async function runRealVerification(videoBlob) {
 
         // Final state
         ring.style.strokeDashoffset = 0;
-        const passed = authResult.authenticated; console.log("AUTH RESULT:", JSON.stringify(authResult).substring(0,500)); console.log("passed:", passed);
+        const passed = authResult.authenticated;
         // Populate Under the Hood with engine data
         try{populateUnderHood(authResult);}catch(uhErr){console.error("Under hood error:",uhErr);}
 
@@ -1675,9 +1671,10 @@ function showSuccess() {
             '<span>' + icon + '</span><span style="flex:1;color:var(--text-secondary)">' + name + '</span><span style="font-family:var(--mono);font-size:12px;color:var(--teal)">' + pct + '</span><span style="font-size:8px;color:var(--text-quaternary);transition:transform 0.2s">▼</span></summary>' +
             '<div style="font-size:12px;color:var(--text-tertiary);line-height:1.6;padding:4px 0 8px 28px">' + desc + extraInfo + '</div></details>';
     }).join('');
+    modEl.innerHTML += '<div style="text-align:center;padding:8px 0 0;font-size:10px;color:var(--text-quaternary)">Powered by Gemini + Deepgram</div>';
 
     // Populate proof section
-    var proofEl = document.getElementById('proofContent');
+    // proof section removed
     if (proofEl && mods.length > 0) {
         var p = '';
         for (var mi = 0; mi < mods.length; mi++) {
