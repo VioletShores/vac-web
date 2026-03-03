@@ -172,6 +172,12 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
 /* Success chain display */
 .chain-result { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+
+/* Under the Hood engine detail */
+.hood-section { margin-bottom: clamp(6px, 1vh, 10px); }
+.hood-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 3px; }
+.hood-value { color: var(--text-primary); word-break: break-word; }
+.hood-provider { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 4px; background: rgba(139,92,246,0.15); color: var(--accent); margin-left: 6px; }
 .chain-node-result { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
 .chain-node-result + .chain-node-result { border-top: 1px solid var(--border); }
 .chain-depth { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); width: 16px; text-align: center; }
@@ -435,6 +441,20 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="mod-result" id="modChallenge"><span class="mod-status">⏳</span><span class="mod-name">Challenge Response</span><span class="mod-score pending">—</span></div>
         </div>
     </div>
+    <!-- Under the Hood — engine analysis details -->
+    <div class="modality-results" id="underHoodContainer" style="margin-top: clamp(8px, 1vh, 12px);">
+        <div class="modality-toggle" onclick="toggleUnderHood()">
+            <span class="toggle-label">Under the Hood</span>
+            <span class="toggle-summary" id="hoodSummary" style="color: var(--text-tertiary);">Gemini + Deepgram</span>
+            <span class="toggle-arrow" id="hoodArrow">▼</span>
+        </div>
+        <div class="modality-list" id="underHoodList">
+            <div id="hoodContent" style="padding: clamp(8px, 1vh, 12px) 0; font-size: clamp(11px, 1.2vw, 12px); font-family: var(--mono); color: var(--text-secondary); line-height: 1.6;">
+                <div style="color: var(--text-quaternary); margin-bottom: 6px;">Loading engine data…</div>
+            </div>
+        </div>
+    </div>
+
     <div id="retrySection" style="display:none; margin-top: 20px;">
         <div id="failReasonCard" style="background: var(--error-bg); border: 1px solid var(--error-border); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px;">
             <div style="font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--error); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Why it failed</div>
@@ -862,6 +882,9 @@ async function runRealVerification(videoBlob) {
         // Final state
         ring.style.strokeDashoffset = 0;
         const passed = authResult.authenticated;
+        // Populate Under the Hood with engine data
+        populateUnderHood(authResult);
+
         if (passed) {
             stepEl.textContent = 'Identity verified ✓';
             ring.style.stroke = 'var(--success)';
@@ -952,6 +975,81 @@ function updateModalitySummary() {
         summary.textContent = `${passed}/5 passed`;
         summary.className = 'toggle-summary';
     }
+}
+
+function toggleUnderHood() {
+    const arrow = document.getElementById('hoodArrow');
+    const list = document.getElementById('underHoodList');
+    const isOpen = list.classList.contains('open');
+    list.classList.toggle('open');
+    arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+function populateUnderHood(authData) {
+    const bio = authData.biometric_verification;
+    const mods = bio?.modalities || [];
+    const el = document.getElementById('hoodContent');
+    if (!el) return;
+
+    let html = '';
+
+    const face = mods.find(m => m.name === 'face_liveness');
+    const df = mods.find(m => m.name === 'deepfake_detection');
+    const ls = mods.find(m => m.name === 'lip_sync');
+
+    if (face?.provider === 'gemini' || df?.provider === 'gemini') {
+        html += `<div class="hood-section"><div class="hood-label">Gemini 2.5 Flash — Vision Analysis <span class="hood-provider">gemini</span></div>`;
+        if (face?.detail?.person_description) {
+            html += `<div class="hood-value">"${face.detail.person_description}"</div>`;
+        }
+        html += `<div class="hood-value" style="color: var(--text-tertiary); font-size: 10px;">`;
+        html += `Face: ${face?.detail?.face_detected ? '✓ detected' : '✗'} · Blink: ${face?.detail?.blink_detected ? '✓' : '—'}`;
+        if (df?.detail) {
+            const dfLikelihood = typeof df.detail.deepfake_likelihood === 'number' ? (df.detail.deepfake_likelihood * 100).toFixed(0) : '0';
+            html += ` · Deepfake: ${dfLikelihood}% likelihood`;
+            if (df.detail.artifacts?.length > 0) html += ` (${df.detail.artifacts.join(', ')})`;
+        }
+        html += `</div>`;
+        if (ls?.detail?.visual_speech?.estimated_words) {
+            html += `<div class="hood-value" style="margin-top: 4px;">Lip reading: "${ls.detail.visual_speech.estimated_words}"</div>`;
+        }
+        html += `</div>`;
+    }
+
+    const voice = mods.find(m => m.name === 'voiceprint');
+    const challenge = mods.find(m => m.name === 'challenge_response');
+
+    if (voice?.provider === 'deepgram_nova3') {
+        html += `<div class="hood-section"><div class="hood-label">Deepgram Nova-3 — Speech Analysis <span class="hood-provider">deepgram</span></div>`;
+        if (voice.detail?.transcript) {
+            html += `<div class="hood-value">Heard: "${voice.detail.transcript}"</div>`;
+        }
+        html += `<div class="hood-value" style="color: var(--text-tertiary); font-size: 10px;">`;
+        html += `Confidence: ${(voice.score * 100).toFixed(0)}% · Words: ${voice.detail?.word_count || 0}`;
+        if (challenge) {
+            html += ` · Match: ${(challenge.score * 100).toFixed(0)}%`;
+        }
+        html += `</div>`;
+        if (challenge?.detail?.expected) {
+            html += `<div class="hood-value" style="margin-top: 4px; font-size: 10px; color: var(--text-quaternary);">Expected: "${challenge.detail.expected}"</div>`;
+        }
+        html += `</div>`;
+    }
+
+    if (bio?.trust_breakdown) {
+        html += `<div class="hood-section"><div class="hood-label">Trust Score Breakdown</div>`;
+        html += `<div class="hood-value" style="font-size: 10px;">`;
+        const parts = Object.entries(bio.trust_breakdown).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'number' ? v.toFixed(2) : v}`);
+        html += parts.join(' · ');
+        html += `</div></div>`;
+    }
+
+    html += `<div class="hood-section" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">`;
+    html += `<div style="font-size: 10px; color: var(--text-quaternary);">Biometric engines shared with <a href="https://folioai.com" target="_blank" style="color: var(--accent); text-decoration: none;">FolioAI</a> — AI video reflection for founders.</div>`;
+    html += `</div>`;
+
+    el.innerHTML = html || '<div style="color: var(--text-quaternary);">No engine data available.</div>';
+    document.getElementById('hoodSummary').textContent = bio?.method?.includes('real') ? 'Gemini + Deepgram' : 'Simulated';
 }
 
 // Show retry with specific fail reasons
