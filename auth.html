@@ -1293,9 +1293,9 @@ async function runRealVerification(videoBlob) {
 
         // Final state
         ring.style.strokeDashoffset = 0;
-        const passed = authResult.authenticated;
+        const passed = authResult.authenticated; console.log("AUTH RESULT:", JSON.stringify(authResult).substring(0,500)); console.log("passed:", passed);
         // Populate Under the Hood with engine data
-        populateUnderHood(authResult);
+        try{populateUnderHood(authResult);}catch(uhErr){console.error("Under hood error:",uhErr);}
 
         if (passed) {
             stepEl.textContent = 'Identity verified ✓';
