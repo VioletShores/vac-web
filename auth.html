@@ -890,32 +890,35 @@ function startAVChecks() {
                 avChecks.light = true;
             }
 
-            // 2. Face detection — edge density in oval region
-            // A face has dense edges (eyes, nose, mouth, glasses): 20-50%
-            // Plain wall/background: 5-12%. Threshold at 18%.
+            // 2. Face detection — inner vs outer edge density
+            // A face fills the inner oval with dense features (eyes, nose, mouth).
+            // Background appears in the outer ring. If inner >> outer = face.
+            // If inner ≈ outer = just background everywhere.
             const cw = 160, ch = 90;
-            let edgePixels = 0, ovalPixels = 0;
-            const ovalCx = cw / 2, ovalCy = ch / 2, ovalRx = 30, ovalRy = 38;
-            for (let y = 8; y < ch - 4; y += 2) {
-                for (let x = 8; x < cw - 4; x += 2) {
-                    const dx = (x - ovalCx) / ovalRx, dy = (y - ovalCy) / ovalRy;
-                    if (dx * dx + dy * dy > 1) continue;
-                    ovalPixels++;
+            let innerEdges = 0, innerTotal = 0, outerEdges = 0, outerTotal = 0;
+            const ovalCx = cw / 2, ovalCy = ch / 2;
+            for (let y = 6; y < ch - 4; y += 2) {
+                for (let x = 6; x < cw - 4; x += 2) {
+                    const dxI = (x - ovalCx) / 22, dyI = (y - ovalCy) / 28;
+                    const dxO = (x - ovalCx) / 50, dyO = (y - ovalCy) / 42;
+                    const inInner = (dxI * dxI + dyI * dyI) <= 1;
+                    const inOuter = !inInner && (dxO * dxO + dyO * dyO) <= 1;
+                    if (!inInner && !inOuter) continue;
                     const idx = (y * cw + x) * 4;
                     const idxR = (y * cw + x + 2) * 4;
                     const idxD = ((y + 2) * cw + x) * 4;
                     const lum = 0.299 * imgData[idx] + 0.587 * imgData[idx+1] + 0.114 * imgData[idx+2];
                     const lumR = 0.299 * imgData[idxR] + 0.587 * imgData[idxR+1] + 0.114 * imgData[idxR+2];
                     const lumD = 0.299 * imgData[idxD] + 0.587 * imgData[idxD+1] + 0.114 * imgData[idxD+2];
-                    if (Math.abs(lum - lumR) > 15 || Math.abs(lum - lumD) > 15) edgePixels++;
+                    const hasEdge = Math.abs(lum - lumR) > 12 || Math.abs(lum - lumD) > 12;
+                    if (inInner) { innerTotal++; if (hasEdge) innerEdges++; }
+                    else { outerTotal++; if (hasEdge) outerEdges++; }
                 }
             }
-            const edgeRatio = ovalPixels > 0 ? edgePixels / ovalPixels : 0;
-            // Face detection: edge density alone with higher threshold
-            // A face in the oval has dense edges (eyes, nose, mouth, glasses, brows): typically 20-50%
-            // A plain wall/background: typically 5-12%
-            // Threshold at 18% separates these reliably
-            const hasFaceEdges = edgeRatio > 0.18;
+            const innerRatio = innerTotal > 0 ? innerEdges / innerTotal : 0;
+            const outerRatio = outerTotal > 0 ? outerEdges / outerTotal : 0;
+            // Face = inner has significantly more edges than outer
+            const hasFaceEdges = innerRatio > 0.15 && (innerRatio > outerRatio * 1.3);
             if (hasFaceEdges) {
                 avFaceGoodCount = Math.min(avFaceGoodCount + 1, 4);
             } else {
