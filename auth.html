@@ -180,7 +180,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .chain-result { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
 
 /* AV check pills */
-.av-pill { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; font-size: clamp(11px, 1.2vw, 12px); color: var(--text-secondary); transition: border-color 0.3s, background 0.3s; }
+.av-pill { display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 5px 10px; flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; font-size: clamp(11px, 1.2vw, 12px); color: var(--text-secondary); transition: border-color 0.3s, background 0.3s; }
 .av-pill.good { border-color: var(--success); background: rgba(63,185,80,0.08); color: var(--success); }
 .av-pill.warn { border-color: var(--warning); background: rgba(210,153,34,0.08); color: var(--warning); }
 .av-pill.bad { border-color: var(--error); background: rgba(248,81,73,0.08); color: var(--error); }
@@ -366,7 +366,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <div id="avMicTip" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none;"></div>
         </div>
         <!-- Status pills — horizontal row -->
-        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <div style="display: flex; justify-content: space-between; gap: 6px;">
             <div id="avPillFace" class="av-pill"><span id="avFaceIcon" class="av-pill-icon spinning"></span><span id="avFaceLabel">Face</span></div>
             <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
             <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span></div>
