@@ -1701,18 +1701,7 @@ function showSuccess() {
     }
 
 
-    // Transcript display
-    if (r.challenge?.transcript) {
-        // removed
-        // removed
-        const matchEl = document.getElementById('transcriptMatch');
-        const expected = r.challenge.phrase;
-        const heard = r.challenge.transcript;
-        if (expected && heard) {
-            const matchColor = r.authenticated ? 'var(--success)' : 'var(--warning)';
-            matchEl.innerHTML = `<span style="color:${matchColor}">Expected:</span> "${expected}"`;
-        }
-    }
+    // transcript removed
 
     // Chain display
     const chainEl = document.getElementById('chainDisplay');
