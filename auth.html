@@ -1658,12 +1658,47 @@ function showSuccess() {
         var name = modNames[m.name] || m.name.replace(/_/g, ' ');
         var desc = modDescs[m.name] || '';
         var extraInfo = '';
-        if (m.name === 'challenge_response' && r.challenge) {
-            extraInfo = '<div style="margin-top:4px;font-size:11px;color:var(--text-quaternary)">Heard: \u201c' + (r.challenge.transcript||'') + '\u201d</div>';
+        var d = m.detail || {};
+        if (m.name === 'face_liveness') {
+            var parts = [];
+            if (d.person_description) parts.push(d.person_description);
+            if (d.face_detected) parts.push('Face detected');
+            if (d.blink_detected) parts.push('Blink detected');
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
         }
-        if (m.name === 'finger_gesture' && r.biometric_verification && r.biometric_verification.raw_results && r.biometric_verification.raw_results.finger_gesture) {
-            var fg = r.biometric_verification.raw_results.finger_gesture;
-            if (fg.digits_seen) extraInfo = '<div style="margin-top:4px;font-size:11px;color:var(--text-quaternary)">Saw: [' + fg.digits_seen.join(', ') + ']</div>';
+        if (m.name === 'deepfake_detection') {
+            var parts = [];
+            if (d.deepfake_likelihood !== undefined) parts.push('Deepfake likelihood: ' + (d.deepfake_likelihood * 100).toFixed(0) + '%');
+            if (d.artifacts && d.artifacts.length) parts.push('Artifacts: ' + d.artifacts.join(', '));
+            else parts.push('No synthetic artifacts detected');
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+        }
+        if (m.name === 'voiceprint') {
+            var parts = [];
+            if (d.confidence) parts.push('Confidence: ' + (d.confidence * 100).toFixed(0) + '%');
+            if (d.words_per_minute) parts.push(d.words_per_minute + ' wpm');
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+        }
+        if (m.name === 'lip_sync') {
+            var parts = [];
+            if (d.matches_audio !== undefined) parts.push(d.matches_audio ? 'Audio matches lip movement' : 'Lip sync mismatch');
+            if (d.confidence) parts.push('Confidence: ' + (d.confidence * 100).toFixed(0) + '%');
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+        }
+        if (m.name === 'challenge_response') {
+            var parts = [];
+            if (d.heard) parts.push('Heard: \u201c' + d.heard + '\u201d');
+            else if (r.challenge && r.challenge.transcript) parts.push('Heard: \u201c' + r.challenge.transcript + '\u201d');
+            if (d.expected) parts.push('Expected: \u201c' + d.expected + '\u201d');
+            if (d.match_ratio !== undefined) parts.push('Match: ' + (d.match_ratio * 100).toFixed(0) + '%');
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+        }
+        if (m.name === 'finger_gesture') {
+            var parts = [];
+            if (d.digits_expected) parts.push('Expected: [' + d.digits_expected.join(', ') + ']');
+            if (d.digits_seen) parts.push('Saw: [' + d.digits_seen.join(', ') + ']');
+            if (d.hand_near_face !== undefined) parts.push(d.hand_near_face ? 'Hand near face' : 'Hand not near face');
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
         }
         return '<div style="border-bottom:1px solid var(--border)">' +
             '<div onclick="var d=this.nextElementSibling;var open=d.style.maxHeight!==\'0px\';document.querySelectorAll(\'.mod-detail\').forEach(function(x){x.style.maxHeight=\'0px\';x.style.opacity=\'0\'});if(!open){d.style.maxHeight=\'200px\';d.style.opacity=\'1\'}" style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer">' +
