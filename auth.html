@@ -364,6 +364,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 <span id="avAudioPct" style="font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); min-width: 30px; text-align: right;">0%</span>
             </div>
             <div id="avMicTip" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none;"></div>
+            <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 4px 10px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+                Refresh camera &amp; mic
+            </button>
         </div>
         <!-- Status pills — horizontal row -->
         <div style="display: flex; justify-content: space-between; gap: 6px;">
@@ -864,49 +868,43 @@ function startAVChecks() {
                 avChecks.light = true;
             }
 
-            // 2. Face detection — edge density + motion in oval region
-            // Edge density alone can't distinguish a busy background from a face.
-            // A face always has micro-movement (breathing, blinking). A wall doesn't.
+            // 2. Face detection — edge density in oval region
+            // A face has dense edges (eyes, nose, mouth, glasses): 20-50%
+            // Plain wall/background: 5-12%. Threshold at 18%.
             const cw = 160, ch = 90;
-            let edgePixels = 0, ovalPixels = 0, motionPixels = 0;
+            let edgePixels = 0, ovalPixels = 0;
             const ovalCx = cw / 2, ovalCy = ch / 2, ovalRx = 30, ovalRy = 38;
-            const currentOval = new Uint8Array(cw * ch); // luminance buffer
             for (let y = 8; y < ch - 4; y += 2) {
                 for (let x = 8; x < cw - 4; x += 2) {
                     const dx = (x - ovalCx) / ovalRx, dy = (y - ovalCy) / ovalRy;
                     if (dx * dx + dy * dy > 1) continue;
                     ovalPixels++;
                     const idx = (y * cw + x) * 4;
-                    const lum = Math.round(0.299 * imgData[idx] + 0.587 * imgData[idx+1] + 0.114 * imgData[idx+2]);
-                    const pos = y * cw + x;
-                    currentOval[pos] = lum;
-                    // Edge check
                     const idxR = (y * cw + x + 2) * 4;
                     const idxD = ((y + 2) * cw + x) * 4;
+                    const lum = 0.299 * imgData[idx] + 0.587 * imgData[idx+1] + 0.114 * imgData[idx+2];
                     const lumR = 0.299 * imgData[idxR] + 0.587 * imgData[idxR+1] + 0.114 * imgData[idxR+2];
                     const lumD = 0.299 * imgData[idxD] + 0.587 * imgData[idxD+1] + 0.114 * imgData[idxD+2];
                     if (Math.abs(lum - lumR) > 15 || Math.abs(lum - lumD) > 15) edgePixels++;
-                    // Motion check — compare to previous frame
-                    if (avPrevOval && Math.abs(lum - avPrevOval[pos]) > 5) motionPixels++;
                 }
             }
-            avPrevOval = currentOval;
             const edgeRatio = ovalPixels > 0 ? edgePixels / ovalPixels : 0;
-            const motionRatio = ovalPixels > 0 ? motionPixels / ovalPixels : 0;
-            // Face = edges (features) + motion (alive). Need both.
-            const hasFaceEdges = edgeRatio > 0.12;
-            const hasMotion = motionRatio > 0.02;
-            if (hasFaceEdges && hasMotion) {
-                avFaceGoodCount = Math.min(avFaceGoodCount + 1, 5);
+            // Face detection: edge density alone with higher threshold
+            // A face in the oval has dense edges (eyes, nose, mouth, glasses, brows): typically 20-50%
+            // A plain wall/background: typically 5-12%
+            // Threshold at 18% separates these reliably
+            const hasFaceEdges = edgeRatio > 0.18;
+            if (hasFaceEdges) {
+                avFaceGoodCount = Math.min(avFaceGoodCount + 1, 4);
             } else {
-                avFaceGoodCount = Math.max(avFaceGoodCount - 1, 0);
+                avFaceGoodCount = Math.max(avFaceGoodCount - 2, 0);
             }
-            // Sticky: need 2+ good frames to confirm, drop below 1 to lose
+            // Need 2 good to confirm, drops in ~500ms when face leaves
             if (avFaceGoodCount >= 2) {
                 if (!avChecks.face) setAVStatus('face', 'good', 'Face: detected');
                 avChecks.face = true;
-            } else if (avFaceGoodCount === 0) {
-                setAVStatus('face', 'checking', 'Face: position in oval');
+            } else {
+                if (avChecks.face) setAVStatus('face', 'checking', 'Face: position in oval');
                 avChecks.face = false;
             }
         } catch (e) { /* canvas errors are non-fatal */ }
@@ -989,6 +987,42 @@ function stopAVChecks() {
     if (avAudioCtx) { avAudioCtx.close().catch(() => {}); avAudioCtx = null; }
     avAnalyser = null;
     avPrevOval = null;
+}
+
+function retryAVSetup() {
+    // Stop existing checks
+    stopAVChecks();
+    avChecks = { face: false, light: false, mic: false };
+    // Stop existing stream
+    const video = document.getElementById('videoPreview');
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+    }
+    // Reset pill states
+    ['avFaceIcon', 'avLightIcon', 'avMicIcon'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
+    });
+    setAVStatus('face', 'checking', 'Face');
+    setAVStatus('light', 'checking', 'Light');
+    setAVStatus('mic', 'checking', 'Mic');
+    document.getElementById('avMicPromptText').textContent = 'Speak now to test your microphone';
+    document.getElementById('avAudioLevel').style.width = '0%';
+    document.getElementById('avAudioPct').textContent = '0%';
+    updateAVReady();
+    // Re-request camera/mic
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+        .then(stream => {
+            video.srcObject = stream;
+            video.play();
+            startAVChecks();
+        })
+        .catch(err => {
+            console.error('[AV RETRY]', err);
+            document.getElementById('avMicTip').textContent = 'Could not access camera/mic. Check browser permissions.';
+            document.getElementById('avMicTip').style.display = 'block';
+        });
 }
 
 // STEP 1 → 2: Challenge
