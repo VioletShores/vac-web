@@ -176,6 +176,11 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .mod-result.show-desc .mod-desc { display: block; }
 .mod-result.show-desc .mod-info { color: var(--accent); }
 
+/* Back button */
+.btn-back { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-tertiary); font-family: var(--mono); font-size: 11px; cursor: pointer; padding: 2px 0; margin-bottom: 8px; transition: color 0.2s; }
+.btn-back:hover { color: var(--text-primary); }
+.btn-back svg { opacity: 0.7; }
+
 /* Success chain display */
 .chain-result { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
 
@@ -323,6 +328,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <!-- STEP 1: Camera Access -->
 <div class="step-section" id="step1">
     <div class="header">
+        <button onclick="goToStep(0)" class="btn-back" aria-label="Back to Identity">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Back
+        </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Microphone</div>
         <div class="header-sub">We'll record a short video of you speaking a challenge phrase. This takes about 10 seconds.</div>
@@ -391,6 +400,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <!-- STEP 2: Challenge + Recording -->
 <div class="step-section" id="step2">
     <div class="header" style="padding-bottom: 16px;">
+        <button onclick="goToStep(1)" class="btn-back" aria-label="Back to Camera">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Back
+        </button>
         <div class="header-eyebrow">Step 3 of 4</div>
         <div class="header-title">Speak the Challenge</div>
     </div>
