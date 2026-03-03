@@ -1121,12 +1121,12 @@ function beginRecording() {
     // Show combined capture info
     document.getElementById('combinedCaptureInfo').style.display = 'block';
 
-    // Phased recording: speak phrase (6s) then show fingers sequentially (2.5s each)
+    // Simultaneous: say greeting (4s), then say+show each digit (2s each)
     const digits = challengeData?.digits || [];
-    const SPEAK_DURATION = 6;
-    const FINGER_DURATION = 3;
-    const totalDuration = SPEAK_DURATION + (digits.length * FINGER_DURATION);
-    const totalSeconds = Math.ceil(totalDuration);
+    const PHRASE_DURATION = 4;
+    const DIGIT_DURATION = 2;
+    const BUFFER = 1;
+    const totalDuration = PHRASE_DURATION + (digits.length * DIGIT_DURATION) + BUFFER;
 
     let elapsed = 0;
     const timerEl = document.getElementById('countdownTimer');
@@ -1139,17 +1139,24 @@ function beginRecording() {
 
     // Phase prompt updater
     function updatePhasePrompt(sec) {
-        if (sec < SPEAK_DURATION) {
+        if (sec < PHRASE_DURATION) {
             // Speaking phase
             const phrase = challengeData?.phrase || '';
             challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + phrase + '"';
         } else {
             // Finger phase
-            const fingerElapsed = sec - SPEAK_DURATION;
-            const digitIndex = Math.min(Math.floor(fingerElapsed / FINGER_DURATION), digits.length - 1);
+            const fingerElapsed = sec - PHRASE_DURATION;
+            const digitIndex = Math.min(Math.floor(fingerElapsed / DIGIT_DURATION), digits.length - 1);
             const digit = digits[digitIndex];
             const step = digitIndex + 1;
-            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SHOW FINGERS (' + step + ' of ' + digits.length + ')</span><span style="font-size:52px;font-weight:700;line-height:1.2;display:block">' + digit + '</span><span style="font-size:12px;opacity:0.5">Hold up ' + digit + ' finger' + (digit !== 1 ? 's' : '') + ' — keep face visible</span>';
+            // Show all digits with current highlighted
+            var circles = '';
+            for (var di = 0; di < digits.length; di++) {
+                if (di < digitIndex) circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--success);color:white;align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px">&#10003;</span>';
+                else if (di === digitIndex) circles += '<span style="display:inline-flex;width:52px;height:52px;border-radius:50%;border:2px solid var(--purple);background:rgba(124,92,252,0.15);color:white;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
+                else circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
+            }
+            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY + SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:8px 0">' + circles + '</div><span style="font-size:13px;opacity:0.7">Say \u201c' + digit + '\u201d and show ' + digit + ' fingers</span>';
         }
     }
     updatePhasePrompt(0);
@@ -1322,7 +1329,7 @@ async function runRealVerification(videoBlob) {
         console.error('Verification failed:', e);
         var retryEl = document.getElementById('retrySection');
         retryEl.style.display = 'block';
-        document.getElementById('failReasons').textContent = msg;
+        document.getElementById("failReasons").parentElement.style.display="none";
         document.getElementById('retryTipsList').textContent = tip;
         retryAttempts++;
         document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
