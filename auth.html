@@ -380,7 +380,6 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </div>
         <!-- Status pills — horizontal row -->
         <div style="display: flex; justify-content: space-between; gap: 6px;">
-            <div id="avPillFace" class="av-pill"><span id="avFaceIcon" class="av-pill-icon spinning"></span><span id="avFaceLabel">Face</span></div>
             <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
             <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span></div>
         </div>
@@ -808,12 +807,12 @@ function showDeviceInfo() {
 let avCheckFrame = null;
 let avAudioCtx = null;
 let avAnalyser = null;
-let avChecks = { face: false, light: false, mic: false };
+let avChecks = { light: false, mic: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 
 function startAVChecks() {
     // Initialize pill icons with spinners
-    ['avFaceIcon', 'avLightIcon', 'avMicIcon'].forEach(id => {
+    ['avLightIcon', 'avMicIcon'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
@@ -833,7 +832,6 @@ function startAVChecks() {
     const ctx = canvas.getContext('2d');
 
     let avLastCheck = 0;
-    let avFaceGoodCount = 0;
 
     function runAVFrame() {
         const video = document.getElementById('videoPreview');
@@ -894,48 +892,6 @@ function startAVChecks() {
                 avChecks.light = true;
             }
 
-            // 2. Face detection — inner vs outer edge density
-            // A face fills the inner oval with dense features (eyes, nose, mouth).
-            // Background appears in the outer ring. If inner >> outer = face.
-            // If inner ≈ outer = just background everywhere.
-            const cw = 160, ch = 90;
-            let innerEdges = 0, innerTotal = 0, outerEdges = 0, outerTotal = 0;
-            const ovalCx = cw / 2, ovalCy = ch / 2;
-            for (let y = 6; y < ch - 4; y += 2) {
-                for (let x = 6; x < cw - 4; x += 2) {
-                    const dxI = (x - ovalCx) / 22, dyI = (y - ovalCy) / 28;
-                    const dxO = (x - ovalCx) / 50, dyO = (y - ovalCy) / 42;
-                    const inInner = (dxI * dxI + dyI * dyI) <= 1;
-                    const inOuter = !inInner && (dxO * dxO + dyO * dyO) <= 1;
-                    if (!inInner && !inOuter) continue;
-                    const idx = (y * cw + x) * 4;
-                    const idxR = (y * cw + x + 2) * 4;
-                    const idxD = ((y + 2) * cw + x) * 4;
-                    const lum = 0.299 * imgData[idx] + 0.587 * imgData[idx+1] + 0.114 * imgData[idx+2];
-                    const lumR = 0.299 * imgData[idxR] + 0.587 * imgData[idxR+1] + 0.114 * imgData[idxR+2];
-                    const lumD = 0.299 * imgData[idxD] + 0.587 * imgData[idxD+1] + 0.114 * imgData[idxD+2];
-                    const hasEdge = Math.abs(lum - lumR) > 12 || Math.abs(lum - lumD) > 12;
-                    if (inInner) { innerTotal++; if (hasEdge) innerEdges++; }
-                    else { outerTotal++; if (hasEdge) outerEdges++; }
-                }
-            }
-            const innerRatio = innerTotal > 0 ? innerEdges / innerTotal : 0;
-            const outerRatio = outerTotal > 0 ? outerEdges / outerTotal : 0;
-            // Face = inner has significantly more edges than outer
-            const hasFaceEdges = innerRatio > 0.15 && (innerRatio > outerRatio * 1.3);
-            if (hasFaceEdges) {
-                avFaceGoodCount = Math.min(avFaceGoodCount + 1, 4);
-            } else {
-                avFaceGoodCount = Math.max(avFaceGoodCount - 2, 0);
-            }
-            // Need 2 good to confirm, drops in ~500ms when face leaves
-            if (avFaceGoodCount >= 2) {
-                if (!avChecks.face) setAVStatus('face', 'good', 'Face: detected');
-                avChecks.face = true;
-            } else {
-                if (avChecks.face) setAVStatus('face', 'checking', 'Face: position in oval');
-                avChecks.face = false;
-            }
         } catch (e) { /* canvas errors are non-fatal */ }
         } // end throttle block
 
@@ -1004,7 +960,7 @@ function updateMicTips() {
 
 function updateAVReady() {
     const btn = document.getElementById('btnCamera');
-    const allGood = avChecks.face && avChecks.light && avChecks.mic;
+    const allGood = avChecks.light && avChecks.mic;
     if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready')) {
         btn.disabled = !allGood;
         btn.textContent = allGood ? 'Ready — Proceed to Challenge' : 'Proceed to Challenge';
@@ -1029,11 +985,10 @@ function retryAVSetup() {
         video.srcObject = null;
     }
     // Reset pill states
-    ['avFaceIcon', 'avLightIcon', 'avMicIcon'].forEach(id => {
+    ['avLightIcon', 'avMicIcon'].forEach(id => {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
-    setAVStatus('face', 'checking', 'Face');
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
     document.getElementById('avMicPromptText').textContent = 'Speak now to test your microphone';
