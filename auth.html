@@ -840,7 +840,8 @@ function startAVChecks() {
                     const idx = (y * 160 + x) * 4;
                     const red = imgData[idx], green = imgData[idx+1], blue = imgData[idx+2];
                     totalPixels++;
-                    if (red > 80 && green > 40 && blue > 20 && red > green && (red - green) > 10) {
+                    // Broader skin-tone heuristic — works across more skin tones and lighting
+                    if (red > 60 && green > 30 && blue > 15 && red > green - 20 && (red - blue) > 5 && Math.abs(red - green) < 80) {
                         skinPixels++;
                         skinXsum += x;
                         skinYsum += y;
@@ -848,22 +849,20 @@ function startAVChecks() {
                 }
             }
             const skinRatio = skinPixels / totalPixels;
-            if (skinRatio > 0.15) {
-                const avgX = skinXsum / skinPixels; // center = 80
-                const avgY = skinYsum / skinPixels; // center = 45
-                // Size check: skin should fill ~20-60% of sampled area for good framing
-                if (skinRatio < 0.20) {
-                    setAVStatus('face', 'warn', 'Face: move closer');
+            const sr = Math.round(skinRatio * 100);
+            if (skinRatio > 0.12) {
+                if (skinRatio < 0.18) {
+                    setAVStatus('face', 'warn', 'Face: move closer (' + sr + '%)');
                     avChecks.face = false;
                 } else if (skinRatio > 0.65) {
-                    setAVStatus('face', 'warn', 'Face: too close');
-                    avChecks.face = true; // still usable
+                    setAVStatus('face', 'warn', 'Face: too close (' + sr + '%)');
+                    avChecks.face = true;
                 } else {
-                    setAVStatus('face', 'good', 'Face: detected');
+                    setAVStatus('face', 'good', 'Face: detected (' + sr + '%)');
                     avChecks.face = true;
                 }
             } else {
-                setAVStatus('face', 'checking', 'Face: scanning…');
+                setAVStatus('face', 'checking', 'Face: scanning… (' + sr + '%)');
                 avChecks.face = false;
             }
         } catch (e) { /* canvas errors are non-fatal */ }
