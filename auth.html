@@ -1995,53 +1995,6 @@ function openMessageComposer() {
 
 // ============================================================
 // VOUCH POLLING - check for received vouches, unlock messaging
-// ============================================================
-var vouchPollInterval = null;
-var messageUnlocked = false;
-
-function startVouchPolling() {
-    var email = userData().email;
-    if (!email) return;
-    vouchPollInterval = setInterval(async function() {
-        try {
-            var resp = await fetch(API_BASE + '/v1/vouches?email=' + encodeURIComponent(email) + '&direction=received');
-            if (!resp.ok) return;
-            var data = await resp.json();
-            if (data.count > 0 && !messageUnlocked) {
-                unlockMessaging(data);
-            }
-        } catch(e) {}
-    }, 10000);
-}
-
-function unlockMessaging(vouchData) {
-    messageUnlocked = true;
-    var btn = document.getElementById('btnSendMessage');
-    var status = document.getElementById('msgStatus');
-    if (btn) {
-        btn.style.opacity = '1';
-        btn.style.cursor = 'pointer';
-        btn.style.background = 'var(--purple)';
-        btn.style.color = 'white';
-        btn.style.border = 'none';
-        btn.disabled = false;
-        btn.onclick = function() { openMessageComposer(); };
-    }
-    if (status) {
-        var voucher = vouchData.vouches_received[0] ? vouchData.vouches_received[0].person : 'someone';
-        status.style.color = 'var(--success)';
-        status.textContent = 'Vouched by ' + voucher + ' \u2713';
-    }
-    if (vouchPollInterval) clearInterval(vouchPollInterval);
-}
-
-function openMessageComposer() {
-    var email = userData().email;
-    var name = userData().name;
-    window.location.href = '/msg?from=' + encodeURIComponent(email) + '&name=' + encodeURIComponent(name);
-}
-
-
 </script>
 <script src="vac-themes.js"></script>
 <script>
