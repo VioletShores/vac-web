@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAC Protocol — Agent Task Runner</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<style>
+:root { --bg: #0D1117; --surface: #161B22; --surface-raised: #1C2128; --border: #30363D; --border-light: #484F58; --text-primary: #F0F6FC; --text-secondary: #C9D1D9; --text-tertiary: #8B949E; --text-quaternary: #6E7681; --purple: #6C5CE7; --purple-bg: rgba(108,92,231,0.08); --purple-border: rgba(108,92,231,0.25); --teal: #00CEC9; --teal-bg: rgba(0,206,201,0.08); --success: #3FB950; --success-bg: rgba(63,185,80,0.08); --success-border: rgba(63,185,80,0.2); --warning: #D29922; --warning-bg: rgba(210,153,34,0.08); --warning-border: rgba(210,153,34,0.2); --error: #F85149; --error-bg: rgba(248,81,73,0.08); --error-border: rgba(248,81,73,0.2); --radius: 10px; --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text-secondary); line-height: 1.6; }
+
+.nav { border-bottom: 1px solid var(--border); padding: 12px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }
+.nav-inner { max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-primary); letter-spacing: 2px; display: flex; align-items: center; gap: 8px; text-decoration: none; }
+.nav-status { font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-quaternary); letter-spacing: 1px; }
+
+.page { max-width: 800px; margin: 0 auto; padding: 24px 20px 80px; }
+
+/* Header */
+.hero { text-align: center; margin-bottom: 32px; }
+.hero-eyebrow { font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+.hero-title { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px; }
+.hero-sub { font-size: 13px; color: var(--text-tertiary); max-width: 500px; margin: 0 auto; }
+
+/* Task form */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+.card-header { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+.form-group { margin-bottom: 14px; }
+.form-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block; }
+.form-input { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 14px; font-family: var(--font); }
+.form-input:focus { outline: none; border-color: var(--purple); }
+textarea.form-input { min-height: 80px; resize: vertical; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+
+/* Budget gauge */
+.budget-bar { margin: 16px 0; }
+.budget-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.budget-label { font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); }
+.budget-value { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.budget-track { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; border: 1px solid var(--border); }
+.budget-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease, background 0.3s; }
+.budget-fill.ok { background: var(--success); }
+.budget-fill.warn { background: var(--warning); }
+.budget-fill.danger { background: var(--error); animation: pulse-bar 1s infinite; }
+@keyframes pulse-bar { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+/* Steps */
+.step { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; position: relative; }
+.step.running { border-color: var(--purple-border); }
+.step.exceeded { border-color: var(--error-border); background: var(--error-bg); }
+.step-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.step-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; }
+.step-tokens { font-family: var(--mono); font-size: 11px; }
+.step-tokens.ok { color: var(--success); }
+.step-tokens.warn { color: var(--warning); }
+.step-tokens.danger { color: var(--error); }
+.step-content { font-size: 13px; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.5; max-height: 200px; overflow-y: auto; }
+.step-cost { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 8px; }
+
+/* Escalation */
+.escalation { background: var(--error-bg); border: 2px solid var(--error-border); border-radius: var(--radius); padding: 20px; margin: 16px 0; animation: escalation-in 0.4s ease; }
+@keyframes escalation-in { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+.escalation-icon { font-size: 24px; margin-bottom: 8px; }
+.escalation-title { font-size: 16px; font-weight: 700; color: var(--error); margin-bottom: 4px; }
+.escalation-reason { font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); margin-bottom: 12px; }
+.escalation-buttons { display: flex; gap: 10px; }
+
+/* Buttons */
+.btn { font-family: var(--mono); font-size: 12px; padding: 10px 20px; border-radius: 6px; cursor: pointer; border: none; font-weight: 600; letter-spacing: 0.5px; transition: all 0.15s; }
+.btn-primary { background: var(--purple); color: white; }
+.btn-primary:hover { background: #7C6CF7; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-success { background: var(--success); color: white; }
+.btn-success:hover { background: #4FC960; }
+.btn-danger { background: var(--error); color: white; }
+.btn-danger:hover { background: #FF6B63; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); }
+.btn-outline:hover { border-color: var(--purple); color: var(--purple); }
+
+/* Chain display */
+.chain { display: flex; align-items: center; gap: 4px; margin: 12px 0; flex-wrap: wrap; }
+.chain-node { display: flex; align-items: center; gap: 6px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px; font-size: 12px; }
+.chain-node.human { border-color: var(--success-border); background: var(--success-bg); }
+.chain-node.agent { border-color: var(--purple-border); background: var(--purple-bg); }
+.chain-node.agent.active { border-color: var(--purple); box-shadow: 0 0 8px rgba(108,92,231,0.3); }
+.chain-arrow { color: var(--text-quaternary); font-size: 10px; }
+
+/* Summary */
+.summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 16px 0; }
+.summary-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px; text-align: center; }
+.summary-value { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.summary-label { font-family: var(--mono); font-size: 9px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; }
+
+/* Patent badge */
+.patent-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--purple); background: var(--purple-bg); border: 1px solid var(--purple-border); border-radius: 4px; padding: 4px 10px; }
+.patent-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); }
+
+/* Loading */
+.loading { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); padding: 16px; }
+.loading-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--purple); animation: bounce 1.2s infinite; }
+.loading-dot:nth-child(2) { animation-delay: 0.2s; }
+.loading-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-8px); } }
+
+.footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
+.footer-tagline { font-style: italic; font-size: 12px; color: var(--text-quaternary); }
+</style>
+</head>
+<body>
+<nav class="nav">
+    <div class="nav-inner">
+        <a class="nav-brand" href="/">⬡ VAC <span>PROTOCOL</span></a>
+        <div class="nav-status" id="navStatus">AGENT RUNNER</div>
+    </div>
+</nav>
+
+<div class="page">
+    <!-- Hero -->
+    <div class="hero">
+        <div class="hero-eyebrow">Claims 39–134 · Live Demonstration</div>
+        <div class="hero-title">Agent Task Runner</div>
+        <div class="hero-sub">Real AI agent. Real API calls. Real budget enforcement. The math prevents overspend — not policy.</div>
+    </div>
+
+    <!-- Delegation Chain -->
+    <div class="card" id="chainCard">
+        <div class="card-header">Delegation Chain</div>
+        <div class="chain" id="delegationChain">
+            <div class="chain-node human">👤 <span id="chainHuman">Verify first</span></div>
+            <div class="chain-arrow">→</div>
+            <div class="chain-node agent">🤖 Coordinator</div>
+            <div class="chain-arrow">→</div>
+            <div class="chain-node agent" id="chainAgent">🤖 Research Agent</div>
+        </div>
+    </div>
+
+    <!-- Task Config -->
+    <div class="card" id="taskConfig">
+        <div class="card-header">Assign Task</div>
+        <div class="form-group">
+            <label class="form-label">Your Email (verified)</label>
+            <input class="form-input" id="ownerEmail" type="email" placeholder="rob@violetshores.com">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Task Prompt</label>
+            <textarea class="form-input" id="taskPrompt" placeholder="Research the top 5 AI infrastructure companies and summarize their competitive moats...">Research the top 5 AI infrastructure companies and summarize their competitive moats. For each company, explain their key technology, market position, and what makes them defensible.</textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label class="form-label">Token Budget</label>
+                <input class="form-input" id="tokenBudget" type="number" value="4000">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Spend Cap ($)</label>
+                <input class="form-input" id="spendCap" type="number" value="0.08" step="0.01">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Max API Calls</label>
+                <input class="form-input" id="maxCalls" type="number" value="3">
+            </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:6px;">
+            <button class="btn btn-primary" id="btnRun" onclick="runTask()">Run Agent</button>
+            <button class="btn btn-outline" onclick="runStepByStep()">Step-by-Step</button>
+        </div>
+    </div>
+
+    <!-- Budget Gauge (appears during run) -->
+    <div class="card" id="budgetCard" style="display:none;">
+        <div class="card-header">Budget Enforcement <span style="color:var(--purple);">· LIVE</span></div>
+        <div class="budget-bar">
+            <div class="budget-header">
+                <span class="budget-label">Token Usage</span>
+                <span class="budget-value" id="budgetTokens">0 / 4,000</span>
+            </div>
+            <div class="budget-track">
+                <div class="budget-fill ok" id="budgetBar" style="width: 0%;"></div>
+            </div>
+        </div>
+        <div class="summary-grid">
+            <div class="summary-stat">
+                <div class="summary-value" id="statTokens">0</div>
+                <div class="summary-label">Tokens Used</div>
+            </div>
+            <div class="summary-stat">
+                <div class="summary-value" id="statSpend">$0</div>
+                <div class="summary-label">Spend</div>
+            </div>
+            <div class="summary-stat">
+                <div class="summary-value" id="statCalls">0</div>
+                <div class="summary-label">API Calls</div>
+            </div>
+            <div class="summary-stat">
+                <div class="summary-value" id="statStatus">—</div>
+                <div class="summary-label">Status</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Steps (appear one by one) -->
+    <div id="stepsContainer"></div>
+
+    <!-- Escalation (appears when budget exceeded) -->
+    <div id="escalationContainer"></div>
+
+    <!-- Loading -->
+    <div id="loadingEl" style="display:none;">
+        <div class="loading">
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+            <div class="loading-dot"></div>
+            <span>Agent working — tokens flowing through delegation chain...</span>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        <div class="patent-badge"><span class="dot"></span>Claims 39–55 · Scope Constraints &nbsp;|&nbsp; Claims 113–134 · Multi-Agent Coordination</div>
+        <div class="footer-tagline" style="margin-top:12px;">Math enforces what neither party trusts the other to honour.</div>
+    </div>
+</div>
+
+<script>
+const API_BASE = 'https://vac-system-production.up.railway.app';
+let currentTaskId = null;
+let stepByStepMode = false;
+
+// Pre-fill from URL params
+const params = new URLSearchParams(window.location.search);
+const email = params.get('email') || params.get('from') || '';
+if (email) document.getElementById('ownerEmail').value = email;
+document.getElementById('chainHuman').textContent = email || 'Verify first';
+
+async function runTask() {
+    await createAndRun(false);
+}
+
+async function runStepByStep() {
+    await createAndRun(true);
+}
+
+async function createAndRun(stepMode) {
+    const ownerEmail = document.getElementById('ownerEmail').value.trim();
+    const prompt = document.getElementById('taskPrompt').value.trim();
+    const tokenBudget = parseInt(document.getElementById('tokenBudget').value) || 4000;
+    const spendCap = parseFloat(document.getElementById('spendCap').value) || 0.08;
+    const maxCalls = parseInt(document.getElementById('maxCalls').value) || 3;
+
+    if (!ownerEmail || !prompt) { alert('Enter your email and a task prompt.'); return; }
+
+    // Update chain
+    document.getElementById('chainHuman').textContent = ownerEmail;
+    document.getElementById('chainAgent').classList.add('active');
+
+    // Show budget card
+    document.getElementById('budgetCard').style.display = 'block';
+    document.getElementById('stepsContainer').innerHTML = '';
+    document.getElementById('escalationContainer').innerHTML = '';
+    updateBudget({ tokens_remaining: tokenBudget, tokens_pct: 0, spend_remaining_usd: spendCap, api_calls_remaining: maxCalls }, 0, 0, 0, 'creating');
+
+    // Disable buttons
+    document.getElementById('btnRun').disabled = true;
+
+    // Create task
+    try {
+        const resp = await fetch(`${API_BASE}/v1/agent/task`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                owner_email: ownerEmail,
+                prompt,
+                token_budget: tokenBudget,
+                max_spend_usd: spendCap,
+                max_api_calls: maxCalls,
+                agent_name: 'Research Agent',
+            }),
+        });
+        const data = await resp.json();
+        currentTaskId = data.task_id;
+        document.getElementById('navStatus').textContent = `TASK ${currentTaskId}`;
+    } catch (e) {
+        alert('Failed to create task: ' + e.message);
+        document.getElementById('btnRun').disabled = false;
+        return;
+    }
+
+    if (stepMode) {
+        stepByStepMode = true;
+        await runNextStep();
+    } else {
+        // Run full task
+        document.getElementById('loadingEl').style.display = 'block';
+        try {
+            const resp = await fetch(`${API_BASE}/v1/agent/task/${currentTaskId}/run`, { method: 'POST' });
+            const result = await resp.json();
+            document.getElementById('loadingEl').style.display = 'none';
+            renderFullResult(result);
+        } catch (e) {
+            document.getElementById('loadingEl').style.display = 'none';
+            alert('Agent run failed: ' + e.message);
+        }
+    }
+
+    document.getElementById('btnRun').disabled = false;
+}
+
+async function runNextStep() {
+    if (!currentTaskId) return;
+
+    document.getElementById('loadingEl').style.display = 'block';
+
+    try {
+        const resp = await fetch(`${API_BASE}/v1/agent/task/${currentTaskId}/step`, { method: 'POST' });
+        const data = await resp.json();
+        document.getElementById('loadingEl').style.display = 'none';
+
+        // Render step
+        renderStep(data.step, data.budget);
+
+        // Update budget
+        updateBudget(data.budget, data.total_tokens_used, data.total_spend_usd,
+            data.step?.step || 0, data.status);
+
+        // Check if budget exceeded
+        if (data.status === 'budget_exceeded') {
+            showEscalation(data);
+        } else if (data.status === 'completed') {
+            showComplete();
+        } else {
+            // Show next step button
+            addNextStepButton();
+        }
+    } catch (e) {
+        document.getElementById('loadingEl').style.display = 'none';
+        alert('Step failed: ' + e.message);
+    }
+}
+
+function renderFullResult(result) {
+    // Render all steps
+    result.steps?.forEach((step, i) => {
+        renderStep(step, step.budget_after);
+    });
+
+    // Update budget
+    updateBudget(result.budget, result.tokens_used, result.spend_usd, result.api_calls, result.status);
+
+    // Check status
+    if (result.status === 'budget_exceeded' && result.escalation) {
+        showEscalation({ escalation_reason: result.escalation.reason, ...result });
+    } else {
+        showComplete();
+    }
+}
+
+function renderStep(step, budget) {
+    if (!step || !step.content) return;
+
+    const pct = budget?.tokens_pct || 0;
+    const cls = pct > 90 ? 'exceeded' : pct > 70 ? 'running' : '';
+    const tokenCls = pct > 90 ? 'danger' : pct > 70 ? 'warn' : 'ok';
+
+    const el = document.createElement('div');
+    el.className = `step ${cls}`;
+    el.style.animation = 'escalation-in 0.3s ease';
+    el.innerHTML = `
+        <div class="step-header">
+            <span class="step-label">API Call #${step.step || '?'}</span>
+            <span class="step-tokens ${tokenCls}">${(step.total_tokens || 0).toLocaleString()} tokens</span>
+        </div>
+        <div class="step-content">${escapeHtml(step.content)}</div>
+        <div class="step-cost">
+            Input: ${(step.input_tokens || 0).toLocaleString()} · Output: ${(step.output_tokens || 0).toLocaleString()} · Cost: $${(step.cost_usd || 0).toFixed(4)}
+            ${step.budget_warning ? `<span style="color:var(--warning);"> · ⚠ ${step.budget_warning}</span>` : ''}
+        </div>
+    `;
+
+    document.getElementById('stepsContainer').appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updateBudget(budget, tokensUsed, spendUsd, calls, status) {
+    const total = (budget.tokens_remaining || 0) + (tokensUsed || 0);
+    const pct = total > 0 ? ((tokensUsed || 0) / total) * 100 : 0;
+
+    document.getElementById('budgetTokens').textContent = `${(tokensUsed || 0).toLocaleString()} / ${total.toLocaleString()}`;
+    document.getElementById('budgetBar').style.width = `${Math.min(100, pct)}%`;
+    document.getElementById('budgetBar').className = `budget-fill ${pct > 90 ? 'danger' : pct > 70 ? 'warn' : 'ok'}`;
+
+    document.getElementById('statTokens').textContent = (tokensUsed || 0).toLocaleString();
+    document.getElementById('statSpend').textContent = `$${(spendUsd || 0).toFixed(4)}`;
+    document.getElementById('statCalls').textContent = calls || 0;
+
+    const statusEl = document.getElementById('statStatus');
+    statusEl.textContent = status || '—';
+    statusEl.style.color = status === 'budget_exceeded' ? 'var(--error)' : status === 'completed' ? 'var(--success)' : status === 'running' ? 'var(--purple)' : 'var(--text-quaternary)';
+}
+
+function showEscalation(data) {
+    document.getElementById('chainAgent').style.borderColor = 'var(--error)';
+    document.getElementById('chainAgent').style.boxShadow = '0 0 8px rgba(248,81,73,0.4)';
+
+    const el = document.createElement('div');
+    el.className = 'escalation';
+    el.innerHTML = `
+        <div class="escalation-icon">🚨</div>
+        <div class="escalation-title">Budget Exceeded — Human Approval Required</div>
+        <div class="escalation-reason">${escapeHtml(data.escalation_reason || data.escalation?.reason || 'Token budget exhausted')}</div>
+        <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">
+            The agent has used its entire allocated budget. Under VAC Protocol (Claims 39–55), the agent <strong>cannot</strong> make another API call without explicit human re-authorisation. This constraint is enforced mathematically — no override exists.
+        </div>
+        <div class="escalation-buttons">
+            <button class="btn btn-success" onclick="approveEscalation()">✓ Approve (+4,000 tokens)</button>
+            <button class="btn btn-danger" onclick="denyEscalation()">✕ Deny — Stop Agent</button>
+        </div>
+    `;
+    document.getElementById('escalationContainer').innerHTML = '';
+    document.getElementById('escalationContainer').appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth' });
+}
+
+function showComplete() {
+    document.getElementById('chainAgent').style.borderColor = 'var(--success-border)';
+    document.getElementById('chainAgent').style.boxShadow = '0 0 8px rgba(63,185,80,0.3)';
+
+    const el = document.createElement('div');
+    el.className = 'card';
+    el.style.borderColor = 'var(--success-border)';
+    el.style.animation = 'escalation-in 0.3s ease';
+    el.innerHTML = `
+        <div style="text-align:center;padding:8px;">
+            <div style="font-size:24px;margin-bottom:6px;">✓</div>
+            <div style="font-size:14px;font-weight:700;color:var(--success);">Task Complete</div>
+            <div style="font-size:12px;color:var(--text-tertiary);margin-top:4px;">Agent operated within delegated scope. All constraints honoured.</div>
+        </div>
+    `;
+    document.getElementById('escalationContainer').innerHTML = '';
+    document.getElementById('escalationContainer').appendChild(el);
+}
+
+async function approveEscalation() {
+    if (!currentTaskId) return;
+    try {
+        const resp = await fetch(`${API_BASE}/v1/agent/task/${currentTaskId}/approve?additional_tokens=4000&additional_spend=0.08`, { method: 'POST' });
+        const data = await resp.json();
+
+        // Clear escalation
+        document.getElementById('escalationContainer').innerHTML = '';
+        document.getElementById('chainAgent').style.borderColor = 'var(--purple)';
+        document.getElementById('chainAgent').style.boxShadow = '0 0 8px rgba(108,92,231,0.3)';
+
+        // Show approval message
+        const el = document.createElement('div');
+        el.className = 'step';
+        el.style.borderColor = 'var(--success-border)';
+        el.style.animation = 'escalation-in 0.3s ease';
+        el.innerHTML = `
+            <div class="step-header">
+                <span class="step-label" style="color:var(--success);">HUMAN APPROVED</span>
+                <span class="step-tokens ok">+4,000 tokens granted</span>
+            </div>
+            <div class="step-content" style="color:var(--success);">${data.message}</div>
+        `;
+        document.getElementById('stepsContainer').appendChild(el);
+
+        // Continue running
+        if (stepByStepMode) {
+            addNextStepButton();
+        } else {
+            document.getElementById('loadingEl').style.display = 'block';
+            const runResp = await fetch(`${API_BASE}/v1/agent/task/${currentTaskId}/run`, { method: 'POST' });
+            const runResult = await runResp.json();
+            document.getElementById('loadingEl').style.display = 'none';
+            renderFullResult(runResult);
+        }
+    } catch (e) {
+        alert('Approval failed: ' + e.message);
+    }
+}
+
+async function denyEscalation() {
+    if (!currentTaskId) return;
+    try {
+        await fetch(`${API_BASE}/v1/agent/task/${currentTaskId}/deny`, { method: 'POST' });
+        document.getElementById('escalationContainer').innerHTML = `
+            <div class="card" style="border-color:var(--error-border);text-align:center;padding:16px;">
+                <div style="font-size:14px;font-weight:700;color:var(--error);">Agent Terminated</div>
+                <div style="font-size:12px;color:var(--text-tertiary);margin-top:4px;">Budget increase denied. Agent task stopped. Partial results preserved above.</div>
+            </div>
+        `;
+    } catch (e) {
+        alert('Deny failed: ' + e.message);
+    }
+}
+
+function addNextStepButton() {
+    // Remove existing
+    document.querySelectorAll('.next-step-btn').forEach(e => e.remove());
+
+    const el = document.createElement('div');
+    el.className = 'next-step-btn';
+    el.style.textAlign = 'center';
+    el.style.margin = '12px 0';
+    el.innerHTML = `<button class="btn btn-primary" onclick="this.parentElement.remove(); runNextStep();">Run Next Step →</button>`;
+    document.getElementById('stepsContainer').appendChild(el);
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

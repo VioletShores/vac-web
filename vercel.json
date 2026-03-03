@@ -23,6 +23,10 @@
     {
       "source": "/groups",
       "destination": "/groups.html"
+    },
+    {
+      "source": "/agents",
+      "destination": "/agents.html"
     }
   ]
 }
