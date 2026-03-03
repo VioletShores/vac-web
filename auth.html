@@ -646,6 +646,10 @@ const FAIL_REASONS = {
         reason: 'Spoken words did not match the challenge phrase.',
         tip: 'Read the challenge phrase exactly as shown — include the greeting and all digits.'
     },
+    finger_gesture: {
+        reason: 'Finger count sequence did not match the expected digits.',
+        tip: 'Hold up the correct number of fingers for each digit shown. Keep your hand near your face and fingers clearly spread.'
+    },
     geolocation: {
         reason: 'Location could not be determined.',
         tip: 'Allow location access when prompted by your browser.'
@@ -1405,10 +1409,10 @@ function updateModalitySummary() {
         summary.textContent = 'Checking...';
         summary.className = 'toggle-summary';
     } else if (failed > 0) {
-        summary.textContent = `${passed}/5 passed`;
+        summary.textContent = `${passed}/${passed+failed} passed`;
         summary.className = 'toggle-summary has-fail';
     } else {
-        summary.textContent = `${passed}/5 passed`;
+        summary.textContent = `${passed}/${passed+failed} passed`;
         summary.className = 'toggle-summary';
     }
 }
@@ -1523,6 +1527,11 @@ function showRetry(result) {
             // For challenge response, show what was heard vs expected
             if (m.name === 'challenge_response' && (m.detail?.heard || m.detail?.expected)) {
                 return `Challenge Response — heard: "${m.detail.heard || '(nothing)'}" vs expected: "${m.detail.expected || challengePhrase}"`;
+            }
+            if (m.name === 'finger_gesture' && m.detail) {
+                var exp = (m.detail.digits_expected||[]).join(', ');
+                var saw = (m.detail.digits_seen||[]).join(', ');
+                return 'Finger gesture mismatch — expected [' + exp + '] but Gemini saw [' + saw + ']';
             }
             const info = FAIL_REASONS[m.name] || { reason: `${m.name} check failed.`, tip: '' };
             return info.reason;
