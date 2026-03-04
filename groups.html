@@ -104,17 +104,21 @@ const SCENARIOS = {
         location: 'Pentagon, Arlington VA',
         location_coords: { lat: 38.8719, lng: -77.0563 },
         radius: 0.3,
+        default_proposal: 'Authorize AI research agent with $50K spending card',
+        default_description: 'Deploy autonomous research agent to analyze adversary AI capabilities. Agent requires $50K token budget across classified and open-source intelligence APIs. All committee members must be physically present in SCIF.',
     },
     maori_hui: {
         name: 'Māori Land Trust Hui',
         desc: 'Iwi governance requiring kanohi ki te kanohi (face to face) for land decisions',
         group_name: 'Te Rūnanga o Ngāi Tahu',
         group_desc: 'Trustees must gather kanohi ki te kanohi (face to face) at the marae. Digital proxies not accepted for whenua decisions.',
-        members: ['kaiwhakahaere@ngaitahu.iwi.nz', 'kaumatua@ngaitahu.iwi.nz', 'rangatahi@ngaitahu.iwi.nz', 'rob@violetshores.com'],
+        members: ['kaiwhakahaere@ngaitahu.iwi.nz', 'kaumatua@ngaitahu.iwi.nz', 'shannon@folioai.com', 'rob@violetshores.com'],
         model: 'cultural_hui',
         location: 'Ngā Hau e Whā Marae, Christchurch',
         location_coords: { lat: -43.5321, lng: 172.6362 },
         radius: 0.2,
+        default_proposal: 'Approve whenua development plan for Tūāhuriri block',
+        default_description: 'Proposed development of 12ha at Tūāhuriri for papakāinga housing. Requires kanohi ki te kanohi approval from all present trustees.',
     },
     board_vote: {
         name: 'Corporate Board Vote',
@@ -126,6 +130,8 @@ const SCENARIOS = {
         location: null,
         location_coords: null,
         radius: 0,
+        default_proposal: 'Approve $2M Series Seed at $15M post-money',
+        default_description: 'Investment terms: $2M at $15M post-money. 2-year cliff, 4-year vest. Board observer seat. Supermajority of board members required.',
     },
 };
 let activeScenario = 'gov_committee';
@@ -269,12 +275,13 @@ function renderGroupDetail(group, sessions) {
     const verified = group.members_detail?.filter(m=>m.verified).length||0;
     let h = '<div style="margin-bottom:16px"><div style="font-size:20px;font-weight:800;color:var(--text-primary)">'+group.name+'</div>';
     h += '<div style="font-size:13px;color:var(--text-tertiary);margin-top:4px">'+(group.description||'')+'</div>';
-    h += '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span style="font-size:16px">'+m.icon+'</span><span style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+m.name+'</span><span style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">\u00B7 '+group.member_count+' members \u00B7 '+verified+' verified</span></div></div>';
-    if (group.require_presence && group.presence_location) h += '<div class="presence-map">\u{1F4CD} '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km</div>';
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+m.name+'</span><span style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">\u00B7 '+group.member_count+' members \u00B7 '+verified+' verified</span></div></div>';
+    if (group.require_presence && group.presence_location) h += '<div class="presence-map">\u25C9 '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km radius</div>';
     h += '<div class="section-title">Members</div><div class="card"><div class="card-body">';
     (group.members_detail||group.members.map(e=>({email:e,verified:false,trust_score:0}))).forEach(mem => {
         const name = (mem.name||mem.email.split('@')[0]).replace(/\b\w/g,c=>c.toUpperCase());
-        h += '<div class="member-row"><div class="member-dot '+(mem.verified?'verified':'pending')+'"></div><div class="member-name">'+name+'</div><div class="member-meta">'+mem.email+' \u00B7 '+(mem.verified?(mem.trust_score*100).toFixed(0)+'%':'not verified')+'</div></div>';
+        const statusText = mem.verified ? (mem.trust_score > 0 ? 'Trust: '+(mem.trust_score*100).toFixed(0)+'%' : 'VERIFIED') : 'not verified';
+        h += '<div class="member-row"><div class="member-dot '+(mem.verified?'verified':'pending')+'"></div><div class="member-name">'+name+'</div><div class="member-meta">'+mem.email+' \u00B7 '+statusText+'</div></div>';
     });
     h += '</div></div>';
     h += '<div class="section-title">Sessions <button class="btn" onclick="showStartSession()" style="font-size:10px;padding:4px 10px">+ Start Session</button></div><div id="sessionForm"></div>';
@@ -289,7 +296,10 @@ function renderGroupDetail(group, sessions) {
 }
 
 function showStartSession() {
-    document.getElementById('sessionForm').innerHTML = '<div class="card animate"><div class="card-body"><div class="card-header">Start Governance Session</div><div class="form-group"><label class="form-label">Proposal</label><input id="sessAction" value="Approve $2M raise at $15M post-money from LAUNCH Fund"></div><div class="form-group"><label class="form-label">Description</label><textarea id="sessDesc">Investment terms: $2M at $15M post-money. 2-year cliff, 4-year vest. Board observer seat.</textarea></div><div style="display:flex;gap:8px"><button class="btn" onclick="startSession()">Start Session</button><button class="btn" style="border-color:var(--border);color:var(--text-tertiary)" onclick="document.getElementById(\'sessionForm\').innerHTML=\'\'">Cancel</button></div></div></div>';
+    const s = SCENARIOS[activeScenario] || {};
+    const defProp = s.default_proposal || 'Approve budget allocation';
+    const defDesc = s.default_description || 'Describe the proposal for committee review.';
+    document.getElementById('sessionForm').innerHTML = '<div class="card animate"><div class="card-body"><div class="card-header">Start Governance Session</div><div class="form-group"><label class="form-label">Proposal</label><input id="sessAction" value="'+defProp.replace(/"/g,'&quot;')+'"></div><div class="form-group"><label class="form-label">Description</label><textarea id="sessDesc">'+defDesc+'</textarea></div><div style="display:flex;gap:8px"><button class="btn" onclick="startSession()">Start Session</button><button class="btn" style="border-color:var(--border);color:var(--text-tertiary)" onclick="document.getElementById(\'sessionForm\').innerHTML=\'\'">Cancel</button></div></div></div>';
 }
 
 async function startSession() {
@@ -325,12 +335,12 @@ function renderSession(group, session) {
     const dashOff = circ-(effectivePct/100)*circ;
     const sc = session.status==='approved'?'approved':session.status==='denied'?'denied':'open';
 
-    let h = '<div style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-size:16px">'+m.icon+'</span><span style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+m.name+'</span><span class="status-pill '+sc+'">'+session.status.toUpperCase()+'</span></div>';
+    let h = '<div style="margin-bottom:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+m.name+'</span><span class="status-pill '+sc+'">'+session.status.toUpperCase()+'</span></div>';
     h += '<div style="font-size:20px;font-weight:800;color:var(--text-primary)">'+session.action+'</div>';
     h += '<div style="font-size:13px;color:var(--text-tertiary);margin-top:4px">'+(session.description||'')+'</div>';
     h += '<div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:8px">'+group.name+'</div></div>';
 
-    if (group.require_presence && group.presence_location) h += '<div class="presence-map">\u{1F4CD} '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km</div>';
+    if (group.require_presence && group.presence_location) h += '<div class="presence-map">◉ '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km</div>';
 
     h += '<div class="card"><div class="card-body"><div style="display:flex;align-items:center;gap:24px">';
     h += '<div class="quorum-ring"><svg viewBox="0 0 120 120"><circle class="quorum-ring-bg" cx="60" cy="60" r="52"/><circle class="quorum-ring-fill" cx="60" cy="60" r="52" stroke="'+ringColor+'" stroke-dasharray="'+circ+'" stroke-dashoffset="'+dashOff+'"/></svg><div class="quorum-ring-text"><div class="quorum-pct">'+effectivePct+'%</div><div class="quorum-label">'+(group.require_presence?'Present':'Approved')+'</div></div></div>';
@@ -344,6 +354,21 @@ function renderSession(group, session) {
         if (hasVoted) {
             const mv = votes.find(v=>v.email===emailParam.toLowerCase());
             h += '<div class="card"><div class="card-body" style="text-align:center"><div style="font-family:var(--mono);font-size:12px;color:var(--text-tertiary)">You voted: <strong style="color:'+(mv.vote==='approve'?'var(--success)':'var(--error)')+'">'+mv.vote.toUpperCase()+'</strong></div></div></div>';
+            // Demo: simulate other members voting
+            const waitingMembers = (group.members_detail || group.members.map(e=>({email:e}))).filter(m => {
+                const e = (m.email||'').toLowerCase();
+                return !votes.some(v=>v.email===e);
+            });
+            if (waitingMembers.length > 0) {
+                h += '<div class="card" style="border-color:var(--teal);border-style:dashed;"><div class="card-body" style="text-align:center">';
+                h += '<div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1px;margin-bottom:6px;">DEMO MODE</div>';
+                h += '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">Simulate other committee members voting to see the quorum ring fill</div>';
+                h += '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">';
+                h += '<button class="btn success" onclick="simulateVotes(\'approve\')">Simulate All Approve</button>';
+                h += '<button class="btn" onclick="simulateNextVote(\'approve\')">Simulate Next Vote</button>';
+                h += '<button class="btn danger" onclick="simulateVotes(\'deny\')">Simulate All Deny</button>';
+                h += '</div></div></div>';
+            }
         } else {
             h += '<div class="card"><div class="card-body"><div class="card-header">Cast Your Vote</div><div class="form-group"><label class="form-label">Your Email</label><input id="voteEmail" value="'+emailParam+'"></div><div class="vote-bar"><button class="btn success" onclick="submitVote(\'approve\')">\u2713 Approve</button><button class="btn danger" onclick="submitVote(\'deny\')">\u2717 Deny</button><button class="btn warn" onclick="submitVote(\'abstain\')">\u2014 Abstain</button></div></div></div>';
         }
@@ -361,7 +386,7 @@ function renderSession(group, session) {
         const dotClass = vote?.verified?(isPresent?'present':'verified'):'pending';
         const voteClass = vote?vote.vote:'waiting';
         const voteLabel = vote?vote.vote.toUpperCase():'WAITING';
-        h += '<div class="member-row"><div class="member-dot '+dotClass+'"></div><div class="member-name">'+name+'</div><div class="member-meta">'+email+(vote?.trust_score?' \u00B7 '+(vote.trust_score*100).toFixed(0)+'%':'')+(group.require_presence?(isPresent?' \u00B7 \u{1F4CD}':' \u00B7 Remote'):'')+'</div><span class="member-vote '+voteClass+'">'+voteLabel+'</span></div>';
+        h += '<div class="member-row"><div class="member-dot '+dotClass+'"></div><div class="member-name">'+name+'</div><div class="member-meta">'+email+(vote?.trust_score?' \u00B7 '+(vote.trust_score*100).toFixed(0)+'%':'')+(group.require_presence?(isPresent?' \u00B7 ◉':' \u00B7 Remote'):'')+'</div><span class="member-vote '+voteClass+'">'+voteLabel+'</span></div>';
     });
     h += '</div></div>';
     h += '<div style="text-align:center;margin-top:24px"><div class="patent-badge"><span class="dot"></span>Claims 168\u2013241</div></div>';
@@ -381,6 +406,48 @@ async function submitVote(voteType) {
         if (d.session_id || d.status==='already_voted') await loadSession(currentSession.session_id);
         else alert(d.detail||'Vote failed');
     } catch(e) { alert(e.message); }
+}
+
+async function simulateNextVote(voteType) {
+    if (!currentSession || !currentGroup) return;
+    const votes = currentSession.votes || [];
+    const votedEmails = votes.map(v => v.email);
+    const members = currentGroup.members_detail || currentGroup.members.map(e => ({email: e}));
+    const next = members.find(m => !votedEmails.includes((m.email||'').toLowerCase()));
+    if (!next) return;
+    // Simulate location near meeting point for presence-required groups
+    let loc = null;
+    if (currentGroup.require_presence && currentGroup.presence_location) {
+        const base = currentGroup.presence_location;
+        loc = { lat: base.lat + (Math.random()-0.5)*0.002, lng: base.lng + (Math.random()-0.5)*0.002 };
+    }
+    try {
+        await fetch(API+'/v1/groups/session/'+currentSession.session_id+'/vote', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ email: next.email, vote: voteType, location: loc })
+        });
+        await loadSession(currentSession.session_id);
+    } catch(e) { alert(e.message); }
+}
+
+async function simulateVotes(voteType) {
+    if (!currentSession || !currentGroup) return;
+    const votes = currentSession.votes || [];
+    const votedEmails = votes.map(v => v.email);
+    const members = currentGroup.members_detail || currentGroup.members.map(e => ({email: e}));
+    const waiting = members.filter(m => !votedEmails.includes((m.email||'').toLowerCase()));
+    for (const mem of waiting) {
+        let loc = null;
+        if (currentGroup.require_presence && currentGroup.presence_location) {
+            const base = currentGroup.presence_location;
+            loc = { lat: base.lat + (Math.random()-0.5)*0.002, lng: base.lng + (Math.random()-0.5)*0.002 };
+        }
+        await fetch(API+'/v1/groups/session/'+currentSession.session_id+'/vote', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ email: mem.email, vote: voteType, location: loc })
+        });
+    }
+    await loadSession(currentSession.session_id);
 }
 
 init();
