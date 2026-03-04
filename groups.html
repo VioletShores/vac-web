@@ -342,6 +342,11 @@ function showLanding() {
     renderScenarioChips();
     renderModelChips();
     loadGroupList();
+    // Delegate clicks on group cards
+    document.getElementById('groupList').addEventListener('click', function(e) {
+        const card = e.target.closest('[data-gid]');
+        if (card) loadGroup(card.dataset.gid);
+    });
     // Auto-populate location dropdown for default scenario
     setTimeout(() => applyScenario(activeScenario), 50);
 }
@@ -464,24 +469,8 @@ async function loadGroupList() {
         const r = await fetch(API+'/v1/groups?email='+encodeURIComponent(emailParam));
         const d = await r.json();
         if (d.groups && d.groups.length > 0) {
-            d.groups.map(g => {
-                    const div = document.createElement('div');
-                    div.className = 'card animate';
-                    div.style.cssText = 'cursor:pointer';
-                    div.onclick = () => loadGroup(g.group_id);
-                    div.innerHTML = '<div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">' + g.name + '</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">' + g.member_count + ' members \u00B7 ' + (MODELS[g.quorum_model]?.icon||'') + ' ' + g.quorum_model + '</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div>';
-                    return div;
-                });
-                const listEl = document.getElementById('groupList');
-                listEl.innerHTML = '<div class="section-title">Your Groups</div>';
-                d.groups.forEach(g => {
-                    const div = document.createElement('div');
-                    div.className = 'card animate';
-                    div.style.cursor = 'pointer';
-                    div.onclick = function() { loadGroup(g.group_id); };
-                    div.innerHTML = '<div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">' + g.name + '</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">' + g.member_count + ' members \u00B7 ' + (MODELS[g.quorum_model]?.icon||'') + ' ' + g.quorum_model + '</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div>';
-                    listEl.appendChild(div);
-                });
+            document.getElementById('groupList').innerHTML = '<div class="section-title">Your Groups</div>' +
+                d.groups.map(g => '<div class="card animate" style="cursor:pointer" onclick="loadGroup(\''+g.group_id+'\')"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+g.name+'</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">'+g.member_count+' members \u00B7 '+(MODELS[g.quorum_model]?.icon||'')+' '+g.quorum_model+'</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div></div>').join('');
         }
     } catch(e) {}
 }
