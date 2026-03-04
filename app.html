@@ -4387,7 +4387,7 @@ async function loadGroupList() {
         const d = await r.json();
         if (d.groups && d.groups.length > 0) {
             document.getElementById('groupList').innerHTML = '<div class="section-title">Your Groups</div>' +
-                d.groups.map(g => '<div class="card animate" style="cursor:pointer" onclick="loadGroup(\''+g.group_id+'\')"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+g.name+'</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">'+g.member_count+' members \u00B7 '+(MODELS[g.quorum_model]?.icon||'')+' '+g.quorum_model+'</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div></div>').join('');
+                d.groups.map(g => `<div class="card animate" style="cursor:pointer" onclick="loadGroup('${g.group_id}')"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">${g.name}</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">${g.member_count} members \u00B7 ${(MODELS[g.quorum_model]?.icon||'')} ${g.quorum_model}</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div></div>`).join('');
         }
     } catch(e) {}
 }
