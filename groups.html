@@ -950,7 +950,8 @@ async function cancelSession() {
     } catch(e) { alert(e.message); }
 }
 
-// groupsInit() called by SPA router
+// Called by SPA router as groupsInit(), or directly for standalone
+init();
 </script>
 </body>
 </html>
