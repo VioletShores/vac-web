@@ -1,32 +1,40 @@
 {
-  "rewrites": [
-    {
-      "source": "/auth",
-      "destination": "/auth.html"
-    },
-    {
-      "source": "/dashboard",
-      "destination": "/dashboard.html"
-    },
-    {
-      "source": "/msg",
-      "destination": "/msg.html"
-    },
-    {
-      "source": "/vat/verify/:jti",
-      "destination": "/vat-verify.html?jti=:jti"
-    },
-    {
-      "source": "/vouch/:id",
-      "destination": "/vouch.html?id=:id"
-    },
-    {
-      "source": "/groups",
-      "destination": "/groups.html"
-    },
-    {
-      "source": "/agents",
-      "destination": "/agents.html"
-    }
-  ]
+    "rewrites": [
+        {
+            "source": "/auth",
+            "destination": "/auth.html"
+        },
+        {
+            "source": "/dashboard",
+            "destination": "/dashboard.html"
+        },
+        {
+            "source": "/msg",
+            "destination": "/msg.html"
+        },
+        {
+            "source": "/vat/verify/:jti",
+            "destination": "/vat-verify.html?jti=:jti"
+        },
+        {
+            "source": "/vouch/:id",
+            "destination": "/vouch.html?id=:id"
+        },
+        {
+            "source": "/groups",
+            "destination": "/groups.html"
+        },
+        {
+            "source": "/agents",
+            "destination": "/agents.html"
+        },
+        {
+            "source": "/api",
+            "destination": "https://vac-system-production.up.railway.app/docs"
+        },
+        {
+            "source": "/api/openapi.json",
+            "destination": "https://vac-system-production.up.railway.app/openapi.json"
+        }
+    ]
 }
