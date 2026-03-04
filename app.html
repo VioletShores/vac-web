@@ -1279,7 +1279,7 @@ function route(tab) { currentTab = tab; const ws=document.getElementById('welcom
 function handleHash() { const hash=window.location.hash.replace('#','')||'verify'; const valid=['verify','messages','agents','governance','admin']; route(valid.includes(hash)?hash:'verify'); }
 const urlParams=new URLSearchParams(window.location.search); const sharedEmail=urlParams.get('email')||'';
 if(!sharedEmail) { const ws=document.getElementById('welcomeScreen'); if(ws) ws.style.display='block'; document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active')); }
-if(sharedEmail) { const isRoot=sharedEmail.includes('rob@violetshores'); const label=isRoot?'VERIFIED ROOT':'VERIFIED'; document.getElementById('spaUser').innerHTML='<span>&#x25C9;</span> '+sharedEmail.split('@')[0]+'<div style="font-size:8px;color:var(--success);letter-spacing:0.5px;">'+label+'</div>'; }
+if(sharedEmail) { const isRoot=sharedEmail.includes('rob@violetshores'); const label=isRoot?'VERIFIED ROOT':'VERIFIED'; document.getElementById('spaUser').innerHTML='<span>&#x25C9;</span> '+sharedEmail+'<div style="font-size:8px;color:var(--success);letter-spacing:0.5px;">'+label+'</div>'; }
 // Auth
 const API_BASE = 'https://vac-system-production.up.railway.app';
 
@@ -4171,19 +4171,24 @@ function groupsInit() {
 }
 
 async function autoFindSession() {
+    console.log('[GOV] autoFindSession start');
     try {
         const resp = await fetch(API + '/v1/groups/sessions');
+        console.log('[GOV] sessions resp:', resp.status);
         if (resp.ok) {
             const d = await resp.json();
+            console.log('[GOV] sessions count:', (d.sessions||[]).length);
             const active = (d.sessions || []).find(s => s.status === 'open');
             if (active) {
+                console.log('[GOV] loading active:', active.session_id);
                 return loadSession(active.session_id);
             }
         }
     } catch(e) {
-        console.log('[GOVERNANCE] autoFindSession error:', e);
+        console.error('[GOV] autoFindSession error:', e);
     }
-    showLanding();
+    console.log('[GOV] calling showLanding');
+    try { showLanding(); } catch(e) { console.error('[GOV] showLanding error:', e); }
 }
 
 function showLanding() {
