@@ -148,6 +148,26 @@ const SCENARIOS = {
 };
 let activeScenario = 'gov_committee';
 
+function fmtTime(iso) {
+    if (!iso) return '';
+    try {
+        const d = new Date(iso);
+        const now = new Date();
+        const diff = now - d;
+        const mins = Math.floor(diff / 60000);
+        const hrs = Math.floor(mins / 60);
+        
+        // Relative time for recent events
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return mins + ' min ago';
+        if (hrs < 24) return hrs + 'h ago';
+        
+        // Absolute for older events
+        const opts = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        return d.toLocaleDateString('en-US', opts);
+    } catch(e) { return iso; }
+}
+
 function renderPresenceMap(loc, radius) {
     if (!loc) return '';
     const lat = loc.lat, lng = loc.lng, name = loc.name || 'Meeting Point';
@@ -598,7 +618,7 @@ function renderSession(group, session) {
     h += '<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;">';
     h += '<span style="color:var(--purple);font-size:11px;">◈</span>';
     h += '<div style="flex:1;"><div style="font-family:var(--mono);font-size:11px;color:var(--text-secondary);">Session Created</div>';
-    h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+(session.created_at||'')+' · Initiated by: '+(session.initiated_by||'system')+' · Model: '+(m.name)+' · Timeout: '+(session.timeout_minutes||60)+' min</div></div></div>';
+    h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+fmtTime(session.created_at)+' · Initiated by '+(session.initiated_by||'system')+' · Model: '+(m.name)+' · Voting window: '+(session.timeout_minutes||60)+' minutes</div></div></div>';
     
     // Location requirement
     if (group.require_presence) {
@@ -617,7 +637,7 @@ function renderSession(group, session) {
         h += '<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;">';
         h += '<span style="color:'+vColor+';font-size:11px;">'+glyph+'</span>';
         h += '<div style="flex:1;"><div style="font-family:var(--mono);font-size:11px;color:var(--text-secondary);">Vote: '+v.vote.toUpperCase()+' — '+vName+'</div>';
-        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+v.email+' · '+(v.voted_at||'')+(v.verified?' · Verified':'')+(v.is_present?' · Present ◉':group.require_presence?' · Remote':'')+(v.proxy?' · Proxy by: '+v.proxy.proxy_by:'')+(v.changed?' · Changed vote':'')+'</div></div></div>';
+        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+fmtTime(v.voted_at)+' · '+v.email+(v.verified?' · Chain verified':'')+(v.is_present?' · Present at location ◉':group.require_presence?' · Remote (not at location)':'')+(v.proxy?' · Voted by proxy: '+v.proxy.proxy_by:'')+(v.changed?' · Vote changed':'')+'</div></div></div>';
     });
     
     // Resolution event
@@ -625,17 +645,17 @@ function renderSession(group, session) {
         h += '<div style="padding:6px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;">';
         h += '<span style="color:var(--success);font-size:11px;">◈</span>';
         h += '<div style="flex:1;"><div style="font-family:var(--mono);font-size:11px;color:var(--success);">Quorum Reached — Decision Approved</div>';
-        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+(session.resolved_at||'')+' · '+approvals.length+'/'+total+' verified approvals · Threshold: '+threshPct+'%</div></div></div>';
+        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+fmtTime(session.resolved_at)+' · '+approvals.length+' of '+total+' members approved · Threshold was '+threshPct+'%</div></div></div>';
     } else if (session.status === 'expired') {
         h += '<div style="padding:6px 0;display:flex;align-items:flex-start;gap:8px;">';
         h += '<span style="color:var(--warning);font-size:11px;">⊘</span>';
         h += '<div style="flex:1;"><div style="font-family:var(--mono);font-size:11px;color:var(--warning);">Session Expired — Quorum Not Reached</div>';
-        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">Voting window: '+(session.timeout_minutes||60)+' min · Expires: '+(session.expires_at||'')+'</div></div></div>';
+        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">Voting window was '+(session.timeout_minutes||60)+' minutes · Expired: '+fmtTime(session.expires_at)+'</div></div></div>';
     } else if (session.status === 'cancelled') {
         h += '<div style="padding:6px 0;display:flex;align-items:flex-start;gap:8px;">';
         h += '<span style="color:var(--error);font-size:11px;">⊗</span>';
         h += '<div style="flex:1;"><div style="font-family:var(--mono);font-size:11px;color:var(--error);">Session Cancelled</div>';
-        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+(session.cancelled_at||'')+' · Reason: '+(session.cancel_reason||'Not specified')+' · Votes preserved: '+votes.length+'</div></div></div>';
+        h += '<div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+fmtTime(session.cancelled_at)+' · Reason: '+(session.cancel_reason||'Not specified')+' · '+votes.length+' votes preserved in audit</div></div></div>';
     }
     
     h += '</div></div>';
