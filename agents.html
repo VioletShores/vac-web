@@ -124,7 +124,7 @@ textarea.form-input { min-height: 80px; resize: vertical; }
     <div class="hero">
         <div class="hero-eyebrow">Claims 39–134 · Live Demonstration</div>
         <div class="hero-title">Agent Task Runner</div>
-        <div class="hero-sub">Real AI agent. Real API calls. Real budget enforcement. The math prevents overspend — not policy.</div>
+        <div class="hero-sub">Visa and Mastercard are giving agents debit cards. VAC gives them cryptographic spending limits tied to a verified human. The math is the bank.</div>
     </div>
 
     <!-- Delegation Chain — the verified human is the root of all authority -->
@@ -170,7 +170,10 @@ textarea.form-input { min-height: 80px; resize: vertical; }
 
     <!-- Task Config -->
     <div class="card" id="taskConfig">
-        <div class="card-header">Assign Task</div>
+        <div class="card-header">Agent Spending Card</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-bottom:12px;padding:6px 10px;background:var(--surface-raised);border-radius:4px;">
+            Like Visa/Mastercard Agent Pay — but with cryptographic proof of who authorized the spend. Every transaction traces to a verified human.
+        </div>
         <div class="form-group">
             <label class="form-label">Your Email (verified)</label>
             <input class="form-input" id="ownerEmail" type="email" placeholder="rob@violetshores.com">
@@ -181,15 +184,15 @@ textarea.form-input { min-height: 80px; resize: vertical; }
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label">Token Budget</label>
+                <label class="form-label">💳 Card Limit (tokens)</label>
                 <input class="form-input" id="tokenBudget" type="number" value="4000">
             </div>
             <div class="form-group">
-                <label class="form-label">Spend Cap ($)</label>
+                <label class="form-label">💰 Spend Cap ($)</label>
                 <input class="form-input" id="spendCap" type="number" value="0.08" step="0.01">
             </div>
             <div class="form-group">
-                <label class="form-label">Max API Calls</label>
+                <label class="form-label">🔒 Max Transactions</label>
                 <input class="form-input" id="maxCalls" type="number" value="3">
             </div>
         </div>
@@ -201,7 +204,7 @@ textarea.form-input { min-height: 80px; resize: vertical; }
 
     <!-- Budget Gauge (appears during run) -->
     <div class="card" id="budgetCard" style="display:none;">
-        <div class="card-header">Budget Enforcement <span style="color:var(--purple);">· LIVE</span></div>
+        <div class="card-header">💳 Agent Spending Card <span style="color:var(--purple);">· LIVE</span></div>
         <div class="budget-bar">
             <div class="budget-header">
                 <span class="budget-label">Token Usage</span>
@@ -214,19 +217,19 @@ textarea.form-input { min-height: 80px; resize: vertical; }
         <div class="summary-grid">
             <div class="summary-stat">
                 <div class="summary-value" id="statTokens">0</div>
-                <div class="summary-label">Tokens Used</div>
+                <div class="summary-label">Tokens Spent</div>
             </div>
             <div class="summary-stat">
                 <div class="summary-value" id="statSpend">$0</div>
-                <div class="summary-label">Spend</div>
+                <div class="summary-label">Card Balance</div>
             </div>
             <div class="summary-stat">
                 <div class="summary-value" id="statCalls">0</div>
-                <div class="summary-label">API Calls</div>
+                <div class="summary-label">Transactions</div>
             </div>
             <div class="summary-stat">
                 <div class="summary-value" id="statStatus">—</div>
-                <div class="summary-label">Status</div>
+                <div class="summary-label">Card Status</div>
             </div>
         </div>
     </div>
@@ -294,7 +297,7 @@ async function createAndRun(stepMode) {
     // Update chain
     document.getElementById('chainHumanName').textContent = ownerEmail;
     document.getElementById('chainAgent').classList.add('active');
-    document.getElementById('chainAgentScope').textContent = `scope: research only · budget: ${tokenBudget.toLocaleString()} tokens · $${spendCap}`;
+    document.getElementById('chainAgentScope').textContent = `card limit: ${tokenBudget.toLocaleString()} tokens · $${spendCap} cap · ${maxCalls} transactions`;
 
     // Show budget card
     document.getElementById('budgetCard').style.display = 'block';
@@ -451,14 +454,14 @@ function showEscalation(data) {
     el.className = 'escalation';
     el.innerHTML = `
         <div class="escalation-icon">🚨</div>
-        <div class="escalation-title">Budget Exceeded — Human Approval Required</div>
-        <div class="escalation-reason">${escapeHtml(data.escalation_reason || data.escalation?.reason || 'Token budget exhausted')}</div>
+        <div class="escalation-title">Card Limit Reached — Human Approval Required</div>
+        <div class="escalation-reason">${escapeHtml(data.escalation_reason || data.escalation?.reason || 'Spending limit reached')}</div>
         <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">
-            The agent has used its entire allocated budget. Under VAC Protocol (Claims 39–55), the agent <strong>cannot</strong> make another API call without explicit human re-authorisation. This constraint is enforced mathematically — no override exists.
+            The agent's spending card has hit its limit. Under VAC Protocol (Claims 39–55), the agent <strong>cannot</strong> make another transaction without explicit human re-authorisation. This constraint is enforced mathematically — no override exists. Like Visa/Mastercard Agent Pay, but the math is the bank.
         </div>
         <div class="escalation-buttons">
-            <button class="btn btn-success" onclick="approveEscalation()">✓ Approve (+4,000 tokens)</button>
-            <button class="btn btn-danger" onclick="denyEscalation()">✕ Deny — Stop Agent</button>
+            <button class="btn btn-success" onclick="approveEscalation()">✓ Increase Card Limit (+4,000 tokens)</button>
+            <button class="btn btn-danger" onclick="denyEscalation()">✕ Freeze Card — Stop Agent</button>
         </div>
     `;
     document.getElementById('escalationContainer').innerHTML = '';
