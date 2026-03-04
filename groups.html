@@ -242,8 +242,30 @@ const MODELS = {
 let currentGroup = null, currentSession = null, selectedModel = 'cultural_hui';
 
 function init() {
+    // Check URL params first
     if (sessionParam) return loadSession(sessionParam);
     if (groupParam) return loadGroup(groupParam);
+    
+    // Show loading while checking for active session
+    const el = document.getElementById('content');
+    if (el) el.innerHTML = '<div style="text-align:center;padding:60px 20px;"><div style="font-family:var(--mono);font-size:11px;color:var(--text-quaternary);">Loading governance...</div></div>';
+    
+    autoFindSession();
+}
+
+async function autoFindSession() {
+    try {
+        const resp = await fetch(API + '/v1/groups/sessions');
+        if (resp.ok) {
+            const d = await resp.json();
+            const active = (d.sessions || []).find(s => s.status === 'open');
+            if (active) {
+                return loadSession(active.session_id);
+            }
+        }
+    } catch(e) {
+        console.log('[GOVERNANCE] autoFindSession error:', e);
+    }
     showLanding();
 }
 
@@ -442,8 +464,24 @@ async function loadGroupList() {
         const r = await fetch(API+'/v1/groups?email='+encodeURIComponent(emailParam));
         const d = await r.json();
         if (d.groups && d.groups.length > 0) {
-            document.getElementById('groupList').innerHTML = '<div class="section-title">Your Groups</div>' +
-                d.groups.map(g => '<div class="card animate" style="cursor:pointer" onclick="loadGroup(g.group_id)"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+g.name+'</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">'+g.member_count+' members \u00B7 '+(MODELS[g.quorum_model]?.icon||'')+' '+g.quorum_model+'</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div></div>').join('');
+            d.groups.map(g => {
+                    const div = document.createElement('div');
+                    div.className = 'card animate';
+                    div.style.cssText = 'cursor:pointer';
+                    div.onclick = () => loadGroup(g.group_id);
+                    div.innerHTML = '<div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">' + g.name + '</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">' + g.member_count + ' members \u00B7 ' + (MODELS[g.quorum_model]?.icon||'') + ' ' + g.quorum_model + '</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div>';
+                    return div;
+                });
+                const listEl = document.getElementById('groupList');
+                listEl.innerHTML = '<div class="section-title">Your Groups</div>';
+                d.groups.forEach(g => {
+                    const div = document.createElement('div');
+                    div.className = 'card animate';
+                    div.style.cursor = 'pointer';
+                    div.onclick = function() { loadGroup(g.group_id); };
+                    div.innerHTML = '<div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">' + g.name + '</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">' + g.member_count + ' members \u00B7 ' + (MODELS[g.quorum_model]?.icon||'') + ' ' + g.quorum_model + '</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div>';
+                    listEl.appendChild(div);
+                });
         }
     } catch(e) {}
 }
@@ -923,7 +961,7 @@ async function cancelSession() {
     } catch(e) { alert(e.message); }
 }
 
-init();
+// groupsInit() called by SPA router
 </script>
 </body>
 </html>
