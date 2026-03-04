@@ -137,10 +137,12 @@ textarea.form-input { min-height: 80px; resize: vertical; }
             <div style="flex:1;">
                 <div style="font-size:13px;font-weight:700;color:var(--success);" id="chainHumanName">Verify first</div>
                 <div style="font-family:var(--mono);font-size:10px;color:var(--text-tertiary);">VERIFIED HUMAN · Face + Voice + Challenge</div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--warning);margin-top:2px;" id="chainRoleLabel">Employee</div>
             </div>
             <div style="text-align:right;">
                 <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:var(--success);" id="chainTrustScore">0.95</div>
                 <div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">TRUST SCORE</div>
+                <div style="font-family:var(--mono);font-size:10px;font-weight:600;color:var(--warning);margin-top:2px;" id="chainCeiling">$0.08 ceiling</div>
             </div>
         </div>
         
@@ -177,6 +179,21 @@ textarea.form-input { min-height: 80px; resize: vertical; }
         <div class="form-group">
             <label class="form-label">Your Email (verified)</label>
             <input class="form-input" id="ownerEmail" type="email" placeholder="rob@violetshores.com">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Your Role · Spending Authority</label>
+            <select class="form-input" id="humanRole" onchange="applyRoleLimits()" style="cursor:pointer;">
+                <option value="founder" data-tokens="50000" data-spend="1.00" data-calls="20">Founder / CTO — $1.00 ceiling · 50K tokens</option>
+                <option value="department_head" data-tokens="20000" data-spend="0.50" data-calls="15">Department Head — $0.50 ceiling · 20K tokens</option>
+                <option value="team_lead" data-tokens="10000" data-spend="0.25" data-calls="10">Team Lead — $0.25 ceiling · 10K tokens</option>
+                <option value="employee" data-tokens="4000" data-spend="0.08" data-calls="5" selected>Employee — $0.08 ceiling · 4K tokens</option>
+                <option value="intern" data-tokens="1000" data-spend="0.02" data-calls="2">Intern / Contractor — $0.02 ceiling · 1K tokens</option>
+                <option value="gov_analyst" data-tokens="8000" data-spend="0.15" data-calls="8">Gov Analyst — $0.15 ceiling · 8K tokens</option>
+                <option value="gov_director" data-tokens="30000" data-spend="0.75" data-calls="15">Gov Director — $0.75 ceiling · 30K tokens</option>
+            </select>
+        </div>
+        <div id="roleLimitNote" style="font-family:var(--mono);font-size:9px;color:var(--warning);margin-bottom:8px;padding:4px 10px;background:var(--warning-bg);border-radius:4px;display:none;">
+            ⊡ Agent card limit cannot exceed your role authority. Monotonic narrowing: permissions only restrict, never expand.
         </div>
         <div class="form-group">
             <label class="form-label">Task Prompt</label>
@@ -285,6 +302,46 @@ const API_BASE = 'https://vac-system-production.up.railway.app';
 let currentTaskId = null;
 let stepByStepMode = false;
 let auditLog = [];  // Structured audit entries
+let humanCeiling = { tokens: 4000, spend: 0.08, calls: 5, role: 'employee' };  // Human's authority limit
+
+function applyRoleLimits() {
+    const sel = document.getElementById('humanRole');
+    const opt = sel.options[sel.selectedIndex];
+    const maxTokens = parseInt(opt.dataset.tokens);
+    const maxSpend = parseFloat(opt.dataset.spend);
+    const maxCalls = parseInt(opt.dataset.calls);
+    
+    humanCeiling = { tokens: maxTokens, spend: maxSpend, calls: maxCalls, role: sel.value };
+    
+    // Cap the form fields to human's ceiling
+    const tokenInput = document.getElementById('tokenBudget');
+    const spendInput = document.getElementById('spendCap');
+    const callsInput = document.getElementById('maxCalls');
+    
+    tokenInput.max = maxTokens;
+    spendInput.max = maxSpend;
+    callsInput.max = maxCalls;
+    
+    // Auto-set to ceiling if current values exceed it
+    if (parseInt(tokenInput.value) > maxTokens) tokenInput.value = maxTokens;
+    if (parseFloat(spendInput.value) > maxSpend) spendInput.value = maxSpend;
+    if (parseInt(callsInput.value) > maxCalls) callsInput.value = maxCalls;
+    
+    // Show warning
+    document.getElementById('roleLimitNote').style.display = 'block';
+    
+    // Update human card display
+    const humanName = document.getElementById('chainHumanName');
+    if (humanName && humanName.textContent !== 'Verify first') {
+        document.getElementById('chainRoleLabel').textContent = opt.text.split('—')[0].trim();
+        document.getElementById('chainCeiling').textContent = `$${maxSpend} ceiling`;
+    }
+}
+
+function getRoleLabel() {
+    const sel = document.getElementById('humanRole');
+    return sel.options[sel.selectedIndex].text.split('—')[0].trim();
+}
 
 // Pre-fill from URL params
 const params = new URLSearchParams(window.location.search);
@@ -308,6 +365,11 @@ async function createAndRun(stepMode) {
     const maxCalls = parseInt(document.getElementById('maxCalls').value) || 3;
 
     if (!ownerEmail || !prompt) { alert('Enter your email and a task prompt.'); return; }
+    
+    // Enforce human ceiling (monotonic narrowing)
+    if (tokenBudget > humanCeiling.tokens) { tokenBudget = humanCeiling.tokens; document.getElementById('tokenBudget').value = tokenBudget; }
+    if (spendCap > humanCeiling.spend) { spendCap = humanCeiling.spend; document.getElementById('spendCap').value = spendCap; }
+    if (maxCalls > humanCeiling.calls) { maxCalls = humanCeiling.calls; document.getElementById('maxCalls').value = maxCalls; }
 
     // Highlight active mode button
     if (stepMode) {
@@ -320,6 +382,8 @@ async function createAndRun(stepMode) {
 
     // Update chain
     document.getElementById('chainHumanName').textContent = ownerEmail;
+    document.getElementById('chainRoleLabel').textContent = getRoleLabel();
+    document.getElementById('chainCeiling').textContent = `$${humanCeiling.spend} ceiling`;
     document.getElementById('chainAgent').classList.add('active');
     document.getElementById('chainAgentScope').textContent = `card limit: ${tokenBudget.toLocaleString()} tokens · $${spendCap} cap · ${maxCalls} transactions`;
 
@@ -470,7 +534,7 @@ function renderStep(step, budget) {
             <span class="step-label"><svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='var(--teal)' stroke-width='2' stroke-linecap='round'><rect x='2' y='6' width='20' height='12' rx='2'/><circle cx='8' cy='12' r='1.5' fill='var(--teal)'/><circle cx='16' cy='12' r='1.5' fill='var(--teal)'/><path d='M9 2h6M12 2v4'/></svg> Research Agent · API Call #${step.step || '?'}</span>
             <span class="step-tokens ${tokenCls}">${(step.total_tokens || 0).toLocaleString()} tokens</span>
         </div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);margin-bottom:6px;">Chain: Human ✓ → Coordinator → Research Agent · Authorized by delegation</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);margin-bottom:6px;">Chain: Human ✓ (${getRoleLabel()}) → Coordinator → Research Agent · Authorized by delegation · Ceiling: $${humanCeiling.spend}</div>
         <div class="step-content">${escapeHtml(step.content)}</div>
         <div class="step-cost">
             Input: ${(step.input_tokens || 0).toLocaleString()} · Output: ${(step.output_tokens || 0).toLocaleString()} · Cost: $${(step.cost_usd || 0).toFixed(4)}
@@ -504,17 +568,31 @@ function showEscalation(data) {
     document.getElementById('chainAgent').style.borderColor = 'var(--error)';
     document.getElementById('chainAgent').style.boxShadow = '0 0 8px rgba(248,81,73,0.4)';
 
+    // Calculate how much can be approved (capped by human's ceiling)
+    const currentTokens = data.total_tokens_used || 0;
+    const currentSpend = data.total_spend_usd || 0;
+    const additionalTokens = Math.min(4000, humanCeiling.tokens - currentTokens);
+    const additionalSpend = Math.min(0.08, humanCeiling.spend - currentSpend);
+    const canApprove = additionalTokens > 0 && additionalSpend > 0;
+    
+    const approveLabel = canApprove
+        ? `✓ Increase Card Limit (+${additionalTokens.toLocaleString()} tokens)`
+        : '⊘ Your role ceiling reached — cannot approve more';
+
     const el = document.createElement('div');
     el.className = 'escalation';
     el.innerHTML = `
         <div class="escalation-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
         <div class="escalation-title">Card Limit Reached — Human Approval Required</div>
         <div class="escalation-reason">${escapeHtml(data.escalation_reason || data.escalation?.reason || 'Spending limit reached')}</div>
-        <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">
-            The agent's spending card has hit its limit. Under VAC Protocol (Claims 39–55), the agent <strong>cannot</strong> make another transaction without explicit human re-authorisation. This constraint is enforced mathematically — no override exists. Like Visa/Mastercard Agent Pay, but the math is the bank.
+        <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:8px;">
+            The agent's spending card has hit its limit. Under VAC Protocol (Claims 39–55), the agent <strong>cannot</strong> make another transaction without explicit human re-authorisation. This constraint is enforced mathematically — no override exists.
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--warning);margin-bottom:12px;padding:6px 10px;background:var(--warning-bg);border-radius:4px;">
+            Your role: <strong>${getRoleLabel()}</strong> · Authority ceiling: $${humanCeiling.spend} / ${humanCeiling.tokens.toLocaleString()} tokens · Agent cannot be granted more than its authorizing human holds.
         </div>
         <div class="escalation-buttons">
-            <button class="btn btn-success" onclick="approveEscalation()">✓ Increase Card Limit (+4,000 tokens)</button>
+            <button class="btn btn-success" onclick="approveEscalation()" ${canApprove ? '' : 'disabled style="opacity:0.5;cursor:not-allowed;"'}>${approveLabel}</button>
             <button class="btn btn-danger" onclick="denyEscalation()">✕ Freeze Card — Stop Agent</button>
         </div>
     `;
