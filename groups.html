@@ -6,7 +6,7 @@
 <title>VAC Groups</title>
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <style>
-:root { --bg: #0D1117; --surface: #161B22; --surface-raised: #1C2128; --border: #30363D; --text-primary: #F0F6FC; --text-secondary: #C9D1D9; --text-tertiary: #8B949E; --text-quaternary: #6E7681; --purple: #6C5CE7; --purple-bg: rgba(108,92,231,0.08); --purple-border: rgba(108,92,231,0.25); --teal: #00CEC9; --teal-bg: rgba(0,206,201,0.08); --success: #3FB950; --success-bg: rgba(63,185,80,0.08); --success-border: rgba(63,185,80,0.2); --warning: #D29922; --warning-bg: rgba(210,153,34,0.08); --error: #F85149; --error-bg: rgba(248,81,73,0.08); --error-border: rgba(248,81,73,0.2); --radius: 10px; --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+:root { --bg: #0D1117; --surface: #161B22; --surface-raised: #1C2128; --border: #30363D; --text-primary: #F0F6FC; --text-secondary: #C9D1D9; --text-tertiary: #9CA3AF; --text-quaternary: #848D97; --purple: #6C5CE7; --purple-bg: rgba(108,92,231,0.08); --purple-border: rgba(108,92,231,0.25); --teal: #00CEC9; --teal-bg: rgba(0,206,201,0.08); --success: #3FB950; --success-bg: rgba(63,185,80,0.08); --success-border: rgba(63,185,80,0.2); --warning: #D29922; --warning-bg: rgba(210,153,34,0.08); --error: #F85149; --error-bg: rgba(248,81,73,0.08); --error-border: rgba(248,81,73,0.2); --radius: 10px; --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font); background: var(--bg); color: var(--text-secondary); line-height: 1.6; }
 .nav { border-bottom: 1px solid var(--border); padding: 12px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }
@@ -353,21 +353,48 @@ function renderSession(group, session) {
         const hasVoted = emailParam && votes.some(v=>v.email===emailParam.toLowerCase());
         if (hasVoted) {
             const mv = votes.find(v=>v.email===emailParam.toLowerCase());
-            h += '<div class="card"><div class="card-body" style="text-align:center"><div style="font-family:var(--mono);font-size:12px;color:var(--text-tertiary)">You voted: <strong style="color:'+(mv.vote==='approve'?'var(--success)':'var(--error)')+'">'+mv.vote.toUpperCase()+'</strong></div></div></div>';
+            h += '<div class="card"><div class="card-body" style="text-align:center">';
+            h += '<div style="font-family:var(--mono);font-size:12px;color:var(--text-tertiary)">You voted: <strong style="color:'+(mv.vote==='approve'?'var(--success)':'var(--error)')+'">'+mv.vote.toUpperCase()+'</strong></div>';
+            h += '<div style="margin-top:8px;display:flex;gap:8px;justify-content:center;">';
+            h += '<button class="btn" onclick="changeVote(\'approve\')" style="font-size:10px;padding:4px 10px;">Change to Approve</button>';
+            h += '<button class="btn danger" onclick="changeVote(\'deny\')" style="font-size:10px;padding:4px 10px;">Change to Deny</button>';
+            h += '</div></div></div>';
             // Demo: simulate other members voting
             const waitingMembers = (group.members_detail || group.members.map(e=>({email:e}))).filter(m => {
                 const e = (m.email||'').toLowerCase();
                 return !votes.some(v=>v.email===e);
             });
             if (waitingMembers.length > 0) {
-                h += '<div class="card" style="border-color:var(--teal);border-style:dashed;"><div class="card-body" style="text-align:center">';
-                h += '<div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1px;margin-bottom:6px;">DEMO MODE</div>';
-                h += '<div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;">Simulate other committee members voting to see the quorum ring fill</div>';
-                h += '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">';
-                h += '<button class="btn success" onclick="simulateVotes(\'approve\')">Simulate All Approve</button>';
-                h += '<button class="btn" onclick="simulateNextVote(\'approve\')">Simulate Next Vote</button>';
-                h += '<button class="btn danger" onclick="simulateVotes(\'deny\')">Simulate All Deny</button>';
-                h += '</div></div></div>';
+                h += '<div class="card" style="border-color:var(--teal);"><div class="card-body">';
+                h += '<div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1px;margin-bottom:6px;">PROXY VOTING · CLAIMS 168–241</div>';
+                h += '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Members who have granted you proxy authority. Vote on their behalf.</div>';
+                
+                // List each waiting member with proxy vote button
+                waitingMembers.forEach(wm => {
+                    const wname = (wm.name || wm.email.split('@')[0]).replace(/\b\w/g, c=>c.toUpperCase());
+                    const wemail = wm.email || '';
+                    const allowProxy = !group.require_presence; // Presence-required = no proxy
+                    h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">';
+                    h += '<div class="member-dot pending"></div>';
+                    h += '<div style="flex:1"><div style="font-size:12px;color:var(--text-primary);">'+wname+'</div><div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">'+wemail+'</div></div>';
+                    if (allowProxy) {
+                        h += '<button class="btn success" onclick="proxyVote(\''+wemail+'\',\'approve\')" style="font-size:9px;padding:3px 8px;">Proxy Approve</button>';
+                        h += '<button class="btn danger" onclick="proxyVote(\''+wemail+'\',\'deny\')" style="font-size:9px;padding:3px 8px;">Deny</button>';
+                    } else {
+                        h += '<span style="font-family:var(--mono);font-size:9px;color:var(--warning);">⊘ Presence required — no proxy</span>';
+                    }
+                    h += '</div>';
+                });
+                
+                if (!group.require_presence) {
+                    h += '<div style="margin-top:10px;display:flex;gap:8px;justify-content:center;">';
+                    h += '<button class="btn success" onclick="simulateVotes(\'approve\')" style="font-size:10px;">All Proxies Approve</button>';
+                    h += '<button class="btn danger" onclick="simulateVotes(\'deny\')" style="font-size:10px;">All Proxies Deny</button>';
+                    h += '</div>';
+                } else {
+                    h += '<div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--warning);text-align:center;padding:6px;background:var(--warning-bg);border-radius:4px;">This governance model requires physical co-presence. Each member must vote from an approved location. <button class="btn" onclick="simulateNextVote(\'approve\')" style="font-size:9px;padding:3px 8px;margin-left:8px;">Simulate Present Vote</button></div>';
+                }
+                h += '</div></div>';
             }
         } else {
             h += '<div class="card"><div class="card-body"><div class="card-header">Cast Your Vote</div><div class="form-group"><label class="form-label">Your Email</label><input id="voteEmail" value="'+emailParam+'"></div><div class="vote-bar"><button class="btn success" onclick="submitVote(\'approve\')">\u2713 Approve</button><button class="btn danger" onclick="submitVote(\'deny\')">\u2717 Deny</button><button class="btn warn" onclick="submitVote(\'abstain\')">\u2014 Abstain</button></div></div></div>';
@@ -385,13 +412,14 @@ function renderSession(group, session) {
         const name = (mem.name||email.split('@')[0]).replace(/\b\w/g,c=>c.toUpperCase());
         const dotClass = vote?.verified?(isPresent?'present':'verified'):'pending';
         const voteClass = vote?vote.vote:'waiting';
-        const voteLabel = vote?vote.vote.toUpperCase():'WAITING';
-        h += '<div class="member-row"><div class="member-dot '+dotClass+'"></div><div class="member-name">'+name+'</div><div class="member-meta">'+email+(vote?.trust_score?' \u00B7 '+(vote.trust_score*100).toFixed(0)+'%':'')+(group.require_presence?(isPresent?' \u00B7 ◉':' \u00B7 Remote'):'')+'</div><span class="member-vote '+voteClass+'">'+voteLabel+'</span></div>';
+        const voteLabel = vote ? (vote.proxy ? vote.vote.toUpperCase()+' (PROXY)' : vote.vote.toUpperCase()) : 'WAITING';
+        const proxyNote = vote?.proxy ? '<div style="font-family:var(--mono);font-size:8px;color:var(--teal);">Proxy: '+vote.proxy.proxy_by+'</div>' : '';
+        h += '<div class="member-row"><div class="member-dot '+dotClass+'"></div><div class="member-name">'+name+proxyNote+'</div><div class="member-meta">'+email+(vote?.trust_score?' \u00B7 '+(vote.trust_score*100).toFixed(0)+'%':'')+(group.require_presence?(isPresent?' \u00B7 ◉':' \u00B7 Remote'):'')+'</div><span class="member-vote '+voteClass+'">'+voteLabel+'</span></div>';
     });
     h += '</div></div>';
     h += '<div style="text-align:center;margin-top:24px"><div class="patent-badge"><span class="dot"></span>Claims 168\u2013241</div></div>';
     document.getElementById('content').innerHTML = h;
-    document.getElementById('navStatus').textContent = session.session_id||'SESSION';
+    document.getElementById('navStatus').textContent = 'GOVERNANCE SESSION';
 }
 
 async function submitVote(voteType) {
@@ -448,6 +476,30 @@ async function simulateVotes(voteType) {
         });
     }
     await loadSession(currentSession.session_id);
+}
+
+async function changeVote(newVote) {
+    if (!currentSession) return;
+    try {
+        await fetch(API+'/v1/groups/session/'+currentSession.session_id+'/vote', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ email: emailParam, vote: newVote, change_vote: true })
+        });
+        await loadSession(currentSession.session_id);
+    } catch(e) { alert(e.message); }
+}
+
+async function proxyVote(memberEmail, voteType) {
+    if (!currentSession) return;
+    let loc = null;
+    // Proxy votes don't get presence — that's the point
+    try {
+        await fetch(API+'/v1/groups/session/'+currentSession.session_id+'/vote', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ email: memberEmail, vote: voteType, proxy_by: emailParam })
+        });
+        await loadSession(currentSession.session_id);
+    } catch(e) { alert(e.message); }
 }
 
 init();
