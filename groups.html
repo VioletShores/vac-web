@@ -527,10 +527,16 @@ async function startSession() {
 
 async function loadSession(sid) {
     try {
-        currentSession = await(await fetch(API+'/v1/groups/session/'+sid)).json();
+        const resp = await fetch(API+'/v1/groups/session/'+sid);
+        if (!resp.ok) {
+            // Session doesn't exist — likely server restart cleared in-memory data
+            location.href = '/groups?email='+encodeURIComponent(emailParam);
+            return;
+        }
+        currentSession = await resp.json();
         currentGroup = await(await fetch(API+'/v1/groups/'+currentSession.group_id)).json();
         renderSession(currentGroup, currentSession);
-    } catch(e) { showLanding(); }
+    } catch(e) { location.href = '/groups?email='+encodeURIComponent(emailParam); }
 }
 
 function renderSession(group, session) {
@@ -806,7 +812,15 @@ async function submitVote(voteType) {
         try { const p = await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000})); loc = {lat:p.coords.latitude,lng:p.coords.longitude}; } catch(e){}
     }
     try {
-        const d = await(await fetch(API+'/v1/groups/session/'+currentSession.session_id+'/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,vote:voteType,location:loc}) })).json();
+        const resp = await fetch(API+'/v1/groups/session/'+currentSession.session_id+'/vote', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email,vote:voteType,location:loc}) });
+        if (resp.status === 404) {
+            // Session gone — server likely restarted
+            if (confirm('This session has expired or been cleared. Go back to create a new one?')) {
+                location.href = '/groups?email='+encodeURIComponent(emailParam);
+            }
+            return;
+        }
+        const d = await resp.json();
         if (d.session_id || d.status==='already_voted') await loadSession(currentSession.session_id);
         else alert(d.detail||'Vote failed');
     } catch(e) { alert(e.message); }
