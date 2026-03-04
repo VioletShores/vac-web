@@ -10,18 +10,18 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text-primary); font-family: var(--font); min-height: 100vh; }
 
-.spa-nav { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; height: 48px; }
-.spa-brand { font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--text-primary); letter-spacing: 1px; margin-right: 24px; text-decoration: none; cursor: pointer; }
+.spa-nav { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--border); padding: 0 12px; display: flex; align-items: center; height: 44px; gap: 0; }
+.spa-brand { font-family: var(--mono); font-size: 12px; font-weight: 800; color: var(--text-primary); letter-spacing: 1px; margin-right: 12px; text-decoration: none; cursor: pointer; white-space: nowrap; }
 .spa-brand span { color: var(--purple); }
-.spa-tabs { display: flex; gap: 0; flex: 1; height: 100%; }
-.spa-tab { font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; color: var(--text-quaternary); padding: 0 16px; display: flex; align-items: center; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; text-decoration: none; height: 100%; }
+.spa-tabs { display: flex; gap: 0; height: 100%; }
+.spa-tab { font-family: var(--mono); font-size: 10px; letter-spacing: 0.5px; color: var(--text-quaternary); padding: 0 10px; display: flex; align-items: center; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; text-decoration: none; height: 100%; white-space: nowrap; }
 .spa-tab:hover { color: var(--text-secondary); }
 .spa-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
-.spa-tab .tab-dot { width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+.spa-tab .tab-dot { width: 5px; height: 5px; border-radius: 50%; margin-right: 5px; }
 .spa-tab .tab-dot.verify { background: var(--teal); }
 .spa-tab .tab-dot.agents { background: var(--purple); }
 .spa-tab .tab-dot.govern { background: var(--success); }
-.spa-user { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-left: auto; }
+.spa-user { font-family: var(--mono); font-size: 9px; color: var(--text-quaternary); margin-left: auto; white-space: nowrap; text-align: right; }
 .spa-user span { color: var(--teal); }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
@@ -1164,7 +1164,7 @@ function handleHash() {
 const urlParams = new URLSearchParams(window.location.search);
 const sharedEmail = urlParams.get('email') || '';
 if (sharedEmail) {
-    document.getElementById('spaUser').innerHTML = '<span>&#x25C9;</span> ' + sharedEmail + ' <span style="color:var(--text-quaternary);margin-left:4px;">VERIFIED ROOT</span>';
+    document.getElementById('spaUser').innerHTML = '<span>&#x25C9;</span> ' + sharedEmail.split('@')[0] + '<div style="font-size:8px;color:var(--success);letter-spacing:0.5px;">VERIFIED ROOT</div>';
 }
 
 // ============================================================
