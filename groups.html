@@ -43,7 +43,9 @@ body { font-family: var(--font); background: var(--bg); color: var(--text-second
 .member-vote.deny { background: var(--error-bg); color: var(--error); }
 .member-vote.abstain { background: var(--warning-bg); color: var(--warning); }
 .member-vote.waiting { background: var(--surface-raised); color: var(--text-quaternary); }
-.presence-map { height: 80px; background: var(--surface-raised); border: 1px dashed var(--border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); margin: 12px 0; }
+.presence-map { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 12px 0; }
+.presence-map iframe { width: 100%; height: 160px; border: none; filter: grayscale(0.3) brightness(0.85); }
+.presence-map-label { font-family: var(--mono); font-size: 10px; color: var(--teal); padding: 8px 12px; display: flex; align-items: center; gap: 6px; background: var(--teal-bg); }
 .model-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
 .model-chip { font-family: var(--mono); font-size: 10px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text-tertiary); cursor: pointer; transition: all 0.15s; }
 .model-chip:hover { border-color: var(--purple-border); color: var(--purple); }
@@ -98,22 +100,32 @@ const SCENARIOS = {
         name: 'US Government Committee',
         desc: 'Defense budget authorization requiring physical co-presence of cleared officials',
         group_name: 'DoD AI Budget Committee',
-        group_desc: 'Authorized officials must be physically co-present in the Pentagon SCIF to approve AI agent spending above $10K',
+        group_desc: 'Authorized officials must be physically co-present at an approved secure facility to approve AI agent spending above $10K',
         members: ['director@defense.gov', 'analyst@nsa.gov', 'oversight@congress.gov', 'rob@violetshores.com'],
         model: 'cultural_hui',
+        locations: [
+            { name: 'Pentagon, Arlington VA', lat: 38.8719, lng: -77.0563, radius: 0.3 },
+            { name: 'NSA HQ, Fort Meade MD', lat: 39.1087, lng: -76.7714, radius: 0.3 },
+            { name: 'Capitol Building, Washington DC', lat: 38.8899, lng: -77.0091, radius: 0.2 },
+        ],
         location: 'Pentagon, Arlington VA',
         location_coords: { lat: 38.8719, lng: -77.0563 },
         radius: 0.3,
         default_proposal: 'Authorize AI research agent with $50K spending card',
-        default_description: 'Deploy autonomous research agent to analyze adversary AI capabilities. Agent requires $50K token budget across classified and open-source intelligence APIs. All committee members must be physically present in SCIF.',
+        default_description: 'Deploy autonomous research agent to analyze adversary AI capabilities. Agent requires $50K token budget across classified and open-source intelligence APIs. All committee members must be physically present at an approved secure facility.',
     },
     maori_hui: {
         name: 'Māori Land Trust Hui',
         desc: 'Iwi governance requiring kanohi ki te kanohi (face to face) for land decisions',
         group_name: 'Te Rūnanga o Ngāi Tahu',
-        group_desc: 'Trustees must gather kanohi ki te kanohi (face to face) at the marae. Digital proxies not accepted for whenua decisions.',
+        group_desc: 'Trustees must gather kanohi ki te kanohi (face to face) at an approved marae. Digital proxies not accepted for whenua decisions.',
         members: ['kaiwhakahaere@ngaitahu.iwi.nz', 'kaumatua@ngaitahu.iwi.nz', 'shannon@folioai.com', 'rob@violetshores.com'],
         model: 'cultural_hui',
+        locations: [
+            { name: 'Ngā Hau e Whā Marae, Christchurch', lat: -43.5321, lng: 172.6362, radius: 0.2 },
+            { name: 'Ōnuku Marae, Akaroa', lat: -43.8075, lng: 172.9681, radius: 0.2 },
+            { name: 'Takahanga Marae, Kaikōura', lat: -42.4008, lng: 173.6814, radius: 0.2 },
+        ],
         location: 'Ngā Hau e Whā Marae, Christchurch',
         location_coords: { lat: -43.5321, lng: 172.6362 },
         radius: 0.2,
@@ -135,6 +147,17 @@ const SCENARIOS = {
     },
 };
 let activeScenario = 'gov_committee';
+
+function renderPresenceMap(loc, radius) {
+    if (!loc) return '';
+    const lat = loc.lat, lng = loc.lng, name = loc.name || 'Meeting Point';
+    const zoom = radius < 0.3 ? 16 : radius < 1 ? 15 : 14;
+    let h = '<div class="presence-map">';
+    h += '<iframe src="https://www.openstreetmap.org/export/embed.html?bbox='+(lng-0.005)+','+(lat-0.003)+','+(lng+0.005)+','+(lat+0.003)+'&layer=mapnik&marker='+lat+','+lng+'" loading="lazy"></iframe>';
+    h += '<div class="presence-map-label">◉ '+name+' · Geofence: '+radius+'km radius · All voters must be physically within this zone</div>';
+    h += '</div>';
+    return h;
+}
 const MODELS = {
     majority: { name:'Majority', desc:'More than 50% of verified members must approve.', icon:'\u{1F5F3}\uFE0F', threshold:50, presence:false },
     supermajority: { name:'Supermajority', desc:'At least 67% of verified members must approve.', icon:'\u2696\uFE0F', threshold:67, presence:false },
@@ -177,9 +200,17 @@ function showLanding() {
         <div class="card-header" style="margin-top:16px;">Quorum Model</div>
         <div class="model-chips" id="modelChips"></div>
         <div class="model-desc" id="modelDesc"></div>
-        <div class="form-row" id="presenceRow" style="display:none;">
-            <div class="form-group"><label class="form-label">Meeting Location</label><input id="grpLocation" value="Pentagon, Arlington VA"></div>
-            <div class="form-group"><label class="form-label">Radius (km)</label><input id="grpRadius" type="number" value="0.3" step="0.1"></div>
+        <div id="presenceRow" style="display:none;">
+            <div class="form-group"><label class="form-label">Approved Locations</label>
+                <select id="grpLocationSelect" class="form-input" style="cursor:pointer;" onchange="updateLocationFromSelect()">
+                    <option value="custom">Custom location...</option>
+                </select>
+            </div>
+            <div class="form-row" id="customLocationRow">
+                <div class="form-group"><label class="form-label">Location Name</label><input id="grpLocation" value="Pentagon, Arlington VA"></div>
+                <div class="form-group"><label class="form-label">Radius (km)</label><input id="grpRadius" type="number" value="0.3" step="0.1"></div>
+            </div>
+            <div id="locationMapPreview"></div>
         </div>
         <div id="presenceNote" style="display:none;font-family:var(--mono);font-size:10px;color:var(--teal);margin:8px 0;padding:6px 10px;background:var(--teal-bg);border-radius:4px;">
             ⊡ Geolocation required: All voters must be within the specified radius of the meeting point. Browser location API verifies physical co-presence.
@@ -198,6 +229,8 @@ function showLanding() {
     renderScenarioChips();
     renderModelChips();
     loadGroupList();
+    // Auto-populate location dropdown for default scenario
+    setTimeout(() => applyScenario(activeScenario), 50);
 }
 
 function renderScenarioChips() {
@@ -215,13 +248,48 @@ function applyScenario(key) {
     document.getElementById('grpDesc').value = s.group_desc;
     document.getElementById('grpMembers').value = s.members.join('\n');
     selectedModel = s.model;
-    if (s.location) {
+    
+    // Populate location dropdown
+    const sel = document.getElementById('grpLocationSelect');
+    if (sel && s.locations && s.locations.length > 0) {
+        sel.innerHTML = s.locations.map((loc, i) => 
+            '<option value="'+i+'" data-lat="'+loc.lat+'" data-lng="'+loc.lng+'" data-radius="'+loc.radius+'">'+loc.name+' ('+loc.radius+'km)</option>'
+        ).join('') + '<option value="custom">Custom location...</option>';
+        sel.value = '0';
+        updateLocationFromSelect();
+    } else if (s.location) {
         document.getElementById('grpLocation').value = s.location;
         document.getElementById('grpRadius').value = s.radius;
     }
     renderScenarioChips();
     renderModelChips();
-    loadGroupList();
+}
+
+function updateLocationFromSelect() {
+    const sel = document.getElementById('grpLocationSelect');
+    const opt = sel.options[sel.selectedIndex];
+    const customRow = document.getElementById('customLocationRow');
+    const preview = document.getElementById('locationMapPreview');
+    
+    if (sel.value === 'custom') {
+        customRow.style.display = 'grid';
+        if (preview) preview.innerHTML = '';
+        return;
+    }
+    
+    const lat = parseFloat(opt.dataset.lat);
+    const lng = parseFloat(opt.dataset.lng);
+    const radius = parseFloat(opt.dataset.radius);
+    const name = opt.textContent.split(' (')[0];
+    
+    document.getElementById('grpLocation').value = name;
+    document.getElementById('grpRadius').value = radius;
+    customRow.style.display = 'none';
+    
+    // Show map preview
+    if (preview) {
+        preview.innerHTML = renderPresenceMap({lat, lng, name}, radius);
+    }
 }
 
 function renderModelChips() {
@@ -252,7 +320,17 @@ async function createGroup() {
     const members = document.getElementById('grpMembers').value.trim().split('\n').map(e=>e.trim()).filter(Boolean);
     if (!name || members.length < 2) { alert('Need name + 2 members'); return; }
     const body = { name, description: document.getElementById('grpDesc').value.trim(), members, quorum_model: selectedModel, require_presence: MODELS[selectedModel].presence, presence_radius_km: parseFloat(document.getElementById('grpRadius')?.value)||0.5 };
-    if (MODELS[selectedModel].presence) body.presence_location = { lat:-33.8688, lng:151.2093, name: document.getElementById('grpLocation')?.value||'Sydney CBD' };
+    if (MODELS[selectedModel].presence) {
+        const sel = document.getElementById('grpLocationSelect');
+        const opt = sel?.options[sel.selectedIndex];
+        let lat = -33.8688, lng = 151.2093;
+        if (opt && sel.value !== 'custom') {
+            lat = parseFloat(opt.dataset.lat);
+            lng = parseFloat(opt.dataset.lng);
+        }
+        const locName = document.getElementById('grpLocation')?.value || 'Meeting Point';
+        body.presence_location = { lat, lng, name: locName };
+    }
     try {
         const r = await fetch(API+'/v1/groups', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
         const d = await r.json();
@@ -276,7 +354,7 @@ function renderGroupDetail(group, sessions) {
     let h = '<div style="margin-bottom:16px"><div style="font-size:20px;font-weight:800;color:var(--text-primary)">'+group.name+'</div>';
     h += '<div style="font-size:13px;color:var(--text-tertiary);margin-top:4px">'+(group.description||'')+'</div>';
     h += '<div style="display:flex;align-items:center;gap:8px;margin-top:8px"><span style="font-family:var(--mono);font-size:11px;color:var(--purple)">'+m.name+'</span><span style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">\u00B7 '+group.member_count+' members \u00B7 '+verified+' verified</span></div></div>';
-    if (group.require_presence && group.presence_location) h += '<div class="presence-map">\u25C9 '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km radius</div>';
+    if (group.require_presence && group.presence_location) h += renderPresenceMap(group.presence_location, group.presence_radius_km);
     h += '<div class="section-title">Members</div><div class="card"><div class="card-body">';
     (group.members_detail||group.members.map(e=>({email:e,verified:false,trust_score:0}))).forEach(mem => {
         const name = (mem.name||mem.email.split('@')[0]).replace(/\b\w/g,c=>c.toUpperCase());
@@ -365,7 +443,7 @@ function renderSession(group, session) {
     }
     h += '</div>';
 
-    if (group.require_presence && group.presence_location) h += '<div class="presence-map">◉ '+(group.presence_location.name||'Meeting point')+' \u00B7 Within '+group.presence_radius_km+'km</div>';
+    if (group.require_presence && group.presence_location) h += renderPresenceMap(group.presence_location, group.presence_radius_km);
 
     // Governance Authority Tree
     const treeMembers = group.members_detail || group.members.map(e=>({email:e,name:e.split('@')[0],verified:false}));
