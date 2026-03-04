@@ -10,9 +10,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text-primary); font-family: var(--font); min-height: 100vh; }
 
-/* SPA Navigation */
 .spa-nav { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; align-items: center; height: 48px; }
-.spa-brand { font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--text-primary); letter-spacing: 1px; margin-right: 24px; text-decoration: none; }
+.spa-brand { font-family: var(--mono); font-size: 14px; font-weight: 800; color: var(--text-primary); letter-spacing: 1px; margin-right: 24px; text-decoration: none; cursor: pointer; }
 .spa-brand span { color: var(--purple); }
 .spa-tabs { display: flex; gap: 0; flex: 1; height: 100%; }
 .spa-tab { font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; color: var(--text-quaternary); padding: 0 16px; display: flex; align-items: center; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; text-decoration: none; height: 100%; }
@@ -24,12 +23,10 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .spa-tab .tab-dot.govern { background: var(--success); }
 .spa-user { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-left: auto; }
 .spa-user span { color: var(--teal); }
-
-/* Tab content */
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
-/* Page-specific styles — Auth */
+/* Auth styles */
 /* ─── Theme defaults (overridden by vac-themes.js at runtime) ─── */
 
 
@@ -247,8 +244,7 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .transcript-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 .transcript-text { font-size: 14px; color: var(--text-primary); font-style: italic; }
 .transcript-match { font-family: var(--mono); font-size: 11px; margin-top: 6px; }
-
-/* Page-specific styles — Agents */
+/* Agents styles */
 
 
 
@@ -349,8 +345,7 @@ textarea.form-input { min-height: 80px; resize: vertical; }
 
 .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
 .footer-tagline { font-style: italic; font-size: 12px; color: var(--text-quaternary); }
-
-/* Page-specific styles — Groups */
+/* Groups styles */
 
 
 
@@ -429,7 +424,7 @@ textarea { min-height: 60px; resize: vertical; }
 <body>
 
 <nav class="spa-nav">
-    <a class="spa-brand" href="#" onclick="route('verify')"><span>VAC</span> PROTOCOL</a>
+    <div class="spa-brand" onclick="route('verify')"><span>VAC</span> PROTOCOL</div>
     <div class="spa-tabs">
         <a class="spa-tab" id="tab-verify" onclick="route('verify')" href="#verify"><span class="tab-dot verify"></span>Verify</a>
         <a class="spa-tab" id="tab-agents" onclick="route('agents')" href="#agents"><span class="tab-dot agents"></span>Agents</a>
@@ -989,8 +984,10 @@ function route(tab) {
     currentTab = tab;
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.spa-tab').forEach(el => el.classList.remove('active'));
-    document.getElementById('page-' + tab)?.classList.add('active');
-    document.getElementById('tab-' + tab)?.classList.add('active');
+    const page = document.getElementById('page-' + tab);
+    const tabEl = document.getElementById('tab-' + tab);
+    if (page) page.classList.add('active');
+    if (tabEl) tabEl.classList.add('active');
     window.location.hash = tab;
     
     // Initialize tab content on first view
@@ -1000,18 +997,17 @@ function route(tab) {
     }
 }
 
-// Handle hash routing
 function handleHash() {
     const hash = window.location.hash.replace('#', '') || 'verify';
     const valid = ['verify', 'agents', 'governance'];
     route(valid.includes(hash) ? hash : 'verify');
 }
 
-// Email state shared across tabs
+// Email state
 const urlParams = new URLSearchParams(window.location.search);
 const sharedEmail = urlParams.get('email') || '';
 if (sharedEmail) {
-    document.getElementById('spaUser').innerHTML = '<span>◉</span> ' + sharedEmail;
+    document.getElementById('spaUser').innerHTML = '<span>&#x25C9;</span> ' + sharedEmail;
 }
 
 // ============================================================
@@ -2413,10 +2409,9 @@ function openMessageComposer() {
 // VOUCH POLLING - check for received vouches, unlock messaging
 
 // ============================================================
-// Agents Page Script  
+// Agents Page Script
 // ============================================================
-// API_BASE already declared above
-// const API_BASE = 'https://vac-system-production.up.railway.app';
+// const API_BASE // using shared = 'https://vac-system-production.up.railway.app';
 let currentTaskId = null;
 let stepByStepMode = false;
 let auditLog = [];  // Structured audit entries
@@ -3303,7 +3298,7 @@ async function loadGroupList() {
         const d = await r.json();
         if (d.groups && d.groups.length > 0) {
             document.getElementById('groupList').innerHTML = '<div class="section-title">Your Groups</div>' +
-                d.groups.map(g => '<div class="card animate" style="cursor:pointer" onclick="location.href=\'/groups?group='+g.group_id+'&email='+encodeURIComponent(emailParam)+'\'"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+g.name+'</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">'+g.member_count+' members \u00B7 '+(MODELS[g.quorum_model]?.icon||'')+' '+g.quorum_model+'</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div></div>').join('');
+                d.groups.map(g => '<div class="card animate" style="cursor:pointer" onclick="loadGroup(g.group_id)"><div class="card-body" style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+g.name+'</div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary)">'+g.member_count+' members \u00B7 '+(MODELS[g.quorum_model]?.icon||'')+' '+g.quorum_model+'</div></div><span style="font-family:var(--mono);font-size:10px;color:var(--purple)">\u2192</span></div></div>').join('');
         }
     } catch(e) {}
 }
@@ -3329,7 +3324,7 @@ async function createGroup() {
     try {
         const r = await fetch(API+'/v1/groups', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
         const d = await r.json();
-        if (d.group_id) location.href = '/groups?group='+d.group_id+'&email='+encodeURIComponent(emailParam);
+        if (d.group_id) loadGroup(d.group_id);
     } catch(e) { alert(e.message); }
 }
 
@@ -3375,7 +3370,7 @@ function renderGroupDetail(group, sessions) {
     if (sessions.length) {
         sessions.forEach(s => {
             const sc = s.status==='approved'?'approved':s.status==='denied'?'denied':'open';
-            h += '<div class="card animate" style="cursor:pointer" onclick="location.href=\'/groups?session='+s.session_id+'&email='+encodeURIComponent(emailParam)+'\'"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+s.action+'</div><span class="status-pill '+sc+'">'+s.status.toUpperCase()+'</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:4px">'+(s.votes||[]).length+' votes</div></div></div>';
+            h += '<div class="card animate" style="cursor:pointer" onclick="loadSession(s.session_id)"><div class="card-body"><div style="display:flex;align-items:center;justify-content:space-between"><div style="font-size:14px;font-weight:600;color:var(--text-primary)">'+s.action+'</div><span class="status-pill '+sc+'">'+s.status.toUpperCase()+'</span></div><div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:4px">'+(s.votes||[]).length+' votes</div></div></div>';
         });
     } else h += '<div style="font-family:var(--mono);font-size:12px;color:var(--text-quaternary);padding:16px 0">No sessions yet. Start one to begin a vote.</div>';
     h += '<div style="text-align:center;margin-top:24px"><div class="patent-badge"><span class="dot"></span>Claims 168\u2013241</div></div>';
@@ -3395,7 +3390,7 @@ async function startSession() {
     const timeout = parseInt(document.getElementById('sessTimeout')?.value || '60');
     try {
         const d = await(await fetch(API+'/v1/groups/session', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ group_id:currentGroup.group_id, action, description:document.getElementById('sessDesc').value.trim(), timeout_minutes:timeout, initiated_by:emailParam }) })).json();
-        if (d.session_id) location.href = '/groups?session='+d.session_id+'&email='+encodeURIComponent(emailParam);
+        if (d.session_id) loadSession(d.session_id);
     } catch(e) { alert(e.message); }
 }
 
@@ -3404,13 +3399,13 @@ async function loadSession(sid) {
         const resp = await fetch(API+'/v1/groups/session/'+sid);
         if (!resp.ok) {
             // Session doesn't exist — likely server restart cleared in-memory data
-            location.href = '/groups?email='+encodeURIComponent(emailParam);
+            showLanding();
             return;
         }
         currentSession = await resp.json();
         currentGroup = await(await fetch(API+'/v1/groups/'+currentSession.group_id)).json();
         renderSession(currentGroup, currentSession);
-    } catch(e) { location.href = '/groups?email='+encodeURIComponent(emailParam); }
+    } catch(e) { showLanding(); }
 }
 
 function renderSession(group, session) {
@@ -3690,7 +3685,7 @@ async function submitVote(voteType) {
         if (resp.status === 404) {
             // Session gone — server likely restarted
             if (confirm('This session has expired or been cleared. Go back to create a new one?')) {
-                location.href = '/groups?email='+encodeURIComponent(emailParam);
+                showLanding();
             }
             return;
         }
