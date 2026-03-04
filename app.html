@@ -150,6 +150,137 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .loading { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); padding: 16px; }#page-agents .loading-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--purple); animation: bounce 1.2s infinite; }#page-agents .loading-dot:nth-child(2) { animation-delay: 0.2s; }#page-agents .loading-dot:nth-child(3) { animation-delay: 0.4s; }
 @keyframes bounce {#page-agents 0%, #page-agents 80%, #page-agents 100% { transform: translateY(0); }#page-agents 40% { transform: translateY(-8px); } }#page-agents .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }#page-agents .footer-tagline { font-style: italic; font-size: 12px; color: var(--text-quaternary); }
 
+/* Messages styles — scoped */
+/* ─── Theme defaults (overridden by vac-themes.js at runtime) ─── */
+
+
+
+
+.page { max-width: 600px; margin: 0 auto; padding: 0 20px 60px; }
+
+
+/* Nav */
+.nav { border-bottom: 1px solid var(--border); padding: 0 20px; background: rgba(13,17,23,0.95); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; }
+#page-messages .nav-inner { max-width: 600px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 52px; }
+#page-messages .nav-left { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+#page-messages .nav-icon { width: 22px; height: 22px; }
+#page-messages .nav-wordmark { font-weight: 700; font-size: 13px; color: var(--text-primary); letter-spacing: 1.5px; }
+#page-messages .nav-wordmark span { font-weight: 400; color: var(--text-tertiary); letter-spacing: 1px; }
+#page-messages .nav-mode { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; font-weight: 600; }
+
+
+/* Views */
+.view { display: none; animation: fadeIn 0.3s ease-out; }
+#page-messages .view.active { display: block; }
+#page-messages from { opacity: 0; transform: translateY(6px); }
+#page-messages to { opacity: 1; transform: translateY(0); }
+
+
+/* Header */
+.header { text-align: center; padding: 32px 0 24px; }
+#page-messages .header-eyebrow { font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+#page-messages .header-title { font-size: 24px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+#page-messages .header-sub { font-size: 14px; color: var(--text-tertiary); margin-top: 8px; max-width: 440px; margin-left: auto; margin-right: auto; }
+
+
+/* Trust badge — the hero element */
+.trust-badge { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px; }
+#page-messages .trust-badge.verified { background: var(--success-bg); border: 1px solid var(--success-border); }
+#page-messages .trust-badge.partial { background: rgba(210,153,34,0.08); border: 1px solid rgba(210,153,34,0.2); }
+#page-messages .trust-badge.unverified { background: var(--surface); border: 1px solid var(--border); }
+#page-messages .trust-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+#page-messages .trust-badge.verified .trust-icon { background: rgba(63,185,80,0.15); }
+#page-messages .trust-badge.partial .trust-icon { background: rgba(210,153,34,0.15); }
+#page-messages .trust-badge.unverified .trust-icon { background: var(--surface-raised); }
+#page-messages .trust-info { flex: 1; }
+#page-messages .trust-name { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+#page-messages .trust-detail { font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); }
+
+
+/* Message content */
+.msg-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; }
+#page-messages .msg-subject { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+#page-messages .msg-
+.msg-meta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+#page-messages .msg-meta-item { font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); }
+
+
+/* Chain display (mini) */
+.chain-mini { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+#page-messages .chain-mini-title { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+#page-messages .chain-node { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+#page-messages .chain-node + .chain-node { border-top: 1px solid var(--border); }
+#page-messages .chain-node-icon { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+#page-messages .chain-node-icon.human { background: var(--teal-bg); border: 1px solid var(--teal-border); }
+#page-messages .chain-node-icon.agent { background: var(--purple-bg); border: 1px solid var(--purple-border); }
+#page-messages .chain-node-name { font-size: 13px; color: var(--text-secondary); flex: 1; }
+#page-messages .chain-node-score { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--success); }
+
+
+/* Compose form */
+.form-group { margin-bottom: 16px; }
+#page-messages .form-label { font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; display: block; }
+#page-messages .form-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; font-family: var(--font); font-size: 15px; color: var(--text-primary); outline: none; transition: border-color 0.15s; }
+#page-messages .form-input:focus { border-color: var(--purple); }
+#page-messages .form-input::placeholder { color: var(--text-quaternary); }
+#page-messages .form-textarea { width: 100%; min-height: 120px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; font-family: var(--font); font-size: 15px; color: var(--text-primary); outline: none; resize: vertical; transition: border-color 0.15s; line-height: 1.6; }
+#page-messages .form-textarea:focus { border-color: var(--purple); }
+#page-messages .form-textarea::placeholder { color: var(--text-quaternary); }
+#page-messages .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+
+/* Buttons */
+.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--purple); color: #fff; font-family: var(--font); font-weight: 600; font-size: 15px; padding: 14px 32px; border-radius: var(--radius); border: none; cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px; width: 100%; min-height: 48px; }
+#page-messages .btn-primary:hover { background: var(--purple-dim); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(108,92,231,0.25); }
+#page-messages .btn-primary:disabled { opacity: 0.5; cursor: default; transform: none; box-shadow: none; }
+#page-messages .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--surface); color: var(--text-primary); font-family: var(--font); font-weight: 600; font-size: 14px; padding: 12px 24px; border-radius: var(--radius); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; min-height: 44px; width: 100%; }
+#page-messages .btn-secondary:hover { border-color: var(--purple); background: var(--purple-bg); }
+
+
+/* Sent confirmation */
+.sent-card { text-align: center; background: var(--success-bg); border: 1px solid var(--success-border); border-radius: 12px; padding: 32px 24px; margin-bottom: 20px; }
+#page-messages .sent-icon { font-size: 40px; margin-bottom: 12px; }
+#page-messages .sent-title { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+#page-messages .sent-sub { font-size: 14px; color: var(--text-tertiary); margin-top: 6px; }
+
+
+/* Error */
+.error-msg { font-size: 13px; color: var(--error); text-align: center; margin-top: 12px; font-family: var(--mono); }
+
+
+/* Footer */
+.footer-tagline { text-align: center; padding: 24px 0; font-size: 13px; font-style: italic; color: var(--text-quaternary); border-top: 1px solid var(--border); margin-top: 24px; }
+
+
+/* Patent badge */
+.patent-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; }
+#page-messages .patent-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); }
+
+
+/* Scroll hint */
+.scroll-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 90; opacity: 0.7; transition: opacity 0.3s; pointer-events: none; }
+#page-messages .scroll-hint.hidden { opacity: 0; }
+#page-messages .scroll-hint svg { animation: bounce-down 1.5s ease-in-out infinite; }
+#page-messages 0%, #page-messages 100% { transform: translateY(0); }
+#page-messages 50% { transform: translateY(5px); }
+
+
+/* Loading */
+.loader { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--purple); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 40px auto; }
+#page-messages to { transform: rotate(360deg); }
+
+
+/* Message type buttons */
+.msg-type-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; color: var(--text-tertiary); font-family: var(--font); font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+#page-messages .msg-type-btn:hover { border-color: var(--purple-border); color: var(--text-secondary); }
+#page-messages .msg-type-btn.active { border-color: var(--purple); background: var(--purple-bg); color: var(--purple); font-weight: 600; }
+
+
+/* Content protection pills */
+.protection-pill { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary); }
+#page-messages .protection-pill.active { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }
+#page-messages .protection-pill.warn { background: var(--error-bg); border-color: var(--error-border); color: var(--error); }
+
 /* Groups styles — scoped */
 #page-governance .nav { border-bottom: 1px solid var(--border); padding: 12px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }#page-governance .nav-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }#page-governance .nav-brand { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-primary); letter-spacing: 2px; text-decoration: none; display: flex; align-items: center; gap: 8px; }#page-governance .nav-brand span { font-weight: 400; color: var(--text-tertiary); }#page-governance .nav-status { font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); color: var(--text-quaternary); letter-spacing: 1px; }#page-governance .page { max-width: 720px; margin: 0 auto; padding: 20px 20px 80px; }#page-governance .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px; overflow: hidden; }#page-governance .card-
 .card-header { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }#page-governance .section-title { font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); letter-spacing: 1.5px; text-transform: uppercase; margin: 20px 0 10px; display: flex; align-items: center; justify-content: space-between; }#page-governance .hero { text-align: center; margin-bottom: 24px; }#page-governance .hero-eyebrow { font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }#page-governance .hero-title { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px; }#page-governance .hero-sub { font-size: 13px; color: var(--text-tertiary); max-width: 500px; margin: 0 auto; }#page-governance .quorum-ring { position: relative; width: 120px; height: 120px; margin: 0 auto 12px; flex-shrink: 0; }#page-governance .quorum-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }#page-governance .quorum-ring-bg { fill: none; stroke: var(--border); stroke-width: 6; }#page-governance .quorum-ring-fill { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }#page-governance .quorum-ring-text { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }#page-governance .quorum-pct { font-family: var(--mono); font-size: 24px; font-weight: 700; color: var(--text-primary); }#page-governance .quorum-label { font-family: var(--mono); font-size: 9px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; }#page-governance .member-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }#page-governance .member-row:last-child { border-bottom: none; }#page-governance .member-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }#page-governance .member-dot.verified { background: var(--success); box-shadow: 0 0 4px var(--success); }#page-governance .member-dot.pending { background: var(--text-quaternary); }#page-governance .member-dot.present { background: var(--teal); box-shadow: 0 0 4px var(--teal); }#page-governance .member-name { font-size: 13px; color: var(--text-primary); flex: 1; }#page-governance .member-meta { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); }#page-governance .member-vote { font-family: var(--mono); font-size: 9px; padding: 2px 6px; border-radius: 3px; }#page-governance .member-vote.approve { background: var(--success-bg); color: var(--success); }#page-governance .member-vote.deny { background: var(--error-bg); color: var(--error); }#page-governance .member-vote.waiting { background: var(--surface-raised); color: var(--text-quaternary); }#page-governance .member-vote.abstain { background: var(--warning-bg); color: var(--warning); }#page-governance .member-vote.abstain { background: var(--warning-bg); color: var(--warning); }#page-governance .member-vote.waiting { background: var(--surface-raised); color: var(--text-quaternary); }#page-governance .presence-map { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 12px 0; }#page-governance .presence-map iframe { width: 100%; height: 160px; border: none; filter: grayscale(0.3) brightness(0.85); }#page-governance .presence-map-label { font-family: var(--mono); font-size: 10px; color: var(--teal); padding: 8px 12px; display: flex; align-items: center; gap: 6px; background: var(--teal-bg); }#page-governance .model-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }#page-governance .model-chip { font-family: var(--mono); font-size: 10px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text-tertiary); cursor: pointer; transition: all 0.15s; }#page-governance .model-chip:hover { border-color: var(--purple-border); color: var(--purple); }#page-governance .chip-info { font-family: var(--mono); font-size: 8px; padding: 1px 5px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; color: var(--text-tertiary); cursor: help; margin-left: 4px; transition: all 0.15s; vertical-align: middle; }#page-governance .chip-info:hover { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }#page-governance .chip-tooltip { position: absolute; top: calc(100% + 6px); left: 0; right: 0; min-width: 200px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; font-family: var(--mono); font-size: 9px; color: var(--text-secondary); line-height: 1.6; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.3); white-space: normal; }#page-governance .model-chip.active { border-color: var(--purple); background: var(--purple-bg); color: var(--purple); }#page-governance .model-desc { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); padding: 8px 12px; background: var(--surface-raised); border-radius: 6px; margin-bottom: 12px; }#page-governance .btn { font-family: var(--mono); font-size: 11px; padding: 8px 16px; border-radius: 6px; border: 1px solid var(--purple-border); background: var(--purple-bg); color: var(--purple); cursor: pointer; transition: all 0.15s; }#page-governance .btn:hover { background: var(--purple); color: white; }#page-governance .btn.success { border-color: var(--success-border); background: var(--success-bg); color: var(--success); }#page-governance .btn.success:hover { background: var(--success); color: white; }#page-governance .btn.danger { border-color: var(--error-border); background: var(--error-bg); color: var(--error); }#page-governance .btn.danger:hover { background: var(--error); color: white; }#page-governance .btn.warn { border-color: rgba(210,153,34,0.3); background: var(--warning-bg); color: var(--warning); }#page-governance input, #page-governance select, #page-governance textarea { font-family: var(--mono); font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text-primary); width: 100%; }#page-governance input:focus, #page-governance textarea:focus { outline: none; border-color: var(--purple); }#page-governance textarea { min-height: 60px; resize: vertical; }#page-governance .form-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block; }#page-governance .form-group { margin-bottom: 12px; }#page-governance .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }#page-governance .vote-bar { display: flex; gap: 8px; margin: 16px 0; }#page-governance .vote-bar .btn { flex: 1; text-align: center; padding: 12px; font-size: 13px; font-weight: 600; }#page-governance .patent-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--purple); background: var(--purple-bg); border: 1px solid var(--purple-border); border-radius: 4px; padding: 4px 10px; }#page-governance .patent-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); }#page-governance .status-pill { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; }#page-governance .status-pill.open { background: var(--purple-bg); color: var(--purple); }#page-governance .status-pill.approved { background: var(--success-bg); color: var(--success); }#page-governance .status-pill.denied { background: var(--error-bg); color: var(--error); }
@@ -163,6 +294,7 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
     <div class="spa-brand" onclick="route('verify')"><span>VAC</span> PROTOCOL</div>
     <div class="spa-tabs">
         <a class="spa-tab" id="tab-verify" onclick="route('verify')" href="#verify"><span class="tab-dot verify"></span>Verify</a>
+        <a class="spa-tab" id="tab-messages" onclick="route('messages')" href="#messages"><span class="tab-dot" style="background:var(--teal);opacity:0.6;"></span>Messages</a>
         <a class="spa-tab" id="tab-agents" onclick="route('agents')" href="#agents"><span class="tab-dot agents"></span>Agents</a>
         <a class="spa-tab" id="tab-governance" onclick="route('governance')" href="#governance"><span class="tab-dot govern"></span>Governance</a>
         <a class="spa-tab" id="tab-admin" onclick="route('admin')" href="#admin" style="display:none;"><span class="tab-dot" style="background:var(--error);"></span>Admin</a>
@@ -510,6 +642,237 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 </div>
 </section>
 
+<section class="tab-content" id="page-messages">
+<!-- NAV -->
+<div class="nav">
+<div class="nav-inner">
+    <a href="/" class="nav-left">
+        <svg class="nav-icon" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="4"/>
+            <polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.15" stroke="#6C5CE7" stroke-width="2"/>
+            <circle cx="50" cy="44" r="10" fill="none" stroke="#00CEC9" stroke-width="2.5"/>
+            <path d="M35 68 Q50 56 65 68" fill="none" stroke="#00CEC9" stroke-width="2.5" stroke-linecap="round"/>
+        </svg>
+        <div class="nav-wordmark">VAC <span>PROTOCOL</span></div>
+    </a>
+    <div class="nav-mode" id="navMode" style="color: var(--purple); background: var(--purple-bg); border: 1px solid var(--purple-border);">SECURE MESSAGE</div>
+</div>
+</div>
+
+<div class="page">
+
+<!-- VIEW: Loading -->
+<div class="view active" id="viewLoading">
+    <div class="header">
+        <div class="header-eyebrow">Secure Message</div>
+        <div class="header-title">Loading…</div>
+    </div>
+    <div class="loader"></div>
+</div>
+
+<!-- VIEW: Read message -->
+<div class="view" id="viewRead">
+    <div class="header">
+        <div class="header-eyebrow">Verified Message</div>
+        <div class="header-title" id="readTitle">Secure Message</div>
+    </div>
+
+    <div id="trustBadge" class="trust-badge verified">
+        <div class="trust-icon" id="trustIcon">✓</div>
+        <div class="trust-info">
+            <div class="trust-name" id="trustName">Sender</div>
+            <div class="trust-detail" id="trustDetail">Verified · Trust Score: 0.95</div>
+        </div>
+    </div>
+
+    <!-- Content protection status bar -->
+    <div id="contentProtection" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+        <div class="protection-pill" id="pillEphemeral">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Ephemeral
+        </div>
+        <div class="protection-pill" id="pillAttention">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Attention-Gated
+        </div>
+        <div class="protection-pill" id="pillGeo" style="display:none;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            Geo-Fenced
+        </div>
+    </div>
+
+    <!-- Protected content area — blur/hide when not attended -->
+    <div id="protectedContent" class="msg-card" style="transition: filter 0.3s ease;">
+        <div class="msg-subject" id="readSubject" style="display:none;"></div>
+        <div class="msg-body" id="readBody"></div>
+        <div class="msg-meta">
+            <div class="msg-meta-item" id="readTime"></div>
+            <div class="msg-meta-item" id="readType"></div>
+            <div class="msg-meta-item" id="readRelationship"></div>
+        </div>
+    </div>
+
+    <!-- Attention warning overlay -->
+    <div id="attentionOverlay" style="display:none;position:fixed;inset:0;background:rgba(13,17,23,0.95);z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <div style="font-family:var(--mono);font-size:13px;color:var(--text-tertiary);text-align:center;">Message hidden<br><span style="font-size:11px;color:var(--text-quaternary);">Return to this tab to view</span></div>
+    </div>
+
+    <div class="chain-mini" id="chainSection" style="display:none;">
+        <div class="chain-mini-title">Sender's Authority Chain</div>
+        <div id="chainNodes"></div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button class="btn-secondary" onclick="showCompose()" style="flex: 1;">Reply with Verified Message</button>
+        <button class="btn-secondary" id="readActionBtn" onclick="window.location.href='/auth'" style="flex: 1;">Get Verified</button>
+    </div>
+
+    <div style="text-align: center; margin-top: 16px;">
+        <div class="patent-badge"><span class="dot"></span>Claims 39–55 · Scope Constraints (spatial, temporal, attention-gated)</div>
+    </div>
+
+    <div class="footer-tagline">Content never stored on device. Math enforces what trust alone cannot.</div>
+</div>
+
+<!-- VIEW: Compose -->
+<div class="view" id="viewCompose">
+    <div class="header">
+        <div class="header-eyebrow">Compose</div>
+        <div class="header-title">Send Verified Message</div>
+        <div class="header-sub">Your message is cryptographically bound to your VAC authority chain. The recipient sees your trust score and verification status.</div>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">Your Name</label>
+            <input class="form-input" id="composeSenderName" type="text" placeholder="Rob Zagarella">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Your Email</label>
+            <input class="form-input" id="composeSenderEmail" type="email" placeholder="rob@violetshores.com">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label class="form-label">Recipient Name</label>
+            <input class="form-input" id="composeRecipientName" type="text" placeholder="Jason Calacanis">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Recipient Email</label>
+            <input class="form-input" id="composeRecipientEmail" type="email" placeholder="jason@launch.co">
+            <div id="contactsList" style="display:none;margin-top:6px;"></div>
+        </div>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="composeSubject" type="text" placeholder="Re: VAC Protocol Demo">
+    </div>
+    <div class="form-group">
+        <label class="form-label">Message Type</label>
+        <div style="display:flex;gap:8px;">
+            <button class="msg-type-btn active" id="typeText" onclick="setMsgType('text')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+                Text
+            </button>
+            <button class="msg-type-btn" id="typeVoice" onclick="setMsgType('voice_note')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                Voice Note
+            </button>
+            <button class="msg-type-btn" id="typeVideo" onclick="setMsgType('video_clip')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                Video
+            </button>
+        </div>
+    </div>
+
+    <!-- Voice/video recording UI (hidden by default) -->
+    <div id="mediaRecordSection" style="display:none;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;">
+            <video id="msgVideoPreview" autoplay playsinline muted style="width:100%;border-radius:6px;max-height:360px;object-fit:contain;display:none;transform:scaleX(-1);background:#000;"></video>
+            <div id="msgAudioViz" style="display:none;height:60px;display:flex;align-items:flex-end;justify-content:center;gap:3px;padding:8px 0;">
+            </div>
+            <div style="text-align:center;margin-top:10px;">
+                <div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-bottom:8px;" id="msgRecordStatus">Ready to record</div>
+                <button class="btn-primary" id="btnStartRecord" onclick="startMsgRecord()" style="max-width:200px;margin:0 auto;">
+                    Record
+                </button>
+                <button class="btn-secondary" id="btnStopRecord" onclick="stopMsgRecord()" style="max-width:200px;margin:0 auto;display:none;">
+                    Stop Recording
+                </button>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:6px;" id="msgRecordTimer"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="form-group" id="textBodyGroup">
+        <label class="form-label">Message</label>
+        <textarea class="form-textarea" id="composeBody" placeholder="Your verified message…"></textarea>
+    </div>
+
+    <!-- Content protection options (auto-adjusted by trust relationship) -->
+    <div style="margin-bottom:16px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);letter-spacing:1px;text-transform:uppercase;">Content Protection</div>
+            <div id="protectionAutoLabel" style="font-family:var(--mono);font-size:10px;color:var(--purple);display:none;">Auto-adjusted for trust level</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer;">
+                <input type="checkbox" id="optEphemeral" checked style="accent-color:var(--purple);width:16px;height:16px;">
+                <span>Ephemeral — never stored on recipient's device</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer;">
+                <input type="checkbox" id="optAttention" checked style="accent-color:var(--purple);width:16px;height:16px;">
+                <span>Attention-gated — blurs when not looking at screen</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);cursor:pointer;">
+                <input type="checkbox" id="optGeoFence" style="accent-color:var(--purple);width:16px;height:16px;">
+                <span>Geo-fenced — only readable near my current location</span>
+            </label>
+        </div>
+    </div>
+
+    <button class="btn-primary" id="btnSend" onclick="sendMessage()">
+        Send Verified Message
+    </button>
+    <div id="composeError" class="error-msg" style="display:none;"></div>
+
+    <div style="text-align: center; margin-top: 16px;">
+        <div class="patent-badge"><span class="dot"></span>Claims 56–112 + 272–285</div>
+    </div>
+</div>
+
+<!-- VIEW: Sent confirmation -->
+<div class="view" id="viewSent">
+    <div class="header">
+        <div class="header-eyebrow">Delivered</div>
+    </div>
+    <div class="sent-card">
+        <div class="sent-icon">✓</div>
+        <div class="sent-title">Message Sent</div>
+        <div class="sent-sub" id="sentDetail">Recipient notified via email.</div>
+    </div>
+    <div class="msg-card">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px;">Message Details</div>
+        <div id="sentSummary" style="font-size: 14px; color: var(--text-secondary);"></div>
+        <div id="sentTrust" style="font-family: var(--mono); font-size: 12px; color: var(--teal); margin-top: 8px;"></div>
+        <div id="sentUrl" style="font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); margin-top: 8px; word-break: break-all; cursor: pointer;" onclick="copyUrl()"></div>
+        <div id="copyFeedback" style="font-family: var(--mono); font-size: 11px; color: var(--success); text-align: center; height: 16px;"></div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button class="btn-primary" onclick="showCompose()" style="flex: 1;">Send Another</button>
+        <button class="btn-secondary" onclick="window.location.href='/auth'" style="flex: 1;">Verify My Identity</button>
+    </div>
+    <div class="footer-tagline">Math so neither party has to rely on trust alone.</div>
+</div>
+
+</div><!-- .page -->
+
+<div class="scroll-hint" id="scrollHint">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-tertiary);"><polyline points="6 9 12 15 18 9"/></svg>
+</div>
+</section>
+
 <section class="tab-content" id="page-agents">
 
 
@@ -760,6 +1123,10 @@ function route(tab) {
     if (tab === 'admin' && typeof loadAdminHealth === 'function') {
         loadAdminHealth();
     }
+    if (tab === 'messages' && typeof msgInit === 'function' && !window._msgInited) {
+        window._msgInited = true;
+        msgInit();
+    }
     if (tab === 'governance' && typeof groupsInit === 'function' && !window._groupsInited) {
         window._groupsInited = true;
         groupsInit();
@@ -789,7 +1156,7 @@ async function loadAdminHealth() {
 
 function handleHash() {
     const hash = window.location.hash.replace('#', '') || 'verify';
-    const valid = ['verify', 'agents', 'governance', 'admin'];
+    const valid = ['verify', 'messages', 'agents', 'governance', 'admin'];
     route(valid.includes(hash) ? hash : 'verify');
 }
 
@@ -2732,6 +3099,613 @@ function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// ============================================================
+// Messages Page Script
+// ============================================================
+// const API_BASE // shared = 'https://vac-system-production.up.railway.app';
+let sentResult = null;
+let currentMessage = null;
+let currentMsgType = 'text';
+let msgStream = null;
+let msgRecorder = null;
+let msgChunks = [];
+let msgRecordStart = 0;
+let msgRecordInterval = null;
+
+function setMsgType(type) {
+    currentMsgType = type;
+    document.querySelectorAll('.msg-type-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('type' + (type === 'text' ? 'Text' : type === 'voice_note' ? 'Voice' : 'Video')).classList.add('active');
+
+    const mediaSection = document.getElementById('mediaRecordSection');
+    const textGroup = document.getElementById('textBodyGroup');
+    const videoPreview = document.getElementById('msgVideoPreview');
+    const audioViz = document.getElementById('msgAudioViz');
+
+    if (type === 'text') {
+        mediaSection.style.display = 'none';
+        textGroup.style.display = 'block';
+    } else {
+        mediaSection.style.display = 'block';
+        textGroup.querySelector('.form-label').textContent = 'Caption (optional)';
+        textGroup.querySelector('.form-textarea').placeholder = 'Add a text caption to your recording…';
+        videoPreview.style.display = type === 'video_clip' ? 'block' : 'none';
+        audioViz.style.display = type === 'voice_note' ? 'flex' : 'none';
+        initMsgMedia(type);
+    }
+}
+
+async function initMsgMedia(type) {
+    try {
+        const constraints = type === 'video_clip'
+            ? { video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { noiseSuppression: true, echoCancellation: true } }
+            : { audio: { noiseSuppression: true, echoCancellation: true } };
+        msgStream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (type === 'video_clip') {
+            const vid = document.getElementById('msgVideoPreview');
+            vid.srcObject = msgStream;
+            vid.muted = true;
+            await vid.play();
+        }
+        document.getElementById('msgRecordStatus').textContent = 'Ready — tap Record';
+    } catch (e) {
+        document.getElementById('msgRecordStatus').textContent = 'Permission denied: ' + e.message;
+    }
+}
+
+function startMsgRecord() {
+    if (!msgStream) return;
+    msgChunks = [];
+    const mimeTypes = [
+        'video/mp4',  // Safari/iOS — native MP4, universally playable
+        'video/webm;codecs=vp9,opus', 
+        'video/webm;codecs=vp8,opus', 
+        'video/webm', 
+        'audio/webm'
+    ];
+    let mime = '';
+    for (const mt of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mt)) { mime = mt; break; }
+    }
+    msgRecorder = new MediaRecorder(msgStream, mime ? { mimeType: mime } : undefined);
+    msgRecorder.ondataavailable = e => { if (e.data.size > 0) msgChunks.push(e.data); };
+    msgRecorder.onstop = () => {
+        document.getElementById('btnStartRecord').style.display = 'inline-flex';
+        document.getElementById('btnStopRecord').style.display = 'none';
+        document.getElementById('btnStartRecord').textContent = 'Re-record';
+        const dur = ((Date.now() - msgRecordStart) / 1000).toFixed(1);
+        document.getElementById('msgRecordStatus').textContent = `Recorded ${dur}s — ready to send`;
+        clearInterval(msgRecordInterval);
+    };
+    msgRecorder.start(100);
+    msgRecordStart = Date.now();
+    document.getElementById('btnStartRecord').style.display = 'none';
+    document.getElementById('btnStopRecord').style.display = 'inline-flex';
+    document.getElementById('msgRecordStatus').textContent = 'Recording…';
+    msgRecordInterval = setInterval(() => {
+        const elapsed = ((Date.now() - msgRecordStart) / 1000).toFixed(0);
+        document.getElementById('msgRecordTimer').textContent = `${elapsed}s / 30s max`;
+        if (elapsed >= 30) stopMsgRecord();
+    }, 200);
+}
+
+function stopMsgRecord() {
+    if (msgRecorder && msgRecorder.state === 'recording') msgRecorder.stop();
+    clearInterval(msgRecordInterval);
+}
+
+// ── Route: ?id=xxx shows message, ?compose opens form, default = compose
+function msgInit() {
+    const params = new URLSearchParams(window.location.search);
+    const msgId = params.get('id');
+    const replyTo = params.get('reply');
+    const toEmail = params.get('to');
+
+    if (msgId) {
+        loadMessage(msgId);
+    } else {
+        showCompose();
+        // Pre-fill from params
+        const fromEmail = params.get('from');
+        const fromName = params.get('name');
+        if (fromEmail) document.getElementById('composeSenderEmail').value = fromEmail;
+        if (fromName) document.getElementById('composeSenderName').value = fromName;
+        if (replyTo) document.getElementById('composeRecipientEmail').value = replyTo;
+        if (toEmail) document.getElementById('composeRecipientEmail').value = toEmail;
+        // Load contacts for sender
+        if (fromEmail) fetchContacts(fromEmail);
+    }
+}
+
+async function fetchContacts(senderEmail) {
+    if (!senderEmail) return;
+    try {
+        const resp = await fetch(`${API_BASE}/v1/user/${encodeURIComponent(senderEmail)}/contacts`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const contacts = data.contacts || [];
+        const listEl = document.getElementById('contactsList');
+        if (contacts.length === 0) { listEl.style.display = 'none'; return; }
+        
+        listEl.style.display = 'block';
+        listEl.innerHTML = '<div style="font-size:11px;color:#8B949E;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Your Contacts</div>' +
+            contacts.map(c => {
+                const state = c.state || 'unknown';
+                const stateColor = state === 'mutual' ? '#3FB950' : state === 'vouched' ? '#D29922' : '#8B949E';
+                const stateIcon = state === 'mutual' ? '✓✓' : state === 'vouched' ? '✓' : '○';
+                const name = c.name || c.email;
+                return `<button onclick="selectContact('${c.email}', '${(c.name || '').replace(/'/g, "\\'")}');" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:#161B22;border:1px solid #30363D;border-radius:6px;margin-bottom:4px;cursor:pointer;color:#C9D1D9;font-size:13px;text-align:left;">
+                    <span style="color:${stateColor};font-size:12px;">${stateIcon}</span>
+                    <span style="flex:1;">${name}</span>
+                    <span style="font-size:11px;color:#6E7681;">${state}</span>
+                </button>`;
+            }).join('');
+    } catch (e) {
+        console.warn('Failed to load contacts:', e);
+    }
+}
+
+function selectContact(email, name) {
+    document.getElementById('composeRecipientEmail').value = email;
+    if (name) document.getElementById('composeRecipientName').value = name;
+}
+
+function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    setTimeout(checkScroll, 100);
+}
+
+// ── Load message for reading
+async function loadMessage(msgId) {
+    showView('viewLoading');
+    try {
+        const resp = await fetch(`${API_BASE}/v1/msg/${msgId}`);
+        if (!resp.ok) throw new Error('Message not found');
+        const msg = await resp.json();
+        renderMessage(msg);
+    } catch (e) {
+        document.getElementById('readTitle').textContent = 'Message Not Found';
+        document.getElementById('readBody').textContent = e.message;
+        showView('viewRead');
+    }
+}
+
+function renderMessage(msg) {
+    currentMessage = msg;  // Store for content protection
+    // Title
+    document.getElementById('readTitle').textContent = msg.subject || 'Secure Message';
+
+    // Trust badge
+    const badge = document.getElementById('trustBadge');
+    const icon = document.getElementById('trustIcon');
+    const name = document.getElementById('trustName');
+    const detail = document.getElementById('trustDetail');
+
+    name.textContent = msg.sender_name || msg.sender_email;
+
+    if (msg.trust_level === 'high' || msg.trust_level === 'maximum' || msg.sender_trust_score >= 0.8) {
+        badge.className = 'trust-badge verified';
+        icon.textContent = '✓';
+        detail.textContent = `Verified · Trust Score: ${(msg.sender_trust_score || 0).toFixed(2)} · Chain Depth: ${msg.chain_depth || 0}`;
+    } else if (msg.sender_currently_verified || msg.sender_trust_score > 0) {
+        badge.className = 'trust-badge partial';
+        icon.textContent = '◐';
+        detail.textContent = `Partially verified · Score: ${(msg.sender_trust_score || 0).toFixed(2)}`;
+    } else {
+        badge.className = 'trust-badge unverified';
+        icon.textContent = '○';
+        detail.textContent = 'Sender not yet verified with VAC Protocol';
+    }
+
+    // Subject
+    const subEl = document.getElementById('readSubject');
+    if (msg.subject) {
+        subEl.textContent = msg.subject;
+        subEl.style.display = 'block';
+    }
+
+    // Body — video playback + text content
+    const bodyEl = document.getElementById('readBody');
+    const videoUrl = `${API_BASE}/v1/msg/${msg.message_id}/video`;
+    if (msg.message_type === 'video_clip' || msg.message_type === 'voice_note') {
+        const mediaId = 'msgMedia_' + msg.message_id;
+        const mediaEl = msg.message_type === 'video_clip'
+            ? `<video id="${mediaId}" controls playsinline webkit-playsinline style="width:100%;max-height:400px;border-radius:8px;margin-bottom:12px;background:#000;">
+                <source src="${videoUrl}" type="video/webm">
+                <source src="${videoUrl}" type="video/mp4">
+               </video>
+               <div id="${mediaId}_fallback" style="display:none;text-align:center;padding:16px;background:#161B22;border-radius:8px;margin-bottom:12px;">
+                <div style="color:#C9D1D9;margin-bottom:8px;">Video format not supported in this browser</div>
+                <a href="${videoUrl}" download style="color:#7C3AED;text-decoration:underline;">Download video</a>
+               </div>`
+            : `<audio controls style="width:100%;margin-bottom:12px;" src="${videoUrl}"></audio>`;
+        // Extract text caption (after the media label line)
+        const lines = (msg.content || '').split('\n').filter(l => !l.startsWith('🎥') && !l.startsWith('🎙️')).join('\n').trim();
+        bodyEl.innerHTML = mediaEl + (lines ? `<div style="white-space:pre-wrap;margin-top:8px;">${lines}</div>` : '');
+        
+        // Handle video error (e.g., Safari can't play WebM)
+        if (msg.message_type === 'video_clip') {
+            const vid = document.getElementById(mediaId);
+            if (vid) {
+                vid.addEventListener('error', () => {
+                    vid.style.display = 'none';
+                    const fb = document.getElementById(mediaId + '_fallback');
+                    if (fb) fb.style.display = 'block';
+                });
+            }
+        }
+    } else {
+        bodyEl.textContent = msg.content;
+    }
+
+    // Meta
+    const created = msg.created_at ? new Date(msg.created_at).toLocaleString() : '—';
+    document.getElementById('readTime').textContent = `Sent: ${created}`;
+    document.getElementById('readType').textContent = `Type: ${msg.message_type || 'text'}`;
+    document.getElementById('readRelationship').textContent = msg.relationship ? `Relationship: ${msg.relationship}` : '';
+
+    // Chain display
+    if (msg.sender_chain && msg.sender_chain.length > 0) {
+        const chainEl = document.getElementById('chainNodes');
+        chainEl.innerHTML = msg.sender_chain.map((c, i) => {
+            const cls = i === 0 ? 'human' : 'agent';
+            const icon = i === 0 ? '👤' : '🤖';
+            // Handle both flat format {agent, trust} and nested {claims: {sub, vac_trust_score}}
+            const claims = c.claims || c;
+            const name = c.agent || c.name || claims.email || (claims.sub || '').replace('agent:', '') || msg.sender_name || 'Unknown';
+            const trust = c.trust ?? claims.vac_trust_score ?? msg.sender_trust_score ?? 0;
+            return `
+                <div class="chain-node">
+                    <div class="chain-node-icon ${cls}">${icon}</div>
+                    <div class="chain-node-name">${name}</div>
+                    <div class="chain-node-score">${Number(trust).toFixed(2)}</div>
+                </div>`;
+        }).join('');
+        document.getElementById('chainSection').style.display = 'block';
+    } else if (msg.sender_currently_verified || msg.sender_trust_score > 0) {
+        // No chain in memory but sender was verified — show minimal chain
+        const chainEl = document.getElementById('chainNodes');
+        chainEl.innerHTML = `
+            <div class="chain-node">
+                <div class="chain-node-icon human">👤</div>
+                <div class="chain-node-name">${msg.sender_name || msg.sender_email}</div>
+                <div class="chain-node-score">${(msg.sender_trust_score || 0).toFixed(2)}</div>
+            </div>`;
+        document.getElementById('chainSection').style.display = 'block';
+    }
+
+    // Pre-fill reply
+    document.getElementById('composeRecipientEmail').value = msg.sender_email || '';
+    document.getElementById('composeRecipientName').value = msg.sender_name || '';
+
+    // Context-aware action button: sender sees "My Dashboard", recipient sees "Get Verified"
+    const actionBtn = document.getElementById('readActionBtn');
+    if (actionBtn) {
+        const viewerEmail = new URLSearchParams(window.location.search).get('from') || '';
+        const isSender = viewerEmail && viewerEmail.toLowerCase() === (msg.sender_email || '').toLowerCase();
+        const isRecipientVerified = msg.sender_currently_verified; // if we can see the chain, viewer likely verified too
+        
+        if (isSender) {
+            actionBtn.textContent = 'My Dashboard';
+            actionBtn.onclick = () => { window.location.href = '/dashboard?email=' + encodeURIComponent(msg.sender_email); };
+        }
+    }
+
+    showView('viewRead');
+    // Activate content protection (ephemeral + attention-gated + geo-fenced)
+    setTimeout(initContentProtection, 100);
+}
+
+// ── Show compose form
+function showCompose() {
+    showView('viewCompose');
+    document.getElementById('navMode').textContent = 'COMPOSE';
+}
+
+// ── Send message
+async function sendMessage() {
+    const btn = document.getElementById('btnSend');
+    const errEl = document.getElementById('composeError');
+    errEl.style.display = 'none';
+
+    const senderEmail = document.getElementById('composeSenderEmail').value.trim();
+    const recipientEmail = document.getElementById('composeRecipientEmail').value.trim();
+    const content = document.getElementById('composeBody').value.trim();
+
+    if (!senderEmail || !recipientEmail) {
+        errEl.textContent = 'Sender and recipient emails are required.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    // For text messages, require body. For voice/video, require recording OR body.
+    const hasRecording = msgChunks.length > 0;
+    if (currentMsgType === 'text' && !content) {
+        errEl.textContent = 'Please type a message.';
+        errEl.style.display = 'block';
+        return;
+    }
+    if (currentMsgType !== 'text' && !hasRecording && !content) {
+        errEl.textContent = currentMsgType === 'voice_note' ? 'Please record a voice note or type a message.' : 'Please record a video or type a message.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    // Build content — for voice/video with recording, note that media was attached
+    let finalContent = content;
+    if (hasRecording) {
+        const dur = ((Date.now() - msgRecordStart) / 1000).toFixed(0);
+        const mediaLabel = currentMsgType === 'voice_note' ? '🎙️ Voice note' : '🎥 Video message';
+        finalContent = `${mediaLabel} (${dur}s)${content ? '\n\n' + content : ''}`;
+    }
+
+    try {
+        const resp = await fetch(`${API_BASE}/v1/msg/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sender_email: senderEmail,
+                sender_name: document.getElementById('composeSenderName').value.trim(),
+                recipient_email: recipientEmail,
+                recipient_name: document.getElementById('composeRecipientName').value.trim(),
+                content: finalContent,
+                subject: document.getElementById('composeSubject').value.trim(),
+                message_type: currentMsgType,
+                protections: {
+                    ephemeral: document.getElementById('optEphemeral')?.checked || false,
+                    attention_gated: document.getElementById('optAttention')?.checked || false,
+                    geo_fenced: document.getElementById('optGeoFence')?.checked || false,
+                },
+            }),
+        });
+
+        if (!resp.ok) {
+            const errText = await resp.text();
+            throw new Error(`Server error: ${errText.substring(0, 200)}`);
+        }
+
+        sentResult = await resp.json();
+        
+        // Upload video/audio blob if recorded
+        if (hasRecording && sentResult.message_id) {
+            try {
+                btn.textContent = 'Uploading media…';
+                const blob = new Blob(msgChunks, { type: msgRecorder?.mimeType || 'video/webm' });
+                const formData = new FormData();
+                const actualMime = msgRecorder?.mimeType || 'video/webm';
+                const ext = actualMime.includes('mp4') ? 'mp4' : 'webm';
+                formData.append('video', blob, `${sentResult.message_id}.${ext}`);
+                await fetch(`${API_BASE}/v1/msg/${sentResult.message_id}/video`, {
+                    method: 'POST',
+                    body: formData,
+                });
+            } catch (uploadErr) {
+                console.warn('Video upload failed:', uploadErr);
+            }
+        }
+        
+        showSent(sentResult);
+    } catch (e) {
+        errEl.textContent = e.message || 'Failed to send message.';
+        errEl.style.display = 'block';
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Send Verified Message';
+}
+
+function showSent(result) {
+    document.getElementById('navMode').textContent = 'DELIVERED';
+
+    const recipientEmail = document.getElementById('composeRecipientEmail').value;
+    document.getElementById('sentDetail').textContent = result.recipient_notified
+        ? `Notification sent to ${recipientEmail}`
+        : `Message saved. Email delivery pending.`;
+
+    document.getElementById('sentSummary').textContent =
+        `To: ${recipientEmail}\nSubject: ${document.getElementById('composeSubject').value || '(none)'}`;
+
+    const trustText = result.sender_verified || result.trust_score >= 0.7
+        ? `Sender verified · Trust: ${result.trust_score.toFixed(2)}`
+        : result.trust_score > 0
+        ? `Partially verified · Trust: ${result.trust_score.toFixed(2)}`
+        : 'Sender not yet verified — verify at /auth to strengthen messages';
+    document.getElementById('sentTrust').textContent = trustText;
+    
+    // Hide "Verify My Identity" button if already verified
+    const verifyBtn = document.querySelector('#viewSent .btn-secondary');
+    if (verifyBtn && (result.sender_verified || result.trust_score >= 0.7)) {
+        verifyBtn.textContent = 'My Dashboard';
+        verifyBtn.onclick = () => { window.location.href = '/dashboard?email=' + encodeURIComponent(document.getElementById('composeSenderEmail').value); };
+    }
+
+    document.getElementById('sentUrl').textContent = result.view_url;
+
+    showView('viewSent');
+}
+
+function copyUrl() {
+    if (!sentResult?.view_url) return;
+    navigator.clipboard.writeText(sentResult.view_url).then(() => {
+        const fb = document.getElementById('copyFeedback');
+        fb.textContent = 'Copied ✓';
+        setTimeout(() => fb.textContent = '', 2000);
+    });
+}
+
+// ── Scroll indicator
+function checkScroll() {
+    const hint = document.getElementById('scrollHint');
+    if (!hint) return;
+    const scrollable = document.documentElement.scrollHeight > window.innerHeight + 50;
+    const nearBottom = (window.innerHeight + window.scrollY) >= document.documentElement.scrollHeight - 60;
+    hint.classList.toggle('hidden', !scrollable || nearBottom);
+}
+window.addEventListener('scroll', checkScroll, { passive: true });
+window.addEventListener('resize', checkScroll);
+
+// ── Content Protection: Attention-Gated + Geo-Fenced + Ephemeral ──
+// Patent claims 39-55: Scope constraints including spatial + temporal + attention
+
+let contentProtectionActive = false;
+let geoWatchId = null;
+
+function initContentProtection() {
+    // Only activate on read view
+    if (!document.getElementById('viewRead')?.classList.contains('active')) return;
+    contentProtectionActive = true;
+
+    // Get protections from message data (stored at send time)
+    const prots = currentMessage?.protections ? 
+        (typeof currentMessage.protections === 'string' ? JSON.parse(currentMessage.protections) : currentMessage.protections) 
+        : { ephemeral: true, attention_gated: true, geo_fenced: false };
+
+    // 1. EPHEMERAL
+    if (prots.ephemeral) {
+        document.getElementById('pillEphemeral')?.classList.add('active');
+    }
+
+    // 2. ATTENTION GATE
+    if (prots.attention_gated) {
+        document.getElementById('pillAttention')?.classList.add('active');
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        window.addEventListener('blur', onWindowBlur);
+        window.addEventListener('focus', onWindowFocus);
+        window.addEventListener('beforeprint', () => blurContent('Print detected'));
+        const pc = document.getElementById('protectedContent');
+        if (pc) { pc.style.userSelect = 'none'; pc.style.webkitUserSelect = 'none'; }
+    }
+
+    // 3. GEOLOCATION GATE (only if sender selected it)
+    if (prots.geo_fenced && navigator.geolocation) {
+        document.getElementById('pillGeo').style.display = 'inline-flex';
+        document.getElementById('pillGeo').classList.add('active');
+        navigator.geolocation.getCurrentPosition(
+            pos => {
+                document.getElementById('pillGeo').innerHTML =
+                    `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Geo-Verified ✓`;
+            },
+            err => {
+                document.getElementById('pillGeo').classList.remove('active');
+                document.getElementById('pillGeo').classList.add('warn');
+                document.getElementById('pillGeo').innerHTML =
+                    `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    Geo-Denied`;
+            },
+            { enableHighAccuracy: false, timeout: 5000 }
+        );
+    } else {
+        // Hide geo pill if not selected by sender
+        const gp = document.getElementById('pillGeo');
+        if (gp) gp.style.display = 'none';
+    }
+}
+
+function onVisibilityChange() {
+    if (document.hidden) {
+        blurContent('Tab hidden');
+    } else {
+        unblurContent();
+    }
+}
+
+function onWindowBlur() {
+    blurContent('Window lost focus');
+}
+
+function onWindowFocus() {
+    unblurContent();
+}
+
+function blurContent(reason) {
+    const pc = document.getElementById('protectedContent');
+    const overlay = document.getElementById('attentionOverlay');
+    if (pc) pc.style.filter = 'blur(20px)';
+    if (overlay) overlay.style.display = 'flex';
+    const pill = document.getElementById('pillAttention');
+    if (pill) { pill.classList.remove('active'); pill.classList.add('warn'); }
+    console.log('[Attention-Gate] Content hidden:', reason);
+}
+
+function unblurContent() {
+    const pc = document.getElementById('protectedContent');
+    const overlay = document.getElementById('attentionOverlay');
+    if (pc) pc.style.filter = 'none';
+    if (overlay) overlay.style.display = 'none';
+    const pill = document.getElementById('pillAttention');
+    if (pill) { pill.classList.remove('warn'); pill.classList.add('active'); }
+}
+
+// ── Init
+// Auto-adjust content protection based on trust relationship (Claims 16-38)
+const recipientEmailInput = document.getElementById('composeRecipientEmail');
+if (recipientEmailInput) {
+    let _debounce = null;
+    recipientEmailInput.addEventListener('input', () => {
+        clearTimeout(_debounce);
+        _debounce = setTimeout(checkTrustForProtection, 600);
+    });
+}
+
+// Fetch contacts when sender email is entered
+const senderEmailInput = document.getElementById('composeSenderEmail');
+if (senderEmailInput) {
+    let _senderDebounce = null;
+    senderEmailInput.addEventListener('blur', () => {
+        clearTimeout(_senderDebounce);
+        const email = senderEmailInput.value.trim();
+        if (email && email.includes('@')) fetchContacts(email);
+    });
+    // Also fetch on load if pre-filled
+    if (senderEmailInput.value.trim()) fetchContacts(senderEmailInput.value.trim());
+}
+
+async function checkTrustForProtection() {
+    const senderEmail = document.getElementById('composeSenderEmail')?.value?.trim();
+    const recipientEmail = document.getElementById('composeRecipientEmail')?.value?.trim();
+    if (!senderEmail || !recipientEmail || !recipientEmail.includes('@')) return;
+
+    try {
+        const r = await fetch(`${API}/v1/modality-requirements/${encodeURIComponent(senderEmail)}?counterparty_email=${encodeURIComponent(recipientEmail)}`);
+        if (!r.ok) return;
+        const data = await r.json();
+
+        const label = document.getElementById('protectionAutoLabel');
+        const ephemeral = document.getElementById('optEphemeral');
+        const attention = document.getElementById('optAttention');
+        const geoFence = document.getElementById('optGeoFence');
+
+        if (data.edge_state === 'mutual') {
+            // Mutual vouch = trusted relationship → lighter protection
+            ephemeral.checked = true;
+            attention.checked = false;
+            geoFence.checked = false;
+            if (label) { label.style.display = 'block'; label.textContent = 'Mutual vouch detected — lighter protection'; label.style.color = 'var(--success)'; }
+        } else if (data.edge_state === 'vouched' || data.edge_state === 'invited_back') {
+            // One-way vouch = partial trust
+            ephemeral.checked = true;
+            attention.checked = true;
+            geoFence.checked = false;
+            if (label) { label.style.display = 'block'; label.textContent = 'Partial trust — standard protection'; label.style.color = 'var(--teal)'; }
+        } else {
+            // No relationship = maximum protection
+            ephemeral.checked = true;
+            attention.checked = true;
+            geoFence.checked = true;
+            if (label) { label.style.display = 'block'; label.textContent = 'No trust relationship — maximum protection'; label.style.color = 'var(--warning)'; }
+        }
+    } catch (e) {
+        console.log('[Adaptive Protection] Could not check trust:', e);
+    }
+}
+
+// init called by SPA router
 
 // ============================================================
 // Groups Page Script
