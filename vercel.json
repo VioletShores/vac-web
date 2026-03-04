@@ -40,5 +40,20 @@
             "source": "/api/openapi.json",
             "destination": "https://vac-system-production.up.railway.app/openapi.json"
         }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)\\.html",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "no-cache, no-store, must-revalidate"
+                },
+                {
+                    "key": "Pragma",
+                    "value": "no-cache"
+                }
+            ]
+        }
     ]
 }
