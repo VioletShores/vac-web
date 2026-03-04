@@ -1275,7 +1275,7 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 let currentTab = 'verify';
 async function adminReset(scope) { if (!confirm('Clear ' + scope + '?')) return; try { const d = await(await fetch(API_BASE+'/v1/admin/reset?scope='+scope+'&confirm=yes-clear-data',{method:'POST'})).json(); document.getElementById('adminResult').innerHTML='<span style="color:var(--success)">Cleared: '+d.cleared.join(', ')+'</span>'; loadAdminHealth(); } catch(e) { document.getElementById('adminResult').innerHTML='<span style="color:var(--error)">'+e.message+'</span>'; } }
 async function loadAdminHealth() { try { const d=await(await fetch(API_BASE+'/health')).json(); document.getElementById('adminHealth').innerHTML='Groups: '+(d.groups||0)+' · Sessions: '+(d.sessions||0)+' · Tokens: '+d.vat_tokens_memory+' · ffmpeg: '+(d.ffmpeg||'?'); } catch(e) {} }
-function route(tab) { currentTab = tab; const ws=document.getElementById('welcomeScreen'); if(ws) ws.style.display='none'; document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active')); document.querySelectorAll('.spa-tab').forEach(el=>el.classList.remove('active')); const page=document.getElementById('page-'+tab); const tabEl=document.getElementById('tab-'+tab); if(page) page.classList.add('active'); if(tabEl) tabEl.classList.add('active'); window.location.hash=tab; if(tab==='admin') loadAdminHealth(); if(tab==='messages'&&typeof msgInit==='function'&&!window._msgInited){ window._msgInited=true; msgInit(); } if(tab==='governance'&&typeof groupsInit==='function'&&!window._groupsInited){ window._groupsInited=true; groupsInit(); } }
+function route(tab) { currentTab = tab; const ws=document.getElementById('welcomeScreen'); if(ws) ws.style.display='none'; document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active')); document.querySelectorAll('.spa-tab').forEach(el=>el.classList.remove('active')); const page=document.getElementById('page-'+tab); const tabEl=document.getElementById('tab-'+tab); if(page) page.classList.add('active'); if(tabEl) tabEl.classList.add('active'); window.location.hash=tab; if(tab==='admin') loadAdminHealth(); if(tab==='messages'&&typeof msgInit==='function'&&!window._msgInited){ window._msgInited=true; msgInit(); } if(tab==='governance'&&typeof groupsInit==='function'){ groupsInit(); } }
 function handleHash() { const hash=window.location.hash.replace('#','')||'verify'; const valid=['verify','messages','agents','governance','admin']; route(valid.includes(hash)?hash:'verify'); }
 const urlParams=new URLSearchParams(window.location.search); const sharedEmail=urlParams.get('email')||'';
 if(!sharedEmail) { const ws=document.getElementById('welcomeScreen'); if(ws) ws.style.display='block'; document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active')); }
@@ -4158,6 +4158,7 @@ const MODELS = {
 let currentGroup = null, currentSession = null, selectedModel = 'cultural_hui';
 
 function groupsInit() {
+    console.log('[GOV] groupsInit called, content el:', !!document.getElementById('content'));
     // Check URL params first
     if (sessionParam) return loadSession(sessionParam);
     if (groupParam) return loadGroup(groupParam);
