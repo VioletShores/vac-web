@@ -2140,22 +2140,43 @@ goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
 // Restore verified state on refresh
 (function() {
     const p = new URLSearchParams(window.location.search);
-    if (p.get('verified') === 'true' && p.get('email')) {
-        // Check with backend that this email is actually verified
-        fetch(API_BASE + '/v1/trust-profile/' + encodeURIComponent(p.get('email')))
+    const email = p.get('email');
+    
+    // Case 1: Returning from completed auth (verified=true in URL)
+    // Case 2: Just has email param — check if they're verified
+    if (email) {
+        fetch(API_BASE + '/v1/trust-profile/' + encodeURIComponent(email))
         .then(r => r.json())
         .then(d => {
-            if (d.token_count > 0 || d.verified) {
-                // Show verified state
-                document.getElementById('inputName').value = p.get('name') || p.get('email').split('@')[0];
-                document.getElementById('inputEmail').value = p.get('email');
+            const hasVouches = d.vouches?.received?.length > 0;
+            const hasAuth = d.authorizations?.authorized_me?.length > 0;
+            const hasTrust = d.trust_score?.score > 0;
+            const hasTokens = d.token_count > 0;
+            const isVerified = p.get('verified') === 'true';
+            
+            if (hasTokens || hasVouches || hasAuth || hasTrust || d.verified || isVerified) {
+                document.getElementById('inputName').value = p.get('name') || email.split('@')[0];
+                document.getElementById('inputEmail').value = email;
                 goToStep(4);
-                // Update success screen with basic info
                 const successName = document.getElementById('successName');
-                if (successName) successName.textContent = p.get('email').split('@')[0];
+                if (successName) successName.textContent = email.split('@')[0];
+                const successEmail = document.getElementById('successEmail');
+                if (successEmail) successEmail.textContent = email;
+                // Ensure URL has verified flag for future refreshes
+                if (!isVerified) {
+                    const url = new URL(window.location);
+                    url.searchParams.set('verified', 'true');
+                    window.history.replaceState({}, '', url);
+                }
             }
         })
-        .catch(() => {}); // If check fails, just show normal flow
+        .catch(() => {
+            if (p.get('verified') === 'true') {
+                document.getElementById('inputName').value = email.split('@')[0];
+                document.getElementById('inputEmail').value = email;
+                goToStep(4);
+            }
+        });
     }
 })();
 </script>

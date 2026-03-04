@@ -9,7 +9,6 @@
 :root { --bg: #0D1117; --surface: #161B22; --surface-raised: #1C2128; --border: #30363D; --text-primary: #F0F6FC; --text-secondary: #C9D1D9; --text-tertiary: #9CA3AF; --text-quaternary: #848D97; --purple: #6C5CE7; --purple-bg: rgba(108,92,231,0.08); --purple-border: rgba(108,92,231,0.25); --teal: #00CEC9; --teal-bg: rgba(0,206,201,0.08); --success: #3FB950; --success-bg: rgba(63,185,80,0.08); --success-border: rgba(63,185,80,0.2); --warning: #D29922; --warning-bg: rgba(210,153,34,0.08); --error: #F85149; --error-bg: rgba(248,81,73,0.08); --error-border: rgba(248,81,73,0.2); --radius: 10px; --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); color: var(--text-primary); font-family: var(--font); min-height: 100vh; }
-
 .spa-nav { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--border); padding: 0 12px; display: flex; align-items: center; height: 44px; gap: 0; }
 .spa-brand { font-family: var(--mono); font-size: 12px; font-weight: 800; color: var(--text-primary); letter-spacing: 1px; margin-right: 12px; text-decoration: none; cursor: pointer; white-space: nowrap; }
 .spa-brand span { color: var(--purple); }
@@ -25,8 +24,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .spa-user span { color: var(--teal); }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
-
-/* Auth styles */
 /* ─── Theme defaults (overridden by vac-themes.js at runtime) ─── */
 
 
@@ -271,7 +268,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 #page-verify .transcript-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 #page-verify .transcript-text { font-size: 14px; color: var(--text-primary); font-style: italic; }
 #page-verify .transcript-match { font-family: var(--mono); font-size: 11px; margin-top: 6px; }
-/* Messages styles */
 /* ─── Theme defaults (overridden by vac-themes.js at runtime) ─── */
 
 
@@ -401,7 +397,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 .protection-pill { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.5px; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary); }
 #page-messages .protection-pill.active { background: var(--purple-bg); border-color: var(--purple-border); color: var(--purple); }
 #page-messages .protection-pill.warn { background: var(--error-bg); border-color: var(--error-border); color: var(--error); }
-/* Agents styles */
 #page-agents .nav { border-bottom: 1px solid var(--border); padding: 12px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }
 #page-agents .nav-inner { max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
 #page-agents .nav-brand { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-primary); letter-spacing: 2px; display: flex; align-items: center; gap: 8px; text-decoration: none; }
@@ -509,7 +504,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 #page-agents 40% { transform: translateY(-8px); }
 #page-agents .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--border); }
 #page-agents .footer-tagline { font-style: italic; font-size: 12px; color: var(--text-quaternary); }
-/* Groups styles */
 #page-governance .nav { border-bottom: 1px solid var(--border); padding: 12px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }
 #page-governance .nav-inner { max-width: 720px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
 #page-governance .nav-brand { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-primary); letter-spacing: 2px; text-decoration: none; display: flex; align-items: center; gap: 8px; }
@@ -584,7 +578,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 </style>
 </head>
 <body>
-
 <nav class="spa-nav">
     <div class="spa-brand" onclick="route('verify')"><span>VAC</span> PROTOCOL</div>
     <div class="spa-tabs">
@@ -596,7 +589,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
     </div>
     <div class="spa-user" id="spaUser"></div>
 </nav>
-
 <section class="tab-content" id="page-verify">
 <!-- NAV -->
 <div class="nav">
@@ -949,7 +941,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
     </svg>
 </div>
 </section>
-
 <section class="tab-content" id="page-messages">
 <!-- NAV -->
 <div class="nav">
@@ -1180,7 +1171,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-tertiary);"><polyline points="6 9 12 15 18 9"/></svg>
 </div>
 </section>
-
 <section class="tab-content" id="page-agents">
 
 
@@ -1370,7 +1360,6 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
     </div>
 </div>
 </section>
-
 <section class="tab-content" id="page-governance">
 <div class="nav"><div class="nav-inner">
     <a href="/" class="nav-brand">
@@ -1381,27 +1370,17 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 </div></div>
 <div class="page" id="content"></div>
 </section>
-
 <section class="tab-content" id="page-admin">
 <div style="max-width:600px;margin:40px auto;padding:0 20px;">
 <div style="font-family:var(--mono);font-size:11px;color:var(--error);letter-spacing:2px;margin-bottom:8px;">ADMIN CONTROLS</div>
 <div style="font-size:20px;font-weight:800;color:var(--text-primary);margin-bottom:16px;">Data Management</div>
-<div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-bottom:20px;">Clear data for demo preparation. Auth tokens and vouches are preserved unless you select "Everything".</div>
-<div style="display:flex;flex-direction:column;gap:10px;" id="adminButtons">
-<button onclick="adminReset('sessions')" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;color:var(--text-primary);font-family:var(--mono);font-size:12px;">
-<div style="font-weight:600;">Clear Sessions Only</div>
-<div style="font-size:10px;color:var(--text-quaternary);margin-top:2px;">Remove all voting sessions. Groups preserved.</div>
-</button>
-<button onclick="adminReset('groups')" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;color:var(--text-primary);font-family:var(--mono);font-size:12px;">
-<div style="font-weight:600;">Clear Groups + Sessions</div>
-<div style="font-size:10px;color:var(--text-quaternary);margin-top:2px;">Remove all governance groups and their sessions. Auth preserved.</div>
-</button>
-<button onclick="adminReset('all')" style="background:var(--surface);border:1px solid var(--error-border);border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;color:var(--error);font-family:var(--mono);font-size:12px;">
-<div style="font-weight:600;">Clear Everything</div>
-<div style="font-size:10px;color:var(--text-quaternary);margin-top:2px;">Nuclear option. Clears groups, sessions, tokens, vouches, authorizations.</div>
-</button>
+<div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-bottom:20px;">Clear data for demo preparation.</div>
+<div style="display:flex;flex-direction:column;gap:10px;">
+<button onclick="adminReset('sessions')" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;color:var(--text-primary);font-family:var(--mono);font-size:12px;"><div style="font-weight:600;">Clear Sessions Only</div><div style="font-size:10px;color:var(--text-quaternary);margin-top:2px;">Remove voting sessions. Groups preserved.</div></button>
+<button onclick="adminReset('groups')" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;color:var(--text-primary);font-family:var(--mono);font-size:12px;"><div style="font-weight:600;">Clear Groups + Sessions</div><div style="font-size:10px;color:var(--text-quaternary);margin-top:2px;">Remove governance groups. Auth preserved.</div></button>
+<button onclick="adminReset('all')" style="background:var(--surface);border:1px solid var(--error-border);border-radius:8px;padding:14px 16px;cursor:pointer;text-align:left;color:var(--error);font-family:var(--mono);font-size:12px;"><div style="font-weight:600;">Clear Everything</div><div style="font-size:10px;color:var(--text-quaternary);margin-top:2px;">Nuclear. Clears all data.</div></button>
 </div>
-<div id="adminResult" style="margin-top:16px;font-family:var(--mono);font-size:11px;color:var(--text-quaternary);"></div>
+<div id="adminResult" style="margin-top:16px;font-family:var(--mono);font-size:11px;"></div>
 <div style="margin-top:32px;border-top:1px solid var(--border);padding-top:16px;">
 <div style="font-family:var(--mono);font-size:11px;color:var(--text-quaternary);letter-spacing:1px;margin-bottom:8px;">SYSTEM STATUS</div>
 <div id="adminHealth" style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);">Loading...</div>
@@ -1410,32 +1389,22 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
 </section>
 
 <script>
-// ============================================================
-// SPA Router
-// ============================================================
 let currentTab = 'verify';
-
 async function adminReset(scope) {
-    if (!confirm('Clear ' + scope + '? This cannot be undone.')) return;
+    if (!confirm('Clear ' + scope + '?')) return;
     try {
         const r = await fetch(API_BASE + '/v1/admin/reset?scope=' + scope + '&confirm=yes-clear-data', { method: 'POST' });
         const d = await r.json();
         document.getElementById('adminResult').innerHTML = '<span style="color:var(--success);">Cleared: ' + d.cleared.join(', ') + '</span>';
         loadAdminHealth();
-    } catch(e) { document.getElementById('adminResult').innerHTML = '<span style="color:var(--error);">Error: ' + e.message + '</span>'; }
+    } catch(e) { document.getElementById('adminResult').innerHTML = '<span style="color:var(--error);">' + e.message + '</span>'; }
 }
-
 async function loadAdminHealth() {
     try {
         const d = await(await fetch(API_BASE + '/health')).json();
-        document.getElementById('adminHealth').innerHTML = 
-            'Groups: ' + (d.groups||0) + ' · Sessions: ' + (d.sessions||0) + 
-            ' · Tokens (memory): ' + d.vat_tokens_memory + 
-            ' · Tokens (SQLite): ' + d.persistent.tokens +
-            ' · Vouches: ' + d.persistent.vouches;
+        document.getElementById('adminHealth').innerHTML = 'Groups: ' + (d.groups||0) + ' · Sessions: ' + (d.sessions||0) + ' · Tokens: ' + d.vat_tokens_memory + ' · SQLite: ' + d.persistent.tokens;
     } catch(e) {}
 }
-
 function route(tab) {
     currentTab = tab;
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -1445,35 +1414,22 @@ function route(tab) {
     if (page) page.classList.add('active');
     if (tabEl) tabEl.classList.add('active');
     window.location.hash = tab;
-    
-    if (tab === 'admin' && typeof loadAdminHealth === 'function') {
-        loadAdminHealth();
-    }
-    if (tab === 'messages' && typeof msgInit === 'function' && !window._msgInited) {
-        window._msgInited = true;
-        msgInit();
-    }
-    if (tab === 'governance' && typeof groupsInit === 'function' && !window._groupsInited) {
-        window._groupsInited = true;
-        groupsInit();
-    }
+    if (tab === 'admin') loadAdminHealth();
+    if (tab === 'messages' && typeof msgInit === 'function' && !window._msgInited) { window._msgInited = true; msgInit(); }
+    if (tab === 'governance' && typeof groupsInit === 'function' && !window._groupsInited) { window._groupsInited = true; groupsInit(); }
 }
-
 function handleHash() {
     const hash = window.location.hash.replace('#', '') || 'verify';
     const valid = ['verify', 'messages', 'agents', 'governance', 'admin'];
     route(valid.includes(hash) ? hash : 'verify');
 }
-
 const urlParams = new URLSearchParams(window.location.search);
 const sharedEmail = urlParams.get('email') || '';
 if (sharedEmail) {
     document.getElementById('spaUser').innerHTML = '<span>&#x25C9;</span> ' + sharedEmail.split('@')[0] + '<div style="font-size:8px;color:var(--success);letter-spacing:0.5px;">VERIFIED ROOT</div>';
 }
 
-// ============================================================
-// Auth Page Script
-// ============================================================
+// Auth
 const API_BASE = 'https://vac-system-production.up.railway.app';
 
 let currentStep = 0;
@@ -2995,28 +2951,47 @@ goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
 // Restore verified state on refresh
 (function() {
     const p = new URLSearchParams(window.location.search);
-    if (p.get('verified') === 'true' && p.get('email')) {
-        // Check with backend that this email is actually verified
-        fetch(API_BASE + '/v1/trust-profile/' + encodeURIComponent(p.get('email')))
+    const email = p.get('email');
+    
+    // Case 1: Returning from completed auth (verified=true in URL)
+    // Case 2: Just has email param — check if they're verified
+    if (email) {
+        fetch(API_BASE + '/v1/trust-profile/' + encodeURIComponent(email))
         .then(r => r.json())
         .then(d => {
-            if (d.token_count > 0 || d.verified) {
-                // Show verified state
-                document.getElementById('inputName').value = p.get('name') || p.get('email').split('@')[0];
-                document.getElementById('inputEmail').value = p.get('email');
+            const hasVouches = d.vouches?.received?.length > 0;
+            const hasAuth = d.authorizations?.authorized_me?.length > 0;
+            const hasTrust = d.trust_score?.score > 0;
+            const hasTokens = d.token_count > 0;
+            const isVerified = p.get('verified') === 'true';
+            
+            if (hasTokens || hasVouches || hasAuth || hasTrust || d.verified || isVerified) {
+                document.getElementById('inputName').value = p.get('name') || email.split('@')[0];
+                document.getElementById('inputEmail').value = email;
                 goToStep(4);
-                // Update success screen with basic info
                 const successName = document.getElementById('successName');
-                if (successName) successName.textContent = p.get('email').split('@')[0];
+                if (successName) successName.textContent = email.split('@')[0];
+                const successEmail = document.getElementById('successEmail');
+                if (successEmail) successEmail.textContent = email;
+                // Ensure URL has verified flag for future refreshes
+                if (!isVerified) {
+                    const url = new URL(window.location);
+                    url.searchParams.set('verified', 'true');
+                    window.history.replaceState({}, '', url);
+                }
             }
         })
-        .catch(() => {}); // If check fails, just show normal flow
+        .catch(() => {
+            if (p.get('verified') === 'true') {
+                document.getElementById('inputName').value = email.split('@')[0];
+                document.getElementById('inputEmail').value = email;
+                goToStep(4);
+            }
+        });
     }
 })();
 
-// ============================================================
-// Messages Page Script
-// ============================================================
+// Messages
 // const API_BASE // shared = 'https://vac-system-production.up.railway.app';
 let sentResult = null;
 let currentMessage = null;
@@ -3626,9 +3601,7 @@ if (typeof VACTheme !== 'undefined') {
     if (t) VACTheme.apply(t);
 }
 
-// ============================================================
-// Agents Page Script
-// ============================================================
+// Agents
 // const API_BASE // shared = 'https://vac-system-production.up.railway.app';
 let currentTaskId = null;
 let stepByStepMode = false;
@@ -4161,9 +4134,7 @@ function escapeHtml(str) {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// ============================================================
-// Groups Page Script
-// ============================================================
+// Groups
 const API = 'https://vac-system-production.up.railway.app';
 const params = new URLSearchParams(location.search);
 const sessionParam = params.get('session');
@@ -4998,14 +4969,10 @@ async function cancelSession() {
 
 // init called by SPA
 
-// ============================================================
-// SPA Init
-// ============================================================
+// Init
 window.addEventListener('hashchange', handleHash);
 handleHash();
-if (urlParams.get('admin') === 'true') {
-    document.getElementById('tab-admin').style.display = 'flex';
-}
+if (urlParams.get('admin') === 'true') document.getElementById('tab-admin').style.display = 'flex';
 </script>
 </body>
 </html>
