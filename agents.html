@@ -162,7 +162,7 @@ textarea.form-input { min-height: 80px; resize: vertical; }
         </div>
         <div style="display:flex;gap:10px;margin-top:6px;">
             <button class="btn btn-primary" id="btnRun" onclick="runTask()">Run Agent</button>
-            <button class="btn btn-outline" onclick="runStepByStep()">Step-by-Step</button>
+            <button class="btn btn-outline" id="btnStep" onclick="runStepByStep()">Step-by-Step</button>
         </div>
     </div>
 
@@ -248,6 +248,15 @@ async function createAndRun(stepMode) {
     const maxCalls = parseInt(document.getElementById('maxCalls').value) || 3;
 
     if (!ownerEmail || !prompt) { alert('Enter your email and a task prompt.'); return; }
+
+    // Highlight active mode button
+    if (stepMode) {
+        document.getElementById('btnStep').className = 'btn btn-primary';
+        document.getElementById('btnRun').className = 'btn btn-outline';
+    } else {
+        document.getElementById('btnRun').className = 'btn btn-primary';
+        document.getElementById('btnStep').className = 'btn btn-outline';
+    }
 
     // Update chain
     document.getElementById('chainHuman').textContent = ownerEmail;
@@ -376,7 +385,7 @@ function renderStep(step, budget) {
         </div>
     `;
 
-    document.getElementById('stepsContainer').appendChild(el);
+    document.getElementById('stepsContainer').prepend(el);
     el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -462,7 +471,7 @@ async function approveEscalation() {
             </div>
             <div class="step-content" style="color:var(--success);">${data.message}</div>
         `;
-        document.getElementById('stepsContainer').appendChild(el);
+        document.getElementById('stepsContainer').prepend(el);
 
         // Continue running
         if (stepByStepMode) {
@@ -503,7 +512,7 @@ function addNextStepButton() {
     el.style.textAlign = 'center';
     el.style.margin = '12px 0';
     el.innerHTML = `<button class="btn btn-primary" onclick="this.parentElement.remove(); runNextStep();">Run Next Step →</button>`;
-    document.getElementById('stepsContainer').appendChild(el);
+    document.getElementById('stepsContainer').prepend(el);
     el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
