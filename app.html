@@ -3664,9 +3664,9 @@ async function runStepByStep() {
 async function createAndRun(stepMode) {
     const ownerEmail = document.getElementById('ownerEmail').value.trim();
     const prompt = document.getElementById('taskPrompt').value.trim();
-    const tokenBudget = parseInt(document.getElementById('tokenBudget').value) || 4000;
-    const spendCap = parseFloat(document.getElementById('spendCap').value) || 0.08;
-    const maxCalls = parseInt(document.getElementById('maxCalls').value) || 3;
+    let tokenBudget = parseInt(document.getElementById('tokenBudget').value) || 4000;
+    let spendCap = parseFloat(document.getElementById('spendCap').value) || 0.08;
+    let maxCalls = parseInt(document.getElementById('maxCalls').value) || 3;
 
     if (!ownerEmail || !prompt) { alert('Enter your email and a task prompt.'); return; }
     
