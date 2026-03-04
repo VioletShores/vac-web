@@ -589,6 +589,14 @@ body { background: var(--bg); color: var(--text-primary); font-family: var(--fon
     </div>
     <div class="spa-user" id="spaUser"></div>
 </nav>
+
+<div id="welcomeScreen" style="display:none;max-width:500px;margin:80px auto;text-align:center;padding:0 20px;">
+    <div style="font-family:var(--mono);font-size:11px;color:var(--purple);letter-spacing:2px;margin-bottom:12px;">VAC PROTOCOL</div>
+    <div style="font-size:28px;font-weight:800;color:var(--text-primary);margin-bottom:8px;">Verified Agent Chain</div>
+    <div style="font-size:14px;color:var(--text-tertiary);margin-bottom:32px;">Cryptographic human provenance for AI agents.<br>Math enforces what neither party trusts the other to honour.</div>
+    <a href="/auth" style="display:inline-block;background:var(--purple);color:white;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;">Verify Your Identity →</a>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:12px;">Face · Voice · Email · Location</div>
+</div>
 <section class="tab-content" id="page-verify"><!-- NAV -->
 <div class="nav">
 <div class="nav-inner">
@@ -1398,6 +1406,8 @@ async function loadAdminHealth() {
 }
 function route(tab) {
     currentTab = tab;
+    const ws = document.getElementById('welcomeScreen');
+    if (ws) ws.style.display = 'none';
     document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
     document.querySelectorAll('.spa-tab').forEach(el=>el.classList.remove('active'));
     const page=document.getElementById('page-'+tab);
@@ -1416,6 +1426,10 @@ function handleHash() {
 }
 const urlParams=new URLSearchParams(window.location.search);
 const sharedEmail=urlParams.get('email')||'';
+if (!sharedEmail) {
+    document.getElementById('welcomeScreen').style.display = 'block';
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+}
 if(sharedEmail) {
     const isRoot = sharedEmail.includes('rob@violetshores');
     const label = isRoot ? 'VERIFIED ROOT' : 'VERIFIED';
@@ -3639,6 +3653,18 @@ function applyRoleLimits() {
         document.getElementById('chainRoleLabel').textContent = opt.text.split('—')[0].trim();
         document.getElementById('chainCeiling').textContent = `$${maxSpend} ceiling`;
     }
+    
+    // Role-specific task prompts
+    const prompts = {
+        founder: 'Analyze our competitive landscape against Veriff, iProov, and Onfido. For each competitor, identify their key technology moat, pricing model, and where VAC Protocol has a differentiated advantage through cryptographic delegation chains.',
+        department_head: 'Draft a quarterly OKR proposal for the identity verification team. Include 3 objectives with measurable key results, resource estimates, and dependencies on other departments.',
+        team_lead: 'Research the top 5 AI infrastructure companies and summarize their competitive moats. For each company, explain their key technology, market position, and what makes them defensible.',
+        employee: 'Research the top 5 AI infrastructure companies and summarize their competitive moats. For each company, explain their key technology, market position, and what makes them defensible.',
+        intern: 'Summarize the key differences between OAuth 2.0, SAML, and WebAuthn authentication protocols. Focus on security trade-offs and modern adoption trends.',
+        gov_analyst: 'Analyze NIST SP 800-63 digital identity guidelines and identify how cryptographic delegation chains could satisfy Level of Assurance 3 requirements.',
+        gov_director: 'Prepare a policy brief on AI agent accountability frameworks across US, EU, and UK jurisdictions. Compare regulatory approaches and recommend a compliance strategy for cryptographic human-to-agent attribution.',
+    };
+    document.getElementById('taskPrompt').value = prompts[sel.value] || prompts.employee;
 }
 
 function getRoleLabel() {
