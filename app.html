@@ -3594,7 +3594,7 @@ async function checkTrustForProtection() {
     }
 }
 
-init();
+// msgInit() called by SPA router
 if (typeof VACTheme !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
     const t = params.get('theme');
@@ -4969,7 +4969,7 @@ async function cancelSession() {
     } catch(e) { alert(e.message); }
 }
 
-
+// groupsInit() called by SPA router
 
 window.addEventListener('hashchange', handleHash);
 handleHash();
