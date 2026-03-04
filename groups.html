@@ -531,12 +531,17 @@ function showStartSession() {
 
 async function startSession() {
     const action = document.getElementById('sessAction').value.trim();
-    if (!action) return;
+    if (!action) { console.error('startSession: no action'); return; }
     const timeout = parseInt(document.getElementById('sessTimeout')?.value || '60');
+    console.log('startSession:', { group_id: currentGroup?.group_id, action, timeout });
     try {
-        const d = await(await fetch(API+'/v1/groups/session', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ group_id:currentGroup.group_id, action, description:document.getElementById('sessDesc').value.trim(), timeout_minutes:timeout, initiated_by:emailParam }) })).json();
-        if (d.session_id) loadSession(d.session_id);
-    } catch(e) { alert(e.message); }
+        const resp = await fetch(API+'/v1/groups/session', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ group_id:currentGroup.group_id, action, description:document.getElementById('sessDesc').value.trim(), timeout_minutes:timeout, initiated_by:emailParam }) });
+        console.log('startSession response:', resp.status);
+        const d = await resp.json();
+        console.log('startSession data:', d);
+        if (d.session_id) { console.log('Loading session:', d.session_id); loadSession(d.session_id); }
+        else { console.error('No session_id:', d); alert(d.detail||'Session creation failed'); }
+    } catch(e) { console.error('startSession error:', e); alert(e.message); }
 }
 
 async function loadSession(sid) {
