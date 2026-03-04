@@ -133,7 +133,7 @@ textarea.form-input { min-height: 80px; resize: vertical; }
         
         <!-- Human root — this is the differentiator -->
         <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--success-bg);border:1px solid var(--success-border);border-radius:8px;margin-bottom:12px;">
-            <div style="width:40px;height:40px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">👤</div>
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--success);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;"><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='#fff' stroke-width='2' stroke-linecap='round'><path d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg></div>
             <div style="flex:1;">
                 <div style="font-size:13px;font-weight:700;color:var(--success);" id="chainHumanName">Verify first</div>
                 <div style="font-family:var(--mono);font-size:10px;color:var(--text-tertiary);">VERIFIED HUMAN · Face + Voice + Challenge</div>
@@ -150,14 +150,14 @@ textarea.form-input { min-height: 80px; resize: vertical; }
                 <!-- Coordinator -->
                 <div style="display:flex;align-items:center;gap:8px;padding:8px 0;position:relative;">
                     <div style="position:absolute;left:-22px;width:12px;height:2px;background:var(--purple-border);"></div>
-                    <div class="chain-node agent" id="chainCoordinator">🤖 Coordinator</div>
+                    <div class="chain-node agent" id="chainCoordinator"><svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='var(--purple)' stroke-width='2' stroke-linecap='round'><rect x='2' y='6' width='20' height='12' rx='2'/><circle cx='8' cy='12' r='1.5' fill='var(--purple)'/><circle cx='16' cy='12' r='1.5' fill='var(--purple)'/><path d='M9 2h6M12 2v4'/></svg> Coordinator</div>
                     <span style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);">scope: delegate tasks · max_children: 3</span>
                 </div>
                 
                 <!-- Research Agent -->
                 <div style="display:flex;align-items:center;gap:8px;padding:8px 0;margin-left:24px;border-left:2px solid var(--purple-border);padding-left:16px;position:relative;">
                     <div style="position:absolute;left:-22px;width:12px;height:2px;background:var(--purple-border);"></div>
-                    <div class="chain-node agent active" id="chainAgent">🤖 Research Agent</div>
+                    <div class="chain-node agent active" id="chainAgent"><svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='var(--teal)' stroke-width='2' stroke-linecap='round'><rect x='2' y='6' width='20' height='12' rx='2'/><circle cx='8' cy='12' r='1.5' fill='var(--teal)'/><circle cx='16' cy='12' r='1.5' fill='var(--teal)'/><path d='M9 2h6M12 2v4'/></svg> Research Agent</div>
                     <span style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);" id="chainAgentScope">scope: research only · budget: 4,000 tokens</span>
                 </div>
             </div>
@@ -184,15 +184,15 @@ textarea.form-input { min-height: 80px; resize: vertical; }
         </div>
         <div class="form-row">
             <div class="form-group">
-                <label class="form-label">💳 Card Limit (tokens)</label>
+                <label class="form-label">⬡ Card Limit (tokens)</label>
                 <input class="form-input" id="tokenBudget" type="number" value="4000">
             </div>
             <div class="form-group">
-                <label class="form-label">💰 Spend Cap ($)</label>
+                <label class="form-label">◈ Spend Cap ($)</label>
                 <input class="form-input" id="spendCap" type="number" value="0.08" step="0.01">
             </div>
             <div class="form-group">
-                <label class="form-label">🔒 Max Transactions</label>
+                <label class="form-label">⊡ Max Transactions</label>
                 <input class="form-input" id="maxCalls" type="number" value="3">
             </div>
         </div>
@@ -204,7 +204,7 @@ textarea.form-input { min-height: 80px; resize: vertical; }
 
     <!-- Budget Gauge (appears during run) -->
     <div class="card" id="budgetCard" style="display:none;">
-        <div class="card-header">💳 Agent Spending Card <span style="color:var(--purple);">· LIVE</span></div>
+        <div class="card-header">⬡ Agent Spending Card <span style="color:var(--purple);">· LIVE</span></div>
         <div class="budget-bar">
             <div class="budget-header">
                 <span class="budget-label">Token Usage</span>
@@ -467,7 +467,7 @@ function renderStep(step, budget) {
     el.style.animation = 'escalation-in 0.3s ease';
     el.innerHTML = `
         <div class="step-header">
-            <span class="step-label">🤖 Research Agent · API Call #${step.step || '?'}</span>
+            <span class="step-label"><svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='var(--teal)' stroke-width='2' stroke-linecap='round'><rect x='2' y='6' width='20' height='12' rx='2'/><circle cx='8' cy='12' r='1.5' fill='var(--teal)'/><circle cx='16' cy='12' r='1.5' fill='var(--teal)'/><path d='M9 2h6M12 2v4'/></svg> Research Agent · API Call #${step.step || '?'}</span>
             <span class="step-tokens ${tokenCls}">${(step.total_tokens || 0).toLocaleString()} tokens</span>
         </div>
         <div style="font-family:var(--mono);font-size:9px;color:var(--text-quaternary);margin-bottom:6px;">Chain: Human ✓ → Coordinator → Research Agent · Authorized by delegation</div>
@@ -507,7 +507,7 @@ function showEscalation(data) {
     const el = document.createElement('div');
     el.className = 'escalation';
     el.innerHTML = `
-        <div class="escalation-icon">🚨</div>
+        <div class="escalation-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
         <div class="escalation-title">Card Limit Reached — Human Approval Required</div>
         <div class="escalation-reason">${escapeHtml(data.escalation_reason || data.escalation?.reason || 'Spending limit reached')}</div>
         <div style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">
@@ -633,7 +633,7 @@ function switchTab(tab) {
         tabLive.style.color = 'var(--text-quaternary)';
         liveView.style.display = 'none';
         auditView.style.display = 'block';
-        renderAuditTrail();
+        loadPersistedAudit();
     } else {
         tabLive.style.borderBottomColor = 'var(--purple)';
         tabLive.style.color = 'var(--purple)';
@@ -642,6 +642,57 @@ function switchTab(tab) {
         liveView.style.display = 'block';
         auditView.style.display = 'none';
     }
+}
+
+async function loadPersistedAudit() {
+    // Try loading from SQLite via API first, fall back to in-memory
+    if (currentTaskId) {
+        try {
+            const resp = await fetch(`${API_BASE}/v1/agent/task/${currentTaskId}/audit`);
+            const data = await resp.json();
+            if (data.entries && data.entries.length > 0) {
+                renderPersistedAudit(data.entries);
+                return;
+            }
+        } catch (e) { console.log('API audit fetch failed, using in-memory'); }
+    }
+    renderAuditTrail();
+}
+
+function renderPersistedAudit(entries) {
+    const el = document.getElementById('auditEntries');
+    const icons = { delegation: '⛓', card_issued: '◈', transaction: '◉', limit_reached: '⊘', limit_increased: '⊕', card_frozen: '⊗', completed: '◆' };
+    const colors = { delegation: 'var(--purple)', card_issued: 'var(--teal)', transaction: 'var(--text-secondary)', limit_reached: 'var(--error)', limit_increased: 'var(--success)', card_frozen: 'var(--error)', completed: 'var(--success)' };
+    
+    el.innerHTML = entries.map((entry, i) => {
+        const icon = icons[entry.event_type] || '•';
+        const color = colors[entry.event_type] || 'var(--text-secondary)';
+        const d = entry.details || {};
+        const time = new Date(entry.created_at).toLocaleTimeString();
+        let detail = '';
+        
+        if (entry.event_type === 'delegation') {
+            detail = `<strong>DELEGATION</strong> ${d.from || ''} → ${d.to || ''}<br><span style="color:var(--text-quaternary)">Scope: ${d.scope || 'full'}</span>`;
+        } else if (entry.event_type === 'card_issued') {
+            detail = `<strong>CARD ISSUED</strong> to ${entry.agent_name}<br><span style="color:var(--text-quaternary)">Limit: ${(d.token_limit||0).toLocaleString()} tokens · $${d.spend_cap||0} cap · ${d.max_transactions||0} max tx · Trust: ${d.trust_score||0}</span>`;
+        } else if (entry.event_type === 'transaction') {
+            detail = `<strong>TX #${d.tx_number||'?'}</strong> ${entry.agent_name}<br><span style="color:var(--text-quaternary)">${(d.input_tokens||0).toLocaleString()} in / ${(d.output_tokens||0).toLocaleString()} out · $${(d.cost_usd||0).toFixed(4)} · Running: $${(d.running_total_usd||0).toFixed(4)}</span>`;
+        } else if (entry.event_type === 'limit_reached') {
+            detail = `<strong>CARD LIMIT REACHED</strong><br><span style="color:var(--text-quaternary)">${d.reason || ''} · Total: ${(d.total_tokens||0).toLocaleString()} tokens / $${d.total_spend||0}</span>`;
+        } else if (entry.event_type === 'limit_increased') {
+            detail = `<strong>LIMIT INCREASED</strong> by verified human<br><span style="color:var(--text-quaternary)">+${(d.additional_tokens||0).toLocaleString()} tokens · New limit: ${(d.new_limit||0).toLocaleString()}</span>`;
+        } else if (entry.event_type === 'card_frozen') {
+            detail = `<strong>CARD FROZEN</strong> by verified human<br><span style="color:var(--text-quaternary)">Final: ${(d.total_tokens||0).toLocaleString()} tokens / $${d.total_spend||0}</span>`;
+        }
+        
+        return `<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
+            <div style="font-size:16px;flex-shrink:0;width:24px;text-align:center;color:${color};">${icon}</div>
+            <div style="flex:1;">
+                <div style="color:${color};font-size:11px;line-height:1.6;">${detail}</div>
+                <div style="font-size:9px;color:var(--text-quaternary);margin-top:2px;">${time} · ${entry.chain_trace || ''}</div>
+            </div>
+        </div>`;
+    }).join('');
 }
 
 function addAuditEntry(type, data) {
@@ -663,25 +714,25 @@ function renderAuditTrail() {
         let icon = '', color = 'var(--text-secondary)', detail = '';
         
         if (entry.type === 'delegation') {
-            icon = '🔗'; color = 'var(--purple)';
+            icon = '⛓'; color = 'var(--purple)';
             detail = `<strong>DELEGATION</strong> · ${entry.from} → ${entry.to}<br>Scope: ${entry.scope || 'full'} · Constraints: ${entry.constraints || 'none'}`;
         } else if (entry.type === 'card_issued') {
-            icon = '💳'; color = 'var(--teal)';
+            icon = '⬡'; color = 'var(--teal)';
             detail = `<strong>CARD ISSUED</strong> to ${entry.agent}<br>Limit: ${entry.tokenLimit?.toLocaleString()} tokens · $${entry.spendCap} cap · ${entry.maxTx} max transactions<br>Authorized by: ${entry.authorizer} (Trust: ${entry.trustScore})`;
         } else if (entry.type === 'transaction') {
-            icon = '📝'; color = 'var(--text-secondary)';
+            icon = '◉'; color = 'var(--text-secondary)';
             detail = `<strong>TX #${entry.txNumber}</strong> · ${entry.agent}<br>Tokens: ${entry.inputTokens} in / ${entry.outputTokens} out · Cost: $${entry.cost}<br>Chain: ${entry.chain} · Running total: $${entry.runningTotal}`;
         } else if (entry.type === 'limit_reached') {
-            icon = '🚨'; color = 'var(--error)';
+            icon = '⊘'; color = 'var(--error)';
             detail = `<strong>CARD LIMIT REACHED</strong> · ${entry.reason}<br>Agent frozen. Awaiting human re-authorization.<br>Total spent: ${entry.totalTokens?.toLocaleString()} tokens / $${entry.totalSpend}`;
         } else if (entry.type === 'limit_increased') {
-            icon = '✅'; color = 'var(--success)';
+            icon = '⊕'; color = 'var(--success)';
             detail = `<strong>LIMIT INCREASED</strong> by verified human<br>Additional: +${entry.additionalTokens?.toLocaleString()} tokens · New limit: ${entry.newLimit?.toLocaleString()} tokens<br>Authorized by: ${entry.authorizer}`;
         } else if (entry.type === 'card_frozen') {
-            icon = '🛑'; color = 'var(--error)';
+            icon = '⊗'; color = 'var(--error)';
             detail = `<strong>CARD FROZEN</strong> · Agent terminated by human<br>Final spend: ${entry.totalTokens?.toLocaleString()} tokens / $${entry.totalSpend}<br>Frozen by: ${entry.authorizer}`;
         } else if (entry.type === 'completed') {
-            icon = '✓'; color = 'var(--success)';
+            icon = '◆'; color = 'var(--success)';
             detail = `<strong>TASK COMPLETE</strong><br>Total: ${entry.totalTokens?.toLocaleString()} tokens / $${entry.totalSpend} across ${entry.totalTx} transactions`;
         }
         
