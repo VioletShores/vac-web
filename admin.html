@@ -57,6 +57,23 @@ input:focus{outline:none;border-color:#2DD4BF}
 </div>
 
 <div class="card">
+<div class="card-title">GROUPS</div>
+<div class="btn-row">
+<button class="btn btn-danger" onclick="clearGroups()">Clear All Groups + Sessions</button>
+</div>
+<div class="log" id="groupLog"></div>
+</div>
+
+<div class="card" style="border:1px solid #F96167">
+<div class="card-title" style="color:#F96167">NUCLEAR RESET</div>
+<div style="font-size:12px;color:#6B7280;margin-bottom:12px">Clears users, vouches, trust edges AND groups for both demo accounts. Fresh start.</div>
+<div class="btn-row">
+<button class="btn btn-danger" onclick="if(confirm('Clear EVERYTHING for both accounts?')) nuclearReset()" style="background:rgba(249,97,103,0.1)">Reset Everything (Fresh Demo)</button>
+</div>
+<div class="log" id="nukeLog"></div>
+</div>
+
+<div class="card">
 <div class="card-title">LINKS</div>
 <div style="display:flex;flex-wrap:wrap;gap:8px">
 <a href="/auth" class="btn" style="text-decoration:none">Auth Page</a>
@@ -95,7 +112,21 @@ async function clearVouches() {
     const r = await fetch(API + '/v1/admin/vouches/' + encodeURIComponent(email), {method:'DELETE'});
     const d = await r.json();
     log('clearLog', JSON.stringify(d));
+    async function clearGroups() {
+    const r = await fetch(API + '/v1/admin/groups', {method:'DELETE'});
+    const d = await r.json();
+    log('groupLog', JSON.stringify(d));
     loadStats();
+}
+
+async function nuclearReset() {
+    const r = await fetch(API + '/v1/admin/reset-all', {method:'DELETE'});
+    const d = await r.json();
+    log('nukeLog', JSON.stringify(d));
+    loadStats();
+}
+
+loadStats();
 }
 
 async function clearUser() {
@@ -103,20 +134,63 @@ async function clearUser() {
     const r = await fetch(API + '/v1/admin/user/' + encodeURIComponent(email), {method:'DELETE'});
     const d = await r.json();
     log('clearLog', JSON.stringify(d));
+    async function clearGroups() {
+    const r = await fetch(API + '/v1/admin/groups', {method:'DELETE'});
+    const d = await r.json();
+    log('groupLog', JSON.stringify(d));
     loadStats();
+}
+
+async function nuclearReset() {
+    const r = await fetch(API + '/v1/admin/reset-all', {method:'DELETE'});
+    const d = await r.json();
+    log('nukeLog', JSON.stringify(d));
+    loadStats();
+}
+
+loadStats();
 }
 
 async function clearVouchesFor(email) {
     const r = await fetch(API + '/v1/admin/vouches/' + encodeURIComponent(email), {method:'DELETE'});
     const d = await r.json();
     log('quickLog', email + ': ' + JSON.stringify(d));
+    async function clearGroups() {
+    const r = await fetch(API + '/v1/admin/groups', {method:'DELETE'});
+    const d = await r.json();
+    log('groupLog', JSON.stringify(d));
     loadStats();
 }
 
+async function nuclearReset() {
+    const r = await fetch(API + '/v1/admin/reset-all', {method:'DELETE'});
+    const d = await r.json();
+    log('nukeLog', JSON.stringify(d));
+    loadStats();
+}
+
+loadStats();
+}
+
 async function resetBoth() {
+    await fetch(API + '/v1/admin/groups', {method:'DELETE'});
     await clearVouchesFor('rob@violetshores.com');
     await clearVouchesFor('robzag@gmail.com');
     log('quickLog', '--- Both reset. Ready for fresh demo ---');
+}
+
+async function clearGroups() {
+    const r = await fetch(API + '/v1/admin/groups', {method:'DELETE'});
+    const d = await r.json();
+    log('groupLog', JSON.stringify(d));
+    loadStats();
+}
+
+async function nuclearReset() {
+    const r = await fetch(API + '/v1/admin/reset-all', {method:'DELETE'});
+    const d = await r.json();
+    log('nukeLog', JSON.stringify(d));
+    loadStats();
 }
 
 loadStats();
