@@ -94,6 +94,11 @@ input:focus{outline:none;border-color:#2DD4BF}
 
 <script>
 const API = 'https://vac-system-production.up.railway.app';
+const ADMIN_HEADERS = {'X-Admin-Secret': 'dev-admin-secret-change-in-prod'};
+async function adminFetch(url, opts={}) {
+    opts.headers = {...(opts.headers||{}), ...ADMIN_HEADERS};
+    return fetch(url, opts);
+}
 const params = new URLSearchParams(window.location.search);
 
 // ── Session Token Management ──
