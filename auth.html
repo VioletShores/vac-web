@@ -1746,6 +1746,12 @@ function showRetry(result) {
         document.getElementById('retryTipsList').innerHTML = [...new Set(tips)].map(t =>
             `<div style="margin-bottom: 4px;">${t}</div>`
         ).join('');
+        // Suggest slower speed if finger or challenge failed
+        const fingerFailed = failed.some(m => m.name === 'finger_gesture' && m.status === 'failed');
+        const challengeFailed = failed.some(m => m.name === 'challenge_response' && m.status === 'failed');
+        if ((fingerFailed || challengeFailed) && challengeSpeed !== 'relaxed') {
+            document.getElementById('retryTipsList').innerHTML += '<div style="margin-top:10px;padding:10px 14px;background:rgba(45,212,191,0.04);border:1px solid rgba(45,212,191,0.15);border-radius:8px;"><strong style="color:var(--teal)">Try a slower speed</strong> — switch to <a href="#" onclick="setSpeed(\'relaxed\');this.parentElement.style.display=\'none\';return false;" style="color:var(--teal);text-decoration:underline;font-weight:600;">Relaxed mode</a> for more time on each step.</div>';
+        }
     } else {
         document.getElementById('failReasons').textContent = 'Verification did not reach the required trust threshold.';
         document.getElementById('retryTipsList').textContent = 'Ensure good lighting, speak clearly, and look directly at the camera.';
