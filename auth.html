@@ -1386,7 +1386,7 @@ async function runRealVerification(videoBlob) {
                 detailEl.textContent = pSteps[pIdx].text;
                 pIdx++;
             }
-        }, 400);
+        }, 250);
 
         // Send to backend
         const resp = await fetch(`${API_BASE}/v1/vat/auth/verify`, {
@@ -1428,7 +1428,7 @@ async function runRealVerification(videoBlob) {
             }[mod.name];
             if (elId) {
                 updateModality(elId, mod.status, mod.score, mod.name, mod.detail);
-                await sleep(300); // Stagger for visual effect
+                await sleep(150); // Stagger for visual effect
             }
         }
 
@@ -1442,7 +1442,7 @@ async function runRealVerification(videoBlob) {
             stepEl.textContent = 'Identity verified ✓';
             ring.style.stroke = 'var(--success)';
             detailEl.textContent = `Trust score: ${authResult.biometric_verification.overall_score}`;
-            await sleep(800);
+            await sleep(400);
             showSuccess();
         } else {
             stepEl.textContent = 'Verification incomplete';
