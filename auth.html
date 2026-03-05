@@ -70,7 +70,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .step-section.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-.header { text-align: center; padding: clamp(8px, 2vh, 24px) 0 clamp(6px, 1.5vh, 16px); position: relative; }
+.header { text-align: center; padding: clamp(4px, 1vh, 12px) 0 clamp(4px, 1vh, 10px); position: relative; }
 .header-eyebrow { font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
 .header-title { font-size: 24px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
 .header-sub { font-size: 13px; color: var(--text-tertiary); margin-top: 4px; max-width: 400px; margin-left: auto; margin-right: auto; }
@@ -141,8 +141,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .camera-challenge-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
 
 /* Progress */
-.progress-container { text-align: center; padding: 40px 0; }
-.progress-ring { width: 80px; height: 80px; margin: 0 auto 20px; position: relative; }
+.progress-container { text-align: center; padding: 16px 0; }
+.progress-ring { width: 64px; height: 64px; margin: 0 auto 10px; position: relative; }
 .progress-ring svg { transform: rotate(-90deg); }
 .progress-ring circle { fill: none; stroke-width: 3; }
 .progress-ring .ring-bg { stroke: var(--border); }
@@ -266,7 +266,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <div class="nav">
 <div class="nav-inner">
     <a href="/" class="nav-left">
-        <svg width="18" height="18" viewBox="0 0 100 100"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="5"/><polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.1" stroke="#6C5CE7" stroke-width="2.5"/></svg>
+        <img src="/branding/vac-logo-icon-dark.png" class="nav-icon" style="width:22px;height:22px" onerror="this.style.display='none'">
         <div class="nav-wordmark">VAC <span>VERIFY</span></div>
     </a>
     <div style="display:flex;align-items:center;gap:10px"><a href="javascript:openDashboard()" id="navDashboard" style="display:none;font-family:var(--mono);font-size:10px;color:var(--text-tertiary);text-decoration:none;letter-spacing:0.5px">DASHBOARD</a><div class="nav-mode" id="navStatus">AUTHENTICATE</div></div>
@@ -344,7 +344,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Microphone</div>
-        <div class="header-sub">We'll record a short video of you speaking a challenge phrase, then showing fingers to match the digits. Takes about 15 seconds.</div>
+        <div class="header-sub">We'll record a short video of you speaking a challenge phrase, then showing fingers for each digit. Hold each pose briefly, then change to the next. Takes about 8 seconds.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
@@ -377,13 +377,13 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 <span id="avMicPromptText">Speak now to test your microphone</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="flex: 1; height: 12px; background: rgba(255,255,255,0.06); border-radius: 6px; overflow: hidden;">
+                <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
                     <div id="avAudioLevel" style="height: 100%; width: 0%; background: var(--success); border-radius: 6px; transition: width 75ms;"></div>
                 </div>
                 <span id="avAudioPct" style="font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); min-width: 30px; text-align: right;">0%</span>
             </div>
             <div id="avMicTip" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none;"></div>
-            <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 6px 12px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+            <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; padding: 4px 10px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
                 Refresh camera &amp; mic
             </button>
@@ -394,7 +394,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span></div>
         </div>
     </div>
-    <div style="text-align: center; margin-top: 6px;">
+    <div style="text-align: center; margin-top: 4px;">
         <div id="adaptiveAuthBar" class="adaptive-auth-bar standard" style="display:none;"></div>
         <div class="modalities-mini" style="justify-content: center; display: none;" id="modalityChips">
             <div class="mod-chip" data-mod="video_liveness"><span class="dot"></span>Face Liveness</div>
@@ -443,6 +443,12 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             </div>
         </div>
     </div>
+    <!-- Speed toggle -->
+    <div id="speedToggle" style="display:flex;justify-content:center;gap:8px;margin-bottom:10px;">
+        <button onclick="setSpeed('relaxed')" id="speedRelaxed" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-tertiary);cursor:pointer;">Relaxed</button>
+        <button onclick="setSpeed('normal')" id="speedNormal" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--teal);background:rgba(45,212,191,0.1);color:var(--teal);cursor:pointer;">Normal</button>
+        <button onclick="setSpeed('fast')" id="speedFast" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-tertiary);cursor:pointer;">Fast</button>
+    </div>
     <div class="timer-label" id="timerLabel">Recording in</div>
     <div class="countdown-ring-wrap" id="countdownRingWrap">
         <svg viewBox="0 0 100 100">
@@ -473,7 +479,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     </div>
     <div class="progress-container">
         <div class="progress-ring">
-            <svg viewBox="0 0 80 80">
+            <svg viewBox="0 0 80 80" style="width:64px;height:64px">
                 <circle class="ring-bg" cx="40" cy="40" r="36"/>
                 <circle class="ring-fill" cx="40" cy="40" r="36" id="progressRing"/>
             </svg>
@@ -580,7 +586,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <div style="margin-top:20px;text-align:center;">
         <a id="enterAppBtn" href="#" onclick="enterApp()" style="display:inline-block;background:var(--purple);color:white;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;">Enter VAC Protocol →</a>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:8px;">Messages · Agents · Governance</div>
-        <div style="margin-top:14px"><a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Re-verify identity</a></div>
+        <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <a href="#" onclick="refreshVerification()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Refresh verification</a>
+            <a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-quaternary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--coral)';this.style.color='var(--coral)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-quaternary)'">Re-verify identity</a>
+        </div>
     </div>
 
     <!-- Share card -->
@@ -647,7 +656,28 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let authResult = null;
 let challengeData = null;
-let fingerFallback = 'none'; // 'none' = fingers, 'voice' = voice only
+let fingerFallback = 'none';
+let challengeSpeed = 'normal'; // 'relaxed', 'normal', 'fast'
+const SPEED_CONFIG = {
+    relaxed: { phrase: 5, digit: 2, countdown: 3 },
+    normal:  { phrase: 3, digit: 1, countdown: 2 },
+    fast:    { phrase: 2, digit: 0.8, countdown: 1 }
+};
+function setSpeed(speed) {
+    challengeSpeed = speed;
+    ['relaxed','normal','fast'].forEach(s => {
+        const btn = document.getElementById('speed' + s.charAt(0).toUpperCase() + s.slice(1));
+        if (s === speed) {
+            btn.style.borderColor = 'var(--teal)';
+            btn.style.background = 'rgba(45,212,191,0.1)';
+            btn.style.color = 'var(--teal)';
+        } else {
+            btn.style.borderColor = 'var(--border)';
+            btn.style.background = 'none';
+            btn.style.color = 'var(--text-tertiary)';
+        }
+    });
+} // 'none' = fingers, 'voice' = voice only
 let retryAttempts = 0;
 const MAX_RETRIES = 5;
 let audioContext = null;
@@ -686,7 +716,7 @@ const FAIL_REASONS = {
     },
     finger_gesture: {
         reason: 'Finger count sequence did not match the expected digits.',
-        tip: 'Hold up the correct number of fingers for each digit shown. Keep your hand near your face and fingers clearly spread.'
+        tip: 'Show each digit with your fingers near your face. Change your hand clearly between each number — hold, change, hold. Keep fingers spread.'
     },
     geolocation: {
         reason: 'Location could not be determined.',
@@ -1165,7 +1195,7 @@ function goToChallenge() {
     const digitStr = digits.join(', ');
     var greetPart = phrase.replace(/,\s*\d[\d\s,]*$/, '');
     var digitWords = digits.map(function(d) { return d; }).join(' then ');
-    document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers and say each number:<br><strong>' + digitWords + '</strong></span>';
+    document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers for each number (hold, change, hold):<br><strong>' + digitWords + '</strong></span>';
     // Accessibility fallback link
     if (!document.getElementById('fingerFallback')) {
         const fb = document.createElement('div');
@@ -1205,7 +1235,7 @@ function startCountdown() {
     const timerEl = document.getElementById('countdownTimer');
     const ringFill = document.getElementById('countdownRingFill');
     const circumference = 2 * Math.PI * 39;
-    let count = 3;
+    let count = SPEED_CONFIG[challengeSpeed].countdown;
     timerEl.textContent = count;
     ringFill.style.strokeDashoffset = 0;
 
@@ -1213,7 +1243,7 @@ function startCountdown() {
         count--;
         if (count > 0) {
             timerEl.textContent = count;
-            ringFill.style.strokeDashoffset = circumference * ((3 - count) / 3);
+            ringFill.style.strokeDashoffset = circumference * ((SPEED_CONFIG[challengeSpeed].countdown - count) / SPEED_CONFIG[challengeSpeed].countdown);
         } else {
             clearInterval(interval);
             timerEl.textContent = '●';
@@ -1226,6 +1256,7 @@ function startCountdown() {
 
 function beginRecording() {
     document.getElementById('recIndicator').style.display = 'flex';
+    document.getElementById('speedToggle').style.display = 'none';
     document.getElementById('audioLevel').style.display = 'flex';
     document.getElementById('cameraBoxRec').classList.add('recording');
     document.getElementById('timerLabel').textContent = 'Recording';
@@ -1261,13 +1292,14 @@ function beginRecording() {
 
     // Simultaneous: say greeting (4s), then say+show each digit (2s each)
     const digits = challengeData?.digits || [];
-    const PHRASE_DURATION = 4;
-    const DIGIT_DURATION = 2;
-    const BUFFER = 1;
+    const PHRASE_DURATION = SPEED_CONFIG[challengeSpeed].phrase;
+    const DIGIT_DURATION = SPEED_CONFIG[challengeSpeed].digit;
+    const BUFFER = 0;
     const totalDuration = PHRASE_DURATION + (digits.length * DIGIT_DURATION) + BUFFER;
     const totalSeconds = Math.ceil(totalDuration);
 
-    let elapsed = 0;
+    let elapsedMs = 0;
+    const TICK_MS = 200; // Update 5x per second for smooth sub-second timing
     const timerEl = document.getElementById('countdownTimer');
     const ringFill = document.getElementById('countdownRingFill');
     const challengeEl = document.getElementById('challengeText');
@@ -1276,7 +1308,7 @@ function beginRecording() {
     ringFill.classList.add('recording');
     ringFill.style.strokeDashoffset = 0;
 
-    // Phase prompt updater
+    // Phase prompt updater (uses seconds with decimal precision)
     function updatePhasePrompt(sec) {
         if (sec < PHRASE_DURATION) {
             // Speaking phase
@@ -1295,23 +1327,24 @@ function beginRecording() {
                 else if (di === digitIndex) circles += '<span style="display:inline-flex;width:52px;height:52px;border-radius:50%;border:2px solid var(--purple);background:rgba(124,92,252,0.15);color:white;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
                 else circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
             }
-            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY + SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:8px 0">' + circles + '</div><span style="font-size:13px;opacity:0.7">Say \u201c' + digit + '\u201d and show ' + digit + ' fingers</span>';
+            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SHOW FINGERS — hold, then change</span><div style="display:flex;justify-content:center;margin:8px 0">' + circles + '</div><span style="font-size:13px;opacity:0.7">Say \u201c' + digit + '\u201d and show ' + digit + ' fingers</span>';
         }
     }
     updatePhasePrompt(0);
 
     const recInterval = setInterval(() => {
-        elapsed++;
-        const remaining = totalSeconds - elapsed;
+        elapsedMs += TICK_MS;
+        const elapsedSec = elapsedMs / 1000;
+        const remaining = Math.ceil(totalDuration - elapsedSec);
         timerEl.textContent = Math.max(remaining, 0);
-        ringFill.style.strokeDashoffset = circumference * (elapsed / totalSeconds);
-        updatePhasePrompt(elapsed);
-        if (elapsed >= totalSeconds) {
+        ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
+        updatePhasePrompt(elapsedSec);
+        if (elapsedSec >= totalDuration) {
             clearInterval(recInterval);
             challengeEl.textContent = 'Processing\u2026';
             setTimeout(() => { mediaRecorder.stop(); }, 500);
         }
-    }, 1000);
+    }, TICK_MS);
 }
 
 // Recording complete → upload to backend for real verification
@@ -1383,7 +1416,7 @@ async function runRealVerification(videoBlob) {
                 detailEl.textContent = pSteps[pIdx].text;
                 pIdx++;
             }
-        }, 400);
+        }, 250);
 
         // Send to backend
         const resp = await fetch(`${API_BASE}/v1/vat/auth/verify`, {
@@ -1412,7 +1445,7 @@ async function runRealVerification(videoBlob) {
         // Auto-open modality dropdown when results arrive
         const toggleEl = document.getElementById('modalityToggle');
         const listEl = document.getElementById('modalityList');
-        if (toggleEl && listEl) { toggleEl.classList.add('open'); listEl.classList.add('open'); }
+        // Dropdown stays collapsed — user clicks to expand
         for (const mod of mods) {
             const elId = {
                 'face_liveness': 'modFace',
@@ -1425,7 +1458,7 @@ async function runRealVerification(videoBlob) {
             }[mod.name];
             if (elId) {
                 updateModality(elId, mod.status, mod.score, mod.name, mod.detail);
-                await sleep(300); // Stagger for visual effect
+                await sleep(150); // Stagger for visual effect
             }
         }
 
@@ -1439,7 +1472,7 @@ async function runRealVerification(videoBlob) {
             stepEl.textContent = 'Identity verified ✓';
             ring.style.stroke = 'var(--success)';
             detailEl.textContent = `Trust score: ${authResult.biometric_verification.overall_score}`;
-            await sleep(800);
+            await sleep(400);
             showSuccess();
         } else {
             stepEl.textContent = 'Verification incomplete';
@@ -1715,6 +1748,12 @@ function showRetry(result) {
         document.getElementById('retryTipsList').innerHTML = [...new Set(tips)].map(t =>
             `<div style="margin-bottom: 4px;">${t}</div>`
         ).join('');
+        // Suggest slower speed if finger or challenge failed
+        const fingerFailed = failed.some(m => m.name === 'finger_gesture' && m.status === 'failed');
+        const challengeFailed = failed.some(m => m.name === 'challenge_response' && m.status === 'failed');
+        if ((fingerFailed || challengeFailed) && challengeSpeed !== 'relaxed') {
+            document.getElementById('retryTipsList').innerHTML += '<div style="margin-top:10px;padding:10px 14px;background:rgba(45,212,191,0.04);border:1px solid rgba(45,212,191,0.15);border-radius:8px;"><strong style="color:var(--teal)">Try a slower speed</strong> — switch to <a href="#" onclick="setSpeed(\'relaxed\');this.parentElement.style.display=\'none\';return false;" style="color:var(--teal);text-decoration:underline;font-weight:600;">Relaxed mode</a> for more time on each step.</div>';
+        }
     } else {
         document.getElementById('failReasons').textContent = 'Verification did not reach the required trust threshold.';
         document.getElementById('retryTipsList').textContent = 'Ensure good lighting, speak clearly, and look directly at the camera.';
@@ -1792,23 +1831,6 @@ function showSuccess() {
             authResult: authResult, timestamp: Date.now()
         }));
     } catch(e) {}
-    
-    // Issue session token from backend
-    fetch(API + '/v1/session/create?email=' + encodeURIComponent(d.email) + '&name=' + encodeURIComponent(d.name || '') + '&auth_level=full', { method: 'POST' })
-        .then(r => r.json())
-        .then(tok => {
-            if (tok.token) {
-                sessionStorage.setItem('vac_token_' + d.email, tok.token);
-                // Check for redirect
-                const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
-                if (redirectUrl) {
-                    const sep = redirectUrl.includes('?') ? '&' : '?';
-                    window.location.href = redirectUrl + sep + 'token=' + encodeURIComponent(tok.token);
-                    return;
-                }
-            }
-        })
-        .catch(e => console.warn('Session token issue failed:', e));
     // Update nav badge to show current state
     const nav = document.getElementById('navStatus');
     if (nav) { nav.textContent = 'AUTHENTICATED'; nav.style.color = '#2DD4BF'; nav.style.background = 'rgba(45,212,191,0.1)'; nav.style.borderColor = '#2DD4BF'; }
@@ -1966,6 +1988,13 @@ function showSuccess() {
 }
 
 // Share actions
+function refreshVerification() {
+    // Keep email/OTP confirmed, just redo biometrics
+    try { localStorage.removeItem('vac_verified'); } catch(e) {}
+    authResult = null;
+    goToStep(1); // Skip to camera step (email already confirmed)
+}
+
 function clearAndRestart() {
     try { localStorage.removeItem('vac_verified'); localStorage.removeItem('vac_otp_confirmed'); } catch(e) {}
     window.location.href = '/auth';
@@ -2139,9 +2168,7 @@ function openMessage() {
 }
 function openDashboard() {
     const email = userData().email;
-    const token = sessionStorage.getItem('vac_token_' + email) || '';
-    const tokenParam = token ? '&token=' + encodeURIComponent(token) : '';
-    window.open(`/dashboard?email=${encodeURIComponent(email)}${tokenParam}`, '_blank');
+    window.open(`/dashboard?email=${encodeURIComponent(email)}`, '_blank');
 }
 // ============================================================
 // VOUCH POLLING — check for received vouches, upgrade trust status
