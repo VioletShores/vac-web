@@ -2263,6 +2263,7 @@ goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
             return;
         }
         if (!data.email || !data.authResult) return;
+        console.log('[VAC] Restoring verified state for', data.email);
         // Restore form fields
         const nameInput = document.getElementById('inputName');
         const emailInput = document.getElementById('inputEmail');
@@ -2274,9 +2275,21 @@ goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
         if (roleInput) roleInput.value = data.role || '';
         // Restore auth result and skip to success
         authResult = data.authResult;
-        showSuccess();
-        goToStep(4);
-    } catch(e) { console.log('Restore failed:', e); }
+        // Use setTimeout to ensure DOM is fully ready
+        setTimeout(() => {
+            try {
+                showSuccess();
+                goToStep(4);
+                console.log('[VAC] Restored to success screen');
+            } catch(e2) {
+                console.error('[VAC] Restore showSuccess failed:', e2);
+                // Fallback: just show step 4 with basic info
+                goToStep(4);
+                document.getElementById('successName').textContent = data.name || '';
+                document.getElementById('successScore').textContent = 'Trust Score: ' + (data.authResult?.biometric_verification?.overall_score || '0.90');
+            }
+        }, 100);
+    } catch(e) { console.log('[VAC] Restore failed:', e); }
 })();
 </script>
 
