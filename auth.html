@@ -580,7 +580,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <div style="margin-top:20px;text-align:center;">
         <a id="enterAppBtn" href="#" onclick="enterApp()" style="display:inline-block;background:var(--purple);color:white;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;">Enter VAC Protocol →</a>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:8px;">Messages · Agents · Governance</div>
-        <div style="margin-top:14px"><a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Re-verify identity</a></div>
+        <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <a href="#" onclick="refreshVerification()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Refresh verification</a>
+            <a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-quaternary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--coral)';this.style.color='var(--coral)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-quaternary)'">Re-verify identity</a>
+        </div>
     </div>
 
     <!-- Share card -->
@@ -1949,6 +1952,13 @@ function showSuccess() {
 }
 
 // Share actions
+function refreshVerification() {
+    // Keep email/OTP confirmed, just redo biometrics
+    try { localStorage.removeItem('vac_verified'); } catch(e) {}
+    authResult = null;
+    goToStep(1); // Skip to camera step (email already confirmed)
+}
+
 function clearAndRestart() {
     try { localStorage.removeItem('vac_verified'); localStorage.removeItem('vac_otp_confirmed'); } catch(e) {}
     window.location.href = '/auth';
