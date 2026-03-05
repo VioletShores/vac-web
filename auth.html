@@ -551,6 +551,29 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div style="font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); margin-top: 2px;" id="successOrg"></div>
         <div style="font-family: var(--mono); font-size: 13px; color: var(--teal); margin-top: 4px;" id="successScore"></div>
     </div>
+    <!-- Trust Status — live updates from vouch polling -->
+    <div id="trustStatusSection" style="margin-top:16px;display:none;">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
+            <div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:2px;margin-bottom:8px;">TRUST STATUS</div>
+            <div id="trustBadge" style="display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:8px;border:1px solid var(--teal);background:rgba(45,212,191,0.06);">
+                <div style="width:10px;height:10px;border-radius:50%;background:var(--teal);"></div>
+                <span id="trustBadgeText" style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--teal);">AUTHENTICATED</span>
+            </div>
+            <div id="trustProgressText" style="font-size:12px;color:var(--text-tertiary);margin-top:8px;">Send your proof to someone — their vouch strengthens your trust score.</div>
+        </div>
+    </div>
+
+    <!-- Trust Graph — shows vouchers -->
+    <div id="trustGraphSection" style="margin-top:14px;display:none;">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:2px;margin-bottom:8px;">YOUR TRUST GRAPH</div>
+        <div id="trustGraphNodes" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+        <div style="margin-top:10px;padding:10px 14px;background:rgba(45,212,191,0.04);border:1px solid rgba(45,212,191,0.15);border-radius:8px;">
+            <div style="font-size:12px;color:var(--text-secondary);">
+                <strong style="color:var(--teal);">Grow your trust graph</strong> — each vouch from a verified human strengthens your trust score and makes future verifications faster and cheaper.
+            </div>
+        </div>
+    </div>
+
     <div style="margin-top:14px">
         <div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px">HOW WE AUTHENTICATED YOU</div>
         <div id="successModalities" style="text-align:left"></div>
@@ -1902,7 +1925,7 @@ function showSuccess() {
 // Share actions
 function enterApp() {
     const email = userData().email || new URLSearchParams(window.location.search).get('email') || '';
-    // window.location.href = '/app' -- disabled, SPA broken
+    window.open('/agents?email=' + encodeURIComponent(email), '_blank');
 }
 
 function copyShareUrl() {
@@ -2063,25 +2086,86 @@ function openDashboard() {
     window.open(`/dashboard?email=${encodeURIComponent(email)}`, '_blank');
 }
 // ============================================================
-// VOUCH POLLING — check for received vouches, unlock messaging
+// VOUCH POLLING — check for received vouches, upgrade trust status
 // ============================================================
 let vouchPollInterval = null;
 let messageUnlocked = false;
+let vouchCount = 0;
 
 function startVouchPolling() {
     const email = userData().email;
     if (!email) return;
-    // Poll every 10 seconds
+    // Show the trust status section
+    const ts = document.getElementById('trustStatusSection');
+    if (ts) ts.style.display = 'block';
+    // Poll every 8 seconds
     vouchPollInterval = setInterval(async () => {
         try {
             const resp = await fetch(API_BASE + '/v1/vouches?email=' + encodeURIComponent(email) + '&direction=received');
             if (!resp.ok) return;
             const data = await resp.json();
-            if (data.count > 0 && !messageUnlocked) {
+            const count = data.count || 0;
+            if (count > vouchCount) {
+                vouchCount = count;
+                updateTrustStatus(data);
+            }
+            if (count > 0 && !messageUnlocked) {
                 unlockMessaging(data);
             }
         } catch(e) { /* silent */ }
-    }, 10000);
+    }, 8000);
+}
+
+function updateTrustStatus(vouchData) {
+    const badge = document.getElementById('trustBadge');
+    const badgeText = document.getElementById('trustBadgeText');
+    const progressText = document.getElementById('trustProgressText');
+    const graphSection = document.getElementById('trustGraphSection');
+    const graphNodes = document.getElementById('trustGraphNodes');
+    const eyebrow = document.getElementById('successEyebrow');
+    const title = document.getElementById('successTitle');
+    const scoreEl = document.getElementById('successScore');
+    const count = vouchData.count || 0;
+    const vouches = vouchData.vouches_received || [];
+
+    if (count >= 3) {
+        // VERIFIED — multiple vouches
+        if (badge) { badge.style.borderColor = '#10B981'; badge.style.background = 'rgba(16,185,129,0.1)'; }
+        if (badgeText) { badgeText.style.color = '#10B981'; badgeText.textContent = 'VERIFIED · ' + count + ' VOUCHES'; }
+        if (progressText) progressText.textContent = 'Strong trust graph. Your verification is recognised across the network.';
+        if (eyebrow) { eyebrow.textContent = 'VERIFIED ✓'; eyebrow.style.color = '#10B981'; }
+        if (title) title.textContent = "You're Verified";
+    } else if (count >= 1) {
+        // VOUCHED — at least one vouch
+        if (badge) { badge.style.borderColor = '#7C3AED'; badge.style.background = 'rgba(124,58,237,0.1)'; }
+        if (badgeText) { badgeText.style.color = '#7C3AED'; badgeText.textContent = 'VOUCHED · ' + count + ' VOUCH' + (count > 1 ? 'ES' : ''); }
+        if (progressText) progressText.textContent = count === 1 ? 'One vouch received. Get 2 more vouches to reach Verified status.' : count + ' vouches received. Get ' + (3 - count) + ' more to reach Verified status.';
+        if (eyebrow) { eyebrow.textContent = 'VOUCHED ✓'; eyebrow.style.color = '#7C3AED'; }
+        if (title) title.textContent = "You're Vouched";
+    }
+
+    // Update trust score display
+    if (scoreEl && count > 0) {
+        const baseScore = parseFloat(scoreEl.textContent.match(/[\d.]+/)?.[0] || '0');
+        const boost = Math.min(count * 0.02, 0.06);
+        const newScore = Math.min(baseScore + boost, 1.0).toFixed(2);
+        scoreEl.textContent = 'Trust Score: ' + newScore + ' · ' + (count >= 3 ? 'verified' : count >= 1 ? 'vouched' : 'authenticated');
+    }
+
+    // Show trust graph
+    if (graphSection && vouches.length > 0) {
+        graphSection.style.display = 'block';
+        graphNodes.innerHTML = '';
+        // Add self
+        const selfName = userData().name || 'You';
+        graphNodes.innerHTML += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--teal);border-radius:8px;"><div style="width:28px;height:28px;border-radius:50%;background:rgba(45,212,191,0.15);border:1px solid var(--teal);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--teal);font-weight:700;">' + selfName.charAt(0) + '</div><div><div style="font-size:12px;color:var(--text-primary);font-weight:600;">' + selfName + '</div><div style="font-size:10px;font-family:var(--mono);color:var(--teal);">YOU · ROOT</div></div></div>';
+        // Add vouchers
+        vouches.forEach(v => {
+            const name = v.person || v.email || 'Voucher';
+            const initial = name.charAt(0).toUpperCase();
+            graphNodes.innerHTML += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--purple);border-radius:8px;"><div style="width:28px;height:28px;border-radius:50%;background:rgba(124,58,237,0.15);border:1px solid var(--purple);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--purple);font-weight:700;">' + initial + '</div><div><div style="font-size:12px;color:var(--text-primary);font-weight:600;">' + name + '</div><div style="font-size:10px;font-family:var(--mono);color:var(--purple);">VOUCHED FOR YOU</div></div></div>';
+        });
+    }
 }
 
 function unlockMessaging(vouchData) {
