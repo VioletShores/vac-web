@@ -377,13 +377,13 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 <span id="avMicPromptText">Speak now to test your microphone</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="flex: 1; height: 12px; background: rgba(255,255,255,0.06); border-radius: 6px; overflow: hidden;">
+                <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
                     <div id="avAudioLevel" style="height: 100%; width: 0%; background: var(--success); border-radius: 6px; transition: width 75ms;"></div>
                 </div>
                 <span id="avAudioPct" style="font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); min-width: 30px; text-align: right;">0%</span>
             </div>
             <div id="avMicTip" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none;"></div>
-            <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 6px 12px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+            <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; padding: 4px 10px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
                 Refresh camera &amp; mic
             </button>
@@ -394,7 +394,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span></div>
         </div>
     </div>
-    <div style="text-align: center; margin-top: 6px;">
+    <div style="text-align: center; margin-top: 4px;">
         <div id="adaptiveAuthBar" class="adaptive-auth-bar standard" style="display:none;"></div>
         <div class="modalities-mini" style="justify-content: center; display: none;" id="modalityChips">
             <div class="mod-chip" data-mod="video_liveness"><span class="dot"></span>Face Liveness</div>
@@ -1298,7 +1298,8 @@ function beginRecording() {
     const totalDuration = PHRASE_DURATION + (digits.length * DIGIT_DURATION) + BUFFER;
     const totalSeconds = Math.ceil(totalDuration);
 
-    let elapsed = 0;
+    let elapsedMs = 0;
+    const TICK_MS = 200; // Update 5x per second for smooth sub-second timing
     const timerEl = document.getElementById('countdownTimer');
     const ringFill = document.getElementById('countdownRingFill');
     const challengeEl = document.getElementById('challengeText');
@@ -1307,7 +1308,7 @@ function beginRecording() {
     ringFill.classList.add('recording');
     ringFill.style.strokeDashoffset = 0;
 
-    // Phase prompt updater
+    // Phase prompt updater (uses seconds with decimal precision)
     function updatePhasePrompt(sec) {
         if (sec < PHRASE_DURATION) {
             // Speaking phase
@@ -1332,17 +1333,18 @@ function beginRecording() {
     updatePhasePrompt(0);
 
     const recInterval = setInterval(() => {
-        elapsed++;
-        const remaining = totalSeconds - elapsed;
+        elapsedMs += TICK_MS;
+        const elapsedSec = elapsedMs / 1000;
+        const remaining = Math.ceil(totalDuration - elapsedSec);
         timerEl.textContent = Math.max(remaining, 0);
-        ringFill.style.strokeDashoffset = circumference * (elapsed / totalSeconds);
-        updatePhasePrompt(elapsed);
-        if (elapsed >= totalSeconds) {
+        ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
+        updatePhasePrompt(elapsedSec);
+        if (elapsedSec >= totalDuration) {
             clearInterval(recInterval);
             challengeEl.textContent = 'Processing\u2026';
             setTimeout(() => { mediaRecorder.stop(); }, 500);
         }
-    }, 1000);
+    }, TICK_MS);
 }
 
 // Recording complete → upload to backend for real verification
