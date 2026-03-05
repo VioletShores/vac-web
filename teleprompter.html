@@ -5,120 +5,70 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VAC Teleprompter</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { background: #000; color: #fff; font-family: -apple-system, sans-serif; font-size: 22px; line-height: 1.6; padding: 24px 20px 200px; }
-  .say { color: #fff; font-size: 24px; font-weight: 600; margin: 16px 0; }
-  .do { color: #2DD4BF; font-size: 18px; font-weight: 700; margin: 20px 0 8px; padding: 10px 14px; background: rgba(45,212,191,0.1); border-left: 4px solid #2DD4BF; border-radius: 4px; }
-  .section { color: #F59E0B; font-size: 14px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; margin: 40px 0 12px; padding-top: 20px; border-top: 1px solid #333; }
-  .pause { color: #6B7280; font-size: 16px; font-style: italic; margin: 12px 0; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;color:#fff;font-family:-apple-system,sans-serif;font-size:22px;line-height:1.6;padding:24px 20px 200px}
+.say{color:#fff;font-size:24px;font-weight:600;margin:16px 0}
+.do{color:#2DD4BF;font-size:18px;font-weight:700;margin:20px 0 8px;padding:10px 14px;background:rgba(45,212,191,0.1);border-left:4px solid #2DD4BF;border-radius:4px}
+.section{color:#F59E0B;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin:40px 0 12px;padding-top:20px;border-top:1px solid #333}
+.pause{color:#6B7280;font-size:16px;font-style:italic;margin:12px 0}
 </style>
 </head>
 <body>
 
 <div class="section">OPENING — LOOK AT CAMERA</div>
-
 <div class="say">AI agents can now spend money, write code, and coordinate other agents.</div>
-
 <div class="say">But today there is NO cryptographic way to prove which human authorised them.</div>
-
 <div class="say">I'm Rob Zagarella. I built VAC Protocol to solve this.</div>
 
 <div class="section">PROBLEM — STILL CAMERA</div>
-
 <div class="say">88% of organisations deploying AI agents have had a security incident.</div>
-
 <div class="say">The Pentagon and Anthropic are fighting right now because contractual safety agreements failed.</div>
-
 <div class="say">Every AI action should have cryptographic human provenance.</div>
-
 <div class="say">Contracts can be overridden. Math can't.</div>
 
 <div class="section">SOLUTION — STILL CAMERA</div>
-
 <div class="say">VAC is three engines.</div>
-
 <div class="say">Biometric verification binds a human to their identity.</div>
-
 <div class="say">The VAT engine — Verifiable Authority Token — creates cryptographic delegation chains.</div>
-
 <div class="say">And the Trust Graph makes verification cheaper over time.</div>
-
 <div class="say">Let me show you this working live right now.</div>
 
-<div class="section">AUTH DEMO</div>
-
+<div class="section">AUTH DEMO — TAB 1</div>
 <div class="do">CLICK INTO AUTH PAGE</div>
-
 <div class="say">I enter my email...</div>
-
-<div class="do">TYPE: <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8bf9e4e9cbfde2e4e7eefff8e3e4f9eef8a5e8e4e6">[email&#160;protected]</a> → CONTINUE</div>
-
+<div class="do">TYPE: rob@violetshores.com → CONTINUE</div>
 <div class="say">System sends a one-time code...</div>
-
 <div class="do">CHECK EMAIL → ENTER OTP</div>
-
 <div class="say">Camera activates. The system generates a unique challenge — my name plus random digits.</div>
-
 <div class="do">TICK CHECKBOXES → CLICK START</div>
-
 <div class="say">I speak the phrase...</div>
-
 <div class="do">READ CHALLENGE PHRASE CLEARLY<br>SHOW FINGERS FOR DIGITS</div>
-
 <div class="pause">...wait for processing...</div>
-
 <div class="say">Six modalities verified simultaneously. Face liveness. Deepfake detection. Voiceprint. Lip-sync. Challenge response.</div>
-
 <div class="say">Watch the scores.</div>
-
 <div class="do">LET SCORES FILL IN</div>
-
 <div class="say">Verified. A cryptographic token just minted. This is my root of trust.</div>
 
-<div class="section">AGENTS DEMO</div>
-
+<div class="section">AGENTS DEMO — TAB 2</div>
 <div class="do">CLICK TAB 2: AGENTS PAGE</div>
-
-<div class="say">Now I delegate to an AI agent. I set the role — Founder CEO — with a one dollar spending ceiling.</div>
-
+<div class="say">Now I delegate to an AI agent.</div>
+<div class="say">I set the role — Founder CEO — with a one dollar spending ceiling.</div>
 <div class="do">SELECT FOUNDER / CEO ROLE</div>
-
 <div class="say">The agent gets a scoped authority card. Watch — I run a task.</div>
-
-<div class="do">CLICK STEP-BY-STEP → LET IT RUN 3-4 STEPS</div>
-
+<div class="do">TYPE A TASK OR USE DEFAULT<br>CLICK STEP-BY-STEP<br>LET IT RUN 3-4 STEPS</div>
 <div class="say">Every dollar decrements in real time. When the budget hits zero, the agent stops.</div>
-
 <div class="say">Permissions can only tighten — never expand. The math enforces it.</div>
 
-<div class="section">GOVERNANCE DEMO</div>
-
-<div class="do">CLICK TAB 3: GROUPS (ROB)</div>
-
-<div class="say">What if an agent needs board approval? Group governance.</div>
-
-<div class="do">CLICK THE GROUP CARD<br>CLICK "+ START SESSION"<br>PROPOSAL IS PRE-FILLED → CLICK "START SESSION"</div>
-
-<div class="do">CLICK TAB 4: GROUPS (ROBZAG)</div>
-
-<div class="say">Second member votes. Quorum met. Decision approved. Full cryptographic audit trail.</div>
-
-<div class="do">CAST VOTE → WATCH QUORUM FILL</div>
-
 <div class="section">CLOSE — LOOK AT CAMERA, SMILE</div>
-
 <div class="say">Everything I just showed you is live at vacprotocol.org.</div>
-
+<div class="say">The protocol also supports group governance — quorum voting before an agent can act — and secure messaging with chain provenance. All deployed.</div>
 <div class="say">285+ patent claims filed. The real moat is the trust graph — network effects that get harder to leave over time.</div>
-
 <div class="say">The internet needed HTTP, TLS, and OAuth.</div>
-
-<div class="say" style="color:#2DD4BF;">The AI economy needs VAC Protocol.</div>
-
+<div class="say" style="color:#2DD4BF">The AI economy needs VAC Protocol.</div>
 <div class="say">We're raising to fund reference implementation and go-to-market.</div>
-
 <div class="say">The protocol is proven. The patents are filed. The code is live.</div>
+<div class="say" style="color:#2DD4BF;font-size:28px">Try it yourself — vacprotocol.org.</div>
+<div class="do" style="background:rgba(249,97,103,0.1);border-color:#F96167;color:#F96167">STOP RECORDING</div>
 
-<div class="say" style="color:#2DD4BF; font-size: 28px;">Try it yourself — vacprotocol.org.</div>
-
-<div cl
+</body>
+</html>
