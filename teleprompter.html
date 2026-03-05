@@ -9,65 +9,103 @@
 body{background:#000;color:#fff;font-family:-apple-system,sans-serif;font-size:22px;line-height:1.6;padding:24px 20px 200px}
 .say{color:#fff;font-size:24px;font-weight:600;margin:16px 0}
 .do{color:#2DD4BF;font-size:18px;font-weight:700;margin:20px 0 8px;padding:10px 14px;background:rgba(45,212,191,0.1);border-left:4px solid #2DD4BF;border-radius:4px}
+.saydo{display:flex;gap:16px;margin:16px 0;align-items:flex-start}
+.saydo .left{flex:1;color:#fff;font-size:22px;font-weight:600}
+.saydo .right{flex:0 0 auto;color:#2DD4BF;font-size:15px;font-weight:700;padding:8px 12px;background:rgba(45,212,191,0.1);border-left:3px solid #2DD4BF;border-radius:4px;max-width:200px}
 .section{color:#F59E0B;font-size:14px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin:40px 0 12px;padding-top:20px;border-top:1px solid #333}
 .pause{color:#6B7280;font-size:16px;font-style:italic;margin:12px 0}
 </style>
 </head>
 <body>
 
-<div class="section">OPENING — LOOK AT CAMERA</div>
+<div class="section">1. OPENING — LOOK AT CAMERA</div>
+
 <div class="say">AI agents can now spend money, write code, and coordinate other agents.</div>
 <div class="say">But today there is NO cryptographic way to prove which human authorised them.</div>
 <div class="say">I'm Rob Zagarella. I built VAC Protocol to solve this.</div>
 
-<div class="section">PROBLEM — STILL CAMERA</div>
+<div class="section">2. PROBLEM — STILL LOOKING AT CAMERA</div>
+
 <div class="say">88% of organisations deploying AI agents have had a security incident.</div>
 <div class="say">The Pentagon and Anthropic are fighting right now because contractual safety agreements failed.</div>
 <div class="say">Every AI action should have cryptographic human provenance.</div>
 <div class="say">Contracts can be overridden. Math can't.</div>
 
-<div class="section">SOLUTION — STILL CAMERA</div>
+<div class="section">3. SOLUTION — STILL LOOKING AT CAMERA</div>
+
 <div class="say">VAC is three engines.</div>
 <div class="say">Biometric verification binds a human to their identity.</div>
 <div class="say">The VAT engine — Verifiable Authority Token — creates cryptographic delegation chains.</div>
 <div class="say">And the Trust Graph makes verification cheaper over time.</div>
 <div class="say">Let me show you this working live right now.</div>
 
-<div class="section">AUTH DEMO — TAB 1</div>
-<div class="do">CLICK INTO AUTH PAGE</div>
-<div class="say">I enter my email...</div>
-<div class="do">TYPE: rob@violetshores.com → CONTINUE</div>
+<div class="section">4. AUTH DEMO</div>
+
+<div class="do">CLICK INTO AUTH PAGE (TAB 1)</div>
+
+<div class="say">I go to vacprotocol.org. I enter my email...</div>
+<div class="do">TYPE: rob@violetshores.com → CLICK CONTINUE</div>
+
 <div class="say">System sends a one-time code...</div>
-<div class="do">CHECK EMAIL → ENTER OTP</div>
+<div class="do">OPEN EMAIL → COPY OTP → PASTE → VERIFY</div>
+
 <div class="say">Camera activates. The system generates a unique challenge — my name plus random digits.</div>
-<div class="do">TICK CHECKBOXES → CLICK START</div>
+<div class="do">TICK THE CHECKBOXES → CLICK START</div>
+
 <div class="say">I speak the phrase...</div>
-<div class="do">READ CHALLENGE PHRASE CLEARLY<br>SHOW FINGERS FOR DIGITS</div>
-<div class="pause">...wait for processing...</div>
-<div class="say">Six modalities verified simultaneously. Face liveness. Deepfake detection. Voiceprint. Lip-sync. Challenge response.</div>
+<div class="do">READ THE CHALLENGE PHRASE OUT LOUD CLEARLY<br>SHOW YOUR FINGERS FOR EACH DIGIT</div>
+
+<div class="pause">...wait for Gemini + Deepgram to process...</div>
+
+<div class="say">Six modalities verified simultaneously.</div>
+<div class="say">Face liveness. Deepfake detection. Voiceprint. Lip-sync. Challenge response.</div>
+<div class="do">LET THE SCORES FILL IN — POINT AT SCREEN IF YOU WANT</div>
+
 <div class="say">Watch the scores.</div>
-<div class="do">LET SCORES FILL IN</div>
-<div class="say">Verified. A cryptographic token just minted. This is my root of trust.</div>
+<div class="pause">...let them appear...</div>
 
-<div class="section">AGENTS DEMO — TAB 2</div>
+<div class="say">Verified. A cryptographic token just minted. This is my root of trust. Everything downstream inherits from this moment.</div>
+
+<div class="section">5. AGENTS DEMO</div>
+
 <div class="do">CLICK TAB 2: AGENTS PAGE</div>
-<div class="say">Now I delegate to an AI agent.</div>
-<div class="say">I set the role — Founder CEO — with a one dollar spending ceiling.</div>
-<div class="do">SELECT FOUNDER / CEO ROLE</div>
-<div class="say">The agent gets a scoped authority card. Watch — I run a task.</div>
-<div class="do">TYPE A TASK OR USE DEFAULT<br>CLICK STEP-BY-STEP<br>LET IT RUN 3-4 STEPS</div>
-<div class="say">Every dollar decrements in real time. When the budget hits zero, the agent stops.</div>
-<div class="say">Permissions can only tighten — never expand. The math enforces it.</div>
 
-<div class="section">CLOSE — LOOK AT CAMERA, SMILE</div>
-<div class="say">Everything I just showed you is live at vacprotocol.org.</div>
-<div class="say">The protocol also supports group governance — quorum voting before an agent can act — and secure messaging with chain provenance. All deployed.</div>
+<div class="say">Now I delegate authority to an AI agent.</div>
+<div class="do">SELECT "FOUNDER / CEO" FROM THE DROPDOWN</div>
+
+<div class="say">I set the role — Founder CEO — with a one dollar spending ceiling and fifty thousand tokens.</div>
+<div class="do">SCROLL DOWN TO SEE THE TASK INPUT</div>
+
+<div class="say">The agent gets a scoped authority card. I give it a task.</div>
+<div class="do">TYPE: "Research the top 5 AI infrastructure companies"<br>CLICK "STEP-BY-STEP"</div>
+
+<div class="say">Watch — every API call decrements the budget in real time.</div>
+<div class="do">LET IT RUN 3-4 STEPS — WATCH THE NUMBERS CHANGE</div>
+
+<div class="say">The agent can never exceed its ceiling. When the budget hits zero, it stops. No override. No exception. The math enforces it.</div>
+
+<div class="say">This is monotonic narrowing — permissions can only tighten, never expand, without human re-verification.</div>
+
+<div class="section">6. GOVERNANCE MENTION</div>
+
+<div class="do">SCROLL DOWN TO THE BOTTOM OF THE AGENTS PAGE<br>THE GOVERNANCE SECTION IS VISIBLE</div>
+
+<div class="say">And what if this agent needed board approval before getting its card? VAC supports group governance — multiple verified humans vote, quorum is reached, then the agent gets authority. Same math. Same chain. But the root is a group, not an individual.</div>
+
+<div class="section">7. CLOSE — LOOK BACK AT CAMERA, SMILE</div>
+
+<div class="say">Everything I just showed you is live at vacprotocol.org. Biometric verification. Agent delegation. Group governance. Secure messaging. 68 API endpoints. All deployed.</div>
+
 <div class="say">285+ patent claims filed. The real moat is the trust graph — network effects that get harder to leave over time.</div>
+
 <div class="say">The internet needed HTTP, TLS, and OAuth.</div>
+
 <div class="say" style="color:#2DD4BF">The AI economy needs VAC Protocol.</div>
-<div class="say">We're raising to fund reference implementation and go-to-market.</div>
-<div class="say">The protocol is proven. The patents are filed. The code is live.</div>
+
+<div class="say">We're raising to fund reference implementation and go-to-market. The protocol is proven. The patents are filed. The code is live.</div>
+
 <div class="say" style="color:#2DD4BF;font-size:28px">Try it yourself — vacprotocol.org.</div>
+
 <div class="do" style="background:rgba(249,97,103,0.1);border-color:#F96167;color:#F96167">STOP RECORDING</div>
 
 </body>
