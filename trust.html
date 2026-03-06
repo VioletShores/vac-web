@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAC Protocol — Trust Graph</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* Nav */
+.nav{height:48px;min-height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px}
+.nav img{width:24px;height:24px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px;letter-spacing:1px;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,0.08)}
+.nav-back{font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:4px}
+.nav-back:hover{color:var(--teal);border-color:var(--teal)}
+
+/* Layout */
+.main{flex:1;display:flex;overflow:hidden}
+.graph-area{flex:1;position:relative;overflow:hidden}
+.graph-area svg{width:100%;height:100%;cursor:grab}
+.graph-area svg:active{cursor:grabbing}
+.sidebar{width:280px;background:var(--surface);border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0}
+
+/* Sidebar */
+.sb-section{padding:16px}
+.sb-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;margin-bottom:10px}
+.sb-stat{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)}
+.sb-stat:last-child{border-bottom:none}
+.sb-stat-label{font-size:12px;color:var(--gray)}
+.sb-stat-value{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--teal)}
+.sb-contact{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;margin:0 -16px;padding-left:16px;padding-right:16px}
+.sb-contact:hover{background:rgba(45,212,191,0.03)}
+.sb-contact:last-child{border-bottom:none}
+.sb-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.sb-avatar.mutual{background:rgba(16,185,129,0.15);border:1px solid var(--emerald);color:var(--emerald)}
+.sb-avatar.one-way{background:rgba(124,58,237,0.15);border:1px solid var(--purple);color:var(--purple)}
+.sb-name{font-size:12px;font-weight:600}
+.sb-email{font-family:var(--mono);font-size:9px;color:var(--muted)}
+.sb-badge{font-family:var(--mono);font-size:8px;padding:2px 6px;border-radius:3px;margin-left:auto}
+.sb-badge.mutual{color:var(--emerald);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)}
+.sb-badge.vouched{color:var(--purple);background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2)}
+
+/* Node tooltip */
+.tooltip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:12px;display:none;z-index:100;min-width:200px;box-shadow:0 8px 24px rgba(0,0,0,0.4)}
+.tooltip-name{font-size:14px;font-weight:700;margin-bottom:2px}
+.tooltip-email{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px}
+.tooltip-row{display:flex;justify-content:space-between;padding:3px 0}
+.tooltip-label{color:var(--gray);font-size:11px}
+.tooltip-val{font-family:var(--mono);font-size:11px;font-weight:600}
+
+/* Legend */
+.legend{position:absolute;bottom:16px;left:16px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:10px}
+.legend-item{display:flex;align-items:center;gap:8px;padding:3px 0}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.legend-line{width:20px;height:2px;flex-shrink:0}
+
+/* Controls */
+.controls{position:absolute;top:16px;right:296px;display:flex;gap:6px}
+.ctrl-btn{width:32px;height:32px;border-radius:6px;background:var(--surface);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;font-family:var(--mono)}
+.ctrl-btn:hover{border-color:var(--teal);color:var(--teal)}
+
+/* Loading */
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+@media(max-width:768px){.sidebar{width:100%;position:absolute;bottom:0;left:0;right:0;height:40vh;border-left:none;border-top:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;">← Back to VAC Protocol</a></div>
+<script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
+
+<nav class="nav">
+<img src="/branding/vac-logo-icon-dark.png" onerror="this.style.display='none'">
+<div class="nav-text"><span class="v">VAC</span> <span class="p">TRUST GRAPH</span></div>
+<div class="nav-badge">LIVE NETWORK</div>
+</nav>
+
+<div class="main">
+<div class="graph-area">
+<div class="loading" id="loadingState">Loading trust graph...</div>
+<svg id="graphSvg"></svg>
+<div class="tooltip" id="tooltip"></div>
+<div class="legend">
+<div style="font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:6px">TRUST GRAPH</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--teal);box-shadow:0 0 6px var(--teal)"></div>You (root)</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--emerald)"></div>Mutual vouch</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>One-way vouch</div>
+<div class="legend-item"><div class="legend-dot" style="background:var(--muted)"></div>Contact (no vouch)</div>
+<div class="legend-item"><div class="legend-line" style="background:var(--emerald)"></div>Mutual link</div>
+<div class="legend-item"><div class="legend-line" style="background:var(--border);background-image:repeating-linear-gradient(90deg,var(--muted) 0,var(--muted) 4px,transparent 4px,transparent 8px)"></div>One-way link</div>
+</div>
+<div class="controls">
+<div class="ctrl-btn" onclick="zoomIn()" title="Zoom in">+</div>
+<div class="ctrl-btn" onclick="zoomOut()" title="Zoom out">−</div>
+<div class="ctrl-btn" onclick="resetView()" title="Reset view">⊙</div>
+</div>
+</div>
+
+<div class="sidebar" id="sidebar">
+<div class="sb-section" style="border-bottom:1px solid var(--border)">
+<div class="sb-title">YOUR TRUST</div>
+<div class="sb-stat"><span class="sb-stat-label">Trust Score</span><span class="sb-stat-value" id="sbScore">—</span></div>
+<div class="sb-stat"><span class="sb-stat-label">Vouches Received</span><span class="sb-stat-value" id="sbVouches">0</span></div>
+<div class="sb-stat"><span class="sb-stat-label">Contacts</span><span class="sb-stat-value" id="sbContacts">0</span></div>
+<div class="sb-stat"><span class="sb-stat-label">Verifications</span><span class="sb-stat-value" id="sbVerifications">0</span></div>
+<div class="sb-stat"><span class="sb-stat-label">Graph Density</span><span class="sb-stat-value" id="sbDensity">—</span></div>
+</div>
+<div class="sb-section" style="border-bottom:1px solid var(--border)">
+<div class="sb-title">NETWORK NODES</div>
+<div id="sbNodes"></div>
+</div>
+<div class="sb-section">
+<div class="sb-title">GRAPH ECONOMICS</div>
+<div style="font-size:11px;color:var(--gray);line-height:1.6;margin-bottom:10px">Denser trust graphs reduce verification cost. Inside the graph: streamlined. Outside: full verification required.</div>
+<div class="sb-stat"><span class="sb-stat-label">Inside graph cost</span><span class="sb-stat-value" style="color:var(--emerald)">1/6 modalities</span></div>
+<div class="sb-stat"><span class="sb-stat-label">Outside graph cost</span><span class="sb-stat-value" style="color:var(--coral)">6/6 modalities</span></div>
+</div>
+</div>
+</div>
+
+<script>
+const API = 'https://vac-system-production.up.railway.app';
+const params = new URLSearchParams(window.location.search);
+const email = params.get('email') || '';
+
+const colors = {
+    self: '#2DD4BF',
+    mutual: '#10B981',
+    voucher: '#7C3AED',
+    contact: '#6B7280',
+    outside: '#374151'
+};
+
+let simulation, svgG, zoomBehavior;
+
+async function loadGraph() {
+    if (!email) { document.getElementById('loadingState').textContent = 'No email. Go to /auth first.'; return; }
+
+    try {
+        const [userResp, profileResp, vouchResp] = await Promise.all([
+            fetch(API + '/v1/user/' + encodeURIComponent(email)),
+            fetch(API + '/v1/trust-profile/' + encodeURIComponent(email)),
+            fetch(API + '/v1/vouches?email=' + encodeURIComponent(email) + '&direction=received')
+        ]);
+
+        let user = { name: email.split('@')[0], email, trust_score: 0, total_verifications: 0 };
+        let contacts = [];
+        if (userResp.ok) {
+            const ud = await userResp.json();
+            user = ud.user || ud;
+            contacts = ud.contacts || [];
+        }
+        const profile = await profileResp.json();
+        const vouches = await vouchResp.json();
+
+        if (!user.trust_score && profile.trust_score) user.trust_score = profile.trust_score.score;
+        const vouchList = vouches.vouches_received || [];
+
+        // Update sidebar
+        document.getElementById('sbScore').textContent = (user.trust_score || 0).toFixed(2);
+        document.getElementById('sbVouches').textContent = vouchList.length;
+        document.getElementById('sbContacts').textContent = contacts.length;
+        document.getElementById('sbVerifications').textContent = user.total_verifications || 0;
+
+        // Build graph data
+        const nodes = [];
+        const links = [];
+        const nodeMap = {};
+
+        // Self node
+        nodes.push({
+            id: email, name: user.name || email.split('@')[0], email: email,
+            score: user.trust_score || 0, type: 'self', radius: 32,
+            verifications: user.total_verifications || 0
+        });
+        nodeMap[email] = true;
+
+        // Contacts
+        contacts.forEach(c => {
+            const isMutual = c.i_vouched && c.they_vouched;
+            const name = c.name || c.email.split('@')[0];
+            nodes.push({
+                id: c.email, name: name, email: c.email,
+                score: c.trust_score || 0,
+                type: isMutual ? 'mutual' : c.they_vouched ? 'voucher' : 'contact',
+                radius: isMutual ? 24 : 20
+            });
+            nodeMap[c.email] = true;
+            links.push({
+                source: email, target: c.email,
+                mutual: isMutual, vouched: c.they_vouched || c.i_vouched,
+                strength: isMutual ? 0.7 : 0.4
+            });
+        });
+
+        // Vouch-received not in contacts
+        vouchList.forEach(v => {
+            if (!nodeMap[v.email]) {
+                nodes.push({
+                    id: v.email, name: v.person || v.email.split('@')[0], email: v.email,
+                    score: 0, type: 'voucher', radius: 20
+                });
+                nodeMap[v.email] = true;
+                links.push({ source: email, target: v.email, mutual: false, vouched: true, strength: 0.5 });
+            }
+        });
+
+        // Add an "outside" node to show the boundary
+        nodes.push({
+            id: '_outside', name: 'Outside Graph', email: '',
+            score: 0, type: 'outside', radius: 16
+        });
+        links.push({ source: email, target: '_outside', mutual: false, vouched: false, strength: 0.1 });
+
+        // Graph density
+        const maxLinks = nodes.length * (nodes.length - 1) / 2;
+        const density = maxLinks > 0 ? (links.length / maxLinks).toFixed(2) : '0.00';
+        document.getElementById('sbDensity').textContent = density;
+
+        // Sidebar nodes list
+        const sbNodes = document.getElementById('sbNodes');
+        sbNodes.innerHTML = nodes.filter(n => n.id !== '_outside').map(n => {
+            const avClass = n.type === 'self' ? 'mutual' : n.type === 'mutual' ? 'mutual' : 'one-way';
+            const badge = n.type === 'self' ? 'ROOT' : n.type === 'mutual' ? 'MUTUAL' : n.type === 'voucher' ? 'VOUCHED' : 'CONTACT';
+            const badgeClass = n.type === 'mutual' || n.type === 'self' ? 'mutual' : 'vouched';
+            return '<div class="sb-contact" onclick="highlightNode(\'' + n.id + '\')"><div class="sb-avatar ' + avClass + '">' + n.name.charAt(0).toUpperCase() + '</div><div><div class="sb-name">' + n.name + '</div><div class="sb-email">' + n.email + '</div></div><div class="sb-badge ' + badgeClass + '">' + badge + '</div></div>';
+        }).join('');
+
+        buildGraph(nodes, links);
+        document.getElementById('loadingState').style.display = 'none';
+
+    } catch(e) {
+        document.getElementById('loadingState').textContent = 'Error: ' + e.message;
+    }
+}
+
+function buildGraph(nodes, links) {
+    const svg = d3.select('#graphSvg');
+    const container = document.querySelector('.graph-area');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    svg.attr('width', width).attr('height', height);
+
+    // Zoom
+    zoomBehavior = d3.zoom().scaleExtent([0.3, 3]).on('zoom', (e) => svgG.attr('transform', e.transform));
+    svg.call(zoomBehavior);
+
+    svgG = svg.append('g');
+
+    // Arrow markers for directed links
+    svg.append('defs').append('marker')
+        .attr('id', 'arrowhead').attr('viewBox', '0 -5 10 10')
+        .attr('refX', 25).attr('refY', 0).attr('markerWidth', 6).attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path').attr('d', 'M0,-4L10,0L0,4').attr('fill', '#1E2230');
+
+    // Links
+    const link = svgG.append('g').selectAll('line').data(links).join('line')
+        .attr('stroke', d => d.mutual ? colors.mutual : d.vouched ? '#2a2050' : '#1E2230')
+        .attr('stroke-width', d => d.mutual ? 2.5 : 1.5)
+        .attr('stroke-dasharray', d => d.mutual ? 'none' : '6,4')
+        .attr('opacity', d => d.mutual ? 0.8 : 0.4);
+
+    // Link labels
+    const linkLabel = svgG.append('g').selectAll('text').data(links.filter(d => d.mutual)).join('text')
+        .attr('text-anchor', 'middle').attr('fill', colors.mutual).attr('font-size', '8px')
+        .attr('font-family', 'var(--mono)').attr('opacity', 0.6)
+        .text('MUTUAL');
+
+    // Node groups
+    const node = svgG.append('g').selectAll('g').data(nodes).join('g')
+        .call(d3.drag()
+            .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+            .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
+        );
+
+    // Outer glow for self
+    node.filter(d => d.type === 'self').append('circle')
+        .attr('r', d => d.radius + 8)
+        .attr('fill', 'none').attr('stroke', colors.self).attr('stroke-width', 1).attr('opacity', 0.2);
+
+    // Node circles
+    node.append('circle')
+        .attr('r', d => d.radius)
+        .attr('fill', d => {
+            if (d.type === 'outside') return '#1E2230';
+            const c = colors[d.type];
+            return c + '18';
+        })
+        .attr('stroke', d => colors[d.type] || colors.contact)
+        .attr('stroke-width', d => d.type === 'self' ? 3 : d.type === 'outside' ? 1 : 2)
+        .attr('stroke-dasharray', d => d.type === 'outside' ? '4,4' : 'none');
+
+    // Trust score ring (arc showing score %)
+    node.filter(d => d.score > 0 && d.type !== 'outside').each(function(d) {
+        const arc = d3.arc().innerRadius(d.radius + 3).outerRadius(d.radius + 5).startAngle(0).endAngle(d.score * 2 * Math.PI);
+        d3.select(this).append('path').attr('d', arc).attr('fill', colors[d.type]).attr('opacity', 0.6);
+    });
+
+    // Initial (big letter)
+    node.append('text').attr('text-anchor', 'middle').attr('dy', d => d.type === 'outside' ? '0.35em' : '-0.1em')
+        .attr('fill', d => colors[d.type] || colors.contact)
+        .attr('font-size', d => d.type === 'self' ? '18px' : d.type === 'outside' ? '10px' : '14px')
+        .attr('font-weight', '700').attr('font-family', 'var(--mono)')
+        .text(d => d.type === 'outside' ? '?' : d.name.charAt(0).toUpperCase());
+
+    // Name below initial
+    node.filter(d => d.type !== 'outside').append('text')
+        .attr('text-anchor', 'middle').attr('dy', '1.2em')
+        .attr('fill', d => colors[d.type]).attr('font-size', '9px').attr('font-weight', '600').attr('font-family', 'var(--mono)')
+        .text(d => d.name.length > 14 ? d.name.substring(0, 14) + '…' : d.name);
+
+    // Score below name
+    node.filter(d => d.score > 0).append('text')
+        .attr('text-anchor', 'middle').attr('dy', '2.4em')
+        .attr('fill', '#6B7280').attr('font-size', '8px').attr('font-family', 'var(--mono)')
+        .text(d => d.score.toFixed(2));
+
+    // Outside label
+    node.filter(d => d.type === 'outside').append('text')
+        .attr('text-anchor', 'middle').attr('dy', '2em')
+        .attr('fill', '#6B7280').attr('font-size', '8px').attr('font-family', 'var(--mono)')
+        .text('FULL VERIFY');
+
+    // Tooltip
+    const tooltip = document.getElementById('tooltip');
+    node.on('mouseover', (e, d) => {
+        if (d.type === 'outside') return;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.pageX + 12) + 'px';
+        tooltip.style.top = (e.pageY - 10) + 'px';
+        tooltip.innerHTML = '<div class="tooltip-name">' + d.name + '</div><div class="tooltip-email">' + d.email + '</div>' +
+            '<div class="tooltip-row"><span class="tooltip-label">Trust Score</span><span class="tooltip-val" style="color:' + colors[d.type] + '">' + (d.score || 0).toFixed(2) + '</span></div>' +
+            '<div class="tooltip-row"><span class="tooltip-label">Status</span><span class="tooltip-val">' + (d.type === 'self' ? 'ROOT' : d.type.toUpperCase()) + '</span></div>' +
+            (d.verifications ? '<div class="tooltip-row"><span class="tooltip-label">Verifications</span><span class="tooltip-val">' + d.verifications + '</span></div>' : '');
+    }).on('mousemove', (e) => {
+        tooltip.style.left = (e.pageX + 12) + 'px';
+        tooltip.style.top = (e.pageY - 10) + 'px';
+    }).on('mouseout', () => { tooltip.style.display = 'none'; });
+
+    // Simulation
+    simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => d.mutual ? 120 : 160).strength(d => d.strength))
+        .force('charge', d3.forceManyBody().strength(d => d.type === 'self' ? -400 : d.type === 'outside' ? -50 : -200))
+        .force('center', d3.forceCenter(width / 2, height / 2))
+        .force('collision', d3.forceCollide().radius(d => d.radius + 15))
+        .force('x', d3.forceX(width / 2).strength(0.05))
+        .force('y', d3.forceY(height / 2).strength(0.05));
+
+    simulation.on('tick', () => {
+        link.attr('x1', d => d.source.x).attr('y1', d => d.source.y).attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+        linkLabel.attr('x', d => (d.source.x + d.target.x) / 2).attr('y', d => (d.source.y + d.target.y) / 2 - 4);
+        node.attr('transform', d => 'translate(' + d.x + ',' + d.y + ')');
+    });
+}
+
+function highlightNode(id) {
+    svgG.selectAll('circle').attr('opacity', function() {
+        return d3.select(this.parentNode).datum().id === id ? 1 : 0.3;
+    });
+    setTimeout(() => svgG.selectAll('circle').attr('opacity', 1), 2000);
+}
+
+function zoomIn() { d3.select('#graphSvg').transition().duration(300).call(zoomBehavior.scaleBy, 1.3); }
+function zoomOut() { d3.select('#graphSvg').transition().duration(300).call(zoomBehavior.scaleBy, 0.7); }
+function resetView() {
+    const svg = d3.select('#graphSvg');
+    const w = document.querySelector('.graph-area').clientWidth;
+    const h = document.querySelector('.graph-area').clientHeight;
+    svg.transition().duration(500).call(zoomBehavior.transform, d3.zoomIdentity.translate(0, 0).scale(1));
+}
+
+loadGraph();
+</script>
+</body>
+</html>
