@@ -449,420 +449,144 @@ loadDashboard();
     const svg = d3.select('#trustGraphSvg');
     svg.selectAll('*').remove();
     
-    const container = svgEl.parentElement;
-    const width = container.clientWidth - 2;
-    const height = 280;
-    svg.attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
+    const width = svgEl.clientWidth || 700;
+    const height = 320;
+    svg.attr('viewBox', `0 0 ${width} ${height}`);
 
-    // Build nodes
     const nodes = [{
-        id: email, name: user.name || email.split('@')[0],
-        score: user.trust_score || 0, type: 'self', radius: 30
+        id: email, name: user.name || 'You',
+        score: user.trust_score || 0, type: 'self', radius: 36,
+        verifications: user.total_verifications || 0
     }];
     const links = [];
     const seen = new Set([email]);
 
     contacts.forEach(c => {
         const isMutual = c.i_vouched && c.they_vouched;
-        const name = c.name || c.email.split('@')[0];
         nodes.push({
-            id: c.email, name: name, score: c.trust_score || 0,
-            type: isMutual ? 'mutual' : 'voucher', radius: 22
+            id: c.email, name: c.name || c.email.split('@')[0],
+            score: c.trust_score || 0, type: isMutual ? 'mutual' : 'voucher', radius: 26
         });
         seen.add(c.email);
         links.push({ source: email, target: c.email, mutual: isMutual });
     });
 
-    // Add vouchers not in contacts
     (vouches.vouches_received || []).forEach(v => {
         if (!seen.has(v.email)) {
-            nodes.push({ id: v.email, name: v.person || v.email.split('@')[0], score: 0, type: 'voucher', radius: 20 });
+            nodes.push({ id: v.email, name: v.person || v.email.split('@')[0], score: 0, type: 'voucher', radius: 22 });
             seen.add(v.email);
             links.push({ source: email, target: v.email, mutual: false });
         }
     });
 
-    const colors = { self: '#2DD4BF', mutual: '#10B981', voucher: '#7C3AED', contact: '#6B7280' };
+    // Outside node
+    nodes.push({ id: '_out', name: '?', score: 0, type: 'outside', radius: 18 });
+    links.push({ source: email, target: '_out', mutual: false });
 
-    // Force simulation
+    const colors = { self: '#2DD4BF', mutual: '#10B981', voucher: '#7C3AED', outside: '#374151' };
+
     const simulation = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(links).id(d => d.id).distance(110))
-        .force('charge', d3.forceManyBody().strength(-300))
+        .force('link', d3.forceLink(links).id(d => d.id).distance(130))
+        .force('charge', d3.forceManyBody().strength(-350))
         .force('center', d3.forceCenter(width / 2, height / 2))
-        .force('collision', d3.forceCollide().radius(d => d.radius + 20));
+        .force('collision', d3.forceCollide().radius(d => d.radius + 30))
+        .force('y', d3.forceY(height / 2).strength(0.08));
 
     const g = svg.append('g');
 
     // Links
-    const link = g.append('g').selectAll('line').data(links).join('line')
+    g.append('g').selectAll('line').data(links).join('line')
         .attr('stroke', d => d.mutual ? colors.mutual : '#1E2230')
         .attr('stroke-width', d => d.mutual ? 2.5 : 1.5)
         .attr('stroke-dasharray', d => d.mutual ? 'none' : '6,4')
-        .attr('opacity', 0.7);
+        .attr('opacity', 0.6)
+        .attr('class', 'graph-link');
 
     // Node groups
     const node = g.append('g').selectAll('g').data(nodes).join('g')
+        .attr('cursor', 'pointer')
         .call(d3.drag()
             .on('start', (e, d) => { if (!e.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
             .on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
             .on('end', (e, d) => { if (!e.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; })
         );
 
+    // Click handler — show detail panel
+    node.on('click', (e, d) => {
+        if (d.type === 'outside') return;
+        const panel = document.getElementById('nodeDetail');
+        const avatar = document.getElementById('detailAvatar');
+        const c = colors[d.type];
+        avatar.textContent = d.name.charAt(0).toUpperCase();
+        avatar.style.background = c + '20';
+        avatar.style.border = '2px solid ' + c;
+        avatar.style.color = c;
+        document.getElementById('detailName').textContent = d.name;
+        document.getElementById('detailEmail').textContent = d.id;
+        document.getElementById('detailScore').textContent = d.score > 0 ? d.score.toFixed(2) : '—';
+        const statusEl = document.getElementById('detailStatus');
+        statusEl.textContent = d.type === 'self' ? 'YOU · ROOT' : d.type === 'mutual' ? 'MUTUAL VOUCH' : 'VOUCHED FOR YOU';
+        statusEl.style.color = c;
+        panel.style.display = 'block';
+        
+        // Highlight this node
+        node.selectAll('circle').attr('opacity', 0.3);
+        d3.select(e.currentTarget).selectAll('circle').attr('opacity', 1);
+        setTimeout(() => node.selectAll('circle').attr('opacity', 1), 2000);
+    });
+
     // Glow for self
     node.filter(d => d.type === 'self').append('circle')
-        .attr('r', d => d.radius + 6).attr('fill', 'none')
-        .attr('stroke', colors.self).attr('stroke-width', 1).attr('opacity', 0.25);
+        .attr('r', d => d.radius + 8).attr('fill', 'none')
+        .attr('stroke', colors.self).attr('stroke-width', 1.5).attr('opacity', 0.2);
+
+    // Score arc (visual trust ring)
+    node.filter(d => d.score > 0 && d.type !== 'outside').each(function(d) {
+        const arc = d3.arc().innerRadius(d.radius + 2).outerRadius(d.radius + 5)
+            .startAngle(0).endAngle(d.score * 2 * Math.PI);
+        d3.select(this).append('path').attr('d', arc)
+            .attr('fill', colors[d.type]).attr('opacity', 0.5);
+    });
 
     // Main circles
     node.append('circle').attr('r', d => d.radius)
-        .attr('fill', d => colors[d.type] + '15')
-        .attr('stroke', d => colors[d.type])
-        .attr('stroke-width', d => d.type === 'self' ? 2.5 : 1.5);
+        .attr('fill', d => (colors[d.type] || '#374151') + '12')
+        .attr('stroke', d => colors[d.type] || '#374151')
+        .attr('stroke-width', d => d.type === 'self' ? 2.5 : d.type === 'outside' ? 1 : 2)
+        .attr('stroke-dasharray', d => d.type === 'outside' ? '4,3' : 'none');
 
-    // Initials INSIDE circles
-    node.append('text').attr('text-anchor', 'middle').attr('dy', '0.35em')
-        .attr('fill', d => colors[d.type])
-        .attr('font-size', d => d.type === 'self' ? '16px' : '13px')
+    // Initial letter (centered in circle)
+    node.append('text').attr('text-anchor', 'middle').attr('dy', '0.38em')
+        .attr('fill', d => colors[d.type] || '#374151')
+        .attr('font-size', d => d.type === 'self' ? '18px' : d.type === 'outside' ? '14px' : '15px')
         .attr('font-weight', '700').attr('font-family', 'var(--mono)')
-        .text(d => d.name.charAt(0).toUpperCase());
+        .text(d => d.type === 'outside' ? '?' : d.name.charAt(0).toUpperCase());
 
-    // Names BELOW circles (offset by radius + gap)
-    node.append('text').attr('text-anchor', 'middle')
-        .attr('y', d => d.radius + 14)
-        .attr('fill', '#D1D5DB')
-        .attr('font-size', '11px').attr('font-weight', '600').attr('font-family', 'var(--sans)')
-        .text(d => d.name.length > 16 ? d.name.substring(0, 16) + '…' : d.name);
+    // Name label BELOW circle
+    node.filter(d => d.type !== 'outside').append('text')
+        .attr('text-anchor', 'middle').attr('y', d => d.radius + 16)
+        .attr('fill', '#E5E7EB').attr('font-size', '11px').attr('font-weight', '600')
+        .attr('font-family', 'var(--sans)')
+        .text(d => {
+            const n = d.name;
+            return n.length > 14 ? n.substring(0, 14) + '…' : n;
+        });
 
-    // Score below name
-    node.filter(d => d.score > 0).append('text').attr('text-anchor', 'middle')
-        .attr('y', d => d.radius + 26)
-        .attr('fill', '#6B7280')
-        .attr('font-size', '10px').attr('font-family', 'var(--mono)')
-        .text(d => d.score.toFixed(2));
-
-    // Status label for self
-    node.filter(d => d.type === 'self').append('text').attr('text-anchor', 'middle')
-        .attr('y', d => d.radius + 38)
-        .attr('fill', colors.self).attr('font-size', '9px').attr('font-weight', '700')
-        .attr('font-family', 'var(--mono)').attr('letter-spacing', '1px')
-        .text('YOU · ROOT');
-
-    // Mutual labels on links
-    g.append('g').selectAll('text').data(links.filter(d => d.mutual)).join('text')
-        .attr('text-anchor', 'middle').attr('fill', colors.mutual)
-        .attr('font-size', '8px').attr('font-family', 'var(--mono)')
-        .attr('opacity', 0.5).attr('letter-spacing', '1px')
-        .text('MUTUAL')
-        .attr('class', 'link-label');
+    // Outside label
+    node.filter(d => d.type === 'outside').append('text')
+        .attr('text-anchor', 'middle').attr('y', d => d.radius + 14)
+        .attr('fill', '#6B7280').attr('font-size', '9px').attr('font-weight', '600')
+        .attr('font-family', 'var(--mono)').attr('letter-spacing', '0.5px')
+        .text('OUTSIDE');
 
     // Tick
     simulation.on('tick', () => {
-        link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+        g.selectAll('.graph-link')
+            .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
             .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-        node.attr('transform', d => `translate(${d.x},${d.y})`);
-        g.selectAll('.link-label')
-            .attr('x', (d, i) => { const l = links.filter(l => l.mutual)[i]; return l ? (l.source.x + l.target.x) / 2 : 0; })
-            .attr('y', (d, i) => { const l = links.filter(l => l.mutual)[i]; return l ? (l.source.y + l.target.y) / 2 - 6 : 0; });
+        node.attr('transform', d => `translate(${Math.max(40, Math.min(width-40, d.x))},${Math.max(40, Math.min(height-40, d.y))})`);
     });
 }
-
-function getToken() { return sessionStorage.getItem('vac_token_' + email) || ''; }
-function setToken(t) { sessionStorage.setItem('vac_token_' + email, t); }
-function clearToken() { sessionStorage.removeItem('vac_token_' + email); }
-
-function authHeaders() {
-    const t = getToken();
-    return t ? { 'Authorization': 'Bearer ' + t } : {};
-}
-
-async function authFetch(url, opts = {}) {
-    opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
-    const r = await fetch(url, opts);
-    if (r.status === 401) {
-        // Session auth not required for dashboard — load content anyway
-        // The dashboard reads from public API endpoints
-        console.log('[Dashboard] 401 from session-protected endpoint, using public API fallback');
-    }
-    return r;
-}
-
-// ── Quick Re-auth UI ──
-function showQuickReauth() {
-    const overlay = document.createElement('div');
-    overlay.id = 'reauth-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(13,17,23,0.95);z-index:1000;display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML = `
-    <div style="background:#151821;border:1px solid #1E2230;border-radius:16px;padding:32px;max-width:400px;width:90%;text-align:center;">
-        <svg width="32" height="32" viewBox="0 0 100 100" style="margin-bottom:16px"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="5"/><polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.1" stroke="#6C5CE7" stroke-width="2.5"/></svg>
-        <div style="font-size:18px;font-weight:700;color:#F0F6FC;margin-bottom:8px;">Session Expired</div>
-        <div style="font-size:13px;color:#9CA3AF;margin-bottom:24px;">Quick re-verification required</div>
-        <div id="reauth-challenge" style="margin-bottom:20px;"></div>
-        <div style="display:flex;gap:8px;justify-content:center;">
-            <button onclick="startQuickReauth()" style="padding:10px 24px;border-radius:8px;border:1px solid rgba(45,212,191,0.3);background:rgba(45,212,191,0.1);color:#2DD4BF;font-family:monospace;font-size:13px;font-weight:600;cursor:pointer;">Quick Re-verify</button>
-            <button onclick="window.location.href='/auth?redirect='+encodeURIComponent(window.location.href)" style="padding:10px 24px;border-radius:8px;border:1px solid #1E2230;background:transparent;color:#6B7280;font-family:monospace;font-size:13px;cursor:pointer;">Full Verify</button>
-        </div>
-        <div id="reauth-status" style="font-family:monospace;font-size:11px;color:#6B7280;margin-top:16px;"></div>
-    </div>`;
-    document.body.appendChild(overlay);
-}
-
-async function startQuickReauth() {
-    const status = document.getElementById('reauth-status');
-    const challengeDiv = document.getElementById('reauth-challenge');
-    status.textContent = 'Generating challenge...';
-    try {
-        const r = await fetch(API + '/v1/session/quick-challenge?email=' + encodeURIComponent(email), { method: 'POST' });
-        const ch = await r.json();
-        
-        // Show challenge with camera
-        challengeDiv.innerHTML = `
-        <div style="font-size:48px;margin-bottom:8px;">✋</div>
-        <div style="font-size:20px;font-weight:700;color:#2DD4BF;" id="reauth-instruction">${ch.instruction}</div>
-        <div style="font-size:11px;color:#6B7280;margin-top:4px;">Hold your hand near your face · Camera will detect automatically</div>
-        <div style="position:relative;margin-top:16px;border-radius:12px;overflow:hidden;border:2px solid #1E2230;max-width:320px;margin-left:auto;margin-right:auto;">
-            <video id="reauth-video" autoplay playsinline muted style="width:100%;display:block;transform:scaleX(-1);background:#000;"></video>
-            <canvas id="reauth-canvas" style="display:none;"></canvas>
-            <div id="reauth-cam-status" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-family:monospace;font-size:11px;color:#2DD4BF;background:rgba(13,17,23,0.8);padding:4px 12px;border-radius:4px;">Starting camera...</div>
-        </div>
-        <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
-            <button id="reauth-capture-btn" onclick="captureAndVerify('${ch.challenge_id}')" disabled style="padding:10px 24px;border-radius:8px;border:none;background:#2DD4BF;color:#0D0F17;font-weight:700;font-family:monospace;font-size:14px;cursor:pointer;opacity:0.5;">Verify ✓</button>
-        </div>
-        <div style="margin-top:8px;"><button onclick="manualFingerFallback('${ch.challenge_id}',${ch.num_fingers})" style="background:none;border:none;color:#6B7280;font-family:monospace;font-size:10px;cursor:pointer;text-decoration:underline;">Camera not working? Enter manually</button></div>`;
-        
-        // Start camera
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } 
-            });
-            const video = document.getElementById('reauth-video');
-            video.srcObject = stream;
-            window._reauthStream = stream;
-            
-            const camStatus = document.getElementById('reauth-cam-status');
-            const captureBtn = document.getElementById('reauth-capture-btn');
-            
-            video.onloadedmetadata = () => {
-                camStatus.textContent = 'Show your fingers and tap Verify';
-                camStatus.style.color = '#10B981';
-                captureBtn.disabled = false;
-                captureBtn.style.opacity = '1';
-            };
-        } catch(camErr) {
-            document.getElementById('reauth-cam-status').textContent = 'Camera error: ' + camErr.message;
-            manualFingerFallback(ch.challenge_id, ch.num_fingers);
-        }
-        
-        status.textContent = '';
-    } catch(e) {
-        status.textContent = 'Error: ' + e.message;
-    }
-}
-
-async function captureAndVerify(challengeId) {
-    const video = document.getElementById('reauth-video');
-    const canvas = document.getElementById('reauth-canvas');
-    const status = document.getElementById('reauth-status');
-    const camStatus = document.getElementById('reauth-cam-status');
-    const btn = document.getElementById('reauth-capture-btn');
-    
-    btn.disabled = true;
-    btn.textContent = 'Analyzing...';
-    camStatus.textContent = 'Sending to Gemini for finger detection...';
-    camStatus.style.color = '#F9A825';
-    
-    // Capture frame
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    const imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
-    
-    try {
-        const r = await fetch(API + '/v1/session/quick-verify-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ challenge_id: challengeId, image_base64: imageBase64 })
-        });
-        
-        if (r.ok) {
-            const d = await r.json();
-            camStatus.textContent = '✓ Verified! Detected ' + d.detected_fingers + ' finger(s)';
-            camStatus.style.color = '#10B981';
-            setToken(d.token);
-            
-            // Stop camera
-            if (window._reauthStream) window._reauthStream.getTracks().forEach(t => t.stop());
-            
-            // Brief success flash then reload
-            setTimeout(() => {
-                document.getElementById('reauth-overlay').remove();
-                loadDashboard();
-            }, 800);
-        } else {
-            const e = await r.json();
-            const detail = e.detail || {};
-            if (detail.detected_fingers !== undefined) {
-                camStatus.textContent = 'Detected ' + detail.detected_fingers + ' finger(s) — wrong count. Try again!';
-            } else {
-                camStatus.textContent = detail.message || 'Detection failed — try again';
-            }
-            camStatus.style.color = '#F96167';
-            btn.disabled = false;
-            btn.textContent = 'Verify ✓';
-        }
-    } catch(e) {
-        camStatus.textContent = 'Error: ' + e.message;
-        camStatus.style.color = '#F96167';
-        btn.disabled = false;
-        btn.textContent = 'Verify ✓';
-    }
-}
-
-function manualFingerFallback(challengeId, numFingers) {
-    const challengeDiv = document.getElementById('reauth-challenge');
-    // Stop camera if running
-    if (window._reauthStream) window._reauthStream.getTracks().forEach(t => t.stop());
-    
-    const fingerWords = {1:'one',2:'two',3:'three',4:'four',5:'five'};
-    challengeDiv.innerHTML = '<div style="font-size:48px;margin-bottom:8px;">✋</div>' +
-        '<div style="font-size:20px;font-weight:700;color:#2DD4BF;">Hold up ' + (fingerWords[numFingers]||numFingers) + ' finger' + (numFingers>1?'s':'') + '</div>' +
-        '<div style="margin-top:16px;display:flex;gap:8px;justify-content:center;align-items:center;">' +
-        '<input id="finger-input" type="number" min="1" max="5" style="width:60px;padding:10px;text-align:center;font-size:24px;font-weight:700;border-radius:8px;border:1px solid #1E2230;background:#0D0F17;color:#F0F6FC;font-family:monospace;" placeholder="#">' +
-        '<button onclick="submitQuickReauth(\'' + challengeId + '\')" style="padding:10px 20px;border-radius:8px;border:none;background:#2DD4BF;color:#0D0F17;font-weight:700;font-family:monospace;font-size:14px;cursor:pointer;">✓</button></div>';
-    
-    document.getElementById('finger-input').focus();
-    document.getElementById('finger-input').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') submitQuickReauth(challengeId);
-    });
-}
-
-async function submitQuickReauth(challengeId) {
-    const fingers = parseInt(document.getElementById('finger-input').value);
-    const status = document.getElementById('reauth-status');
-    if (!fingers || fingers < 1 || fingers > 5) { status.textContent = 'Enter a number 1-5'; return; }
-    status.textContent = 'Verifying...';
-    try {
-        const r = await fetch(API + '/v1/session/quick-verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ challenge_id: challengeId, detected_fingers: fingers })
-        });
-        if (r.ok) {
-            const d = await r.json();
-            setToken(d.token);
-            document.getElementById('reauth-overlay').remove();
-            loadDashboard(); // Reload data with new token
-        } else {
-            const e = await r.json();
-            status.textContent = 'Failed: ' + (e.detail?.message || e.detail || 'Try again');
-        }
-    } catch(e) {
-        status.textContent = 'Error: ' + e.message;
-    }
-}
-
-// ── Check for token from auth redirect ──
-const tokenFromUrl = params.get('token');
-if (tokenFromUrl) {
-    setToken(tokenFromUrl);
-    // Clean URL
-    const cleanUrl = window.location.pathname + '?email=' + encodeURIComponent(email);
-    window.history.replaceState({}, '', cleanUrl);
-}
-
-if (!email) {
-    document.getElementById('loadingState').textContent = 'No email provided. Go to vacprotocol.org/auth to verify.';
-}
-
-// Update quick links with email
-document.getElementById('linkAgents').href = '/agents?email=' + encodeURIComponent(email);
-document.getElementById('linkGroups').href = '/groups?email=' + encodeURIComponent(email);
-document.getElementById('linkMsg').href = '/msg?from=' + encodeURIComponent(email);
-
-async function loadDashboard() {
-    if (!email) return;
-    try {
-        const [userResp, profileResp, vouchResp] = await Promise.all([
-            authFetch(API + '/v1/user/' + encodeURIComponent(email)),
-            fetch(API + '/v1/trust-profile/' + encodeURIComponent(email)),
-            fetch(API + '/v1/vouches?email=' + encodeURIComponent(email) + '&direction=received')
-        ]);
-        const userData = await userResp.json();
-        const profile = await profileResp.json();
-        const vouches = await vouchResp.json();
-        const user = userData.user || userData;
-        const contacts = userData.contacts || [];
-
-        // Hero
-        document.getElementById('heroName').textContent = user.name || email;
-        document.getElementById('heroEmail').textContent = email;
-        const score = user.trust_score || profile.trust_score?.score || 0;
-        document.getElementById('heroScore').textContent = score.toFixed(2);
-        
-        const vouchCount = vouches.count || 0;
-        const isVerified = vouchCount > 0;
-        document.getElementById('heroStatus').textContent = isVerified ? 'VERIFIED · ' + vouchCount + ' VOUCH' + (vouchCount > 1 ? 'ES' : '') : 'AUTHENTICATED';
-        document.getElementById('heroStatus').style.color = isVerified ? 'var(--emerald)' : 'var(--teal)';
-        
-        const badge = document.getElementById('navBadge');
-        if (isVerified) { badge.textContent = 'VERIFIED'; badge.className = 'nav-badge verified'; }
-        else { badge.textContent = 'AUTHENTICATED'; badge.className = 'nav-badge auth'; }
-
-        // Stats
-        document.getElementById('statVouches').textContent = vouchCount;
-        document.getElementById('statContacts').textContent = contacts.length;
-        document.getElementById('statVerifications').textContent = user.total_verifications || 0;
-
-        // Contacts
-        document.getElementById('contactCount').textContent = contacts.length + ' people';
-        const cl = document.getElementById('contactsList');
-        if (contacts.length === 0) {
-            cl.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:12px 0">No contacts yet. Share your proof link to start building your trust graph.</div>';
-        } else {
-            cl.innerHTML = contacts.map(c => {
-                const state = c.state || 'pending';
-                const avatarClass = c.they_vouched && c.i_vouched ? 'mutual' : c.they_vouched || c.i_vouched ? 'one-way' : 'pending';
-                const statusClass = state === 'mutual' ? 'mutual' : state === 'vouched' ? 'vouched' : 'messaged';
-                const statusText = state === 'mutual' ? 'MUTUAL' : c.they_vouched ? 'VOUCHED YOU' : c.i_vouched ? 'YOU VOUCHED' : state.toUpperCase();
-                const initial = (c.name || c.email || '?').charAt(0).toUpperCase();
-                return '<div class="contact"><div class="contact-avatar ' + avatarClass + '">' + initial + '</div><div><div class="contact-name">' + (c.name || c.email) + '</div><div class="contact-email">' + c.email + '</div></div><div class="contact-status ' + statusClass + '">' + statusText + '</div></div>';
-            }).join('');
-        }
-
-        // Next Actions
-        const actions = [];
-        if (vouchCount === 0) {
-            actions.push({icon:'🤝', text:'Get your first vouch', sub:'Share your proof link with someone to verify your identity', href:'/auth?email=' + encodeURIComponent(email), color:'var(--teal)'});
-        }
-        if (vouchCount > 0 && vouchCount < 3) {
-            actions.push({icon:'🤝', text:'Get more vouches', sub:'Each vouch strengthens your trust score. You have ' + vouchCount + ' — aim for 3+', href:'/auth?email=' + encodeURIComponent(email), color:'var(--teal)'});
-        }
-        if (contacts.filter(c => !c.they_vouched).length > 0) {
-            actions.push({icon:'📨', text:'Request vouches from contacts', sub:contacts.filter(c => !c.they_vouched).length + ' contacts haven\'t vouched for you yet', href:'/auth', color:'var(--purple)'});
-        }
-        actions.push({icon:'🤖', text:'Delegate to an AI agent', sub:'Create a scoped authority token with spending limits', href:'/agents?email=' + encodeURIComponent(email), color:'var(--purple)'});
-        actions.push({icon:'✉️', text:'Send a verified message', sub:'Messages with cryptographic provenance', href:'/msg?from=' + encodeURIComponent(email), color:'var(--amber)'});
-        if (contacts.length >= 2) {
-            actions.push({icon:'👥', text:'Create a governance group', sub:'Set up quorum voting for agent authorization', href:'/groups?email=' + encodeURIComponent(email), color:'var(--emerald)'});
-        }
-
-        document.getElementById('actionsList').innerHTML = actions.map(a =>
-            '<a href="' + a.href + '" class="action"><div class="action-icon" style="background:rgba(45,212,191,0.05)">' + a.icon + '</div><div><div class="action-text">' + a.text + '</div><div class="action-sub">' + a.sub + '</div></div><div class="action-arrow">→</div></a>'
-        ).join('');
-
-        // Build D3 Trust Graph
-        // Use the production trust graph engine
-        VACTrustGraph.render('#trustGraphSvg', { email: email, api: API });
-
-        // Show content
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('dashContent').style.display = 'block';
-
-    } catch(e) {
-        document.getElementById('loadingState').textContent = 'Error loading profile: ' + e.message;
-    }
-}
-
-
 
 loadDashboard();
 </script>
