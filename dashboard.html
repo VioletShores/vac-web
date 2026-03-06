@@ -104,7 +104,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 <!-- Trust Graph -->
 <div class="card" id="trustGraph">
 <div class="card-title">YOUR TRUST GRAPH <span style="font-size:10px;color:var(--teal);font-weight:400">Live network</span></div>
-<svg id="trustGraph"></svg>
+<svg id="trustGraphSvg"></svg>
 </div>
 
 <!-- Next Actions -->
@@ -436,8 +436,9 @@ async function loadDashboard() {
 }
 
 function buildTrustGraph(user, contacts, vouches) {
-    const svg = d3.select('#trustGraph');
-    const container = document.getElementById('trustGraph');
+    const svg = d3.select('#trustGraphSvg');
+    svg.selectAll('*').remove(); // Clear previous render
+    const container = document.getElementById('trustGraphSvg').parentElement;
     const width = container.clientWidth;
     const height = 300;
     svg.attr('viewBox', `0 0 ${width} ${height}`);
