@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAC Protocol — Standards & Certification</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px}
+.nav img{width:24px;height:24px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-back{font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:4px}
+.nav-back:hover{color:var(--teal);border-color:var(--teal)}
+.page{max-width:800px;margin:0 auto;padding:40px 24px 80px}
+.hero{text-align:center;margin-bottom:40px}
+.hero-title{font-size:32px;font-weight:700;margin-bottom:8px}
+.hero-sub{font-size:14px;color:var(--gray);max-width:560px;margin:0 auto;line-height:1.6}
+.section{margin-bottom:40px}
+.section-title{font-family:var(--mono);font-size:12px;color:var(--teal);letter-spacing:3px;margin-bottom:16px}
+.std{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:12px;display:flex;align-items:flex-start;gap:16px}
+.std-badge{font-family:var(--mono);font-size:9px;font-weight:700;padding:4px 10px;border-radius:4px;white-space:nowrap;margin-top:2px;letter-spacing:1px;flex-shrink:0;min-width:80px;text-align:center}
+.std-badge.aligned{color:var(--emerald);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)}
+.std-badge.active{color:var(--teal);background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.2)}
+.std-badge.planned{color:var(--purple);background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.2)}
+.std-badge.future{color:var(--muted);background:rgba(107,114,128,0.1);border:1px solid rgba(107,114,128,0.2)}
+.std-name{font-size:15px;font-weight:700;margin-bottom:2px}
+.std-org{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px}
+.std-desc{font-size:12px;color:var(--gray);line-height:1.5}
+.std-relevance{font-family:var(--mono);font-size:10px;color:var(--teal);margin-top:6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:16px}
+.card-title{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);letter-spacing:2px;margin-bottom:14px}
+.stat-row{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.stat{flex:1;min-width:120px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+.stat-num{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--teal)}
+.stat-label{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:1px;margin-top:4px}
+.timeline{position:relative;padding-left:24px;border-left:2px solid var(--border)}
+.timeline-item{position:relative;padding-bottom:24px}
+.timeline-item:last-child{padding-bottom:0}
+.timeline-dot{position:absolute;left:-29px;width:10px;height:10px;border-radius:50%;border:2px solid var(--border);background:var(--bg)}
+.timeline-dot.done{border-color:var(--emerald);background:var(--emerald)}
+.timeline-dot.active{border-color:var(--teal);background:var(--teal)}
+.timeline-dot.planned{border-color:var(--purple);background:var(--bg)}
+.timeline-date{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:2px}
+.timeline-text{font-size:13px;color:var(--gray)}
+.timeline-text strong{color:var(--white)}
+.footer{text-align:center;padding:40px 0;font-size:10px;color:var(--muted);font-family:var(--mono)}
+.footer a{color:var(--teal);text-decoration:none}
+</style>
+</head>
+<body>
+<div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;">← Back to VAC Protocol</a></div>
+<script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
+
+<nav class="nav">
+<img src="/branding/vac-logo-icon-dark.png" onerror="this.style.display='none'">
+<div class="nav-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></div>
+<a href="/app" class="nav-back">← Back to App</a>
+</nav>
+
+<div class="page">
+<div class="hero">
+<div class="hero-title">Standards & Certification</div>
+<div class="hero-sub">VAC Protocol is designed to meet and exceed global identity, security, and AI agent standards. Here's our alignment map and certification roadmap.</div>
+</div>
+
+<div class="stat-row">
+<div class="stat"><div class="stat-num">8</div><div class="stat-label">STANDARDS TRACKED</div></div>
+<div class="stat"><div class="stat-num">3</div><div class="stat-label">ALIGNED</div></div>
+<div class="stat"><div class="stat-num">2</div><div class="stat-label">IN PROGRESS</div></div>
+<div class="stat"><div class="stat-num">3</div><div class="stat-label">PLANNED</div></div>
+</div>
+
+<div class="section">
+<div class="section-title">IDENTITY & BIOMETRICS</div>
+
+<div class="std">
+<div class="std-badge aligned">ALIGNED</div>
+<div>
+<div class="std-name">ISO/IEC 30107-1:2023</div>
+<div class="std-org">Biometric Presentation Attack Detection</div>
+<div class="std-desc">Standard for detecting spoofing attacks against biometric systems — photos, masks, deepfakes, video replay. VAC's 7-modality engine (face liveness, deepfake detection, voiceprint, lip-sync, challenge response, finger gesture, duress) exceeds the standard's requirements for multi-modal presentation attack detection.</div>
+<div class="std-relevance">VAC relevance: Claims 1-15, 16-55 · Verification Engine</div>
+</div>
+</div>
+
+<div class="std">
+<div class="std-badge aligned">ALIGNED</div>
+<div>
+<div class="std-name">ISO/IEC 29115:2013</div>
+<div class="std-org">Entity Authentication Assurance Levels</div>
+<div class="std-desc">Defines four levels of authentication assurance (LoA 1-4). VAC's adaptive modality system maps directly: streamlined verification (inside trust graph) = LoA 2, full 7-modality = LoA 4. Trust graph density dynamically determines assurance level.</div>
+<div class="std-relevance">VAC relevance: Claims 16-38 · Adaptive Modality Engine</div>
+</div>
+</div>
+
+<div class="std">
+<div class="std-badge active">IN PROGRESS</div>
+<div>
+<div class="std-name">NIST AI 600-1</div>
+<div class="std-org">AI Agent Security Framework</div>
+<div class="std-desc">NIST's emerging framework for AI agent identity, authorization, and accountability. VAC Protocol submitted to the RFI (March 2026) positioning cryptographic delegation chains and trust graphs as the architectural foundation for agent accountability.</div>
+<div class="std-relevance">VAC relevance: Claims 113-134 · Multi-Agent Coordination</div>
+</div>
+</div>
+
+<div class="std">
+<div class="std-badge active">IN PROGRESS</div>
+<div>
+<div class="std-name">W3C Decentralised Identifiers (DID)</div>
+<div class="std-org">Decentralised Identity Foundation</div>
+<div class="std-desc">Standard for self-sovereign identity and verifiable credentials. VAC's trust graph architecture aligns with DID's model of decentralised trust relationships. Verifiable Authority Tokens (VATs) implement the verifiable credential pattern with cryptographic delegation chains.</div>
+<div class="std-relevance">VAC relevance: Claims 272-285 · Trust Graph Network</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<div class="section-title">SECURITY & COMPLIANCE</div>
+
+<div class="std">
+<div class="std-badge planned">PLANNED</div>
+<div>
+<div class="std-name">SOC 2 Type II</div>
+<div class="std-org">AICPA Service Organisation Controls</div>
+<div class="std-desc">Industry-standard security audit covering data handling, availability, processing integrity, confidentiality, and privacy. Required by enterprise customers before procurement. Estimated cost: $50K-$150K per audit cycle. Planned post-revenue.</div>
+<div class="std-relevance">Timeline: Post-Series Seed · Estimated $100K</div>
+</div>
+</div>
+
+<div class="std">
+<div class="std-badge planned">PLANNED</div>
+<div>
+<div class="std-name">ETSI TS 119 461</div>
+<div class="std-org">Identity Proofing for Trust Services</div>
+<div class="std-desc">European standard for identity verification in trust services, aligned with eIDAS regulation. Covers video identification, automated identification, and KYB verification. Required for EU market entry. Certification through accredited European bodies.</div>
+<div class="std-relevance">Timeline: Post-EU expansion · Estimated $50K+</div>
+</div>
+</div>
+
+<div class="std">
+<div class="std-badge planned">PLANNED</div>
+<div>
+<div class="std-name">FIDO2 / WebAuthn</div>
+<div class="std-org">FIDO Alliance</div>
+<div class="std-desc">Passwordless authentication standard using biometrics and hardware keys. VAC's biometric verification can serve as a FIDO2 authenticator, enabling passkey-based authentication backed by the full VAC trust graph and delegation chain.</div>
+<div class="std-relevance">VAC relevance: Biometric Unlock · Claims 1-15</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<div class="section-title">VAC PROTOCOL STANDARDS (INTERNAL)</div>
+
+<div class="std">
+<div class="std-badge aligned">DEFINED</div>
+<div>
+<div class="std-name">VAC Trust Graph Density Thresholds</div>
+<div class="std-org">VAC Protocol Specification</div>
+<div class="std-desc">VAC defines its own standards for trust graph verification economics: inside graph (1/6 modalities, streamlined), outside graph (6/6 modalities, full verification). Density thresholds determine when verification cost reduces. These standards are part of the protocol specification and white paper.</div>
+<div class="std-relevance">Patent claims: 272-285 · Trust Graph Economics</div>
+</div>
+</div>
+
+<div class="std">
+<div class="std-badge aligned">DEFINED</div>
+<div>
+<div class="std-name">VAC Delegation Chain Constraints</div>
+<div class="std-org">VAC Protocol Specification</div>
+<div class="std-desc">Monotonic narrowing: permissions can only restrict, never expand, without human re-verification. Maximum delegation depth, scope inheritance rules, and revocation propagation are defined in the protocol spec. These constraints are mathematically enforced, not policy-based.</div>
+<div class="std-relevance">Patent claims: 39-55 · Monotonic Narrowing</div>
+</div>
+</div>
+</div>
+
+<div class="section">
+<div class="section-title">CERTIFICATION TIMELINE</div>
+<div class="card">
+<div class="timeline">
+<div class="timeline-item"><div class="timeline-dot done"></div><div class="timeline-date">MARCH 2026</div><div class="timeline-text"><strong>NIST RFI submission</strong> — AI agent identity standards</div></div>
+<div class="timeline-item"><div class="timeline-dot active"></div><div class="timeline-date">MARCH 2026</div><div class="timeline-text"><strong>LAUNCH Festival</strong> — live demo + investor outreach</div></div>
+<div class="timeline-item"><div class="timeline-dot planned"></div><div class="timeline-date">Q2 2026</div><div class="timeline-text"><strong>White paper publication</strong> — VAC Protocol specification with internal standards</div></div>
+<div class="timeline-item"><div class="timeline-dot planned"></div><div class="timeline-date">Q3 2026</div><div class="timeline-text"><strong>SOC 2 Type II</strong> — begin audit process (post-revenue)</div></div>
+<div class="timeline-item"><div class="timeline-dot planned"></div><div class="timeline-date">Q4 2026</div><div class="timeline-text"><strong>ISO 30107 certification</strong> — biometric presentation attack detection</div></div>
+<div class="timeline-item"><div class="timeline-dot planned"></div><div class="timeline-date">2027</div><div class="timeline-text"><strong>ETSI + eIDAS</strong> — European market certification</div></div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-title">USE OF FUNDS — CERTIFICATION BUDGET</div>
+<div style="font-size:13px;color:var(--gray);line-height:1.7">
+Enterprise customers require certifications before procurement. The certification pipeline represents an estimated $200K-$500K investment across SOC 2 ($100K), ISO 30107 ($50K+), ETSI ($50K+), and ongoing compliance maintenance. This is a planned use of Series Seed funds — not a pre-revenue expense. VAC's patent portfolio (285+ claims) provides defensibility while certifications are pursued.
+</div>
+</div>
+
+<div class="footer">
+<a href="/">vacprotocol.org</a> · <a href="/sdk">SDK</a> · <a href="/roadmap">Roadmap</a> · <a href="/trust">Trust Graph</a><br>
+Violet Shores Pty Ltd · Patent Pending · 285+ Claims
+</div>
+</div>
+
+</body>
+</html>

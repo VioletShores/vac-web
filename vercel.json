@@ -1,6 +1,10 @@
 {
     "rewrites": [
         {
+            "source": "/standards",
+            "destination": "/standards.html"
+        },
+        {
             "source": "/trust",
             "destination": "/trust.html"
         },
