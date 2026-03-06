@@ -5,191 +5,145 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VAC Protocol</title>
 <link rel="icon" type="image/svg+xml" href="/branding/vac-logo-square-dark.png">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-:root {
-    --bg: #0D0F17;
-    --surface: #151821;
-    --border: #1E2230;
-    --teal: #2DD4BF;
-    --purple: #7C3AED;
-    --emerald: #10B981;
-    --coral: #F96167;
-    --white: #FFFFFF;
-    --gray: #9CA3AF;
-    --muted: #6B7280;
-    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-body { background: var(--bg); color: var(--white); font-family: -apple-system, sans-serif; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100vh;overflow:hidden;display:flex;flex-direction:column}
 
-/* ═══ NAV BAR ═══ */
-.nav {
-    height: 48px;
-    min-height: 48px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    padding: 0 16px;
-    gap: 0;
-    z-index: 100;
-}
-.nav-brand {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-right: 20px;
-    text-decoration: none;
-    cursor: pointer;
-}
-.nav-brand img { width: 24px; height: 24px; }
-.nav-brand-text {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-    white-space: nowrap;
-}
-.nav-brand-text .vac { color: var(--teal); }
-.nav-brand-text .proto { color: var(--white); }
+/* ═══ TOP BAR: Protocol identity ═══ */
+.topbar{height:48px;min-height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;z-index:100}
+.topbar-brand{display:flex;align-items:center;gap:8px;text-decoration:none;cursor:pointer}
+.topbar-brand img{width:24px;height:24px}
+.topbar-brand-text{font-family:var(--mono);font-size:13px;font-weight:800;letter-spacing:1.5px}
+.topbar-brand-text .v{color:var(--teal)}.topbar-brand-text .p{color:var(--white)}
+.topbar-user{margin-left:auto;text-align:right;font-family:var(--mono);font-size:10px}
+.topbar-email{color:var(--gray)}
+.topbar-status{font-size:9px;letter-spacing:1px;font-weight:700}
+.topbar-status.verified{color:var(--emerald)}.topbar-status.auth{color:var(--teal)}.topbar-status.none{color:var(--muted)}
 
-.nav-tabs { display: flex; height: 100%; gap: 0; }
-
-.nav-tab {
-    font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.5px;
-    color: var(--muted);
-    padding: 0 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s;
-    text-decoration: none;
-    height: 100%;
-    white-space: nowrap;
-    user-select: none;
-}
-.nav-tab:hover { color: var(--gray); }
-.nav-tab.active { color: var(--teal); border-bottom-color: var(--teal); }
-
-.nav-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.nav-user {
-    margin-left: auto;
-    text-align: right;
-    font-family: var(--mono);
-    font-size: 10px;
-    padding-right: 4px;
-}
-.nav-user-email { color: var(--gray); }
-.nav-user-status { font-size: 9px; letter-spacing: 1px; font-weight: 700; }
-.nav-user-status.verified { color: var(--emerald); }
-.nav-user-status.authenticated { color: var(--teal); }
-.nav-user-status.none { color: var(--muted); }
+/* ═══ NAV: Protocol + Apps ═══ */
+.nav{height:40px;min-height:40px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:0;overflow-x:auto}
+.nav-section{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:2px;padding:0 12px 0 4px;white-space:nowrap;flex-shrink:0}
+.nav-divider{width:1px;height:24px;background:var(--border);margin:0 4px;flex-shrink:0}
+.nav-tab{font-family:var(--mono);font-size:10px;letter-spacing:0.5px;color:var(--muted);padding:0 12px;display:flex;align-items:center;gap:5px;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;text-decoration:none;height:100%;white-space:nowrap;user-select:none;flex-shrink:0}
+.nav-tab:hover{color:var(--gray)}
+.nav-tab.active{color:var(--teal);border-bottom-color:var(--teal)}
+.nav-tab .dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.nav-tab .badge{font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(45,212,191,0.1);color:var(--teal);border:1px solid rgba(45,212,191,0.2);margin-left:4px}
 
 /* ═══ CONTENT ═══ */
-.content {
-    flex: 1;
-    overflow: hidden;
-}
-.content iframe {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background: var(--bg);
-}
+.content{flex:1;overflow:hidden}
+.content iframe{width:100%;height:100%;border:none;background:var(--bg)}
 </style>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
 
+<!-- TOP BAR: Protocol identity -->
+<div class="topbar">
+<a class="topbar-brand" onclick="goTab('dashboard')">
+<img src="/branding/vac-logo-icon-dark.png" onerror="this.style.display='none'">
+<div class="topbar-brand-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></div>
+</a>
+<div class="topbar-user">
+<div class="topbar-email" id="userEmail"></div>
+<div class="topbar-status none" id="userStatus">NOT VERIFIED</div>
+</div>
+</div>
+
+<!-- NAV: Protocol layer + Application layer -->
 <nav class="nav">
-    <a class="nav-brand" onclick="goTab('verify')">
-        <img src="/branding/vac-logo-icon-dark.png" onerror="this.style.display='none'">
-        <div class="nav-brand-text"><span class="vac">VAC</span> <span class="proto">PROTOCOL</span></div>
-    </a>
-    <div class="nav-tabs">
-        <a class="nav-tab active" data-tab="dashboard" onclick="goTab('dashboard')">
-            <div class="nav-dot" style="background:var(--teal)"></div>Dashboard
-        </a>
-        <a class="nav-tab" data-tab="verify" onclick="goTab('verify')">
-            <div class="nav-dot" style="background:var(--emerald)"></div>Verify
-        </a>
-        <a class="nav-tab" data-tab="agents" onclick="goTab('agents')">
-            <div class="nav-dot" style="background:var(--purple)"></div>Agents
-        </a>
-        <a class="nav-tab" data-tab="governance" onclick="goTab('governance')">
-            <div class="nav-dot" style="background:var(--emerald)"></div>Governance
-        </a>
-        <a class="nav-tab" data-tab="admin" onclick="goTab('admin')">
-            <div class="nav-dot" style="background:var(--coral)"></div>Admin
-        </a>
-    </div>
-    <div class="nav-user">
-        <div class="nav-user-email" id="userEmail"></div>
-        <div class="nav-user-status none" id="userStatus">NOT VERIFIED</div>
-    </div>
+<!-- PROTOCOL -->
+<div class="nav-section">PROTOCOL</div>
+<a class="nav-tab active" data-tab="dashboard" onclick="goTab('dashboard')">
+<div class="dot" style="background:var(--teal)"></div>Dashboard
+</a>
+<a class="nav-tab" data-tab="verify" onclick="goTab('verify')">
+<div class="dot" style="background:var(--emerald)"></div>Verify
+</a>
+<a class="nav-tab" data-tab="sdk" onclick="goTab('sdk')">
+<div class="dot" style="background:var(--purple)"></div>SDK
+</a>
+
+<div class="nav-divider"></div>
+
+<!-- APPS -->
+<div class="nav-section">APPS</div>
+<a class="nav-tab" data-tab="agents" onclick="goTab('agents')">
+<div class="dot" style="background:var(--purple)"></div>Agent Control<span class="badge">VAC</span>
+</a>
+<a class="nav-tab" data-tab="messaging" onclick="goTab('messaging')">
+<div class="dot" style="background:var(--amber)"></div>Biometric Messaging<span class="badge">VAC</span>
+</a>
+<a class="nav-tab" data-tab="governance" onclick="goTab('governance')">
+<div class="dot" style="background:var(--emerald)"></div>Governance<span class="badge">VAC</span>
+</a>
+<a class="nav-tab" data-tab="keyvault" onclick="goTab('keyvault')">
+<div class="dot" style="background:var(--amber)"></div>Key Vault<span class="badge">VAC</span>
+</a>
+
+<div class="nav-divider"></div>
+
+<!-- ADMIN -->
+<a class="nav-tab" data-tab="admin" onclick="goTab('admin')">
+<div class="dot" style="background:var(--coral)"></div>Admin
+</a>
 </nav>
 
+<!-- CONTENT -->
 <div class="content">
-    <iframe id="appFrame" src="about:blank"></iframe>
+<iframe id="appFrame" src="about:blank"></iframe>
 </div>
 
 <script>
 const params = new URLSearchParams(window.location.search);
 const email = params.get('email') || '';
+const e = encodeURIComponent(email);
+
 const tabs = {
-    dashboard: '/dashboard' + (email ? '?email=' + encodeURIComponent(email) : ''),
-    verify: '/auth' + (email ? '?email=' + encodeURIComponent(email) : ''),
-    agents: '/agents' + (email ? '?email=' + encodeURIComponent(email) : ''),
-    governance: '/groups' + (email ? '?email=' + encodeURIComponent(email) : ''),
+    // Protocol layer
+    dashboard: '/dashboard' + (email ? '?email=' + e : ''),
+    verify: '/auth' + (email ? '?email=' + e : ''),
+    sdk: '/sdk',
+    // Application layer (Powered by VAC)
+    agents: '/agents' + (email ? '?email=' + e : ''),
+    messaging: '/msg' + (email ? '?from=' + e : ''),
+    governance: '/groups' + (email ? '?email=' + e : ''),
+    keyvault: '/keyvault' + (email ? '?email=' + e : ''),
+    // Admin
     admin: '/admin'
 };
 
 // Set user display
-if (email) {
-    document.getElementById('userEmail').textContent = email;
-}
+if (email) document.getElementById('userEmail').textContent = email;
 
 // Check verification status
 if (email) {
-    fetch('https://vac-system-production.up.railway.app/v1/user/' + encodeURIComponent(email))
+    fetch('https://vac-system-production.up.railway.app/v1/user/' + e)
     .then(r => r.json())
     .then(d => {
         const user = d.user || d;
         const status = document.getElementById('userStatus');
         if (user && user.trust_score > 0) {
             status.textContent = 'VERIFIED ROOT';
-            status.className = 'nav-user-status verified';
+            status.className = 'topbar-status verified';
         } else if (user && user.name) {
             status.textContent = 'AUTHENTICATED';
-            status.className = 'nav-user-status authenticated';
+            status.className = 'topbar-status auth';
         }
     })
     .catch(() => {});
 }
 
 function goTab(tab) {
-    // Update active tab
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-    
-    // Load page in iframe
+    const tabEl = document.querySelector(`[data-tab="${tab}"]`);
+    if (tabEl) tabEl.classList.add('active');
     const frame = document.getElementById('appFrame');
     const url = tabs[tab];
-    if (frame.src !== window.location.origin + url) {
+    if (url && frame.src !== window.location.origin + url) {
         frame.src = url;
     }
-    
-    // Update hash
     window.location.hash = tab;
 }
 
@@ -198,25 +152,19 @@ window.addEventListener('message', (e) => {
     if (e.data?.type === 'vac-auth-success') {
         const status = document.getElementById('userStatus');
         const emailEl = document.getElementById('userEmail');
-        if (status) { status.textContent = 'AUTHENTICATED'; status.className = 'nav-user-status authenticated'; }
-        if (emailEl && e.data.email) { emailEl.textContent = e.data.email; }
+        if (status) { status.textContent = 'AUTHENTICATED'; status.className = 'topbar-status auth'; }
+        if (emailEl && e.data.email) emailEl.textContent = e.data.email;
     }
-    if (e.data?.type === 'vac-go-tab' && e.data.tab) {
-        goTab(e.data.tab);
-    }
+    if (e.data?.type === 'vac-go-tab' && e.data.tab) goTab(e.data.tab);
     if (e.data?.type === 'vac-verified') {
         const status = document.getElementById('userStatus');
-        if (status) { status.textContent = 'VERIFIED ROOT'; status.className = 'nav-user-status verified'; }
+        if (status) { status.textContent = 'VERIFIED ROOT'; status.className = 'topbar-status verified'; }
     }
 });
 
-// Load initial tab from hash or default to verify
+// Load initial tab
 const initTab = window.location.hash.replace('#', '') || 'dashboard';
-if (tabs[initTab]) {
-    goTab(initTab);
-} else {
-    goTab('verify');
-}
+goTab(tabs[initTab] ? initTab : 'dashboard');
 </script>
 
 </body>

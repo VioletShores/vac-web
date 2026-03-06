@@ -1,6 +1,10 @@
 {
     "rewrites": [
         {
+            "source": "/keyvault",
+            "destination": "/keyvault.html"
+        },
+        {
             "source": "/roadmap",
             "destination": "/roadmap.html"
         },

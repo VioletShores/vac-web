@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bitcoin Key Vault — Powered by VAC Protocol</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--btc:#F7931A;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px}
+.nav img{width:24px;height:24px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-badge{font-family:var(--mono);font-size:8px;padding:3px 8px;border-radius:4px;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,0.08);margin-left:8px;letter-spacing:1px}
+.page{max-width:700px;margin:0 auto;padding:32px 20px 80px}
+.hero{text-align:center;margin-bottom:32px}
+.hero-icon{font-size:48px;margin-bottom:12px}
+.hero-title{font-size:28px;font-weight:700;margin-bottom:8px}
+.hero-sub{font-size:14px;color:var(--gray);max-width:500px;margin:0 auto;line-height:1.6}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px}
+.card-title{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--muted);letter-spacing:2px;margin-bottom:14px}
+.key-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;display:flex;align-items:center;gap:14px}
+.key-icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:rgba(247,147,26,0.1);border:1px solid rgba(247,147,26,0.2)}
+.key-name{font-size:14px;font-weight:600}
+.key-detail{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.key-balance{margin-left:auto;text-align:right}
+.key-amount{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--btc)}
+.key-usd{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.key-actions{display:flex;gap:8px;margin-top:12px}
+.btn{padding:10px 16px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--gray);font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;text-align:center}
+.btn:hover{border-color:var(--teal);color:var(--teal)}
+.btn-primary{background:var(--btc);color:var(--bg);border-color:var(--btc)}
+.btn-primary:hover{background:#e8861a}
+.lock-status{display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:8px;margin-bottom:16px}
+.lock-status.locked{background:rgba(249,97,103,0.08);border:1px solid rgba(249,97,103,0.2)}
+.lock-status.unlocked{background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2)}
+.lock-dot{width:10px;height:10px;border-radius:50%}
+.lock-dot.locked{background:var(--coral)}
+.lock-dot.unlocked{background:var(--emerald)}
+.lock-text{font-family:var(--mono);font-size:12px;font-weight:600}
+.lock-text.locked{color:var(--coral)}.lock-text.unlocked{color:var(--emerald)}
+.lock-sub{font-size:11px;color:var(--muted);margin-left:auto}
+.auth-required{text-align:center;padding:40px 20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:16px}
+.auth-required-title{font-family:var(--mono);font-size:14px;color:var(--coral);margin-bottom:8px;letter-spacing:1px}
+.auth-required-sub{font-size:13px;color:var(--gray);margin-bottom:16px}
+.chain-badge{font-family:var(--mono);font-size:10px;color:var(--teal);padding:4px 10px;border:1px solid rgba(45,212,191,0.2);border-radius:4px;background:rgba(45,212,191,0.05);display:inline-block;margin-top:12px}
+.provenance{font-family:var(--mono);font-size:10px;color:var(--muted);padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-top:12px;line-height:1.8}
+.provenance .k{color:var(--purple)}.provenance .v{color:var(--teal)}.provenance .t{color:var(--gray)}
+.footer{text-align:center;padding:24px;font-size:10px;color:var(--muted);font-family:var(--mono)}
+.footer a{color:var(--teal);text-decoration:none}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+<img src="/branding/vac-logo-icon-dark.png" onerror="this.style.display='none'">
+<div class="nav-text" style="color:var(--btc)">₿ KEY VAULT</div>
+<div class="nav-badge">Powered by VAC</div>
+</nav>
+
+<div class="page">
+<div class="hero">
+<div class="hero-icon">🔐</div>
+<div class="hero-title">Bitcoin Key Vault</div>
+<div class="hero-sub">Your private keys, protected by biometric verification. Every access cryptographically linked to a verified human. No access without your face, voice, and challenge response.</div>
+</div>
+
+<!-- Lock Status -->
+<div id="lockStatus">
+<div class="lock-status locked">
+<div class="lock-dot locked"></div>
+<div class="lock-text locked">VAULT LOCKED</div>
+<div class="lock-sub">Biometric verification required to access keys</div>
+</div>
+</div>
+
+<!-- Auth Gate -->
+<div id="authGate">
+<div class="auth-required">
+<div class="auth-required-title">BIOMETRIC VERIFICATION REQUIRED</div>
+<div class="auth-required-sub">Your Bitcoin keys are protected by VAC Protocol's 6-modality biometric verification. Verify your identity to unlock the vault.</div>
+<a href="/auth" class="btn btn-primary" style="display:inline-block;text-decoration:none;padding:14px 32px;font-size:13px;">Verify Identity to Unlock →</a>
+<div class="chain-badge">Claims 1-15: Biometric identity binding</div>
+</div>
+</div>
+
+<!-- Vault Content (hidden until verified) -->
+<div id="vaultContent" style="display:none">
+
+<div class="lock-status unlocked">
+<div class="lock-dot unlocked"></div>
+<div class="lock-text unlocked">VAULT UNLOCKED</div>
+<div class="lock-sub" id="unlockTimer">Expires in 30:00</div>
+</div>
+
+<div class="card">
+<div class="card-title">YOUR KEYS</div>
+
+<div class="key-card">
+<div class="key-icon">₿</div>
+<div>
+<div class="key-name">Bitcoin Wallet (Primary)</div>
+<div class="key-detail">bc1q...7f2k · Created 15 Jan 2026</div>
+</div>
+<div class="key-balance">
+<div class="key-amount">0.4821 BTC</div>
+<div class="key-usd">≈ $42,150 USD</div>
+</div>
+</div>
+
+<div class="key-card">
+<div class="key-icon" style="background:rgba(124,58,237,0.1);border-color:rgba(124,58,237,0.2)">⚡</div>
+<div>
+<div class="key-name">Lightning Channel</div>
+<div class="key-detail">lnbc1...x9m3 · 2 active channels</div>
+</div>
+<div class="key-balance">
+<div class="key-amount" style="color:var(--purple)">850,000 sats</div>
+<div class="key-usd">≈ $743 USD</div>
+</div>
+</div>
+
+<div class="key-card">
+<div class="key-icon" style="background:rgba(16,185,129,0.1);border-color:rgba(16,185,129,0.2)">🔑</div>
+<div>
+<div class="key-name">Recovery Seed (Encrypted)</div>
+<div class="key-detail">24 words · BIP39 · AES-256 encrypted</div>
+</div>
+<div class="key-balance">
+<div class="key-amount" style="color:var(--emerald);font-size:12px">ENCRYPTED</div>
+<div class="key-usd">Requires 2-of-3 multi-sig</div>
+</div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-title">KEY ACTIONS</div>
+<div class="key-actions" style="flex-wrap:wrap">
+<button class="btn" onclick="showAction('sign')">✍️ Sign Transaction</button>
+<button class="btn" onclick="showAction('export')">📤 Export Public Key</button>
+<button class="btn" onclick="showAction('recovery')">🔐 View Recovery Seed</button>
+<button class="btn" onclick="showAction('delegate')">🤝 Delegate Access</button>
+<button class="btn" style="border-color:var(--coral);color:var(--coral)" onclick="lockVault()">🔒 Lock Vault</button>
+</div>
+<div id="actionResult" style="margin-top:12px;display:none"></div>
+</div>
+
+<div class="card">
+<div class="card-title">ACCESS PROVENANCE</div>
+<div class="provenance">
+<span class="k">human:</span> <span class="v" id="provName">Robert Zagarella</span><br>
+<span class="k">verified_at:</span> <span class="t" id="provTime"></span><br>
+<span class="k">method:</span> <span class="v">6-modality biometric (face, voice, lip-sync, deepfake, challenge, finger)</span><br>
+<span class="k">trust_score:</span> <span class="v" id="provScore">0.82</span><br>
+<span class="k">vault_token:</span> <span class="v" id="provJTI">vat_root_...</span><br>
+<span class="k">access_scope:</span> <span class="v">view_keys, sign_transaction, export_pubkey</span><br>
+<span class="k">delegation:</span> <span class="v">monotonic_narrowing · cannot escalate</span>
+</div>
+<div class="chain-badge" style="margin-top:12px">Every key access traces back to a verified human · Claims 1-55</div>
+</div>
+
+<div class="card">
+<div class="card-title">RECOVERY GUARDIANS</div>
+<div style="font-size:13px;color:var(--gray);margin-bottom:12px">2-of-3 multi-signature recovery. Each guardian must biometrically verify before the seed is revealed.</div>
+<div class="key-card">
+<div class="key-icon" style="background:rgba(45,212,191,0.1);border-color:rgba(45,212,191,0.2)">R</div>
+<div><div class="key-name">Rob Zagarella (You)</div><div class="key-detail">Primary holder · Signer 1 of 3</div></div>
+</div>
+<div class="key-card">
+<div class="key-icon" style="background:rgba(124,58,237,0.1);border-color:rgba(124,58,237,0.2)">S</div>
+<div><div class="key-name">Sam Zagarella</div><div class="key-detail">Family guardian · Signer 2 of 3</div></div>
+</div>
+<div class="key-card">
+<div class="key-icon" style="background:rgba(107,114,128,0.1);border-color:rgba(107,114,128,0.2)">?</div>
+<div><div class="key-name">Invite Third Guardian</div><div class="key-detail">Requires VAC verification · Vouch required</div></div>
+</div>
+<div class="chain-badge" style="margin-top:12px">Group governance for key recovery · Claims 168-241</div>
+</div>
+
+</div>
+
+<div class="footer">
+<a href="/">vacprotocol.org</a> · Bitcoin Key Vault is powered by <a href="/sdk">VAC Protocol SDK</a><br>
+Patent Pending · 285+ Claims
+</div>
+</div>
+
+<script>
+const API = 'https://vac-system-production.up.railway.app';
+const params = new URLSearchParams(window.location.search);
+const email = params.get('email') || '';
+
+// Check if user is verified
+async function checkAuth() {
+    if (!email) return;
+    try {
+        const resp = await fetch(API + '/v1/user/' + encodeURIComponent(email));
+        const data = await resp.json();
+        const user = data.user || data;
+        if (user && user.trust_score > 0.5) {
+            unlockVault(user);
+        }
+    } catch(e) {}
+}
+
+function unlockVault(user) {
+    document.getElementById('authGate').style.display = 'none';
+    document.getElementById('lockStatus').innerHTML = '';
+    document.getElementById('vaultContent').style.display = 'block';
+    document.getElementById('provName').textContent = user.name || email;
+    document.getElementById('provScore').textContent = (user.trust_score || 0).toFixed(2);
+    document.getElementById('provJTI').textContent = user.current_jti || 'vat_root_...';
+    document.getElementById('provTime').textContent = new Date().toISOString();
+    
+    // Countdown timer (30 min vault session)
+    let remaining = 30 * 60;
+    const timer = setInterval(() => {
+        remaining--;
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        document.getElementById('unlockTimer').textContent = 'Expires in ' + m + ':' + String(s).padStart(2, '0');
+        if (remaining <= 0) { clearInterval(timer); lockVault(); }
+    }, 1000);
+}
+
+function lockVault() {
+    document.getElementById('vaultContent').style.display = 'none';
+    document.getElementById('authGate').style.display = 'block';
+    document.getElementById('lockStatus').innerHTML = '<div class="lock-status locked"><div class="lock-dot locked"></div><div class="lock-text locked">VAULT LOCKED</div><div class="lock-sub">Biometric verification required to access keys</div></div>';
+    document.getElementById('actionResult').style.display = 'none';
+}
+
+function showAction(type) {
+    const el = document.getElementById('actionResult');
+    el.style.display = 'block';
+    if (type === 'sign') {
+        el.innerHTML = '<div class="card" style="border-color:var(--btc);margin:0"><div class="card-title" style="color:var(--btc)">SIGN TRANSACTION</div><div style="font-size:13px;color:var(--gray)">Ready to sign. Every signature is cryptographically linked to your biometric verification via VAC authority chain.</div><div style="margin-top:12px"><input placeholder="Recipient address (bc1q...)" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:var(--mono);font-size:12px;margin-bottom:8px"><input placeholder="Amount (BTC)" style="width:50%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:var(--mono);font-size:12px"><button class="btn btn-primary" style="margin-left:8px">Sign & Broadcast</button></div></div>';
+    } else if (type === 'export') {
+        el.innerHTML = '<div class="card" style="border-color:var(--purple);margin:0"><div class="card-title" style="color:var(--purple)">PUBLIC KEY EXPORTED</div><div style="font-family:var(--mono);font-size:11px;color:var(--gray);word-break:break-all;padding:10px;background:var(--bg);border-radius:6px">xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz</div></div>';
+    } else if (type === 'recovery') {
+        el.innerHTML = '<div class="card" style="border-color:var(--coral);margin:0"><div class="card-title" style="color:var(--coral)">MULTI-SIG REQUIRED</div><div style="font-size:13px;color:var(--gray)">Recovery seed requires 2-of-3 guardian verification. Sam Zagarella must also biometrically verify via VAC Protocol before the seed is revealed.</div><div style="margin-top:8px"><button class="btn" style="border-color:var(--teal);color:var(--teal)">Request Guardian Verification →</button></div></div>';
+    } else if (type === 'delegate') {
+        el.innerHTML = '<div class="card" style="border-color:var(--teal);margin:0"><div class="card-title" style="color:var(--teal)">DELEGATE ACCESS</div><div style="font-size:13px;color:var(--gray)">Create a scoped delegation token for another verified human. Permissions can only narrow — they can never access more than you grant.</div><div style="margin-top:12px"><input placeholder="Delegate email" style="width:100%;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:var(--mono);font-size:12px;margin-bottom:8px"><select style="padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:var(--mono);font-size:12px"><option>View balance only</option><option>View + sign (max 0.01 BTC)</option><option>Full access (24hr)</option></select><button class="btn" style="margin-left:8px;border-color:var(--teal);color:var(--teal)">Create Delegation</button></div><div class="chain-badge" style="margin-top:8px">Monotonic narrowing · delegate can never exceed your scope</div></div>';
+    }
+}
+
+checkAuth();
+</script>
+
+</body>
+</html>
