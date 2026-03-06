@@ -108,7 +108,7 @@ Apps <span class="badge">4</span> <span class="arrow">▾</span>
 <div class="vac-badge">VAC</div>
 </a>
 <div style="border-top:1px solid var(--border);margin:6px 0"></div>
-<a class="apps-item" style="opacity:0.5;cursor:default">
+<a class="apps-item" href="/sdk" target="_blank">
 <div class="icon" style="background:rgba(107,114,128,0.1)">+</div>
 <div><div class="name" style="color:var(--muted)">Build Your Own</div><div class="desc">vacprotocol.org/sdk</div></div>
 </a>
@@ -135,7 +135,7 @@ const tabs = {
     dashboard: '/dashboard' + (email ? '?email=' + e : ''),
     verify: '/auth' + (email ? '?email=' + e : ''),
     agents: '/agents' + (email ? '?email=' + e : ''),
-    messaging: '/msg?compose=true' + (email ? '&from=' + e : ''),
+    messaging: '/msg' + (email ? '?from=' + e : ''),
     governance: '/groups' + (email ? '?email=' + e : ''),
     keyvault: '/keyvault' + (email ? '?email=' + e : ''),
     admin: '/admin'
