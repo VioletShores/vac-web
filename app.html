@@ -134,10 +134,11 @@ const params = new URLSearchParams(window.location.search);
 const email = params.get('email') || '';
 const e = encodeURIComponent(email);
 
+const v = Date.now(); // Cache bust for iframes
 const tabs = {
-    dashboard: '/dashboard' + (email ? '?email=' + e : ''),
+    dashboard: '/dashboard' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
     trust: '/trust' + (email ? '?email=' + e : ''),
-    verify: '/auth' + (email ? '?email=' + e : ''),
+    verify: '/auth' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
     agents: '/agents' + (email ? '?email=' + e : ''),
     messaging: '/msg' + (email ? '?from=' + e : ''),
     governance: '/groups' + (email ? '?email=' + e : ''),
