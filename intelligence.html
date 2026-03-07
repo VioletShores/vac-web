@@ -100,7 +100,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
 <body>
     <nav class="nav">
         <div class="nav-inner">
-            <a class="nav-brand" href="/app.html">◈ Athena<span>LLM Trust Graph</span></a>
+            <a class="nav-brand" href="/app.html">◈ Athena<span>Trust Map</span></a>
             <span class="nav-badge">SignalRank</span>
         </div>
     </nav>
@@ -110,8 +110,8 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
         <div class="graph-card">
             <div class="graph-header">
                 <div>
-                    <div class="graph-title">Model Trust Topology</div>
-                    <div class="graph-subtitle" id="graphSubtitle">Loading trust graph...</div>
+                    <div class="graph-title">LLM Trust Map</div>
+                    <div class="graph-subtitle" id="graphSubtitle">Loading trust data...</div>
                 </div>
                 <div class="legend" id="legend"></div>
             </div>
@@ -123,43 +123,71 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
 
         <!-- Sidebar -->
         <div class="sidebar">
+            <!-- What is this? -->
+            <div class="panel">
+                <div class="panel-header">What Is This?</div>
+                <div style="font-size:11px;color:var(--text-tertiary);line-height:1.7;">
+                    <p style="margin-bottom:8px;">This is a <strong style="color:var(--text-secondary);">trust map</strong> of AI models. When you ask a question on <a href="/compare" style="color:#C9A84C;text-decoration:none;">SignalRank Live</a>, Athena sends it to every available model simultaneously.</p>
+                    <p style="margin-bottom:8px;">Some models agree. Some disagree. Some refuse to answer entirely. This graph visualises those relationships — so you can see at a glance which models trust each other and which diverge.</p>
+                    <p>The more queries you run, the more accurate this map becomes. It's personalised to your usage.</p>
+                </div>
+            </div>
+
             <!-- Selected model detail -->
             <div class="panel panel-gold" id="detailPanel">
                 <div class="panel-header">◈ Model Detail</div>
                 <div id="detailContent" style="color:var(--text-dim);font-size:12px;">
-                    Hover or click a model node to see its trust profile, restriction map, and performance data.
+                    Click any model circle to see its full trust profile, restriction map, and performance data.
                 </div>
             </div>
 
             <!-- How to read -->
             <div class="panel">
-                <div class="panel-header">How to Read This Graph</div>
+                <div class="panel-header">How to Read the Graph</div>
                 <div style="font-size:11px;color:var(--text-tertiary);line-height:1.7;">
-                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#CC7852;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Circles</strong> = AI models. Larger = more trusted.</div>
-                    <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Number</strong> = SignalRank trust score (0–100).</div>
-                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:2px;background:#3FB950;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#3FB950;">Solid line</strong> = models agreed on answers.</div>
-                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:0;border-top:2px dashed #F85149;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#F85149;">Dashed line</strong> = models disagreed.</div>
-                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px dashed #F85149;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Dashed circle</strong> = high hallucination rate.</div>
-                    <div><strong style="color:var(--text-secondary);">Click</strong> any model to see its full trust profile.</div>
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#CC7852;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Circles</strong> = AI models. Larger circle = more trusted overall.</div>
+                    <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Number inside</strong> = Trust score out of 100, calculated from reliability, honesty, transparency, independence, and hallucination rate.</div>
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:2px;background:#3FB950;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#3FB950;">Solid green line</strong> = these two models gave similar answers. They agree.</div>
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:0;border-top:2px dashed #F85149;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#F85149;">Dashed red line</strong> = these two models gave substantially different answers. They disagree.</div>
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px dashed #F85149;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Red dashed circle</strong> = this model has a high hallucination rate (often states incorrect things as fact).</div>
+                    <div style="margin-bottom:6px;"><strong style="color:var(--text-secondary);">Models close together</strong> = they tend to agree. Models far apart = they tend to diverge.</div>
+                    <div><strong style="color:var(--text-secondary);">Click</strong> any model to see its full trust breakdown in the panel above.</div>
                 </div>
             </div>
 
             <!-- Graph stats -->
             <div class="panel">
                 <div class="panel-header">Graph Summary</div>
+                <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">These numbers update as you run more queries on SignalRank Live.</div>
                 <div id="graphStats">
                     <div class="stat-row"><span class="stat-key">Models</span><span class="stat-val" id="statModels">—</span></div>
-                    <div class="stat-row"><span class="stat-key">Edges</span><span class="stat-val" id="statEdges">—</span></div>
+                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">AI models being tracked (Claude, GPT, Grok, Gemini, etc.)</div>
+                    <div class="stat-row"><span class="stat-key">Connections</span><span class="stat-val" id="statEdges">—</span></div>
+                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">Agreement or disagreement relationships between model pairs, based on real query comparisons.</div>
                     <div class="stat-row"><span class="stat-key">Data Points</span><span class="stat-val" id="statDataPoints">—</span></div>
-                    <div class="stat-row"><span class="stat-key">Restriction Detections</span><span class="stat-val" id="statRails">—</span></div>
+                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">Total model responses analysed across all queries you've run.</div>
+                    <div class="stat-row"><span class="stat-key">Restrictions Detected</span><span class="stat-val" id="statRails">—</span></div>
+                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">Times a model refused or heavily caveated a response. Tracked per topic category.</div>
                 </div>
             </div>
 
             <!-- Rail map overview -->
             <div class="panel" id="railPanel">
                 <div class="panel-header">Restriction Map</div>
+                <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">
+                    When a model declines to answer or heavily hedges, Athena classifies the topic and tracks it here. This builds a map of which models restrict which subjects.
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px;">
+                    <strong style="color:var(--text-tertiary);">Topic categories:</strong><br>
+                    <span style="color:#C9A84C;">political</span> — elections, policy, political opinion<br>
+                    <span style="color:#C9A84C;">financial</span> — investment advice, stock/crypto picks<br>
+                    <span style="color:#C9A84C;">medical</span> — treatment recommendations, drug efficacy<br>
+                    <span style="color:#C9A84C;">conspiracy</span> — contested events, conspiracy theories<br>
+                    <span style="color:#C9A84C;">personal_opinion</span> — requests for the model's own opinion<br>
+                    <span style="color:#C9A84C;">unclassified</span> — restriction detected but topic not yet categorised
+                </div>
                 <div id="railContent" style="font-size:11px;color:var(--text-dim);">
-                    Loading rail detections...
+                    Loading restriction data...
                 </div>
             </div>
         </div>
