@@ -82,6 +82,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 .model-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
 .model-status { margin-left: auto; font-family: var(--mono); font-size: 9px; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.5px; }
 .status-ok { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.status-truncated { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(210,153,34,0.2); }
 .status-refused { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
 .status-soft { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(210,153,34,0.2); }
 .status-error { background: rgba(107,114,128,0.1); color: #6B7280; border: 1px solid rgba(107,114,128,0.2); }
@@ -403,8 +404,9 @@ function renderSingleCard(r, cardIds) {
     const isSoft = r.refusal_type === 'soft_refusal';
     const isError = r.status === 'error';
 
-    const statusClass = isError ? 'status-error' : isRefused ? 'status-refused' : isSoft ? 'status-soft' : 'status-ok';
-    const statusText = isError ? 'ERROR' : isRefused ? 'REFUSED' : isSoft ? 'HEDGED' : 'ANSWERED';
+    const isTruncated = !isError && !isRefused && r.content && r.content.length > 20 && !/[.!?)\]"']$/.test(r.content.trim());
+    const statusClass = isError ? 'status-error' : isRefused ? 'status-refused' : isSoft ? 'status-soft' : isTruncated ? 'status-truncated' : 'status-ok';
+    const statusText = isError ? 'ERROR' : isRefused ? 'REFUSED' : isSoft ? 'HEDGED' : isTruncated ? 'TRUNCATED' : 'ANSWERED';
     const cardClass = isRefused ? 'refused' : isSoft ? 'soft-refused' : '';
     const cardId = `hood-${r.provider}-${r.model_id}`.replace(/[^a-z0-9-]/gi, '-');
     cardIds.push({ id: cardId, provider: r.provider, model_id: r.model_id, status: statusText });
@@ -476,7 +478,8 @@ function renderResults(data) {
         const isError = r.status === 'error';
 
         const statusClass = isError ? 'status-error' : isRefused ? 'status-refused' : isSoft ? 'status-soft' : 'status-ok';
-        const statusText = isError ? 'ERROR' : isRefused ? 'REFUSED' : isSoft ? 'HEDGED' : 'ANSWERED';
+        const isTruncatedFb = !isError && !isRefused && r.content && r.content.length > 20 && !/[.!?)\]"']$/.test(r.content.trim());
+        const statusText = isError ? 'ERROR' : isRefused ? 'REFUSED' : isSoft ? 'HEDGED' : isTruncatedFb ? 'TRUNCATED' : 'ANSWERED';
         const cardClass = isRefused ? 'refused' : isSoft ? 'soft-refused' : '';
         const cardId = `hood-${r.provider}-${r.model_id}`.replace(/[^a-z0-9-]/gi, '-');
         cardIds.push({ id: cardId, provider: r.provider, model_id: r.model_id, status: statusText });
