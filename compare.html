@@ -110,6 +110,38 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 .color-openai { background: #74B984; }
 .color-google { background: #4285F4; }
 .color-xai { background: #E8E8E8; }
+
+/* Under the hood toggle */
+.hood-toggle { width: 100%; padding: 8px 14px; background: var(--surface-raised); border: none; border-top: 1px solid var(--border); color: var(--gold); font-family: var(--mono); font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.15s; letter-spacing: 0.5px; }
+.hood-toggle:hover { background: var(--gold-dim); }
+.hood-toggle .arrow { transition: transform 0.2s; }
+.hood-toggle.open .arrow { transform: rotate(180deg); }
+
+/* Under the hood panel */
+.hood-panel { display: none; padding: 12px 14px; background: var(--bg); border-top: 1px solid var(--border); }
+.hood-panel.open { display: block; animation: hood-in 0.25s ease; }
+@keyframes hood-in { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 400px; } }
+.hood-section { margin-bottom: 10px; }
+.hood-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 5px; }
+.hood-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.hood-bar-label { font-family: var(--mono); font-size: 9px; color: var(--text-3); width: 90px; flex-shrink: 0; }
+.hood-bar-track { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.hood-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+.hood-bar-value { font-family: var(--mono); font-size: 9px; color: var(--text); font-weight: 600; width: 30px; text-align: right; }
+.hood-tag { display: inline-block; font-family: var(--mono); font-size: 8px; padding: 2px 6px; border-radius: 3px; margin: 1px 2px; }
+.hood-tag-rail { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.hood-tag-clear { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.hood-score { font-family: var(--display); font-size: 28px; font-weight: 700; color: var(--gold); line-height: 1; }
+.hood-score-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); margin-top: 2px; }
+
+/* Engine analysis panel */
+.engine-card { background: var(--surface); border: 1px solid var(--gold-border); border-radius: 10px; padding: 16px; margin-bottom: 16px; display: none; }
+.engine-card.active { display: block; }
+.engine-header { font-family: var(--mono); font-size: 10px; color: var(--gold); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+.engine-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.engine-item { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.engine-item-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 0.5px; margin-bottom: 4px; }
+.engine-item-value { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--text); }
 </style>
 </head>
 <body>
@@ -166,6 +198,12 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
         <div class="consensus-title" id="consensusTitle">—</div>
         <div class="consensus-detail" id="consensusDetail">—</div>
         <div class="consensus-bar"><div class="consensus-fill" id="consensusFill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Engine Analysis (Under the Hood) -->
+    <div class="engine-card" id="engineCard">
+        <div class="engine-header">◈ SignalRank Engine Analysis</div>
+        <div class="engine-grid" id="engineGrid"></div>
     </div>
 
     <!-- Summary -->
@@ -261,6 +299,7 @@ function renderResults(data) {
         return (order[a.status] || 3) - (order[b.status] || 3);
     });
 
+    const cardIds = [];
     for (const r of sorted) {
         const color = PROVIDER_COLORS[r.provider] || '#888';
         const isRefused = r.refused || r.status === 'refused';
@@ -270,6 +309,8 @@ function renderResults(data) {
         const statusClass = isError ? 'status-error' : isRefused ? 'status-refused' : isSoft ? 'status-soft' : 'status-ok';
         const statusText = isError ? 'ERROR' : isRefused ? 'REFUSED' : isSoft ? 'HEDGED' : 'ANSWERED';
         const cardClass = isRefused ? 'refused' : isSoft ? 'soft-refused' : '';
+        const cardId = `hood-${r.provider}-${r.model_id}`.replace(/[^a-z0-9-]/gi, '-');
+        cardIds.push({ id: cardId, provider: r.provider, model_id: r.model_id, status: statusText });
 
         const card = document.createElement('div');
         card.className = `model-card ${cardClass}`;
@@ -286,6 +327,13 @@ function renderResults(data) {
                 <span class="model-stat"><strong>$${(r.cost_usd||0).toFixed(4)}</strong></span>
                 ${isRefused ? `<span class="model-stat" style="color:var(--red)">⚠ ${r.refusal_type?.replace('_',' ')}</span>` : ''}
             </div>
+            ${!isError ? `
+            <button class="hood-toggle" onclick="toggleHood('${cardId}', this)">
+                ◈ Under the Hood <span class="arrow">▾</span>
+            </button>
+            <div class="hood-panel" id="${cardId}">
+                <div style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--text-dim);">Loading trust profile...</div>
+            </div>` : ''}
         `;
         grid.appendChild(card);
     }
@@ -306,6 +354,9 @@ function renderResults(data) {
         fill.style.background = agreed ? 'var(--green)' : score > 0.15 ? 'var(--amber)' : 'var(--red)';
     }
 
+    // Engine analysis
+    renderEngineAnalysis(data, sorted);
+
     // Summary
     document.getElementById('summaryRow').style.display = 'flex';
     document.getElementById('statModels').textContent = data.models_compared;
@@ -313,6 +364,196 @@ function renderResults(data) {
     document.getElementById('statCost').textContent = `$${(data.total_cost_usd || 0).toFixed(4)}`;
     document.getElementById('statRefused').textContent = data.refused_count || 0;
     document.getElementById('statTrustGraph').textContent = '◈ Trust graph updated';
+
+    // Fetch trust profiles to populate under-the-hood panels
+    fetchTrustProfiles(cardIds, sorted);
+}
+
+function toggleHood(id, btn) {
+    const panel = document.getElementById(id);
+    const isOpen = panel.classList.contains('open');
+    panel.classList.toggle('open');
+    btn.classList.toggle('open');
+}
+
+async function fetchTrustProfiles(cardIds, results) {
+    const ATHENA_API = 'https://api.athenapilot.ai';
+    try {
+        const resp = await fetch(`${ATHENA_API}/v1/trust-graph/profiles`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const profiles = {};
+        for (const p of data.profiles || []) {
+            profiles[`${p.provider}/${p.model_id}`] = p;
+        }
+
+        // Also fetch rail map
+        let railMap = {};
+        try {
+            const railResp = await fetch(`${ATHENA_API}/v1/trust-graph/rails`);
+            if (railResp.ok) {
+                const railData = await railResp.json();
+                railMap = railData.models || {};
+            }
+        } catch(e) {}
+
+        // Populate each panel
+        for (const ci of cardIds) {
+            const panel = document.getElementById(ci.id);
+            if (!panel) continue;
+            const key = `${ci.provider}/${ci.model_id}`;
+            const profile = profiles[key];
+            const rails = railMap[key] || {};
+            const result = results.find(r => r.provider === ci.provider && r.model_id === ci.model_id);
+
+            if (profile) {
+                panel.innerHTML = renderHoodPanel(profile, rails, result, ci.status);
+            } else {
+                panel.innerHTML = `
+                    <div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);text-align:center;padding:8px;">
+                        No trust profile yet — run more comparisons to build this model's profile.
+                    </div>`;
+            }
+        }
+    } catch(e) {
+        console.log('Trust profile fetch failed:', e);
+    }
+}
+
+function renderHoodPanel(profile, rails, result, status) {
+    const dims = [
+        { key: 'reliability', label: 'Reliability', color: '#3FB950' },
+        { key: 'honesty', label: 'Honesty', color: '#2DD4BF' },
+        { key: 'restriction_transparency', label: 'Restriction Transparency', color: '#C9A84C' },
+        { key: 'independence', label: 'Independence', color: '#6C5CE7' },
+    ];
+
+    const hallRate = profile.hallucination_rate || 0;
+    const hallColor = hallRate > 0.3 ? '#F85149' : hallRate > 0.15 ? '#D29922' : '#3FB950';
+    const composite = profile.composite_trust || 0;
+
+    let html = `
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+            <div style="flex-shrink:0;text-align:center;">
+                <div class="hood-score">${Math.round(composite * 100)}</div>
+                <div class="hood-score-label">SignalRank</div>
+            </div>
+            <div style="flex:1;">
+                <div class="hood-section">
+                    <div class="hood-label">Trust Dimensions</div>`;
+
+    for (const dim of dims) {
+        const val = profile[dim.key] || 0;
+        html += `
+            <div class="hood-bar">
+                <span class="hood-bar-label">${dim.label}</span>
+                <div class="hood-bar-track"><div class="hood-bar-fill" style="width:${val*100}%;background:${dim.color}"></div></div>
+                <span class="hood-bar-value">${Math.round(val*100)}%</span>
+            </div>`;
+    }
+
+    // Hallucination bar (inverted — red is bad)
+    html += `
+            <div class="hood-bar">
+                <span class="hood-bar-label">Hallucination</span>
+                <div class="hood-bar-track"><div class="hood-bar-fill" style="width:${hallRate*100}%;background:${hallColor}"></div></div>
+                <span class="hood-bar-value" style="color:${hallColor}">${Math.round(hallRate*100)}%</span>
+            </div>`;
+
+    html += `</div>`; // close Trust Dimensions section
+
+    // Rail detection
+    const railKeys = Object.keys(rails);
+    html += `<div class="hood-section"><div class="hood-label">Restriction Map</div>`;
+    if (railKeys.length > 0) {
+        for (const cat of railKeys) {
+            html += `<span class="hood-tag hood-tag-rail">${cat} (${rails[cat]})</span>`;
+        }
+    } else {
+        html += `<span class="hood-tag hood-tag-clear">No restrictions detected</span>`;
+    }
+    html += `</div>`;
+
+    // This comparison stats
+    if (result && !result.error) {
+        html += `
+            <div class="hood-section">
+                <div class="hood-label">This Comparison</div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);">
+                    Response: ${result.time_ms}ms · ${((result.input_tokens||0)+(result.output_tokens||0))} tokens · $${(result.cost_usd||0).toFixed(4)}
+                    ${result.refusal_type !== 'genuine' ? ` · <span style="color:var(--red)">${result.refusal_type?.replace('_',' ')}</span>` : ''}
+                </div>
+            </div>`;
+    }
+
+    html += `<div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:6px;">${profile.data_points || 0} data points · Domain: ${profile.domain || 'general'}</div>`;
+
+    html += `</div></div>`; // close flex layout
+    return html;
+}
+
+function renderEngineAnalysis(data, results) {
+    const card = document.getElementById('engineCard');
+    const grid = document.getElementById('engineGrid');
+
+    const answered = results.filter(r => r.status === 'success');
+    const refused = results.filter(r => r.refused);
+    const errors = results.filter(r => r.status === 'error');
+    const fastestModel = answered.length ? answered.reduce((a, b) => (a.time_ms || 9999) < (b.time_ms || 9999) ? a : b) : null;
+    const cheapestModel = answered.length ? answered.reduce((a, b) => (a.cost_usd || 999) < (b.cost_usd || 999) ? a : b) : null;
+
+    if (answered.length === 0 && errors.length > 0) {
+        card.classList.remove('active');
+        return;
+    }
+
+    card.classList.add('active');
+    grid.innerHTML = `
+        <div class="engine-item">
+            <div class="engine-item-label">CONSENSUS</div>
+            <div class="engine-item-value" style="color:${data.consensus?.detected ? 'var(--green)' : 'var(--amber)'}">
+                ${data.consensus?.detected ? 'YES' : 'DIVERGENT'}
+            </div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
+                ${Math.round((data.consensus?.agreement_score || 0) * 100)}% similarity
+            </div>
+        </div>
+        <div class="engine-item">
+            <div class="engine-item-label">FASTEST MODEL</div>
+            <div class="engine-item-value">${fastestModel ? (PROVIDER_NAMES[fastestModel.provider] || fastestModel.provider) : '—'}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
+                ${fastestModel ? fastestModel.time_ms + 'ms' : ''}
+            </div>
+        </div>
+        <div class="engine-item">
+            <div class="engine-item-label">CHEAPEST</div>
+            <div class="engine-item-value">${cheapestModel ? (PROVIDER_NAMES[cheapestModel.provider] || cheapestModel.provider) : '—'}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
+                ${cheapestModel ? '$' + (cheapestModel.cost_usd || 0).toFixed(4) : ''}
+            </div>
+        </div>
+        <div class="engine-item">
+            <div class="engine-item-label">RAIL DETECTIONS</div>
+            <div class="engine-item-value">${refused.length}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
+                ${refused.length > 0 ? refused.map(r => PROVIDER_NAMES[r.provider] || r.provider).join(', ') : 'No restrictions triggered'}
+            </div>
+        </div>
+        <div class="engine-item">
+            <div class="engine-item-label">PROVIDERS ACTIVE</div>
+            <div class="engine-item-value">${answered.length} / ${data.models_compared}</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
+                ${errors.length > 0 ? errors.length + ' unavailable' : 'All responding'}
+            </div>
+        </div>
+        <div class="engine-item">
+            <div class="engine-item-label">TRUST GRAPH</div>
+            <div class="engine-item-value" style="color:var(--gold)">◈ Updated</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
+                Edges + profiles + rails updated
+            </div>
+        </div>
+    `;
 }
 
 function escapeHtml(text) {
