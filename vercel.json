@@ -61,6 +61,14 @@
             "destination": "/agents.html"
         },
         {
+            "source": "/intelligence",
+            "destination": "/intelligence.html"
+        },
+        {
+            "source": "/apikeys",
+            "destination": "/apikeys.html"
+        },
+        {
             "source": "/api",
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
