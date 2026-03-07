@@ -112,6 +112,12 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 .color-google { background: #4285F4; }
 .color-xai { background: #E8E8E8; }
 
+/* Info tooltip */
+.info-tip { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--border); color: var(--text-dim); font-family: var(--mono); font-size: 8px; font-weight: 700; cursor: help; margin-left: 4px; flex-shrink: 0; }
+.info-tip:hover { background: var(--gold-dim); color: var(--gold); }
+.info-tip .info-text { display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 6px; padding: 8px 10px; font-family: var(--body); font-size: 11px; font-weight: 400; color: var(--text-2); width: 220px; line-height: 1.5; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; text-align: left; }
+.info-tip:hover .info-text { display: block; }
+
 /* Under the hood toggle */
 .hood-toggle { width: 100%; padding: 8px 14px; background: var(--surface-raised); border: none; border-top: 1px solid var(--border); color: var(--gold); font-family: var(--mono); font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.15s; letter-spacing: 0.5px; }
 .hood-toggle:hover { background: var(--gold-dim); }
@@ -205,11 +211,6 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
     <div class="engine-card" id="engineCard">
         <div class="engine-header">◈ SignalRank Engine Analysis</div>
         <div class="engine-grid" id="engineGrid"></div>
-        <!-- Mini trust graph for this comparison -->
-        <div id="miniGraphContainer" style="margin-top:14px;display:none;">
-            <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">Model Relationship (This Comparison)</div>
-            <svg id="miniGraph" width="100%" height="180" style="background:var(--bg);border-radius:8px;border:1px solid var(--border);"></svg>
-        </div>
     </div>
 
     <!-- Summary -->
@@ -363,9 +364,6 @@ function renderResults(data) {
     // Engine analysis
     renderEngineAnalysis(data, sorted);
 
-    // Mini trust graph for this comparison
-    renderMiniGraph(sorted);
-
     // Summary
     document.getElementById('summaryRow').style.display = 'flex';
     document.getElementById('statModels').textContent = data.models_compared;
@@ -431,10 +429,10 @@ async function fetchTrustProfiles(cardIds, results) {
 
 function renderHoodPanel(profile, rails, result, status) {
     const dims = [
-        { key: 'reliability', label: 'Reliability', color: '#3FB950' },
-        { key: 'honesty', label: 'Honesty', color: '#2DD4BF' },
-        { key: 'restriction_transparency', label: 'Restriction Transparency', color: '#C9A84C' },
-        { key: 'independence', label: 'Independence', color: '#6C5CE7' },
+        { key: 'reliability', label: 'Reliability', color: '#3FB950', tip: 'Does this model give consistent answers when asked the same question multiple times? Higher = more predictable.' },
+        { key: 'honesty', label: 'Honesty', color: '#2DD4BF', tip: 'When this model can\'t answer, does it say so clearly? Or does it make something up? Higher = more transparent about limitations.' },
+        { key: 'restriction_transparency', label: 'Restriction Transparency', color: '#C9A84C', tip: 'When this model restricts a topic, how clearly does it communicate that? A model that says "I can\'t discuss this" is more transparent than one that quietly changes the subject.' },
+        { key: 'independence', label: 'Independence', color: '#6C5CE7', tip: 'Does this model think for itself or just echo safe talking points? Higher = more willing to provide original analysis.' },
     ];
 
     const hallRate = profile.hallucination_rate || 0;
@@ -445,7 +443,7 @@ function renderHoodPanel(profile, rails, result, status) {
         <div style="display:flex;gap:16px;align-items:flex-start;">
             <div style="flex-shrink:0;text-align:center;">
                 <div class="hood-score">${Math.round(composite * 100)}</div>
-                <div class="hood-score-label">SignalRank</div>
+                <div class="hood-score-label">SignalRank <span class="info-tip">i<span class="info-text">Trust score from 0–100 calculated from 5 dimensions: reliability, honesty, restriction transparency, independence, and hallucination rate. Scores update automatically as you run more queries. Higher = more trusted for this domain.</span></span></div>
             </div>
             <div style="flex:1;">
                 <div class="hood-section">
@@ -455,7 +453,7 @@ function renderHoodPanel(profile, rails, result, status) {
         const val = profile[dim.key] || 0;
         html += `
             <div class="hood-bar">
-                <span class="hood-bar-label">${dim.label}</span>
+                <span class="hood-bar-label">${dim.label} <span class="info-tip">i<span class="info-text">${dim.tip}</span></span></span>
                 <div class="hood-bar-track"><div class="hood-bar-fill" style="width:${val*100}%;background:${dim.color}"></div></div>
                 <span class="hood-bar-value">${Math.round(val*100)}%</span>
             </div>`;
@@ -464,19 +462,20 @@ function renderHoodPanel(profile, rails, result, status) {
     // Hallucination bar (inverted — red is bad)
     html += `
             <div class="hood-bar">
-                <span class="hood-bar-label">Hallucination</span>
+                <span class="hood-bar-label">Hallucination <span class="info-tip">i<span class="info-text">How often this model states incorrect information as fact. Measured by comparing answers across multiple models — when most models agree and this one diverges, it's likely hallucinating. Lower is better.</span></span></span>
                 <div class="hood-bar-track"><div class="hood-bar-fill" style="width:${hallRate*100}%;background:${hallColor}"></div></div>
                 <span class="hood-bar-value" style="color:${hallColor}">${Math.round(hallRate*100)}%</span>
             </div>`;
 
     html += `</div>`; // close Trust Dimensions section
 
-    // Rail detection
+    // Rail detection - fix "unknown" to "unclassified"
     const railKeys = Object.keys(rails);
-    html += `<div class="hood-section"><div class="hood-label">Restriction Map</div>`;
+    html += `<div class="hood-section"><div class="hood-label">Restriction Map <span class="info-tip">i<span class="info-text">Topics where this model has been detected refusing or heavily caveating its response. Athena maps these automatically from real queries. Models with fewer restrictions give more direct answers but may be less cautious.</span></span></div>`;
     if (railKeys.length > 0) {
         for (const cat of railKeys) {
-            html += `<span class="hood-tag hood-tag-rail">${cat} (${rails[cat]})</span>`;
+            const displayCat = cat === 'unknown' ? 'unclassified' : cat;
+            html += `<span class="hood-tag hood-tag-rail">${displayCat} (${rails[cat]})</span>`;
         }
     } else {
         html += `<span class="hood-tag hood-tag-clear">No restrictions detected</span>`;
@@ -487,7 +486,7 @@ function renderHoodPanel(profile, rails, result, status) {
     if (result && !result.error) {
         html += `
             <div class="hood-section">
-                <div class="hood-label">This Comparison</div>
+                <div class="hood-label">This Query</div>
                 <div style="font-family:var(--mono);font-size:10px;color:var(--text-3);">
                     Response: ${result.time_ms}ms · ${((result.input_tokens||0)+(result.output_tokens||0))} tokens · $${(result.cost_usd||0).toFixed(4)}
                     ${result.refusal_type !== 'genuine' ? ` · <span style="color:var(--red)">${result.refusal_type?.replace('_',' ')}</span>` : ''}
@@ -495,7 +494,7 @@ function renderHoodPanel(profile, rails, result, status) {
             </div>`;
     }
 
-    html += `<div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:6px;">${profile.data_points || 0} data points · Domain: ${profile.domain || 'general'}</div>`;
+    html += `<div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:6px;">${profile.data_points || 0} data points · Domain: ${profile.domain === 'unknown' ? 'general' : (profile.domain || 'general')}</div>`;
 
     html += `</div></div>`; // close flex layout
     return html;
@@ -508,10 +507,11 @@ function renderEngineAnalysis(data, results) {
     const answered = results.filter(r => r.status === 'success');
     const refused = results.filter(r => r.refused);
     const errors = results.filter(r => r.status === 'error');
+    const working = results.filter(r => r.status !== 'error');
     const fastestModel = answered.length ? answered.reduce((a, b) => (a.time_ms || 9999) < (b.time_ms || 9999) ? a : b) : null;
     const cheapestModel = answered.length ? answered.reduce((a, b) => (a.cost_usd || 999) < (b.cost_usd || 999) ? a : b) : null;
 
-    if (answered.length === 0 && errors.length > 0) {
+    if (answered.length === 0 && errors.length === data.models_compared) {
         card.classList.remove('active');
         return;
     }
@@ -519,7 +519,7 @@ function renderEngineAnalysis(data, results) {
     card.classList.add('active');
     grid.innerHTML = `
         <div class="engine-item">
-            <div class="engine-item-label">CONSENSUS</div>
+            <div class="engine-item-label">CONSENSUS <span class="info-tip">i<span class="info-text">Did the responding models produce similar answers? High agreement suggests reliable information. Divergence means models interpret the topic differently — check each response carefully.</span></span></div>
             <div class="engine-item-value" style="color:${data.consensus?.detected ? 'var(--green)' : 'var(--amber)'}">
                 ${data.consensus?.detected ? 'YES' : 'DIVERGENT'}
             </div>
@@ -528,38 +528,38 @@ function renderEngineAnalysis(data, results) {
             </div>
         </div>
         <div class="engine-item">
-            <div class="engine-item-label">FASTEST MODEL</div>
+            <div class="engine-item-label">FASTEST MODEL <span class="info-tip">i<span class="info-text">Which model returned its response the quickest. Faster isn't always better — some models think longer to give more accurate answers.</span></span></div>
             <div class="engine-item-value">${fastestModel ? (PROVIDER_NAMES[fastestModel.provider] || fastestModel.provider) : '—'}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
                 ${fastestModel ? fastestModel.time_ms + 'ms' : ''}
             </div>
         </div>
         <div class="engine-item">
-            <div class="engine-item-label">CHEAPEST</div>
+            <div class="engine-item-label">CHEAPEST <span class="info-tip">i<span class="info-text">Which model cost the least for this query. Cost is calculated from actual token usage × provider pricing per token.</span></span></div>
             <div class="engine-item-value">${cheapestModel ? (PROVIDER_NAMES[cheapestModel.provider] || cheapestModel.provider) : '—'}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
                 ${cheapestModel ? '$' + (cheapestModel.cost_usd || 0).toFixed(4) : ''}
             </div>
         </div>
         <div class="engine-item">
-            <div class="engine-item-label">RAIL DETECTIONS</div>
-            <div class="engine-item-value">${refused.length}</div>
+            <div class="engine-item-label">RESTRICTIONS <span class="info-tip">i<span class="info-text">How many models declined or heavily caveated their response. Some models restrict certain topics (politics, medical advice, financial guidance). Athena detects this automatically and maps which models restrict which topics.</span></span></div>
+            <div class="engine-item-value">${refused.length} of ${working.length}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
-                ${refused.length > 0 ? refused.map(r => PROVIDER_NAMES[r.provider] || r.provider).join(', ') : 'No restrictions triggered'}
+                ${refused.length > 0 ? refused.map(r => PROVIDER_NAMES[r.provider] || r.provider).join(', ') + ' restricted' : 'No restrictions triggered'}
             </div>
         </div>
         <div class="engine-item">
-            <div class="engine-item-label">PROVIDERS ACTIVE</div>
-            <div class="engine-item-value">${answered.length} / ${data.models_compared}</div>
+            <div class="engine-item-label">MODELS RESPONDING <span class="info-tip">i<span class="info-text">How many models successfully processed the query (including those that restricted). Models showing ERROR had API issues (billing, auth) not related to the query itself.</span></span></div>
+            <div class="engine-item-value">${working.length} / ${data.models_compared}</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
-                ${errors.length > 0 ? errors.length + ' unavailable' : 'All responding'}
+                ${errors.length > 0 ? errors.length + ' unavailable (API error)' : 'All responding'}
             </div>
         </div>
         <div class="engine-item">
-            <div class="engine-item-label">TRUST GRAPH</div>
+            <div class="engine-item-label">SIGNALRANK <span class="info-tip">i<span class="info-text">Every query you run feeds data into SignalRank — Athena's trust-weighted ranking engine. Over time, SignalRank learns which models to trust for which topics, personalized to your usage.</span></span></div>
             <div class="engine-item-value" style="color:var(--gold)">◈ Updated</div>
             <div style="font-family:var(--mono);font-size:9px;color:var(--text-dim);margin-top:2px;">
-                Edges + profiles + rails updated
+                Trust profiles + restriction map updated
             </div>
             <a href="/intelligence" target="_blank" style="display:inline-block;margin-top:6px;font-family:var(--mono);font-size:9px;color:var(--gold);text-decoration:none;padding:4px 8px;border:1px solid var(--gold-border);border-radius:4px;background:var(--gold-dim);">View Trust Graph →</a>
         </div>
