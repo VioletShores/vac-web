@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>◈ Athena — Cross-Model Comparison</title>
+<title>◈ SignalRank Live — Trust-Weighted Routing in Real Time</title>
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -151,23 +151,23 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 
 <nav class="nav">
     <div class="nav-inner">
-        <a class="nav-brand" href="/app">◈ Athena<span>Cross-Model Comparison</span></a>
+        <a class="nav-brand" href="/app">◈ Athena<span>SignalRank Live</span></a>
         <span class="nav-badge">SignalRank</span>
     </div>
 </nav>
 
 <div class="page">
     <div class="hero">
-        <div class="hero-eyebrow">Trust-Weighted Intelligence</div>
-        <h1 class="hero-title">Compare. Detect. Trust.</h1>
-        <p class="hero-sub">Same prompt across every provider. See who answers, who refuses, who agrees — and watch SignalRank learn from every comparison.</p>
+        <div class="hero-eyebrow">SignalRank · Trust-Weighted Routing</div>
+        <h1 class="hero-title">See How Athena Routes Intelligence.</h1>
+        <p class="hero-sub">Ask any question. Athena routes it across every available model, scores the results through SignalRank, and shows you which answer to trust — and why.</p>
     </div>
 
     <!-- Input -->
     <div class="input-card">
-        <textarea class="prompt-area" id="promptInput" placeholder="Ask anything. The same question goes to every model simultaneously..."></textarea>
+        <textarea class="prompt-area" id="promptInput" placeholder="Ask Athena anything. SignalRank evaluates every available model in real time..."></textarea>
         <div class="input-row">
-            <button class="btn btn-gold" id="btnCompare" onclick="runComparison()">◈ Compare All Models</button>
+            <button class="btn btn-gold" id="btnCompare" onclick="runSignalRank()">◈ Run SignalRank</button>
             <select class="domain-select" id="domainSelect">
                 <option value="general">General</option>
                 <option value="political">Political</option>
@@ -191,7 +191,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
     <!-- Loading -->
     <div class="loading-bar" id="loadingBar">
         <div class="loading-track"><div class="loading-fill"></div></div>
-        <div class="loading-text" id="loadingText">Running prompt across all providers...</div>
+        <div class="loading-text" id="loadingText">SignalRank routing across all models...</div>
     </div>
 
     <!-- Consensus -->
@@ -261,14 +261,14 @@ function useSuggestion(el) {
     }
 }
 
-async function runComparison() {
+async function runSignalRank() {
     const prompt = document.getElementById('promptInput').value.trim();
     if (!prompt) return;
 
     const domain = document.getElementById('domainSelect').value;
     const btn = document.getElementById('btnCompare');
     btn.disabled = true;
-    btn.textContent = '◈ Running...';
+    btn.textContent = '◈ Routing...';
 
     document.getElementById('loadingBar').classList.add('active');
     document.getElementById('resultsGrid').innerHTML = '';
@@ -286,12 +286,12 @@ async function runComparison() {
     } catch (e) {
         document.getElementById('resultsGrid').innerHTML = `
             <div style="text-align:center;padding:40px;color:var(--red);font-family:var(--mono);font-size:12px;">
-                Comparison failed: ${e.message}<br>Check that LLM API keys are configured on VAC backend.
+                SignalRank query failed: ${e.message}<br>Check that LLM API keys are configured.
             </div>`;
     } finally {
         document.getElementById('loadingBar').classList.remove('active');
         btn.disabled = false;
-        btn.textContent = '◈ Compare All Models';
+        btn.textContent = '◈ Run SignalRank';
     }
 }
 
@@ -674,7 +674,7 @@ function renderMiniGraph(results) {
 
 // Keyboard shortcut
 document.getElementById('promptInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runComparison();
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runSignalRank();
 });
 
 loadProviders();
