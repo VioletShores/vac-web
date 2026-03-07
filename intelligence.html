@@ -76,8 +76,8 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
 /* Stats */
 .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .stat-row:last-child { border-bottom: none; }
-.stat-key { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
-.stat-val { font-family: var(--mono); font-size: 11px; color: var(--text-primary); font-weight: 600; }
+.stat-key { font-family: var(--mono); font-size:12px; color: var(--text-dim); }
+.stat-val { font-family: var(--mono); font-size:14px; color: var(--text-primary); font-weight: 600; }
 
 /* Tooltip */
 .tooltip { position: absolute; background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 8px; padding: 10px 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s; font-family: var(--mono); font-size: 11px; z-index: 100; max-width: 220px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
@@ -126,7 +126,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
             <!-- What is this? -->
             <div class="panel">
                 <div class="panel-header">What Is This?</div>
-                <div style="font-size:11px;color:var(--text-tertiary);line-height:1.7;">
+                <div style="font-size:13px;color:var(--text-tertiary);line-height:1.7;">
                     <p style="margin-bottom:8px;">This is a <strong style="color:var(--text-secondary);">trust map</strong> of AI models. When you ask a question on <a href="/compare" style="color:#C9A84C;text-decoration:none;">SignalRank Live</a>, Athena sends it to every available model simultaneously.</p>
                     <p style="margin-bottom:8px;">Some models agree. Some disagree. Some refuse to answer entirely. This graph visualises those relationships — so you can see at a glance which models trust each other and which diverge.</p>
                     <p>The more queries you run, the more accurate this map becomes. It's personalised to your usage.</p>
@@ -144,7 +144,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
             <!-- How to read -->
             <div class="panel">
                 <div class="panel-header">How to Read the Graph</div>
-                <div style="font-size:11px;color:var(--text-tertiary);line-height:1.7;">
+                <div style="font-size:13px;color:var(--text-tertiary);line-height:1.7;">
                     <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#CC7852;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Circles</strong> = AI models. Larger circle = more trusted overall.</div>
                     <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Number inside</strong> = Trust score out of 100, calculated from reliability, honesty, transparency, independence, and hallucination rate.</div>
                     <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:2px;background:#3FB950;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#3FB950;">Solid green line</strong> = these two models gave similar answers. They agree.</div>
@@ -158,26 +158,26 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
             <!-- Graph stats -->
             <div class="panel">
                 <div class="panel-header">Graph Summary</div>
-                <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">These numbers update as you run more queries on SignalRank Live.</div>
+                <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">These numbers update as you run more queries on SignalRank Live.</div>
                 <div id="graphStats">
                     <div class="stat-row"><span class="stat-key">Models</span><span class="stat-val" id="statModels">—</span></div>
-                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">AI models being tracked (Claude, GPT, Grok, Gemini, etc.)</div>
+                    <div style="font-size:13px;color:var(--text-dim);margin:-4px 0 6px;">AI models being tracked (Claude, GPT, Grok, Gemini, etc.)</div>
                     <div class="stat-row"><span class="stat-key">Connections</span><span class="stat-val" id="statEdges">—</span></div>
-                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">Agreement or disagreement relationships between model pairs, based on real query comparisons.</div>
+                    <div style="font-size:13px;color:var(--text-dim);margin:-4px 0 6px;">Agreement or disagreement relationships between model pairs, based on real query comparisons.</div>
                     <div class="stat-row"><span class="stat-key">Data Points</span><span class="stat-val" id="statDataPoints">—</span></div>
-                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">Total model responses analysed across all queries you've run.</div>
+                    <div style="font-size:13px;color:var(--text-dim);margin:-4px 0 6px;">Total model responses analysed across all queries you've run.</div>
                     <div class="stat-row"><span class="stat-key">Restrictions Detected</span><span class="stat-val" id="statRails">—</span></div>
-                    <div style="font-size:9px;color:var(--text-dim);margin:-4px 0 6px;">Times a model refused or heavily caveated a response. Tracked per topic category.</div>
+                    <div style="font-size:13px;color:var(--text-dim);margin:-4px 0 6px;">Times a model refused or heavily caveated a response. Tracked per topic category.</div>
                 </div>
             </div>
 
             <!-- Rail map overview -->
             <div class="panel" id="railPanel">
                 <div class="panel-header">Restriction Map</div>
-                <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;">
+                <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">
                     When a model declines to answer or heavily hedges, Athena classifies the topic and tracks it here. This builds a map of which models restrict which subjects.
                 </div>
-                <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px;">
+                <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">
                     <strong style="color:var(--text-tertiary);">Topic categories:</strong><br>
                     <span style="color:#C9A84C;">political</span> — elections, policy, political opinion<br>
                     <span style="color:#C9A84C;">financial</span> — investment advice, stock/crypto picks<br>
@@ -186,7 +186,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
                     <span style="color:#C9A84C;">personal_opinion</span> — requests for the model's own opinion<br>
                     <span style="color:#C9A84C;">unclassified</span> — restriction detected but topic not yet categorised
                 </div>
-                <div id="railContent" style="font-size:11px;color:var(--text-dim);">
+                <div id="railContent" style="font-size:13px;color:var(--text-dim);">
                     Loading restriction data...
                 </div>
             </div>
@@ -527,7 +527,7 @@ function showModelDetail(d) {
 
     // Rails
     if (d.rail_categories && d.rail_categories.length > 0) {
-        html += `<div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--text-dim);">RESTRICTED TOPICS</div>`;
+        html += `<div style="margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--text-dim);">RESTRICTED TOPICS</div>`;
         html += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">`;
         d.rail_categories.forEach(cat => {
             const displayCat = cat === 'unknown' ? 'unclassified' : cat;
