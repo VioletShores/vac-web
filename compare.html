@@ -115,6 +115,16 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 
 /* Info tooltip */
 .info-tip { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--border); color: var(--text-dim); font-family: var(--mono); font-size: 8px; font-weight: 700; cursor: help; margin-left: 4px; flex-shrink: 0; }
+
+/* Thumbs rating */
+.thumbs { display: flex; gap: 4px; margin-left: auto; }
+.thumb-btn { background: none; border: 1px solid var(--border); border-radius: 5px; padding: 4px 8px; cursor: pointer; font-size: 13px; transition: all 0.15s; opacity: 0.5; }
+.thumb-btn:hover { opacity: 1; transform: scale(1.1); }
+.thumb-btn.voted { opacity: 1; transform: scale(1.1); }
+.thumb-btn.up.voted { border-color: var(--green); background: rgba(63,185,80,0.1); }
+.thumb-btn.down.voted { border-color: var(--red); background: rgba(248,81,73,0.1); }
+.thumb-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); margin-left: 4px; display: none; }
+.thumb-btn.voted + .thumb-label, .thumb-btn:hover + .thumb-label { display: inline; }
 .info-tip:hover { background: var(--gold-dim); color: var(--gold); }
 .info-tip .info-text { display: none; position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 6px; padding: 8px 10px; font-family: var(--body); font-size: 11px; font-weight: 400; color: var(--text-2); width: 220px; line-height: 1.5; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 100; text-align: left; }
 .info-tip:hover .info-text { display: block; }
@@ -414,6 +424,10 @@ function renderSingleCard(r, cardIds) {
             <span class="model-stat"><strong>${((r.input_tokens||0)+(r.output_tokens||0)).toLocaleString()}</strong> tok</span>
             <span class="model-stat"><strong>$${(r.cost_usd||0).toFixed(4)}</strong></span>
             ${isRefused ? `<span class="model-stat" style="color:var(--red)">⚠ ${r.refusal_type?.replace('_',' ')}</span>` : ''}
+            ${!isError ? `<div class="thumbs">
+                <button class="thumb-btn up" onclick="rateModel('${r.provider}','${r.model_id}','up',this)" title="I trust this answer">👍</button>
+                <button class="thumb-btn down" onclick="rateModel('${r.provider}','${r.model_id}','down',this)" title="I don't trust this answer">👎</button>
+            </div>` : ''}
         </div>
         ${!isError ? `
         <button class="hood-toggle" onclick="toggleHood('${cardId}', this)">
@@ -721,6 +735,66 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML.replace(/\n/g, '<br>');
+}
+
+async function rateModel(provider, modelId, vote, btn) {
+    // Visual feedback
+    const parent = btn.parentElement;
+    parent.querySelectorAll('.thumb-btn').forEach(b => b.classList.remove('voted'));
+    btn.classList.add('voted');
+
+    // Show confirmation
+    const label = document.createElement('span');
+    label.style.cssText = 'font-family:var(--mono);font-size:9px;color:#C9A84C;margin-left:6px;animation:card-in 0.2s ease;';
+    label.textContent = vote === 'up' ? '◈ Trust increased' : '◈ Trust decreased';
+    // Remove previous label if exists
+    const old = parent.querySelector('.vote-label');
+    if (old) old.remove();
+    label.className = 'vote-label';
+    parent.appendChild(label);
+
+    // Post to Athena — update user's personal trust profile
+    const ATHENA_API = 'https://api.athenapilot.ai';
+    const domain = document.getElementById('domainSelect').value;
+    const adjustment = vote === 'up' ? 0.05 : -0.05;
+
+    try {
+        await fetch(`${ATHENA_API}/v1/trust-graph/comparison`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: `user_rating:${vote}`,
+                domain: domain,
+                task_type: 'user_preference',
+                results: [{
+                    provider: provider,
+                    model_id: modelId,
+                    content: vote === 'up' ? 'USER_TRUSTED' : 'USER_DISTRUSTED',
+                    refused: false,
+                }],
+                user_id: userEmail || 'global',
+            }),
+        });
+
+        // Also post to per-user graph if verified
+        if (userEmail) {
+            // Direct trust profile update via the trust profile endpoint
+            await fetch(`${ATHENA_API}/v1/trust-graph/profiles`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: provider,
+                    model_id: modelId,
+                    user_id: userEmail,
+                    domain: domain,
+                    adjustment: adjustment,
+                    source: 'user_rating',
+                }),
+            });
+        }
+    } catch (e) {
+        console.log('Rating post failed:', e);
+    }
 }
 
 function renderMiniGraph(results) {
