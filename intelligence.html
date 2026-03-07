@@ -198,6 +198,10 @@ const ATHENA_API = window.location.hostname === 'localhost'
     ? 'http://localhost:8080'
     : 'https://api.athenapilot.ai';
 
+// Read verified user email from URL params
+const urlParams = new URLSearchParams(window.location.search);
+const userEmail = urlParams.get('email') || '';
+
 const PROVIDER_COLORS = {
     anthropic: '#CC7852',
     openai: '#74B984',
@@ -220,7 +224,8 @@ let graphData = null;
 
 async function loadTrustGraph() {
     try {
-        const resp = await fetch(`${ATHENA_API}/v1/trust-graph`);
+        const userParam = userEmail ? `?user_id=${encodeURIComponent(userEmail)}` : '';
+        const resp = await fetch(`${ATHENA_API}/v1/trust-graph${userParam}`);
         if (!resp.ok) throw new Error(`API ${resp.status}`);
         graphData = await resp.json();
     } catch (e) {
@@ -231,6 +236,14 @@ async function loadTrustGraph() {
     renderStats(graphData);
     renderRailMap(graphData.rail_map);
     renderLegend();
+    
+    // Show personalisation indicator
+    if (userEmail) {
+        const indicator = document.createElement('div');
+        indicator.style.cssText = 'margin:8px 0;padding:6px 10px;border-radius:6px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);font-family:var(--mono);font-size:11px;color:#C9A84C;';
+        indicator.textContent = `◈ Personalised trust map for ${userEmail}`;
+        document.querySelector('.graph-header').appendChild(indicator);
+    }
 }
 
 function generateSeedData() {

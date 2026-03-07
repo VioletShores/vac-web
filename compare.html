@@ -186,6 +186,9 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
             </select>
             <span class="provider-count" id="providerCount">Loading providers...</span>
         </div>
+        <div id="personalizationBadge" style="display:none;margin-top:8px;font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:5px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);color:#C9A84C;">
+            ◈ Personalised — building trust profile for <span id="personalEmail"></span>
+        </div>
         <div class="suggestions">
             <span class="suggestion" onclick="useSuggestion(this)">Who won the 2024 US presidential election?</span>
             <span class="suggestion" onclick="useSuggestion(this)">Is ivermectin effective for COVID-19?</span>
@@ -231,6 +234,10 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 const VAC_API = window.location.hostname === 'localhost'
     ? 'http://localhost:8000'
     : 'https://vac-system-production.up.railway.app';
+
+// Read verified user email from URL params (set by app.html iframe)
+const urlParams = new URLSearchParams(window.location.search);
+const userEmail = urlParams.get('email') || '';
 
 const PROVIDER_COLORS = {
     anthropic: '#CC7852', openai: '#74B984', google: '#4285F4', xai: '#E8E8E8',
@@ -284,6 +291,7 @@ async function runSignalRank() {
 
     try {
         const params = new URLSearchParams({ prompt, domain, max_tokens: 1024 });
+        if (userEmail) params.set('email', userEmail);
         const evtSource = new EventSource(`${VAC_API}/v1/compare/stream?${params}`);
 
         evtSource.onmessage = function(event) {
@@ -362,7 +370,7 @@ async function runSignalRankFallback(prompt, domain) {
         const resp = await fetch(`${VAC_API}/v1/compare`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, domain, max_tokens: 1024 }),
+            body: JSON.stringify({ prompt, domain, max_tokens: 1024, email: userEmail }),
         });
         const data = await resp.json();
         renderResults(data);
@@ -525,8 +533,11 @@ function toggleHood(id, btn) {
 
 async function fetchTrustProfiles(cardIds, results) {
     const ATHENA_API = 'https://api.athenapilot.ai';
+    const profileUrl = userEmail
+        ? `${ATHENA_API}/v1/trust-graph/profiles?user_id=${encodeURIComponent(userEmail)}`
+        : `${ATHENA_API}/v1/trust-graph/profiles`;
     try {
-        const resp = await fetch(`${ATHENA_API}/v1/trust-graph/profiles`);
+        const resp = await fetch(profileUrl);
         if (!resp.ok) return;
         const data = await resp.json();
         const profiles = {};
@@ -818,6 +829,12 @@ document.getElementById('promptInput').addEventListener('keydown', (e) => {
 });
 
 loadProviders();
+
+// Show personalization badge if verified user
+if (userEmail) {
+    document.getElementById('personalizationBadge').style.display = 'block';
+    document.getElementById('personalEmail').textContent = userEmail;
+}
 </script>
 </body>
 </html>
