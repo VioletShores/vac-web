@@ -380,7 +380,7 @@ function renderGraph(data) {
     // Node groups
     const node = g.append('g')
         .selectAll('g')
-        .data(filteredNodes)
+        .data(dedupedNodes)
         .join('g')
         .call(d3.drag()
             .on('start', dragStarted)
