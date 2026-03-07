@@ -131,6 +131,19 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
                 </div>
             </div>
 
+            <!-- How to read -->
+            <div class="panel">
+                <div class="panel-header">How to Read This Graph</div>
+                <div style="font-size:11px;color:var(--text-tertiary);line-height:1.7;">
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#CC7852;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Circles</strong> = AI models. Larger = more trusted.</div>
+                    <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Number</strong> = SignalRank trust score (0–100).</div>
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:2px;background:#3FB950;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#3FB950;">Solid line</strong> = models agreed on answers.</div>
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:0;border-top:2px dashed #F85149;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#F85149;">Dashed line</strong> = models disagreed.</div>
+                    <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:2px dashed #F85149;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Dashed circle</strong> = high hallucination rate.</div>
+                    <div><strong style="color:var(--text-secondary);">Click</strong> any model to see its full trust profile.</div>
+                </div>
+            </div>
+
             <!-- Graph stats -->
             <div class="panel">
                 <div class="panel-header">Graph Summary</div>
@@ -138,7 +151,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
                     <div class="stat-row"><span class="stat-key">Models</span><span class="stat-val" id="statModels">—</span></div>
                     <div class="stat-row"><span class="stat-key">Edges</span><span class="stat-val" id="statEdges">—</span></div>
                     <div class="stat-row"><span class="stat-key">Data Points</span><span class="stat-val" id="statDataPoints">—</span></div>
-                    <div class="stat-row"><span class="stat-key">Rail Detections</span><span class="stat-val" id="statRails">—</span></div>
+                    <div class="stat-row"><span class="stat-key">Restriction Detections</span><span class="stat-val" id="statRails">—</span></div>
                 </div>
             </div>
 
@@ -243,6 +256,39 @@ function renderGraph(data) {
     // Clear previous
     svg.selectAll('*').remove();
 
+    // Filter: only show nodes that have at least one edge (remove orphans)
+    const linkedNodeIds = new Set();
+    (data.links || []).forEach(l => {
+        linkedNodeIds.add(typeof l.source === 'object' ? l.source.id : l.source);
+        linkedNodeIds.add(typeof l.target === 'object' ? l.target.id : l.target);
+    });
+
+    // Keep nodes that have edges OR have real data points > 0
+    const filteredNodes = (data.nodes || []).filter(n =>
+        linkedNodeIds.has(n.id) || (n.data_points && n.data_points > 1)
+    );
+    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    const filteredLinks = (data.links || []).filter(l => {
+        const sId = typeof l.source === 'object' ? l.source.id : l.source;
+        const tId = typeof l.target === 'object' ? l.target.id : l.target;
+        return filteredNodeIds.has(sId) && filteredNodeIds.has(tId);
+    });
+
+    // Update subtitle with filtered counts
+    document.getElementById('graphSubtitle').textContent =
+        `${filteredNodes.length} models · ${filteredLinks.length} edges · ${data.data_points || filteredNodes.reduce((s, n) => s + (n.data_points || 0), 0)} data points`;
+
+    if (filteredNodes.length === 0) {
+        svg.append('text')
+            .attr('x', width / 2).attr('y', height / 2)
+            .attr('text-anchor', 'middle')
+            .attr('font-family', 'var(--mono)')
+            .attr('fill', '#505368')
+            .attr('font-size', '12px')
+            .text('Run queries on SignalRank Live to populate the trust graph');
+        return;
+    }
+
     const g = svg.append('g');
 
     // Zoom
@@ -252,37 +298,26 @@ function renderGraph(data) {
     svg.call(zoom);
 
     // Force simulation
-    const simulation = d3.forceSimulation(data.nodes)
-        .force('link', d3.forceLink(data.links).id(d => d.id).distance(140))
+    const simulation = d3.forceSimulation(filteredNodes)
+        .force('link', d3.forceLink(filteredLinks).id(d => d.id).distance(140))
         .force('charge', d3.forceManyBody().strength(-400))
         .force('center', d3.forceCenter(width / 2, height / 2))
         .force('collision', d3.forceCollide().radius(d => (d.size || 30) + 15));
 
-    // Links
+    // Links - color-coded, no text labels (they overlap)
     const link = g.append('g')
         .selectAll('line')
-        .data(data.links)
+        .data(filteredLinks)
         .join('line')
         .attr('stroke', d => d.color || '#353849')
-        .attr('stroke-width', d => d.width || 1)
-        .attr('stroke-opacity', 0.6);
-
-    // Link labels
-    const linkLabel = g.append('g')
-        .selectAll('text')
-        .data(data.links)
-        .join('text')
-        .attr('font-family', 'var(--mono)')
-        .attr('font-size', '8px')
-        .attr('fill', d => d.color || '#505368')
-        .attr('text-anchor', 'middle')
-        .attr('opacity', 0.7)
-        .text(d => d.label || '');
+        .attr('stroke-width', d => Math.max(2, (d.width || 1) * 1.5))
+        .attr('stroke-opacity', 0.5)
+        .attr('stroke-dasharray', d => (d.label || '').includes('DISAGREE') ? '6,3' : 'none');
 
     // Node groups
     const node = g.append('g')
         .selectAll('g')
-        .data(data.nodes)
+        .data(filteredNodes)
         .join('g')
         .call(d3.drag()
             .on('start', dragStarted)
@@ -382,8 +417,6 @@ function renderGraph(data) {
     simulation.on('tick', () => {
         link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
             .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
-        linkLabel.attr('x', d => (d.source.x + d.target.x) / 2)
-                 .attr('y', d => (d.source.y + d.target.y) / 2);
         node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
@@ -419,10 +452,11 @@ function showModelDetail(d) {
     ];
 
     const hallColor = d.hallucination_rate > 0.3 ? '#F85149' : d.hallucination_rate > 0.15 ? '#D29922' : '#3FB950';
+    const trustScore = Math.round((d.composite_trust || 0) * 100);
 
     let html = `
         <div class="model-name">${d.label || d.model_id}</div>
-        <div class="model-provider">${PROVIDER_NAMES[d.provider] || d.provider} · SignalRank ${d.signal_rank?.toFixed(3) || '—'}</div>
+        <div class="model-provider">${PROVIDER_NAMES[d.provider] || d.provider} · Trust Score: <strong>${trustScore}/100</strong></div>
     `;
 
     // Trust dimensions
@@ -459,7 +493,8 @@ function showModelDetail(d) {
         html += `<div style="margin-top:10px;font-family:var(--mono);font-size:10px;color:var(--text-dim);">RESTRICTED TOPICS</div>`;
         html += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">`;
         d.rail_categories.forEach(cat => {
-            html += `<span class="rail-cell rail-hard">${cat}</span>`;
+            const displayCat = cat === 'unknown' ? 'unclassified' : cat;
+            html += `<span class="rail-cell rail-hard">${displayCat}</span>`;
         });
         html += `</div>`;
     } else {
@@ -493,8 +528,9 @@ function renderRailMap(railMap) {
         html += `<div style="font-family:var(--mono);font-size:10px;color:var(--text-secondary);margin-bottom:3px;">${shortName}</div>`;
         html += `<div style="display:flex;gap:3px;flex-wrap:wrap;">`;
         for (const [cat, count] of Object.entries(cats)) {
+            const displayCat = cat === 'unknown' ? 'unclassified' : cat;
             const severity = count > 2 ? 'hard' : count > 1 ? 'soft' : 'soft';
-            html += `<span class="rail-cell rail-${severity}">${cat} (${count})</span>`;
+            html += `<span class="rail-cell rail-${severity}">${displayCat} (${count})</span>`;
         }
         html += `</div></div>`;
     }
