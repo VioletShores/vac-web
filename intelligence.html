@@ -45,7 +45,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
 /* Sidebar */
 .sidebar { display: flex; flex-direction: column; gap: 12px; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
-.panel-header { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; }
+.panel-header { font-family: var(--mono); font-size: 13px; color: #C9A84C; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; font-weight: 700; }
 .panel-gold { border-color: var(--gold-border); }
 .panel-gold .panel-header { color: var(--gold); }
 
@@ -63,7 +63,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
 
 /* Rail map */
 .rail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 4px; }
-.rail-cell { font-family: var(--mono); font-size: 9px; padding: 4px 6px; border-radius: 4px; text-align: center; }
+.rail-cell { font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 4px; text-align: center; }
 .rail-clear { background: rgba(63,185,80,0.08); color: var(--green); border: 1px solid rgba(63,185,80,0.15); }
 .rail-soft { background: rgba(210,153,34,0.08); color: var(--amber); border: 1px solid rgba(210,153,34,0.15); }
 .rail-hard { background: rgba(248,81,73,0.08); color: var(--red); border: 1px solid rgba(248,81,73,0.15); }
@@ -76,8 +76,8 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
 /* Stats */
 .stat-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
 .stat-row:last-child { border-bottom: none; }
-.stat-key { font-family: var(--mono); font-size:12px; color: var(--text-dim); }
-.stat-val { font-family: var(--mono); font-size:14px; color: var(--text-primary); font-weight: 600; }
+.stat-key { font-family: var(--mono); font-size:14px; color: #D0D4E0; font-weight: 600; }
+.stat-val { font-family: var(--mono); font-size:20px; color: #C9A84C; font-weight: 700; }
 
 /* Tooltip */
 .tooltip { position: absolute; background: var(--surface-raised); border: 1px solid var(--border-light); border-radius: 8px; padding: 10px 12px; pointer-events: none; opacity: 0; transition: opacity 0.15s; font-family: var(--mono); font-size: 11px; z-index: 100; max-width: 220px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
@@ -126,7 +126,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
             <!-- What is this? -->
             <div class="panel">
                 <div class="panel-header">What Is This?</div>
-                <div style="font-size:13px;color:var(--text-tertiary);line-height:1.7;">
+                <div style="font-size:14px;color:#D0D4E0;line-height:1.7;">
                     <p style="margin-bottom:8px;">This is a <strong style="color:var(--text-secondary);">trust map</strong> of AI models. When you ask a question on <a href="/compare" style="color:#C9A84C;text-decoration:none;">SignalRank Live</a>, Athena sends it to every available model simultaneously.</p>
                     <p style="margin-bottom:8px;">Some models agree. Some disagree. Some refuse to answer entirely. This graph visualises those relationships — so you can see at a glance which models trust each other and which diverge.</p>
                     <p>The more queries you run, the more accurate this map becomes. It's personalised to your usage.</p>
@@ -144,7 +144,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
             <!-- How to read -->
             <div class="panel">
                 <div class="panel-header">How to Read the Graph</div>
-                <div style="font-size:13px;color:var(--text-tertiary);line-height:1.7;">
+                <div style="font-size:14px;color:#D0D4E0;line-height:1.7;">
                     <div style="margin-bottom:6px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#CC7852;vertical-align:middle;margin-right:6px;"></span> <strong style="color:var(--text-secondary);">Circles</strong> = AI models. Larger circle = more trusted overall.</div>
                     <div style="margin-bottom:6px;"><strong style="color:var(--text-primary);">Number inside</strong> = Trust score out of 100, calculated from reliability, honesty, transparency, independence, and hallucination rate.</div>
                     <div style="margin-bottom:6px;"><span style="display:inline-block;width:16px;height:2px;background:#3FB950;vertical-align:middle;margin-right:6px;"></span> <strong style="color:#3FB950;">Solid green line</strong> = these two models gave similar answers. They agree.</div>
@@ -158,7 +158,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
             <!-- Graph stats -->
             <div class="panel">
                 <div class="panel-header">Graph Summary</div>
-                <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">These numbers update as you run more queries on SignalRank Live.</div>
+                <div style="font-size:13px;color:#A0A6B8;margin-bottom:8px;">These numbers update as you run more queries on SignalRank Live.</div>
                 <div id="graphStats">
                     <div class="stat-row"><span class="stat-key">Models</span><span class="stat-val" id="statModels">—</span></div>
                     <div style="font-size:13px;color:var(--text-dim);margin:-4px 0 6px;">AI models being tracked (Claude, GPT, Grok, Gemini, etc.)</div>
@@ -174,17 +174,22 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
             <!-- Rail map overview -->
             <div class="panel" id="railPanel">
                 <div class="panel-header">Restriction Map</div>
-                <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">
+                <div style="font-size:13px;color:#A0A6B8;margin-bottom:8px;">
                     When a model declines to answer or heavily hedges, Athena classifies the topic and tracks it here. This builds a map of which models restrict which subjects.
                 </div>
-                <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">
-                    <strong style="color:var(--text-tertiary);">Topic categories:</strong><br>
+                <div style="font-size:13px;color:#A0A6B8;margin-bottom:10px;">
+                    <strong style="color:#E0E4F0;">Topic categories:</strong><br>
                     <span style="color:#C9A84C;">political</span> — elections, policy, political opinion<br>
                     <span style="color:#C9A84C;">financial</span> — investment advice, stock/crypto picks<br>
                     <span style="color:#C9A84C;">medical</span> — treatment recommendations, drug efficacy<br>
                     <span style="color:#C9A84C;">conspiracy</span> — contested events, conspiracy theories<br>
                     <span style="color:#C9A84C;">personal_opinion</span> — requests for the model's own opinion<br>
                     <span style="color:#C9A84C;">unclassified</span> — restriction detected but topic not yet categorised
+                </div>
+                <div style="font-size:13px;color:#A0A6B8;margin-bottom:12px;">
+                    <strong style="color:#E0E4F0;">Tag colours:</strong><br>
+                    <span style="color:#F85149;">● Red tags</span> — model has restricted this topic 3+ times (consistent pattern)<br>
+                    <span style="color:#D29922;">● Yellow tags</span> — model has restricted this topic 1–2 times (emerging pattern)
                 </div>
                 <div id="railContent" style="font-size:13px;color:var(--text-dim);">
                     Loading restriction data...
@@ -567,7 +572,7 @@ function showModelDetail(d) {
 
     // Rails
     if (d.rail_categories && d.rail_categories.length > 0) {
-        html += `<div style="margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--text-dim);">RESTRICTED TOPICS</div>`;
+        html += `<div style="margin-top:10px;font-family:var(--mono);font-size:13px;color:#A0A6B8;">RESTRICTED TOPICS</div>`;
         html += `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">`;
         d.rail_categories.forEach(cat => {
             const displayCat = cat === 'unknown' ? 'unclassified' : cat;
@@ -602,7 +607,7 @@ function renderRailMap(railMap) {
     for (const [model, cats] of Object.entries(railMap.models)) {
         const shortName = PROVIDER_NAMES[model.split('/')[0]] || model.split('/')[0];
         html += `<div style="margin-bottom:8px;">`;
-        html += `<div style="font-family:var(--mono);font-size:10px;color:var(--text-secondary);margin-bottom:3px;">${shortName}</div>`;
+        html += `<div style="font-family:var(--mono);font-size:13px;color:#E0E4F0;margin-bottom:3px;font-weight:600;">${shortName}</div>`;
         html += `<div style="display:flex;gap:3px;flex-wrap:wrap;">`;
         for (const [cat, count] of Object.entries(cats)) {
             const displayCat = cat === 'unknown' ? 'unclassified' : cat;
