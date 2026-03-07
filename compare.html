@@ -177,7 +177,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
     <div class="hero">
         <div class="hero-eyebrow">SignalRank · Trust-Weighted Routing</div>
         <h1 class="hero-title">See How Athena Routes Intelligence.</h1>
-        <p class="hero-sub">Ask any question. Athena routes it across every available model, scores the results through SignalRank, and shows you which answer to trust — and why.</p>
+        <p class="hero-sub">Ask any question. Athena routes it across every available model, scores the results through SignalRank, and shows you which answer to trust — and why. Rate the answers to train your personal routing profile.</p>
     </div>
 
     <!-- Input -->
@@ -752,6 +752,15 @@ async function rateModel(provider, modelId, vote, btn) {
     if (old) old.remove();
     label.className = 'vote-label';
     parent.appendChild(label);
+
+    // Show routing explanation on first vote
+    if (!window._ratingExplained) {
+        window._ratingExplained = true;
+        const explainer = document.createElement('div');
+        explainer.style.cssText = 'margin:12px 0;padding:12px 16px;border-radius:8px;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);font-size:13px;color:#B4B8C8;line-height:1.6;animation:card-in 0.3s ease;';
+        explainer.innerHTML = `<strong style="color:#C9A84C;">◈ Your ratings shape your routing.</strong> Every thumbs up or down adjusts your personal trust profile for this model. As your profile builds, Athena will use it to automatically select the most trusted model for each query — personalised to you. <span style="color:#7C8098;">The more you rate, the smarter your routing becomes.</span>`;
+        document.getElementById('resultsGrid').parentElement.insertBefore(explainer, document.getElementById('resultsGrid'));
+    }
 
     // Post to Athena — update user's personal trust profile
     const ATHENA_API = 'https://api.athenapilot.ai';
