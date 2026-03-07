@@ -291,25 +291,52 @@ function renderGraph(data) {
         linkedNodeIds.add(typeof l.target === 'object' ? l.target.id : l.target);
     });
 
-    // Keep nodes that have edges OR have real data points > 0
-    const filteredNodes = (data.nodes || []).filter(n =>
-        linkedNodeIds.has(n.id) || (n.data_points && n.data_points > 2)
-    );
-    // Deduplicate: keep the node with most data_points per provider/model combo
-    const bestByModel = {};
-    for (const n of filteredNodes) {
-        const key = `${n.provider}/${n.model_id}`;
-        if (!bestByModel[key] || (n.data_points || 0) > (bestByModel[key].data_points || 0)) {
-            bestByModel[key] = n;
+    // Strictly only show linked nodes
+    const linkedNodes = (data.nodes || []).filter(n => linkedNodeIds.has(n.id));
+
+    // Deduplicate: group by provider, keep the one with most data_points
+    const bestByProvider = {};
+    for (const n of linkedNodes) {
+        const key = n.provider; // Group by PROVIDER not model — one node per provider
+        if (!bestByProvider[key] || (n.data_points || 0) > (bestByProvider[key].data_points || 0)) {
+            bestByProvider[key] = n;
         }
     }
-    const dedupedNodes = Object.values(bestByModel);
-    const filteredNodeIds = new Set(dedupedNodes.map(n => n.id));
-    const filteredLinks = (data.links || []).filter(l => {
+    const dedupedNodes = Object.values(bestByProvider);
+
+    // Rebuild links to only reference deduped nodes
+    const dedupedNodeIds = new Set(dedupedNodes.map(n => n.id));
+    
+    // Map old node IDs to the deduped representative for that provider
+    const providerToNodeId = {};
+    for (const n of dedupedNodes) {
+        providerToNodeId[n.provider] = n.id;
+    }
+    
+    // Remap links: point to the deduped node for each provider
+    const remappedLinks = [];
+    const seenLinkPairs = new Set();
+    for (const l of (data.links || [])) {
         const sId = typeof l.source === 'object' ? l.source.id : l.source;
         const tId = typeof l.target === 'object' ? l.target.id : l.target;
-        return filteredNodeIds.has(sId) && filteredNodeIds.has(tId);
-    });
+        
+        // Find the provider for source and target
+        const sNode = (data.nodes || []).find(n => n.id === sId);
+        const tNode = (data.nodes || []).find(n => n.id === tId);
+        if (!sNode || !tNode) continue;
+        
+        const newSource = providerToNodeId[sNode.provider];
+        const newTarget = providerToNodeId[tNode.provider];
+        if (!newSource || !newTarget || newSource === newTarget) continue;
+        
+        // Deduplicate link pairs
+        const pairKey = [newSource, newTarget].sort().join('|');
+        if (seenLinkPairs.has(pairKey)) continue;
+        seenLinkPairs.add(pairKey);
+        
+        remappedLinks.push({ ...l, source: newSource, target: newTarget });
+    }
+    const filteredLinks = remappedLinks;
 
     // Update subtitle with filtered counts
     document.getElementById('graphSubtitle').textContent =
