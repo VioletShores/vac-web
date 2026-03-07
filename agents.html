@@ -308,6 +308,7 @@ textarea.form-input { min-height: 80px; resize: vertical; }
 <script>
 const API_BASE = 'https://vac-system-production.up.railway.app';
 let currentTaskId = null;
+let currentReasoningPathId = null;
 let stepByStepMode = false;
 let auditLog = [];  // Structured audit entries
 let humanCeiling = { tokens: 4000, spend: 0.08, calls: 5, role: 'employee' };  // Human's authority limit
@@ -469,6 +470,9 @@ async function runNextStep() {
         // Render step
         const budget = data.budget || { tokens_remaining: 0, tokens_pct: 100, spend_remaining_usd: 0, api_calls_remaining: 0 };
         renderStep(data.step, budget);
+        
+        // Capture reasoning path ID for provenance
+        if (data.reasoning_path_id) currentReasoningPathId = data.reasoning_path_id;
         
         // Audit: transaction
         const s = data.step || {};
@@ -645,6 +649,10 @@ function showComplete() {
     document.getElementById('chainAgent').style.borderColor = 'var(--success-border)';
     document.getElementById('chainAgent').style.boxShadow = '0 0 8px rgba(63,185,80,0.3)';
 
+    const provenanceHtml = currentReasoningPathId
+        ? `<div style="margin-top:10px;"><a href="https://api.athenapilot.ai/v1/reasoning-paths/${currentReasoningPathId}/provenance" target="_blank" style="font-family:var(--mono);font-size:10px;color:#C9A84C;text-decoration:none;padding:6px 12px;border:1px solid rgba(201,168,76,0.3);border-radius:4px;background:rgba(201,168,76,0.06);">◈ View Reasoning Provenance →</a></div>`
+        : '';
+
     const el = document.createElement('div');
     el.className = 'card';
     el.style.borderColor = 'var(--success-border)';
@@ -654,6 +662,7 @@ function showComplete() {
             <div style="font-size:24px;margin-bottom:6px;">✓</div>
             <div style="font-size:14px;font-weight:700;color:var(--success);">Task Complete</div>
             <div style="font-size:12px;color:var(--text-tertiary);margin-top:4px;">Agent operated within delegated scope. All constraints honoured.</div>
+            ${provenanceHtml}
         </div>
     `;
     document.getElementById('escalationContainer').innerHTML = '';
