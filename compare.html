@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>◈ Athena — Cross-Model Comparison</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0D0F17; --surface: #13151F; --surface-raised: #1A1D2B;
+    --border: #252836; --border-light: #353849;
+    --text: #F0F2F8; --text-2: #B4B8C8; --text-3: #7C8098; --text-dim: #505368;
+    --gold: #C9A84C; --gold-dim: rgba(201,168,76,0.12); --gold-border: rgba(201,168,76,0.3);
+    --teal: #2DD4BF; --teal-dim: rgba(45,212,191,0.08);
+    --green: #3FB950; --green-dim: rgba(63,185,80,0.08); --green-border: rgba(63,185,80,0.2);
+    --red: #F85149; --red-dim: rgba(248,81,73,0.08); --red-border: rgba(248,81,73,0.2);
+    --amber: #D29922; --amber-dim: rgba(210,153,34,0.08);
+    --purple: #6C5CE7;
+    --display: 'Cormorant Garamond', serif;
+    --body: 'DM Sans', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--body); background: var(--bg); color: var(--text-2); line-height: 1.6; }
+
+/* Nav */
+.nav { border-bottom: 1px solid var(--border); padding: 10px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }
+.nav-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-family: var(--display); font-weight: 700; font-size: 18px; color: var(--gold); letter-spacing: 1px; text-decoration: none; }
+.nav-brand span { font-family: var(--body); font-weight: 400; font-size: 12px; color: var(--text-3); margin-left: 8px; }
+.nav-badge { font-family: var(--mono); font-size: 9px; padding: 3px 8px; border-radius: 4px; background: var(--gold-dim); color: var(--gold); border: 1px solid var(--gold-border); }
+
+.page { max-width: 1100px; margin: 0 auto; padding: 24px 20px 80px; }
+
+/* Hero */
+.hero { text-align: center; margin-bottom: 28px; }
+.hero-eyebrow { font-family: var(--mono); font-size: 10px; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+.hero-title { font-family: var(--display); font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.hero-sub { font-size: 13px; color: var(--text-3); max-width: 560px; margin: 0 auto; }
+
+/* Input area */
+.input-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.prompt-area { width: 100%; min-height: 80px; padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: var(--body); font-size: 14px; resize: vertical; }
+.prompt-area:focus { outline: none; border-color: var(--gold); }
+.prompt-area::placeholder { color: var(--text-dim); }
+.input-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.btn { padding: 10px 20px; border-radius: 8px; font-family: var(--mono); font-size: 12px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px; }
+.btn-gold { background: var(--gold); color: var(--bg); }
+.btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-gold:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn-outline { background: none; border: 1px solid var(--border); color: var(--text-3); padding: 9px 16px; }
+.btn-outline:hover { border-color: var(--text-3); }
+.domain-select { padding: 9px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text-2); font-family: var(--mono); font-size: 11px; }
+.provider-count { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-left: auto; }
+
+/* Suggested prompts */
+.suggestions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.suggestion { font-family: var(--mono); font-size: 10px; padding: 5px 10px; border-radius: 5px; background: var(--surface-raised); border: 1px solid var(--border); color: var(--text-3); cursor: pointer; transition: all 0.15s; }
+.suggestion:hover { border-color: var(--gold-border); color: var(--gold); }
+
+/* Loading */
+.loading-bar { display: none; margin-bottom: 20px; }
+.loading-bar.active { display: block; }
+.loading-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.loading-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--teal), var(--gold)); width: 30%; border-radius: 2px; animation: loading-slide 1.5s ease infinite; }
+@keyframes loading-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+.loading-text { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-top: 6px; text-align: center; letter-spacing: 0.5px; }
+
+/* Results grid */
+.results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+
+/* Model result card */
+.model-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; transition: border-color 0.3s; }
+.model-card:hover { border-color: var(--border-light); }
+.model-card.refused { border-color: var(--red-border); }
+.model-card.soft-refused { border-color: rgba(210,153,34,0.3); }
+.model-header { padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.model-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.model-name { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
+.model-status { margin-left: auto; font-family: var(--mono); font-size: 9px; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.5px; }
+.status-ok { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.status-refused { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.status-soft { background: var(--amber-dim); color: var(--amber); border: 1px solid rgba(210,153,34,0.2); }
+.status-error { background: rgba(107,114,128,0.1); color: #6B7280; border: 1px solid rgba(107,114,128,0.2); }
+.model-body { padding: 14px; flex: 1; font-size: 13px; color: var(--text-2); line-height: 1.65; max-height: 280px; overflow-y: auto; }
+.model-body::-webkit-scrollbar { width: 4px; }
+.model-body::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+.model-footer { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; gap: 12px; flex-wrap: wrap; }
+.model-stat { font-family: var(--mono); font-size: 9px; color: var(--text-dim); }
+.model-stat strong { color: var(--text-3); }
+
+/* Consensus bar */
+.consensus-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; display: none; }
+.consensus-card.active { display: block; }
+.consensus-title { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+.consensus-agree { color: var(--green); }
+.consensus-diverge { color: var(--amber); }
+.consensus-detail { font-size: 12px; color: var(--text-3); }
+.consensus-bar { height: 6px; background: var(--border); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+.consensus-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+
+/* Summary stats */
+.summary-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.summary-stat { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+.summary-stat strong { color: var(--text-2); }
+
+/* Provider colors */
+.color-anthropic { background: #CC7852; }
+.color-openai { background: #74B984; }
+.color-google { background: #4285F4; }
+.color-xai { background: #E8E8E8; }
+</style>
+</head>
+<body>
+<div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #252836;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#505368;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#C9A84C'" onmouseout="this.style.color='#505368'">← Back to VAC Protocol</a></div>
+<script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
+
+<nav class="nav">
+    <div class="nav-inner">
+        <a class="nav-brand" href="/app">◈ Athena<span>Cross-Model Comparison</span></a>
+        <span class="nav-badge">SignalRank</span>
+    </div>
+</nav>
+
+<div class="page">
+    <div class="hero">
+        <div class="hero-eyebrow">Trust-Weighted Intelligence</div>
+        <h1 class="hero-title">Compare. Detect. Trust.</h1>
+        <p class="hero-sub">Same prompt across every provider. See who answers, who refuses, who agrees — and watch SignalRank learn from every comparison.</p>
+    </div>
+
+    <!-- Input -->
+    <div class="input-card">
+        <textarea class="prompt-area" id="promptInput" placeholder="Ask anything. The same question goes to every model simultaneously..."></textarea>
+        <div class="input-row">
+            <button class="btn btn-gold" id="btnCompare" onclick="runComparison()">◈ Compare All Models</button>
+            <select class="domain-select" id="domainSelect">
+                <option value="general">General</option>
+                <option value="political">Political</option>
+                <option value="medical">Medical</option>
+                <option value="legal">Legal</option>
+                <option value="financial">Financial</option>
+                <option value="code">Code</option>
+                <option value="creative">Creative</option>
+            </select>
+            <span class="provider-count" id="providerCount">Loading providers...</span>
+        </div>
+        <div class="suggestions">
+            <span class="suggestion" onclick="useSuggestion(this)">Who won the 2024 US presidential election?</span>
+            <span class="suggestion" onclick="useSuggestion(this)">Is ivermectin effective for COVID-19?</span>
+            <span class="suggestion" onclick="useSuggestion(this)">Should I invest in Bitcoin right now?</span>
+            <span class="suggestion" onclick="useSuggestion(this)">Write a political satire about AI regulation</span>
+            <span class="suggestion" onclick="useSuggestion(this)">What are the health risks of vaping?</span>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-bar" id="loadingBar">
+        <div class="loading-track"><div class="loading-fill"></div></div>
+        <div class="loading-text" id="loadingText">Running prompt across all providers...</div>
+    </div>
+
+    <!-- Consensus -->
+    <div class="consensus-card" id="consensusCard">
+        <div class="consensus-title" id="consensusTitle">—</div>
+        <div class="consensus-detail" id="consensusDetail">—</div>
+        <div class="consensus-bar"><div class="consensus-fill" id="consensusFill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-row" id="summaryRow" style="display:none">
+        <div class="summary-stat"><strong id="statModels">0</strong> models</div>
+        <div class="summary-stat"><strong id="statTokens">0</strong> tokens</div>
+        <div class="summary-stat"><strong id="statCost">$0</strong> cost</div>
+        <div class="summary-stat"><strong id="statRefused">0</strong> refused</div>
+        <div class="summary-stat" id="statTrustGraph" style="color:var(--gold)">—</div>
+    </div>
+
+    <!-- Results -->
+    <div class="results-grid" id="resultsGrid"></div>
+</div>
+
+<script>
+const VAC_API = window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : 'https://vac-system-production.up.railway.app';
+
+const PROVIDER_COLORS = {
+    anthropic: '#CC7852', openai: '#74B984', google: '#4285F4', xai: '#E8E8E8',
+};
+const PROVIDER_NAMES = {
+    anthropic: 'Claude', openai: 'GPT', google: 'Gemini', xai: 'Grok',
+};
+
+// Load available providers
+async function loadProviders() {
+    try {
+        const resp = await fetch(`${VAC_API}/v1/compare/providers`);
+        const data = await resp.json();
+        document.getElementById('providerCount').textContent = `${data.count} model${data.count !== 1 ? 's' : ''} available`;
+    } catch (e) {
+        document.getElementById('providerCount').textContent = 'API unavailable';
+    }
+}
+
+function useSuggestion(el) {
+    document.getElementById('promptInput').value = el.textContent;
+    // Auto-detect domain
+    const text = el.textContent.toLowerCase();
+    if (text.includes('election') || text.includes('political') || text.includes('regulation')) {
+        document.getElementById('domainSelect').value = 'political';
+    } else if (text.includes('health') || text.includes('covid') || text.includes('ivermectin') || text.includes('vaping')) {
+        document.getElementById('domainSelect').value = 'medical';
+    } else if (text.includes('invest') || text.includes('bitcoin')) {
+        document.getElementById('domainSelect').value = 'financial';
+    }
+}
+
+async function runComparison() {
+    const prompt = document.getElementById('promptInput').value.trim();
+    if (!prompt) return;
+
+    const domain = document.getElementById('domainSelect').value;
+    const btn = document.getElementById('btnCompare');
+    btn.disabled = true;
+    btn.textContent = '◈ Running...';
+
+    document.getElementById('loadingBar').classList.add('active');
+    document.getElementById('resultsGrid').innerHTML = '';
+    document.getElementById('consensusCard').classList.remove('active');
+    document.getElementById('summaryRow').style.display = 'none';
+
+    try {
+        const resp = await fetch(`${VAC_API}/v1/compare`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, domain, max_tokens: 512 }),
+        });
+        const data = await resp.json();
+        renderResults(data);
+    } catch (e) {
+        document.getElementById('resultsGrid').innerHTML = `
+            <div style="text-align:center;padding:40px;color:var(--red);font-family:var(--mono);font-size:12px;">
+                Comparison failed: ${e.message}<br>Check that LLM API keys are configured on VAC backend.
+            </div>`;
+    } finally {
+        document.getElementById('loadingBar').classList.remove('active');
+        btn.disabled = false;
+        btn.textContent = '◈ Compare All Models';
+    }
+}
+
+function renderResults(data) {
+    const grid = document.getElementById('resultsGrid');
+    grid.innerHTML = '';
+
+    // Sort: successful first, then refused, then errors
+    const sorted = [...data.results].sort((a, b) => {
+        const order = { success: 0, refused: 1, soft_refusal: 1, error: 2 };
+        return (order[a.status] || 3) - (order[b.status] || 3);
+    });
+
+    for (const r of sorted) {
+        const color = PROVIDER_COLORS[r.provider] || '#888';
+        const isRefused = r.refused || r.status === 'refused';
+        const isSoft = r.refusal_type === 'soft_refusal';
+        const isError = r.status === 'error';
+
+        const statusClass = isError ? 'status-error' : isRefused ? 'status-refused' : isSoft ? 'status-soft' : 'status-ok';
+        const statusText = isError ? 'ERROR' : isRefused ? 'REFUSED' : isSoft ? 'HEDGED' : 'ANSWERED';
+        const cardClass = isRefused ? 'refused' : isSoft ? 'soft-refused' : '';
+
+        const card = document.createElement('div');
+        card.className = `model-card ${cardClass}`;
+        card.innerHTML = `
+            <div class="model-header">
+                <div class="model-dot" style="background:${color}"></div>
+                <div class="model-name">${r.label || r.provider}</div>
+                <span class="model-status ${statusClass}">${statusText}</span>
+            </div>
+            <div class="model-body">${isError ? `<span style="color:var(--red)">${r.error || 'Unknown error'}</span>` : escapeHtml(r.content || 'No response')}</div>
+            <div class="model-footer">
+                <span class="model-stat"><strong>${r.time_ms || 0}</strong>ms</span>
+                <span class="model-stat"><strong>${((r.input_tokens||0)+(r.output_tokens||0)).toLocaleString()}</strong> tok</span>
+                <span class="model-stat"><strong>$${(r.cost_usd||0).toFixed(4)}</strong></span>
+                ${isRefused ? `<span class="model-stat" style="color:var(--red)">⚠ ${r.refusal_type?.replace('_',' ')}</span>` : ''}
+            </div>
+        `;
+        grid.appendChild(card);
+    }
+
+    // Consensus
+    const cc = document.getElementById('consensusCard');
+    if (data.consensus) {
+        cc.classList.add('active');
+        const score = data.consensus.agreement_score || 0;
+        const agreed = data.consensus.detected;
+        document.getElementById('consensusTitle').className = `consensus-title ${agreed ? 'consensus-agree' : 'consensus-diverge'}`;
+        document.getElementById('consensusTitle').textContent = agreed ? '✓ CONSENSUS DETECTED' : '⚠ MODELS DIVERGE';
+        document.getElementById('consensusDetail').textContent = agreed
+            ? `${data.consensus.agreeing_models} models produced similar answers (${Math.round(score*100)}% agreement)`
+            : `Models produced substantially different answers (${Math.round(score*100)}% similarity)`;
+        const fill = document.getElementById('consensusFill');
+        fill.style.width = `${Math.round(score*100)}%`;
+        fill.style.background = agreed ? 'var(--green)' : score > 0.15 ? 'var(--amber)' : 'var(--red)';
+    }
+
+    // Summary
+    document.getElementById('summaryRow').style.display = 'flex';
+    document.getElementById('statModels').textContent = data.models_compared;
+    document.getElementById('statTokens').textContent = (data.total_tokens || 0).toLocaleString();
+    document.getElementById('statCost').textContent = `$${(data.total_cost_usd || 0).toFixed(4)}`;
+    document.getElementById('statRefused').textContent = data.refused_count || 0;
+    document.getElementById('statTrustGraph').textContent = '◈ Trust graph updated';
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML.replace(/\n/g, '<br>');
+}
+
+// Keyboard shortcut
+document.getElementById('promptInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) runComparison();
+});
+
+loadProviders();
+</script>
+</body>
+</html>

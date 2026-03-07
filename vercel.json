@@ -65,6 +65,10 @@
             "destination": "/intelligence.html"
         },
         {
+            "source": "/compare",
+            "destination": "/compare.html"
+        },
+        {
             "source": "/apikeys",
             "destination": "/apikeys.html"
         },
