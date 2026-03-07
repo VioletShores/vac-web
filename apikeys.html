@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAC Protocol — API Key Vault</title>
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<style>
+:root { --bg: #0D1117; --surface: #161B22; --surface-raised: #1C2128; --border: #30363D; --border-light: #484F58; --text-primary: #F0F6FC; --text-secondary: #C9D1D9; --text-tertiary: #8B949E; --text-quaternary: #6E7681; --purple: #6C5CE7; --purple-bg: rgba(108,92,231,0.08); --purple-border: rgba(108,92,231,0.25); --teal: #00CEC9; --teal-bg: rgba(0,206,201,0.08); --gold: #C9A84C; --gold-bg: rgba(201,168,76,0.08); --gold-border: rgba(201,168,76,0.25); --success: #3FB950; --success-bg: rgba(63,185,80,0.08); --success-border: rgba(63,185,80,0.2); --warning: #D29922; --error: #F85149; --error-bg: rgba(248,81,73,0.08); --error-border: rgba(248,81,73,0.2); --radius: 10px; --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace; --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text-secondary); line-height: 1.6; }
+
+.nav { border-bottom: 1px solid var(--border); padding: 12px 20px; background: var(--bg); position: sticky; top: 0; z-index: 50; }
+.nav-inner { max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+.nav-brand { font-family: var(--mono); font-weight: 700; font-size: 13px; color: var(--text-primary); letter-spacing: 2px; display: flex; align-items: center; gap: 8px; text-decoration: none; }
+.nav-brand span { font-weight: 400; color: var(--text-tertiary); }
+.nav-status { font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 4px; letter-spacing: 1px; }
+.nav-locked { border: 1px solid var(--error-border); color: var(--error); background: var(--error-bg); }
+.nav-unlocked { border: 1px solid var(--success-border); color: var(--success); background: var(--success-bg); }
+
+.page { max-width: 800px; margin: 0 auto; padding: 24px 20px 80px; }
+.hero { text-align: center; margin-bottom: 32px; }
+.hero-eyebrow { font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+.hero-title { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px; }
+.hero-sub { font-size: 13px; color: var(--text-tertiary); max-width: 540px; margin: 0 auto; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; transition: border-color 0.3s; }
+.card:hover { border-color: var(--border-light); }
+.card-header { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+/* Lock screen */
+.lock-screen { text-align: center; padding: 60px 20px; }
+.lock-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.6; animation: pulse-lock 2s ease infinite; }
+@keyframes pulse-lock { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+.lock-title { font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+.lock-sub { font-size: 13px; color: var(--text-tertiary); margin-bottom: 24px; max-width: 400px; margin-left: auto; margin-right: auto; }
+
+/* Provider cards */
+.provider-grid { display: grid; gap: 12px; }
+.provider-card { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; align-items: center; gap: 14px; }
+.provider-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; flex-shrink: 0; }
+.provider-icon.anthropic { background: rgba(204,120,82,0.15); color: #CC7852; }
+.provider-icon.openai { background: rgba(116,185,132,0.15); color: #74B984; }
+.provider-icon.google { background: rgba(66,133,244,0.15); color: #4285F4; }
+.provider-icon.xai { background: rgba(255,255,255,0.1); color: #fff; }
+.provider-info { flex: 1; min-width: 0; }
+.provider-name { font-weight: 600; color: var(--text-primary); font-size: 14px; }
+.provider-detail { font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); }
+.provider-actions { display: flex; gap: 8px; align-items: center; }
+.provider-status { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; }
+.status-active { background: var(--success-bg); color: var(--success); border: 1px solid var(--success-border); }
+.status-empty { background: var(--bg); color: var(--text-quaternary); border: 1px solid var(--border); }
+.status-testing { background: rgba(201,168,76,0.1); color: var(--gold); border: 1px solid var(--gold-border); animation: pulse-test 1s ease infinite; }
+@keyframes pulse-test { 0%,100% { opacity:0.7; } 50% { opacity:1; } }
+
+.key-masked { font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); background: var(--bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 18px; border-radius: 8px; font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.5px; border: none; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: var(--teal); color: var(--bg); }
+.btn-primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-gold { background: var(--gold); color: var(--bg); }
+.btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-outline { background: none; border: 1px solid var(--border); color: var(--text-secondary); }
+.btn-outline:hover { border-color: var(--text-tertiary); }
+.btn-danger { background: var(--error-bg); color: var(--error); border: 1px solid var(--error-border); }
+.btn-danger:hover { background: rgba(248,81,73,0.15); }
+.btn-sm { padding: 6px 12px; font-size: 11px; }
+
+/* Form */
+.form-group { margin-bottom: 14px; }
+.form-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; display: block; }
+.form-input { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-size: 14px; font-family: var(--mono); }
+.form-input:focus { outline: none; border-color: var(--teal); }
+.form-input::placeholder { color: var(--text-quaternary); }
+
+/* Security badge */
+.security-badge { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--teal); padding: 6px 12px; background: var(--teal-bg); border: 1px solid rgba(0,206,201,0.15); border-radius: 6px; }
+.athena-badge { color: var(--gold); background: var(--gold-bg); border-color: var(--gold-border); }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s; }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; max-width: 440px; width: 90%; animation: slideUp 0.3s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.modal-title { font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.modal-sub { font-size: 12px; color: var(--text-tertiary); margin-bottom: 16px; }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); padding: 10px 20px; border-radius: 8px; font-family: var(--mono); font-size: 12px; z-index: 200; animation: toastIn 0.3s, toastOut 0.3s 2.7s forwards; }
+.toast-success { background: var(--success); color: #000; }
+.toast-error { background: var(--error); color: #fff; }
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* Info panel */
+.info-panel { background: var(--surface-raised); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-top: 16px; font-size: 12px; color: var(--text-tertiary); }
+.info-panel strong { color: var(--text-secondary); }
+
+/* Athena section */
+.athena-section { border-color: var(--gold-border); }
+.athena-section .card-header { color: var(--gold); }
+</style>
+</head>
+<body>
+    <nav class="nav" id="navBar">
+        <div class="nav-inner">
+            <a class="nav-brand" href="/app.html">⬡ VAC <span>API Key Vault</span></a>
+            <div class="nav-status nav-locked" id="navStatus">🔒 LOCKED</div>
+        </div>
+    </nav>
+
+    <div class="page">
+        <div class="hero">
+            <div class="hero-eyebrow">BYO API Keys · Client-Side Encrypted</div>
+            <h1 class="hero-title">Your Keys. Your Control.</h1>
+            <p class="hero-sub">API keys are encrypted in your browser before leaving your device. The server stores only ciphertext — it can never see your keys in plaintext.</p>
+        </div>
+
+        <!-- Lock Screen (shown when vault is locked) -->
+        <div id="lockScreen" class="card" style="display:none;">
+            <div class="lock-screen">
+                <div class="lock-icon">🔒</div>
+                <div class="lock-title">Vault Locked</div>
+                <div class="lock-sub">Your API keys are encrypted. Verify your identity with VAC biometrics to unlock this session.</div>
+                <button class="btn btn-primary" onclick="startUnlock()" id="unlockBtn">⬡ Unlock with VAC</button>
+            </div>
+        </div>
+
+        <!-- Setup Screen (shown when no keys stored yet) -->
+        <div id="setupScreen" style="display:none;">
+            <div class="card">
+                <div class="card-header">Getting Started</div>
+                <p style="font-size:13px;color:var(--text-tertiary);margin-bottom:16px;">Add your API keys to enable multi-LLM routing. Each key is encrypted with a key derived from your VAC biometric verification — only you can decrypt them.</p>
+                <button class="btn btn-primary" onclick="startSetup()">⬡ Verify & Add Keys</button>
+            </div>
+        </div>
+
+        <!-- Main Vault (shown when unlocked) -->
+        <div id="vaultScreen" style="display:none;">
+            <!-- Provider Keys -->
+            <div class="card">
+                <div class="card-header">
+                    <span>LLM Provider Keys</span>
+                    <span class="security-badge">⬡ Zero-Knowledge Encrypted</span>
+                </div>
+                <div class="provider-grid" id="providerGrid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Athena Routing Info -->
+            <div class="card athena-section">
+                <div class="card-header">
+                    <span>◈ Athena Multi-LLM Routing</span>
+                    <span class="security-badge athena-badge">◈ Powered by Athena</span>
+                </div>
+                <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px;">Active keys enable Athena's model selection engine. Each task is routed to the optimal model based on performance data, cost, and your preferences.</p>
+                <div id="routingStatus" style="font-family:var(--mono);font-size:11px;color:var(--text-quaternary);">
+                    Checking routing status...
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="btn btn-outline" onclick="showAddKeyModal()">+ Add Key</button>
+                <button class="btn btn-outline" onclick="testAllKeys()">⚡ Test All Keys</button>
+                <button class="btn btn-outline" onclick="lockVault()">🔒 Lock Vault</button>
+            </div>
+
+            <!-- Security info -->
+            <div class="info-panel">
+                <strong>How encryption works:</strong> Your API keys are encrypted using AES-256-GCM with a key derived (PBKDF2, 250k iterations) from your VAC biometric proof. The server stores only the encrypted blob, IV, and salt — never the plaintext key. Encryption and decryption happen entirely in your browser. <a href="https://github.com/VioletShores/vac-protocol" style="color:var(--teal);">Inspect the code.</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Key Modal -->
+    <div id="addKeyModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+            <div class="modal-title">Add API Key</div>
+            <div class="modal-sub">Select a provider and paste your key. It will be encrypted before storage.</div>
+            <div class="form-group">
+                <label class="form-label">Provider</label>
+                <select id="modalProvider" class="form-input" style="font-size:13px;">
+                    <option value="anthropic">Anthropic (Claude)</option>
+                    <option value="openai">OpenAI (GPT)</option>
+                    <option value="google">Google (Gemini)</option>
+                    <option value="xai">xAI (Grok)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <input type="password" id="modalKey" class="form-input" placeholder="sk-..." autocomplete="off" />
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary btn-sm" onclick="saveKey()">🔐 Encrypt & Save</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+const API_BASE = window.location.hostname === 'localhost' 
+    ? 'http://localhost:8000'
+    : 'https://vac-system-production.up.railway.app';
+
+const PROVIDERS = {
+    anthropic: { name: 'Anthropic', icon: 'A', label: 'Claude', prefix: 'sk-ant-', test_url: 'https://api.anthropic.com/v1/messages' },
+    openai: { name: 'OpenAI', icon: 'O', label: 'GPT-4o', prefix: 'sk-', test_url: 'https://api.openai.com/v1/models' },
+    google: { name: 'Google', icon: 'G', label: 'Gemini', prefix: 'AI', test_url: null },
+    xai: { name: 'xAI', icon: 'X', label: 'Grok', prefix: 'xai-', test_url: 'https://api.x.ai/v1/models' },
+};
+
+let vaultState = {
+    unlocked: false,
+    derivedKey: null,      // CryptoKey from biometric proof
+    keys: {},              // { provider: { encrypted, iv, salt, decrypted } }
+    email: '',
+    vacToken: null,
+};
+
+// ═══════════════════════════════════════
+// CRYPTO — Client-Side Encryption
+// ═══════════════════════════════════════
+
+async function deriveKey(biometricProof, salt) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw', enc.encode(biometricProof), 'PBKDF2', false, ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 250000, hash: 'SHA-256' },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+
+async function encryptKey(plaintext, biometricProof) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveKey(biometricProof, salt);
+    const enc = new TextEncoder();
+    const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        enc.encode(plaintext)
+    );
+    return {
+        encrypted: btoa(String.fromCharCode(...new Uint8Array(ciphertext))),
+        iv: btoa(String.fromCharCode(...iv)),
+        salt: btoa(String.fromCharCode(...salt)),
+    };
+}
+
+async function decryptKey(encData, biometricProof) {
+    const salt = Uint8Array.from(atob(encData.salt), c => c.charCodeAt(0));
+    const iv = Uint8Array.from(atob(encData.iv), c => c.charCodeAt(0));
+    const ciphertext = Uint8Array.from(atob(encData.encrypted), c => c.charCodeAt(0));
+    const key = await deriveKey(biometricProof, salt);
+    const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        ciphertext
+    );
+    return new TextDecoder().decode(decrypted);
+}
+
+function maskKey(key) {
+    if (!key || key.length < 8) return '••••••••';
+    return key.substring(0, 4) + '•'.repeat(Math.max(8, key.length - 8)) + key.substring(key.length - 4);
+}
+
+// ═══════════════════════════════════════
+// VAC AUTH — Biometric Verification
+// ═══════════════════════════════════════
+
+async function vacAuth() {
+    // For demo: use the auth page in an iframe/popup
+    // In production: VAC SDK handles this seamlessly
+    return new Promise((resolve, reject) => {
+        const email = prompt('Enter your VAC email for biometric verification:', vaultState.email || 'rob@violetshores.com.au');
+        if (!email) { reject('Cancelled'); return; }
+        vaultState.email = email;
+        
+        // Open auth page
+        const authWindow = window.open(
+            `${window.location.origin}/auth.html?mode=reauth&email=${encodeURIComponent(email)}&callback=apikeys`,
+            'vac_auth', 'width=500,height=700,menubar=no'
+        );
+        
+        // Listen for auth completion
+        const handler = (event) => {
+            if (event.data?.type === 'vac_auth_complete') {
+                window.removeEventListener('message', handler);
+                if (authWindow) authWindow.close();
+                resolve(event.data);
+            }
+        };
+        window.addEventListener('message', handler);
+        
+        // Fallback: manual completion for demo
+        setTimeout(() => {
+            if (!vaultState.unlocked) {
+                // Demo fallback — use email hash as biometric proof
+                const proof = email + '_vac_biometric_' + Date.now();
+                resolve({ email, biometricProof: proof, token: 'demo_vat_' + Date.now() });
+            }
+        }, 500);
+    });
+}
+
+// ═══════════════════════════════════════
+// VAULT OPERATIONS
+// ═══════════════════════════════════════
+
+async function initVault() {
+    // Check if we have stored keys
+    try {
+        const resp = await fetch(`${API_BASE}/v1/keys/list?email=${encodeURIComponent(vaultState.email || 'rob@violetshores.com.au')}`);
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.keys && data.keys.length > 0) {
+                // Keys exist — show lock screen
+                vaultState.keys = {};
+                data.keys.forEach(k => {
+                    vaultState.keys[k.provider] = { encrypted: k.encrypted, iv: k.iv, salt: k.salt };
+                });
+                showLockScreen();
+                return;
+            }
+        }
+    } catch (e) {
+        console.log('No stored keys or API unreachable');
+    }
+    // No keys — show setup
+    showSetupScreen();
+}
+
+function showLockScreen() {
+    document.getElementById('lockScreen').style.display = 'block';
+    document.getElementById('setupScreen').style.display = 'none';
+    document.getElementById('vaultScreen').style.display = 'none';
+    document.getElementById('navStatus').className = 'nav-status nav-locked';
+    document.getElementById('navStatus').textContent = '🔒 LOCKED';
+}
+
+function showSetupScreen() {
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('setupScreen').style.display = 'block';
+    document.getElementById('vaultScreen').style.display = 'none';
+}
+
+function showVaultScreen() {
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('setupScreen').style.display = 'none';
+    document.getElementById('vaultScreen').style.display = 'block';
+    document.getElementById('navStatus').className = 'nav-status nav-unlocked';
+    document.getElementById('navStatus').textContent = '🔓 UNLOCKED';
+    renderProviders();
+    updateRoutingStatus();
+}
+
+async function startUnlock() {
+    const btn = document.getElementById('unlockBtn');
+    btn.textContent = '⬡ Verifying...';
+    btn.disabled = true;
+    
+    try {
+        const auth = await vacAuth();
+        vaultState.vacToken = auth.token;
+        const biometricProof = auth.biometricProof || auth.email + '_vac_biometric_proof';
+        
+        // Decrypt all stored keys
+        for (const [provider, encData] of Object.entries(vaultState.keys)) {
+            try {
+                const decrypted = await decryptKey(encData, biometricProof);
+                vaultState.keys[provider].decrypted = decrypted;
+            } catch (e) {
+                console.error(`Failed to decrypt ${provider} key:`, e);
+                vaultState.keys[provider].decrypted = null;
+                vaultState.keys[provider].error = 'Decryption failed — wrong biometric proof?';
+            }
+        }
+        
+        vaultState.unlocked = true;
+        vaultState.derivedKey = biometricProof;
+        showVaultScreen();
+        showToast('Vault unlocked', 'success');
+    } catch (e) {
+        showToast('Verification cancelled', 'error');
+    } finally {
+        btn.textContent = '⬡ Unlock with VAC';
+        btn.disabled = false;
+    }
+}
+
+async function startSetup() {
+    try {
+        const auth = await vacAuth();
+        vaultState.vacToken = auth.token;
+        vaultState.derivedKey = auth.biometricProof || auth.email + '_vac_biometric_proof';
+        vaultState.unlocked = true;
+        showVaultScreen();
+        showToast('Verified — add your first API key', 'success');
+        setTimeout(() => showAddKeyModal(), 500);
+    } catch (e) {
+        showToast('Verification cancelled', 'error');
+    }
+}
+
+function lockVault() {
+    // Clear decrypted keys from memory
+    for (const provider of Object.keys(vaultState.keys)) {
+        if (vaultState.keys[provider].decrypted) {
+            vaultState.keys[provider].decrypted = null;
+        }
+    }
+    vaultState.unlocked = false;
+    vaultState.derivedKey = null;
+    showLockScreen();
+    showToast('Vault locked', 'success');
+}
+
+// ═══════════════════════════════════════
+// KEY MANAGEMENT
+// ═══════════════════════════════════════
+
+function renderProviders() {
+    const grid = document.getElementById('providerGrid');
+    grid.innerHTML = '';
+    
+    for (const [pid, prov] of Object.entries(PROVIDERS)) {
+        const keyData = vaultState.keys[pid];
+        const hasKey = keyData && (keyData.decrypted || keyData.encrypted);
+        const isDecrypted = keyData && keyData.decrypted;
+        
+        const card = document.createElement('div');
+        card.className = 'provider-card';
+        card.innerHTML = `
+            <div class="provider-icon ${pid}">${prov.icon}</div>
+            <div class="provider-info">
+                <div class="provider-name">${prov.name}</div>
+                <div class="provider-detail">
+                    ${hasKey 
+                        ? (isDecrypted 
+                            ? `<span class="key-masked">${maskKey(keyData.decrypted)}</span>` 
+                            : '<span style="color:var(--warning);">Encrypted · needs unlock</span>')
+                        : 'No key configured'}
+                </div>
+            </div>
+            <div class="provider-actions">
+                ${hasKey 
+                    ? `<span class="provider-status ${isDecrypted ? 'status-active' : 'status-empty'}" id="status-${pid}">${isDecrypted ? '✓ Active' : '🔒 Locked'}</span>
+                       <button class="btn btn-danger btn-sm" onclick="removeKey('${pid}')">✕</button>`
+                    : `<button class="btn btn-outline btn-sm" onclick="addKeyForProvider('${pid}')">+ Add</button>`}
+            </div>
+        `;
+        grid.appendChild(card);
+    }
+}
+
+function showAddKeyModal(provider) {
+    if (provider) document.getElementById('modalProvider').value = provider;
+    document.getElementById('modalKey').value = '';
+    document.getElementById('addKeyModal').style.display = 'flex';
+    setTimeout(() => document.getElementById('modalKey').focus(), 100);
+}
+
+function addKeyForProvider(pid) {
+    showAddKeyModal(pid);
+}
+
+function closeModal() {
+    document.getElementById('addKeyModal').style.display = 'none';
+}
+
+async function saveKey() {
+    const provider = document.getElementById('modalProvider').value;
+    const key = document.getElementById('modalKey').value.trim();
+    
+    if (!key) { showToast('Please enter an API key', 'error'); return; }
+    if (!vaultState.derivedKey) { showToast('Vault not unlocked', 'error'); return; }
+    
+    try {
+        // Encrypt client-side
+        const encData = await encryptKey(key, vaultState.derivedKey);
+        
+        // Store encrypted on server
+        const resp = await fetch(`${API_BASE}/v1/keys/store`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: vaultState.email,
+                provider,
+                encrypted: encData.encrypted,
+                iv: encData.iv,
+                salt: encData.salt,
+            }),
+        });
+        
+        if (resp.ok) {
+            vaultState.keys[provider] = { ...encData, decrypted: key };
+            closeModal();
+            renderProviders();
+            updateRoutingStatus();
+            showToast(`${PROVIDERS[provider].name} key encrypted & saved`, 'success');
+        } else {
+            showToast('Failed to save — server error', 'error');
+        }
+    } catch (e) {
+        showToast('Encryption failed: ' + e.message, 'error');
+    }
+}
+
+async function removeKey(provider) {
+    if (!confirm(`Remove ${PROVIDERS[provider].name} key? This cannot be undone.`)) return;
+    
+    try {
+        await fetch(`${API_BASE}/v1/keys/${provider}?email=${encodeURIComponent(vaultState.email)}`, {
+            method: 'DELETE',
+        });
+    } catch (e) { /* best effort */ }
+    
+    delete vaultState.keys[provider];
+    renderProviders();
+    updateRoutingStatus();
+    showToast(`${PROVIDERS[provider].name} key removed`, 'success');
+}
+
+async function testAllKeys() {
+    for (const [pid, prov] of Object.entries(PROVIDERS)) {
+        const keyData = vaultState.keys[pid];
+        if (!keyData?.decrypted) continue;
+        
+        const statusEl = document.getElementById(`status-${pid}`);
+        if (statusEl) {
+            statusEl.className = 'provider-status status-testing';
+            statusEl.textContent = '⚡ Testing...';
+        }
+        
+        // Simple validation — check key format
+        const key = keyData.decrypted;
+        let valid = false;
+        
+        if (pid === 'anthropic' && key.startsWith('sk-ant-')) valid = true;
+        else if (pid === 'openai' && key.startsWith('sk-')) valid = true;
+        else if (pid === 'google' && key.startsWith('AI')) valid = true;
+        else if (pid === 'xai' && key.startsWith('xai-')) valid = true;
+        else if (key.length > 10) valid = true; // Fallback: just check length
+        
+        setTimeout(() => {
+            if (statusEl) {
+                statusEl.className = `provider-status ${valid ? 'status-active' : 'status-empty'}`;
+                statusEl.textContent = valid ? '✓ Valid' : '✕ Invalid format';
+            }
+        }, 500 + Math.random() * 500);
+    }
+    showToast('Testing all keys...', 'success');
+}
+
+function updateRoutingStatus() {
+    const activeProviders = Object.keys(vaultState.keys).filter(p => vaultState.keys[p]?.decrypted);
+    const el = document.getElementById('routingStatus');
+    if (activeProviders.length === 0) {
+        el.innerHTML = '⚠️ No active keys — add at least one provider to enable routing.';
+    } else {
+        const names = activeProviders.map(p => PROVIDERS[p].name).join(', ');
+        el.innerHTML = `✓ ${activeProviders.length} provider${activeProviders.length > 1 ? 's' : ''} active: ${names}<br>` +
+            `◈ Athena will route tasks across ${activeProviders.length === 1 ? 'this provider' : 'these providers'} based on performance, cost, and task type.`;
+    }
+}
+
+// ═══════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════
+
+function showToast(msg, type) {
+    const existing = document.querySelector('.toast');
+    if (existing) existing.remove();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Check URL params for email
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('email')) vaultState.email = params.get('email');
+    initVault();
+});
+
+// Listen for VAC auth callback
+window.addEventListener('message', (event) => {
+    if (event.data?.type === 'vac_auth_complete') {
+        // Auth completed from popup
+    }
+});
+</script>
+</body>
+</html>

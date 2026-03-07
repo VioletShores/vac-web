@@ -82,18 +82,31 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100v
 
 <div class="nav-divider"></div>
 
+<!-- Athena Intelligence -->
+<div class="nav-section" style="color:#C9A84C;">◈ INTELLIGENCE</div>
+<a class="nav-tab" data-tab="intelligence" onclick="goTab('intelligence')">
+<div class="dot" style="background:#C9A84C"></div>LLM Trust Graph
+</a>
+
+<div class="nav-divider"></div>
+
 <!-- Apps Dropdown -->
 <div class="apps-backdrop" id="appsBackdrop" onclick="closeApps()"></div>
 <div class="apps-dropdown" id="appsDropdown">
 <div class="apps-trigger" id="appsTrigger" onclick="toggleApps()">
 <div class="dot" style="background:var(--purple)"></div>
-Apps <span class="badge">4</span> <span class="arrow">▾</span>
+Apps <span class="badge">5</span> <span class="arrow">▾</span>
 </div>
 <div class="apps-menu" id="appsMenu">
 <a class="apps-item" data-tab="agents" onclick="goApp('agents')">
 <div class="icon" style="background:rgba(124,58,237,0.1)">🤖</div>
 <div><div class="name">Agent Control</div><div class="desc">Delegation, budgets, task running</div></div>
 <div class="vac-badge">VAC</div>
+</a>
+<a class="apps-item" data-tab="apikeys" onclick="goApp('apikeys')">
+<div class="icon" style="background:rgba(201,168,76,0.1)">◈</div>
+<div><div class="name">API Key Vault</div><div class="desc">BYO keys, encrypted, biometric gate</div></div>
+<div class="vac-badge" style="background:rgba(201,168,76,0.15);color:#C9A84C;">◈</div>
 </a>
 <a class="apps-item" data-tab="messaging" onclick="goApp('messaging')">
 <div class="icon" style="background:rgba(245,158,11,0.1)">✉️</div>
@@ -139,7 +152,9 @@ const tabs = {
     dashboard: '/dashboard' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
     trust: '/trust' + (email ? '?email=' + e : ''),
     verify: '/auth' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
+    intelligence: '/intelligence' + (email ? '?email=' + e : ''),
     agents: '/agents' + (email ? '?email=' + e : ''),
+    apikeys: '/apikeys' + (email ? '?email=' + e : ''),
     messaging: '/msg' + (email ? '?from=' + e : ''),
     governance: '/groups' + (email ? '?email=' + e : ''),
     keyvault: '/keyvault' + (email ? '?email=' + e : ''),
