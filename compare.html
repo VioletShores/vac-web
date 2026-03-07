@@ -279,7 +279,7 @@ async function runComparison() {
         const resp = await fetch(`${VAC_API}/v1/compare`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, domain, max_tokens: 512 }),
+            body: JSON.stringify({ prompt, domain, max_tokens: 1024 }),
         });
         const data = await resp.json();
         renderResults(data);
