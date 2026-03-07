@@ -302,63 +302,44 @@ function renderGraph(data) {
     // Clear previous
     svg.selectAll('*').remove();
 
-    // Filter: only show nodes that have at least one edge (remove orphans)
-    const linkedNodeIds = new Set();
-    (data.links || []).forEach(l => {
-        linkedNodeIds.add(typeof l.source === 'object' ? l.source.id : l.source);
-        linkedNodeIds.add(typeof l.target === 'object' ? l.target.id : l.target);
-    });
-
-    // Strictly only show linked nodes
-    const linkedNodes = (data.nodes || []).filter(n => linkedNodeIds.has(n.id));
-
-    // Deduplicate: group by provider, keep the one with most data_points
+    // Deduplicate: one node per provider, keep the one with most data_points
     const bestByProvider = {};
-    for (const n of linkedNodes) {
-        const key = n.provider; // Group by PROVIDER not model — one node per provider
+    for (const n of (data.nodes || [])) {
+        const key = n.provider;
         if (!bestByProvider[key] || (n.data_points || 0) > (bestByProvider[key].data_points || 0)) {
-            bestByProvider[key] = n;
+            bestByProvider[key] = { ...n };
         }
     }
     const dedupedNodes = Object.values(bestByProvider);
 
-    // Rebuild links to only reference deduped nodes
-    const dedupedNodeIds = new Set(dedupedNodes.map(n => n.id));
-    
-    // Map old node IDs to the deduped representative for that provider
-    const providerToNodeId = {};
-    for (const n of dedupedNodes) {
-        providerToNodeId[n.provider] = n.id;
-    }
-    
-    // Remap links: point to the deduped node for each provider
-    const remappedLinks = [];
-    const seenLinkPairs = new Set();
+    // Build provider-to-nodeId map
+    const providerToId = {};
+    for (const n of dedupedNodes) providerToId[n.provider] = n.id;
+
+    // Build nodeId-to-provider lookup from ALL original nodes
+    const idToProvider = {};
+    for (const n of (data.nodes || [])) idToProvider[n.id] = n.provider;
+
+    // Remap links to deduped nodes, deduplicate pairs
+    const seenPairs = new Set();
+    const filteredLinks = [];
     for (const l of (data.links || [])) {
         const sId = typeof l.source === 'object' ? l.source.id : l.source;
         const tId = typeof l.target === 'object' ? l.target.id : l.target;
-        
-        // Find the provider for source and target
-        const sNode = (data.nodes || []).find(n => n.id === sId);
-        const tNode = (data.nodes || []).find(n => n.id === tId);
-        if (!sNode || !tNode) continue;
-        
-        const newSource = providerToNodeId[sNode.provider];
-        const newTarget = providerToNodeId[tNode.provider];
-        if (!newSource || !newTarget || newSource === newTarget) continue;
-        
-        // Deduplicate link pairs
-        const pairKey = [newSource, newTarget].sort().join('|');
-        if (seenLinkPairs.has(pairKey)) continue;
-        seenLinkPairs.add(pairKey);
-        
-        remappedLinks.push({ ...l, source: newSource, target: newTarget });
+        const sProv = idToProvider[sId];
+        const tProv = idToProvider[tId];
+        if (!sProv || !tProv || sProv === tProv) continue;
+        const newS = providerToId[sProv];
+        const newT = providerToId[tProv];
+        const pairKey = [newS, newT].sort().join('|');
+        if (seenPairs.has(pairKey)) continue;
+        seenPairs.add(pairKey);
+        filteredLinks.push({ ...l, source: newS, target: newT });
     }
-    const filteredLinks = remappedLinks;
 
-    // Update subtitle with filtered counts
+    // Update subtitle
     document.getElementById('graphSubtitle').textContent =
-        `${dedupedNodes.length} models · ${filteredLinks.length} edges · ${data.data_points || dedupedNodes.reduce((s, n) => s + (n.data_points || 0), 0)} data points`;
+        `${dedupedNodes.length} models · ${filteredLinks.length} connections · ${(data.nodes || []).reduce((s, n) => s + (n.data_points || 0), 0)} data points`;
 
     if (dedupedNodes.length === 0) {
         svg.append('text')
