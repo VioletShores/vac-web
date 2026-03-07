@@ -101,7 +101,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-second
     <nav class="nav">
         <div class="nav-inner">
             <a class="nav-brand" href="/app.html">◈ Athena<span>LLM Trust Graph</span></a>
-            <span class="nav-badge">PageRank for LLMs</span>
+            <span class="nav-badge">SignalRank</span>
         </div>
     </nav>
 
@@ -195,11 +195,11 @@ async function loadTrustGraph() {
 function generateSeedData() {
     // Seed data for demo when API is unavailable
     const models = [
-        { id: 'anthropic/claude-opus-4-5-20250514', provider: 'anthropic', model_id: 'claude-opus-4-5-20250514', label: 'Claude Opus 4.5', composite_trust: 0.82, reliability: 0.85, honesty: 0.75, restriction_transparency: 0.70, hallucination_rate: 0.05, independence: 0.80, pagerank: 0.85, size: 45, rail_categories: ['political','personal_opinion'], rail_count: 2, hallucination_signals: 0, data_points: 150 },
-        { id: 'anthropic/claude-sonnet-4-5-20250514', provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5', composite_trust: 0.80, reliability: 0.82, honesty: 0.73, restriction_transparency: 0.68, hallucination_rate: 0.06, independence: 0.75, pagerank: 0.78, size: 42, rail_categories: ['political','personal_opinion'], rail_count: 2, hallucination_signals: 1, data_points: 280 },
-        { id: 'openai/gpt-4o', provider: 'openai', model_id: 'gpt-4o', label: 'GPT-4o', composite_trust: 0.72, reliability: 0.80, honesty: 0.60, restriction_transparency: 0.50, hallucination_rate: 0.08, independence: 0.70, pagerank: 0.70, size: 38, rail_categories: ['political','conspiracy'], rail_count: 2, hallucination_signals: 3, data_points: 200 },
-        { id: 'xai/grok-2-latest', provider: 'xai', model_id: 'grok-2-latest', label: 'Grok 2', composite_trust: 0.58, reliability: 0.55, honesty: 0.85, restriction_transparency: 0.90, hallucination_rate: 0.35, independence: 0.90, pagerank: 0.55, size: 35, rail_categories: [], rail_count: 0, hallucination_signals: 12, data_points: 90 },
-        { id: 'google/gemini-2.5-flash', provider: 'google', model_id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', composite_trust: 0.72, reliability: 0.75, honesty: 0.65, restriction_transparency: 0.55, hallucination_rate: 0.10, independence: 0.65, pagerank: 0.62, size: 35, rail_categories: ['political'], rail_count: 1, hallucination_signals: 2, data_points: 120 },
+        { id: 'anthropic/claude-opus-4-5-20250514', provider: 'anthropic', model_id: 'claude-opus-4-5-20250514', label: 'Claude Opus 4.5', composite_trust: 0.82, reliability: 0.85, honesty: 0.75, restriction_transparency: 0.70, hallucination_rate: 0.05, independence: 0.80, signal_rank: 0.85, size: 45, rail_categories: ['political','personal_opinion'], rail_count: 2, hallucination_signals: 0, data_points: 150 },
+        { id: 'anthropic/claude-sonnet-4-5-20250514', provider: 'anthropic', model_id: 'claude-sonnet-4-5-20250514', label: 'Claude Sonnet 4.5', composite_trust: 0.80, reliability: 0.82, honesty: 0.73, restriction_transparency: 0.68, hallucination_rate: 0.06, independence: 0.75, signal_rank: 0.78, size: 42, rail_categories: ['political','personal_opinion'], rail_count: 2, hallucination_signals: 1, data_points: 280 },
+        { id: 'openai/gpt-4o', provider: 'openai', model_id: 'gpt-4o', label: 'GPT-4o', composite_trust: 0.72, reliability: 0.80, honesty: 0.60, restriction_transparency: 0.50, hallucination_rate: 0.08, independence: 0.70, signal_rank: 0.70, size: 38, rail_categories: ['political','conspiracy'], rail_count: 2, hallucination_signals: 3, data_points: 200 },
+        { id: 'xai/grok-2-latest', provider: 'xai', model_id: 'grok-2-latest', label: 'Grok 2', composite_trust: 0.58, reliability: 0.55, honesty: 0.85, restriction_transparency: 0.90, hallucination_rate: 0.35, independence: 0.90, signal_rank: 0.55, size: 35, rail_categories: [], rail_count: 0, hallucination_signals: 12, data_points: 90 },
+        { id: 'google/gemini-2.5-flash', provider: 'google', model_id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', composite_trust: 0.72, reliability: 0.75, honesty: 0.65, restriction_transparency: 0.55, hallucination_rate: 0.10, independence: 0.65, signal_rank: 0.62, size: 35, rail_categories: ['political'], rail_count: 1, hallucination_signals: 2, data_points: 120 },
     ];
     models.forEach(m => m.color = PROVIDER_COLORS[m.provider] || '#888');
 
@@ -351,7 +351,7 @@ function renderGraph(data) {
         tooltip.style('opacity', 1)
             .html(`
                 <div class="tooltip-name">${PROVIDER_NAMES[d.provider]} ${d.label?.split(' ').pop() || ''}</div>
-                <div class="tooltip-stat">Trust: ${Math.round(d.composite_trust * 100)}% · PageRank: ${d.pagerank?.toFixed(3) || '—'}</div>
+                <div class="tooltip-stat">Trust: ${Math.round(d.composite_trust * 100)}% · SignalRank: ${d.signal_rank?.toFixed(3) || '—'}</div>
                 <div class="tooltip-stat">Hallucination: ${Math.round(d.hallucination_rate * 100)}% · Rails: ${d.rail_count || 0}</div>
                 <div class="tooltip-stat">${d.data_points || 0} data points</div>
             `);
@@ -422,7 +422,7 @@ function showModelDetail(d) {
 
     let html = `
         <div class="model-name">${d.label || d.model_id}</div>
-        <div class="model-provider">${PROVIDER_NAMES[d.provider] || d.provider} · PageRank ${d.pagerank?.toFixed(3) || '—'}</div>
+        <div class="model-provider">${PROVIDER_NAMES[d.provider] || d.provider} · SignalRank ${d.signal_rank?.toFixed(3) || '—'}</div>
     `;
 
     // Trust dimensions
