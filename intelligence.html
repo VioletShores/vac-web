@@ -265,9 +265,18 @@ function renderGraph(data) {
 
     // Keep nodes that have edges OR have real data points > 0
     const filteredNodes = (data.nodes || []).filter(n =>
-        linkedNodeIds.has(n.id) || (n.data_points && n.data_points > 1)
+        linkedNodeIds.has(n.id) || (n.data_points && n.data_points > 2)
     );
-    const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    // Deduplicate: keep the node with most data_points per provider/model combo
+    const bestByModel = {};
+    for (const n of filteredNodes) {
+        const key = `${n.provider}/${n.model_id}`;
+        if (!bestByModel[key] || (n.data_points || 0) > (bestByModel[key].data_points || 0)) {
+            bestByModel[key] = n;
+        }
+    }
+    const dedupedNodes = Object.values(bestByModel);
+    const filteredNodeIds = new Set(dedupedNodes.map(n => n.id));
     const filteredLinks = (data.links || []).filter(l => {
         const sId = typeof l.source === 'object' ? l.source.id : l.source;
         const tId = typeof l.target === 'object' ? l.target.id : l.target;
@@ -276,9 +285,9 @@ function renderGraph(data) {
 
     // Update subtitle with filtered counts
     document.getElementById('graphSubtitle').textContent =
-        `${filteredNodes.length} models · ${filteredLinks.length} edges · ${data.data_points || filteredNodes.reduce((s, n) => s + (n.data_points || 0), 0)} data points`;
+        `${dedupedNodes.length} models · ${filteredLinks.length} edges · ${data.data_points || dedupedNodes.reduce((s, n) => s + (n.data_points || 0), 0)} data points`;
 
-    if (filteredNodes.length === 0) {
+    if (dedupedNodes.length === 0) {
         svg.append('text')
             .attr('x', width / 2).attr('y', height / 2)
             .attr('text-anchor', 'middle')
@@ -298,7 +307,7 @@ function renderGraph(data) {
     svg.call(zoom);
 
     // Force simulation
-    const simulation = d3.forceSimulation(filteredNodes)
+    const simulation = d3.forceSimulation(dedupedNodes)
         .force('link', d3.forceLink(filteredLinks).id(d => d.id).distance(140))
         .force('charge', d3.forceManyBody().strength(-400))
         .force('center', d3.forceCenter(width / 2, height / 2))
