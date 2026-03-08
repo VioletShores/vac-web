@@ -69,7 +69,10 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100v
 </div>
 
 <nav class="nav">
-<a class="nav-tab active" data-tab="verify" onclick="goTab('verify')">
+<a class="nav-tab active" data-tab="deck" onclick="goTab('deck')">
+<div class="dot" style="background:var(--gold)"></div>Deck
+</a>
+<a class="nav-tab" data-tab="verify" onclick="goTab('verify')">
 <div class="dot" style="background:var(--emerald)"></div>Verify
 </a>
 <a class="nav-tab" data-tab="dashboard" onclick="goTab('dashboard')" style="display:none">
@@ -154,6 +157,7 @@ const e = encodeURIComponent(email);
 
 const v = Date.now(); // Cache bust for iframes
 const tabs = {
+    deck: '/deck',
     dashboard: '/dashboard' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
     trust: '/trust' + (email ? '?email=' + e : ''),
     verify: '/auth' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
@@ -274,11 +278,11 @@ window.addEventListener('message', (e) => {
 });
 
 // Init
-const initTab = window.location.hash.replace('#', '') || 'verify';
+const initTab = window.location.hash.replace('#', '') || 'deck';
 const appTabs = ['agents', 'messaging', 'governance', 'keyvault'];
 if (appTabs.includes(initTab)) goApp(initTab);
 else if (tabs[initTab]) goTab(initTab);
-else goTab('verify');
+else goTab('deck');
 </script>
 
 </body>

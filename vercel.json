@@ -37,6 +37,10 @@
             "destination": "/app.html"
         },
         {
+            "source": "/deck",
+            "destination": "/deck.html"
+        },
+        {
             "source": "/auth",
             "destination": "/auth.html"
         },
