@@ -153,6 +153,47 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 .hood-score { font-family: var(--display); font-size: 28px; font-weight: 700; color: var(--gold); line-height: 1; }
 .hood-score-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); margin-top: 2px; }
 
+/* Maximum Leverage Feedback panel */
+.leverage-panel { background: var(--surface); border: 1px solid var(--gold-border); border-radius: 12px; margin-bottom: 16px; display: none; overflow: hidden; }
+.leverage-panel.active { display: block; animation: card-in 0.4s ease; }
+.leverage-header { padding: 14px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+.leverage-icon { font-family: var(--display); font-size: 20px; color: var(--gold); }
+.leverage-title { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--gold); letter-spacing: 0.5px; }
+.leverage-subtitle { font-family: var(--body); font-size: 12px; color: var(--text-3); margin-left: auto; }
+.leverage-body { padding: 16px; }
+.leverage-prediction { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--border); background: var(--bg); transition: border-color 0.2s; }
+.leverage-prediction:hover { border-color: var(--border-light); }
+.leverage-prediction.highlight { border-color: var(--gold-border); background: var(--gold-dim); }
+.leverage-pred-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.leverage-pred-model { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text); min-width: 60px; }
+.leverage-pred-verdict { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; }
+.leverage-pred-ok { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+.leverage-pred-bad { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.leverage-pred-uncertain { background: var(--gold-dim); color: var(--gold); border: 1px solid var(--gold-border); }
+.leverage-pred-reason { font-size: 11px; color: var(--text-3); flex: 1; }
+.leverage-pred-override { background: none; border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; font-family: var(--mono); font-size: 9px; color: var(--text-dim); cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+.leverage-pred-override:hover { border-color: var(--gold-border); color: var(--gold); }
+.leverage-ask { padding: 14px 16px; border-top: 1px solid var(--border); background: rgba(201,168,76,0.04); }
+.leverage-ask-label { font-family: var(--mono); font-size: 10px; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+.leverage-ask-text { font-size: 13px; color: var(--text); margin-bottom: 10px; line-height: 1.5; }
+.leverage-pair { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: stretch; margin-bottom: 12px; }
+.leverage-pair-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; transition: all 0.2s; }
+.leverage-pair-card:hover { border-color: var(--gold-border); transform: translateY(-1px); }
+.leverage-pair-card.chosen { border-color: var(--green); background: rgba(63,185,80,0.05); }
+.leverage-pair-vs { font-family: var(--display); font-size: 16px; color: var(--text-dim); display: flex; align-items: center; justify-content: center; }
+.leverage-pair-name { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.leverage-pair-preview { font-size: 11px; color: var(--text-3); line-height: 1.5; max-height: 60px; overflow: hidden; }
+.leverage-actions { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+.btn-confirm { background: var(--gold); color: var(--bg); padding: 8px 16px; border-radius: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-confirm:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.btn-skip { background: none; border: 1px solid var(--border); color: var(--text-3); padding: 7px 14px; border-radius: 6px; font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; }
+.btn-skip:hover { border-color: var(--text-3); }
+.leverage-saved { font-family: var(--mono); font-size: 10px; color: var(--gold); padding: 12px 16px; text-align: center; animation: card-in 0.3s ease; }
+/* Implicit signal indicator (subtle) */
+.signal-indicator { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--gold); opacity: 0; transition: opacity 0.3s; }
+.model-card { position: relative; }
+.model-card.signal-active .signal-indicator { opacity: 0.6; }
+
 /* Engine analysis panel */
 .engine-card { background: var(--surface); border: 1px solid var(--gold-border); border-radius: 10px; padding: 16px; margin-bottom: 16px; display: none; }
 .engine-card.active { display: block; }
@@ -231,6 +272,27 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
         <div class="consensus-bar"><div class="consensus-fill" id="consensusFill" style="width:0%"></div></div>
     </div>
 
+    <!-- Maximum Leverage Feedback -->
+    <div class="leverage-panel" id="leveragePanel">
+        <div class="leverage-header">
+            <span class="leverage-icon">◈</span>
+            <span class="leverage-title">Athena Feedback Accelerator</span>
+            <span class="leverage-subtitle" id="leverageSaved">Saves you <span id="leverageSavedCount">0</span> rating clicks</span>
+        </div>
+        <div class="leverage-body" id="leverageBody">
+            <!-- Predictions rendered here -->
+        </div>
+        <div class="leverage-ask" id="leverageAsk" style="display:none;">
+            <div class="leverage-ask-label">◈ Your input matters most here</div>
+            <div class="leverage-ask-text" id="leverageAskText">—</div>
+            <div class="leverage-pair" id="leveragePair"></div>
+        </div>
+        <div class="leverage-actions" id="leverageActions">
+            <button class="btn-confirm" id="btnConfirmAll" onclick="confirmLeveragePredictions()">◈ Confirm Predictions</button>
+            <button class="btn-skip" onclick="skipLeverage()">Rate manually instead</button>
+        </div>
+    </div>
+
     <!-- Engine Analysis (Under the Hood) -->
     <div class="engine-card" id="engineCard">
         <div class="engine-header">◈ SignalRank Engine Analysis</div>
@@ -294,6 +356,7 @@ async function runSignalRank() {
     const prompt = document.getElementById('promptInput').value.trim();
     if (!prompt) return;
 
+    initImplicitTracking();
     const domain = document.getElementById('domainSelect').value;
     const btn = document.getElementById('btnCompare');
     btn.disabled = true;
@@ -423,7 +486,10 @@ function renderSingleCard(r, cardIds) {
     const card = document.createElement('div');
     card.className = `model-card ${cardClass}`;
     card.style.animation = 'card-in 0.3s ease';
+    card.dataset.provider = r.provider;
+    card.dataset.modelId = r.model_id;
     card.innerHTML = `
+        <div class="signal-indicator"></div>
         <div class="model-header">
             <div class="model-dot" style="background:${color}"></div>
             <div class="model-name">${r.label || r.provider}</div>
@@ -917,6 +983,415 @@ function renderMiniGraph(results) {
         node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 }
+
+// ═══════════════════════════════════════════════════════════════
+// MAXIMUM LEVERAGE FEEDBACK ENGINE (Patent Supp #4, Claims 174-210)
+// ═══════════════════════════════════════════════════════════════
+
+// Implicit signal state per comparison session
+const implicitSignals = {};
+let comparisonStartTime = null;
+let leveragePredictions = null;
+let leveragePairChoice = null;
+
+function initImplicitTracking() {
+    implicitSignals.dwellStart = {};
+    implicitSignals.dwellTotal = {};
+    implicitSignals.copied = {};
+    implicitSignals.expanded = {};
+    implicitSignals.scrollDepth = {};
+    comparisonStartTime = Date.now();
+    leveragePredictions = null;
+    leveragePairChoice = null;
+    document.getElementById('leveragePanel').classList.remove('active');
+}
+
+// Track dwell time: when card enters viewport
+function setupDwellTracking() {
+    const observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+            const card = entry.target;
+            const key = `${card.dataset.provider}/${card.dataset.modelId}`;
+            if (!key || key === 'undefined/undefined') continue;
+            if (entry.isIntersecting) {
+                implicitSignals.dwellStart[key] = Date.now();
+            } else if (implicitSignals.dwellStart[key]) {
+                const elapsed = Date.now() - implicitSignals.dwellStart[key];
+                implicitSignals.dwellTotal[key] = (implicitSignals.dwellTotal[key] || 0) + elapsed;
+                delete implicitSignals.dwellStart[key];
+            }
+        }
+    }, { threshold: 0.5 });
+
+    document.querySelectorAll('.model-card').forEach(card => {
+        if (card.dataset.provider) observer.observe(card);
+    });
+    return observer;
+}
+
+// Track copy events
+document.addEventListener('copy', () => {
+    const sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    const card = sel.anchorNode?.closest?.('.model-card') || sel.anchorNode?.parentElement?.closest?.('.model-card');
+    if (card && card.dataset.provider) {
+        const key = `${card.dataset.provider}/${card.dataset.modelId}`;
+        implicitSignals.copied[key] = (implicitSignals.copied[key] || 0) + 1;
+        card.classList.add('signal-active');
+        setTimeout(() => card.classList.remove('signal-active'), 2000);
+    }
+});
+
+// Track hood expand as signal
+const origToggleHood = window.toggleHood;
+function toggleHood(id, btn) {
+    origToggleHood(id, btn);
+    // Find the card
+    const panel = document.getElementById(id);
+    if (panel) {
+        const card = panel.closest('.model-card');
+        if (card && card.dataset.provider) {
+            const key = `${card.dataset.provider}/${card.dataset.modelId}`;
+            implicitSignals.expanded[key] = true;
+        }
+    }
+}
+
+// Finalize dwell times
+function finalizeDwellTimes() {
+    const now = Date.now();
+    for (const [key, start] of Object.entries(implicitSignals.dwellStart)) {
+        implicitSignals.dwellTotal[key] = (implicitSignals.dwellTotal[key] || 0) + (now - start);
+    }
+}
+
+// ─── LEVERAGE PREDICTION ENGINE ───
+// Predicts user preferences based on:
+// 1. Existing trust profile (from Athena)
+// 2. Response characteristics (length, refusal, hedging)
+// 3. Implicit signals from THIS session
+// 4. Information gain computation
+
+function buildLeveragePredictions(results, trustProfiles) {
+    finalizeDwellTimes();
+    const predictions = [];
+    const domain = document.getElementById('domainSelect').value;
+
+    for (const r of results) {
+        if (r.status === 'error') continue;
+        const key = `${r.provider}/${r.model_id}`;
+        const profile = trustProfiles[key];
+        const isRefused = r.refused || r.status === 'refused';
+        const isSoft = r.refusal_type === 'soft_refusal';
+
+        // Prediction score: higher = more likely user trusts this
+        let predScore = 0.5;
+        let confidence = 0.3; // low confidence by default
+        let reasons = [];
+
+        // Factor 1: Existing trust profile
+        if (profile && profile.composite_trust) {
+            predScore = profile.composite_trust;
+            confidence += 0.3;
+            if (profile.data_points > 10) confidence += 0.1;
+            reasons.push(`Trust: ${Math.round(profile.composite_trust * 100)}%`);
+        }
+
+        // Factor 2: Refusal detection
+        if (isRefused) {
+            predScore -= 0.3;
+            confidence += 0.15;
+            reasons.push('Refused');
+        } else if (isSoft) {
+            predScore -= 0.15;
+            confidence += 0.1;
+            reasons.push('Hedged');
+        }
+
+        // Factor 3: Implicit signals (strongest signals)
+        const dwellMs = implicitSignals.dwellTotal[key] || 0;
+        const contentLen = (r.content || '').length;
+        const dwellPerChar = contentLen > 0 ? dwellMs / contentLen : 0;
+        if (dwellPerChar > 8) { // Engaged reading
+            predScore += 0.1;
+            confidence += 0.1;
+            reasons.push('Read carefully');
+        }
+        if (implicitSignals.copied[key]) {
+            predScore += 0.2;
+            confidence += 0.2;
+            reasons.push('Copied text');
+        }
+        if (implicitSignals.expanded[key]) {
+            predScore += 0.05;
+            confidence += 0.05;
+            reasons.push('Viewed details');
+        }
+
+        // Clamp
+        predScore = Math.max(0, Math.min(1, predScore));
+        confidence = Math.max(0, Math.min(1, confidence));
+
+        // Compute information gain: how much would explicit feedback help?
+        // High gain = low confidence OR contradicts established pattern
+        const infoGain = 1 - confidence;
+
+        predictions.push({
+            provider: r.provider,
+            model_id: r.model_id,
+            label: r.label || PROVIDER_NAMES[r.provider] || r.provider,
+            color: PROVIDER_COLORS[r.provider] || '#888',
+            predScore,
+            confidence,
+            infoGain,
+            predictedVote: predScore > 0.5 ? 'up' : 'down',
+            reasons,
+            content: r.content,
+        });
+    }
+
+    // Sort by info gain desc (most uncertain first)
+    predictions.sort((a, b) => b.infoGain - a.infoGain);
+    return predictions;
+}
+
+function renderLeveragePanel(predictions) {
+    if (!predictions || predictions.length < 2) return;
+    leveragePredictions = predictions;
+
+    const panel = document.getElementById('leveragePanel');
+    const body = document.getElementById('leverageBody');
+
+    // Count high-confidence predictions (saves clicks)
+    const highConf = predictions.filter(p => p.confidence > 0.55);
+    const savedClicks = highConf.length;
+    document.getElementById('leverageSavedCount').textContent = savedClicks;
+
+    let html = '';
+    for (const p of predictions) {
+        const isHighGain = p === predictions[0] && p.infoGain > 0.4;
+        const verdictClass = p.predictedVote === 'up' ? 'leverage-pred-ok' : 'leverage-pred-bad';
+        const verdictText = p.predictedVote === 'up' ? '👍 Trust' : '👎 Distrust';
+        const highlightClass = isHighGain ? 'highlight' : '';
+
+        html += `
+            <div class="leverage-prediction ${highlightClass}" data-provider="${p.provider}" data-model="${p.model_id}">
+                <div class="leverage-pred-dot" style="background:${p.color}"></div>
+                <div class="leverage-pred-model">${p.label}</div>
+                <span class="leverage-pred-verdict ${isHighGain ? 'leverage-pred-uncertain' : verdictClass}">
+                    ${isHighGain ? '❓ Uncertain' : verdictText}
+                </span>
+                <span class="leverage-pred-reason">${p.reasons.join(' · ') || 'No data yet'}</span>
+                <button class="leverage-pred-override" onclick="overridePrediction('${p.provider}','${p.model_id}',this)">
+                    ${p.predictedVote === 'up' ? '👎 Override' : '👍 Override'}
+                </button>
+            </div>`;
+    }
+    body.innerHTML = html;
+
+    // Contrastive pair: pick the two with highest info gain
+    const ask = document.getElementById('leverageAsk');
+    const topTwo = predictions.filter(p => p.infoGain > 0.35).slice(0, 2);
+    if (topTwo.length === 2) {
+        ask.style.display = 'block';
+        document.getElementById('leverageAskText').textContent =
+            `Athena is most uncertain between these two. Which do you trust more for this question?`;
+        const pair = document.getElementById('leveragePair');
+        pair.innerHTML = `
+            <div class="leverage-pair-card" onclick="choosePair('${topTwo[0].provider}','${topTwo[0].model_id}',this)">
+                <div class="leverage-pair-name" style="color:${topTwo[0].color}">${topTwo[0].label}</div>
+                <div class="leverage-pair-preview">${escapeHtml((topTwo[0].content || '').substring(0, 120))}${(topTwo[0].content||'').length > 120 ? '...' : ''}</div>
+            </div>
+            <div class="leverage-pair-vs">vs</div>
+            <div class="leverage-pair-card" onclick="choosePair('${topTwo[1].provider}','${topTwo[1].model_id}',this)">
+                <div class="leverage-pair-name" style="color:${topTwo[1].color}">${topTwo[1].label}</div>
+                <div class="leverage-pair-preview">${escapeHtml((topTwo[1].content || '').substring(0, 120))}${(topTwo[1].content||'').length > 120 ? '...' : ''}</div>
+            </div>`;
+    } else {
+        ask.style.display = 'none';
+    }
+
+    panel.classList.add('active');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function overridePrediction(provider, modelId, btn) {
+    if (!leveragePredictions) return;
+    const pred = leveragePredictions.find(p => p.provider === provider && p.model_id === modelId);
+    if (pred) {
+        pred.predictedVote = pred.predictedVote === 'up' ? 'down' : 'up';
+        const verdictEl = btn.parentElement.querySelector('.leverage-pred-verdict');
+        if (pred.predictedVote === 'up') {
+            verdictEl.className = 'leverage-pred-verdict leverage-pred-ok';
+            verdictEl.textContent = '👍 Trust';
+            btn.textContent = '👎 Override';
+        } else {
+            verdictEl.className = 'leverage-pred-verdict leverage-pred-bad';
+            verdictEl.textContent = '👎 Distrust';
+            btn.textContent = '👍 Override';
+        }
+    }
+}
+
+function choosePair(provider, modelId, card) {
+    document.querySelectorAll('.leverage-pair-card').forEach(c => c.classList.remove('chosen'));
+    card.classList.add('chosen');
+    leveragePairChoice = { provider, model_id: modelId };
+}
+
+async function confirmLeveragePredictions() {
+    if (!leveragePredictions) return;
+    const domain = document.getElementById('domainSelect').value;
+    const ATHENA_API = 'https://api.athenapilot.ai';
+    const btn = document.getElementById('btnConfirmAll');
+    btn.textContent = '◈ Sending...';
+    btn.disabled = true;
+
+    // Batch post all predictions + implicit signals + pair choice
+    const payload = {
+        predictions: leveragePredictions.map(p => ({
+            provider: p.provider,
+            model_id: p.model_id,
+            vote: p.predictedVote,
+            confidence: p.confidence,
+            info_gain: p.infoGain,
+            source: 'leverage_batch',
+        })),
+        implicit_signals: {
+            dwell_ms: { ...implicitSignals.dwellTotal },
+            copied: { ...implicitSignals.copied },
+            expanded: { ...implicitSignals.expanded },
+        },
+        pair_choice: leveragePairChoice,
+        domain: domain,
+        user_id: userEmail || 'global',
+        feedback_type: 'maximum_leverage',
+    };
+
+    try {
+        // Post each prediction as a trust graph update
+        for (const p of leveragePredictions) {
+            const adjustment = p.predictedVote === 'up' ? 0.05 : -0.05;
+            await fetch(`${ATHENA_API}/v1/trust-graph/comparison`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: `leverage_batch:${p.predictedVote}`,
+                    domain: domain,
+                    task_type: 'leverage_feedback',
+                    results: [{
+                        provider: p.provider,
+                        model_id: p.model_id,
+                        content: p.predictedVote === 'up' ? 'LEVERAGE_TRUSTED' : 'LEVERAGE_DISTRUSTED',
+                        refused: false,
+                    }],
+                    user_id: userEmail || 'global',
+                }),
+            });
+
+            if (userEmail) {
+                await fetch(`${ATHENA_API}/v1/trust-graph/profiles`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        provider: p.provider,
+                        model_id: p.model_id,
+                        user_id: userEmail,
+                        domain: domain,
+                        adjustment: adjustment,
+                        source: 'leverage_batch',
+                    }),
+                });
+            }
+        }
+
+        // Update thumbs in model cards to reflect predictions
+        for (const p of leveragePredictions) {
+            const cards = document.querySelectorAll('.model-card');
+            for (const card of cards) {
+                if (card.dataset.provider === p.provider && card.dataset.modelId === p.model_id) {
+                    const thumbBtn = card.querySelector(`.thumb-btn.${p.predictedVote}`);
+                    if (thumbBtn) {
+                        card.querySelectorAll('.thumb-btn').forEach(b => b.classList.remove('voted'));
+                        thumbBtn.classList.add('voted');
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.log('Leverage batch post failed:', e);
+    }
+
+    // Show saved confirmation
+    const actions = document.getElementById('leverageActions');
+    actions.innerHTML = `<div class="leverage-saved">◈ ${leveragePredictions.length} ratings confirmed in one click — trust graph updated</div>`;
+}
+
+function skipLeverage() {
+    document.getElementById('leveragePanel').classList.remove('active');
+}
+
+// ─── WIRE INTO COMPARISON FLOW ───
+// After results complete + trust profiles loaded, build and show leverage panel
+
+const origFetchTrustProfiles = window.fetchTrustProfiles;
+async function fetchTrustProfilesWithLeverage(cardIds, results) {
+    const ATHENA_API = 'https://api.athenapilot.ai';
+    const profileUrl = userEmail
+        ? `${ATHENA_API}/v1/trust-graph/profiles?user_id=${encodeURIComponent(userEmail)}`
+        : `${ATHENA_API}/v1/trust-graph/profiles`;
+    let profiles = {};
+    try {
+        const resp = await fetch(profileUrl);
+        if (resp.ok) {
+            const data = await resp.json();
+            for (const p of data.profiles || []) {
+                profiles[`${p.provider}/${p.model_id}`] = p;
+            }
+        }
+
+        let railMap = {};
+        try {
+            const railResp = await fetch(`${ATHENA_API}/v1/trust-graph/rails`);
+            if (railResp.ok) {
+                const railData = await railResp.json();
+                railMap = railData.models || {};
+            }
+        } catch(e) {}
+
+        for (const ci of cardIds) {
+            const panel = document.getElementById(ci.id);
+            if (!panel) continue;
+            const key = `${ci.provider}/${ci.model_id}`;
+            const profile = profiles[key];
+            const rails = railMap[key] || {};
+            const result = results.find(r => r.provider === ci.provider && r.model_id === ci.model_id);
+            if (profile) {
+                panel.innerHTML = renderHoodPanel(profile, rails, result, ci.status);
+            } else {
+                panel.innerHTML = `<div style="font-family:var(--mono);font-size:10px;color:var(--text-dim);text-align:center;padding:8px;">No trust profile yet — run more comparisons.</div>`;
+            }
+        }
+
+        // Setup implicit tracking
+        setupDwellTracking();
+
+        // Build leverage predictions after a short delay (let user scan results)
+        setTimeout(() => {
+            const preds = buildLeveragePredictions(results, profiles);
+            renderLeveragePanel(preds);
+        }, 3000);
+
+    } catch(e) {
+        console.log('Trust profile fetch failed:', e);
+    }
+}
+
+// Override the fetch function
+window.fetchTrustProfiles = fetchTrustProfilesWithLeverage;
+
+// Init tracking on each new comparison
+const origRunSignalRank = window.runSignalRank;
 
 // Keyboard shortcut
 document.getElementById('promptInput').addEventListener('keydown', (e) => {
