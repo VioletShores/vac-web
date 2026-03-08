@@ -98,7 +98,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100v
 <div class="apps-dropdown" id="appsDropdown">
 <div class="apps-trigger" id="appsTrigger" onclick="toggleApps()">
 <div class="dot" style="background:var(--purple)"></div>
-Apps <span class="badge">5</span> <span class="arrow">▾</span>
+Apps <span class="badge">6</span> <span class="arrow">▾</span>
 </div>
 <div class="apps-menu" id="appsMenu">
 <a class="apps-item" data-tab="agents" onclick="goApp('agents')">
@@ -127,6 +127,11 @@ Apps <span class="badge">5</span> <span class="arrow">▾</span>
 <div class="vac-badge">VAC</div>
 </a>
 <div style="border-top:1px solid var(--border);margin:6px 0"></div>
+<div class="apps-item" style="opacity:0.4;cursor:default;pointer-events:none;">
+<div class="icon" style="background:rgba(107,114,128,0.1)">🐾</div>
+<div><div class="name" style="color:var(--muted)">OpenClaw Skill</div><div class="desc">Athena orchestration for OpenClaw agents</div></div>
+<div class="vac-badge" style="background:rgba(107,114,128,0.15);color:var(--muted);font-size:8px;">SOON</div>
+</div>
 <a class="apps-item" href="/sdk" target="_blank">
 <div class="icon" style="background:rgba(107,114,128,0.1)">+</div>
 <div><div class="name" style="color:var(--muted)">Build Your Own</div><div class="desc">vacprotocol.org/sdk</div></div>
