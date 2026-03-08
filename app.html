@@ -210,6 +210,9 @@ function goTab(tab) {
     const url = tabs[tab];
     if (url) frame.src = url;
     window.location.hash = tab;
+    
+    // Auto-focus iframe so arrow keys work immediately (especially for deck)
+    setTimeout(() => frame.focus(), 300);
 }
 
 function goApp(app) {
@@ -257,8 +260,18 @@ document.addEventListener('click', (e) => {
     if (!dd.contains(e.target)) { closeApps(); }
 });
 
-// Close dropdown on ESC
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeApps(); });
+// Close dropdown on ESC, forward arrow keys to iframe for deck navigation
+document.addEventListener('keydown', (e) => { 
+    if (e.key === 'Escape') closeApps();
+    // Forward navigation keys to iframe (for deck slides)
+    if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
+        const frame = document.getElementById('appFrame');
+        if (frame && frame.contentWindow) {
+            frame.contentWindow.postMessage({ type: 'keydown', key: e.key }, '*');
+            e.preventDefault();
+        }
+    }
+});
 
 // Listen for iframe messages
 window.addEventListener('message', (e) => {
