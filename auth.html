@@ -1216,7 +1216,8 @@ function goToChallenge() {
     recVid.setAttribute('playsinline', '');
     recVid.play().catch(() => {});
     goToStep(2);
-    document.getElementById("countdownTimer").innerHTML = "<button onclick=\"startCountdown()\" style=\"background:var(--purple);color:white;border:none;border-radius:50%;width:78px;height:78px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--mono)\">Start</button>";
+    // Auto-start countdown after brief delay (no button press needed)
+    setTimeout(() => startCountdown(), 800);
 }
 
 function setFingerFallback() {
