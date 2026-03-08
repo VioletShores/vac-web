@@ -195,6 +195,15 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
                 <option value="code">Code</option>
                 <option value="creative">Creative</option>
             </select>
+            <select class="domain-select" id="maxTokenSelect" style="width:auto;">
+                <option value="512">512 tokens</option>
+                <option value="1024" selected>1024 tokens</option>
+                <option value="2048">2048 tokens</option>
+                <option value="4096">4096 tokens</option>
+            </select>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);padding:4px 8px;border:1px solid var(--border);border-radius:4px;display:inline-flex;align-items:center;gap:4px;">
+                <span style="width:5px;height:5px;border-radius:50%;background:#3FB950;"></span>Rails: Active
+            </span>
             <span class="provider-count" id="providerCount">Loading providers...</span>
         </div>
         <div id="personalizationBadge" style="display:none;margin-top:8px;font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:5px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);color:#C9A84C;">
@@ -301,7 +310,7 @@ async function runSignalRank() {
     const cardIds = [];
 
     try {
-        const params = new URLSearchParams({ prompt, domain, max_tokens: 1024 });
+        const params = new URLSearchParams({ prompt, domain, max_tokens: document.getElementById('maxTokenSelect').value });
         if (userEmail) params.set('email', userEmail);
         const evtSource = new EventSource(`${VAC_API}/v1/compare/stream?${params}`);
 
@@ -381,7 +390,7 @@ async function runSignalRankFallback(prompt, domain) {
         const resp = await fetch(`${VAC_API}/v1/compare`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, domain, max_tokens: 1024, email: userEmail }),
+            body: JSON.stringify({ prompt, domain, max_tokens: parseInt(document.getElementById('maxTokenSelect').value), email: userEmail }),
         });
         const data = await resp.json();
         renderResults(data);
