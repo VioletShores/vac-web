@@ -77,6 +77,10 @@
             "destination": "/compare.html"
         },
         {
+            "source": "/developers",
+            "destination": "/developers.html"
+        },
+        {
             "source": "/apikeys",
             "destination": "/apikeys.html"
         },
