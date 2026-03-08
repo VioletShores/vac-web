@@ -1204,7 +1204,7 @@ function renderLeveragePanel(predictions) {
                 <div class="leverage-pair-name" style="color:${topTwo[0].color}">${topTwo[0].label}</div>
                 <div class="leverage-pair-preview">${escapeHtml((topTwo[0].content || '').substring(0, 120))}${(topTwo[0].content||'').length > 120 ? '...' : ''}</div>
             </div>
-            <div class="leverage-pair-vs">vs</div>
+            <div class="leverage-pair-vs"><span style="cursor:pointer;padding:8px 12px;border-radius:6px;border:1px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--text-dim);transition:all 0.15s;" onmouseover="this.style.borderColor='var(--gold-border)';this.style.color='var(--gold)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'" onclick="choosePairEqual(this)" title="Both equally trusted">= Equal</span></div>
             <div class="leverage-pair-card" onclick="choosePair('${topTwo[1].provider}','${topTwo[1].model_id}',this)">
                 <div class="leverage-pair-name" style="color:${topTwo[1].color}">${topTwo[1].label}</div>
                 <div class="leverage-pair-preview">${escapeHtml((topTwo[1].content || '').substring(0, 120))}${(topTwo[1].content||'').length > 120 ? '...' : ''}</div>
@@ -1237,8 +1237,17 @@ function overridePrediction(provider, modelId, btn) {
 
 function choosePair(provider, modelId, card) {
     document.querySelectorAll('.leverage-pair-card').forEach(c => c.classList.remove('chosen'));
+    document.querySelectorAll('.leverage-pair-vs span').forEach(s => { s.style.background = ''; s.style.borderColor = 'var(--border)'; s.style.color = 'var(--text-dim)'; });
     card.classList.add('chosen');
-    leveragePairChoice = { provider, model_id: modelId };
+    leveragePairChoice = { provider, model_id: modelId, type: 'preferred' };
+}
+
+function choosePairEqual(el) {
+    document.querySelectorAll('.leverage-pair-card').forEach(c => c.classList.remove('chosen'));
+    el.style.background = 'var(--gold-dim)';
+    el.style.borderColor = 'var(--gold)';
+    el.style.color = 'var(--gold)';
+    leveragePairChoice = { type: 'equal' };
 }
 
 async function confirmLeveragePredictions() {
