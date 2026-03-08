@@ -70,14 +70,14 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100v
 
 <nav class="nav">
 <div class="nav-section">PROTOCOL</div>
-<a class="nav-tab active" data-tab="dashboard" onclick="goTab('dashboard')">
+<a class="nav-tab active" data-tab="verify" onclick="goTab('verify')">
+<div class="dot" style="background:var(--emerald)"></div>Verify
+</a>
+<a class="nav-tab" data-tab="dashboard" onclick="goTab('dashboard')">
 <div class="dot" style="background:var(--teal)"></div>Dashboard
 </a>
 <a class="nav-tab" data-tab="trust" onclick="goTab('trust')">
 <div class="dot" style="background:var(--emerald)"></div>Trust Graph
-</a>
-<a class="nav-tab" data-tab="verify" onclick="goTab('verify')">
-<div class="dot" style="background:var(--emerald)"></div>Verify
 </a>
 
 <div class="nav-divider"></div>
@@ -272,11 +272,11 @@ window.addEventListener('message', (e) => {
 });
 
 // Init
-const initTab = window.location.hash.replace('#', '') || 'dashboard';
+const initTab = window.location.hash.replace('#', '') || 'verify';
 const appTabs = ['agents', 'messaging', 'governance', 'keyvault'];
 if (appTabs.includes(initTab)) goApp(initTab);
 else if (tabs[initTab]) goTab(initTab);
-else goTab('dashboard');
+else goTab('verify');
 </script>
 
 </body>
