@@ -100,10 +100,10 @@ h3 { font-family: var(--heading); font-size: 28px; font-weight: 600; color: var(
   <h2>The Problem</h2>
   <div class="stat-row">
     <div class="stat-card"><div class="stat-val">88%</div><div class="stat-label">of organisations deploying AI<br>agents have had a security incident</div></div>
-    <div class="stat-card"><div class="stat-val">46%</div><div class="stat-label">of teams still use shared API keys<br>for agent authentication.<br>No human attribution.</div></div>
-    <div class="stat-card"><div class="stat-val">0</div><div class="stat-label">systems that prove which human<br>authorised which agent —<br>through any depth of delegation</div></div>
+    <div class="stat-card"><div class="stat-val">$300</div><div class="stat-label">per day per agent — Jason Calacanis<br>on running Claude agents (All-In Podcast)</div></div>
+    <div class="stat-card"><div class="stat-val">0</div><div class="stat-label">systems that detect AI provider<br>restrictions, map them, and<br>route around them</div></div>
   </div>
-  <div class="italic-footer">MCP gateways secure the pipe. Nobody secures the person behind it.</div>
+  <div class="italic-footer">AI providers impose restrictions users don't know about — until a task fails. No system detects, maps, or routes around them.</div>
   <div class="slide-num">2 / 12</div>
 </div>
 
@@ -120,13 +120,13 @@ h3 { font-family: var(--heading); font-size: 28px; font-weight: 600; color: var(
 
 <!-- SLIDE 4: Three Primitives -->
 <div class="slide" id="s4">
-  <h2>What the AI Ecosystem Needs</h2>
+  <h2>What AI Agents Need</h2>
   <div class="prim-row">
-    <div class="prim-card"><div class="prim-icon">👤</div><div class="prim-name">Identity</div><div class="prim-desc">Who is behind this agent?<br>Biometric proof, not passwords.<br>Propagates through delegation chains.</div></div>
-    <div class="prim-card"><div class="prim-icon">🛡️</div><div class="prim-name">Trust</div><div class="prim-desc">Which capability can be trusted?<br>Not just models — agents, skills,<br>tools, and knowledge sources.</div></div>
-    <div class="prim-card"><div class="prim-icon">🔀</div><div class="prim-name">Orchestration</div><div class="prim-desc">Which capability handles which task?<br>Trust-weighted routing across<br>the entire AI ecosystem.</div></div>
+    <div class="prim-card"><div class="prim-icon">👤</div><div class="prim-name">Identity</div><div class="prim-desc">Who is behind this agent?<br>Verified human origin.<br>Biometric proof, not passwords.</div></div>
+    <div class="prim-card"><div class="prim-icon">🛡️</div><div class="prim-name">Trust</div><div class="prim-desc">Which intelligence can be trusted?<br>Dynamic trust that evolves.<br>Learned from every interaction.</div></div>
+    <div class="prim-card"><div class="prim-icon">🔀</div><div class="prim-name">Orchestration</div><div class="prim-desc">Which agent handles which task?<br>Trust-weighted routing.<br>Reasoning captured and reused.</div></div>
   </div>
-  <div class="italic-footer">Not just LLMs. Models, agents, skills, tools, and knowledge — all ranked by one trust engine.</div>
+  <div class="italic-footer">These are the missing primitives. Our platform provides all three.</div>
   <div class="slide-num">4 / 12</div>
 </div>
 
@@ -134,11 +134,11 @@ h3 { font-family: var(--heading); font-size: 28px; font-weight: 600; color: var(
 <div class="slide" id="s5">
   <h2>The AI Internet Stack</h2>
   <div class="stack-label">Internet analogy →</div>
-  <div class="stack-row"><div class="stack-name">Athena</div><div class="stack-desc">Orchestration Engine — routes across models, agents, skills, tools</div><div class="stack-analog">Applications</div></div>
+  <div class="stack-row"><div class="stack-name">Athena</div><div class="stack-desc">Agent Orchestration Engine — executes through systems like OpenClaw</div><div class="stack-analog">Applications</div></div>
   <div class="stack-arrow">↑</div>
   <div class="stack-row"><div class="stack-name">Reasoning Index</div><div class="stack-desc">Searchable Reasoning Workflows</div><div class="stack-analog">HTTP</div></div>
   <div class="stack-arrow">↑</div>
-  <div class="stack-row"><div class="stack-name">SignalRank</div><div class="stack-desc">Trust-Weighted Ranking — models, agents, skills, tools, knowledge</div><div class="stack-analog">BGP Routing</div></div>
+  <div class="stack-row"><div class="stack-name">SignalRank</div><div class="stack-desc">Trust-Weighted Ranking Engine</div><div class="stack-analog">BGP Routing</div></div>
   <div class="stack-arrow">↑</div>
   <div class="stack-row"><div class="stack-name">VAC Protocol</div><div class="stack-desc">Agent Trust + Cryptographic Delegation</div><div class="stack-analog">TLS</div></div>
   <div class="stack-arrow">↑</div>
@@ -166,16 +166,16 @@ h3 { font-family: var(--heading); font-size: 28px; font-weight: 600; color: var(
 <!-- SLIDE 7: SignalRank -->
 <div class="slide" id="s7">
   <h2 style="color:var(--gold)">SignalRank</h2>
-  <div style="font-size:18px;color:var(--dim);margin-bottom:24px;">Trust-Weighted Ranking for the AI Ecosystem</div>
+  <div style="font-size:18px;color:var(--dim);margin-bottom:24px;">Trust-Weighted Ranking for AI Agents</div>
   <div class="sr-row">
     <div class="sr-card"><div class="sr-dim">PageRank<br>ranked information.</div><div class="sr-bold">SignalRank<br>ranks intelligence.</div></div>
-    <div class="sr-card"><div class="sr-dim">Gateways<br>secure the pipe.</div><div class="sr-bold">We secure<br>the person.</div></div>
+    <div class="sr-card"><div class="sr-dim">Google<br>indexed documents.</div><div class="sr-bold">We index<br>reasoning.</div></div>
   </div>
-  <div class="bullet">Ranks models, agents, skills, tools, and knowledge sources — not just LLMs</div>
-  <div class="bullet">Classifies responses: answered, refused, hedged, truncated, hallucinated</div>
-  <div class="bullet">Builds trust profiles per capability, per user, per domain</div>
-  <div class="bullet">Routes future tasks to the most trusted capability for that context</div>
-  <div class="bullet">Every interaction improves YOUR personal routing — compounding intelligence</div>
+  <div class="bullet">Sends same query to every AI model simultaneously</div>
+  <div class="bullet">Classifies responses: answered, refused, hedged, truncated</div>
+  <div class="bullet">Builds trust profiles per model, per user, per domain</div>
+  <div class="bullet">Routes future queries to the most trusted model for that task</div>
+  <div class="bullet">Your ratings train YOUR personal routing — personalised to you</div>
   <div class="slide-num">7 / 12</div>
 </div>
 
@@ -197,8 +197,8 @@ h3 { font-family: var(--heading); font-size: 28px; font-weight: 600; color: var(
 <div class="slide demo-slide" id="s9">
   <div class="demo-diamond">◈</div>
   <h1>Live Demo</h1>
-  <div class="demo-url">vacprotocol.org</div>
-  <div class="demo-sub">Biometric verification → Agent delegation → SignalRank routing — all live</div>
+  <div class="demo-url">vacprotocol.org/compare</div>
+  <div class="demo-sub">SignalRank Live — real queries across Claude, GPT-4o, Gemini, Grok</div>
   <div class="slide-num">9 / 12</div>
 </div>
 
@@ -223,9 +223,9 @@ h3 { font-family: var(--heading); font-size: 28px; font-weight: 600; color: var(
     <div class="stat-card"><div class="stat-val">4</div><div class="stat-label">LLM Providers Live<br>Claude · GPT · Gemini · Grok<br>with trust graph data</div></div>
   </div>
   <div class="bullet">Network effect — every query improves the trust graph for all users</div>
-  <div class="bullet">Human provenance layer — the missing piece in every MCP gateway</div>
+  <div class="bullet">Data moat — accumulated reasoning paths become training data owned by the user</div>
   <div class="bullet">Switching cost — personalised trust profiles don't transfer to competitors</div>
-  <div class="bullet">Standards — submitted to NIST AI Agent Standards Initiative (CAISI RFI + NCCoE)</div>
+  <div class="bullet">Open standard — VAC Protocol submitted to NIST AI Agent Standards Initiative</div>
   <div class="bullet">IP — 458 claims covering the complete infrastructure architecture</div>
   <div class="slide-num">11 / 12</div>
 </div>
