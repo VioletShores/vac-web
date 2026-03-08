@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>◈ SignalRank Live — Trust-Weighted Routing in Real Time</title>
+<title>◈ Athena — Trust-Weighted AI Compare</title>
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -211,23 +211,23 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 
 <nav class="nav">
     <div class="nav-inner">
-        <a class="nav-brand" href="/app">◈ Athena<span>SignalRank Live</span></a>
-        <span class="nav-badge">SignalRank</span>
+        <a class="nav-brand" href="/app">◈ Athena<span>AI Compare</span></a>
+        <span class="nav-badge">Powered by SignalRank</span>
     </div>
 </nav>
 
 <div class="page">
     <div class="hero">
-        <div class="hero-eyebrow">SignalRank · Trust-Weighted Routing</div>
-        <h1 class="hero-title">See How Athena Routes Intelligence.</h1>
-        <p class="hero-sub">Ask any question. Athena routes it across every available model, scores the results through SignalRank, and shows you which answer to trust — and why. Rate the answers to train your personal routing profile.</p>
+        <div class="hero-eyebrow">Athena · Trust-Weighted AI Routing</div>
+        <h1 class="hero-title">Ask Anything. Trust the Answer.</h1>
+        <p class="hero-sub">Athena routes your question across every available model, scores the results, and shows you which answer to trust — and why. Your ratings train your personal routing profile.</p>
     </div>
 
     <!-- Input -->
     <div class="input-card">
-        <textarea class="prompt-area" id="promptInput" placeholder="Ask Athena anything. SignalRank evaluates every available model in real time..."></textarea>
+        <textarea class="prompt-area" id="promptInput" placeholder="Ask Athena anything..."></textarea>
         <div class="input-row">
-            <button class="btn btn-gold" id="btnCompare" onclick="runSignalRank()">◈ Run SignalRank</button>
+            <button class="btn btn-gold" id="btnCompare" onclick="runSignalRank()">◈ Ask Athena</button>
             <select class="domain-select" id="domainSelect">
                 <option value="general">General</option>
                 <option value="political">Political</option>
@@ -263,7 +263,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
     <!-- Loading -->
     <div class="loading-bar" id="loadingBar">
         <div class="loading-track"><div class="loading-fill"></div></div>
-        <div class="loading-text" id="loadingText">SignalRank routing across all models...</div>
+        <div class="loading-text" id="loadingText">Athena routing across all models...</div>
     </div>
 
     <!-- Consensus -->
@@ -365,7 +365,7 @@ async function runSignalRank() {
     btn.textContent = '◈ Routing...';
 
     document.getElementById('loadingBar').classList.add('active');
-    document.getElementById('loadingText').textContent = 'SignalRank routing across all models...';
+    document.getElementById('loadingText').textContent = 'Athena routing across all models...';
     document.getElementById('resultsGrid').innerHTML = '';
     document.getElementById('consensusCard').classList.remove('active');
     document.getElementById('summaryRow').style.display = 'none';
@@ -402,7 +402,7 @@ async function runSignalRank() {
                 evtSource.close();
                 document.getElementById('loadingBar').classList.remove('active');
                 btn.disabled = false;
-                btn.textContent = '◈ Run SignalRank';
+                btn.textContent = '◈ Ask Athena';
 
                 // Render consensus and engine analysis
                 renderConsensus(data);
@@ -424,10 +424,10 @@ async function runSignalRank() {
                 evtSource.close();
                 document.getElementById('loadingBar').classList.remove('active');
                 btn.disabled = false;
-                btn.textContent = '◈ Run SignalRank';
+                btn.textContent = '◈ Ask Athena';
                 document.getElementById('resultsGrid').innerHTML = `
                     <div style="text-align:center;padding:40px;color:var(--red);font-family:var(--mono);font-size:12px;">
-                        ${data.message || 'SignalRank query failed'}
+                        ${data.message || 'Query failed'}
                     </div>`;
             }
         };
@@ -436,7 +436,7 @@ async function runSignalRank() {
             evtSource.close();
             document.getElementById('loadingBar').classList.remove('active');
             btn.disabled = false;
-            btn.textContent = '◈ Run SignalRank';
+            btn.textContent = '◈ Ask Athena';
             // If no results came through, fall back to non-streaming
             if (allResults.length === 0) {
                 runSignalRankFallback(prompt, domain);
@@ -462,12 +462,12 @@ async function runSignalRankFallback(prompt, domain) {
     } catch (e) {
         document.getElementById('resultsGrid').innerHTML = `
             <div style="text-align:center;padding:40px;color:var(--red);font-family:var(--mono);font-size:12px;">
-                SignalRank query failed: ${e.message}
+                Query failed: ${e.message}
             </div>`;
     } finally {
         document.getElementById('loadingBar').classList.remove('active');
         btn.disabled = false;
-        btn.textContent = '◈ Run SignalRank';
+        btn.textContent = '◈ Ask Athena';
     }
 }
 
