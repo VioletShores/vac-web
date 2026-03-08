@@ -147,7 +147,8 @@ Apps <span class="badge">6</span> <span class="arrow">▾</span>
 </nav>
 
 <div class="content">
-<iframe id="appFrame" src="about:blank"></iframe>
+<iframe id="deckFrame" src="/deck" style="width:100%;height:100%;border:none;background:var(--bg);"></iframe>
+<iframe id="appFrame" src="about:blank" style="width:100%;height:100%;border:none;background:var(--bg);display:none;"></iframe>
 </div>
 
 <script>
@@ -205,14 +206,23 @@ function goTab(tab) {
     const tabEl = document.querySelector(`.nav-tab[data-tab="${tab}"]`);
     if (tabEl) tabEl.classList.add('active');
     
-    // Load page
-    const frame = document.getElementById('appFrame');
-    const url = tabs[tab];
-    if (url) frame.src = url;
-    window.location.hash = tab;
+    const deckFrame = document.getElementById('deckFrame');
+    const appFrame = document.getElementById('appFrame');
     
-    // Auto-focus iframe so arrow keys work immediately (especially for deck)
-    setTimeout(() => frame.focus(), 300);
+    if (tab === 'deck') {
+        // Show deck iframe (never reloads), hide app iframe
+        deckFrame.style.display = 'block';
+        appFrame.style.display = 'none';
+        setTimeout(() => deckFrame.focus(), 300);
+    } else {
+        // Hide deck iframe, show app iframe with new content
+        deckFrame.style.display = 'none';
+        appFrame.style.display = 'block';
+        const url = tabs[tab];
+        if (url) appFrame.src = url;
+        setTimeout(() => appFrame.focus(), 300);
+    }
+    window.location.hash = tab;
 }
 
 function goApp(app) {
@@ -232,8 +242,10 @@ function goApp(app) {
     // Close menu + backdrop
     closeApps();
     
-    // Load page
+    // Hide deck, show app iframe
+    document.getElementById('deckFrame').style.display = 'none';
     const frame = document.getElementById('appFrame');
+    frame.style.display = 'block';
     const url = tabs[app];
     if (url) frame.src = url;
     window.location.hash = app;
@@ -263,11 +275,11 @@ document.addEventListener('click', (e) => {
 // Close dropdown on ESC, forward arrow keys to iframe for deck navigation
 document.addEventListener('keydown', (e) => { 
     if (e.key === 'Escape') closeApps();
-    // Forward navigation keys to iframe (for deck slides)
+    // Forward navigation keys to deck iframe (for slide navigation)
     if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
-        const frame = document.getElementById('appFrame');
-        if (frame && frame.contentWindow) {
-            frame.contentWindow.postMessage({ type: 'keydown', key: e.key }, '*');
+        const deckFrame = document.getElementById('deckFrame');
+        if (deckFrame && deckFrame.style.display !== 'none' && deckFrame.contentWindow) {
+            deckFrame.contentWindow.postMessage({ type: 'keydown', key: e.key }, '*');
             e.preventDefault();
         }
     }
