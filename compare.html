@@ -183,10 +183,11 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 .leverage-pair-vs { font-family: var(--display); font-size: 16px; color: var(--text-dim); display: flex; align-items: center; justify-content: center; }
 .leverage-pair-name { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .leverage-pair-preview { font-size: 11px; color: var(--text-3); line-height: 1.5; max-height: 60px; overflow: hidden; }
-.leverage-actions { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
-.btn-confirm { background: var(--gold); color: var(--bg); padding: 8px 16px; border-radius: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
-.btn-confirm:hover { filter: brightness(1.1); transform: translateY(-1px); }
-.btn-skip { background: none; border: 1px solid var(--border); color: var(--text-3); padding: 7px 14px; border-radius: 6px; font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; }
+.leverage-actions { display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--gold-border); background: rgba(201,168,76,0.06); align-items: center; }
+.leverage-actions-text { font-family: var(--body); font-size: 12px; color: var(--text-3); flex: 1; line-height: 1.4; }
+.btn-confirm { background: var(--gold); color: var(--bg); padding: 12px 24px; border-radius: 8px; font-family: var(--mono); font-size: 12px; font-weight: 700; border: none; cursor: pointer; transition: all 0.15s; white-space: nowrap; letter-spacing: 0.5px; }
+.btn-confirm:hover { filter: brightness(1.15); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(201,168,76,0.3); }
+.btn-skip { background: none; border: 1px solid var(--border); color: var(--text-3); padding: 11px 16px; border-radius: 8px; font-family: var(--mono); font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .btn-skip:hover { border-color: var(--text-3); }
 .leverage-saved { font-family: var(--mono); font-size: 10px; color: var(--gold); padding: 12px 16px; text-align: center; animation: card-in 0.3s ease; }
 /* Implicit signal indicator (subtle) */
@@ -288,8 +289,9 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
             <div class="leverage-pair" id="leveragePair"></div>
         </div>
         <div class="leverage-actions" id="leverageActions">
-            <button class="btn-confirm" id="btnConfirmAll" onclick="confirmLeveragePredictions()">◈ Confirm Predictions</button>
-            <button class="btn-skip" onclick="skipLeverage()">Rate manually instead</button>
+            <span class="leverage-actions-text">Athena predicted your preferences based on your trust profile. Confirm to update your routing, or override any you disagree with first.</span>
+            <button class="btn-skip" onclick="skipLeverage()">Rate manually</button>
+            <button class="btn-confirm" id="btnConfirmAll" onclick="confirmLeveragePredictions()">◈ Confirm All</button>
         </div>
     </div>
 
