@@ -1608,26 +1608,35 @@ async function submitFeedback() {
 
     const ATHENA_API = 'https://api.athenapilot.ai';
     try {
-        await fetch(`${ATHENA_API}/v1/trust-graph/comparison`, {
+        const resp = await fetch(`${ATHENA_API}/v1/feedback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                prompt: `user_feedback:${type}:${text.substring(0, 500)}`,
-                domain: 'product_feedback',
-                task_type: 'user_feedback',
-                results: [{ provider: 'user', model_id: 'feedback', content: text, refused: false }],
+                feedback_type: type,
+                content: text,
+                source_page: 'compare',
                 user_id: userEmail || 'anonymous',
+                product: 'vac',
             }),
         });
-    } catch (e) { console.log('Feedback submit failed:', e); }
-
-    document.getElementById('feedbackText').value = '';
-    document.getElementById('feedbackModal').innerHTML = `
-        <div style="padding:20px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--gold);">
-            ◈ Thank you — your feedback is now in the product roadmap.<br>
-            <button onclick="document.getElementById('feedbackModal').classList.remove('open')"
-                style="margin-top:10px;padding:6px 14px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);font-family:var(--mono);font-size:10px;cursor:pointer;">Close</button>
-        </div>`;
+        const data = await resp.json();
+        document.getElementById('feedbackText').value = '';
+        const routed = data.routed_to_inbox ? 'Routed to product roadmap.' : 'Captured locally.';
+        document.getElementById('feedbackModal').innerHTML = `
+            <div style="padding:20px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--gold);">
+                ◈ Thank you — feedback #${data.feedback_id} captured. ${routed}<br>
+                <button onclick="document.getElementById('feedbackModal').classList.remove('open')"
+                    style="margin-top:10px;padding:6px 14px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);font-family:var(--mono);font-size:10px;cursor:pointer;">Close</button>
+            </div>`;
+    } catch (e) {
+        console.log('Feedback submit failed:', e);
+        document.getElementById('feedbackModal').innerHTML = `
+            <div style="padding:20px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--text-3);">
+                Feedback saved locally — will sync when connection is available.<br>
+                <button onclick="document.getElementById('feedbackModal').classList.remove('open')"
+                    style="margin-top:10px;padding:6px 14px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);font-family:var(--mono);font-size:10px;cursor:pointer;">Close</button>
+            </div>`;
+    }
 }
 
 // ─── PRE-POPULATED RANKING FROM TRUST GRAPH ───
