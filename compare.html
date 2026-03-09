@@ -214,6 +214,22 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 .btn-rank-submit { background: var(--gold); color: var(--bg); padding: 8px 16px; border-radius: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
 .btn-rank-submit:hover { filter: brightness(1.15); transform: translateY(-1px); }
 
+/* In-product feedback capture */
+.feedback-fab { position: fixed; bottom: 20px; right: 20px; z-index: 100; }
+.feedback-fab-btn { background: var(--surface); border: 1px solid var(--gold-border); border-radius: 20px; padding: 8px 14px; font-family: var(--mono); font-size: 10px; color: var(--gold); cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+.feedback-fab-btn:hover { background: var(--gold-dim); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+.feedback-modal { display: none; position: fixed; bottom: 60px; right: 20px; width: 320px; background: var(--surface); border: 1px solid var(--gold-border); border-radius: 12px; z-index: 101; box-shadow: 0 8px 32px rgba(0,0,0,0.6); overflow: hidden; }
+.feedback-modal.open { display: block; animation: card-in 0.2s ease; }
+.feedback-modal-header { padding: 12px 14px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; color: var(--gold); display: flex; justify-content: space-between; align-items: center; }
+.feedback-modal-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 16px; padding: 0; }
+.feedback-modal-body { padding: 14px; }
+.feedback-textarea { width: 100%; min-height: 80px; padding: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--body); font-size: 12px; resize: vertical; }
+.feedback-textarea:focus { outline: none; border-color: var(--gold); }
+.feedback-textarea::placeholder { color: var(--text-dim); }
+.feedback-select { width: 100%; padding: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text-2); font-family: var(--mono); font-size: 11px; margin-top: 8px; }
+.feedback-submit { width: 100%; margin-top: 10px; padding: 10px; background: var(--gold); color: var(--bg); border: none; border-radius: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.feedback-submit:hover { filter: brightness(1.1); }
+
 /* Engine analysis panel */
 .engine-card { background: var(--surface); border: 1px solid var(--gold-border); border-radius: 10px; padding: 16px; margin-bottom: 16px; display: none; }
 .engine-card.active { display: block; }
@@ -343,6 +359,27 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
     <div class="ranking-panel" id="rankingPanel">
         <div class="ranking-header">◈ Rank the responses — best to worst</div>
         <div class="ranking-list" id="rankingList"></div>
+    </div>
+</div>
+
+<!-- In-Product Feedback Capture (Athena principle I9-I12) -->
+<div class="feedback-fab">
+    <button class="feedback-fab-btn" onclick="toggleFeedback()">◈ Feedback</button>
+</div>
+<div class="feedback-modal" id="feedbackModal">
+    <div class="feedback-modal-header">
+        <span>◈ Suggest a Feature or Report an Issue</span>
+        <button class="feedback-modal-close" onclick="toggleFeedback()">×</button>
+    </div>
+    <div class="feedback-modal-body">
+        <select class="feedback-select" id="feedbackType">
+            <option value="feature">Feature idea</option>
+            <option value="bug">Something's broken</option>
+            <option value="model">Model feedback</option>
+            <option value="ux">UI/UX suggestion</option>
+        </select>
+        <textarea class="feedback-textarea" id="feedbackText" placeholder="What would make Athena better? Your feedback goes directly to the product roadmap..."></textarea>
+        <button class="feedback-submit" onclick="submitFeedback()">◈ Submit Feedback</button>
     </div>
 </div>
 
@@ -1436,6 +1473,9 @@ async function fetchTrustProfilesWithLeverage(cardIds, results) {
         // Setup implicit tracking
         setupDwellTracking();
 
+        // Pre-populate ranking from trust profiles (immediate)
+        autoRankFromTrustProfiles(profiles, results);
+
         // Build leverage predictions after a short delay (let user scan results)
         setTimeout(() => {
             const preds = buildLeveragePredictions(results, profiles);
@@ -1553,6 +1593,77 @@ loadProviders();
 if (userEmail) {
     document.getElementById('personalizationBadge').style.display = 'block';
     document.getElementById('personalEmail').textContent = userEmail;
+}
+
+// ─── IN-PRODUCT FEEDBACK ───
+
+function toggleFeedback() {
+    document.getElementById('feedbackModal').classList.toggle('open');
+}
+
+async function submitFeedback() {
+    const type = document.getElementById('feedbackType').value;
+    const text = document.getElementById('feedbackText').value.trim();
+    if (!text) return;
+
+    const ATHENA_API = 'https://api.athenapilot.ai';
+    try {
+        await fetch(`${ATHENA_API}/v1/trust-graph/comparison`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: `user_feedback:${type}:${text.substring(0, 500)}`,
+                domain: 'product_feedback',
+                task_type: 'user_feedback',
+                results: [{ provider: 'user', model_id: 'feedback', content: text, refused: false }],
+                user_id: userEmail || 'anonymous',
+            }),
+        });
+    } catch (e) { console.log('Feedback submit failed:', e); }
+
+    document.getElementById('feedbackText').value = '';
+    document.getElementById('feedbackModal').innerHTML = `
+        <div style="padding:20px;text-align:center;font-family:var(--mono);font-size:11px;color:var(--gold);">
+            ◈ Thank you — your feedback is now in the product roadmap.<br>
+            <button onclick="document.getElementById('feedbackModal').classList.remove('open')"
+                style="margin-top:10px;padding:6px 14px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);font-family:var(--mono);font-size:10px;cursor:pointer;">Close</button>
+        </div>`;
+}
+
+// ─── PRE-POPULATED RANKING FROM TRUST GRAPH ───
+
+function autoRankFromTrustProfiles(profiles, results) {
+    const scoredModels = [];
+    for (const r of results) {
+        if (r.status === 'error') continue;
+        const key = `${r.provider}/${r.model_id}`;
+        const profile = profiles[key];
+        const score = profile ? (profile.composite_trust || 0) : 0.5;
+        scoredModels.push({ provider: r.provider, model_id: r.model_id, score, label: r.label || PROVIDER_NAMES[r.provider] || r.provider });
+    }
+
+    // Sort by trust score descending
+    scoredModels.sort((a, b) => b.score - a.score);
+
+    // Pre-populate rank buttons with suggested styling
+    scoredModels.forEach((m, idx) => {
+        const rank = idx + 1;
+        const key = `${m.provider}/${m.model_id}`;
+        modelRanks[key] = rank;
+
+        document.querySelectorAll('.model-card').forEach(card => {
+            if (card.dataset.provider === m.provider && card.dataset.modelId === m.model_id) {
+                const btns = card.querySelectorAll('.rank-btn');
+                btns.forEach(b => b.classList.remove('active'));
+                if (btns[rank - 1]) {
+                    btns[rank - 1].classList.add('active');
+                    btns[rank - 1].style.opacity = '0.6';  // Suggested, not confirmed
+                }
+            }
+        });
+    });
+
+    updateRankingPanel();
 }
 </script>
 </body>
