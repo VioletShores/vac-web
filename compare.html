@@ -195,6 +195,25 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 .model-card { position: relative; }
 .model-card.signal-active .signal-indicator { opacity: 0.6; }
 
+/* Ranking bar on model cards */
+.rank-bar { display: flex; gap: 4px; align-items: center; margin-left: 8px; }
+.rank-btn { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border); background: none; color: var(--text-dim); font-family: var(--mono); font-size: 10px; font-weight: 700; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+.rank-btn:hover { border-color: var(--gold-border); color: var(--gold); background: var(--gold-dim); }
+.rank-btn.active { border-color: var(--gold); color: var(--bg); background: var(--gold); }
+.rank-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); }
+
+/* Ranking summary panel */
+.ranking-panel { background: var(--surface); border: 1px solid var(--gold-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; display: none; }
+.ranking-panel.active { display: block; animation: card-in 0.3s ease; }
+.ranking-header { font-family: var(--mono); font-size: 10px; color: var(--gold); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.ranking-list { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ranking-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 6px; background: var(--bg); border: 1px solid var(--border); font-family: var(--mono); font-size: 11px; }
+.ranking-chip-num { width: 18px; height: 18px; border-radius: 50%; background: var(--gold); color: var(--bg); font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.ranking-chip-name { color: var(--text); }
+.ranking-submit { margin-left: auto; }
+.btn-rank-submit { background: var(--gold); color: var(--bg); padding: 8px 16px; border-radius: 6px; font-family: var(--mono); font-size: 11px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; }
+.btn-rank-submit:hover { filter: brightness(1.15); transform: translateY(-1px); }
+
 /* Engine analysis panel */
 .engine-card { background: var(--surface); border: 1px solid var(--gold-border); border-radius: 10px; padding: 16px; margin-bottom: 16px; display: none; }
 .engine-card.active { display: block; }
@@ -319,6 +338,12 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
 
     <!-- Results -->
     <div class="results-grid" id="resultsGrid"></div>
+
+    <!-- Ranking Panel -->
+    <div class="ranking-panel" id="rankingPanel">
+        <div class="ranking-header">◈ Rank the responses — best to worst</div>
+        <div class="ranking-list" id="rankingList"></div>
+    </div>
 </div>
 
 <script>
@@ -521,6 +546,13 @@ function renderSingleCard(r, cardIds) {
             ${!isError ? `<div class="thumbs">
                 <button class="thumb-btn up" onclick="rateModel('${r.provider}','${r.model_id}','up',this)" title="I trust this answer">👍</button>
                 <button class="thumb-btn down" onclick="rateModel('${r.provider}','${r.model_id}','down',this)" title="I don't trust this answer">👎</button>
+            </div>
+            <div class="rank-bar">
+                <span class="rank-label">Rank:</span>
+                <button class="rank-btn" onclick="setRank('${r.provider}','${r.model_id}',1,this)" title="Best">1</button>
+                <button class="rank-btn" onclick="setRank('${r.provider}','${r.model_id}',2,this)">2</button>
+                <button class="rank-btn" onclick="setRank('${r.provider}','${r.model_id}',3,this)">3</button>
+                <button class="rank-btn" onclick="setRank('${r.provider}','${r.model_id}',4,this)">4</button>
             </div>` : ''}
         </div>
         ${!isError ? `
@@ -1020,6 +1052,8 @@ function initImplicitTracking() {
     comparisonStartTime = Date.now();
     leveragePredictions = null;
     leveragePairChoice = null;
+    Object.keys(modelRanks).forEach(k => delete modelRanks[k]);
+    document.getElementById('rankingPanel').classList.remove('active');
     document.getElementById('leveragePanel').classList.remove('active');
 }
 
@@ -1415,6 +1449,95 @@ async function fetchTrustProfilesWithLeverage(cardIds, results) {
 
 // Override the fetch function
 window.fetchTrustProfiles = fetchTrustProfilesWithLeverage;
+
+// ─── RANKING SYSTEM ───
+// Each rank click generates N-1 pairwise preferences (richer than thumbs up/down)
+
+const modelRanks = {};
+
+function setRank(provider, modelId, rank, btn) {
+    const key = `${provider}/${modelId}`;
+    for (const [k, v] of Object.entries(modelRanks)) {
+        if (v === rank && k !== key) {
+            const oldRank = modelRanks[key];
+            if (oldRank) {
+                modelRanks[k] = oldRank;
+                document.querySelectorAll('.model-card').forEach(card => {
+                    if (`${card.dataset.provider}/${card.dataset.modelId}` === k) {
+                        card.querySelectorAll('.rank-btn').forEach(b => b.classList.remove('active'));
+                        const t = card.querySelectorAll('.rank-btn')[oldRank - 1];
+                        if (t) t.classList.add('active');
+                    }
+                });
+            } else {
+                delete modelRanks[k];
+                document.querySelectorAll('.model-card').forEach(card => {
+                    if (`${card.dataset.provider}/${card.dataset.modelId}` === k) {
+                        card.querySelectorAll('.rank-btn').forEach(b => b.classList.remove('active'));
+                    }
+                });
+            }
+            break;
+        }
+    }
+    modelRanks[key] = rank;
+    const card = btn.closest('.model-card');
+    card.querySelectorAll('.rank-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    updateRankingPanel();
+}
+
+function updateRankingPanel() {
+    const panel = document.getElementById('rankingPanel');
+    const list = document.getElementById('rankingList');
+    const sorted = Object.entries(modelRanks).sort((a, b) => a[1] - b[1]);
+    if (sorted.length < 2) { panel.classList.remove('active'); return; }
+    panel.classList.add('active');
+    let html = '';
+    for (let i = 0; i < sorted.length; i++) {
+        const [key, rank] = sorted[i];
+        const [provider] = key.split('/');
+        const name = PROVIDER_NAMES[provider] || provider;
+        const color = PROVIDER_COLORS[provider] || '#888';
+        html += `<div class="ranking-chip"><span class="ranking-chip-num">${rank}</span><span class="ranking-chip-name" style="color:${color}">${name}</span></div>`;
+        if (i < sorted.length - 1) html += `<span style="color:var(--text-dim);font-size:12px;">›</span>`;
+    }
+    if (sorted.length >= 2) {
+        html += `<div class="ranking-submit"><button class="btn-rank-submit" onclick="submitRanking()">◈ Submit Ranking</button></div>`;
+    }
+    list.innerHTML = html;
+}
+
+async function submitRanking() {
+    const domain = document.getElementById('domainSelect').value;
+    const ATHENA_API = 'https://api.athenapilot.ai';
+    const sorted = Object.entries(modelRanks).sort((a, b) => a[1] - b[1]);
+    const pairs = [];
+    for (let i = 0; i < sorted.length; i++) {
+        for (let j = i + 1; j < sorted.length; j++) {
+            const [wKey] = sorted[i]; const [lKey] = sorted[j];
+            const [wP, wM] = wKey.split('/'); const [lP, lM] = lKey.split('/');
+            pairs.push({ winner: { provider: wP, model_id: wM }, loser: { provider: lP, model_id: lM } });
+        }
+    }
+    try {
+        for (const pair of pairs) {
+            await fetch(`${ATHENA_API}/v1/trust-graph/comparison`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: `ranking:${pair.winner.provider}>${pair.loser.provider}`,
+                    domain, task_type: 'user_ranking',
+                    results: [
+                        { provider: pair.winner.provider, model_id: pair.winner.model_id, content: 'RANKED_HIGHER', refused: false },
+                        { provider: pair.loser.provider, model_id: pair.loser.model_id, content: 'RANKED_LOWER', refused: false },
+                    ],
+                    user_id: userEmail || 'global',
+                }),
+            });
+        }
+    } catch (e) { console.log('Ranking submit failed:', e); }
+    document.getElementById('rankingPanel').innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--gold);text-align:center;padding:8px;">◈ Ranking submitted — ${pairs.length} pairwise preferences recorded</div>`;
+}
 
 // Init tracking on each new comparison
 const origRunSignalRank = window.runSignalRank;
