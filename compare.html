@@ -243,10 +243,17 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
                 <option value="2048">2048 tokens</option>
                 <option value="4096">4096 tokens</option>
             </select>
+            <select class="domain-select" id="modeSelect" style="width:auto;" title="Enriched: fetches URLs in your prompt so all models read the same source. Base: raw model knowledge only.">
+                <option value="enriched" selected>Enriched</option>
+                <option value="base">Base</option>
+            </select>
             <span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);padding:4px 8px;border:1px solid var(--border);border-radius:4px;display:inline-flex;align-items:center;gap:4px;">
                 <span style="width:5px;height:5px;border-radius:50%;background:#3FB950;"></span>Rails: Active
             </span>
             <span class="provider-count" id="providerCount">Loading providers...</span>
+        </div>
+        <div id="enrichmentBadge" style="display:none;margin-top:8px;font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:5px;background:rgba(45,212,191,0.08);border:1px solid rgba(45,212,191,0.2);color:#2DD4BF;">
+            ◈ Enriched — Athena fetched <span id="enrichedUrlCount">0</span> URL(s) and injected content into all models
         </div>
         <div id="personalizationBadge" style="display:none;margin-top:8px;font-family:var(--mono);font-size:10px;padding:5px 10px;border-radius:5px;background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);color:#C9A84C;">
             ◈ Personalised — building trust profile for <span id="personalEmail"></span>
@@ -255,7 +262,7 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
             <span class="suggestion" onclick="useSuggestion(this)">Who won the 2024 US presidential election?</span>
             <span class="suggestion" onclick="useSuggestion(this)">Is ivermectin effective for COVID-19?</span>
             <span class="suggestion" onclick="useSuggestion(this)">Should I invest in Bitcoin right now?</span>
-            <span class="suggestion" onclick="useSuggestion(this)">Write a political satire about AI regulation</span>
+            <span class="suggestion" onclick="useSuggestion(this)">What is https://aiinternet.ai and is it credible?</span>
             <span class="suggestion" onclick="useSuggestion(this)">What are the health risks of vaping?</span>
         </div>
     </div>
@@ -375,7 +382,9 @@ async function runSignalRank() {
     const cardIds = [];
 
     try {
-        const params = new URLSearchParams({ prompt, domain, max_tokens: document.getElementById('maxTokenSelect').value });
+        const mode = document.getElementById('modeSelect').value;
+        document.getElementById('enrichmentBadge').style.display = 'none';
+        const params = new URLSearchParams({ prompt, domain, max_tokens: document.getElementById('maxTokenSelect').value, mode });
         if (userEmail) params.set('email', userEmail);
         const evtSource = new EventSource(`${VAC_API}/v1/compare/stream?${params}`);
 
@@ -416,6 +425,12 @@ async function runSignalRank() {
                 document.getElementById('statRefused').textContent = data.refused_count || 0;
                 document.getElementById('statTrustGraph').textContent = '◈ Trust graph updated';
 
+                // Show enrichment badge if URLs were fetched
+                if (data.fetched_urls && data.fetched_urls.length > 0) {
+                    document.getElementById('enrichmentBadge').style.display = 'block';
+                    document.getElementById('enrichedUrlCount').textContent = data.fetched_urls.length;
+                }
+
                 // Fetch trust profiles for under-the-hood
                 fetchTrustProfiles(cardIds, allResults);
             }
@@ -455,7 +470,7 @@ async function runSignalRankFallback(prompt, domain) {
         const resp = await fetch(`${VAC_API}/v1/compare`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, domain, max_tokens: parseInt(document.getElementById('maxTokenSelect').value), email: userEmail }),
+            body: JSON.stringify({ prompt, domain, max_tokens: parseInt(document.getElementById('maxTokenSelect').value), email: userEmail, mode: document.getElementById('modeSelect').value }),
         });
         const data = await resp.json();
         renderResults(data);
