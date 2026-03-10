@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAC Protocol — Control Loop Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0B0D14;--surface:#12151E;--surface2:#181C28;--border:#1E2230;--border2:#2A2F40;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+
+/* NAV */
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-links{margin-left:auto;display:flex;gap:16px}
+.nav-links a{color:var(--gray);text-decoration:none;font-size:12px;font-family:var(--mono)}
+.nav-links a:hover{color:var(--teal)}
+
+/* HEADER */
+.header{text-align:center;padding:32px 20px 24px;border-bottom:1px solid var(--border)}
+.header h1{font-size:24px;font-weight:700;margin-bottom:6px}
+.header p{color:var(--gray);font-size:13px;max-width:600px;margin:0 auto;line-height:1.5}
+.header .origin{color:var(--muted);font-size:11px;font-family:var(--mono);margin-top:8px;font-style:italic}
+
+/* MAIN GRID */
+.grid{display:grid;grid-template-columns:260px 1fr 280px;gap:0;min-height:calc(100vh - 120px)}
+@media(max-width:1000px){.grid{grid-template-columns:1fr;gap:16px;padding:16px}}
+
+/* LEFT: STATE GAUGES */
+.panel{border-right:1px solid var(--border);padding:20px}
+.panel:last-child{border-right:none;border-left:1px solid var(--border)}
+.panel-title{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--teal);margin-bottom:16px}
+
+.gauge{margin-bottom:20px}
+.gauge-label{font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;display:flex;justify-content:space-between}
+.gauge-bar{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;position:relative}
+.gauge-fill{height:100%;border-radius:4px;transition:width 0.8s ease,background 0.5s ease}
+.gauge-target{position:absolute;top:-2px;height:12px;width:2px;background:var(--white);border-radius:1px;transition:left 0.3s ease}
+.gauge-value{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:4px}
+.gauge-value.good{color:var(--emerald)}
+.gauge-value.warn{color:var(--amber)}
+.gauge-value.bad{color:var(--coral)}
+
+.desired-section{margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
+.desired-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.desired-row label{font-size:11px;color:var(--gray);font-family:var(--mono)}
+.desired-row input{width:60px;background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:4px 8px;border-radius:4px;font-family:var(--mono);font-size:12px;text-align:right}
+
+/* CENTRE: LIVE FEED */
+.feed{padding:20px;overflow-y:auto;max-height:calc(100vh - 120px)}
+.action-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px;animation:slideIn 0.3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.action-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.action-method{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;background:rgba(45,212,191,0.15);color:var(--teal)}
+.action-resource{font-family:var(--mono);font-size:12px;color:var(--white)}
+.action-agent{font-size:11px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
+.action-meta{display:flex;gap:12px;font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:10px}
+.action-meta .trust{color:var(--teal)}
+.action-meta .result{color:var(--emerald)}
+.action-meta .result.err{color:var(--coral)}
+.feedback-btns{display:flex;gap:6px}
+.fb-btn{padding:5px 14px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--gray);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.15s}
+.fb-btn:hover{border-color:var(--gray)}
+.fb-btn.approve:hover,.fb-btn.approve.active{background:rgba(16,185,129,0.15);border-color:var(--emerald);color:var(--emerald)}
+.fb-btn.flag:hover,.fb-btn.flag.active{background:rgba(245,158,11,0.15);border-color:var(--amber);color:var(--amber)}
+.fb-btn.reject:hover,.fb-btn.reject.active{background:rgba(249,97,103,0.15);border-color:var(--coral);color:var(--coral)}
+.fb-btn.locked{opacity:0.5;cursor:default;pointer-events:none}
+.action-card.rated{border-color:var(--border2)}
+
+/* RIGHT: REPUTATION + CONTROL */
+.rep-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
+.rep-title{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px}
+.rep-score{font-family:var(--mono);font-size:28px;font-weight:700}
+.rep-detail{font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+.rep-bar{height:6px;background:var(--surface2);border-radius:3px;margin-top:8px;overflow:hidden}
+.rep-bar-fill{height:100%;border-radius:3px;transition:width 0.8s ease}
+
+.control-card{background:var(--surface);border:1px solid var(--amber);border-radius:8px;padding:16px;margin-bottom:12px;display:none}
+.control-card.visible{display:block;animation:slideIn 0.4s ease}
+.control-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1px;margin-bottom:8px}
+.control-action{font-size:13px;color:var(--white);line-height:1.5;margin-bottom:10px}
+.control-btn{padding:8px 20px;border-radius:6px;border:none;font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s}
+.control-approve{background:var(--teal);color:var(--bg)}
+.control-approve:hover{background:#5EEAD4}
+
+/* LOOP INDICATOR */
+.loop{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;background:var(--surface);border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted)}
+.loop-step{padding:4px 10px;border-radius:4px;border:1px solid var(--border);transition:all 0.3s}
+.loop-step.active{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,0.08)}
+.loop-arrow{color:var(--border2)}
+
+/* START BUTTON */
+.start-area{padding:40px 20px;text-align:center}
+.start-btn{padding:14px 40px;border-radius:8px;border:2px solid var(--teal);background:transparent;color:var(--teal);font-family:var(--mono);font-size:15px;font-weight:700;cursor:pointer;letter-spacing:1px;transition:all 0.2s}
+.start-btn:hover{background:var(--teal);color:var(--bg)}
+.start-btn:disabled{opacity:0.3;cursor:default}
+.cycle-info{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:12px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-text"><span class="v">VAC</span><span class="p">PROTOCOL</span></div>
+  <div class="nav-links">
+    <a href="/">Home</a>
+    <a href="/sdk">SDK</a>
+    <a href="/developers">Developers</a>
+    <a href="/api">API Docs</a>
+  </div>
+</nav>
+
+<div class="header">
+  <h1>Control Loop Demo</h1>
+  <p>Watch a closed-loop control system for AI agent workflows. Issue tokens, run agents, provide feedback, watch reputation converge on target. All hitting the live production API.</p>
+  <div class="origin">Same architecture as a 1993 multivariable T/RH control system — measure, compare, correct, repeat.</div>
+</div>
+
+<div class="grid">
+  <!-- LEFT: STATE GAUGES -->
+  <div class="panel">
+    <div class="panel-title">WORKFLOW STATE</div>
+
+    <div class="gauge">
+      <div class="gauge-label"><span>Trust Score</span><span id="trust-val-label">—</span></div>
+      <div class="gauge-bar"><div class="gauge-fill" id="trust-fill" style="width:0;background:var(--teal)"></div><div class="gauge-target" id="trust-target" style="left:80%"></div></div>
+      <div class="gauge-value" id="trust-val">—</div>
+    </div>
+
+    <div class="gauge">
+      <div class="gauge-label"><span>Approval Rate</span><span id="approval-val-label">—</span></div>
+      <div class="gauge-bar"><div class="gauge-fill" id="approval-fill" style="width:0;background:var(--emerald)"></div><div class="gauge-target" id="approval-target" style="left:90%"></div></div>
+      <div class="gauge-value" id="approval-val">—</div>
+    </div>
+
+    <div class="gauge">
+      <div class="gauge-label"><span>Error Rate</span><span id="error-val-label">—</span></div>
+      <div class="gauge-bar"><div class="gauge-fill" id="error-fill" style="width:0;background:var(--coral)"></div><div class="gauge-target" id="error-target" style="left:10%"></div></div>
+      <div class="gauge-value" id="error-val">—</div>
+    </div>
+
+    <div class="gauge">
+      <div class="gauge-label"><span>Actions Recorded</span></div>
+      <div class="gauge-value" id="actions-count" style="color:var(--white)">0</div>
+    </div>
+
+    <div class="desired-section">
+      <div class="panel-title">DESIRED STATE</div>
+      <div class="desired-row"><label>Min Trust</label><input type="number" id="desired-trust" value="0.80" min="0" max="1" step="0.05"></div>
+      <div class="desired-row"><label>Min Approval</label><input type="number" id="desired-approval" value="0.90" min="0" max="1" step="0.05"></div>
+      <div class="desired-row"><label>Max Errors</label><input type="number" id="desired-errors" value="0.10" min="0" max="1" step="0.05"></div>
+    </div>
+  </div>
+
+  <!-- CENTRE: LIVE FEED -->
+  <div class="feed" id="feed">
+    <div class="start-area" id="start-area">
+      <button class="start-btn" id="start-btn" onclick="startWorkflow()">▶ START CONTROL LOOP</button>
+      <div class="cycle-info" id="cycle-info">Issues L1 token → runs 6 agent actions → you rate each one → reputation updates → system proposes corrections</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: REPUTATION + CONTROL -->
+  <div class="panel">
+    <div class="panel-title">AGENT REPUTATION</div>
+
+    <div class="rep-card">
+      <div class="rep-title">EXECUTION SCORE</div>
+      <div class="rep-score" id="exec-score">—</div>
+      <div class="rep-detail" id="exec-detail">from AAR outcomes</div>
+      <div class="rep-bar"><div class="rep-bar-fill" id="exec-bar" style="width:0;background:var(--teal)"></div></div>
+    </div>
+
+    <div class="rep-card">
+      <div class="rep-title">FEEDBACK SCORE</div>
+      <div class="rep-score" id="fb-score">—</div>
+      <div class="rep-detail" id="fb-detail">from your ratings</div>
+      <div class="rep-bar"><div class="rep-bar-fill" id="fb-bar" style="width:0;background:var(--emerald)"></div></div>
+    </div>
+
+    <div class="rep-card">
+      <div class="rep-title">COMBINED REPUTATION</div>
+      <div class="rep-score" id="combined-score">—</div>
+      <div class="rep-detail" id="combined-detail">60% execution + 40% feedback</div>
+      <div class="rep-bar"><div class="rep-bar-fill" id="combined-bar" style="width:0;background:var(--purple)"></div></div>
+    </div>
+
+    <div class="control-card" id="control-card">
+      <div class="control-label">▲ CORRECTIVE ACTION PROPOSED</div>
+      <div class="control-action" id="control-text"></div>
+      <button class="control-btn control-approve" onclick="approveControl()">APPROVE</button>
+    </div>
+
+    <div class="rep-card" style="margin-top:16px">
+      <div class="rep-title">PROVENANCE REF</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--gray);word-break:break-all" id="prov-ref">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTROL LOOP INDICATOR -->
+<div class="loop">
+  <div class="loop-step" id="loop-measure">MEASURE</div>
+  <div class="loop-arrow">→</div>
+  <div class="loop-step" id="loop-compare">COMPARE</div>
+  <div class="loop-arrow">→</div>
+  <div class="loop-step" id="loop-propose">PROPOSE</div>
+  <div class="loop-arrow">→</div>
+  <div class="loop-step" id="loop-approve">APPROVE</div>
+  <div class="loop-arrow">→</div>
+  <div class="loop-step" id="loop-apply">APPLY</div>
+  <div class="loop-arrow">→</div>
+  <div class="loop-step" id="loop-remeasure">RE-MEASURE</div>
+</div>
+
+<script>
+const API = 'https://vac-system-production.up.railway.app';
+let currentToken = null;
+let currentProv = null;
+let currentAgentId = null;
+let aars = [];
+let feedbackCount = 0;
+let approvedCount = 0;
+let flaggedCount = 0;
+let rejectedCount = 0;
+let successCount = 0;
+let errorCount = 0;
+let cycleCount = 0;
+
+const ACTIONS = [
+  { action: 'read', resource: 'calendar:events', outcome: 'success' },
+  { action: 'write', resource: 'calendar:events', outcome: 'success' },
+  { action: 'read', resource: 'email:inbox', outcome: 'success' },
+  { action: 'send', resource: 'email:compose', outcome: 'success' },
+  { action: 'read', resource: 'database:contacts', outcome: 'error' },
+  { action: 'write', resource: 'calendar:events', outcome: 'success' },
+];
+
+function setLoopStep(step) {
+  document.querySelectorAll('.loop-step').forEach(s => s.classList.remove('active'));
+  document.getElementById('loop-' + step).classList.add('active');
+}
+
+function updateGauges() {
+  const total = feedbackCount;
+  const trust = currentToken ? 0.4 : 0;
+  const approvalRate = total > 0 ? approvedCount / total : 0;
+  const errorRate = (successCount + errorCount) > 0 ? errorCount / (successCount + errorCount) : 0;
+
+  const desiredTrust = parseFloat(document.getElementById('desired-trust').value);
+  const desiredApproval = parseFloat(document.getElementById('desired-approval').value);
+  const desiredErrors = parseFloat(document.getElementById('desired-errors').value);
+
+  // Trust gauge
+  document.getElementById('trust-fill').style.width = (trust * 100) + '%';
+  document.getElementById('trust-val').textContent = trust.toFixed(2);
+  document.getElementById('trust-val-label').textContent = trust.toFixed(2);
+  document.getElementById('trust-val').className = 'gauge-value ' + (trust >= desiredTrust ? 'good' : trust >= desiredTrust * 0.8 ? 'warn' : 'bad');
+  document.getElementById('trust-target').style.left = (desiredTrust * 100) + '%';
+
+  // Approval gauge
+  document.getElementById('approval-fill').style.width = (approvalRate * 100) + '%';
+  document.getElementById('approval-fill').style.background = approvalRate >= desiredApproval ? 'var(--emerald)' : 'var(--amber)';
+  document.getElementById('approval-val').textContent = total > 0 ? (approvalRate * 100).toFixed(0) + '%' : '—';
+  document.getElementById('approval-val-label').textContent = total > 0 ? (approvalRate * 100).toFixed(0) + '%' : '—';
+  document.getElementById('approval-val').className = 'gauge-value ' + (approvalRate >= desiredApproval ? 'good' : 'warn');
+  document.getElementById('approval-target').style.left = (desiredApproval * 100) + '%';
+
+  // Error gauge
+  document.getElementById('error-fill').style.width = (errorRate * 100) + '%';
+  document.getElementById('error-val').textContent = (successCount + errorCount) > 0 ? (errorRate * 100).toFixed(0) + '%' : '—';
+  document.getElementById('error-val-label').textContent = (successCount + errorCount) > 0 ? (errorRate * 100).toFixed(0) + '%' : '—';
+  document.getElementById('error-val').className = 'gauge-value ' + (errorRate <= desiredErrors ? 'good' : 'bad');
+  document.getElementById('error-target').style.left = (desiredErrors * 100) + '%';
+
+  document.getElementById('actions-count').textContent = successCount + errorCount;
+}
+
+async function updateReputation() {
+  if (!currentAgentId) return;
+  try {
+    const res = await fetch(`${API}/v1/vat/reputation/${currentAgentId}`);
+    const rep = await res.json();
+    if (rep.execution_score !== undefined && rep.execution_score !== null) {
+      document.getElementById('exec-score').textContent = rep.execution_score.toFixed(3);
+      document.getElementById('exec-bar').style.width = (rep.execution_score * 100) + '%';
+      document.getElementById('exec-detail').textContent = `${rep.successful_actions} success / ${rep.error_actions} errors`;
+    }
+    if (rep.feedback_score !== null && rep.feedback_score !== undefined) {
+      document.getElementById('fb-score').textContent = rep.feedback_score.toFixed(3);
+      document.getElementById('fb-bar').style.width = (rep.feedback_score * 100) + '%';
+      document.getElementById('fb-detail').textContent = `${rep.feedback_approved}✓ ${rep.feedback_flagged}⚑ ${rep.feedback_rejected}✗`;
+    }
+    if (rep.combined_reputation !== undefined && rep.combined_reputation !== null) {
+      document.getElementById('combined-score').textContent = rep.combined_reputation.toFixed(3);
+      document.getElementById('combined-bar').style.width = (rep.combined_reputation * 100) + '%';
+    }
+  } catch(e) { console.error('Rep error:', e); }
+}
+
+function checkDeviations() {
+  const total = feedbackCount;
+  if (total < 3) return;
+
+  const approvalRate = total > 0 ? approvedCount / total : 0;
+  const errorRate = (successCount + errorCount) > 0 ? errorCount / (successCount + errorCount) : 0;
+  const desiredApproval = parseFloat(document.getElementById('desired-approval').value);
+  const desiredErrors = parseFloat(document.getElementById('desired-errors').value);
+
+  setLoopStep('compare');
+  setTimeout(() => {
+    let actions = [];
+    if (errorRate > desiredErrors) actions.push('Replace database:contacts agent with a specialist (current error source)');
+    if (approvalRate < desiredApproval && flaggedCount > 0) actions.push('Add review checkpoint before email:compose actions (flagged ' + flaggedCount + ' times)');
+    if (rejectedCount > 0) actions.push('Restrict agent scope: remove rejected action types from delegation');
+
+    if (actions.length > 0) {
+      setLoopStep('propose');
+      const card = document.getElementById('control-card');
+      document.getElementById('control-text').innerHTML = actions.map(a => '• ' + a).join('<br>');
+      card.classList.add('visible');
+    }
+  }, 600);
+}
+
+function approveControl() {
+  setLoopStep('approve');
+  const card = document.getElementById('control-card');
+  card.style.borderColor = 'var(--emerald)';
+  document.querySelector('.control-label').textContent = '✓ CORRECTIVE ACTION APPROVED';
+  document.querySelector('.control-label').style.color = 'var(--emerald)';
+  document.querySelector('.control-approve').textContent = 'APPLIED';
+  document.querySelector('.control-approve').disabled = true;
+  document.querySelector('.control-approve').style.opacity = '0.5';
+
+  setTimeout(() => {
+    setLoopStep('apply');
+    setTimeout(() => {
+      setLoopStep('remeasure');
+      cycleCount++;
+      document.getElementById('cycle-info').textContent = `Cycle ${cycleCount} complete. Control action applied. Click START to run the next cycle with the improved configuration.`;
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('start-btn').textContent = '▶ RUN CYCLE ' + (cycleCount + 1);
+    }, 800);
+  }, 600);
+}
+
+async function startWorkflow() {
+  document.getElementById('start-btn').disabled = true;
+  document.getElementById('start-area').style.display = 'none';
+
+  // Reset control card
+  const cc = document.getElementById('control-card');
+  cc.classList.remove('visible');
+  cc.style.borderColor = 'var(--amber)';
+  document.querySelector('.control-label').textContent = '▲ CORRECTIVE ACTION PROPOSED';
+  document.querySelector('.control-label').style.color = 'var(--amber)';
+  document.querySelector('.control-approve').textContent = 'APPROVE';
+  document.querySelector('.control-approve').disabled = false;
+  document.querySelector('.control-approve').style.opacity = '1';
+
+  setLoopStep('measure');
+
+  // 1. Issue L1 token
+  currentAgentId = 'demo-agent-cycle-' + cycleCount;
+  try {
+    const tokenRes = await fetch(`${API}/v1/vat/issue/l1`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        developer_email: 'demo@vacprotocol.org',
+        agent_id: currentAgentId,
+        resources: ['calendar:events', 'email:inbox', 'email:compose', 'database:contacts'],
+        actions: ['read', 'write', 'send']
+      })
+    });
+    const token = await tokenRes.json();
+    currentToken = token.jti;
+    currentProv = token.provenance_ref;
+    document.getElementById('prov-ref').textContent = currentProv;
+    updateGauges();
+  } catch(e) {
+    addFeedCard('ERROR', 'Failed to issue token: ' + e.message);
+    return;
+  }
+
+  // 2. Add status card
+  addStatusCard('L1 Token Issued', `jti: ${currentToken}`, 'provenance_ref: ' + currentProv);
+
+  // 3. Run actions with delays
+  for (let i = 0; i < ACTIONS.length; i++) {
+    await new Promise(r => setTimeout(r, 800));
+    const a = ACTIONS[i];
+    try {
+      const res = await fetch(`${API}/v1/vat/record/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vat_jti: currentToken,
+          action: a.action,
+          resource: a.resource,
+          result: a.outcome
+        })
+      });
+      const data = await res.json();
+      if (data.recorded) {
+        aars.push(data.aar_id);
+        if (a.outcome === 'success') successCount++;
+        else errorCount++;
+        addActionCard(a.action, a.resource, a.outcome, data.aar_id, i);
+        updateGauges();
+      }
+    } catch(e) {
+      addStatusCard('API Error', e.message, '');
+    }
+  }
+
+  // Show completion status
+  await new Promise(r => setTimeout(r, 400));
+  addStatusCard('Workflow Complete', `${ACTIONS.length} actions recorded`, 'Rate each action below. Watch the gauges converge.');
+}
+
+function addStatusCard(title, line1, line2) {
+  const feed = document.getElementById('feed');
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px;animation:slideIn 0.3s ease';
+  card.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--teal);margin-bottom:4px">${title}</div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--gray)">${line1}</div>
+    ${line2 ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">${line2}</div>` : ''}`;
+  feed.appendChild(card);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function addActionCard(action, resource, outcome, aarId, idx) {
+  const feed = document.getElementById('feed');
+  const card = document.createElement('div');
+  card.className = 'action-card';
+  card.id = 'card-' + idx;
+  card.innerHTML = `
+    <div class="action-header">
+      <span class="action-method">${action.toUpperCase()}</span>
+      <span class="action-resource">${resource}</span>
+      <span class="action-agent">${currentAgentId}</span>
+    </div>
+    <div class="action-meta">
+      <span class="trust">trust: 0.4</span>
+      <span class="result ${outcome === 'error' ? 'err' : ''}">${outcome}</span>
+      <span>aar: ${aarId.substring(0, 16)}...</span>
+    </div>
+    <div class="feedback-btns" id="fb-${idx}">
+      <button class="fb-btn approve" onclick="submitFeedback('${aarId}','approved',${idx})">✓ Approve</button>
+      <button class="fb-btn flag" onclick="submitFeedback('${aarId}','flagged',${idx})">⚑ Flag</button>
+      <button class="fb-btn reject" onclick="submitFeedback('${aarId}','rejected',${idx})">✗ Reject</button>
+    </div>`;
+  feed.appendChild(card);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+async function submitFeedback(aarId, rating, idx) {
+  const btns = document.getElementById('fb-' + idx);
+  btns.querySelectorAll('.fb-btn').forEach(b => { b.classList.add('locked'); b.classList.remove('active'); });
+  btns.querySelector('.' + (rating === 'approved' ? 'approve' : rating === 'flagged' ? 'flag' : 'reject')).classList.add('active');
+  document.getElementById('card-' + idx).classList.add('rated');
+
+  try {
+    await fetch(`${API}/v1/vat/aar/${aarId}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rating, reviewer_ref: 'demo-human' })
+    });
+  } catch(e) { console.error(e); }
+
+  feedbackCount++;
+  if (rating === 'approved') approvedCount++;
+  if (rating === 'flagged') flaggedCount++;
+  if (rating === 'rejected') rejectedCount++;
+
+  updateGauges();
+  await updateReputation();
+
+  // After all actions rated, check deviations
+  if (feedbackCount === aars.length) {
+    setTimeout(() => checkDeviations(), 800);
+  }
+}
+</script>
+</body>
+</html>

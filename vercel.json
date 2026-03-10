@@ -77,6 +77,10 @@
             "destination": "/compare.html"
         },
         {
+            "source": "/demo",
+            "destination": "/control-demo.html"
+        },
+        {
             "source": "/developers",
             "destination": "/developers.html"
         },
