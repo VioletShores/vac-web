@@ -15,7 +15,7 @@
  *     VACVerify.open();
  *   </script>
  * 
- * Patent: 527 claims across 11 filings. Violet Shores Pty Ltd.
+ * Patent: 558 claims across 12 filings. Violet Shores Pty Ltd.
  * Protocol: vacprotocol.org | SDK: vacprotocol.org/developers
  */
 
@@ -361,7 +361,7 @@
         </div>
         <div class="vac-body" id="vac-verify-content"></div>
         <div class="vac-footer">
-          <span class="vac-powered">Secured by <a href="https://vacprotocol.org" target="_blank">VAC Protocol</a> — 527 patent claims</span>
+          <span class="vac-powered">Secured by <a href="https://vacprotocol.org" target="_blank">VAC Protocol</a> — 558 patent claims</span>
         </div>
       </div>
     `;

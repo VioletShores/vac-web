@@ -20,7 +20,7 @@ https://www.loom.com/share/2c4eac2e135a40de9eb2bb8dde2e3be3
 - **One-liner:** Infrastructure layer for the AI agent economy
 
 ## Key Numbers
-- 458 patent claims across 10 filings (IP Australia)
+- 558 patent claims across 12 filings (IP Australia)
 - 5 infrastructure layers
 - 4 LLM providers live (Claude, GPT, Gemini, Grok)
 - VAC submitted to NIST AI Agent Standards Initiative
