@@ -60,7 +60,11 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 <div class="hero">
 <div class="hero-eyebrow">DEVELOPER SDK</div>
 <div class="hero-title">Add cryptographic human provenance to any application</div>
-<div class="hero-sub">VAC Protocol sits underneath your existing identity stack. Verify humans, delegate authority to agents, enforce spending limits, and build trust graphs — all through a simple REST API.</div>
+<div class="hero-sub">OAuth lets users delegate authority to apps without sharing passwords. VAC lets humans delegate authority to AI agents without losing accountability. Every agent action traces through a cryptographic chain back to a verified human. The chain is signed (Ed25519), the constraints are mathematical (scope can only narrow, never expand), and the audit trail is permanent.</div>
+</div>
+
+<div style="max-width:640px;margin:-16px auto 40px;padding:20px 24px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-size:14px;color:var(--gray);line-height:1.65;text-align:center">
+<span style="color:var(--teal);font-weight:600">The provenance_ref</span> is a single identifier that follows a workflow from root human through every agent and sub-agent. One query reconstructs everything — who authorised the chain, what each agent did, and what happened. Over time, these records form an execution graph: the infrastructure for agent reputation, anomaly detection, and trust-aware routing.
 </div>
 
 <div class="section">
