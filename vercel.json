@@ -89,6 +89,10 @@
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
         {
+            "source": "/openapi.json",
+            "destination": "https://vac-system-production.up.railway.app/openapi.json"
+        },
+        {
             "source": "/api/openapi.json",
             "destination": "https://vac-system-production.up.railway.app/openapi.json"
         }
