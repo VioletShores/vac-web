@@ -86,7 +86,28 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 </div>
 
 <div class="section">
-<div class="section-title">QUICK START — 5 STEPS, 5 MINUTES</div>
+<div class="section-title">THE SIMPLE PATH — ONE LINE OF CODE</div>
+<div style="font-size:14px;color:var(--gray);line-height:1.6;margin-bottom:16px">Already have an agent? Add <code style="color:var(--teal)">recordAction</code> after each action. That's it. Your agent is now in the execution graph with a complete audit trail back to the human who authorised it.</div>
+<div class="code-block">
+<span class="c">// Your existing agent code — unchanged</span><br>
+<span class="k">const</span> <span class="v">result</span> = <span class="k">await</span> agent.<span class="f">readCalendar</span>();<br><br>
+<span class="c">// Add one line — action is now in the execution graph</span><br>
+<span class="k">await</span> <span class="f">fetch</span>(<span class="s">'https://vac-system-production.up.railway.app/v1/vat/record/action'</span>, {<br>
+&nbsp;&nbsp;<span class="v">method</span>: <span class="s">'POST'</span>,<br>
+&nbsp;&nbsp;<span class="v">headers</span>: { <span class="s">'Content-Type'</span>: <span class="s">'application/json'</span> },<br>
+&nbsp;&nbsp;<span class="v">body</span>: JSON.<span class="f">stringify</span>({<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="v">vat_jti</span>: token.<span class="v">jti</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c">// from issue/l1</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="v">action</span>: <span class="s">'read'</span>,&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c">// what the agent did</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="v">resource</span>: <span class="s">'calendar:events'</span>, <span class="c">// what it accessed</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="v">result</span>: <span class="s">'success'</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c">// what happened</span><br>
+&nbsp;&nbsp;})<br>
+}); <span class="c">// → { recorded: true, aar_id: "aar_...", provenance_ref: "prov_..." }</span>
+</div>
+</div>
+
+<div class="section">
+<div class="section-title">FULL CONTROL — AUTHORIZE → ACT → COMPLETE → FEEDBACK</div>
+<div style="font-size:14px;color:var(--gray);line-height:1.6;margin-bottom:16px">For production: check permission <em>before</em> acting, record the outcome <em>after</em>, and let the human rate the result. This is the complete trust loop.</div>
 <div class="code-block">
 <span class="c">// 1. Issue an authority token (L1 = API key level, instant)</span><br>
 <span class="k">const</span> <span class="v">root</span> = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">'https://vac-system-production.up.railway.app/v1/vat/issue/l1'</span>, {<br>
@@ -100,26 +121,23 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 &nbsp;&nbsp;&nbsp;&nbsp;<span class="v">constraints</span>: { <span class="v">max_spend_usd</span>: <span class="f">10</span> }<br>
 &nbsp;&nbsp;})<br>
 });<br><br>
-<span class="c">// 2. Authorize every agent action (the core API call)</span><br>
+<span class="c">// 2. Check permission BEFORE the agent acts</span><br>
 <span class="k">const</span> <span class="v">auth</span> = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">'...​/v1/vat/authorize'</span>, {<br>
 &nbsp;&nbsp;<span class="v">method</span>: <span class="s">'POST'</span>,<br>
 &nbsp;&nbsp;<span class="v">body</span>: JSON.<span class="f">stringify</span>({ <span class="v">vat_jti</span>: root.<span class="v">jti</span>, <span class="v">action</span>: <span class="s">'read'</span>, <span class="v">resource</span>: <span class="s">'email:read'</span> })<br>
 }); <span class="c">// → { authorized: true, aar_id: "aar_...", trust_score: 0.4 }</span><br><br>
-<span class="c">// 3. Complete the Action Attestation Record</span><br>
+<span class="c">// 3. Agent does the thing, then records the outcome</span><br>
 <span class="k">await</span> <span class="f">fetch</span>(<span class="s">`...​/v1/vat/aar/${auth.aar_id}/complete`</span>, {<br>
-&nbsp;&nbsp;<span class="v">method</span>: <span class="s">'POST'</span>, <span class="v">body</span>: JSON.<span class="f">stringify</span>({ <span class="v">result</span>: <span class="s">'success'</span> })<br>
+&nbsp;&nbsp;<span class="v">method</span>: <span class="s">'POST'</span>, <span class="v">body</span>: JSON.<span class="f">stringify</span>({ <span class="v">result</span>: <span class="s">'success'</span>, <span class="v">result_hash</span>: <span class="s">'sha256:...'</span> })<br>
 });<br><br>
-<span class="c">// 4. Delegate to a sub-agent (scope narrows automatically)</span><br>
-<span class="k">const</span> <span class="v">child</span> = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">'...​/v1/vat/derive/ext'</span>, {<br>
+<span class="c">// 4. Human reviews the result (closes the trust loop)</span><br>
+<span class="k">await</span> <span class="f">fetch</span>(<span class="s">`...​/v1/vat/aar/${auth.aar_id}/feedback`</span>, {<br>
 &nbsp;&nbsp;<span class="v">method</span>: <span class="s">'POST'</span>,<br>
-&nbsp;&nbsp;<span class="v">body</span>: JSON.<span class="f">stringify</span>({<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="v">parent_jti</span>: root.<span class="v">jti</span>, <span class="v">child_agent_id</span>: <span class="s">'reader-agent'</span>,<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="v">resources</span>: [<span class="s">'email:read'</span>], <span class="v">actions</span>: [<span class="s">'read'</span>] <span class="c">// narrower than parent</span><br>
-&nbsp;&nbsp;})<br>
-});<br><br>
-<span class="c">// 5. Verify the chain — anyone can walk it back to the human</span><br>
-<span class="k">const</span> <span class="v">proof</span> = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">`...​/v1/vat/verify/${child.jti}`</span>);<br>
-<span class="c">// → { valid: true, chain_length: 2, root_human_ref: "sha256:..." }</span>
+&nbsp;&nbsp;<span class="v">body</span>: JSON.<span class="f">stringify</span>({ <span class="v">rating</span>: <span class="s">'approved'</span>, <span class="v">note</span>: <span class="s">'Result was exactly right'</span> })<br>
+}); <span class="c">// → reputation improves → routing gets smarter</span><br><br>
+<span class="c">// 5. Query the reputation (what's this agent's track record?)</span><br>
+<span class="k">const</span> <span class="v">rep</span> = <span class="k">await</span> <span class="f">fetch</span>(<span class="s">`...​/v1/vat/reputation/my-agent`</span>);<br>
+<span class="c">// → { execution_score: 1.0, feedback_score: 1.0, combined_reputation: 1.0 }</span>
 </div>
 </div>
 
@@ -182,15 +200,19 @@ app.<span class="f">post</span>(<span class="s">'/api/calendar'</span>,<br>
 <div class="section-title">KEY API ENDPOINTS</div>
 <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden">
 <ul class="endpoint-list">
-<li><span class="method post">POST</span><span class="ep-path">/v1/vat/authorize</span><span class="ep-desc">Authorize agent action (core API)</span></li>
-<li><span class="method post">POST</span><span class="ep-path">/v1/vat/issue/l1</span><span class="ep-desc">Issue L1 token (API key level)</span></li>
+<li><span class="method post">POST</span><span class="ep-path">/v1/vat/record/action</span><span class="ep-desc">Record an action (simplest integration)</span></li>
+<li><span class="method post">POST</span><span class="ep-path">/v1/vat/authorize</span><span class="ep-desc">Authorize before acting (full control)</span></li>
+<li><span class="method post">POST</span><span class="ep-path">/v1/vat/aar/{id}/complete</span><span class="ep-desc">Complete Action Attestation Record</span></li>
+<li><span class="method post">POST</span><span class="ep-path">/v1/vat/aar/{id}/feedback</span><span class="ep-desc">Human feedback (approved/flagged/rejected)</span></li>
+<li><span class="method post">POST</span><span class="ep-path">/v1/vat/aar/provenance/{ref}/feedback</span><span class="ep-desc">Batch feedback on entire workflow</span></li>
+<li><span class="method get">GET</span><span class="ep-path">/v1/vat/reputation/{agent_id}</span><span class="ep-desc">Agent reputation (execution + feedback)</span></li>
+<li style="border-top:1px solid var(--border);margin-top:4px;padding-top:4px"><span class="method post">POST</span><span class="ep-path">/v1/vat/issue/l1</span><span class="ep-desc">Issue L1 token (API key level)</span></li>
 <li><span class="method post">POST</span><span class="ep-path">/v1/vat/issue/l2</span><span class="ep-desc">Issue L2 token (OIDC/SSO level)</span></li>
 <li><span class="method post">POST</span><span class="ep-path">/v1/vat/auth/capture</span><span class="ep-desc">Issue L3 token (biometric)</span></li>
 <li><span class="method post">POST</span><span class="ep-path">/v1/vat/derive/ext</span><span class="ep-desc">Delegate with narrowing + context</span></li>
-<li><span class="method post">POST</span><span class="ep-path">/v1/vat/aar/{id}/complete</span><span class="ep-desc">Complete Action Attestation Record</span></li>
 <li><span class="method get">GET</span><span class="ep-path">/v1/vat/verify/{jti}</span><span class="ep-desc">Verify token + full chain</span></li>
+<li><span class="method get">GET</span><span class="ep-path">/v1/vat/aar/provenance/{ref}</span><span class="ep-desc">Query execution graph by workflow</span></li>
 <li><span class="method get">GET</span><span class="ep-path">/v1/vat/aar/token/{jti}</span><span class="ep-desc">Audit trail for a token</span></li>
-<li><span class="method get">GET</span><span class="ep-path">/v1/vat/aar/chain/{jti}</span><span class="ep-desc">Audit trail for entire chain</span></li>
 <li><span class="method delete">DEL</span><span class="ep-path">/v1/vat/{jti}</span><span class="ep-desc">Revoke (cascade optional)</span></li>
 <li><span class="method get">GET</span><span class="ep-path">/v1/vat/assurance-levels</span><span class="ep-desc">L1/L2/L3 reference</span></li>
 </ul>
