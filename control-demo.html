@@ -4,486 +4,116 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VAC Protocol — Control Loop Demo</title>
+<meta name="description" content="Watch a closed-loop control system for AI agent workflows. Real API, real feedback, real reputation.">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0B0D14;--surface:#12151E;--surface2:#181C28;--border:#1E2230;--border2:#2A2F40;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
-
-/* NAV */
-.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px}
-.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
-.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
-.nav-links{margin-left:auto;display:flex;gap:16px}
-.nav-links a{color:var(--gray);text-decoration:none;font-size:12px;font-family:var(--mono)}
-.nav-links a:hover{color:var(--teal)}
-
-/* HEADER */
-.header{text-align:center;padding:32px 20px 24px;border-bottom:1px solid var(--border)}
-.header h1{font-size:24px;font-weight:700;margin-bottom:6px}
-.header p{color:var(--gray);font-size:13px;max-width:600px;margin:0 auto;line-height:1.5}
-.header .origin{color:var(--muted);font-size:11px;font-family:var(--mono);margin-top:8px;font-style:italic}
-
-/* MAIN GRID */
-.grid{display:grid;grid-template-columns:260px 1fr 280px;gap:0;min-height:calc(100vh - 120px)}
-@media(max-width:1000px){.grid{grid-template-columns:1fr;gap:16px;padding:16px}}
-
-/* LEFT: STATE GAUGES */
-.panel{border-right:1px solid var(--border);padding:20px}
-.panel:last-child{border-right:none;border-left:1px solid var(--border)}
-.panel-title{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--teal);margin-bottom:16px}
-
-.gauge{margin-bottom:20px}
-.gauge-label{font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:4px;display:flex;justify-content:space-between}
-.gauge-bar{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;position:relative}
-.gauge-fill{height:100%;border-radius:4px;transition:width 0.8s ease,background 0.5s ease}
-.gauge-target{position:absolute;top:-2px;height:12px;width:2px;background:var(--white);border-radius:1px;transition:left 0.3s ease}
-.gauge-value{font-family:var(--mono);font-size:18px;font-weight:700;margin-top:4px}
-.gauge-value.good{color:var(--emerald)}
-.gauge-value.warn{color:var(--amber)}
-.gauge-value.bad{color:var(--coral)}
-
-.desired-section{margin-top:24px;padding-top:16px;border-top:1px solid var(--border)}
-.desired-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.desired-row label{font-size:11px;color:var(--gray);font-family:var(--mono)}
-.desired-row input{width:60px;background:var(--surface2);border:1px solid var(--border);color:var(--white);padding:4px 8px;border-radius:4px;font-family:var(--mono);font-size:12px;text-align:right}
-
-/* CENTRE: LIVE FEED */
-.feed{padding:20px;overflow-y:auto;max-height:calc(100vh - 120px)}
-.action-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px;animation:slideIn 0.3s ease}
-@keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
-.action-header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.action-method{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;background:rgba(45,212,191,0.15);color:var(--teal)}
-.action-resource{font-family:var(--mono);font-size:12px;color:var(--white)}
-.action-agent{font-size:11px;color:var(--muted);margin-left:auto;font-family:var(--mono)}
-.action-meta{display:flex;gap:12px;font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:10px}
-.action-meta .trust{color:var(--teal)}
-.action-meta .result{color:var(--emerald)}
-.action-meta .result.err{color:var(--coral)}
-.feedback-btns{display:flex;gap:6px}
-.fb-btn{padding:5px 14px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--gray);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.15s}
-.fb-btn:hover{border-color:var(--gray)}
-.fb-btn.approve:hover,.fb-btn.approve.active{background:rgba(16,185,129,0.15);border-color:var(--emerald);color:var(--emerald)}
-.fb-btn.flag:hover,.fb-btn.flag.active{background:rgba(245,158,11,0.15);border-color:var(--amber);color:var(--amber)}
-.fb-btn.reject:hover,.fb-btn.reject.active{background:rgba(249,97,103,0.15);border-color:var(--coral);color:var(--coral)}
-.fb-btn.locked{opacity:0.5;cursor:default;pointer-events:none}
-.action-card.rated{border-color:var(--border2)}
-
-/* RIGHT: REPUTATION + CONTROL */
-.rep-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px}
-.rep-title{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px}
-.rep-score{font-family:var(--mono);font-size:28px;font-weight:700}
-.rep-detail{font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
-.rep-bar{height:6px;background:var(--surface2);border-radius:3px;margin-top:8px;overflow:hidden}
-.rep-bar-fill{height:100%;border-radius:3px;transition:width 0.8s ease}
-
-.control-card{background:var(--surface);border:1px solid var(--amber);border-radius:8px;padding:16px;margin-bottom:12px;display:none}
-.control-card.visible{display:block;animation:slideIn 0.4s ease}
-.control-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1px;margin-bottom:8px}
-.control-action{font-size:13px;color:var(--white);line-height:1.5;margin-bottom:10px}
-.control-btn{padding:8px 20px;border-radius:6px;border:none;font-family:var(--mono);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s}
-.control-approve{background:var(--teal);color:var(--bg)}
-.control-approve:hover{background:#5EEAD4}
-
-/* LOOP INDICATOR */
-.loop{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;background:var(--surface);border-top:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted)}
-.loop-step{padding:4px 10px;border-radius:4px;border:1px solid var(--border);transition:all 0.3s}
-.loop-step.active{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,0.08)}
-.loop-arrow{color:var(--border2)}
-
-/* START BUTTON */
-.start-area{padding:40px 20px;text-align:center}
-.start-btn{padding:14px 40px;border-radius:8px;border:2px solid var(--teal);background:transparent;color:var(--teal);font-family:var(--mono);font-size:15px;font-weight:700;cursor:pointer;letter-spacing:1px;transition:all 0.2s}
-.start-btn:hover{background:var(--teal);color:var(--bg)}
-.start-btn:disabled{opacity:0.3;cursor:default}
-.cycle-info{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:12px}
+*{margin:0;padding:0;box-sizing:border-box}body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh;overflow-x:hidden}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px}.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}.nav-links{margin-left:auto;display:flex;gap:16px}.nav-links a{color:var(--gray);text-decoration:none;font-size:12px;font-family:var(--mono)}.nav-links a:hover{color:var(--teal)}
+.header{text-align:center;padding:28px 20px 16px;border-bottom:1px solid var(--border)}.header h1{font-size:22px;font-weight:700;margin-bottom:6px}.header p{color:var(--gray);font-size:13px;max-width:560px;margin:0 auto 12px;line-height:1.5}
+.scenario-picker{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:4px}.scenario-btn{padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--gray);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s}.scenario-btn:hover{border-color:var(--gray)}.scenario-btn.active{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,0.08)}
+.grid{display:grid;grid-template-columns:240px 1fr 260px;gap:0;min-height:calc(100vh - 190px)}@media(max-width:1000px){.grid{grid-template-columns:1fr;min-height:auto}}
+.panel{border-right:1px solid var(--border);padding:16px}.panel:last-child{border-right:none;border-left:1px solid var(--border)}.panel-title{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--teal);margin-bottom:12px}
+.gauge{margin-bottom:14px}.gauge-header{font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:3px;display:flex;justify-content:space-between}.gauge-bar{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;position:relative}.gauge-fill{height:100%;border-radius:4px;transition:width 0.6s ease}.gauge-target{position:absolute;top:-2px;height:12px;width:2px;background:rgba(255,255,255,0.6);border-radius:1px}.gauge-value{font-family:var(--mono);font-size:16px;font-weight:700;margin-top:3px}.g-good{color:var(--emerald)}.g-warn{color:var(--amber)}.g-bad{color:var(--coral)}.g-n{color:var(--white)}
+.feed{padding:16px;overflow-y:auto;max-height:calc(100vh - 190px)}
+@keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.task-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;animation:slideIn 0.3s ease;overflow:hidden}.task-header{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}.task-step{font-family:var(--mono);font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;background:rgba(45,212,191,0.12);color:var(--teal)}.task-title{font-size:13px;font-weight:600}.task-agent{font-size:10px;color:var(--muted);margin-left:auto;font-family:var(--mono)}.task-output{padding:12px 14px;font-size:12.5px;color:var(--gray);line-height:1.65;border-bottom:1px solid var(--border);max-height:200px;overflow-y:auto}.task-output strong{color:var(--white);font-weight:600}.task-meta{padding:6px 14px;display:flex;gap:10px;font-family:var(--mono);font-size:10px;color:var(--muted)}.task-meta .trust{color:var(--teal)}.task-feedback{padding:8px 14px;display:flex;gap:6px;align-items:center;border-top:1px solid var(--border)}
+.fb-btn{padding:6px 14px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--gray);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.15s}.fb-btn:hover{border-color:var(--gray)}.fb-btn.approve:hover,.fb-btn.approve.active{background:rgba(16,185,129,0.15);border-color:var(--emerald);color:var(--emerald)}.fb-btn.flag:hover,.fb-btn.flag.active{background:rgba(245,158,11,0.15);border-color:var(--amber);color:var(--amber)}.fb-btn.reject:hover,.fb-btn.reject.active{background:rgba(249,97,103,0.15);border-color:var(--coral);color:var(--coral)}.fb-btn.locked{opacity:0.4;cursor:default;pointer-events:none}.task-card.rated{opacity:0.85}
+.scard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;animation:slideIn 0.3s ease}.scard-l{font-family:var(--mono);font-size:10px;color:var(--teal);margin-bottom:4px}.scard-t{font-size:12px;color:var(--gray);font-family:var(--mono)}
+.rep-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px}.rep-title{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:4px}.rep-score{font-family:var(--mono);font-size:24px;font-weight:700}.rep-bar{height:5px;background:var(--surface2);border-radius:3px;margin-top:6px;overflow:hidden}.rep-bar-fill{height:100%;border-radius:3px;transition:width 0.6s ease}.rep-detail{font-size:10px;color:var(--muted);margin-top:3px;font-family:var(--mono)}
+.cc{background:var(--surface);border:1px solid var(--amber);border-radius:8px;padding:14px;margin-bottom:10px;display:none}.cc.visible{display:block;animation:slideIn 0.4s ease}.cc-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1px;margin-bottom:6px}.cc-text{font-size:12px;color:var(--white);line-height:1.55;margin-bottom:8px}.cc-btn{padding:7px 18px;border-radius:5px;border:none;font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;background:var(--teal);color:var(--bg)}.cc-btn:hover{background:#5EEAD4}
+.loop{display:flex;align-items:center;justify-content:center;gap:4px;padding:10px;background:var(--surface);border-top:1px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--muted)}.loop-s{padding:3px 8px;border-radius:3px;border:1px solid var(--border);transition:all 0.3s}.loop-s.on{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,0.08)}.loop-a{color:var(--border2);font-size:9px}
+.start-area{padding:40px 20px;text-align:center}.start-btn{padding:14px 40px;border-radius:8px;border:2px solid var(--teal);background:transparent;color:var(--teal);font-family:var(--mono);font-size:14px;font-weight:700;cursor:pointer;letter-spacing:1px;transition:all 0.2s}.start-btn:hover{background:var(--teal);color:var(--bg)}.start-btn:disabled{opacity:0.3;cursor:default}
+.hint{font-size:10px;color:var(--muted);margin-left:auto;font-family:var(--mono);max-width:180px;text-align:right;line-height:1.3}
 </style>
 </head>
 <body>
-
-<nav class="nav">
-  <div class="nav-text"><span class="v">VAC</span><span class="p">PROTOCOL</span></div>
-  <div class="nav-links">
-    <a href="/">Home</a>
-    <a href="/sdk">SDK</a>
-    <a href="/developers">Developers</a>
-    <a href="/api">API Docs</a>
-  </div>
-</nav>
-
+<nav class="nav"><div class="nav-text"><span class="v">VAC</span><span class="p">PROTOCOL</span></div><div class="nav-links"><a href="/">Home</a><a href="/sdk">SDK</a><a href="/developers">Developers</a><a href="/api">API</a></div></nav>
 <div class="header">
-  <h1>Control Loop Demo</h1>
-  <p>Watch a closed-loop control system for AI agent workflows. Issue tokens, run agents, provide feedback, watch reputation converge on target. All hitting the live production API.</p>
-  <div class="origin">Same architecture as a 1993 multivariable T/RH control system — measure, compare, correct, repeat.</div>
+<h1>Control Loop Demo</h1>
+<p>Real agents. Real outcomes. Real feedback. Watch trust converge.</p>
+<div class="scenario-picker" id="picker"></div>
 </div>
-
 <div class="grid">
-  <!-- LEFT: STATE GAUGES -->
-  <div class="panel">
-    <div class="panel-title">WORKFLOW STATE</div>
-
-    <div class="gauge">
-      <div class="gauge-label"><span>Trust Score</span><span id="trust-val-label">—</span></div>
-      <div class="gauge-bar"><div class="gauge-fill" id="trust-fill" style="width:0;background:var(--teal)"></div><div class="gauge-target" id="trust-target" style="left:80%"></div></div>
-      <div class="gauge-value" id="trust-val">—</div>
-    </div>
-
-    <div class="gauge">
-      <div class="gauge-label"><span>Approval Rate</span><span id="approval-val-label">—</span></div>
-      <div class="gauge-bar"><div class="gauge-fill" id="approval-fill" style="width:0;background:var(--emerald)"></div><div class="gauge-target" id="approval-target" style="left:90%"></div></div>
-      <div class="gauge-value" id="approval-val">—</div>
-    </div>
-
-    <div class="gauge">
-      <div class="gauge-label"><span>Error Rate</span><span id="error-val-label">—</span></div>
-      <div class="gauge-bar"><div class="gauge-fill" id="error-fill" style="width:0;background:var(--coral)"></div><div class="gauge-target" id="error-target" style="left:10%"></div></div>
-      <div class="gauge-value" id="error-val">—</div>
-    </div>
-
-    <div class="gauge">
-      <div class="gauge-label"><span>Actions Recorded</span></div>
-      <div class="gauge-value" id="actions-count" style="color:var(--white)">0</div>
-    </div>
-
-    <div class="desired-section">
-      <div class="panel-title">DESIRED STATE</div>
-      <div class="desired-row"><label>Min Trust</label><input type="number" id="desired-trust" value="0.80" min="0" max="1" step="0.05"></div>
-      <div class="desired-row"><label>Min Approval</label><input type="number" id="desired-approval" value="0.90" min="0" max="1" step="0.05"></div>
-      <div class="desired-row"><label>Max Errors</label><input type="number" id="desired-errors" value="0.10" min="0" max="1" step="0.05"></div>
-    </div>
-  </div>
-
-  <!-- CENTRE: LIVE FEED -->
-  <div class="feed" id="feed">
-    <div class="start-area" id="start-area">
-      <button class="start-btn" id="start-btn" onclick="startWorkflow()">▶ START CONTROL LOOP</button>
-      <div class="cycle-info" id="cycle-info">Issues L1 token → runs 6 agent actions → you rate each one → reputation updates → system proposes corrections</div>
-    </div>
-  </div>
-
-  <!-- RIGHT: REPUTATION + CONTROL -->
-  <div class="panel">
-    <div class="panel-title">AGENT REPUTATION</div>
-
-    <div class="rep-card">
-      <div class="rep-title">EXECUTION SCORE</div>
-      <div class="rep-score" id="exec-score">—</div>
-      <div class="rep-detail" id="exec-detail">from AAR outcomes</div>
-      <div class="rep-bar"><div class="rep-bar-fill" id="exec-bar" style="width:0;background:var(--teal)"></div></div>
-    </div>
-
-    <div class="rep-card">
-      <div class="rep-title">FEEDBACK SCORE</div>
-      <div class="rep-score" id="fb-score">—</div>
-      <div class="rep-detail" id="fb-detail">from your ratings</div>
-      <div class="rep-bar"><div class="rep-bar-fill" id="fb-bar" style="width:0;background:var(--emerald)"></div></div>
-    </div>
-
-    <div class="rep-card">
-      <div class="rep-title">COMBINED REPUTATION</div>
-      <div class="rep-score" id="combined-score">—</div>
-      <div class="rep-detail" id="combined-detail">60% execution + 40% feedback</div>
-      <div class="rep-bar"><div class="rep-bar-fill" id="combined-bar" style="width:0;background:var(--purple)"></div></div>
-    </div>
-
-    <div class="control-card" id="control-card">
-      <div class="control-label">▲ CORRECTIVE ACTION PROPOSED</div>
-      <div class="control-action" id="control-text"></div>
-      <button class="control-btn control-approve" onclick="approveControl()">APPROVE</button>
-    </div>
-
-    <div class="rep-card" style="margin-top:16px">
-      <div class="rep-title">PROVENANCE REF</div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--gray);word-break:break-all" id="prov-ref">—</div>
-    </div>
-  </div>
+<div class="panel">
+<div class="panel-title">WORKFLOW STATE</div>
+<div class="gauge"><div class="gauge-header"><span>Outcome Quality</span><span id="g1p">—</span></div><div class="gauge-bar"><div class="gauge-fill" id="g1f" style="width:0;background:var(--emerald)"></div><div class="gauge-target" style="left:80%"></div></div><div class="gauge-value g-n" id="g1v">—</div></div>
+<div class="gauge"><div class="gauge-header"><span>Human Approval</span><span id="g2p">—</span></div><div class="gauge-bar"><div class="gauge-fill" id="g2f" style="width:0;background:var(--teal)"></div><div class="gauge-target" style="left:85%"></div></div><div class="gauge-value g-n" id="g2v">—</div></div>
+<div class="gauge"><div class="gauge-header"><span>Error Rate</span><span id="g3p">—</span></div><div class="gauge-bar"><div class="gauge-fill" id="g3f" style="width:0;background:var(--coral)"></div><div class="gauge-target" style="left:10%"></div></div><div class="gauge-value g-n" id="g3v">—</div></div>
+<div class="gauge"><div class="gauge-header"><span>Trust Score</span></div><div class="gauge-value g-n" id="g4v">—</div></div>
+<div class="gauge"><div class="gauge-header"><span>Actions</span></div><div class="gauge-value g-n" id="g5v">0</div></div>
+<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div class="panel-title">TARGET THRESHOLDS</div><div style="font-size:10px;color:var(--muted);font-family:var(--mono);line-height:1.8">Quality &gt; 80%<br>Approval &gt; 85%<br>Errors &lt; 10%</div></div>
 </div>
-
-<!-- CONTROL LOOP INDICATOR -->
-<div class="loop">
-  <div class="loop-step" id="loop-measure">MEASURE</div>
-  <div class="loop-arrow">→</div>
-  <div class="loop-step" id="loop-compare">COMPARE</div>
-  <div class="loop-arrow">→</div>
-  <div class="loop-step" id="loop-propose">PROPOSE</div>
-  <div class="loop-arrow">→</div>
-  <div class="loop-step" id="loop-approve">APPROVE</div>
-  <div class="loop-arrow">→</div>
-  <div class="loop-step" id="loop-apply">APPLY</div>
-  <div class="loop-arrow">→</div>
-  <div class="loop-step" id="loop-remeasure">RE-MEASURE</div>
+<div class="feed" id="feed"><div class="start-area" id="sa"><div id="sdesc" style="font-size:14px;color:var(--gray);margin-bottom:20px;line-height:1.6;max-width:500px;margin-left:auto;margin-right:auto"></div><button class="start-btn" id="sbtn" onclick="go()">&#9654; START</button><div style="font-size:12px;color:var(--muted);margin-top:10px">All actions hit the live production API.</div></div></div>
+<div class="panel">
+<div class="panel-title">AGENT REPUTATION</div>
+<div class="rep-card"><div class="rep-title">EXECUTION</div><div class="rep-score" id="re">—</div><div class="rep-bar"><div class="rep-bar-fill" id="reb" style="width:0;background:var(--teal)"></div></div><div class="rep-detail" id="red">from outcomes</div></div>
+<div class="rep-card"><div class="rep-title">FEEDBACK</div><div class="rep-score" id="rf">—</div><div class="rep-bar"><div class="rep-bar-fill" id="rfb" style="width:0;background:var(--emerald)"></div></div><div class="rep-detail" id="rfd">from your ratings</div></div>
+<div class="rep-card"><div class="rep-title">COMBINED</div><div class="rep-score" id="rc">—</div><div class="rep-bar"><div class="rep-bar-fill" id="rcb" style="width:0;background:var(--purple)"></div></div><div class="rep-detail">60% execution · 40% feedback</div></div>
+<div class="cc" id="cc"><div class="cc-label" id="ccl">&#9650; CORRECTIVE ACTION</div><div class="cc-text" id="cct"></div><button class="cc-btn" id="ccb" onclick="approveFix()">APPROVE</button></div>
+<div class="rep-card" style="margin-top:8px"><div class="rep-title">PROVENANCE</div><div style="font-family:var(--mono);font-size:10px;color:var(--gray);word-break:break-all" id="prov">—</div></div>
 </div>
+</div>
+<div class="loop"><div class="loop-s" id="lm">MEASURE</div><div class="loop-a">→</div><div class="loop-s" id="lc">COMPARE</div><div class="loop-a">→</div><div class="loop-s" id="lp">PROPOSE</div><div class="loop-a">→</div><div class="loop-s" id="la">APPROVE</div><div class="loop-a">→</div><div class="loop-s" id="ly">APPLY</div><div class="loop-a">→</div><div class="loop-s" id="lr">RE-MEASURE</div></div>
 
 <script>
-const API = 'https://vac-system-production.up.railway.app';
-let currentToken = null;
-let currentProv = null;
-let currentAgentId = null;
-let aars = [];
-let feedbackCount = 0;
-let approvedCount = 0;
-let flaggedCount = 0;
-let rejectedCount = 0;
-let successCount = 0;
-let errorCount = 0;
-let cycleCount = 0;
+const API='https://vac-system-production.up.railway.app';
+const SC=[
+{name:'Agent Commerce',desc:'A shopping advisor recommends products to help you sleep better. Some recommendations genuinely help. Some are paid placements. Your feedback teaches the system which agents give advice that actually works — not just advice that sounds good.',agent:'sleep-advisor',steps:[
+{a:'recommend',r:'product:magnesium',title:'Recommend: Magnesium Glycinate',out:'<strong>Recommendation:</strong> Based on your reported difficulty falling asleep, I recommend <strong>Magnesium Glycinate 400mg</strong> taken 30 minutes before bed. Strong clinical evidence for reducing sleep onset latency by 17 minutes on average. Cost: $24/month.',o:'success',h:'Did this actually help you sleep better?'},
+{a:'recommend',r:'product:sleepwave-app',title:'Recommend: SleepWave AI App',out:'<strong>Recommendation:</strong> Try <strong>SleepWave AI</strong> — uses your phone microphone to detect sleep stages and play binaural frequencies. Premium: $9.99/month. 4.2 stars. <em style="color:var(--amber)">Note: This is a paid partnership recommendation.</em>',o:'success',h:'Genuinely helpful or just an ad?'},
+{a:'analyse',r:'user:sleep-data',title:'Analyse: Your Sleep Pattern',out:'<strong>Analysis:</strong> 14 days of data — average sleep onset: 47 min (high). Wake-ups: 3.2/night (elevated). Deep sleep: only 12% (target 20-25%). <strong>Root cause:</strong> late caffeine (avg 3pm) and screen time within 30 min of bed (11/14 nights). These two factors explain ~70% of variance.',o:'success',h:'Is this analysis accurate and actionable?'},
+{a:'recommend',r:'product:weighted-blanket',title:'Recommend: Weighted Blanket 7kg',out:'<strong>Recommendation:</strong> A <strong>7kg weighted blanket</strong> — deep pressure stimulation increases serotonin/melatonin. Clinical evidence: 63% improvement in insomnia symptoms. $89 one-time. Recommended based on verified outcomes across 1,200 VAC-tracked users who reported improved sleep within 14 days.',o:'success',h:'Evidence-based recommendation with verified outcomes?'},
+{a:'recommend',r:'product:cbd-oil',title:'Recommend: DreamDrops CBD Oil',out:'<strong>Recommendation:</strong> <strong>DreamDrops Premium CBD Oil</strong> — full-spectrum with CBN. $79/month. <em style="color:var(--amber)">Sponsored: DreamDrops is a verified commerce partner. No independent outcome data available.</em>',o:'success',h:'Another sponsored product with no outcome data.'},
+],fix:['Remove sponsored recommendations without outcome data (SleepWave, DreamDrops) — replace commerce agent with evidence-only advisor','Promote weighted blanket agent (highest approval) — give it primary recommendation authority','Add 7-day outcome tracking: follow up to verify if recommendation actually improved sleep before counting as successful']},
 
-const ACTIONS = [
-  { action: 'read', resource: 'calendar:events', outcome: 'success' },
-  { action: 'write', resource: 'calendar:events', outcome: 'success' },
-  { action: 'read', resource: 'email:inbox', outcome: 'success' },
-  { action: 'send', resource: 'email:compose', outcome: 'success' },
-  { action: 'read', resource: 'database:contacts', outcome: 'error' },
-  { action: 'write', resource: 'calendar:events', outcome: 'success' },
+{name:'Due Diligence',desc:'You\'re evaluating a startup for investment. Your AI agent team researches the company, analyses the market, checks for red flags, and drafts a memo. Bad analysis costs millions.',agent:'dd-analyst',steps:[
+{a:'research',r:'company:acme-ai',title:'Research: Company Overview',out:'<strong>ACME AI Inc.</strong> Founded 2024, San Francisco. CEO: Jane Chen (ex-Google DeepMind, 8 years). Series A: $12M from Sequoia (Jan 2025). Product: AI supply chain optimisation for mid-market manufacturers. 23 employees. ARR: $1.2M (up from $200K in 12 months). 3 Fortune 500 customers (under NDA).',o:'success',h:'Is this research thorough and accurate?'},
+{a:'analyse',r:'market:supply-chain-ai',title:'Market Analysis',out:'<strong>Market:</strong> Supply chain AI: $14.2B (2025) → $31.5B (2028), CAGR 22%. Key players: Blue Yonder, Kinaxis, o9 Solutions. ACME niche: mid-market ($50M-$500M revenue) — underserved. TAM: $3.1B. Competitive edge: 40% faster implementation than enterprise solutions.',o:'success',h:'Does this cover the key competitive dynamics?'},
+{a:'scan',r:'legal:acme-ai',title:'Red Flag Check',out:'<strong>Red Flags:</strong> No litigation. No regulatory actions. CEO clean. <strong>However:</strong> CTO departed after 8 months (now at competitor). Two Glassdoor reviews cite "unsustainable pace." No independent board directors. IP: 2 provisional patents, neither granted. <strong>Missing:</strong> No check on customer concentration risk.',o:'success',h:'Caught the CTO departure but missed customer concentration?'},
+{a:'write',r:'memo:investment',title:'Investment Memo',out:'<strong>Investment Memo — ACME AI</strong><br><br>Recommend: <strong>CONDITIONAL PASS</strong>.<br><br>6x ARR growth is exceptional. Product-market fit is clear. However: CTO gap creates execution risk, board governance is weak (no independents), IP position is thin. <br><br>Conditions: (1) new CTO hired with retention package, (2) independent board member, (3) customer concentration data provided. Revisit in 60 days.',o:'success',h:'Decision-quality memo? Would you send this to your IC?'},
+],fix:['Research agent missed customer concentration — add mandatory revenue-by-customer analysis to due diligence template','Memo agent provided conditional pass but should include comparable deal returns (what did similar investments yield?)','Add peer-review checkpoint between red flag scan and memo to ensure all flags are incorporated before summary']},
+
+{name:'Medical Triage',desc:'A patient presents with symptoms. Your AI triage agent analyses, suggests differential diagnosis, recommends tests, and drafts a referral. The supervising physician rates each step. Accuracy is critical.',agent:'triage-agent',steps:[
+{a:'analyse',r:'patient:symptoms',title:'Symptom Analysis',out:'<strong>Patient:</strong> Female, 34. Presenting: persistent headache (3 weeks), visual disturbances (intermittent blurring, right eye), fatigue, neck stiffness. No fever, no trauma. BP: 142/88 (elevated). BMI: 24.<br><br><strong>Assessment:</strong> Symptom cluster suggests neurological evaluation priority. Elevated BP with headache + visual disturbance warrants urgent investigation.',o:'success',h:'Complete and accurate symptom analysis?'},
+{a:'recommend',r:'diagnosis:differential',title:'Differential Diagnosis',out:'<strong>Differential:</strong><br>1. <strong>Idiopathic Intracranial Hypertension</strong> (35%) — fits: headache, visual, elevated BP, demographics<br>2. <strong>Migraine with aura</strong> (25%) — fits: headache, visual, age/sex<br>3. <strong>Hypertensive emergency</strong> (15%) — fits: BP, headache, visual<br>4. <strong>Optic neuritis</strong> (10%) — unilateral visual, age<br>5. <strong>Space-occupying lesion</strong> (8%) — must rule out given 3-week duration',o:'success',h:'Appropriate differential with correct prioritisation?'},
+{a:'recommend',r:'tests:ordered',title:'Recommended Tests',out:'<strong>Urgent:</strong> Fundoscopy (papilloedema), CT head without contrast<br><strong>If CT normal:</strong> MRI brain + orbits with gadolinium, MRV<br><strong>Bloods:</strong> FBC, CRP, ESR, U&E, thyroid function<br><strong>If IIH suspected:</strong> LP with opening pressure<br><br><strong>Referral:</strong> Ophthalmology (urgent) + Neurology (72h)',o:'success',h:'Right tests in the right order?'},
+{a:'write',r:'referral:neurology',title:'Neurology Referral',out:'<strong>Urgent Neurology Referral</strong><br><br>34F, 3-week progressive headache, intermittent R-eye visual blurring, neck stiffness, BP 142/88. Fundoscopy pending. CT arranged urgently. Differential includes IIH, migraine with aura, must-exclude SOL. Otherwise well, no medication history, no relevant PMH.<br><br>Requesting urgent review within 72h given visual symptoms.',o:'success',h:'Would you send this referral as-is?'},
+],fix:['BP 142/88 should trigger immediate repeat measurement before other investigations — add protocol step for BP confirmation','Differential missed medication-overuse headache — add mandatory medication history deep-dive to symptom analysis','Referral should include patient consent status for LP and availability for urgent MRI — add consent workflow checkpoint']},
 ];
 
-function setLoopStep(step) {
-  document.querySelectorAll('.loop-step').forEach(s => s.classList.remove('active'));
-  document.getElementById('loop-' + step).classList.add('active');
-}
+let S=0,tok=null,prv=null,aid=null,aars=[],fb=0,ap=0,fl=0,rj=0,ok=0,er=0,cy=0;
 
-function updateGauges() {
-  const total = feedbackCount;
-  const trust = currentToken ? 0.4 : 0;
-  const approvalRate = total > 0 ? approvedCount / total : 0;
-  const errorRate = (successCount + errorCount) > 0 ? errorCount / (successCount + errorCount) : 0;
+function selS(i){S=i;document.querySelectorAll('.scenario-btn').forEach((b,j)=>b.classList.toggle('active',j===i));reset();document.getElementById('sdesc').textContent=SC[S].desc;document.getElementById('sa').style.display='block'}
+function reset(){aars=[];fb=0;ap=0;fl=0;rj=0;ok=0;er=0;['g1f','g2f','g3f'].forEach(id=>{document.getElementById(id).style.width='0'});['g1v','g2v','g3v','g4v'].forEach(id=>{document.getElementById(id).textContent='—';document.getElementById(id).className='gauge-value g-n'});['g1p','g2p','g3p'].forEach(id=>document.getElementById(id).textContent='—');document.getElementById('g5v').textContent='0';['re','rf','rc'].forEach(id=>document.getElementById(id).textContent='—');['reb','rfb','rcb'].forEach(id=>document.getElementById(id).style.width='0');document.getElementById('prov').textContent='—';document.getElementById('cc').classList.remove('visible');document.querySelectorAll('.loop-s').forEach(s=>s.classList.remove('on'));document.getElementById('feed').innerHTML='<div class="start-area" id="sa"><div id="sdesc" style="font-size:14px;color:var(--gray);margin-bottom:20px;line-height:1.6;max-width:500px;margin-left:auto;margin-right:auto">'+SC[S].desc+'</div><button class="start-btn" id="sbtn" onclick="go()">&#9654; START</button><div style="font-size:12px;color:var(--muted);margin-top:10px">All actions hit the live production API.</div></div>'}
 
-  const desiredTrust = parseFloat(document.getElementById('desired-trust').value);
-  const desiredApproval = parseFloat(document.getElementById('desired-approval').value);
-  const desiredErrors = parseFloat(document.getElementById('desired-errors').value);
+function setL(s){document.querySelectorAll('.loop-s').forEach(e=>e.classList.remove('on'));document.getElementById('l'+s).classList.add('on')}
+function ug(){const t=fb,q=t>0?(ap*1+fl*0.5)/t:0,a=t>0?ap/t:0,e=(ok+er)>0?er/(ok+er):0;
+document.getElementById('g1f').style.width=(q*100)+'%';document.getElementById('g1v').textContent=t>0?(q*100).toFixed(0)+'%':'—';document.getElementById('g1p').textContent=t>0?(q*100).toFixed(0)+'%':'—';document.getElementById('g1v').className='gauge-value '+(q>=.8?'g-good':q>=.6?'g-warn':'g-bad');
+document.getElementById('g2f').style.width=(a*100)+'%';document.getElementById('g2v').textContent=t>0?(a*100).toFixed(0)+'%':'—';document.getElementById('g2p').textContent=t>0?(a*100).toFixed(0)+'%':'—';document.getElementById('g2v').className='gauge-value '+(a>=.85?'g-good':a>=.6?'g-warn':'g-bad');
+document.getElementById('g3f').style.width=(e*100)+'%';document.getElementById('g3v').textContent=(ok+er)>0?(e*100).toFixed(0)+'%':'—';document.getElementById('g3p').textContent=(ok+er)>0?(e*100).toFixed(0)+'%':'—';document.getElementById('g3v').className='gauge-value '+(e<=.1?'g-good':e<=.2?'g-warn':'g-bad');
+document.getElementById('g4v').textContent=tok?'0.40':'—';document.getElementById('g4v').className='gauge-value g-warn';document.getElementById('g5v').textContent=ok+er}
 
-  // Trust gauge
-  document.getElementById('trust-fill').style.width = (trust * 100) + '%';
-  document.getElementById('trust-val').textContent = trust.toFixed(2);
-  document.getElementById('trust-val-label').textContent = trust.toFixed(2);
-  document.getElementById('trust-val').className = 'gauge-value ' + (trust >= desiredTrust ? 'good' : trust >= desiredTrust * 0.8 ? 'warn' : 'bad');
-  document.getElementById('trust-target').style.left = (desiredTrust * 100) + '%';
+async function ur(){if(!aid)return;try{const r=await fetch(`${API}/v1/vat/reputation/${aid}`).then(r=>r.json());if(r.execution_score!=null){document.getElementById('re').textContent=r.execution_score.toFixed(3);document.getElementById('reb').style.width=(r.execution_score*100)+'%';document.getElementById('red').textContent=r.successful_actions+' ok / '+r.error_actions+' err'}if(r.feedback_score!=null){document.getElementById('rf').textContent=r.feedback_score.toFixed(3);document.getElementById('rfb').style.width=(r.feedback_score*100)+'%';document.getElementById('rfd').textContent=r.feedback_approved+'\u2713 '+r.feedback_flagged+'\u26A1 '+r.feedback_rejected+'\u2717'}if(r.combined_reputation!=null){document.getElementById('rc').textContent=r.combined_reputation.toFixed(3);document.getElementById('rcb').style.width=(r.combined_reputation*100)+'%'}}catch(e){}}
 
-  // Approval gauge
-  document.getElementById('approval-fill').style.width = (approvalRate * 100) + '%';
-  document.getElementById('approval-fill').style.background = approvalRate >= desiredApproval ? 'var(--emerald)' : 'var(--amber)';
-  document.getElementById('approval-val').textContent = total > 0 ? (approvalRate * 100).toFixed(0) + '%' : '—';
-  document.getElementById('approval-val-label').textContent = total > 0 ? (approvalRate * 100).toFixed(0) + '%' : '—';
-  document.getElementById('approval-val').className = 'gauge-value ' + (approvalRate >= desiredApproval ? 'good' : 'warn');
-  document.getElementById('approval-target').style.left = (desiredApproval * 100) + '%';
+function chk(){if(fb<aars.length)return;setL('c');setTimeout(()=>{if(rj>0||fl>0){setL('p');const c=SC[S].fix;document.getElementById('cct').innerHTML=c.map(x=>'&bull; '+x).join('<br><br>');const cc=document.getElementById('cc');cc.classList.add('visible');cc.style.borderColor='var(--amber)';document.getElementById('ccl').textContent='\u25B2 CORRECTIVE ACTION PROPOSED';document.getElementById('ccl').style.color='var(--amber)';document.getElementById('ccb').textContent='APPROVE';document.getElementById('ccb').disabled=false;document.getElementById('ccb').style.opacity='1'}},800)}
 
-  // Error gauge
-  document.getElementById('error-fill').style.width = (errorRate * 100) + '%';
-  document.getElementById('error-val').textContent = (successCount + errorCount) > 0 ? (errorRate * 100).toFixed(0) + '%' : '—';
-  document.getElementById('error-val-label').textContent = (successCount + errorCount) > 0 ? (errorRate * 100).toFixed(0) + '%' : '—';
-  document.getElementById('error-val').className = 'gauge-value ' + (errorRate <= desiredErrors ? 'good' : 'bad');
-  document.getElementById('error-target').style.left = (desiredErrors * 100) + '%';
+function approveFix(){setL('a');document.getElementById('cc').style.borderColor='var(--emerald)';document.getElementById('ccl').textContent='\u2713 CORRECTIONS APPLIED';document.getElementById('ccl').style.color='var(--emerald)';document.getElementById('ccb').textContent='APPLIED';document.getElementById('ccb').disabled=true;document.getElementById('ccb').style.opacity='0.4';setTimeout(()=>{setL('y');setTimeout(()=>{setL('r');cy++;addS('Cycle '+cy+' Complete','Control actions applied. Agent configuration updated for next run.','')},600)},600)}
 
-  document.getElementById('actions-count').textContent = successCount + errorCount;
-}
+async function go(){document.getElementById('sa').style.display='none';document.getElementById('cc').classList.remove('visible');setL('m');const sc=SC[S];aid=sc.agent+'-c'+cy;
+try{const t=await fetch(`${API}/v1/vat/issue/l1`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({developer_email:'demo@vacprotocol.org',agent_id:aid,resources:sc.steps.map(s=>s.r),actions:[...new Set(sc.steps.map(s=>s.a))]})}).then(r=>r.json());tok=t.jti;prv=t.provenance_ref;document.getElementById('prov').textContent=prv;ug();addS('L1 Token Issued','Agent: '+aid,'provenance_ref: '+prv)}catch(e){addS('ERROR',e.message,'');return}
+for(let i=0;i<sc.steps.length;i++){await new Promise(r=>setTimeout(r,700));const s=sc.steps[i];try{const res=await fetch(`${API}/v1/vat/record/action`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vat_jti:tok,action:s.a,resource:s.r,result:s.o})}).then(r=>r.json());if(res.recorded){aars.push(res.aar_id);if(s.o==='success')ok++;else er++;addTask(s,res.aar_id,i);ug()}}catch(e){addS('Error',e.message,'')}}
+await new Promise(r=>setTimeout(r,300));addS('Workflow Complete',sc.steps.length+' actions recorded','Rate each outcome. Watch the gauges converge.')}
 
-async function updateReputation() {
-  if (!currentAgentId) return;
-  try {
-    const res = await fetch(`${API}/v1/vat/reputation/${currentAgentId}`);
-    const rep = await res.json();
-    if (rep.execution_score !== undefined && rep.execution_score !== null) {
-      document.getElementById('exec-score').textContent = rep.execution_score.toFixed(3);
-      document.getElementById('exec-bar').style.width = (rep.execution_score * 100) + '%';
-      document.getElementById('exec-detail').textContent = `${rep.successful_actions} success / ${rep.error_actions} errors`;
-    }
-    if (rep.feedback_score !== null && rep.feedback_score !== undefined) {
-      document.getElementById('fb-score').textContent = rep.feedback_score.toFixed(3);
-      document.getElementById('fb-bar').style.width = (rep.feedback_score * 100) + '%';
-      document.getElementById('fb-detail').textContent = `${rep.feedback_approved}✓ ${rep.feedback_flagged}⚑ ${rep.feedback_rejected}✗`;
-    }
-    if (rep.combined_reputation !== undefined && rep.combined_reputation !== null) {
-      document.getElementById('combined-score').textContent = rep.combined_reputation.toFixed(3);
-      document.getElementById('combined-bar').style.width = (rep.combined_reputation * 100) + '%';
-    }
-  } catch(e) { console.error('Rep error:', e); }
-}
+function addS(t,l,s){const f=document.getElementById('feed');const d=document.createElement('div');d.className='scard';d.innerHTML=`<div class="scard-l">${t}</div><div class="scard-t">${l}</div>${s?`<div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px">${s}</div>`:''}`;f.appendChild(d);f.scrollTop=f.scrollHeight}
 
-function checkDeviations() {
-  const total = feedbackCount;
-  if (total < 3) return;
+function addTask(s,aar,i){const f=document.getElementById('feed');const d=document.createElement('div');d.className='task-card';d.id='tc'+i;d.innerHTML=`<div class="task-header"><span class="task-step">STEP ${i+1}</span><span class="task-title">${s.title}</span><span class="task-agent">${aid}</span></div><div class="task-output">${s.out}</div><div class="task-meta"><span class="trust">trust: 0.40</span><span style="color:var(--emerald)">${s.o}</span><span>${aar.substring(0,18)}...</span></div><div class="task-feedback" id="tf${i}"><button class="fb-btn approve" onclick="rate('${aar}','approved',${i})">\u2713 Approve</button><button class="fb-btn flag" onclick="rate('${aar}','flagged',${i})">\u26A1 Flag</button><button class="fb-btn reject" onclick="rate('${aar}','rejected',${i})">\u2717 Reject</button><span class="hint">${s.h}</span></div>`;f.appendChild(d);f.scrollTop=f.scrollHeight}
 
-  const approvalRate = total > 0 ? approvedCount / total : 0;
-  const errorRate = (successCount + errorCount) > 0 ? errorCount / (successCount + errorCount) : 0;
-  const desiredApproval = parseFloat(document.getElementById('desired-approval').value);
-  const desiredErrors = parseFloat(document.getElementById('desired-errors').value);
+async function rate(aar,r,i){const box=document.getElementById('tf'+i);box.querySelectorAll('.fb-btn').forEach(b=>{b.classList.add('locked');b.classList.remove('active')});box.querySelector('.'+(r==='approved'?'approve':r==='flagged'?'flag':'reject')).classList.add('active');document.getElementById('tc'+i).classList.add('rated');try{await fetch(`${API}/v1/vat/aar/${aar}/feedback`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rating:r,reviewer_ref:'demo-human'})})}catch(e){}fb++;if(r==='approved')ap++;if(r==='flagged')fl++;if(r==='rejected')rj++;ug();await ur();if(fb>=aars.length)setTimeout(()=>chk(),600)}
 
-  setLoopStep('compare');
-  setTimeout(() => {
-    let actions = [];
-    if (errorRate > desiredErrors) actions.push('Replace database:contacts agent with a specialist (current error source)');
-    if (approvalRate < desiredApproval && flaggedCount > 0) actions.push('Add review checkpoint before email:compose actions (flagged ' + flaggedCount + ' times)');
-    if (rejectedCount > 0) actions.push('Restrict agent scope: remove rejected action types from delegation');
-
-    if (actions.length > 0) {
-      setLoopStep('propose');
-      const card = document.getElementById('control-card');
-      document.getElementById('control-text').innerHTML = actions.map(a => '• ' + a).join('<br>');
-      card.classList.add('visible');
-    }
-  }, 600);
-}
-
-function approveControl() {
-  setLoopStep('approve');
-  const card = document.getElementById('control-card');
-  card.style.borderColor = 'var(--emerald)';
-  document.querySelector('.control-label').textContent = '✓ CORRECTIVE ACTION APPROVED';
-  document.querySelector('.control-label').style.color = 'var(--emerald)';
-  document.querySelector('.control-approve').textContent = 'APPLIED';
-  document.querySelector('.control-approve').disabled = true;
-  document.querySelector('.control-approve').style.opacity = '0.5';
-
-  setTimeout(() => {
-    setLoopStep('apply');
-    setTimeout(() => {
-      setLoopStep('remeasure');
-      cycleCount++;
-      document.getElementById('cycle-info').textContent = `Cycle ${cycleCount} complete. Control action applied. Click START to run the next cycle with the improved configuration.`;
-      document.getElementById('start-btn').disabled = false;
-      document.getElementById('start-btn').textContent = '▶ RUN CYCLE ' + (cycleCount + 1);
-    }, 800);
-  }, 600);
-}
-
-async function startWorkflow() {
-  document.getElementById('start-btn').disabled = true;
-  document.getElementById('start-area').style.display = 'none';
-
-  // Reset control card
-  const cc = document.getElementById('control-card');
-  cc.classList.remove('visible');
-  cc.style.borderColor = 'var(--amber)';
-  document.querySelector('.control-label').textContent = '▲ CORRECTIVE ACTION PROPOSED';
-  document.querySelector('.control-label').style.color = 'var(--amber)';
-  document.querySelector('.control-approve').textContent = 'APPROVE';
-  document.querySelector('.control-approve').disabled = false;
-  document.querySelector('.control-approve').style.opacity = '1';
-
-  setLoopStep('measure');
-
-  // 1. Issue L1 token
-  currentAgentId = 'demo-agent-cycle-' + cycleCount;
-  try {
-    const tokenRes = await fetch(`${API}/v1/vat/issue/l1`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        developer_email: 'demo@vacprotocol.org',
-        agent_id: currentAgentId,
-        resources: ['calendar:events', 'email:inbox', 'email:compose', 'database:contacts'],
-        actions: ['read', 'write', 'send']
-      })
-    });
-    const token = await tokenRes.json();
-    currentToken = token.jti;
-    currentProv = token.provenance_ref;
-    document.getElementById('prov-ref').textContent = currentProv;
-    updateGauges();
-  } catch(e) {
-    addFeedCard('ERROR', 'Failed to issue token: ' + e.message);
-    return;
-  }
-
-  // 2. Add status card
-  addStatusCard('L1 Token Issued', `jti: ${currentToken}`, 'provenance_ref: ' + currentProv);
-
-  // 3. Run actions with delays
-  for (let i = 0; i < ACTIONS.length; i++) {
-    await new Promise(r => setTimeout(r, 800));
-    const a = ACTIONS[i];
-    try {
-      const res = await fetch(`${API}/v1/vat/record/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vat_jti: currentToken,
-          action: a.action,
-          resource: a.resource,
-          result: a.outcome
-        })
-      });
-      const data = await res.json();
-      if (data.recorded) {
-        aars.push(data.aar_id);
-        if (a.outcome === 'success') successCount++;
-        else errorCount++;
-        addActionCard(a.action, a.resource, a.outcome, data.aar_id, i);
-        updateGauges();
-      }
-    } catch(e) {
-      addStatusCard('API Error', e.message, '');
-    }
-  }
-
-  // Show completion status
-  await new Promise(r => setTimeout(r, 400));
-  addStatusCard('Workflow Complete', `${ACTIONS.length} actions recorded`, 'Rate each action below. Watch the gauges converge.');
-}
-
-function addStatusCard(title, line1, line2) {
-  const feed = document.getElementById('feed');
-  const card = document.createElement('div');
-  card.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:10px;animation:slideIn 0.3s ease';
-  card.innerHTML = `<div style="font-family:var(--mono);font-size:11px;color:var(--teal);margin-bottom:4px">${title}</div>
-    <div style="font-family:var(--mono);font-size:11px;color:var(--gray)">${line1}</div>
-    ${line2 ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px">${line2}</div>` : ''}`;
-  feed.appendChild(card);
-  feed.scrollTop = feed.scrollHeight;
-}
-
-function addActionCard(action, resource, outcome, aarId, idx) {
-  const feed = document.getElementById('feed');
-  const card = document.createElement('div');
-  card.className = 'action-card';
-  card.id = 'card-' + idx;
-  card.innerHTML = `
-    <div class="action-header">
-      <span class="action-method">${action.toUpperCase()}</span>
-      <span class="action-resource">${resource}</span>
-      <span class="action-agent">${currentAgentId}</span>
-    </div>
-    <div class="action-meta">
-      <span class="trust">trust: 0.4</span>
-      <span class="result ${outcome === 'error' ? 'err' : ''}">${outcome}</span>
-      <span>aar: ${aarId.substring(0, 16)}...</span>
-    </div>
-    <div class="feedback-btns" id="fb-${idx}">
-      <button class="fb-btn approve" onclick="submitFeedback('${aarId}','approved',${idx})">✓ Approve</button>
-      <button class="fb-btn flag" onclick="submitFeedback('${aarId}','flagged',${idx})">⚑ Flag</button>
-      <button class="fb-btn reject" onclick="submitFeedback('${aarId}','rejected',${idx})">✗ Reject</button>
-    </div>`;
-  feed.appendChild(card);
-  feed.scrollTop = feed.scrollHeight;
-}
-
-async function submitFeedback(aarId, rating, idx) {
-  const btns = document.getElementById('fb-' + idx);
-  btns.querySelectorAll('.fb-btn').forEach(b => { b.classList.add('locked'); b.classList.remove('active'); });
-  btns.querySelector('.' + (rating === 'approved' ? 'approve' : rating === 'flagged' ? 'flag' : 'reject')).classList.add('active');
-  document.getElementById('card-' + idx).classList.add('rated');
-
-  try {
-    await fetch(`${API}/v1/vat/aar/${aarId}/feedback`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rating, reviewer_ref: 'demo-human' })
-    });
-  } catch(e) { console.error(e); }
-
-  feedbackCount++;
-  if (rating === 'approved') approvedCount++;
-  if (rating === 'flagged') flaggedCount++;
-  if (rating === 'rejected') rejectedCount++;
-
-  updateGauges();
-  await updateReputation();
-
-  // After all actions rated, check deviations
-  if (feedbackCount === aars.length) {
-    setTimeout(() => checkDeviations(), 800);
-  }
-}
+// Init
+const pk=document.getElementById('picker');SC.forEach((s,i)=>{const b=document.createElement('button');b.className='scenario-btn'+(i===0?' active':'');b.textContent=s.name;b.onclick=()=>selS(i);pk.appendChild(b)});
+document.getElementById('sdesc').textContent=SC[0].desc;
 </script>
 </body>
 </html>
