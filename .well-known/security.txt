@@ -1,0 +1,8 @@
+# VAC Protocol Security Contact
+# https://vacprotocol.org
+
+Contact: mailto:security@vacprotocol.org
+Preferred-Languages: en
+Canonical: https://vacprotocol.org/.well-known/security.txt
+Policy: https://vacprotocol.org/security
+Expires: 2027-03-12T00:00:00.000Z
