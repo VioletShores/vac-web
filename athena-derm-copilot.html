@@ -477,36 +477,133 @@ body {
     </div>
 
     <div class="card">
-      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">Podcasts this week</div>
-      <div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:center;">
-        <div style="font-size:20px;">🎙️</div>
-        <div style="flex:1;">
-          <div style="font-size:13px;font-weight:500;">JAMA Dermatology — Author Interviews</div>
-          <div style="font-size:12px;color:var(--text-muted);">Latest research direct from the authors. Weekly.</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">Podcasts — summarised for you</div>
+
+      <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:20px;margin-top:2px;">🎙️</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="font-size:13px;font-weight:600;">JAMA Dermatology — Skin Cancer Surveillance for Transplant Patients</div>
+              <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">David S. Lee, MD · 18 min · Hosted by Adewole Adamson, MD</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="section-body collapsed">
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
+                Solid organ transplant recipients have significantly elevated skin cancer risk due to immunosuppression. Dr Lee describes a structured surveillance program that stratifies patients by risk level and schedules appropriate screening intervals. Key takeaway for your practice: any transplant patients in your care should be on an annual full-body check at minimum, with high-risk patients every 3-6 months. The program showed improved early detection rates and reduced advanced-stage diagnoses.
+                <div style="margin-top:6px;"><strong>Sam's take:</strong> <em style="color:var(--text-muted);">Tap to add your reaction — the system learns what insights you find valuable.</em></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
       </div>
-      <div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:center;">
-        <div style="font-size:20px;">🎙️</div>
-        <div style="flex:1;">
-          <div style="font-size:13px;font-weight:500;">Dermasphere — The Derm Podcast</div>
-          <div style="font-size:12px;color:var(--text-muted);">Latest articles and research. By dermatologists, for dermatologists.</div>
+
+      <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:20px;margin-top:2px;">🎙️</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="font-size:13px;font-weight:600;">AAD Dialogues — GLP-1 Agonists and Skin Disease</div>
+              <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Lindsey Bordone, MD · 20 min · CME eligible</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="section-body collapsed">
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
+                With GLP-1 agonists (Ozempic, Wegovy) now prescribed to millions, dermatologists are seeing unexpected skin effects. Dr Bordone covers the emerging evidence: potential improvement in hidradenitis suppurativa and psoriasis through anti-inflammatory mechanisms, but also reports of rapid facial aging ("Ozempic face") from dramatic weight loss. Practical guidance on counselling patients about skin changes during GLP-1 therapy and when to adjust treatment plans.
+                <div style="margin-top:6px;"><strong>Relevant to your practice:</strong> With GLP-1 prescriptions rising rapidly, you may be seeing more patients presenting with these skin changes.</div>
+              </div>
+            </div>
+          </div>
         </div>
-        <span class="sched-badge" style="background:var(--green-bg);color:var(--green);">2 new</span>
       </div>
-      <div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:center;">
-        <div style="font-size:20px;">🎙️</div>
-        <div style="flex:1;">
-          <div style="font-size:13px;font-weight:500;">Dialogues in Dermatology (AAD)</div>
-          <div style="font-size:12px;color:var(--text-muted);">GLP-1 agonists in skin disease, new drug rashes, melasma update.</div>
+
+      <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:20px;margin-top:2px;">🎙️</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">Dermasphere — 3D Total-Body Photography for Melanoma</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Based on JAMA Derm RCT by Monika Janda, PhD</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="section-body collapsed">
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
+                A randomised clinical trial evaluated 3D total-body photography systems in high-risk melanoma patients. The technology captures the entire skin surface in standardised lighting, allowing AI-assisted comparison over time to detect new or changed lesions. Results showed improved detection of melanoma in situ compared to standard clinical photography. The Dermasphere hosts discuss practical considerations: cost, space requirements, patient acceptance, and whether the technology is ready for private practice.
+                <div style="margin-top:6px;"><strong>For Sam:</strong> This connects directly to your photo triage concept — what you're building manually, these systems automate at full-body scale.</div>
+              </div>
+            </div>
+          </div>
         </div>
-        <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
       </div>
-      <div style="padding:8px 0;display:flex;gap:10px;align-items:center;">
-        <div style="font-size:20px;">🎙️</div>
-        <div style="flex:1;">
-          <div style="font-size:13px;font-weight:500;">EADV Podcast</div>
-          <div style="font-size:12px;color:var(--text-muted);">Feb editor's picks: antifungal resistance, frontal fibrosing alopecia.</div>
+
+      <div style="padding:10px 0;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:20px;margin-top:2px;">🎙️</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">EADV — Editor's Picks Feb 2026</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Prof. Carle Paul · 15 min</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="section-body collapsed">
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
+                Three highlights: (1) Trichophyton antifungal resistance is emerging as a significant challenge — particularly drug-resistant T. indotineae spreading from South Asia to Europe and Australia. (2) The SOFFIA statement on stopping progression of frontal fibrosing alopecia provides the first consensus guidelines. (3) Long-term outcomes for allogenic transplantation in advanced cutaneous T-cell lymphoma — a new treatment option for refractory cases.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">YouTube — AI & Dermatology</div>
+
+      <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:20px;margin-top:2px;">▶️</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">Nature: AI vs Skin Cancer — The Future of Dermatology Diagnosis</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">England's NHS trialling DERM platform by Skin Analytics</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read AI summary</div>
+            <div class="section-body collapsed">
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
+                The NHS is running a clinical trial of the DERM platform — patients photograph skin lesions with a smartphone using a dermoscopic lens attachment, images upload to an AI platform that flags urgent cases. The system matched physician-level accuracy in early trials. Key concern raised: limited data on effectiveness for darker skin tones, and some dermatologists worry about removing trained clinicians from the triage step. The technology is promising but not yet a replacement for clinical judgment.
+                <div style="margin-top:6px;"><strong>Why this matters:</strong> Your photo triage feature follows the same architecture — patient-submitted images with AI flagging. You're already building what the NHS is trialling.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:20px;margin-top:2px;">▶️</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">Memorial Sloan Kettering: AI for Melanoma Detection</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Dr Veronica Rotemberg on AI models for skin imaging</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read AI summary</div>
+            <div class="section-body collapsed">
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
+                Dr Rotemberg explains how AI can analyse both dermoscopic and total body images to identify high-risk lesions patients might not notice. Melanoma caught early is curable with surgery alone — making AI-assisted early detection potentially lifesaving. She stresses that AI performance depends heavily on image quality and training data diversity, and calls for rigorous clinical trials before deployment.
+                <div style="margin-top:6px;"><strong>Key insight:</strong> "Melanoma can be cured if caught early — AI detection at the photography stage is the biggest opportunity in dermatology right now."</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:10px 0;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="font-size:20px;margin-top:2px;">▶️</div>
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:600;">Dermatology Times: PathAI's Future Vision for AI in Derm</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Andy Beck, MD, PhD — CEO PathAI · Published today</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read AI summary</div>
+            <div class="section-body collapsed">
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
+                PathAI's CEO describes a future where patients routinely scan their skin at home using AI, receive alerts when changes are detected, and then see a dermatologist who uses AI-assisted digital pathology for definitive diagnosis after biopsy. The full pipeline: home monitoring → clinical evaluation → AI-enhanced pathology → personalised treatment. Their PathAssist Derm tool is already showing dermatopathologist-level accuracy in research settings.
+                <div style="margin-top:6px;"><strong>The vision:</strong> This is almost exactly what your co-pilot is building towards — patient self-monitoring with AI, connected to your expertise for the decisions that matter.</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
