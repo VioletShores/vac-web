@@ -198,7 +198,7 @@ body {
     <div class="logo-mark">SZ</div>
     <div class="header-text">
       <div class="greeting" id="greetingText">Good morning Sam</div>
-      <div class="sub">Here's your practice at a glance</div>
+      <div class="sub">Here's who needs your attention today</div>
       <div class="practice">Zagarella Dermatology &bull; <span style="color:var(--text-muted);">powered by Athena</span></div>
     </div>
   </div>
@@ -208,8 +208,8 @@ body {
     <div style="display:flex;align-items:flex-start;gap:12px;">
       <div style="font-size:22px;flex-shrink:0;margin-top:1px;">🧬</div>
       <div>
-        <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:4px;">This adapts to you</div>
-        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Every time you rate a section, respond to a patient, or give feedback — this app reshapes itself around how you run your practice. Your co-pilot in 30 days will look completely different. You're building it by using it.</div>
+        <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:4px;">This adapts to how you practise</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">The more you use this, the more it learns what matters to you — which patients need attention first, how you like to communicate, what information helps you make decisions. It handles the admin so you can focus on the part you love: your patients.</div>
       </div>
     </div>
   </div>
@@ -232,9 +232,9 @@ body {
       <div class="delta delta-up">98% would recommend</div>
     </div>
     <div class="metric">
-      <div class="label">This week</div>
-      <div class="val">$18.4k</div>
-      <div class="delta delta-up">+12% vs last week</div>
+      <div class="label">Follow-ups due</div>
+      <div class="val">5</div>
+      <div class="delta delta-note">2 pathology results in</div>
     </div>
   </div>
 
@@ -243,7 +243,7 @@ body {
     <div class="section-head">Photo triage inbox <span class="count count-red">3 waiting</span></div>
     <div class="card" style="border-left:3px solid var(--amber);">
       <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">
-        Patients sent photos before their visit. AI has done an initial assessment — your review takes 30 seconds each. Urgent cases are flagged.
+        Patients sent photos before their visit. AI has flagged anything that needs your eye sooner — so nobody waits when they shouldn't have to.
       </div>
 
       <div class="triage-item">
@@ -293,7 +293,7 @@ body {
     </div>
 
     <div style="font-size:11px;color:var(--text-muted);padding:0 4px;">
-      Photos are submitted through a secure patient portal verified by VAC Protocol. AI assessment uses dermatology-trained image analysis — it suggests, you decide. Over time, you can set rules: "Auto-respond to mild acne with my standard care plan."
+      Photos are submitted through a secure patient portal verified by VAC Protocol. AI assessment uses dermatology-trained image analysis — it flags, you decide. Over time, you teach it: "For mild cases like this, send my standard care plan so the patient isn't waiting anxiously."
     </div>
   </div>
 
@@ -382,7 +382,7 @@ body {
       </div>
     </div>
     <div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding:0 4px;">
-      The system drafts responses based on your communication style. You review and send. Common questions (pre-procedure prep, post-op care) can be auto-responded with your approved templates.
+      The system drafts responses in your voice — warm, clear, reassuring. You review and send. For common questions (pre-procedure prep, post-op care, what to expect), patients get your guidance instantly instead of waiting for a callback.
     </div>
     </div>
   </div>
@@ -393,8 +393,8 @@ body {
     <div class="section-body collapsed">
     <div class="card">
       <div class="insight-item">
-        <div class="insight-tag opportunity">Revenue opportunity</div>
-        <div class="insight-text"><strong>Teledermatology consults could add $2,400/week.</strong> With your photo triage already capturing pre-visit images, you're 80% of the way to offering paid virtual consults for simple cases. Patients who submit photos for low-priority conditions (acne, eczema flares) could get a diagnosis + treatment plan without coming in. 15 minutes of your time, $160 per consult, from home on your days off.</div>
+        <div class="insight-tag opportunity">Better patient access</div>
+        <div class="insight-text"><strong>Teledermatology could help patients who struggle to get in.</strong> With your photo triage already capturing pre-visit images, you could offer virtual consults for simple cases — acne flare-ups, eczema reviews, post-treatment checks. The patient gets a diagnosis and care plan without taking time off work or travelling. 15 minutes of your time, from home on your non-clinic days, and a patient who would have waited 3 weeks gets help today.</div>
       </div>
       <div class="insight-item">
         <div class="insight-tag info">Patient insight</div>
@@ -405,8 +405,8 @@ body {
         <div class="insight-text"><strong>CPD deadline: 30 June 2026.</strong> You've completed 32 of 50 required hours. 18 hours remaining. The system found 3 relevant online modules from the Australasian College of Dermatologists that fit your schedule (2-hour blocks on non-clinic days).</div>
       </div>
       <div class="insight-item">
-        <div class="insight-tag opportunity">Patient retention</div>
-        <div class="insight-text"><strong>23 patients are overdue for their annual skin check.</strong> A simple text reminder from the practice — "Hi [name], it's been 12 months since your last full body check with Dr Zagarella. Would you like to book?" — typically gets 40% rebooking within a week. Drafted and ready to send with your approval.</div>
+        <div class="insight-tag alert">Patient care gap</div>
+        <div class="insight-text"><strong>23 patients are overdue for their annual skin check.</strong> In Australia, 2 in 3 people will be diagnosed with skin cancer by age 70. These are your patients who trust you — a simple text from the practice could catch something early. "Hi [name], it's been 12 months since your last full body check with Dr Zagarella. Would you like to book?" Drafted and ready to send with your approval.</div>
       </div>
     </div>
     </div>
@@ -418,32 +418,32 @@ body {
     <div class="section-body collapsed">
     <div class="card">
       <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">
-        Rules you've set for how the system handles common situations. These learn from your decisions — every time you override a rule, the system asks if you want to update it.
+        Rules you've set so patients get faster, better care — even when you're not at your desk. Every rule means one less person waiting for an answer they didn't need to wait for.
       </div>
       <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
           <div style="font-size:13px;font-weight:500;">Mild acne photo → Auto-send care plan</div>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When AI classifies a photo submission as mild acne with no concerning features, automatically send your standard acne care plan and confirm their appointment.</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When AI classifies a photo as mild acne with no concerning features, the patient gets your standard care plan and a reassuring message straight away — no anxious wait.</div>
       </div>
       <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
-          <div style="font-size:13px;font-weight:500;">Pre-procedure questions → Auto-respond with prep sheet</div>
+          <div style="font-size:13px;font-weight:500;">Pre-procedure questions → Instant prep guidance</div>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When a patient asks about preparation for cryotherapy, excision, or PDT, send the relevant prep instructions automatically.</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When a patient asks about preparation for cryotherapy, excision, or PDT, they get clear instructions immediately. No phone tag with the practice.</div>
       </div>
       <div style="padding:10px 0;">
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;"></div>
-          <div style="font-size:13px;font-weight:500;">Suspicious lesion → Flag for same-day review</div>
+          <div style="font-size:13px;font-weight:500;">Suspicious lesion → Get them in sooner</div>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When AI flags irregular borders, colour variation, or asymmetry — bump the patient to your next available slot and send them a calm message: "We'd like to see you a bit sooner."</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When AI flags irregular borders, colour variation, or asymmetry — the patient gets moved to your next available slot with a calm message: "We'd like to see you a bit sooner." Because early detection saves lives.</div>
       </div>
     </div>
     <div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding:0 4px;">
-      You set the rules, the system follows them. Start with zero rules and build them as you go — every repeated decision is a rule waiting to be created.
+      You set the rules, the system follows them. Start with zero and build them as patterns emerge — every repeated decision is a rule waiting to be created. The goal: your patients get faster care, you spend more time on the cases that need your expertise.
     </div>
     </div>
   </div>
@@ -456,8 +456,8 @@ body {
     </div>
 
     <div style="margin-bottom:14px;">
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:500;">What's the #1 thing that would save you time in your practice?</div>
-      <textarea id="fbPriority" style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate referral letters from my notes..."></textarea>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:500;">What's the #1 thing that would help you give better care or spend more time with patients?</div>
+      <textarea id="fbPriority" style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could handle referral letters so I'm not doing admin at 9pm..."></textarea>
     </div>
     <div style="margin-bottom:14px;">
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:500;">Anything else on your mind?</div>
