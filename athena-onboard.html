@@ -206,25 +206,19 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
     <button class="btn btn-primary" onclick="copyLink()" id="copy_btn">Copy verification link</button>
     <div style="height:10px"></div>
-    <button class="btn btn-verify" onclick="goToStep3()">Or verify right now on this device</button>
+    <button class="btn btn-verify" onclick="goToStep3()">Verify now — opens VAC biometric check</button>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:8px;">Opens the real VAC verification page — email code, face recording, spoken challenge phrase, finger count. Full biometric check. Redirects back here when done.</div>
     <div class="status-msg" id="step2_status"></div>
   </div>
 
-  <!-- STEP 3: Face verification -->
+  <!-- STEP 3: Redirecting to real VAC auth -->
   <div class="panel" id="step3">
-    <div class="title">Verify your identity</div>
-    <div class="subtitle"><span id="voucher_name_display">Rob</span> vouched for you. Now verify your face to activate your co-pilot access.</div>
-
-    <div class="camera-box" id="cameraBox">
-      <video id="videoPreview" autoplay playsinline muted></video>
-      <div class="camera-overlay" id="cameraOverlay">
-        <div class="camera-challenge" id="challengeText">Getting camera ready...</div>
-        <div class="camera-sub" id="challengeSub"></div>
-      </div>
+    <div class="result">
+      <div class="result-icon" style="color:var(--purple);">&#9670;</div>
+      <div class="result-title">Opening VAC Verify</div>
+      <div class="result-sub">Redirecting <span id="grantee_name_3">Anthony</span> to the real biometric verification — email code, face recording, spoken challenge phrase, and finger count. The full deal.</div>
     </div>
-
-    <div class="status-msg" id="step3_status"></div>
-    <button class="btn btn-verify" id="verify_btn" onclick="startVerification()" disabled>Start face verification</button>
+    <div class="status-msg" id="step3_status">Redirecting...</div>
   </div>
 
   <!-- STEP 4: Success -->
@@ -271,13 +265,14 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
 <script>
 const VAC_API = 'https://vac-system-production.up.railway.app';
+const VAC_AUTH_PAGE = 'https://vacprotocol.org/auth';
+const THIS_PAGE = 'https://vacprotocol.org/athena-onboard';
 const VOUCHER_EMAIL = 'rob@violetshores.com';
 const VOUCHER_NAME = 'Rob Zagarella';
 
 let vouchId = null;
 let granteeEmail = '';
 let granteeName = '';
-let stream = null;
 
 function setStatus(stepId, msg, type) {
   const el = document.getElementById(stepId);
@@ -317,7 +312,6 @@ async function submitVouch() {
   document.getElementById('vouch_btn').disabled = true;
 
   try {
-    // Step 1: Create the vouch request
     const createRes = await fetch(VAC_API + '/v1/vouch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -333,14 +327,10 @@ async function submitVouch() {
       })
     });
     const createData = await createRes.json();
-
-    if (!createRes.ok) {
-      throw new Error(createData.detail || 'Failed to create vouch');
-    }
+    if (!createRes.ok) throw new Error(createData.detail || 'Failed to create vouch');
 
     vouchId = createData.request_id;
 
-    // Step 2: Auto-confirm (Rob is both the voucher and the one clicking)
     const confirmRes = await fetch(VAC_API + '/v1/vouch/' + vouchId + '/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -351,12 +341,8 @@ async function submitVouch() {
       })
     });
     const confirmData = await confirmRes.json();
+    if (!confirmRes.ok) throw new Error(confirmData.detail || 'Failed to confirm vouch');
 
-    if (!confirmRes.ok) {
-      throw new Error(confirmData.detail || 'Failed to confirm vouch');
-    }
-
-    // Update displays
     document.getElementById('grantee_display').textContent = granteeName;
     document.getElementById('grantee_name_chain').textContent = granteeName;
     document.getElementById('grantee_name_2').textContent = granteeName;
@@ -367,6 +353,11 @@ async function submitVouch() {
     document.getElementById('grantee_initials').textContent = initials;
     document.getElementById('grantee_initials_final').textContent = initials;
 
+    // Store in sessionStorage so we can recover after auth redirect
+    sessionStorage.setItem('athena_onboard', JSON.stringify({
+      vouchId, granteeName, granteeEmail, business
+    }));
+
     showPanel(2);
 
   } catch (err) {
@@ -375,147 +366,77 @@ async function submitVouch() {
   }
 }
 
+function buildAuthLink() {
+  // Build the real VAC auth URL with email pre-fill and redirect back here
+  const returnUrl = THIS_PAGE + '?step=complete&vouch=' + vouchId;
+  return VAC_AUTH_PAGE + '?email=' + encodeURIComponent(granteeEmail) + '&redirect=' + encodeURIComponent(returnUrl);
+}
+
 function copyLink() {
-  const link = window.location.href.split('?')[0] + '?vouch=' + vouchId + '&step=verify';
+  const link = buildAuthLink();
   navigator.clipboard.writeText(link).then(() => {
     document.getElementById('copy_btn').textContent = 'Copied!';
-    setStatus('step2_status', 'Send this link to ' + granteeName, 'success');
+    setStatus('step2_status', 'Send this link to ' + granteeName + ' — they verify their face, then land back here.', 'success');
     setTimeout(() => { document.getElementById('copy_btn').textContent = 'Copy verification link'; }, 2000);
   }).catch(() => {
-    // Fallback: show the link
     setStatus('step2_status', link, '');
   });
 }
 
-async function goToStep3() {
+function goToStep3() {
+  // Redirect to the REAL VAC auth page
   showPanel(3);
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: true
-    });
-    document.getElementById('videoPreview').srcObject = stream;
-    document.getElementById('challengeText').textContent = 'Camera ready';
-    document.getElementById('challengeSub').textContent = 'Position your face in frame';
-    document.getElementById('verify_btn').disabled = false;
-  } catch (err) {
-    document.getElementById('challengeText').textContent = 'Camera access needed';
-    document.getElementById('challengeSub').textContent = 'Please allow camera access';
-    setStatus('step3_status', 'Camera permission required for face verification', 'error');
-  }
-}
-
-async function startVerification() {
-  const btn = document.getElementById('verify_btn');
-  btn.disabled = true;
-  btn.textContent = 'Verifying...';
-  document.getElementById('cameraBox').classList.add('recording');
-
-  // Generate a challenge phrase
-  const phrases = [
-    'I am ' + granteeName,
-    'Verify my identity',
-    'Athena co-pilot access',
-    'Regatta Club Haberfield'
-  ];
-  const challenge = phrases[Math.floor(Math.random() * phrases.length)];
-
-  document.getElementById('challengeText').textContent = 'Say: "' + challenge + '"';
-  document.getElementById('challengeSub').textContent = 'Looking at the camera, say the phrase clearly';
-  setStatus('step3_status', 'Recording... speak the phrase', '');
-
-  // Record for 3 seconds
-  let chunks = [];
-  const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-
-  recorder.start();
-
-  await new Promise(r => setTimeout(r, 3000));
-
-  recorder.stop();
-  await new Promise(r => { recorder.onstop = r; });
-
-  document.getElementById('cameraBox').classList.remove('recording');
-  setStatus('step3_status', 'Processing biometric verification...', '');
-
-  // Create video blob
-  const blob = new Blob(chunks, { type: 'video/webm' });
-
-  try {
-    // Upload to VAC for verification
-    const formData = new FormData();
-    formData.append('video', blob, 'verify.webm');
-    formData.append('email', granteeEmail);
-    formData.append('name', granteeName);
-    formData.append('challenge_phrase', challenge);
-    formData.append('source', 'athena_onboard');
-
-    const res = await fetch(VAC_API + '/v1/verify/liveness', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      document.getElementById('cameraBox').classList.add('verified');
-      document.getElementById('challengeText').textContent = 'Verified';
-      document.getElementById('challengeSub').textContent = '';
-      setStatus('step3_status', 'Identity verified!', 'success');
-
-      setTimeout(() => {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        showPanel(4);
-      }, 1500);
-    } else {
-      // Even if the biometric endpoint isn't fully wired, proceed for demo
-      // In production this would require a successful match
-      document.getElementById('cameraBox').classList.add('verified');
-      document.getElementById('challengeText').textContent = 'Verified';
-      setStatus('step3_status', 'Face recorded — verification complete', 'success');
-
-      setTimeout(() => {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        showPanel(4);
-      }, 1500);
-    }
-  } catch (err) {
-    // Network error — still proceed for demo but flag it
-    document.getElementById('cameraBox').classList.add('verified');
-    document.getElementById('challengeText').textContent = 'Recorded';
-    setStatus('step3_status', 'Face captured — full biometric matching coming soon', 'success');
-
-    setTimeout(() => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      showPanel(4);
-    }, 1500);
-  }
+  document.getElementById('grantee_name_3').textContent = granteeName;
+  const authUrl = buildAuthLink();
+  setTimeout(() => { window.location.href = authUrl; }, 1000);
 }
 
 function openDashboard() {
   // In production: redirect to athenapilot.ai/regatta with auth token
-  // For now: open the demo dashboard
   window.location.href = 'athena-regatta-club-copilot.html';
 }
 
-// Check URL params for returning from a shared link
+// ─── Handle return from VAC auth ───────────────────────────────
 const params = new URLSearchParams(window.location.search);
-if (params.get('step') === 'verify' && params.get('vouch')) {
+
+if (params.get('step') === 'complete') {
+  // Returning from real VAC auth — verification is done
+  const token = params.get('token');
+  const storedVouch = params.get('vouch');
+
+  // Recover session data
+  let stored = {};
+  try { stored = JSON.parse(sessionStorage.getItem('athena_onboard') || '{}'); } catch(e) {}
+
+  vouchId = storedVouch || stored.vouchId;
+  granteeName = stored.granteeName || 'User';
+  granteeEmail = stored.granteeEmail || '';
+
+  // Update displays
+  document.getElementById('grantee_final_name').textContent = granteeName;
+  const initials = granteeName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) || 'A';
+  document.getElementById('grantee_initials_final').textContent = initials;
+
+  // Jump straight to step 4 — verified
+  showPanel(4);
+
+} else if (params.get('step') === 'verify' && params.get('vouch')) {
+  // Someone opened a shared verify link — go straight to auth
   vouchId = params.get('vouch');
-  // Fetch vouch details
   fetch(VAC_API + '/v1/vouch/' + vouchId)
     .then(r => r.json())
     .then(data => {
       granteeName = data.requester_name;
       granteeEmail = data.requester_email;
-      document.getElementById('voucher_name_display').textContent = data.voucher_name;
-      document.getElementById('grantee_final_name').textContent = granteeName;
-      const initials = granteeName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
-      document.getElementById('grantee_initials_final').textContent = initials;
-      goToStep3();
+      sessionStorage.setItem('athena_onboard', JSON.stringify({
+        vouchId, granteeName, granteeEmail, business: ''
+      }));
+      const returnUrl = THIS_PAGE + '?step=complete&vouch=' + vouchId;
+      const authUrl = VAC_AUTH_PAGE + '?email=' + encodeURIComponent(granteeEmail) + '&redirect=' + encodeURIComponent(returnUrl);
+      window.location.href = authUrl;
     })
     .catch(() => {
-      setStatus('step3_status', 'Could not load vouch. Ask Rob for a new link.', 'error');
+      setStatus('step1_status', 'Could not load vouch. Ask Rob for a new link.', 'error');
     });
 }
 </script>
