@@ -817,29 +817,33 @@ function toggleVoiceFeedback() {
 }
 
 function startVoice() {
+  fullTranscript = '';
   recognition = new SpeechRecognition();
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.lang = 'en-AU';
 
   var box = document.getElementById('voiceBox');
-  var mic = document.getElementById('micIcon');
   var status = document.getElementById('voiceStatus');
   var transcriptEl = document.getElementById('voiceTranscript');
 
-  box.style.borderColor = 'rgba(248,113,113,0.8)';
-  box.style.background = 'rgba(248,113,113,0.25)';
-  box.style.animation = 'vPulse 1.2s infinite';
-  status.textContent = 'Listening... tap mic again when done';
-  status.style.color = 'var(--red)';
-  transcriptEl.style.display = 'block';
-  transcriptEl.textContent = '';
-  voiceActive = true;
+  status.textContent = 'Requesting microphone...';
+  status.style.color = 'var(--blue)';
 
-  var interim = '';
+  recognition.onstart = function() {
+    box.style.borderColor = 'rgba(248,113,113,0.8)';
+    box.style.background = 'rgba(248,113,113,0.25)';
+    box.style.animation = 'vPulse 1.2s infinite';
+    status.textContent = 'Listening... speak now, tap mic when done';
+    status.style.color = 'var(--red)';
+    transcriptEl.style.display = 'block';
+    transcriptEl.textContent = 'Waiting for speech...';
+    voiceActive = true;
+  };
+
   recognition.onresult = function(e) {
     var final = '';
-    interim = '';
+    var interim = '';
     for (var i = 0; i < e.results.length; i++) {
       if (e.results[i].isFinal) {
         final += e.results[i][0].transcript + ' ';
@@ -848,25 +852,39 @@ function startVoice() {
       }
     }
     fullTranscript = final;
-    transcriptEl.textContent = (final + interim).trim() || 'Listening...';
+    var display = (final + interim).trim();
+    if (display) {
+      transcriptEl.textContent = display;
+      transcriptEl.style.borderColor = 'rgba(52,211,153,0.4)';
+    }
   };
 
   recognition.onerror = function(e) {
-    if (e.error !== 'no-speech') {
-      document.getElementById('voiceStatus').textContent = 'Mic error — try again or expand below to type';
-      document.getElementById('voiceStatus').style.color = 'var(--red)';
-      stopVoice();
+    if (e.error === 'not-allowed') {
+      status.textContent = 'Microphone blocked — allow mic access in your browser settings';
+      status.style.color = 'var(--red)';
+      box.style.animation = 'none';
+      box.style.borderColor = 'rgba(96,165,250,0.3)';
+      box.style.background = 'rgba(96,165,250,0.12)';
+      voiceActive = false;
+    } else if (e.error !== 'no-speech') {
+      status.textContent = 'Mic error — try again';
+      status.style.color = 'var(--red)';
     }
   };
 
   recognition.onend = function() {
     if (voiceActive) {
-      // Auto-restart if still active (recognition times out after silence)
       try { recognition.start(); } catch(e) {}
     }
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+  } catch(e) {
+    status.textContent = 'Could not start mic — try refreshing the page';
+    status.style.color = 'var(--red)';
+  }
 }
 
 function stopVoice() {
@@ -876,22 +894,26 @@ function stopVoice() {
   }
 
   var box = document.getElementById('voiceBox');
-  var mic = document.getElementById('micIcon');
   var status = document.getElementById('voiceStatus');
   var fbOther = document.getElementById('fbOther');
 
   box.style.animation = 'none';
-  box.style.borderColor = 'rgba(52,211,153,0.5)';
-  box.style.background = 'rgba(52,211,153,0.15)';
-  mic.setAttribute('stroke', '#34d399');
-  status.textContent = 'Sent to Rob — tap mic to record more';
-  status.style.color = 'var(--green)';
 
   if (fullTranscript.trim()) {
+    box.style.borderColor = 'rgba(52,211,153,0.5)';
+    box.style.background = 'rgba(52,211,153,0.15)';
+    status.textContent = 'Sending...';
+    status.style.color = 'var(--green)';
+
     var existing = fbOther.value.trim();
     fbOther.value = (existing ? existing + '\n\n' : '') + '[Voice] ' + fullTranscript.trim();
-    // Auto-send voice feedback immediately
     sendVoiceFeedback(fullTranscript.trim());
+  } else {
+    box.style.borderColor = 'rgba(96,165,250,0.3)';
+    box.style.background = 'rgba(96,165,250,0.12)';
+    status.textContent = 'Nothing captured — tap mic and speak clearly';
+    status.style.color = 'var(--amber)';
+    document.getElementById('voiceTranscript').style.display = 'none';
   }
 }
 
@@ -910,7 +932,10 @@ async function sendVoiceFeedback(text) {
     var status = document.getElementById('voiceStatus');
     status.textContent = 'Sent to Rob — tap mic to record more';
     status.style.color = 'var(--green)';
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('voiceStatus').textContent = 'Could not send — screenshot and send to Rob';
+    document.getElementById('voiceStatus').style.color = 'var(--red)';
+  }
 }
 </script>
 </body>
