@@ -375,7 +375,6 @@ body { font-family: var(--body); background: var(--bg); color: var(--text-2); li
         <select class="feedback-select" id="feedbackType">
             <option value="feature">Feature idea</option>
             <option value="bug">Something's broken</option>
-            <option value="model">Model feedback</option>
             <option value="ux">UI/UX suggestion</option>
         </select>
         <textarea class="feedback-textarea" id="feedbackText" placeholder="What would make Athena better? Your feedback goes directly to the product roadmap..."></textarea>
@@ -1614,7 +1613,7 @@ async function submitFeedback() {
             body: JSON.stringify({
                 feedback_type: type,
                 content: text,
-                source_page: 'compare',
+                source_page: window.location.pathname.replace(/^\//, '') || 'compare',
                 user_id: userEmail || 'anonymous',
                 product: 'vac',
             }),
