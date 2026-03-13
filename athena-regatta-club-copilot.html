@@ -557,7 +557,8 @@ body {
   </div>
 
   <div class="section fade-in d10">
-    <div class="section-head">Stuff that needs your call</div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Stuff that needs your call <span class="count">3 pending</span></div>
+    <div class="section-body collapsed">
 
     <div class="decision">
       <div class="decision-q">Approve supplier switch: Iron Cove Seafood for prawns — saves $340/month</div>
@@ -583,6 +584,8 @@ body {
       <div class="decision-btns">
         <button class="btn btn-vac" onclick="approve(this,'Verified & ordered')">Confirm with face ID</button>
       </div>
+    </div>
+
     </div>
   </div>
 
