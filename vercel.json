@@ -109,6 +109,10 @@
             "destination": "/athena-derm-copilot.html"
         },
         {
+            "source": "/invite",
+            "destination": "/athena-invite.html"
+        },
+        {
             "source": "/watch",
             "destination": "/athena-watch.html"
         },

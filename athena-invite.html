@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Invite — Athena Co-Pilot</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#F8F9FC; --surface:#FFFFFF; --accent:#2563EB; --accent-light:#DBEAFE; --green:#059669; --green-bg:rgba(5,150,105,0.08); --text:#1E293B; --text-secondary:#475569; --text-muted:#94A3B8; --border:#E2E8F0; --radius:16px; --shadow:0 1px 3px rgba(0,0,0,0.04),0 1px 2px rgba(0,0,0,0.06); }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'DM Sans',-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; }
+.app { max-width:480px; margin:0 auto; padding:24px 16px 40px; }
+h1 { font-family:'Playfair Display',serif; font-size:28px; margin-bottom:6px; }
+.sub { font-size:14px; color:var(--text-secondary); margin-bottom:24px; line-height:1.5; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); margin-bottom:16px; }
+label { font-size:13px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:6px; }
+input, select { width:100%; padding:12px; border:1.5px solid var(--border); border-radius:10px; font-family:inherit; font-size:14px; color:var(--text); margin-bottom:14px; }
+input:focus, select:focus { outline:none; border-color:var(--accent); }
+.btn { width:100%; padding:14px; border-radius:10px; border:none; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer; background:var(--accent); color:white; }
+.btn:active { transform:scale(0.98); }
+.btn:disabled { opacity:0.6; cursor:default; }
+.status { font-size:13px; text-align:center; margin-top:10px; min-height:18px; }
+.sent-card { text-align:center; padding:30px 20px; }
+.sent-card .check { font-size:48px; margin-bottom:12px; }
+.sent-card .title { font-size:18px; font-weight:600; margin-bottom:8px; }
+.sent-card .desc { font-size:13px; color:var(--text-secondary); line-height:1.6; }
+.sent-card .link { font-size:12px; color:var(--accent); word-break:break-all; margin-top:12px; padding:10px; background:var(--accent-light); border-radius:8px; cursor:pointer; }
+.preview { background:var(--accent-light); border-radius:10px; padding:14px; margin-bottom:14px; font-size:13px; color:var(--text-secondary); line-height:1.6; }
+.preview strong { color:var(--text); }
+.footer { text-align:center; font-size:10px; color:var(--text-muted); margin-top:20px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <h1>Invite to Co-Pilot</h1>
+  <div class="sub">Send someone their personalised Athena co-pilot. They'll receive an email with a link to their app and an invitation to verify their identity with VAC.</div>
+
+  <div class="card" id="inviteForm">
+    <label>Their name</label>
+    <input type="text" id="invName" placeholder="e.g. Anthony, Sam">
+
+    <label>Their email</label>
+    <input type="email" id="invEmail" placeholder="e.g. anthony@regattaclub.com.au">
+
+    <label>Which co-pilot?</label>
+    <select id="invApp">
+      <option value="">Select...</option>
+      <option value="regatta">Regatta Club — Hospitality (Anthony)</option>
+      <option value="derm">Zagarella Dermatology — Medical Practice (Sam)</option>
+    </select>
+
+    <label>Personal message (optional)</label>
+    <input type="text" id="invMessage" placeholder="e.g. Hey mate, check this out — built it for you">
+
+    <div id="invPreview" class="preview" style="display:none;"></div>
+
+    <button class="btn" id="invSendBtn" onclick="sendInvite()">Send invite</button>
+    <div class="status" id="invStatus"></div>
+  </div>
+
+  <div class="card sent-card" id="sentCard" style="display:none;">
+    <div class="check">✉️</div>
+    <div class="title" id="sentTitle">Invite sent!</div>
+    <div class="desc" id="sentDesc"></div>
+    <div class="link" id="sentLink" onclick="copyLink()"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;" id="copyStatus"></div>
+    <button class="btn" style="margin-top:16px;background:transparent;color:var(--accent);border:1.5px solid var(--accent);" onclick="resetForm()">Send another invite</button>
+  </div>
+
+  <div class="footer">
+    Athena Co-Pilot · Patent Pending · Violet Shores Pty Ltd
+  </div>
+
+</div>
+
+<script>
+var VAC_API = 'https://vac-system-production.up.railway.app';
+var ATHENA_API = 'https://api.athenapilot.ai';
+var BASE_URL = 'https://athenapilot.ai';
+
+var appConfig = {
+  regatta: {
+    title: 'Regatta Club Co-Pilot',
+    path: '/regatta',
+    greeting: 'Your co-pilot for running Regatta Club is ready.',
+    color: '#C9A84C'
+  },
+  derm: {
+    title: 'Zagarella Dermatology Co-Pilot',
+    path: '/derm',
+    greeting: 'Your co-pilot for your dermatology practice is ready.',
+    color: '#2563EB'
+  }
+};
+
+// Preview update
+document.getElementById('invName').addEventListener('input', updatePreview);
+document.getElementById('invEmail').addEventListener('input', updatePreview);
+document.getElementById('invApp').addEventListener('change', updatePreview);
+document.getElementById('invMessage').addEventListener('input', updatePreview);
+
+function updatePreview() {
+  var name = document.getElementById('invName').value.trim();
+  var email = document.getElementById('invEmail').value.trim();
+  var app = document.getElementById('invApp').value;
+  var msg = document.getElementById('invMessage').value.trim();
+  var el = document.getElementById('invPreview');
+
+  if (name && app) {
+    var config = appConfig[app];
+    el.style.display = '';
+    el.innerHTML = '<strong>Email preview:</strong><br><br>' +
+      'Hi ' + name + ',<br><br>' +
+      (msg ? msg + '<br><br>' : '') +
+      config.greeting + '<br><br>' +
+      '<strong>' + config.title + '</strong><br>' +
+      BASE_URL + config.path + '<br><br>' +
+      'To verify your identity and unlock all features, you\'ll be invited to complete a quick face verification through VAC Protocol.<br><br>' +
+      '— Rob';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+async function sendInvite() {
+  var name = document.getElementById('invName').value.trim();
+  var email = document.getElementById('invEmail').value.trim();
+  var app = document.getElementById('invApp').value;
+  var msg = document.getElementById('invMessage').value.trim();
+  var status = document.getElementById('invStatus');
+
+  if (!name || !email || !app) {
+    status.textContent = 'Fill in name, email, and select an app.';
+    status.style.color = '#DC2626';
+    return;
+  }
+
+  var btn = document.getElementById('invSendBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  status.textContent = '';
+
+  var config = appConfig[app];
+  var copilotUrl = BASE_URL + config.path;
+
+  try {
+    // Step 1: Create vouch request (Rob vouching for them)
+    var vouchResp = await fetch(VAC_API + '/v1/vouch/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        requester_name: name,
+        requester_email: email,
+        voucher_name: 'Rob Zagarella',
+        voucher_email: 'rob@violetshores.com',
+        vouch_type: 'identity',
+        message: (msg || 'Welcome to your Athena co-pilot') + ' | App: ' + config.title + ' | URL: ' + copilotUrl,
+        source_app: 'athena-copilot',
+        source_context: app
+      })
+    });
+
+    var vouchData = {};
+    if (vouchResp.ok) {
+      vouchData = await vouchResp.json();
+    }
+
+    // Step 2: Log to Athena feedback for tracking
+    await fetch(ATHENA_API + '/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: 'invite',
+        content: 'INVITE SENT: ' + name + ' (' + email + ') → ' + config.title + ' | Vouch: ' + (vouchData.request_id || 'none'),
+        source_page: 'invite',
+        user_id: 'rob',
+        product: 'athena'
+      })
+    }).catch(function() {});
+
+    // Step 3: Show success
+    document.getElementById('inviteForm').style.display = 'none';
+    document.getElementById('sentCard').style.display = '';
+    document.getElementById('sentTitle').textContent = 'Invite sent to ' + name + '!';
+    document.getElementById('sentDesc').innerHTML = 'VAC vouch request emailed to <strong>' + email + '</strong>.<br>They\'ll receive a link to verify their identity.<br><br>In the meantime, share the co-pilot link directly:';
+    document.getElementById('sentLink').textContent = copilotUrl;
+    document.getElementById('sentLink').dataset.url = copilotUrl;
+
+  } catch(err) {
+    status.textContent = 'Could not send — check connection and try again.';
+    status.style.color = '#DC2626';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Send invite';
+}
+
+function copyLink() {
+  var url = document.getElementById('sentLink').dataset.url;
+  navigator.clipboard.writeText(url).then(function() {
+    document.getElementById('copyStatus').textContent = 'Link copied to clipboard!';
+  }).catch(function() {
+    document.getElementById('copyStatus').textContent = 'Long-press to copy the link above.';
+  });
+}
+
+function resetForm() {
+  document.getElementById('inviteForm').style.display = '';
+  document.getElementById('sentCard').style.display = 'none';
+  document.getElementById('invName').value = '';
+  document.getElementById('invEmail').value = '';
+  document.getElementById('invApp').value = '';
+  document.getElementById('invMessage').value = '';
+  document.getElementById('invPreview').style.display = 'none';
+  document.getElementById('invStatus').textContent = '';
+}
+</script>
+</body>
+</html>
