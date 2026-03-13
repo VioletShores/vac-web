@@ -4,24 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Athena — Onboard a Mate</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0a1628;
-  --surface: #131f36;
-  --surface-raised: #172240;
-  --border: rgba(255,255,255,0.08);
+  --bg: #0D0F17;
+  --surface: #1A1D29;
+  --surface-raised: #2A2E3D;
+  --border: rgba(201,168,76,0.08);
   --text: #e8eaf0;
-  --text-muted: #8b95a8;
-  --text-dim: #5a6478;
-  --accent: #ff6d00;
-  --accent-glow: rgba(255,109,0,0.15);
+  --text-muted: #9498A8;
+  --text-dim: #6B7084;
+  --accent: #C9A84C;
+  --accent-light: #E8D48B;
+  --accent-glow: rgba(201,168,76,0.12);
   --purple: #6C5CE7;
   --green: #34d399;
   --green-bg: rgba(52,211,153,0.12);
   --blue: #60a5fa;
   --red: #f87171;
   --radius: 12px;
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --serif: 'Cormorant Garamond', 'Georgia', serif;
   --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -44,7 +47,7 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 .panel.active { display:block; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
 
-.title { font-size:22px; font-weight:700; margin-bottom:6px; }
+.title { font-family:var(--serif); font-size:24px; font-weight:600; margin-bottom:6px; letter-spacing:0.5px; }
 .subtitle { font-size:14px; color:var(--text-muted); margin-bottom:24px; line-height:1.5; }
 
 .field { margin-bottom:16px; }
@@ -58,8 +61,8 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
 .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border-radius:var(--radius); border:none; font-family:var(--font); font-size:15px; font-weight:600; cursor:pointer; transition:all 0.15s; }
 .btn:active { transform:scale(0.98); }
-.btn-primary { background:var(--accent); color:#fff; }
-.btn-primary:hover { box-shadow:0 4px 16px rgba(255,109,0,0.3); }
+.btn-primary { background:var(--accent); color:#0D0F17; }
+.btn-primary:hover { box-shadow:0 4px 16px rgba(201,168,76,0.3); }
 .btn-primary:disabled { opacity:0.4; cursor:default; }
 .btn-secondary { background:var(--surface); color:var(--text); border:1px solid var(--border); }
 .btn-verify { background:var(--purple); color:#fff; }
@@ -86,7 +89,7 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
 .result { text-align:center; padding:20px 0; }
 .result-icon { font-size:48px; margin-bottom:12px; }
-.result-title { font-size:20px; font-weight:600; margin-bottom:8px; }
+.result-title { font-family:var(--serif); font-size:22px; font-weight:600; margin-bottom:8px; letter-spacing:0.5px; }
 .result-sub { font-size:14px; color:var(--text-muted); line-height:1.5; }
 
 .vouch-id { font-family:var(--mono); font-size:12px; color:var(--text-dim); background:var(--surface); padding:6px 12px; border-radius:6px; display:inline-block; margin-top:8px; word-break:break-all; }
@@ -106,9 +109,9 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 <div class="app">
 
   <div class="nav">
-    <div class="nav-mark">A</div>
+    <div style="width:36px;height:36px;background:var(--accent-glow);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:5px;flex-shrink:0;"><svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" width="26" height="26"><line x1="50" y1="10" x2="25" y2="38" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="50" y1="10" x2="75" y2="32" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="25" y1="38" x2="14" y2="68" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="25" y1="38" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="75" y1="32" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="75" y1="32" x2="88" y2="62" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="50" y1="55" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="14" y1="68" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/><line x1="88" y1="62" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/><circle cx="50" cy="10" r="5.5" fill="#C9A84C"/><circle cx="25" cy="38" r="4" fill="#E8D48B"/><circle cx="75" cy="32" r="4" fill="#E8D48B"/><circle cx="50" cy="55" r="4.5" fill="#C9A84C"/><circle cx="14" cy="68" r="3" fill="#C9A84C" opacity="0.8"/><circle cx="88" cy="62" r="3" fill="#C9A84C" opacity="0.8"/><circle cx="50" cy="88" r="3.5" fill="#E8D48B"/></svg></div>
     <div>
-      <div style="font-weight:600;font-size:14px;">Athena</div>
+      <div style="font-family:var(--serif);font-weight:600;font-size:16px;letter-spacing:2px;">ATHENA</div>
       <div class="nav-label">Invite someone to your co-pilot</div>
     </div>
     <div class="nav-badge">VAC secured</div>
