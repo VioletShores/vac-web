@@ -109,7 +109,7 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     <div class="nav-mark">A</div>
     <div>
       <div style="font-weight:600;font-size:14px;">Athena</div>
-      <div class="nav-label">Onboard a co-pilot user</div>
+      <div class="nav-label">Invite someone to your co-pilot</div>
     </div>
     <div class="nav-badge">VAC secured</div>
   </div>
@@ -124,11 +124,11 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
   <!-- STEP 1: Rob vouches for Anthony -->
   <div class="panel active" id="step1">
-    <div class="title">Vouch for someone</div>
-    <div class="subtitle">You're vouching that this person is who they say they are, and that they should have access to Athena for their business. Your identity backs theirs.</div>
+    <div class="title">Invite someone in</div>
+    <div class="subtitle">You're inviting this person to use Athena for their business. Your verified identity backs their access — they'll verify their own face before they're in.</div>
 
     <div class="info-card">
-      <div class="ic-label">You're vouching as</div>
+      <div class="ic-label">Invitation from</div>
       <div class="ic-value" style="font-weight:600;">Rob Zagarella</div>
       <div class="ic-value" style="font-size:12px;color:var(--text-dim);">rob@violetshores.com &bull; L3 verified &bull; Founder</div>
     </div>
@@ -146,7 +146,7 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
       <input type="text" id="grantee_business" placeholder="Regatta Club at Haberfield Rowers" value="Regatta Club at Haberfield Rowers">
     </div>
     <div class="field">
-      <label>Your relationship</label>
+      <label>How do you know them</label>
       <select id="relationship">
         <option value="close_friend">Close friend</option>
         <option value="business_partner">Business partner</option>
@@ -161,27 +161,27 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     </div>
 
     <div class="subtitle" style="font-size:12px;margin-top:0;">
-      <strong>What this vouch gives them:</strong>
+      <strong>What this invitation gives them:</strong>
     </div>
     <div class="scope-list">
       <div class="scope-item"><span class="scope-check">&#10003;</span> Access to Athena co-pilot for their business</div>
       <div class="scope-item"><span class="scope-check">&#10003;</span> Morning briefings, task queue, intelligence scanning</div>
       <div class="scope-item"><span class="scope-check">&#10003;</span> Staff shift reflections (FolioAI)</div>
       <div class="scope-item"><span class="scope-check">&#10003;</span> Compliance monitoring (legislation, award rates)</div>
-      <div class="scope-item"><span class="scope-lock">&#10007;</span> Cannot approve spending over $500 without face verify</div>
+      <div class="scope-item"><span class="scope-lock">&#10007;</span> Cannot approve spending over $500 without their own face verify</div>
       <div class="scope-item"><span class="scope-lock">&#10007;</span> Cannot modify your account or access your data</div>
     </div>
 
     <div class="status-msg" id="step1_status"></div>
-    <button class="btn btn-primary" id="vouch_btn" onclick="submitVouch()">Vouch for them</button>
+    <button class="btn btn-primary" id="vouch_btn" onclick="submitVouch()">Send invitation</button>
   </div>
 
   <!-- STEP 2: Vouch confirmed → share link -->
   <div class="panel" id="step2">
     <div class="result">
       <div class="result-icon" style="color:var(--green);">&#10003;</div>
-      <div class="result-title">Vouch recorded</div>
-      <div class="result-sub">Your identity now backs <span id="grantee_display">Anthony</span>'s access. The trust chain is live.</div>
+      <div class="result-title">Invitation sent</div>
+      <div class="result-sub">Your identity now backs <span id="grantee_display">Anthony</span>'s access. They just need to verify their own face to get in.</div>
     </div>
 
     <div class="trust-chain">
@@ -193,21 +193,21 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
         <div class="chain-dot" style="background:rgba(96,165,250,0.15);color:var(--blue);" id="grantee_initials">A</div>
       </div>
       <div style="margin-top:8px;">
-        <div class="chain-label">Rob (L3 verified) vouches for <span id="grantee_name_chain">Anthony</span></div>
+        <div class="chain-label">Rob (L3 verified) invited <span id="grantee_name_chain">Anthony</span> — awaiting their face verification</div>
       </div>
     </div>
 
     <div class="info-card">
-      <div class="ic-label">Vouch ID</div>
+      <div class="ic-label">Invitation ID</div>
       <div class="vouch-id" id="vouch_id_display">vch_...</div>
     </div>
 
-    <div class="subtitle" style="margin-top:16px;">Next: <span id="grantee_name_2">Anthony</span> needs to verify their face. Share this link with them — or hand them your phone right now.</div>
+    <div class="subtitle" style="margin-top:16px;">Next: <span id="grantee_name_2">Anthony</span> needs to verify their face. You can share the link, or if they're with you right now, hand them the phone.</div>
 
-    <button class="btn btn-primary" onclick="copyLink()" id="copy_btn">Copy verification link</button>
+    <button class="btn btn-primary" onclick="copyLink()" id="copy_btn">Copy link to send them</button>
     <div style="height:10px"></div>
-    <button class="btn btn-verify" onclick="goToStep3()">Verify now — opens VAC biometric check</button>
-    <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:8px;">Opens the real VAC verification page — email code, face recording, spoken challenge phrase, finger count. Full biometric check. Redirects back here when done.</div>
+    <button class="btn btn-verify" onclick="goToStep3()">They're here — verify now</button>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:8px;">Opens real VAC biometric verification — email code, face recording, spoken challenge, finger count. Full check. Comes back here when done.</div>
     <div class="status-msg" id="step2_status"></div>
   </div>
 
@@ -215,8 +215,8 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
   <div class="panel" id="step3">
     <div class="result">
       <div class="result-icon" style="color:var(--purple);">&#9670;</div>
-      <div class="result-title">Opening VAC Verify</div>
-      <div class="result-sub">Redirecting <span id="grantee_name_3">Anthony</span> to the real biometric verification — email code, face recording, spoken challenge phrase, and finger count. The full deal.</div>
+      <div class="result-title">Opening verification</div>
+      <div class="result-sub">Taking <span id="grantee_name_3">Anthony</span> to verify their identity — email code, face, voice, finger count. Takes about a minute.</div>
     </div>
     <div class="status-msg" id="step3_status">Redirecting...</div>
   </div>
@@ -226,7 +226,7 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     <div class="result">
       <div class="result-icon" style="color:var(--green);">&#10003;</div>
       <div class="result-title">You're in</div>
-      <div class="result-sub"><span id="grantee_final_name">Anthony</span>, your Athena co-pilot is active.<br>Vouched by Rob Zagarella. Identity verified.</div>
+      <div class="result-sub"><span id="grantee_final_name">Anthony</span>, your co-pilot is active.<br>Invited by Rob Zagarella. Identity verified.</div>
     </div>
 
     <div class="trust-chain">
