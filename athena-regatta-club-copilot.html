@@ -141,13 +141,23 @@ body {
 
 /* Info toggle (inline collapsible inside cards) */
 .info-toggle {
-  font-size: 12px; color: var(--text-dim); cursor: pointer; user-select: none;
-  display: flex; align-items: center; gap: 5px; padding: 4px 0 8px;
-  transition: color 0.2s;
+  font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px;
+  margin: 4px -10px 8px; border-radius: var(--radius-sm);
+  transition: background 0.2s, color 0.2s;
+  border: 1px solid rgba(255,255,255,0.06);
 }
-.info-toggle::after { content: '\25B8'; font-size: 10px; transition: transform 0.2s; }
-.info-toggle:not(.closed)::after { content: '\25BE'; }
-.info-toggle:hover { color: var(--text-muted); }
+.info-toggle::before {
+  content: '+'; font-size: 16px; font-weight: 700; color: var(--accent);
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; border: 1.5px solid rgba(255,109,0,0.4); flex-shrink: 0;
+  transition: all 0.2s; line-height: 1;
+}
+.info-toggle:not(.closed)::before {
+  content: '\2212'; background: var(--accent-glow); border-color: var(--accent);
+}
+.info-toggle::after { content: none; }
+.info-toggle:hover { background: rgba(255,255,255,0.04); color: var(--text); }
 .info-content {
   background: rgba(255,255,255,0.02); border-radius: var(--radius-sm);
   border: 1px solid var(--border); padding: 14px 14px 12px;
@@ -325,7 +335,7 @@ body {
     <div class="section-head">Friday service prep <span class="count">60%</span></div>
     <div class="card">
       <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
-      <div class="info-toggle closed" onclick="toggleSection(this)">How does this work?</div>
+      <div class="info-toggle closed" onclick="toggleSection(this)">How does this work? <span style="font-size:11px;font-weight:500;color:var(--accent);background:var(--accent-glow);padding:1px 7px;border-radius:20px;margin-left:2px;">ⓘ</span></div>
       <div class="section-body collapsed">
         <div class="info-content">
           <p>Right now this is a prototype showing what the system would deliver. To make it real for Regatta, we'd connect to:</p>
