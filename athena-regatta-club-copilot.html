@@ -77,25 +77,23 @@ body {
   padding: 2px 8px; border-radius: 20px; font-weight: 500;
 }
 .section-head.collapsible {
-  cursor:pointer; user-select:none; display:flex; align-items:center;
+  cursor:pointer; user-select:none; display:flex; align-items:center; gap:10px;
   padding:10px 14px; margin-left:-14px; margin-right:-14px;
   border-radius:var(--radius-sm); transition:all 0.2s;
 }
 .section-head.collapsible:hover, .section-head.collapsible:active {
-  background:var(--green-bg); color:var(--green);
+  background:rgba(255,255,255,0.03);
 }
 .section-head.collapsible .count { transition:all 0.2s; }
-.section-head.collapsible:hover .count { background:var(--green-bg); color:var(--green); }
-.section-head.collapsible::after {
-  content:'＋'; margin-left:auto; font-size:16px; color:var(--text-dim);
-  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
-  border-radius:50%; border:1px solid var(--border); transition:all 0.2s; flex-shrink:0;
+.section-head.collapsible::before {
+  content:'+'; font-size:18px; font-weight:600; color:var(--accent);
+  width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+  border-radius:8px; border:1.5px solid rgba(255,109,0,0.4); flex-shrink:0;
+  transition:all 0.2s; line-height:1; order:-1;
 }
-.section-head.collapsible:hover::after {
-  background:var(--green); color:var(--navy); border-color:var(--green);
-}
-.section-head.collapsible.open::after {
-  content:'−'; background:var(--green); color:var(--navy); border-color:var(--green);
+.section-head.collapsible::after { display:none; }
+.section-head.collapsible:not(.closed)::before {
+  content:'\2212'; background:var(--accent-glow); border-color:var(--accent);
 }
 .section-body { overflow:hidden; transition:max-height 0.3s ease, opacity 0.2s ease; max-height:2000px; opacity:1; }
 .section-body.collapsed { max-height:0; opacity:0; padding:0; }
@@ -594,8 +592,8 @@ body {
         <div style="font-size:20px;font-weight:700;">What do you reckon?</div>
         <div style="font-size:12px;color:var(--blue);font-weight:500;margin-top:2px;">Tap the mic or expand for detailed feedback</div>
       </div>
-      <div id="voiceBox" style="width:48px;height:48px;border-radius:50%;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;" onclick="event.stopPropagation();toggleVoiceFeedback();">
-        <div id="voiceDotInner" style="width:18px;height:18px;border-radius:50%;background:var(--blue);transition:all 0.3s;"></div>
+      <div id="voiceBox" style="width:48px;height:48px;border-radius:50%;background:rgba(248,113,113,0.15);border:2px solid rgba(248,113,113,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;" onclick="event.stopPropagation();toggleVoiceFeedback();">
+        <svg id="micIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
       </div>
     </div>
     <div id="voiceTranscript" style="display:none;margin:8px 0;background:rgba(10,22,40,0.8);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-muted);line-height:1.5;min-height:40px;"></div>
@@ -632,9 +630,6 @@ body {
   </div>
 
   <div class="footer fade-in d12">
-    <div style="color:var(--text-muted);font-size:12px;line-height:1.7;text-align:left;margin-bottom:14px;">
-      Everything on this screen is backed by real tech Rob's been building for over a year. The task engine, the compliance scanner, the intelligence system, the comms layer, the supplier tracking, the face-verify for spending. 550+ patent claims on the core architecture. It's not something off the shelf — it's being built specifically for businesses like yours.
-    </div>
     <div style="text-align:center;font-size:13px;font-weight:500;">Regatta Club Co-Pilot</div>
     <div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:4px;">Dobroyd Parade, Haberfield &bull; Iron Cove Bay</div>
     <div style="text-align:center;font-size:10px;color:var(--text-dim);margin-top:8px;letter-spacing:0.5px;">powered by Athena &bull; identity by VAC Protocol</div>
@@ -650,7 +645,6 @@ function approve(btn,msg){
 }
 
 function toggleSection(head) {
-  head.classList.toggle('open');
   head.classList.toggle('closed');
   var body = head.nextElementSibling;
   while (body && !body.classList.contains('section-body')) body = body.nextElementSibling;
@@ -825,16 +819,15 @@ function startVoice() {
   recognition.interimResults = true;
   recognition.lang = 'en-AU';
 
-  var dot = document.getElementById('voiceDotInner');
   var box = document.getElementById('voiceBox');
+  var mic = document.getElementById('micIcon');
   var status = document.getElementById('voiceStatus');
   var transcriptEl = document.getElementById('voiceTranscript');
 
-  dot.style.background = 'var(--red)';
-  dot.style.animation = 'vPulse 1.2s infinite';
-  box.style.borderColor = 'rgba(248,113,113,0.5)';
-  box.style.background = 'rgba(248,113,113,0.12)';
-  status.textContent = 'Listening... tap the mic again when done';
+  box.style.borderColor = 'rgba(248,113,113,0.8)';
+  box.style.background = 'rgba(248,113,113,0.25)';
+  box.style.animation = 'vPulse 1.2s infinite';
+  status.textContent = 'Listening... tap mic again when done';
   status.style.color = 'var(--red)';
   transcriptEl.style.display = 'block';
   transcriptEl.textContent = '';
@@ -879,16 +872,16 @@ function stopVoice() {
     try { recognition.stop(); } catch(e) {}
   }
 
-  var dot = document.getElementById('voiceDotInner');
   var box = document.getElementById('voiceBox');
+  var mic = document.getElementById('micIcon');
   var status = document.getElementById('voiceStatus');
   var fbOther = document.getElementById('fbOther');
 
-  dot.style.background = 'var(--green)';
-  dot.style.animation = 'none';
+  box.style.animation = 'none';
   box.style.borderColor = 'rgba(52,211,153,0.5)';
-  box.style.background = 'rgba(52,211,153,0.12)';
-  status.textContent = 'Captured — tap mic to record more, or expand below to add detail';
+  box.style.background = 'rgba(52,211,153,0.15)';
+  mic.setAttribute('stroke', '#34d399');
+  status.textContent = 'Sent to Rob — tap mic to record more';
   status.style.color = 'var(--green)';
 
   if (fullTranscript.trim()) {
