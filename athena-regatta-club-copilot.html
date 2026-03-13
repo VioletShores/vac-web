@@ -796,33 +796,22 @@ async function submitFeedback() {
 
 buildRatings();
 
-// ─── VOICE FEEDBACK (real speech recognition) ─────────────────
+// ─── VOICE FEEDBACK (auth-proven mic patterns) ───────────────
 var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 var voiceActive = false;
 var recognition = null;
 var fullTranscript = '';
+var micStream = null;
+var audioCtx = null;
+var analyser = null;
+var levelFrame = null;
 
 function toggleVoiceFeedback() {
-  if (!SpeechRecognition) {
-    document.getElementById('voiceStatus').textContent = 'Voice not supported on this browser — expand below to type';
-    document.getElementById('voiceStatus').style.color = 'var(--red)';
-    return;
-  }
-
-  if (voiceActive) {
-    stopVoice();
-  } else {
-    startVoice();
-  }
+  if (voiceActive) { stopVoice(); } else { startVoice(); }
 }
 
-function startVoice() {
+async function startVoice() {
   fullTranscript = '';
-  recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-AU';
-
   var box = document.getElementById('voiceBox');
   var status = document.getElementById('voiceStatus');
   var transcriptEl = document.getElementById('voiceTranscript');
@@ -830,73 +819,101 @@ function startVoice() {
   status.textContent = 'Requesting microphone...';
   status.style.color = 'var(--blue)';
 
-  recognition.onstart = function() {
-    box.style.borderColor = 'rgba(248,113,113,0.8)';
-    box.style.background = 'rgba(248,113,113,0.25)';
-    box.style.animation = 'vPulse 1.2s infinite';
-    status.textContent = 'Listening... speak now, tap mic when done';
-    status.style.color = 'var(--red)';
-    transcriptEl.style.display = 'block';
-    transcriptEl.textContent = 'Waiting for speech...';
-    voiceActive = true;
-  };
-
-  recognition.onresult = function(e) {
-    var final = '';
-    var interim = '';
-    for (var i = 0; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        final += e.results[i][0].transcript + ' ';
-      } else {
-        interim += e.results[i][0].transcript;
-      }
-    }
-    fullTranscript = final;
-    var display = (final + interim).trim();
-    if (display) {
-      transcriptEl.textContent = display;
-      transcriptEl.style.borderColor = 'rgba(52,211,153,0.4)';
-    }
-  };
-
-  recognition.onerror = function(e) {
-    if (e.error === 'not-allowed') {
-      status.textContent = 'Microphone blocked — allow mic access in your browser settings';
-      status.style.color = 'var(--red)';
-      box.style.animation = 'none';
-      box.style.borderColor = 'rgba(96,165,250,0.3)';
-      box.style.background = 'rgba(96,165,250,0.12)';
-      voiceActive = false;
-    } else if (e.error !== 'no-speech') {
-      status.textContent = 'Mic error — try again';
-      status.style.color = 'var(--red)';
-    }
-  };
-
-  recognition.onend = function() {
-    if (voiceActive) {
-      try { recognition.start(); } catch(e) {}
-    }
-  };
-
+  // Phase 1: getUserMedia (same as auth.html)
   try {
-    recognition.start();
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch(e) {
-    status.textContent = 'Could not start mic — try refreshing the page';
+    var msg = 'Microphone blocked';
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      var ua = navigator.userAgent;
+      if (/CriOS|Chrome/.test(ua)) msg = 'Mic blocked \u2014 tap lock icon in address bar \u2192 Allow microphone';
+      else if (/Safari/.test(ua) && !/Chrome/.test(ua)) msg = 'Mic blocked \u2014 Settings \u2192 Safari \u2192 Microphone \u2192 Allow';
+      else msg = 'Mic blocked \u2014 check browser permissions for this site';
+    } else if (e.name === 'NotFoundError') {
+      msg = 'No microphone found on this device';
+    } else { msg = 'Mic error: ' + (e.message || e.name); }
+    status.textContent = msg;
     status.style.color = 'var(--red)';
+    return;
+  }
+
+  // Phase 2: AudioContext analyser (from auth.html \u2014 proves mic works)
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') await audioCtx.resume();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    audioCtx.createMediaStreamSource(micStream).connect(analyser);
+  } catch(e) { console.warn('Analyser setup failed:', e); }
+
+  // Phase 3: UI \u2014 mic confirmed connected
+  voiceActive = true;
+  box.style.borderColor = 'rgba(248,113,113,0.8)';
+  box.style.background = 'rgba(248,113,113,0.25)';
+  box.style.animation = 'vPulse 1.2s infinite';
+  transcriptEl.style.display = 'block';
+  transcriptEl.textContent = '';
+
+  // Phase 4: Audio level monitoring (from auth.html)
+  var micConfirmed = false;
+  function checkLevel() {
+    if (!voiceActive || !analyser) return;
+    var d = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(d);
+    var mx = 0;
+    for (var i = 0; i < d.length; i++) { var v = Math.abs(d[i]-128); if (v>mx) mx=v; }
+    var level = Math.min(100, Math.round((mx/128)*100));
+    if (level > 5 && !micConfirmed) {
+      micConfirmed = true;
+      status.textContent = 'Mic working \u2014 speak your feedback, tap mic when done';
+      status.style.color = 'var(--green)';
+    } else if (!micConfirmed) {
+      status.textContent = 'Mic connected \u2014 say something to confirm it works...';
+      status.style.color = 'var(--amber)';
+    }
+    transcriptEl.style.borderColor = level > 15
+      ? 'rgba(52,211,153,' + Math.min(0.8, level/100+0.2) + ')'
+      : 'rgba(96,165,250,0.15)';
+    levelFrame = requestAnimationFrame(checkLevel);
+  }
+  levelFrame = requestAnimationFrame(checkLevel);
+
+  // Phase 5: SpeechRecognition for live transcription
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-AU';
+    recognition.onresult = function(e) {
+      var final='', interim='';
+      for (var j=0; j<e.results.length; j++) {
+        if (e.results[j].isFinal) final += e.results[j][0].transcript+' ';
+        else interim += e.results[j][0].transcript;
+      }
+      fullTranscript = final;
+      var txt = (final+interim).trim();
+      if (txt) transcriptEl.textContent = txt;
+    };
+    recognition.onend = function() { if (voiceActive) try{recognition.start();}catch(e){} };
+    recognition.onerror = function(e) { if(e.error!=='no-speech'&&e.error!=='aborted') console.warn('SR:',e.error); };
+    try { recognition.start(); } catch(e) {
+      transcriptEl.textContent = '(live transcription unavailable \u2014 audio still recording)';
+    }
+  } else {
+    transcriptEl.textContent = '(transcription unavailable in this browser \u2014 speak anyway)';
   }
 }
 
 function stopVoice() {
   voiceActive = false;
-  if (recognition) {
-    try { recognition.stop(); } catch(e) {}
-  }
+  if (levelFrame) { cancelAnimationFrame(levelFrame); levelFrame = null; }
+  if (recognition) { try{recognition.stop();}catch(e){} recognition = null; }
+  if (audioCtx) { try{audioCtx.close();}catch(e){} audioCtx=null; analyser=null; }
+  if (micStream) { micStream.getTracks().forEach(function(t){t.stop();}); micStream=null; }
 
   var box = document.getElementById('voiceBox');
   var status = document.getElementById('voiceStatus');
   var fbOther = document.getElementById('fbOther');
-
   box.style.animation = 'none';
 
   if (fullTranscript.trim()) {
@@ -904,14 +921,13 @@ function stopVoice() {
     box.style.background = 'rgba(52,211,153,0.15)';
     status.textContent = 'Sending...';
     status.style.color = 'var(--green)';
-
     var existing = fbOther.value.trim();
-    fbOther.value = (existing ? existing + '\n\n' : '') + '[Voice] ' + fullTranscript.trim();
+    fbOther.value = (existing ? existing+'\n\n' : '') + '[Voice] ' + fullTranscript.trim();
     sendVoiceFeedback(fullTranscript.trim());
   } else {
     box.style.borderColor = 'rgba(96,165,250,0.3)';
     box.style.background = 'rgba(96,165,250,0.12)';
-    status.textContent = 'Nothing captured — tap mic and speak clearly';
+    status.textContent = 'Nothing transcribed \u2014 try speaking louder or closer to mic';
     status.style.color = 'var(--amber)';
     document.getElementById('voiceTranscript').style.display = 'none';
   }
@@ -924,16 +940,15 @@ async function sendVoiceFeedback(text) {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
         feedback_type: 'feature',
-        content: 'REGATTA CLUB — Voice feedback from Anthony: ' + text,
+        content: 'REGATTA CLUB \u2014 Voice feedback from Anthony: ' + text,
         source_page: 'regatta-copilot',
         user_id: 'anthony_regatta'
       })
     });
-    var status = document.getElementById('voiceStatus');
-    status.textContent = 'Sent to Rob — tap mic to record more';
-    status.style.color = 'var(--green)';
+    document.getElementById('voiceStatus').textContent = 'Sent to Rob \u2014 tap mic to record more';
+    document.getElementById('voiceStatus').style.color = 'var(--green)';
   } catch(e) {
-    document.getElementById('voiceStatus').textContent = 'Could not send — screenshot and send to Rob';
+    document.getElementById('voiceStatus').textContent = 'Could not send \u2014 screenshot and send to Rob';
     document.getElementById('voiceStatus').style.color = 'var(--red)';
   }
 }
