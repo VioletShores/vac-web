@@ -52,7 +52,6 @@ body {
 .header-text .venue { font-size: 11px; color: var(--accent); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
 
 /* Metrics */
-@keyframes vPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.4);opacity:0.5} }
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
 .metric {
   background: var(--navy-card); border: 1px solid var(--border);
@@ -590,17 +589,10 @@ body {
   </div>
 
   <div class="section fade-in d10" id="feedbackSection" style="background:linear-gradient(135deg,#1a237e,#0d1452);border:1px solid rgba(96,165,250,0.2);border-radius:var(--radius);padding:20px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
-      <div style="flex:1;">
-        <div style="font-size:20px;font-weight:700;">What do you reckon?</div>
-        <div style="font-size:12px;color:var(--blue);font-weight:500;margin-top:2px;">Tap the mic or expand for detailed feedback</div>
-      </div>
-      <div id="voiceBox" style="width:48px;height:48px;border-radius:50%;background:rgba(248,113,113,0.15);border:2px solid rgba(248,113,113,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;" onclick="event.stopPropagation();toggleVoiceFeedback();">
-        <svg id="micIcon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      </div>
+    <div style="margin-bottom:10px;">
+      <div style="font-size:20px;font-weight:700;">What do you reckon?</div>
+      <div style="font-size:13px;color:var(--blue);font-weight:500;margin-top:4px;">Your feedback goes straight into the build queue — quick wins get built overnight</div>
     </div>
-    <div id="voiceTranscript" style="display:none;margin:8px 0;background:rgba(10,22,40,0.8);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-muted);line-height:1.5;min-height:40px;"></div>
-    <div id="voiceStatus" style="font-size:12px;min-height:18px;margin-bottom:8px;color:var(--text-dim);"></div>
 
     <div class="section-head collapsible closed" onclick="toggleSection(this)" style="border-bottom:none;padding-bottom:0;margin-bottom:0;">Detailed feedback <span class="count">rate sections, add ideas</span></div>
     <div class="section-body collapsed">
@@ -796,162 +788,6 @@ async function submitFeedback() {
 
 buildRatings();
 
-// ─── VOICE FEEDBACK (auth-proven mic patterns) ───────────────
-var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-var voiceActive = false;
-var recognition = null;
-var fullTranscript = '';
-var micStream = null;
-var audioCtx = null;
-var analyser = null;
-var levelFrame = null;
-
-function toggleVoiceFeedback() {
-  if (voiceActive) { stopVoice(); } else { startVoice(); }
-}
-
-async function startVoice() {
-  fullTranscript = '';
-  var box = document.getElementById('voiceBox');
-  var status = document.getElementById('voiceStatus');
-  var transcriptEl = document.getElementById('voiceTranscript');
-
-  status.textContent = 'Requesting microphone...';
-  status.style.color = 'var(--blue)';
-
-  // Phase 1: getUserMedia (same as auth.html)
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch(e) {
-    var msg = 'Microphone blocked';
-    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-      var ua = navigator.userAgent;
-      if (/CriOS|Chrome/.test(ua)) msg = 'Mic blocked \u2014 tap lock icon in address bar \u2192 Allow microphone';
-      else if (/Safari/.test(ua) && !/Chrome/.test(ua)) msg = 'Mic blocked \u2014 Settings \u2192 Safari \u2192 Microphone \u2192 Allow';
-      else msg = 'Mic blocked \u2014 check browser permissions for this site';
-    } else if (e.name === 'NotFoundError') {
-      msg = 'No microphone found on this device';
-    } else { msg = 'Mic error: ' + (e.message || e.name); }
-    status.textContent = msg;
-    status.style.color = 'var(--red)';
-    return;
-  }
-
-  // Phase 2: AudioContext analyser (from auth.html \u2014 proves mic works)
-  try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') await audioCtx.resume();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256;
-    audioCtx.createMediaStreamSource(micStream).connect(analyser);
-  } catch(e) { console.warn('Analyser setup failed:', e); }
-
-  // Phase 3: UI \u2014 mic confirmed connected
-  voiceActive = true;
-  box.style.borderColor = 'rgba(248,113,113,0.8)';
-  box.style.background = 'rgba(248,113,113,0.25)';
-  box.style.animation = 'vPulse 1.2s infinite';
-  transcriptEl.style.display = 'block';
-  transcriptEl.textContent = '';
-
-  // Phase 4: Audio level monitoring (from auth.html)
-  var micConfirmed = false;
-  function checkLevel() {
-    if (!voiceActive || !analyser) return;
-    var d = new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(d);
-    var mx = 0;
-    for (var i = 0; i < d.length; i++) { var v = Math.abs(d[i]-128); if (v>mx) mx=v; }
-    var level = Math.min(100, Math.round((mx/128)*100));
-    if (level > 5 && !micConfirmed) {
-      micConfirmed = true;
-      status.textContent = 'Mic working \u2014 speak your feedback, tap mic when done';
-      status.style.color = 'var(--green)';
-    } else if (!micConfirmed) {
-      status.textContent = 'Mic connected \u2014 say something to confirm it works...';
-      status.style.color = 'var(--amber)';
-    }
-    transcriptEl.style.borderColor = level > 15
-      ? 'rgba(52,211,153,' + Math.min(0.8, level/100+0.2) + ')'
-      : 'rgba(96,165,250,0.15)';
-    levelFrame = requestAnimationFrame(checkLevel);
-  }
-  levelFrame = requestAnimationFrame(checkLevel);
-
-  // Phase 5: SpeechRecognition for live transcription
-  if (SpeechRecognition) {
-    recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-AU';
-    recognition.onresult = function(e) {
-      var final='', interim='';
-      for (var j=0; j<e.results.length; j++) {
-        if (e.results[j].isFinal) final += e.results[j][0].transcript+' ';
-        else interim += e.results[j][0].transcript;
-      }
-      fullTranscript = final;
-      var txt = (final+interim).trim();
-      if (txt) transcriptEl.textContent = txt;
-    };
-    recognition.onend = function() { if (voiceActive) try{recognition.start();}catch(e){} };
-    recognition.onerror = function(e) { if(e.error!=='no-speech'&&e.error!=='aborted') console.warn('SR:',e.error); };
-    try { recognition.start(); } catch(e) {
-      transcriptEl.textContent = '(live transcription unavailable \u2014 audio still recording)';
-    }
-  } else {
-    transcriptEl.textContent = '(transcription unavailable in this browser \u2014 speak anyway)';
-  }
-}
-
-function stopVoice() {
-  voiceActive = false;
-  if (levelFrame) { cancelAnimationFrame(levelFrame); levelFrame = null; }
-  if (recognition) { try{recognition.stop();}catch(e){} recognition = null; }
-  if (audioCtx) { try{audioCtx.close();}catch(e){} audioCtx=null; analyser=null; }
-  if (micStream) { micStream.getTracks().forEach(function(t){t.stop();}); micStream=null; }
-
-  var box = document.getElementById('voiceBox');
-  var status = document.getElementById('voiceStatus');
-  var fbOther = document.getElementById('fbOther');
-  box.style.animation = 'none';
-
-  if (fullTranscript.trim()) {
-    box.style.borderColor = 'rgba(52,211,153,0.5)';
-    box.style.background = 'rgba(52,211,153,0.15)';
-    status.textContent = 'Sending...';
-    status.style.color = 'var(--green)';
-    var existing = fbOther.value.trim();
-    fbOther.value = (existing ? existing+'\n\n' : '') + '[Voice] ' + fullTranscript.trim();
-    sendVoiceFeedback(fullTranscript.trim());
-  } else {
-    box.style.borderColor = 'rgba(96,165,250,0.3)';
-    box.style.background = 'rgba(96,165,250,0.12)';
-    status.textContent = 'Nothing transcribed \u2014 try speaking louder or closer to mic';
-    status.style.color = 'var(--amber)';
-    document.getElementById('voiceTranscript').style.display = 'none';
-  }
-}
-
-async function sendVoiceFeedback(text) {
-  try {
-    await fetch(ATHENA_API + '/v1/feedback', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        feedback_type: 'feature',
-        content: 'REGATTA CLUB \u2014 Voice feedback from Anthony: ' + text,
-        source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta'
-      })
-    });
-    document.getElementById('voiceStatus').textContent = 'Sent to Rob \u2014 tap mic to record more';
-    document.getElementById('voiceStatus').style.color = 'var(--green)';
-  } catch(e) {
-    document.getElementById('voiceStatus').textContent = 'Could not send \u2014 screenshot and send to Rob';
-    document.getElementById('voiceStatus').style.color = 'var(--red)';
-  }
-}
 </script>
 </body>
 </html>
