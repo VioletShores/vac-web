@@ -687,6 +687,15 @@ body {
     </div>
   </div>
 
+  <div class="section fade-in d10" id="profileSection" style="display:none;">
+    <div class="section-head">Your co-pilot profile <span class="count">building live</span></div>
+    <div class="card" style="border-left:3px solid var(--accent);">
+      <div style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:8px;">What the system is learning about you</div>
+      <div id="profileContent" style="font-size:13px;color:var(--text-muted);line-height:1.7;"></div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">This profile builds over time from your ratings, decisions, and feedback. Nobody else's will look like this. It's what makes your co-pilot yours.</div>
+    </div>
+  </div>
+
   <div class="section fade-in d10" id="feedbackSection" style="background:linear-gradient(135deg,#1a237e,#0d1452);border:1px solid rgba(96,165,250,0.2);border-radius:var(--radius);padding:20px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;">
     <div style="margin-bottom:10px;">
       <div style="font-size:20px;font-weight:700;">What do you reckon?</div>
@@ -785,6 +794,16 @@ function toggleSection(head) {
   var isExpanded = !head.classList.contains('closed');
   var sectionId = head.textContent.trim().replace(/\s+/g, ' ').substring(0, 60);
   trackEvent(isExpanded ? 'expand' : 'collapse', { section_id: sectionId });
+  // profile signal — what Anthony explores tells us what matters
+  if (isExpanded && sectionId.indexOf('How does') === -1 && sectionId.indexOf('Detailed') === -1) {
+    var cleanName = sectionId.replace(/[\d+\s]*$/, '').trim();
+    var signal = '<span style="color:var(--accent);font-weight:600;">Explored:</span> ' + cleanName;
+    var isDupe = profileSignals.some(function(s) { return s.indexOf(cleanName) >= 0; });
+    if (!isDupe && profileSignals.length < 5) {
+      profileSignals.push(signal);
+      updateProfile();
+    }
+  }
 }
 setTimeout(function(){document.getElementById('prog').style.width='60%'},600);
 
@@ -1022,6 +1041,71 @@ buildRatings();
   var el = document.getElementById('greetingText');
   if (el) el.textContent = greeting;
 })();
+
+// ─── LIVE CO-PILOT PROFILE ───────────────────────────────────
+var profileSignals = [];
+var decisionsApproved = 0;
+
+function updateProfile() {
+  var section = document.getElementById('profileSection');
+  var content = document.getElementById('profileContent');
+  if (!section || !content) return;
+
+  var lines = [];
+
+  // Build insights from ratings
+  var priorities = [];
+  var dismissed = [];
+  var sectionNames = {};
+  sections.forEach(function(s) { sectionNames[s.id] = s.name; });
+
+  Object.keys(ratings).forEach(function(id) {
+    if (ratings[id] === 'yes') priorities.push(sectionNames[id] || id);
+    if (ratings[id] === 'no') dismissed.push(sectionNames[id] || id);
+  });
+
+  if (priorities.length > 0) {
+    lines.push('<div style="margin-bottom:6px;"><span style="color:var(--green);font-weight:600;">Priorities:</span> ' + priorities.join(', ') + '</div>');
+  }
+  if (dismissed.length > 0) {
+    lines.push('<div style="margin-bottom:6px;"><span style="color:var(--text-dim);font-weight:600;">Deprioritised:</span> ' + dismissed.join(', ') + '</div>');
+  }
+  if (decisionsApproved > 0) {
+    lines.push('<div style="margin-bottom:6px;"><span style="color:var(--blue);font-weight:600;">Decision style:</span> ' + (decisionsApproved >= 2 ? 'Quick decision-maker — prefers to approve and move on' : 'Engaged — reviewing decisions as they come') + '</div>');
+  }
+
+  // Add profile signals from interactions
+  profileSignals.forEach(function(s) {
+    lines.push('<div style="margin-bottom:6px;">' + s + '</div>');
+  });
+
+  if (lines.length > 0) {
+    content.innerHTML = lines.join('');
+    section.style.display = '';
+    section.style.opacity = '0';
+    section.style.transform = 'translateY(12px)';
+    setTimeout(function() {
+      section.style.transition = 'opacity 0.5s, transform 0.5s';
+      section.style.opacity = '1';
+      section.style.transform = 'translateY(0)';
+    }, 100);
+  }
+}
+
+// Patch rate() to also update profile
+var _origRate = rate;
+rate = function(sectionId, value) {
+  _origRate(sectionId, value);
+  updateProfile();
+};
+
+// Patch approve() to track decision patterns
+var _origApprove = approve;
+approve = function(btn, msg) {
+  _origApprove(btn, msg);
+  decisionsApproved++;
+  updateProfile();
+};
 
 // ─── VOICE FEEDBACK ──────────────────────────────────────────
 var voiceActive = false;
