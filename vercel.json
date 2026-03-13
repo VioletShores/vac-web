@@ -101,6 +101,14 @@
             "destination": "/athena-derm-copilot.html"
         },
         {
+            "source": "/regatta",
+            "destination": "/athena-regatta-club-copilot.html"
+        },
+        {
+            "source": "/derm",
+            "destination": "/athena-derm-copilot.html"
+        },
+        {
             "source": "/watch",
             "destination": "/athena-watch.html"
         },
