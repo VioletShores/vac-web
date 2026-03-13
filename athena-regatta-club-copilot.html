@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Athena — Regatta Club Co-Pilot</title>
+<title>Regatta Club Co-Pilot — powered by Athena</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -215,17 +215,17 @@ body {
 <div class="app">
 
   <div class="header fade-in">
-    <div class="logo-mark"><svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" width="32" height="32"><line x1="50" y1="10" x2="25" y2="38" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="50" y1="10" x2="75" y2="32" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="25" y1="38" x2="14" y2="68" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="25" y1="38" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="75" y1="32" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="75" y1="32" x2="88" y2="62" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="50" y1="55" x2="14" y2="68" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="50" y1="55" x2="88" y2="62" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="50" y1="55" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="14" y1="68" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/><line x1="88" y1="62" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/><circle cx="50" cy="10" r="5.5" fill="#C9A84C"/><circle cx="50" cy="10" r="9" fill="none" stroke="#C9A84C" stroke-width="0.6" opacity="0.3"/><circle cx="25" cy="38" r="4" fill="#E8D48B"/><circle cx="75" cy="32" r="4" fill="#E8D48B"/><circle cx="50" cy="55" r="4.5" fill="#C9A84C"/><circle cx="50" cy="55" r="8" fill="none" stroke="#C9A84C" stroke-width="0.6" opacity="0.3"/><circle cx="14" cy="68" r="3" fill="#C9A84C" opacity="0.8"/><circle cx="88" cy="62" r="3" fill="#C9A84C" opacity="0.8"/><circle cx="50" cy="88" r="3.5" fill="#E8D48B"/></svg></div>
+    <div class="logo-mark" style="background:linear-gradient(135deg,#1a237e,#283593);font-family:'DM Serif Display',serif;font-size:16px;letter-spacing:-0.5px;">RC</div>
     <div class="header-text">
       <div class="greeting">Morning Anthony</div>
       <div class="sub">Here's what your week could look like with a co-pilot</div>
-      <div class="venue">Regatta Club &bull; Haberfield Rowers</div>
+      <div class="venue">Regatta Club &bull; Haberfield Rowers &bull; <span style="color:var(--text-dim)">powered by Athena</span></div>
     </div>
   </div>
 
   <div class="voice-bar fade-in d1" id="vbar" onclick="toggleVoice()">
     <div class="voice-dot"><div class="voice-dot-inner" id="vdot"></div></div>
-    <div class="voice-label" id="vlabel">Tap to talk — "What should I know before service tonight?"</div>
+    <div class="voice-label" id="vlabel">Tap to talk — "What do I need to know before Friday service?"</div>
   </div>
 
   <div class="metrics fade-in d2">
@@ -574,27 +574,28 @@ body {
     </div>
   </div>
 
-  <div class="section fade-in d10" id="feedbackSection">
-    <div class="section-head">What do you think? <span class="count">your feedback builds this</span></div>
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.5;">
-      Be honest — what would you actually use? What's missing? What would save you the most time? Your feedback goes straight into the build queue. If it's quick to build, it could be live by tomorrow.
+  <div class="section fade-in d10" id="feedbackSection" style="background:linear-gradient(135deg,#1a237e,#0d1452);border:1px solid rgba(96,165,250,0.2);border-radius:var(--radius);padding:20px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;">
+    <div style="font-size:20px;font-weight:700;margin-bottom:4px;">What do you reckon?</div>
+    <div style="font-size:14px;color:var(--blue);margin-bottom:4px;font-weight:500;">Your feedback goes straight into the build queue</div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.5;">
+      Be honest — what would you actually use day-to-day? What's missing? What would save you the most time running Regatta? If it's quick to build, it could be live by tomorrow morning.
     </div>
-    <div class="card" id="feedbackCard">
+    <div class="card" id="feedbackCard" style="background:rgba(10,22,40,0.7);border-color:rgba(96,165,250,0.15);">
       <div style="margin-bottom:14px;">
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;font-weight:500;">Rate each section — would you use this?</div>
         <div id="ratingsList"></div>
       </div>
       <div style="margin-bottom:14px;">
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's the #1 thing that would save you time?</div>
-        <textarea id="fbTopPriority" style="width:100%;background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate my supplier orders based on bookings..."></textarea>
+        <textarea id="fbTopPriority" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate my supplier orders based on bookings..."></textarea>
       </div>
       <div style="margin-bottom:14px;">
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's missing that you'd need?</div>
-        <textarea id="fbMissing" style="width:100%;background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. Integration with our POS system, rostering tool..."></textarea>
+        <textarea id="fbMissing" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. Integration with our POS system, rostering tool..."></textarea>
       </div>
       <div style="margin-bottom:14px;">
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">Any other ideas or reactions?</div>
-        <textarea id="fbOther" style="width:100%;background:var(--navy);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Anything at all — what excited you, what worried you, what confused you..."></textarea>
+        <textarea id="fbOther" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Anything at all — what excited you, what worried you, what confused you..."></textarea>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-primary" style="flex:1" onclick="submitFeedback()">Send feedback to Rob</button>
@@ -605,9 +606,11 @@ body {
 
   <div class="footer fade-in d12">
     <div style="color:var(--text-muted);font-size:12px;line-height:1.7;text-align:left;margin-bottom:14px;">
-      Everything on this screen is backed by real tech I've been building for over a year. The task engine that breaks your week into sub-tasks and runs the easy ones overnight. The compliance scanner that watches legislation changes for you. The intelligence system that finds what competitors and the global industry are doing. The comms layer that drafts staff briefings from what actually happened — not templates. The supplier tracking that knows what's fresh, what's cheap, and when to push back on price. The identity system that means only you and your wife can approve spending. I've filed over 550 patent claims on the core architecture — the way it breaks work apart, routes it to the right place, and ties decisions back to a verified human. It's not something you can get off the shelf or from ChatGPT. It's not finished yet. But the bones are real and working, and I reckon your business would be a great way to prove it actually helps.
+      Everything on this screen is backed by real tech Rob's been building for over a year. The task engine, the compliance scanner, the intelligence system, the comms layer, the supplier tracking, the face-verify for spending. 550+ patent claims on the core architecture. It's not something off the shelf — it's being built specifically for businesses like yours.
     </div>
-    <div style="text-align:center;">A project by Rob — built for mates who run real businesses</div>
+    <div style="text-align:center;font-size:13px;font-weight:500;">Regatta Club Co-Pilot</div>
+    <div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:4px;">Dobroyd Parade, Haberfield &bull; Iron Cove Bay</div>
+    <div style="text-align:center;font-size:10px;color:var(--text-dim);margin-top:8px;letter-spacing:0.5px;">powered by Athena &bull; identity by VAC Protocol</div>
   </div>
 
 </div>
@@ -618,7 +621,7 @@ function toggleVoice(){
   b.classList.toggle('active');
   l.textContent=b.classList.contains('active')?
     'Listening... "Show me the Friday roster"':
-    'Tap to talk \u2014 "What should I know before service tonight?"';
+    'Tap to talk \u2014 "What do I need to know before Friday service?"';
 }
 function approve(btn,msg){
   var d=btn.closest('.decision');
@@ -754,8 +757,8 @@ async function submitFeedback() {
           '<div style="font-size:32px;margin-bottom:8px;color:var(--green);">&#10003;</div>' +
           '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">Feedback received</div>' +
           '<div style="font-size:13px;color:var(--text-muted);line-height:1.5;">' +
-          'Rob\'s system is reviewing your input now.<br>If there\'s something quick to build, it runs overnight on his hardware.<br>' +
-          'Check back tomorrow — you might see changes already live.</div></div>';
+          'Rob\'s build system is reviewing your input now.<br>Quick wins get built overnight on dedicated hardware.<br>' +
+          'Check back tomorrow — your Regatta Club co-pilot might already look different.</div></div>';
       }, 2000);
     } else {
       throw new Error('No items sent');
