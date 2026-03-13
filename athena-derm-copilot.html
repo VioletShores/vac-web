@@ -297,6 +297,59 @@ body {
     </div>
   </div>
 
+  <!-- LIVE PHOTO ANALYSIS — try it now -->
+  <div class="section fade-in d3">
+    <div class="section-head">Try it — analyse a photo now <span class="count" style="background:var(--purple-bg);color:var(--purple);">live AI</span></div>
+    <div class="card" style="border-left:3px solid var(--purple);">
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">
+        Take a photo of any skin area or upload an existing image. The AI will analyse it in real time — the same analysis your patients would see before their appointment. You review and correct, and the system learns from your corrections.
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <label class="btn btn-primary" style="flex:1;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Take photo
+          <input type="file" accept="image/*" capture="environment" id="dermCamera" style="display:none;" onchange="handleDermPhoto(this)">
+        </label>
+        <label class="btn btn-outline" style="flex:1;text-align:center;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Upload image
+          <input type="file" accept="image/*" id="dermUpload" style="display:none;" onchange="handleDermPhoto(this)">
+        </label>
+      </div>
+
+      <div id="dermPreview" style="display:none;margin-bottom:12px;">
+        <img id="dermPreviewImg" style="width:100%;border-radius:8px;max-height:300px;object-fit:cover;">
+      </div>
+
+      <div id="dermDescRow" style="display:none;margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;font-weight:500;">Describe the concern (optional):</div>
+        <textarea id="dermDesc" style="width:100%;background:var(--surface-raised);border:1.5px solid var(--border);border-radius:8px;padding:10px;font-family:inherit;font-size:13px;color:var(--text);resize:vertical;min-height:50px;" placeholder="e.g. Changed shape over 3 weeks, slightly itchy, left forearm..."></textarea>
+        <button class="btn btn-primary" style="width:100%;margin-top:8px;" id="dermAnalyzeBtn" onclick="runDermAnalysis()">Analyse this image</button>
+      </div>
+
+      <div id="dermLoading" style="display:none;text-align:center;padding:20px 0;">
+        <div style="font-size:14px;color:var(--purple);font-weight:600;">Analysing image...</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">AI is examining visual patterns, borders, colour, texture</div>
+      </div>
+
+      <div id="dermResult" style="display:none;">
+        <div style="background:var(--surface-raised);border:1.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;">
+          <div style="font-size:13px;font-weight:600;color:var(--purple);margin-bottom:8px;">AI Analysis</div>
+          <div id="dermResultText" style="font-size:13px;color:var(--text-secondary);line-height:1.7;white-space:pre-wrap;"></div>
+        </div>
+        <div style="background:var(--amber-bg);border:1px solid rgba(217,119,6,0.2);border-radius:8px;padding:10px;font-size:11px;color:var(--amber);line-height:1.5;">
+          ⚠️ AI-assisted preliminary assessment only. Not a diagnosis. Clinical decisions must be made by a qualified dermatologist.
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-outline" style="flex:1;font-size:12px;" onclick="resetDermAnalysis()">Analyse another</button>
+          <button class="btn btn-green" style="flex:1;font-size:12px;" onclick="this.textContent='Feedback noted ✓';this.disabled=true;">AI got this right</button>
+          <button class="btn btn-outline" style="flex:1;font-size:12px;border-color:var(--red);color:var(--red);" onclick="this.textContent='Noted — learning ✓';this.disabled=true;">Needs correction</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Morning intelligence briefing -->
   <div class="section fade-in d4">
     <div class="section-head">Your morning briefing <span class="count">14 March 2026</span></div>
@@ -620,6 +673,86 @@ async function submitFeedback() {
   var el = document.getElementById('greetingText');
   if (el) el.textContent = greeting;
 })();
+
+// ─── DERM PHOTO ANALYSIS ─────────────────────────────────────
+var dermImageBase64 = '';
+var dermMediaType = 'image/jpeg';
+
+function handleDermPhoto(input) {
+  var file = input.files[0];
+  if (!file) return;
+
+  dermMediaType = file.type || 'image/jpeg';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    // Show preview
+    document.getElementById('dermPreviewImg').src = dataUrl;
+    document.getElementById('dermPreview').style.display = '';
+    document.getElementById('dermDescRow').style.display = '';
+    document.getElementById('dermResult').style.display = 'none';
+    document.getElementById('dermLoading').style.display = 'none';
+
+    // Extract base64 (remove data:image/...;base64, prefix)
+    dermImageBase64 = dataUrl.split(',')[1];
+  };
+  reader.readAsDataURL(file);
+}
+
+async function runDermAnalysis() {
+  if (!dermImageBase64) return;
+
+  var btn = document.getElementById('dermAnalyzeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Analysing...';
+  document.getElementById('dermLoading').style.display = '';
+  document.getElementById('dermResult').style.display = 'none';
+
+  var desc = document.getElementById('dermDesc').value.trim();
+
+  try {
+    var resp = await fetch(ATHENA_API + '/v1/derm/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image_base64: dermImageBase64,
+        media_type: dermMediaType,
+        description: desc,
+        user_id: 'sam_zagarella'
+      })
+    });
+
+    document.getElementById('dermLoading').style.display = 'none';
+
+    if (resp.ok) {
+      var data = await resp.json();
+      document.getElementById('dermResultText').textContent = data.analysis;
+      document.getElementById('dermResult').style.display = '';
+    } else {
+      var errText = await resp.text();
+      document.getElementById('dermResultText').textContent = 'Analysis could not complete: ' + errText;
+      document.getElementById('dermResult').style.display = '';
+    }
+  } catch (err) {
+    document.getElementById('dermLoading').style.display = 'none';
+    document.getElementById('dermResultText').textContent = 'Could not connect to analysis service. Check your connection and try again.';
+    document.getElementById('dermResult').style.display = '';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Analyse this image';
+}
+
+function resetDermAnalysis() {
+  dermImageBase64 = '';
+  document.getElementById('dermPreview').style.display = 'none';
+  document.getElementById('dermDescRow').style.display = 'none';
+  document.getElementById('dermResult').style.display = 'none';
+  document.getElementById('dermDesc').value = '';
+  document.getElementById('dermCamera').value = '';
+  document.getElementById('dermUpload').value = '';
+}
 </script>
 </body>
 </html>
