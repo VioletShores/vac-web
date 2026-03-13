@@ -139,6 +139,26 @@ body {
 .progress-bar { height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; margin: 10px 0 14px; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width 1s ease; }
 
+/* Info toggle (inline collapsible inside cards) */
+.info-toggle {
+  font-size: 12px; color: var(--text-dim); cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 5px; padding: 4px 0 8px;
+  transition: color 0.2s;
+}
+.info-toggle::after { content: '\25B8'; font-size: 10px; transition: transform 0.2s; }
+.info-toggle:not(.closed)::after { content: '\25BE'; }
+.info-toggle:hover { color: var(--text-muted); }
+.info-content {
+  background: rgba(255,255,255,0.02); border-radius: var(--radius-sm);
+  border: 1px solid var(--border); padding: 14px 14px 12px;
+  font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;
+}
+.info-content ul { margin: 8px 0 10px; padding-left: 0; list-style: none; }
+.info-content ul li { padding: 2px 0 2px 16px; position: relative; }
+.info-content ul li::before { content: '\2022'; position: absolute; left: 0; color: var(--text-dim); }
+.info-content p { margin-bottom: 8px; }
+.info-content p:last-child { margin-bottom: 0; }
+
 /* Intel */
 .intel-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .intel-item:last-child { border-bottom: none; }
@@ -305,6 +325,22 @@ body {
     <div class="section-head">Friday service prep <span class="count">60%</span></div>
     <div class="card">
       <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+      <div class="info-toggle closed" onclick="toggleSection(this)">How does this work?</div>
+      <div class="section-body collapsed">
+        <div class="info-content">
+          <p>Right now this is a prototype showing what the system would deliver. To make it real for Regatta, we'd connect to:</p>
+          <ul>
+            <li><strong>Your POS system</strong> — covers, revenue, average spend, menu item sales (what POS do you use?)</li>
+            <li><strong>NowBookIt</strong> — your bookings feed tomorrow's cover forecast and staff planning</li>
+            <li><strong>Your rostering tool</strong> — who's available, who's best at what, shift gaps (Deputy? Tanda? Spreadsheet?)</li>
+            <li><strong>Supplier orders</strong> — price tracking, reorder triggers, what Steve at Pacific has fresh today</li>
+            <li><strong>Google Reviews</strong> — auto-detected sentiment and issue patterns</li>
+            <li><strong>Staff shift reflections</strong> — 2-minute voice check-ins build capability profiles over time</li>
+          </ul>
+          <p>Compliance scanning and competitor monitoring are already live — that intelligence runs every 12 hours right now.</p>
+          <p>The system breaks your week into tasks, runs what it can overnight, and leaves you with just the decisions that need your brain. It gets smarter every week because it learns your patterns.</p>
+        </div>
+      </div>
       <div class="task-row">
         <span class="badge badge-done">done</span>
         <span class="task-title done">Stock check & reorder list</span>
