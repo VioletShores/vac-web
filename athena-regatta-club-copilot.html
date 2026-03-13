@@ -292,7 +292,7 @@ body {
   <div class="header fade-in">
     <div class="logo-mark" style="background:linear-gradient(135deg,#1a237e,#283593);font-family:'DM Serif Display',serif;font-size:16px;letter-spacing:-0.5px;">RC</div>
     <div class="header-text">
-      <div class="greeting">Morning Anthony</div>
+      <div class="greeting" id="greetingText">Hey Anthony</div>
       <div class="sub">Here's what your week could look like with a co-pilot</div>
       <div class="venue">Regatta Club &bull; Haberfield Rowers &bull; <span style="color:var(--text-dim)">powered by Athena</span></div>
     </div>
@@ -680,7 +680,7 @@ body {
       <div class="decision-q">Place stock reorder — $1,240 total</div>
       <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">House red ×12, salmon 8kg, haloumi 3kg, produce mix. Delivery: tomorrow 6am.</div>
       <div class="decision-btns">
-        <button class="btn btn-vac" onclick="approve(this,'Verified & ordered')">Confirm with face ID</button>
+        <button class="btn btn-vac" onclick="faceVerify(this)">Confirm with face ID</button>
       </div>
     </div>
 
@@ -755,6 +755,25 @@ function approve(btn,msg){
   d.style.borderColor='var(--green)';
   d.innerHTML='<div style="text-align:center;padding:8px 0;color:var(--green);font-weight:600">'+msg+' \u2713</div><div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:2px;">The system learns your decision patterns over time</div>';
   trackEvent('decision_approve', { decision: msg });
+}
+
+function faceVerify(btn) {
+  var d = btn.closest('.decision');
+  var originalBorder = d.style.borderColor;
+  d.style.borderColor = 'var(--blue)';
+  btn.disabled = true;
+  btn.textContent = 'Scanning...';
+  btn.style.opacity = '0.7';
+  trackEvent('face_verify_start', { decision: 'stock_reorder' });
+  setTimeout(function() {
+    btn.textContent = 'Verifying identity...';
+    setTimeout(function() {
+      d.style.borderColor = 'var(--green)';
+      d.innerHTML = '<div style="text-align:center;padding:8px 0;color:var(--green);font-weight:600">Identity verified — order placed \u2713</div>' +
+        '<div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:2px;">VAC Protocol biometric verification &bull; Only authorised users can approve spend</div>';
+      trackEvent('face_verify_complete', { decision: 'stock_reorder' });
+    }, 1200);
+  }, 800);
 }
 
 function toggleSection(head) {
@@ -995,6 +1014,14 @@ async function submitFeedback() {
 }
 
 buildRatings();
+
+// ─── TIME-AWARE GREETING ──────────────────────────────────────
+(function() {
+  var h = new Date().getHours();
+  var greeting = h < 12 ? 'Morning Anthony' : h < 17 ? 'Afternoon Anthony' : 'Evening Anthony';
+  var el = document.getElementById('greetingText');
+  if (el) el.textContent = greeting;
+})();
 
 // ─── VOICE FEEDBACK ──────────────────────────────────────────
 var voiceActive = false;
