@@ -297,8 +297,87 @@ body {
     </div>
   </div>
 
-  <!-- Today's schedule -->
+  <!-- Morning intelligence briefing -->
   <div class="section fade-in d4">
+    <div class="section-head">Your morning briefing <span class="count">14 March 2026</span></div>
+    <div class="card" style="border-left:3px solid var(--accent);">
+      <div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:10px;">What happened overnight in your world</div>
+
+      <div class="insight-item">
+        <div class="insight-tag info">Research — AI in Dermatology</div>
+        <div class="insight-text"><strong>PathAI's PathAssist Derm tool</strong> is showing dermatopathologist-level accuracy in skin cancer diagnosis. The CEO of PathAI believes AI will be incredibly valuable for dermatologists because the specialty relies heavily on evaluating complex visual patterns and tracking how they change over time. The tool is available via the AISight Image Management System. Worth a look — this is the direction your photo triage is heading.</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Source: Dermatology Times · Published today</div>
+      </div>
+
+      <div class="insight-item">
+        <div class="insight-tag info">Research — Foundation Models</div>
+        <div class="insight-text"><strong>Mayo Clinic's PanDerm</strong> — a multimodal vision foundation model for dermatology developed by Australian and Austrian researchers that integrates whole slide images, clinical images, dermoscopic images, and EHR data. Mayo's DHAI program has built an AI triage system that automatically sorts dermatopathology slides into diagnostic categories, giving pathologists an early preview. This is exactly the kind of tool that could integrate with your practice in the next 2-3 years.</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Source: Mayo Clinic Platform</div>
+      </div>
+
+      <div class="insight-item">
+        <div class="insight-tag opportunity">Trend — Teledermatology</div>
+        <div class="insight-text"><strong>2026 is the year digital monitoring platforms go mainstream.</strong> Secure image uploads with remote review are now standard across many platforms, and emerging wearable devices may help patients track UV exposure, skin hydration, and environmental triggers with real-time alerts. Your photo triage feature puts you ahead of this curve — most practices haven't started yet.</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Source: London Dermatology Centre — 2026 Advances Guide</div>
+      </div>
+
+      <div class="insight-item">
+        <div class="insight-tag alert">Watch — Bias in AI Diagnostics</div>
+        <div class="insight-text"><strong>AI skin tools still struggle with darker skin tones.</strong> A study found diagnostic accuracy dropped dramatically for Black skin conditions (17%) compared to Caucasian images (70%) when using AI trained predominantly on lighter skin. Important context for any AI diagnostic tool you consider — and an area where your clinical expertise remains irreplaceable.</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Source: PMC Systematic Review — 2026</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px;">Podcasts this week</div>
+      <div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:center;">
+        <div style="font-size:20px;">🎙️</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;">JAMA Dermatology — Author Interviews</div>
+          <div style="font-size:12px;color:var(--text-muted);">Latest research direct from the authors. Weekly.</div>
+        </div>
+        <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
+      </div>
+      <div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:center;">
+        <div style="font-size:20px;">🎙️</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;">Dermasphere — The Derm Podcast</div>
+          <div style="font-size:12px;color:var(--text-muted);">Latest articles and research. By dermatologists, for dermatologists.</div>
+        </div>
+        <span class="sched-badge" style="background:var(--green-bg);color:var(--green);">2 new</span>
+      </div>
+      <div style="padding:8px 0;border-bottom:1px solid var(--border-light);display:flex;gap:10px;align-items:center;">
+        <div style="font-size:20px;">🎙️</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;">Dialogues in Dermatology (AAD)</div>
+          <div style="font-size:12px;color:var(--text-muted);">GLP-1 agonists in skin disease, new drug rashes, melasma update.</div>
+        </div>
+        <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
+      </div>
+      <div style="padding:8px 0;display:flex;gap:10px;align-items:center;">
+        <div style="font-size:20px;">🎙️</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:500;">EADV Podcast</div>
+          <div style="font-size:12px;color:var(--text-muted);">Feb editor's picks: antifungal resistance, frontal fibrosing alopecia.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="background:var(--surface-raised);border:1.5px dashed var(--border);">
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">Customise your briefing</div>
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:10px;">This briefing scans dermatology journals, AI research, podcasts, and YouTube overnight. Tell the system what you want more of — or paste links to channels and feeds you follow.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="this.style.background='var(--accent-light)';this.style.color='var(--accent)';this.style.borderColor='var(--accent)'">More AI + tech</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="this.style.background='var(--accent-light)';this.style.color='var(--accent)';this.style.borderColor='var(--accent)'">More clinical research</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="this.style.background='var(--accent-light)';this.style.color='var(--accent)';this.style.borderColor='var(--accent)'">More practice management</button>
+        <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="this.style.background='var(--accent-light)';this.style.color='var(--accent)';this.style.borderColor='var(--accent)'">Skin cancer focus</button>
+      </div>
+      <textarea style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:13px;color:var(--text);resize:vertical;min-height:50px;margin-top:10px;" placeholder="Paste YouTube channels, X accounts, podcast feeds, or journal names you want scanned daily..."></textarea>
+    </div>
+  </div>
+
+  <!-- Today's schedule -->
+  <div class="section fade-in d5">
     <div class="section-head">Today's schedule <span class="count">8 patients</span></div>
     <div class="card">
       <div class="sched-item">
