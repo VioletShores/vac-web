@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Dermatology Co-Pilot — powered by Athena</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --white: #FFFFFF;
+  --bg: #F8F9FC;
+  --surface: #FFFFFF;
+  --surface-raised: #F1F3F9;
+  --accent: #2563EB;
+  --accent-light: #DBEAFE;
+  --accent-dark: #1D4ED8;
+  --green: #059669;
+  --green-bg: rgba(5,150,105,0.08);
+  --amber: #D97706;
+  --amber-bg: rgba(217,119,6,0.08);
+  --red: #DC2626;
+  --red-bg: rgba(220,38,38,0.06);
+  --purple: #7C3AED;
+  --purple-bg: rgba(124,58,237,0.06);
+  --text: #1E293B;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --border: #E2E8F0;
+  --border-light: #F1F5F9;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+.app { max-width: 480px; margin: 0 auto; padding: 0 16px 32px; }
+
+.header { padding: 24px 0 20px; display: flex; align-items: center; gap: 14px; }
+.logo-mark {
+  width: 46px; height: 46px; border-radius: 14px;
+  background: linear-gradient(135deg, #2563EB, #7C3AED);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: white; font-size: 18px; font-weight: 700;
+}
+.header-text .greeting { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 500; color: var(--text); }
+.header-text .sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.header-text .practice { font-size: 11px; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
+
+.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+.metric {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px; box-shadow: var(--shadow);
+}
+.metric .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
+.metric .val { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
+.metric .delta { font-size: 12px; margin-top: 4px; }
+.delta-up { color: var(--green); }
+.delta-down { color: var(--red); }
+.delta-note { color: var(--text-muted); }
+
+.section { margin-bottom: 20px; }
+.section-head {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.count {
+  font-size: 11px; background: var(--accent-light); color: var(--accent);
+  padding: 2px 8px; border-radius: 20px; font-weight: 600;
+}
+.count-red { background: var(--red-bg); color: var(--red); }
+.count-green { background: var(--green-bg); color: var(--green); }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 10px;
+  box-shadow: var(--shadow);
+}
+
+.section-head.collapsible {
+  cursor:pointer; user-select:none; display:flex; align-items:center; gap:10px;
+  padding:10px 14px; margin-left:-14px; margin-right:-14px;
+  border-radius:var(--radius-sm); transition:all 0.2s;
+}
+.section-head.collapsible:hover { background:rgba(37,99,235,0.04); }
+.section-head.collapsible::before {
+  content:'+'; font-size:18px; font-weight:600; color:var(--accent);
+  width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+  border-radius:8px; border:1.5px solid rgba(37,99,235,0.3); flex-shrink:0;
+  transition:all 0.2s; line-height:1; order:-1;
+}
+.section-head.collapsible:not(.closed)::before {
+  content:'\2212'; background:var(--accent-light); border-color:var(--accent);
+}
+.section-body { overflow:hidden; transition:max-height 0.3s ease, opacity 0.2s ease; max-height:3000px; opacity:1; }
+.section-body.collapsed { max-height:0; opacity:0; padding:0; }
+
+/* Photo triage */
+.triage-item {
+  display:flex; gap:12px; padding:14px 0; border-bottom:1px solid var(--border-light);
+}
+.triage-item:last-child { border-bottom:none; }
+.triage-photo {
+  width:64px; height:64px; border-radius:10px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px; background:var(--surface-raised);
+}
+.triage-urgency {
+  font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px;
+  text-transform:uppercase; letter-spacing:0.3px; display:inline-block; margin-top:4px;
+}
+.urgency-high { background:var(--red-bg); color:var(--red); }
+.urgency-medium { background:var(--amber-bg); color:var(--amber); }
+.urgency-low { background:var(--green-bg); color:var(--green); }
+.urgency-ai { background:var(--purple-bg); color:var(--purple); }
+.triage-name { font-size:14px; font-weight:600; }
+.triage-desc { font-size:13px; color:var(--text-secondary); line-height:1.5; margin-top:2px; }
+.triage-time { font-size:11px; color:var(--text-muted); margin-top:4px; }
+.triage-actions { display:flex; gap:6px; margin-top:8px; }
+
+.btn {
+  padding:8px 14px; border-radius:8px; border:none;
+  font-family:'DM Sans', sans-serif; font-size:12px; font-weight:600;
+  cursor:pointer; transition:all 0.2s;
+}
+.btn:active { transform:scale(0.96); }
+.btn-primary { background:var(--accent); color:white; }
+.btn-outline { background:transparent; color:var(--text-secondary); border:1px solid var(--border); }
+.btn-green { background:var(--green); color:white; }
+
+/* Schedule */
+.sched-item {
+  display:flex; align-items:center; gap:12px; padding:10px 0;
+  border-bottom:1px solid var(--border-light);
+}
+.sched-item:last-child { border-bottom:none; }
+.sched-time { font-size:13px; font-weight:600; color:var(--accent); width:55px; flex-shrink:0; }
+.sched-name { font-size:13px; font-weight:500; }
+.sched-type { font-size:12px; color:var(--text-muted); }
+.sched-badge {
+  font-size:10px; font-weight:600; padding:2px 8px; border-radius:20px;
+  margin-left:auto; flex-shrink:0;
+}
+
+/* Insights */
+.insight-item { padding:12px 0; border-bottom:1px solid var(--border-light); }
+.insight-item:last-child { border-bottom:none; }
+.insight-tag {
+  font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.3px; margin-bottom:4px;
+}
+.insight-tag.alert { color:var(--red); }
+.insight-tag.opportunity { color:var(--green); }
+.insight-tag.info { color:var(--accent); }
+.insight-text { font-size:13px; line-height:1.6; color:var(--text-secondary); }
+
+/* Comms */
+.msg-row { display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--border-light); }
+.msg-row:last-child { border-bottom:none; }
+.msg-avatar {
+  width:38px; height:38px; border-radius:10px; display:flex;
+  align-items:center; justify-content:center; font-size:13px; font-weight:600;
+  flex-shrink:0; background:var(--accent-light); color:var(--accent);
+}
+.msg-name { font-size:13px; font-weight:500; }
+.msg-preview { font-size:12px; color:var(--text-muted); margin-top:1px; line-height:1.4; }
+.msg-time { font-size:11px; color:var(--text-muted); margin-left:auto; flex-shrink:0; }
+
+.banner {
+  background:linear-gradient(135deg,rgba(37,99,235,0.06),rgba(124,58,237,0.04));
+  border:1px solid rgba(37,99,235,0.12); border-radius:var(--radius);
+  padding:16px; margin-bottom:20px;
+}
+
+.footer {
+  text-align:center; padding:20px 0; font-size:11px;
+  color:var(--text-muted); border-top:1px solid var(--border); margin-top:10px;
+}
+.footer a { color:var(--accent); text-decoration:none; }
+
+.fade-in { opacity:0; transform:translateY(12px); animation:fadeUp 0.5s ease forwards; }
+@keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
+.d1{animation-delay:0.1s} .d2{animation-delay:0.2s} .d3{animation-delay:0.3s}
+.d4{animation-delay:0.4s} .d5{animation-delay:0.5s} .d6{animation-delay:0.6s}
+.d7{animation-delay:0.7s} .d8{animation-delay:0.8s}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header fade-in">
+    <div class="logo-mark">SZ</div>
+    <div class="header-text">
+      <div class="greeting" id="greetingText">Good morning Sam</div>
+      <div class="sub">Here's your practice at a glance</div>
+      <div class="practice">Zagarella Dermatology &bull; <span style="color:var(--text-muted);">powered by Athena</span></div>
+    </div>
+  </div>
+
+  <!-- Adaptive banner -->
+  <div class="banner fade-in d1">
+    <div style="display:flex;align-items:flex-start;gap:12px;">
+      <div style="font-size:22px;flex-shrink:0;margin-top:1px;">🧬</div>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:4px;">This adapts to you</div>
+        <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">Every time you rate a section, respond to a patient, or give feedback — this app reshapes itself around how you run your practice. Your co-pilot in 30 days will look completely different. You're building it by using it.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="metrics fade-in d2">
+    <div class="metric">
+      <div class="label">Patients today</div>
+      <div class="val">8</div>
+      <div class="delta delta-note">3 consults, 3 procedures, 2 follow-ups</div>
+    </div>
+    <div class="metric">
+      <div class="label">Photo triage</div>
+      <div class="val" style="color:var(--amber);">3</div>
+      <div class="delta delta-note">Waiting for your review</div>
+    </div>
+    <div class="metric">
+      <div class="label">Patient satisfaction</div>
+      <div class="val">4.9</div>
+      <div class="delta delta-up">98% would recommend</div>
+    </div>
+    <div class="metric">
+      <div class="label">This week</div>
+      <div class="val">$18.4k</div>
+      <div class="delta delta-up">+12% vs last week</div>
+    </div>
+  </div>
+
+  <!-- PHOTO TRIAGE — the killer feature -->
+  <div class="section fade-in d3">
+    <div class="section-head">Photo triage inbox <span class="count count-red">3 waiting</span></div>
+    <div class="card" style="border-left:3px solid var(--amber);">
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">
+        Patients sent photos before their visit. AI has done an initial assessment — your review takes 30 seconds each. Urgent cases are flagged.
+      </div>
+
+      <div class="triage-item">
+        <div class="triage-photo" style="background:linear-gradient(135deg,#FEE2E2,#FECACA);">🔍</div>
+        <div style="flex:1;">
+          <div class="triage-name">Margaret Chen, 67</div>
+          <div class="triage-desc">Left forearm lesion — irregular borders, colour variation. Changed shape over 3 weeks per patient report.</div>
+          <span class="triage-urgency urgency-high">Urgent — see sooner</span>
+          <div class="triage-time">Submitted 6:42am · Appointment Thursday</div>
+          <div style="font-size:11px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: asymmetric pigmented lesion, recommend dermoscopy — flagged for priority review</div>
+          <div class="triage-actions">
+            <button class="btn btn-primary" onclick="triageAction(this,'Moved to today')">Move to today</button>
+            <button class="btn btn-outline" onclick="triageAction(this,'Message sent')">Message patient</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="triage-item">
+        <div class="triage-photo" style="background:linear-gradient(135deg,#FEF3C7,#FDE68A);">📷</div>
+        <div style="flex:1;">
+          <div class="triage-name">David Park, 34</div>
+          <div class="triage-desc">Recurring rash on both elbows — dry, scaly patches. Reports it's been on and off for 6 months.</div>
+          <span class="triage-urgency urgency-medium">Routine</span>
+          <div class="triage-time">Submitted yesterday · Appointment Monday</div>
+          <div style="font-size:11px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: consistent with psoriasis presentation — suggest patch test and history review</div>
+          <div class="triage-actions">
+            <button class="btn btn-outline" onclick="triageAction(this,'Prep notes added')">Add prep notes</button>
+            <button class="btn btn-outline" onclick="triageAction(this,'Auto-reply sent')">Send care tips</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="triage-item">
+        <div class="triage-photo" style="background:linear-gradient(135deg,#DBEAFE,#BFDBFE);">📷</div>
+        <div style="flex:1;">
+          <div class="triage-name">Sarah Williams, 28</div>
+          <div class="triage-desc">Acne flare-up on chin and jawline — started 2 weeks ago, worse around period. Currently using benzoyl peroxide.</div>
+          <span class="triage-urgency urgency-low">Low priority</span>
+          <div class="triage-time">Submitted last night · Appointment next Wednesday</div>
+          <div style="font-size:11px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: hormonal pattern acne — current treatment appropriate, may benefit from topical retinoid</div>
+          <div class="triage-actions">
+            <button class="btn btn-green" onclick="triageAction(this,'Auto-response sent')">Auto-respond: stay the course</button>
+            <button class="btn btn-outline" onclick="triageAction(this,'Flagged for review')">Review in detail</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--text-muted);padding:0 4px;">
+      Photos are submitted through a secure patient portal verified by VAC Protocol. AI assessment uses dermatology-trained image analysis — it suggests, you decide. Over time, you can set rules: "Auto-respond to mild acne with my standard care plan."
+    </div>
+  </div>
+
+  <!-- Today's schedule -->
+  <div class="section fade-in d4">
+    <div class="section-head">Today's schedule <span class="count">8 patients</span></div>
+    <div class="card">
+      <div class="sched-item">
+        <div class="sched-time">9:00</div>
+        <div><div class="sched-name">Robert Kim</div><div class="sched-type">Full body skin check · New patient</div></div>
+        <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">Consult</span>
+      </div>
+      <div class="sched-item">
+        <div class="sched-time">9:45</div>
+        <div><div class="sched-name">Lisa Tran</div><div class="sched-type">Mole excision follow-up · Pathology results in</div></div>
+        <span class="sched-badge" style="background:var(--green-bg);color:var(--green);">Follow-up</span>
+      </div>
+      <div class="sched-item">
+        <div class="sched-time">10:30</div>
+        <div><div class="sched-name">James O'Brien</div><div class="sched-type">Cryotherapy × 3 lesions</div></div>
+        <span class="sched-badge" style="background:var(--purple-bg);color:var(--purple);">Procedure</span>
+      </div>
+      <div class="sched-item">
+        <div class="sched-time">11:15</div>
+        <div><div class="sched-name">Amanda Nguyen</div><div class="sched-type">Eczema management review</div></div>
+        <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">Consult</span>
+      </div>
+      <div class="sched-item" style="opacity:0.5;">
+        <div class="sched-time">12:00</div>
+        <div><div class="sched-name" style="color:var(--text-muted);">Lunch break</div><div class="sched-type">1 hour</div></div>
+      </div>
+      <div class="sched-item">
+        <div class="sched-time">1:00</div>
+        <div><div class="sched-name">Patricia Moore</div><div class="sched-type">Photodynamic therapy · Session 2 of 3</div></div>
+        <span class="sched-badge" style="background:var(--purple-bg);color:var(--purple);">Procedure</span>
+      </div>
+      <div class="sched-item">
+        <div class="sched-time">2:00</div>
+        <div><div class="sched-name">Michael Santos</div><div class="sched-type">Actinic keratosis consult · Referred by GP</div></div>
+        <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">Consult</span>
+      </div>
+      <div class="sched-item">
+        <div class="sched-time">2:45</div>
+        <div><div class="sched-name">Emily Watson</div><div class="sched-type">Post-Mohs check · 6 week review</div></div>
+        <span class="sched-badge" style="background:var(--green-bg);color:var(--green);">Follow-up</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Patient comms -->
+  <div class="section fade-in d5">
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Patient messages <span class="count">4 unread</span></div>
+    <div class="section-body collapsed">
+    <div class="card">
+      <div class="msg-row">
+        <div class="msg-avatar">LT</div>
+        <div style="flex:1;min-width:0;">
+          <div class="msg-name">Lisa Tran</div>
+          <div class="msg-preview">"Hi Dr Z — got the text about my results being in. Is everything OK? A bit anxious."</div>
+        </div>
+        <div class="msg-time">7:15am</div>
+      </div>
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:var(--green-bg);color:var(--green);">JO</div>
+        <div style="flex:1;min-width:0;">
+          <div class="msg-name">James O'Brien</div>
+          <div class="msg-preview">"Do I need to avoid sun before the cryo today?"</div>
+        </div>
+        <div class="msg-time">Yesterday</div>
+      </div>
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:var(--purple-bg);color:var(--purple);">AN</div>
+        <div style="flex:1;min-width:0;">
+          <div class="msg-name">Amanda Nguyen</div>
+          <div class="msg-preview">"The new moisturiser is working much better. Flare-ups have reduced. Thank you!"</div>
+        </div>
+        <div class="msg-time">Yesterday</div>
+      </div>
+      <div class="msg-row">
+        <div class="msg-avatar" style="background:var(--amber-bg);color:var(--amber);">GP</div>
+        <div style="flex:1;min-width:0;">
+          <div class="msg-name">Dr. Kate Rivera (GP referral)</div>
+          <div class="msg-preview">"Sending Michael Santos your way — actinic keratoses, immunosuppressed, needs expert eye."</div>
+        </div>
+        <div class="msg-time">2 days ago</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding:0 4px;">
+      The system drafts responses based on your communication style. You review and send. Common questions (pre-procedure prep, post-op care) can be auto-responded with your approved templates.
+    </div>
+    </div>
+  </div>
+
+  <!-- Practice intelligence -->
+  <div class="section fade-in d6">
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Practice intelligence <span class="count">insights</span></div>
+    <div class="section-body collapsed">
+    <div class="card">
+      <div class="insight-item">
+        <div class="insight-tag opportunity">Revenue opportunity</div>
+        <div class="insight-text"><strong>Teledermatology consults could add $2,400/week.</strong> With your photo triage already capturing pre-visit images, you're 80% of the way to offering paid virtual consults for simple cases. Patients who submit photos for low-priority conditions (acne, eczema flares) could get a diagnosis + treatment plan without coming in. 15 minutes of your time, $160 per consult, from home on your days off.</div>
+      </div>
+      <div class="insight-item">
+        <div class="insight-tag info">Patient insight</div>
+        <div class="insight-text"><strong>Average wait time is trending up: 12 minutes → 18 minutes over the last month.</strong> The data suggests procedure appointments are running 10-15 minutes over. Consider adding a 15-minute buffer after each procedure slot, or having your nurse begin prep for the next patient while you finish notes.</div>
+      </div>
+      <div class="insight-item">
+        <div class="insight-tag alert">Compliance</div>
+        <div class="insight-text"><strong>CPD deadline: 30 June 2026.</strong> You've completed 32 of 50 required hours. 18 hours remaining. The system found 3 relevant online modules from the Australasian College of Dermatologists that fit your schedule (2-hour blocks on non-clinic days).</div>
+      </div>
+      <div class="insight-item">
+        <div class="insight-tag opportunity">Patient retention</div>
+        <div class="insight-text"><strong>23 patients are overdue for their annual skin check.</strong> A simple text reminder from the practice — "Hi [name], it's been 12 months since your last full body check with Dr Zagarella. Would you like to book?" — typically gets 40% rebooking within a week. Drafted and ready to send with your approval.</div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Auto-rules -->
+  <div class="section fade-in d7">
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Your auto-rules <span class="count">3 active</span></div>
+    <div class="section-body collapsed">
+    <div class="card">
+      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">
+        Rules you've set for how the system handles common situations. These learn from your decisions — every time you override a rule, the system asks if you want to update it.
+      </div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+          <div style="font-size:13px;font-weight:500;">Mild acne photo → Auto-send care plan</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When AI classifies a photo submission as mild acne with no concerning features, automatically send your standard acne care plan and confirm their appointment.</div>
+      </div>
+      <div style="padding:10px 0;border-bottom:1px solid var(--border-light);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+          <div style="font-size:13px;font-weight:500;">Pre-procedure questions → Auto-respond with prep sheet</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When a patient asks about preparation for cryotherapy, excision, or PDT, send the relevant prep instructions automatically.</div>
+      </div>
+      <div style="padding:10px 0;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0;"></div>
+          <div style="font-size:13px;font-weight:500;">Suspicious lesion → Flag for same-day review</div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;padding-left:16px;">When AI flags irregular borders, colour variation, or asymmetry — bump the patient to your next available slot and send them a calm message: "We'd like to see you a bit sooner."</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:4px;padding:0 4px;">
+      You set the rules, the system follows them. Start with zero rules and build them as you go — every repeated decision is a rule waiting to be created.
+    </div>
+    </div>
+  </div>
+
+  <!-- Feedback section -->
+  <div class="section fade-in d8" style="background:linear-gradient(135deg,rgba(37,99,235,0.04),rgba(124,58,237,0.03));border:1px solid rgba(37,99,235,0.12);border-radius:var(--radius);padding:20px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;">
+    <div style="margin-bottom:14px;">
+      <div style="font-size:20px;font-weight:700;">What would help you most?</div>
+      <div style="font-size:13px;color:var(--accent);font-weight:500;margin-top:4px;">This is how you shape your co-pilot — what you say here changes what you see next time</div>
+    </div>
+
+    <div style="margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:500;">What's the #1 thing that would save you time in your practice?</div>
+      <textarea id="fbPriority" style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate referral letters from my notes..."></textarea>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;font-weight:500;">Anything else on your mind?</div>
+      <textarea id="fbOther" style="width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Ideas, reactions, what confused you, what excited you..."></textarea>
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;font-size:14px;" onclick="submitFeedback()">Send feedback</button>
+    <div id="fbStatus" style="font-size:13px;text-align:center;margin-top:8px;min-height:18px;"></div>
+  </div>
+
+  <div class="footer fade-in">
+    <div style="text-align:center;font-size:13px;font-weight:500;">Zagarella Dermatology Co-Pilot</div>
+    <div style="text-align:center;font-size:10px;color:var(--text-muted);margin-top:8px;letter-spacing:0.5px;">powered by Athena &bull; identity by VAC Protocol</div>
+  </div>
+
+</div>
+
+<script>
+var ATHENA_API = 'https://api.athenapilot.ai';
+
+function toggleSection(head) {
+  head.classList.toggle('closed');
+  var body = head.nextElementSibling;
+  while (body && !body.classList.contains('section-body')) body = body.nextElementSibling;
+  if (body) body.classList.toggle('collapsed');
+}
+
+function triageAction(btn, msg) {
+  var item = btn.closest('.triage-item') || btn.closest('.triage-actions').parentElement;
+  var actions = btn.closest('.triage-actions');
+  actions.innerHTML = '<div style="font-size:12px;color:var(--green);font-weight:600;">✓ ' + msg + '</div>';
+}
+
+async function submitFeedback() {
+  var status = document.getElementById('fbStatus');
+  var priority = document.getElementById('fbPriority').value.trim();
+  var other = document.getElementById('fbOther').value.trim();
+  if (!priority && !other) {
+    status.textContent = 'Write something first!';
+    status.style.color = 'var(--amber)';
+    return;
+  }
+  status.textContent = 'Sending...';
+  status.style.color = 'var(--text-muted)';
+
+  var content = 'DERM COPILOT — Sam Zagarella feedback\n' +
+    '#1 Priority: ' + (priority || '(not answered)') + '\n' +
+    'Other: ' + (other || '(not answered)');
+
+  try {
+    var res = await fetch(ATHENA_API + '/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: 'feature',
+        content: content,
+        source_page: 'derm-copilot',
+        user_id: 'sam_zagarella',
+        product: 'athena'
+      })
+    });
+    if (res.ok) {
+      status.style.color = 'var(--green)';
+      status.textContent = 'Sent — your co-pilot is learning from this.';
+      document.getElementById('fbPriority').value = '';
+      document.getElementById('fbOther').value = '';
+      setTimeout(function() {
+        status.textContent = 'Want to add more? Go ahead.';
+        status.style.color = 'var(--text-muted)';
+      }, 3000);
+    } else { throw new Error('fail'); }
+  } catch(e) {
+    status.style.color = 'var(--red)';
+    status.textContent = 'Could not send — tell Rob directly.';
+  }
+}
+
+// Time-aware greeting
+(function() {
+  var h = new Date().getHours();
+  var greeting = h < 12 ? 'Good morning Sam' : h < 17 ? 'Good afternoon Sam' : 'Good evening Sam';
+  var el = document.getElementById('greetingText');
+  if (el) el.textContent = greeting;
+})();
+</script>
+</body>
+</html>
