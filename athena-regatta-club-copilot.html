@@ -139,6 +139,26 @@ body {
 .progress-bar { height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; margin: 10px 0 14px; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width 1s ease; }
 
+/* Info toggle (inline collapsible inside cards) */
+.info-toggle {
+  font-size: 12px; color: var(--text-dim); cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: 5px; padding: 4px 0 8px;
+  transition: color 0.2s;
+}
+.info-toggle::after { content: '\25B8'; font-size: 10px; transition: transform 0.2s; }
+.info-toggle:not(.closed)::after { content: '\25BE'; }
+.info-toggle:hover { color: var(--text-muted); }
+.info-content {
+  background: rgba(255,255,255,0.02); border-radius: var(--radius-sm);
+  border: 1px solid var(--border); padding: 14px 14px 12px;
+  font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 12px;
+}
+.info-content ul { margin: 8px 0 10px; padding-left: 0; list-style: none; }
+.info-content ul li { padding: 2px 0 2px 16px; position: relative; }
+.info-content ul li::before { content: '\2022'; position: absolute; left: 0; color: var(--text-dim); }
+.info-content p { margin-bottom: 8px; }
+.info-content p:last-child { margin-bottom: 0; }
+
 /* Intel */
 .intel-item { padding: 12px 0; border-bottom: 1px solid var(--border); }
 .intel-item:last-child { border-bottom: none; }
@@ -211,6 +231,49 @@ body {
 .d1{animation-delay:0.1s} .d2{animation-delay:0.2s} .d3{animation-delay:0.3s}
 .d4{animation-delay:0.4s} .d5{animation-delay:0.5s} .d6{animation-delay:0.6s}
 .d7{animation-delay:0.7s} .d8{animation-delay:0.8s} .d9{animation-delay:0.9s} .d10{animation-delay:1.0s} .d11{animation-delay:1.1s} .d12{animation-delay:1.2s}
+
+/* Voice feedback */
+.voice-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 14px; border-radius: var(--radius-sm);
+  background: rgba(96,165,250,0.1); border: 1.5px solid rgba(96,165,250,0.3);
+  color: var(--blue); font-family: 'DM Sans', sans-serif; font-size: 14px;
+  font-weight: 600; cursor: pointer; transition: all 0.2s; margin-bottom: 8px;
+}
+.voice-btn:active { transform: scale(0.97); }
+.voice-btn.recording {
+  background: rgba(248,113,113,0.12); border-color: var(--red); color: var(--red);
+  animation: pulseRed 1.5s ease-in-out infinite;
+}
+.voice-btn.mic-ok {
+  background: rgba(52,211,153,0.12); border-color: var(--green); color: var(--green);
+  animation: pulseGreen 1.5s ease-in-out infinite;
+}
+@keyframes pulseRed {
+  0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(248,113,113,0); }
+}
+@keyframes pulseGreen {
+  0%,100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.3); }
+  50% { box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+}
+.voice-level-bar { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; margin-bottom: 8px; overflow: hidden; display: none; }
+.voice-level-fill { height: 100%; border-radius: 2px; background: var(--blue); transition: width 0.08s; width: 0%; }
+.voice-status { font-size: 12px; color: var(--text-dim); text-align: center; min-height: 18px; margin-bottom: 8px; }
+.voice-transcript {
+  background: rgba(10,22,40,0.8); border: 1px solid rgba(96,165,250,0.15);
+  border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text);
+  min-height: 60px; line-height: 1.5; margin-bottom: 10px; display: none; white-space: pre-wrap;
+}
+.voice-transcript.has-text { display: block; }
+.voice-send-btn {
+  width: 100%; padding: 10px; border-radius: var(--radius-sm); border: none;
+  background: var(--blue); color: var(--navy); font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: none;
+}
+.voice-send-btn.visible { display: block; }
+.voice-send-btn:active { transform: scale(0.97); }
+.voice-send-btn:disabled { opacity: 0.6; cursor: default; }
 </style>
 </head>
 <body>
@@ -262,6 +325,22 @@ body {
     <div class="section-head">Friday service prep <span class="count">60%</span></div>
     <div class="card">
       <div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+      <div class="info-toggle closed" onclick="toggleSection(this)">How does this work?</div>
+      <div class="section-body collapsed">
+        <div class="info-content">
+          <p>Right now this is a prototype showing what the system would deliver. To make it real for Regatta, we'd connect to:</p>
+          <ul>
+            <li><strong>Your POS system</strong> — covers, revenue, average spend, menu item sales (what POS do you use?)</li>
+            <li><strong>NowBookIt</strong> — your bookings feed tomorrow's cover forecast and staff planning</li>
+            <li><strong>Your rostering tool</strong> — who's available, who's best at what, shift gaps (Deputy? Tanda? Spreadsheet?)</li>
+            <li><strong>Supplier orders</strong> — price tracking, reorder triggers, what Steve at Pacific has fresh today</li>
+            <li><strong>Google Reviews</strong> — auto-detected sentiment and issue patterns</li>
+            <li><strong>Staff shift reflections</strong> — 2-minute voice check-ins build capability profiles over time</li>
+          </ul>
+          <p>Compliance scanning and competitor monitoring are already live — that intelligence runs every 12 hours right now.</p>
+          <p>The system breaks your week into tasks, runs what it can overnight, and leaves you with just the decisions that need your brain. It gets smarter every week because it learns your patterns.</p>
+        </div>
+      </div>
       <div class="task-row">
         <span class="badge badge-done">done</span>
         <span class="task-title done">Stock check & reorder list</span>
@@ -594,6 +673,23 @@ body {
       <div style="font-size:13px;color:var(--blue);font-weight:500;margin-top:4px;">Your feedback goes straight into the build queue — quick wins get built overnight</div>
     </div>
 
+    <div style="margin-bottom: 14px;">
+      <button class="voice-btn" id="voiceBtn" onclick="toggleVoice()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+          <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+        Tap to give voice feedback
+      </button>
+      <div class="voice-level-bar" id="voiceLevelBar"><div class="voice-level-fill" id="voiceLevelFill"></div></div>
+      <div class="voice-status" id="voiceStatus"></div>
+      <div class="voice-transcript" id="voiceTranscript"></div>
+      <button class="voice-send-btn" id="voiceSendBtn" onclick="sendVoiceFeedback()">Send voice feedback</button>
+      <div id="voiceFbStatus" style="font-size:13px;text-align:center;margin-top:8px;min-height:18px;"></div>
+    </div>
+
     <div class="section-head collapsible closed" onclick="toggleSection(this)" style="border-bottom:none;padding-bottom:0;margin-bottom:0;">Detailed feedback <span class="count">rate sections, add ideas</span></div>
     <div class="section-body collapsed">
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;margin-top:10px;line-height:1.5;">
@@ -787,6 +883,250 @@ async function submitFeedback() {
 }
 
 buildRatings();
+
+// ─── VOICE FEEDBACK ──────────────────────────────────────────
+var voiceActive = false;
+var voiceStream = null;
+var voiceAudioCtx = null;
+var voiceAnalyser = null;
+var voiceAnimFrame = null;
+var voiceMicConfirmed = false;
+var voiceRecognition = null;
+var voiceTranscriptText = '';
+
+function detectDeviceForVoice() {
+  var ua = navigator.userAgent;
+  var os = 'Unknown';
+  if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/Mac OS X/.test(ua)) os = 'macOS';
+  else if (/Windows/.test(ua)) os = 'Windows';
+  var browser = 'Unknown';
+  if (/CriOS\//.test(ua)) browser = 'Chrome (iOS)';
+  else if (/FxiOS\//.test(ua)) browser = 'Firefox (iOS)';
+  else if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/Chrome\//.test(ua) && /Google/.test(navigator.vendor)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Version\//.test(ua) && /Safari/.test(ua)) browser = 'Safari';
+  return { browser: browser, os: os };
+}
+
+function getMicPermissionTip() {
+  var dev = detectDeviceForVoice();
+  if (dev.browser === 'Safari') {
+    if (dev.os === 'iOS') return 'On iPhone: Settings → Safari → Microphone → Allow';
+    return 'Safari → Settings → Websites → Microphone → Allow';
+  } else if (dev.browser.indexOf('Chrome') >= 0) {
+    if (dev.os === 'iOS') return 'iPhone: Settings → Chrome → Microphone → turn on';
+    if (dev.os === 'macOS') return 'Mac: System Settings → Privacy & Security → Microphone → tick Chrome';
+    return 'Chrome: tap the lock icon in the address bar → Microphone → Allow, then refresh';
+  } else if (dev.browser === 'Firefox') {
+    return 'Firefox: tap the microphone icon in the address bar → Allow';
+  } else if (dev.browser === 'Edge') {
+    return 'Edge: Menu (⋯) → Settings → Cookies & permissions → Microphone → Allow';
+  }
+  return 'Check your browser settings — allow microphone access for this site';
+}
+
+async function toggleVoice() {
+  if (voiceActive) {
+    stopVoice();
+  } else {
+    await startVoice();
+  }
+}
+
+var MIC_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
+var STOP_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+
+async function startVoice() {
+  var btn = document.getElementById('voiceBtn');
+  var status = document.getElementById('voiceStatus');
+  var levelBar = document.getElementById('voiceLevelBar');
+  var fbStatus = document.getElementById('voiceFbStatus');
+  fbStatus.textContent = '';
+  status.textContent = 'Requesting microphone access...';
+  status.style.color = 'var(--text-muted)';
+
+  try {
+    voiceStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    var tip = getMicPermissionTip();
+    status.innerHTML = '<span style="color:var(--red)">Mic blocked.</span> ' + tip;
+    return;
+  }
+
+  // AudioContext + analyser to confirm mic level — pattern from auth.html
+  try {
+    voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (voiceAudioCtx.state === 'suspended') voiceAudioCtx.resume();
+    voiceAnalyser = voiceAudioCtx.createAnalyser();
+    voiceAnalyser.fftSize = 256;
+    var source = voiceAudioCtx.createMediaStreamSource(voiceStream);
+    source.connect(voiceAnalyser);
+  } catch (e) {
+    console.warn('[Voice] AudioContext setup failed:', e);
+  }
+
+  voiceActive = true;
+  voiceMicConfirmed = false;
+  voiceTranscriptText = '';
+  var transcript = document.getElementById('voiceTranscript');
+  transcript.textContent = '';
+  transcript.classList.remove('has-text');
+  document.getElementById('voiceSendBtn').classList.remove('visible');
+  btn.classList.add('recording');
+  btn.innerHTML = STOP_SVG + ' Stop recording';
+  levelBar.style.display = 'block';
+  status.textContent = 'Speak now...';
+  status.style.color = 'var(--text-muted)';
+
+  startVoiceAudioMonitor();
+  startSpeechRecognition();
+}
+
+function startVoiceAudioMonitor() {
+  if (!voiceAnalyser) return;
+  var dataArray = new Uint8Array(voiceAnalyser.fftSize);
+  var fill = document.getElementById('voiceLevelFill');
+  var status = document.getElementById('voiceStatus');
+  var btn = document.getElementById('voiceBtn');
+
+  function frame() {
+    if (!voiceActive) return;
+    if (voiceAudioCtx && voiceAudioCtx.state === 'suspended') voiceAudioCtx.resume();
+    voiceAnalyser.getByteTimeDomainData(dataArray);
+    var maxDev = 0;
+    for (var i = 0; i < dataArray.length; i++) {
+      var dev = Math.abs(dataArray[i] - 128);
+      if (dev > maxDev) maxDev = dev;
+    }
+    var level = Math.min(100, Math.round((maxDev / 128) * 100));
+    fill.style.width = level + '%';
+    if (level > 50) fill.style.background = 'var(--amber)';
+    else if (level > 5) fill.style.background = 'var(--green)';
+    else fill.style.background = 'var(--blue)';
+
+    // Level > 5 confirms mic is working — pattern from auth.html
+    if (level > 5 && !voiceMicConfirmed) {
+      voiceMicConfirmed = true;
+      btn.classList.remove('recording');
+      btn.classList.add('mic-ok');
+      status.textContent = 'Mic working — listening...';
+      status.style.color = 'var(--green)';
+    }
+    voiceAnimFrame = requestAnimationFrame(frame);
+  }
+  voiceAnimFrame = requestAnimationFrame(frame);
+}
+
+function startSpeechRecognition() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    document.getElementById('voiceStatus').textContent = 'Live transcription not supported in this browser — try Chrome or Safari.';
+    return;
+  }
+  voiceRecognition = new SR();
+  voiceRecognition.continuous = true;
+  voiceRecognition.interimResults = true;
+  voiceRecognition.lang = 'en-AU';
+
+  var interimText = '';
+  voiceRecognition.onresult = function(event) {
+    var finalPart = '';
+    interimText = '';
+    for (var i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        finalPart += event.results[i][0].transcript;
+      } else {
+        interimText += event.results[i][0].transcript;
+      }
+    }
+    if (finalPart) voiceTranscriptText += finalPart;
+    var el = document.getElementById('voiceTranscript');
+    var display = voiceTranscriptText + (interimText ? ' ' + interimText : '');
+    el.textContent = display;
+    if (display.trim()) el.classList.add('has-text');
+  };
+
+  voiceRecognition.onerror = function(event) {
+    if (event.error === 'not-allowed') {
+      document.getElementById('voiceStatus').innerHTML = '<span style="color:var(--red)">Mic blocked.</span> ' + getMicPermissionTip();
+      stopVoice();
+    }
+  };
+
+  voiceRecognition.onend = function() {
+    // Auto-restart while still recording (recognition stops after silence)
+    if (voiceActive) {
+      try { voiceRecognition.start(); } catch (e) {}
+    }
+  };
+
+  try { voiceRecognition.start(); } catch (e) {}
+}
+
+function stopVoice() {
+  voiceActive = false;
+  if (voiceAnimFrame) { cancelAnimationFrame(voiceAnimFrame); voiceAnimFrame = null; }
+  if (voiceRecognition) { try { voiceRecognition.stop(); } catch (e) {} voiceRecognition = null; }
+  if (voiceAudioCtx) { voiceAudioCtx.close().catch(function() {}); voiceAudioCtx = null; voiceAnalyser = null; }
+  if (voiceStream) { voiceStream.getTracks().forEach(function(t) { t.stop(); }); voiceStream = null; }
+
+  var btn = document.getElementById('voiceBtn');
+  btn.classList.remove('recording', 'mic-ok');
+  btn.innerHTML = MIC_SVG + ' Tap to give voice feedback';
+  document.getElementById('voiceLevelBar').style.display = 'none';
+  document.getElementById('voiceLevelFill').style.width = '0%';
+
+  var status = document.getElementById('voiceStatus');
+  if (voiceTranscriptText.trim()) {
+    status.textContent = 'Recording stopped — review and send below.';
+    status.style.color = 'var(--text-muted)';
+    document.getElementById('voiceSendBtn').classList.add('visible');
+  } else {
+    status.textContent = 'No speech detected. Tap the button to try again.';
+    status.style.color = 'var(--text-dim)';
+  }
+}
+
+async function sendVoiceFeedback() {
+  var text = voiceTranscriptText.trim();
+  if (!text) return;
+  var fbStatus = document.getElementById('voiceFbStatus');
+  var sendBtn = document.getElementById('voiceSendBtn');
+  fbStatus.textContent = 'Sending...';
+  fbStatus.style.color = 'var(--text-muted)';
+  sendBtn.disabled = true;
+
+  try {
+    var res = await fetch(ATHENA_API + '/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: 'feature',
+        content: 'REGATTA CLUB — Voice feedback from Anthony: ' + text,
+        source_page: 'regatta-copilot',
+        user_id: 'anthony_regatta'
+      })
+    });
+    if (res.ok) {
+      fbStatus.style.color = 'var(--green)';
+      fbStatus.textContent = 'Sent — Rob will see this today. Quick wins get built overnight.';
+      sendBtn.classList.remove('visible');
+      document.getElementById('voiceTranscript').textContent = '';
+      document.getElementById('voiceTranscript').classList.remove('has-text');
+      voiceTranscriptText = '';
+      document.getElementById('voiceStatus').textContent = '';
+    } else {
+      throw new Error('HTTP ' + res.status);
+    }
+  } catch (err) {
+    fbStatus.style.color = 'var(--red)';
+    fbStatus.textContent = 'Could not send — screenshot this and send to Rob directly.';
+    sendBtn.disabled = false;
+  }
+}
 
 </script>
 </body>
