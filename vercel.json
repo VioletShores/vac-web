@@ -89,6 +89,14 @@
             "destination": "/apikeys.html"
         },
         {
+            "source": "/athena-onboard",
+            "destination": "/athena-onboard.html"
+        },
+        {
+            "source": "/athena-regatta-club-copilot",
+            "destination": "/athena-regatta-club-copilot.html"
+        },
+        {
             "source": "/api",
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
