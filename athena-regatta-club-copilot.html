@@ -76,11 +76,29 @@ body {
   font-size: 11px; background: var(--accent-glow); color: var(--accent);
   padding: 2px 8px; border-radius: 20px; font-weight: 500;
 }
-.section-head.collapsible { cursor:pointer; user-select:none; }
-.section-head.collapsible::after { content:'▾'; margin-left:auto; font-size:14px; color:var(--text-dim); transition:transform 0.2s; }
-.section-head.collapsible.closed::after { transform:rotate(-90deg); }
+.section-head.collapsible {
+  cursor:pointer; user-select:none; display:flex; align-items:center;
+  padding:10px 14px; margin-left:-14px; margin-right:-14px;
+  border-radius:var(--radius-sm); transition:all 0.2s;
+}
+.section-head.collapsible:hover, .section-head.collapsible:active {
+  background:var(--green-bg); color:var(--green);
+}
+.section-head.collapsible .count { transition:all 0.2s; }
+.section-head.collapsible:hover .count { background:var(--green-bg); color:var(--green); }
+.section-head.collapsible::after {
+  content:'＋'; margin-left:auto; font-size:16px; color:var(--text-dim);
+  width:28px; height:28px; display:flex; align-items:center; justify-content:center;
+  border-radius:50%; border:1px solid var(--border); transition:all 0.2s; flex-shrink:0;
+}
+.section-head.collapsible:hover::after {
+  background:var(--green); color:var(--navy); border-color:var(--green);
+}
+.section-head.collapsible.open::after {
+  content:'−'; background:var(--green); color:var(--navy); border-color:var(--green);
+}
 .section-body { overflow:hidden; transition:max-height 0.3s ease, opacity 0.2s ease; max-height:2000px; opacity:1; }
-.section-body.collapsed { max-height:0; opacity:0; }
+.section-body.collapsed { max-height:0; opacity:0; padding:0; }
 
 /* Cards */
 .card {
@@ -634,6 +652,7 @@ function approve(btn,msg){
 }
 
 function toggleSection(head) {
+  head.classList.toggle('open');
   head.classList.toggle('closed');
   var body = head.nextElementSibling;
   while (body && !body.classList.contains('section-body')) body = body.nextElementSibling;
