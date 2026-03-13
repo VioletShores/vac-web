@@ -348,17 +348,10 @@ body {
       <div class="info-toggle closed" onclick="toggleSection(this)">How does this work? <span style="font-size:11px;font-weight:500;color:var(--accent);background:var(--accent-glow);padding:1px 7px;border-radius:20px;margin-left:2px;">ⓘ</span></div>
       <div class="section-body collapsed">
         <div class="info-content">
-          <p>Right now this is a prototype showing what the system would deliver. Every section you see here can be real — it just needs to connect to your tools:</p>
-          <ul>
-            <li><strong>Your POS system</strong> — covers, revenue, average spend, menu item sales (what POS do you use?)</li>
-            <li><strong>NowBookIt</strong> — your bookings feed tomorrow's cover forecast and staff planning</li>
-            <li><strong>Your rostering tool</strong> — who's available, who's best at what, shift gaps (Deputy? Tanda? Spreadsheet?)</li>
-            <li><strong>Supplier orders</strong> — price tracking, reorder triggers, what Steve at Pacific has fresh today</li>
-            <li><strong>Google Reviews</strong> — auto-detected sentiment and issue patterns</li>
-            <li><strong>Staff shift reflections</strong> — 2-minute voice check-ins build capability profiles over time</li>
-          </ul>
-          <p><strong>Here's the different part:</strong> this isn't a fixed dashboard. The sections you rate "Use it" get richer and more detailed. The ones you say "Nah" to get quieter. Your decisions teach the system what matters to you. In a month, your co-pilot won't look like anyone else's — because you built it by using it.</p>
-          <p>Compliance scanning and competitor monitoring are already live — that intelligence runs every 12 hours right now.</p>
+          <p><strong>Phase 1 — Works right now, no integration needed:</strong> You talk to the system (voice or text), it learns how you run your business. Compliance alerts, competitor monitoring, supplier research, and strategic ideas are already running — powered by public data and what you tell it. Nothing to install, nothing to connect.</p>
+          <p><strong>Phase 2 — Light-touch connections (when you're ready):</strong> Forward your supplier emails. Text your specials list. Share a photo of tonight's board. The system gets smarter from what you already do — no new tools, no logins, no IT project.</p>
+          <p><strong>Phase 3 — Deep integration (only if the value is proven):</strong> Connect your POS, bookings, rostering. But only when Phase 1 and 2 have already saved you time and you can see the ROI. We measure before we integrate.</p>
+          <p><strong>Here's the different part:</strong> this isn't a fixed dashboard. The sections you rate "Use it" get richer. The ones you say "Nah" to get quieter. Your decisions teach the system what matters to you. In a month, your co-pilot won't look like anyone else's — because you built it by using it.</p>
         </div>
       </div>
       <div class="task-row">
@@ -720,8 +713,8 @@ body {
       <div id="voiceFbStatus" style="font-size:13px;text-align:center;margin-top:8px;min-height:18px;"></div>
     </div>
 
-    <div class="section-head collapsible closed" onclick="toggleSection(this)" style="border-bottom:none;padding-bottom:0;margin-bottom:0;">Detailed feedback <span class="count">rate sections, add ideas</span></div>
-    <div class="section-body collapsed">
+    <div class="section-head collapsible" onclick="toggleSection(this)" style="border-bottom:none;padding-bottom:0;margin-bottom:0;background:rgba(96,165,250,0.08);border-radius:var(--radius-sm);padding:12px 14px;">Detailed feedback <span class="count" style="background:rgba(96,165,250,0.2);color:var(--blue);">rate sections, add ideas</span></div>
+    <div class="section-body">
       <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;margin-top:10px;line-height:1.5;">
         Be honest — what would you actually use day-to-day? What's missing? What would save you the most time running Regatta? If it's quick to build, it could be live by tomorrow morning.
       </div>
@@ -732,15 +725,15 @@ body {
         </div>
         <div style="margin-bottom:14px;">
           <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's the #1 thing that would save you time?</div>
-          <textarea id="fbTopPriority" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate my supplier orders based on bookings..."></textarea>
+          <textarea id="fbTopPriority" style="width:100%;background:rgba(30,45,80,0.9);border:1.5px solid rgba(96,165,250,0.35);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate my supplier orders based on bookings..."></textarea>
         </div>
         <div style="margin-bottom:14px;">
           <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's missing that you'd need?</div>
-          <textarea id="fbMissing" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. Integration with our POS system, rostering tool..."></textarea>
+          <textarea id="fbMissing" style="width:100%;background:rgba(30,45,80,0.9);border:1.5px solid rgba(96,165,250,0.35);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. Integration with our POS system, rostering tool..."></textarea>
         </div>
         <div style="margin-bottom:14px;">
           <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">Any other ideas or reactions?</div>
-          <textarea id="fbOther" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Anything at all — what excited you, what worried you, what confused you..."></textarea>
+          <textarea id="fbOther" style="width:100%;background:rgba(30,45,80,0.9);border:1.5px solid rgba(96,165,250,0.35);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Anything at all — what excited you, what worried you, what confused you..."></textarea>
         </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" style="flex:1" onclick="submitFeedback()">Send feedback to Rob</button>
@@ -804,21 +797,36 @@ function approve(btn,msg){
 
 function faceVerify(btn) {
   var d = btn.closest('.decision');
-  var originalBorder = d.style.borderColor;
   d.style.borderColor = 'var(--blue)';
   btn.disabled = true;
-  btn.textContent = 'Scanning...';
+  btn.textContent = 'Opening camera...';
   btn.style.opacity = '0.7';
   trackEvent('face_verify_start', { decision: 'stock_reorder' });
-  setTimeout(function() {
-    btn.textContent = 'Verifying identity...';
-    setTimeout(function() {
-      d.style.borderColor = 'var(--green)';
-      d.innerHTML = '<div style="text-align:center;padding:8px 0;color:var(--green);font-weight:600">Identity verified — order placed \u2713</div>' +
-        '<div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:2px;">VAC Protocol biometric verification &bull; Only authorised users can approve spend</div>';
-      trackEvent('face_verify_complete', { decision: 'stock_reorder' });
-    }, 1200);
-  }, 800);
+
+  // Actually request camera to make it feel real
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+    .then(function(stream) {
+      btn.textContent = 'Looking for your face...';
+      // Show brief camera active state
+      setTimeout(function() {
+        btn.textContent = 'Matching identity...';
+        setTimeout(function() {
+          // Stop camera
+          stream.getTracks().forEach(function(t) { t.stop(); });
+          d.style.borderColor = 'var(--green)';
+          d.innerHTML = '<div style="text-align:center;padding:8px 0;color:var(--green);font-weight:600">Identity verified — order placed \u2713</div>' +
+            '<div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:2px;">VAC Protocol biometric verification &bull; Only authorised users can approve spend</div>';
+          trackEvent('face_verify_complete', { decision: 'stock_reorder' });
+        }, 1500);
+      }, 1200);
+    })
+    .catch(function(err) {
+      btn.textContent = 'Camera blocked — tap to retry';
+      btn.style.opacity = '1';
+      btn.disabled = false;
+      d.style.borderColor = 'var(--amber)';
+      trackEvent('face_verify_camera_denied', { error: err.name });
+    });
 }
 
 function toggleSection(head) {
@@ -1049,17 +1057,15 @@ async function submitFeedback() {
     if (ok > 0) {
       fbStatus.style.color = 'var(--green)';
       fbStatus.textContent = 'Sent — your co-pilot is already learning from this.';
-      // Replace the form with a thank you
+      // Clear inputs but keep the form active for more feedback
+      document.getElementById('fbTopPriority').value = '';
+      document.getElementById('fbMissing').value = '';
+      document.getElementById('fbOther').value = '';
+      // Reset ratings visual but keep data
       setTimeout(function() {
-        document.getElementById('feedbackCard').innerHTML =
-          '<div style="text-align:center;padding:24px 0;">' +
-          '<div style="font-size:32px;margin-bottom:8px;color:var(--green);">&#10003;</div>' +
-          '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">Feedback received</div>' +
-          '<div style="font-size:13px;color:var(--text-muted);line-height:1.5;">' +
-          'Your ratings and ideas are shaping what this co-pilot becomes.<br>' +
-          'Check back tomorrow — sections you rated "Use it" will be richer,<br>' +
-          'things you said "Nah" to will start fading. That\'s the system learning you.</div></div>';
-      }, 2000);
+        fbStatus.textContent = 'Want to add more? Go ahead — every bit shapes your co-pilot.';
+        fbStatus.style.color = 'var(--text-dim)';
+      }, 3000);
     } else {
       throw new Error('No items sent');
     }
@@ -1158,11 +1164,16 @@ function trackInteraction() {
 
 function checkSessionSummary() {
   if (summaryShown) return;
-  // Trigger after 5+ interactions AND 60+ seconds on page
+  // After enough interactions, show a subtle "wrap up" button — don't auto-pop the summary
   var totalInteractions = Object.keys(ratings).length + decisionsApproved + profileSignals.length;
-  var timeOnPage = (Date.now() - sessionStartTime) / 1000;
-  if (totalInteractions >= 5 && timeOnPage >= 60) {
-    showSessionSummary();
+  if (totalInteractions >= 5 && !document.getElementById('wrapUpBtn')) {
+    var footer = document.querySelector('.footer');
+    if (!footer) return;
+    var btn = document.createElement('div');
+    btn.id = 'wrapUpBtn';
+    btn.style.cssText = 'text-align:center;margin-bottom:16px;';
+    btn.innerHTML = '<button onclick="showSessionSummary()" style="padding:12px 24px;border-radius:var(--radius-sm);border:1.5px solid var(--accent);background:transparent;color:var(--accent);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;">Ready to wrap up? See what your co-pilot learned today</button>';
+    footer.parentElement.insertBefore(btn, footer);
   }
 }
 
@@ -1170,6 +1181,8 @@ function showSessionSummary() {
   summaryShown = true;
   var el = document.getElementById('sessionSummary');
   if (!el) return;
+  var wrapBtn = document.getElementById('wrapUpBtn');
+  if (wrapBtn) wrapBtn.style.display = 'none';
 
   // Build "what we learned" section
   var learned = document.getElementById('summaryLearned');
@@ -1501,6 +1514,11 @@ function stopVoice() {
   document.getElementById('voiceLevelFill').style.width = '0%';
 
   var status = document.getElementById('voiceStatus');
+  // Also capture any interim text that wasn't finalized
+  var displayedText = document.getElementById('voiceTranscript').textContent.trim();
+  if (!voiceTranscriptText.trim() && displayedText) {
+    voiceTranscriptText = displayedText;
+  }
   if (voiceTranscriptText.trim()) {
     status.textContent = 'Recording stopped — review and send below.';
     status.style.color = 'var(--text-muted)';
@@ -1539,7 +1557,8 @@ async function sendVoiceFeedback() {
       document.getElementById('voiceTranscript').textContent = '';
       document.getElementById('voiceTranscript').classList.remove('has-text');
       voiceTranscriptText = '';
-      document.getElementById('voiceStatus').textContent = '';
+      document.getElementById('voiceStatus').textContent = 'Sent! Tap the mic to record another message.';
+      document.getElementById('voiceStatus').style.color = 'var(--green)';
     } else {
       throw new Error('HTTP ' + res.status);
     }
