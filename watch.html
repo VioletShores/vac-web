@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Athena Watch</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0D0F17;
+  --navy-light: #1A1D29;
+  --navy-card: #1A1D29;
+  --accent: #C9A84C;
+  --accent-light: #E8D48B;
+  --accent-glow: rgba(201,168,76,0.12);
+  --green: #34d399;
+  --green-bg: rgba(52,211,153,0.12);
+  --amber: #fbbf24;
+  --amber-bg: rgba(251,191,36,0.12);
+  --red: #f87171;
+  --red-bg: rgba(248,113,113,0.12);
+  --blue: #60a5fa;
+  --blue-bg: rgba(96,165,250,0.12);
+  --purple: #a78bfa;
+  --purple-bg: rgba(167,139,250,0.12);
+  --text: #e8eaf0;
+  --text-muted: #9498A8;
+  --text-dim: #6B7084;
+  --border: rgba(201,168,76,0.08);
+  --radius: 14px;
+  --radius-sm: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: var(--navy);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+.app { max-width: 480px; margin: 0 auto; padding: 0 16px 48px; }
+
+/* Header */
+.header { padding: 24px 0 20px; display: flex; align-items: center; gap: 14px; }
+.logo-mark {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(201,168,76,0.1);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo-mark svg { width: 26px; height: 26px; }
+.header-text .title { font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; letter-spacing: 0.5px; }
+.header-text .sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+/* Section */
+.section { margin-bottom: 20px; }
+.section-head {
+  font-size: 13px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Card */
+.card {
+  background: var(--navy-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 10px;
+}
+
+/* Form elements */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block; font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px;
+}
+.field input[type="url"],
+.field input[type="text"],
+.field textarea,
+.field select {
+  width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-sm); padding: 12px 14px; font-family: inherit;
+  font-size: 14px; color: var(--text); outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  -webkit-appearance: none; appearance: none;
+}
+.field input[type="url"]:focus,
+.field input[type="text"]:focus,
+.field textarea:focus,
+.field select:focus {
+  border-color: var(--accent); background: rgba(201,168,76,0.05);
+}
+.field input::placeholder, .field textarea::placeholder { color: var(--text-dim); }
+.field textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+.field select { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7084' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+
+/* URL type badge */
+.url-type-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; min-height: 20px; }
+.url-type-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.url-type-badge.youtube { background: var(--red-bg); color: var(--red); }
+.url-type-badge.podcast { background: var(--purple-bg); color: var(--purple); }
+.url-type-badge.twitter { background: var(--blue-bg); color: var(--blue); }
+.url-type-badge.article { background: var(--green-bg); color: var(--green); }
+.url-type-badge.other { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+
+/* Category pills */
+.cat-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.cat-pill {
+  padding: 7px 14px; border-radius: 20px; font-size: 13px; font-weight: 500;
+  border: 1px solid rgba(255,255,255,0.1); background: transparent;
+  color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+  font-family: inherit;
+}
+.cat-pill:hover { border-color: var(--accent); color: var(--accent); }
+.cat-pill.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+
+/* Submit button */
+.btn-primary {
+  width: 100%; padding: 14px; border-radius: var(--radius-sm);
+  background: var(--accent); border: none; color: #0D0F17;
+  font-family: inherit; font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+  letter-spacing: 0.2px;
+}
+.btn-primary:hover { opacity: 0.9; }
+.btn-primary:active { transform: scale(0.99); }
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-secondary {
+  width: 100%; padding: 12px; border-radius: var(--radius-sm);
+  background: transparent; border: 1px solid rgba(201,168,76,0.3); color: var(--accent);
+  font-family: inherit; font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: all 0.2s; letter-spacing: 0.2px;
+}
+.btn-secondary:hover { background: var(--accent-glow); }
+.btn-secondary:active { transform: scale(0.99); }
+.btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Result card */
+.result-card {
+  background: var(--navy-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; margin-top: 14px;
+  display: none;
+}
+.result-card.visible { display: block; }
+.result-card.success { border-left: 3px solid var(--green); }
+.result-card.error { border-left: 3px solid var(--red); }
+.result-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+  margin-bottom: 8px;
+}
+.result-label.success { color: var(--green); }
+.result-label.error { color: var(--red); }
+.result-summary { font-size: 14px; line-height: 1.55; color: var(--text); margin-bottom: 10px; }
+.result-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.result-meta-item {
+  font-size: 12px; padding: 3px 10px; border-radius: 20px;
+  background: rgba(255,255,255,0.05); color: var(--text-muted);
+}
+.result-topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.topic-chip {
+  font-size: 12px; padding: 3px 10px; border-radius: 20px;
+  background: var(--accent-glow); color: var(--accent); font-weight: 500;
+}
+
+/* Spinner */
+.spinner {
+  width: 18px; height: 18px; border: 2px solid rgba(13,15,23,0.3);
+  border-top-color: #0D0F17; border-radius: 50%;
+  animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Divider */
+.divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+/* Watch list items */
+.watch-item {
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.watch-item:last-child { border-bottom: none; }
+.watch-item-info { flex: 1; min-width: 0; }
+.watch-item-name { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.watch-item-keywords { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.watch-item-badges { display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; }
+.badge {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.badge-product { background: var(--blue-bg); color: var(--blue); }
+.badge-personal { background: var(--green-bg); color: var(--green); }
+.badge-competitor { background: var(--red-bg); color: var(--red); }
+.badge-regulatory { background: var(--amber-bg); color: var(--amber); }
+.badge-industry { background: var(--purple-bg); color: var(--purple); }
+.badge-daily { background: rgba(255,255,255,0.06); color: var(--text-muted); }
+.badge-weekly { background: rgba(255,255,255,0.04); color: var(--text-dim); }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 24px 0; color: var(--text-dim); font-size: 13px; }
+.empty-state .icon { font-size: 28px; margin-bottom: 8px; }
+
+/* Loading skeleton */
+.skeleton {
+  background: rgba(255,255,255,0.05); border-radius: 6px; height: 14px; margin-bottom: 8px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.skeleton.short { width: 60%; }
+@keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-mark">
+      <svg viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M13 3L23 20H3L13 3Z" stroke="#C9A84C" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M13 9L18 20H8L13 9Z" fill="#C9A84C" opacity="0.3"/>
+        <circle cx="13" cy="13" r="2" fill="#C9A84C"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <div class="title">Athena Watch</div>
+      <div class="sub">Feed intelligence. Shape the brief.</div>
+    </div>
+  </div>
+
+  <!-- Ingest form -->
+  <div class="section">
+    <div class="section-head">Ingest content</div>
+    <div class="card">
+      <div class="field">
+        <label>URL</label>
+        <input type="url" id="url-input" placeholder="Paste a YouTube, podcast, article, or X link…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <div class="url-type-row" id="url-type-row" style="display:none">
+          <span class="url-type-badge" id="url-type-badge"></span>
+          <span style="font-size:12px;color:var(--text-dim)" id="url-type-label"></span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Why this matters <span style="color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+        <textarea id="note-input" placeholder="Context for Athena — what angle matters most, what to look for…"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Category</label>
+        <div class="cat-pills">
+          <button class="cat-pill active" data-cat="product">Product</button>
+          <button class="cat-pill" data-cat="personal">Personal</button>
+          <button class="cat-pill" data-cat="competitor">Competitor</button>
+          <button class="cat-pill" data-cat="regulatory">Regulatory</button>
+          <button class="cat-pill" data-cat="industry">Industry</button>
+        </div>
+      </div>
+
+      <button class="btn-primary" id="ingest-btn" onclick="submitIngest()">Send to Athena</button>
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="result-card">
+      <div class="result-label" id="result-label"></div>
+      <div class="result-summary" id="result-summary"></div>
+      <div class="result-meta" id="result-meta"></div>
+      <div class="result-topics" id="result-topics"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Watch list -->
+  <div class="section">
+    <div class="section-head">Your Watch List</div>
+
+    <div class="card" id="watchlist-container">
+      <div id="watchlist-loading">
+        <div class="skeleton" style="width:70%"></div>
+        <div class="skeleton short"></div>
+        <div class="skeleton" style="width:80%"></div>
+        <div class="skeleton short"></div>
+      </div>
+      <div id="watchlist-items" style="display:none"></div>
+    </div>
+
+    <!-- Add topic form -->
+    <div class="section-head" style="margin-top:16px">Add topic</div>
+    <div class="card">
+      <div class="field">
+        <label>Topic name</label>
+        <input type="text" id="topic-name" placeholder="e.g. AI agent frameworks">
+      </div>
+      <div class="field">
+        <label>Keywords <span style="color:var(--text-dim);font-weight:400;text-transform:none;letter-spacing:0">(comma-separated)</span></label>
+        <input type="text" id="topic-keywords" placeholder="e.g. agent, LLM, orchestration">
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="topic-category">
+          <option value="product">Product</option>
+          <option value="personal">Personal</option>
+          <option value="competitor">Competitor</option>
+          <option value="regulatory">Regulatory</option>
+          <option value="industry">Industry</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Frequency</label>
+        <select id="topic-frequency">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+      </div>
+      <button class="btn-secondary" id="add-topic-btn" onclick="addTopic()">Add to Watch List</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'https://api.athenapilot.ai/v1';
+const USER_ID = 'maestro';
+
+// --- URL type detection ---
+function detectUrlType(url) {
+  try {
+    const u = new URL(url);
+    const h = u.hostname.replace('www.', '');
+    if (h === 'youtube.com' || h === 'youtu.be') return { type: 'youtube', label: 'YouTube video' };
+    if (h === 'twitter.com' || h === 'x.com') return { type: 'twitter', label: 'X post' };
+    if (h === 'spotify.com' || h === 'podcasts.apple.com' || h.includes('podcast')) return { type: 'podcast', label: 'Podcast' };
+    return { type: 'article', label: 'Article / page' };
+  } catch {
+    return null;
+  }
+}
+
+const urlInput = document.getElementById('url-input');
+const urlTypeRow = document.getElementById('url-type-row');
+const urlTypeBadge = document.getElementById('url-type-badge');
+const urlTypeLabel = document.getElementById('url-type-label');
+
+urlInput.addEventListener('input', () => {
+  const val = urlInput.value.trim();
+  if (!val) { urlTypeRow.style.display = 'none'; return; }
+  const detected = detectUrlType(val);
+  if (detected) {
+    urlTypeBadge.className = 'url-type-badge ' + detected.type;
+    urlTypeBadge.textContent = detected.type;
+    urlTypeLabel.textContent = detected.label;
+    urlTypeRow.style.display = 'flex';
+  } else {
+    urlTypeRow.style.display = 'none';
+  }
+});
+
+// --- Category pills ---
+let selectedCategory = 'product';
+document.querySelectorAll('.cat-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    document.querySelectorAll('.cat-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    selectedCategory = pill.dataset.cat;
+  });
+});
+
+// --- Ingest ---
+async function submitIngest() {
+  const url = urlInput.value.trim();
+  if (!url) { urlInput.focus(); return; }
+
+  const btn = document.getElementById('ingest-btn');
+  const resultCard = document.getElementById('result-card');
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Processing…';
+  resultCard.className = 'result-card';
+
+  const payload = {
+    url,
+    note: document.getElementById('note-input').value.trim() || undefined,
+    category: selectedCategory,
+    user_id: USER_ID,
+  };
+
+  try {
+    const res = await fetch(`${API}/ingest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      showResult('error', null, data.detail || data.message || `Error ${res.status}`, [], []);
+    } else {
+      const summary = data.summary || data.content || data.result || 'Ingested successfully.';
+      const contentType = data.content_type || data.type || detectUrlType(url)?.label || '';
+      const topics = data.topics || data.extracted_topics || [];
+      const meta = [];
+      if (contentType) meta.push(contentType);
+      if (data.source) meta.push(data.source);
+      showResult('success', null, summary, meta, topics);
+      urlInput.value = '';
+      document.getElementById('note-input').value = '';
+      urlTypeRow.style.display = 'none';
+    }
+  } catch (err) {
+    showResult('error', null, 'Could not reach Athena API. Check your connection.', [], []);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send to Athena';
+  }
+}
+
+function showResult(type, label, summary, meta, topics) {
+  const card = document.getElementById('result-card');
+  const lbl = document.getElementById('result-label');
+  const sum = document.getElementById('result-summary');
+  const metaEl = document.getElementById('result-meta');
+  const topicsEl = document.getElementById('result-topics');
+
+  card.className = 'result-card visible ' + type;
+  lbl.className = 'result-label ' + type;
+  lbl.textContent = type === 'success' ? 'Ingested' : 'Error';
+  sum.textContent = summary;
+
+  metaEl.innerHTML = meta.map(m => `<span class="result-meta-item">${escHtml(m)}</span>`).join('');
+  topicsEl.innerHTML = topics.map(t => `<span class="topic-chip">${escHtml(String(t))}</span>`).join('');
+
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// --- Watch list ---
+async function loadWatchList() {
+  try {
+    const res = await fetch(`${API}/watchlist?user_id=${encodeURIComponent(USER_ID)}`);
+    const data = await res.json().catch(() => ({}));
+    renderWatchList(data.items || data.watchlist || data || []);
+  } catch {
+    renderWatchList([]);
+  }
+}
+
+function renderWatchList(items) {
+  const loading = document.getElementById('watchlist-loading');
+  const container = document.getElementById('watchlist-items');
+  loading.style.display = 'none';
+  container.style.display = 'block';
+
+  if (!Array.isArray(items) || items.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="icon">📡</div>No watch topics yet. Add one below.</div>';
+    return;
+  }
+
+  container.innerHTML = items.map(item => {
+    const cat = item.category || 'industry';
+    const freq = item.frequency || 'weekly';
+    const keywords = Array.isArray(item.keywords) ? item.keywords.join(', ') : (item.keywords || '');
+    return `
+      <div class="watch-item">
+        <div class="watch-item-info">
+          <div class="watch-item-name">${escHtml(item.name || item.topic || '')}</div>
+          ${keywords ? `<div class="watch-item-keywords">${escHtml(keywords)}</div>` : ''}
+          <div class="watch-item-badges">
+            <span class="badge badge-${escHtml(cat)}">${escHtml(cat)}</span>
+            <span class="badge badge-${escHtml(freq)}">${escHtml(freq)}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// --- Add topic ---
+async function addTopic() {
+  const name = document.getElementById('topic-name').value.trim();
+  if (!name) { document.getElementById('topic-name').focus(); return; }
+
+  const btn = document.getElementById('add-topic-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="border-color:rgba(201,168,76,0.3);border-top-color:var(--accent)"></span> Adding…';
+
+  const rawKeywords = document.getElementById('topic-keywords').value.trim();
+  const keywords = rawKeywords ? rawKeywords.split(',').map(k => k.trim()).filter(Boolean) : [];
+
+  const payload = {
+    name,
+    keywords,
+    category: document.getElementById('topic-category').value,
+    frequency: document.getElementById('topic-frequency').value,
+    user_id: USER_ID,
+  };
+
+  try {
+    const res = await fetch(`${API}/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.ok) {
+      document.getElementById('topic-name').value = '';
+      document.getElementById('topic-keywords').value = '';
+      // Reload list
+      document.getElementById('watchlist-loading').style.display = 'block';
+      document.getElementById('watchlist-items').style.display = 'none';
+      loadWatchList();
+    } else {
+      const d = await res.json().catch(() => ({}));
+      alert(d.detail || d.message || `Error ${res.status}`);
+    }
+  } catch {
+    alert('Could not reach Athena API.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add to Watch List';
+  }
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Handle share target (iOS share sheet)
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  const sharedUrl = params.get('url') || params.get('text');
+  if (sharedUrl) {
+    urlInput.value = sharedUrl;
+    urlInput.dispatchEvent(new Event('input'));
+  }
+  loadWatchList();
+});
+</script>
+</body>
+</html>
