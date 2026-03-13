@@ -51,25 +51,6 @@ body {
 .header-text .sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
 .header-text .venue { font-size: 11px; color: var(--accent); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
 
-/* Voice Bar */
-.voice-bar {
-  background: var(--navy-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 16px; margin-bottom: 20px;
-  display: flex; align-items: center; gap: 14px; cursor: pointer;
-  transition: all 0.3s;
-}
-.voice-bar:active { transform: scale(0.98); }
-.voice-dot {
-  width: 44px; height: 44px; border-radius: 50%;
-  background: var(--accent-glow); display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.voice-dot-inner { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); transition: all 0.3s; }
-.voice-bar.active .voice-dot-inner { animation: vPulse 1.2s infinite; }
-@keyframes vPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.4);opacity:0.5} }
-.voice-label { font-size: 14px; color: var(--text-muted); line-height: 1.4; }
-.voice-bar.active .voice-label { color: var(--accent); }
-
 /* Metrics */
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
 .metric {
@@ -223,12 +204,7 @@ body {
     </div>
   </div>
 
-  <div class="voice-bar fade-in d1" id="vbar" onclick="toggleVoice()">
-    <div class="voice-dot"><div class="voice-dot-inner" id="vdot"></div></div>
-    <div class="voice-label" id="vlabel">Tap to talk — "What do I need to know before Friday service?"</div>
-  </div>
-
-  <div class="metrics fade-in d2">
+  <div class="metrics fade-in d1">
     <div class="metric">
       <div class="label">Covers last night</div>
       <div class="val">142</div>
@@ -616,13 +592,6 @@ body {
 </div>
 
 <script>
-function toggleVoice(){
-  var b=document.getElementById('vbar'),l=document.getElementById('vlabel');
-  b.classList.toggle('active');
-  l.textContent=b.classList.contains('active')?
-    'Listening... "Show me the Friday roster"':
-    'Tap to talk \u2014 "What do I need to know before Friday service?"';
-}
 function approve(btn,msg){
   var d=btn.closest('.decision');
   d.style.borderColor='var(--green)';
