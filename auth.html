@@ -1006,7 +1006,8 @@ function startAVChecks() {
         if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
         avAnalyser = avAudioCtx.createAnalyser();
         avAnalyser.fftSize = 256;
-        const source = avAudioCtx.createMediaStreamSource(mediaStream);
+        const avMonitorStream = mediaStream.clone();
+        const source = avAudioCtx.createMediaStreamSource(avMonitorStream);
         source.connect(avAnalyser);
     } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
 
@@ -1288,6 +1289,7 @@ function beginRecording() {
         }
     }
 
+    console.log('[Recording] Audio tracks before MediaRecorder start:', mediaStream.getAudioTracks().length, mediaStream.getAudioTracks().map(t => t.label + ' enabled=' + t.enabled + ' muted=' + t.muted));
     const options = selectedMime ? { mimeType: selectedMime } : {};
     mediaRecorder = new MediaRecorder(mediaStream, options);
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
@@ -2133,7 +2135,8 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 function startAudioMonitor() {
     try {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(mediaStream);
+        const monitorStream = mediaStream.clone();
+        const source = audioContext.createMediaStreamSource(monitorStream);
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
         source.connect(audioAnalyser);
