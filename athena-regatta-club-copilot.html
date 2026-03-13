@@ -589,47 +589,45 @@ body {
   </div>
 
   <div class="section fade-in d10" id="feedbackSection" style="background:linear-gradient(135deg,#1a237e,#0d1452);border:1px solid rgba(96,165,250,0.2);border-radius:var(--radius);padding:20px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;">
-    <div style="font-size:20px;font-weight:700;margin-bottom:4px;">What do you reckon?</div>
-    <div style="font-size:14px;color:var(--blue);margin-bottom:4px;font-weight:500;">Your feedback goes straight into the build queue</div>
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:18px;line-height:1.5;">
-      Be honest — what would you actually use day-to-day? What's missing? What would save you the most time running Regatta? If it's quick to build, it could be live by tomorrow morning.
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+      <div style="flex:1;">
+        <div style="font-size:20px;font-weight:700;">What do you reckon?</div>
+        <div style="font-size:12px;color:var(--blue);font-weight:500;margin-top:2px;">Tap the mic or expand for detailed feedback</div>
+      </div>
+      <div id="voiceBox" style="width:48px;height:48px;border-radius:50%;background:rgba(96,165,250,0.12);border:1px solid rgba(96,165,250,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all 0.2s;" onclick="event.stopPropagation();toggleVoiceFeedback();">
+        <div id="voiceDotInner" style="width:18px;height:18px;border-radius:50%;background:var(--blue);transition:all 0.3s;"></div>
+      </div>
     </div>
-    <div class="card" id="feedbackCard" style="background:rgba(10,22,40,0.7);border-color:rgba(96,165,250,0.15);">
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;font-weight:500;">Rate each section — would you use this?</div>
-        <div id="ratingsList"></div>
+    <div id="voiceTranscript" style="display:none;margin:8px 0;background:rgba(10,22,40,0.8);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-muted);line-height:1.5;min-height:40px;"></div>
+    <div id="voiceStatus" style="font-size:12px;min-height:18px;margin-bottom:8px;color:var(--text-dim);"></div>
+
+    <div class="section-head collapsible closed" onclick="toggleSection(this)" style="border-bottom:none;padding-bottom:0;margin-bottom:0;">Detailed feedback <span class="count">rate sections, add ideas</span></div>
+    <div class="section-body collapsed">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;margin-top:10px;line-height:1.5;">
+        Be honest — what would you actually use day-to-day? What's missing? What would save you the most time running Regatta? If it's quick to build, it could be live by tomorrow morning.
       </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's the #1 thing that would save you time?</div>
-        <textarea id="fbTopPriority" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate my supplier orders based on bookings..."></textarea>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's missing that you'd need?</div>
-        <textarea id="fbMissing" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. Integration with our POS system, rostering tool..."></textarea>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">Any other ideas or reactions?</div>
-        <textarea id="fbOther" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Anything at all — what excited you, what worried you, what confused you..."></textarea>
-      </div>
-      <div style="margin-bottom:14px;">
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">Or just talk — easier than typing</div>
-        <div id="voiceBox" style="background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:12px;padding:14px;cursor:pointer;" onclick="toggleVoiceFeedback()">
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div id="voiceDot" style="width:40px;height:40px;border-radius:50%;background:rgba(96,165,250,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <div id="voiceDotInner" style="width:16px;height:16px;border-radius:50%;background:var(--blue);transition:all 0.3s;"></div>
-            </div>
-            <div>
-              <div id="voiceLabel" style="font-size:14px;color:var(--text-muted);">Tap to talk your feedback — speak freely</div>
-              <div id="voiceSub" style="font-size:11px;color:var(--text-dim);margin-top:2px;">Your words get transcribed and added to the feedback above</div>
-            </div>
-          </div>
+      <div class="card" id="feedbackCard" style="background:rgba(10,22,40,0.7);border-color:rgba(96,165,250,0.15);">
+        <div style="margin-bottom:14px;">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;font-weight:500;">Rate each section — would you use this?</div>
+          <div id="ratingsList"></div>
         </div>
-        <div id="voiceTranscript" style="display:none;margin-top:8px;background:rgba(10,22,40,0.8);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-muted);line-height:1.5;min-height:40px;"></div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's the #1 thing that would save you time?</div>
+          <textarea id="fbTopPriority" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. If it could auto-generate my supplier orders based on bookings..."></textarea>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">What's missing that you'd need?</div>
+          <textarea id="fbMissing" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="e.g. Integration with our POS system, rostering tool..."></textarea>
+        </div>
+        <div style="margin-bottom:14px;">
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">Any other ideas or reactions?</div>
+          <textarea id="fbOther" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Anything at all — what excited you, what worried you, what confused you..."></textarea>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" style="flex:1" onclick="submitFeedback()">Send feedback to Rob</button>
+        </div>
+        <div id="fbStatus" style="font-size:13px;text-align:center;margin-top:10px;min-height:20px;"></div>
       </div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-primary" style="flex:1" onclick="submitFeedback()">Send feedback to Rob</button>
-      </div>
-      <div id="fbStatus" style="font-size:13px;text-align:center;margin-top:10px;min-height:20px;"></div>
     </div>
   </div>
 
@@ -809,8 +807,8 @@ var fullTranscript = '';
 
 function toggleVoiceFeedback() {
   if (!SpeechRecognition) {
-    document.getElementById('voiceLabel').textContent = 'Voice not supported on this browser — type instead';
-    document.getElementById('voiceLabel').style.color = 'var(--red)';
+    document.getElementById('voiceStatus').textContent = 'Voice not supported on this browser — expand below to type';
+    document.getElementById('voiceStatus').style.color = 'var(--red)';
     return;
   }
 
@@ -828,15 +826,16 @@ function startVoice() {
   recognition.lang = 'en-AU';
 
   var dot = document.getElementById('voiceDotInner');
-  var label = document.getElementById('voiceLabel');
-  var sub = document.getElementById('voiceSub');
+  var box = document.getElementById('voiceBox');
+  var status = document.getElementById('voiceStatus');
   var transcriptEl = document.getElementById('voiceTranscript');
 
   dot.style.background = 'var(--red)';
   dot.style.animation = 'vPulse 1.2s infinite';
-  label.textContent = 'Listening... tap again when done';
-  label.style.color = 'var(--red)';
-  sub.textContent = 'Speak naturally — everything gets captured';
+  box.style.borderColor = 'rgba(248,113,113,0.5)';
+  box.style.background = 'rgba(248,113,113,0.12)';
+  status.textContent = 'Listening... tap the mic again when done';
+  status.style.color = 'var(--red)';
   transcriptEl.style.display = 'block';
   transcriptEl.textContent = '';
   voiceActive = true;
@@ -858,8 +857,8 @@ function startVoice() {
 
   recognition.onerror = function(e) {
     if (e.error !== 'no-speech') {
-      label.textContent = 'Mic error — try again or type instead';
-      label.style.color = 'var(--red)';
+      document.getElementById('voiceStatus').textContent = 'Mic error — try again or expand below to type';
+      document.getElementById('voiceStatus').style.color = 'var(--red)';
       stopVoice();
     }
   };
@@ -881,21 +880,41 @@ function stopVoice() {
   }
 
   var dot = document.getElementById('voiceDotInner');
-  var label = document.getElementById('voiceLabel');
-  var sub = document.getElementById('voiceSub');
+  var box = document.getElementById('voiceBox');
+  var status = document.getElementById('voiceStatus');
   var fbOther = document.getElementById('fbOther');
 
   dot.style.background = 'var(--green)';
   dot.style.animation = 'none';
-  label.textContent = 'Captured — added to your feedback';
-  label.style.color = 'var(--green)';
-  sub.textContent = 'Tap to record more, or hit send below';
+  box.style.borderColor = 'rgba(52,211,153,0.5)';
+  box.style.background = 'rgba(52,211,153,0.12)';
+  status.textContent = 'Captured — tap mic to record more, or expand below to add detail';
+  status.style.color = 'var(--green)';
 
-  // Append transcript to the "other ideas" textarea
   if (fullTranscript.trim()) {
     var existing = fbOther.value.trim();
     fbOther.value = (existing ? existing + '\n\n' : '') + '[Voice] ' + fullTranscript.trim();
+    // Auto-send voice feedback immediately
+    sendVoiceFeedback(fullTranscript.trim());
   }
+}
+
+async function sendVoiceFeedback(text) {
+  try {
+    await fetch(ATHENA_API + '/v1/feedback', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        feedback_type: 'feature',
+        content: 'REGATTA CLUB — Voice feedback from Anthony: ' + text,
+        source_page: 'regatta-copilot',
+        user_id: 'anthony_regatta'
+      })
+    });
+    var status = document.getElementById('voiceStatus');
+    status.textContent = 'Sent to Rob — tap mic to record more';
+    status.style.color = 'var(--green)';
+  } catch(e) {}
 }
 </script>
 </body>
