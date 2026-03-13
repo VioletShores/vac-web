@@ -443,7 +443,7 @@ body {
           Draft: "Big one tonight — badge draw + happy hour. 120+ covers expected. Fish special is the barramundi (came in beautiful this morning from Steve at Pacific). Maria's running bar, Tom on desserts, Sarah FOH lead. Two things from last Friday: mains were slow after 8pm — kitchen, let's get entrees plated faster so mains don't bank up. And great feedback on the new cocktail menu — keep pushing the espresso martini, we're ordering more Kahlúa."
         </div>
         <div style="display:flex;gap:6px;padding-left:52px;margin-top:4px;">
-          <button class="btn btn-approve" style="font-size:11px;padding:4px 10px;flex:0" onclick="approve(this,'Approved — sends 2pm')">Send as-is</button>
+          <button class="btn btn-approve" style="font-size:11px;padding:4px 10px;flex:0" onclick="this.textContent='Approved — sends 2pm';this.style.opacity='0.6';this.disabled=true;">Approve & send at 2pm</button>
           <button class="btn btn-review" style="font-size:11px;padding:4px 10px;flex:0">Edit first</button>
         </div>
       </div>
