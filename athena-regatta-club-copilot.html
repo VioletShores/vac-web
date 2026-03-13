@@ -750,6 +750,42 @@ body {
     </div>
   </div>
 
+  <div class="section" id="sessionSummary" style="display:none;margin-top:20px;">
+    <div class="card" style="border:1.5px solid var(--accent);background:linear-gradient(135deg,rgba(201,168,76,0.06),rgba(201,168,76,0.02));">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <div style="font-size:22px;">📋</div>
+        <div>
+          <div style="font-size:16px;font-weight:700;color:var(--accent);">Session wrap-up</div>
+          <div style="font-size:12px;color:var(--text-dim);">Here's what your co-pilot learned today</div>
+        </div>
+      </div>
+
+      <div id="summaryLearned" style="margin-bottom:16px;"></div>
+
+      <div id="summaryChanges" style="margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">What changes next time you open this</div>
+        <div id="summaryChangesList" style="font-size:13px;color:var(--text-muted);line-height:1.7;"></div>
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:12px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Did we get this right?</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn btn-approve" style="font-size:12px;padding:8px 16px;flex:0;" onclick="confirmSummary('yes')">Yes — looks right</button>
+          <button class="btn btn-review" style="font-size:12px;padding:8px 16px;flex:0;" onclick="confirmSummary('mostly')">Mostly</button>
+          <button class="btn btn-review" style="font-size:12px;padding:8px 16px;flex:0;" onclick="confirmSummary('off')">Not quite</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">Anything else on your mind?</div>
+        <textarea id="summaryExtra" style="width:100%;background:rgba(10,22,40,0.6);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:50px;" placeholder="Quick thought, complaint, idea — anything goes..."></textarea>
+      </div>
+
+      <button class="btn" style="width:100%;background:var(--accent);color:var(--navy);font-size:13px;font-weight:600;padding:12px;" onclick="submitSummary()">Wrap up session</button>
+      <div id="summaryStatus" style="font-size:13px;text-align:center;margin-top:8px;min-height:18px;"></div>
+    </div>
+  </div>
+
   <div class="footer fade-in d12">
     <div style="text-align:center;font-size:13px;font-weight:500;">Regatta Club Co-Pilot</div>
     <div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:4px;">Dobroyd Parade, Haberfield &bull; Iron Cove Bay</div>
@@ -802,6 +838,7 @@ function toggleSection(head) {
     if (!isDupe && profileSignals.length < 5) {
       profileSignals.push(signal);
       updateProfile();
+      checkSessionSummary();
     }
   }
 }
@@ -1097,6 +1134,7 @@ var _origRate = rate;
 rate = function(sectionId, value) {
   _origRate(sectionId, value);
   updateProfile();
+  checkSessionSummary();
 };
 
 // Patch approve() to track decision patterns
@@ -1105,7 +1143,167 @@ approve = function(btn, msg) {
   _origApprove(btn, msg);
   decisionsApproved++;
   updateProfile();
+  checkSessionSummary();
 };
+
+// ─── SESSION SUMMARY WRAP-UP ─────────────────────────────────
+var interactionCount = 0;
+var summaryShown = false;
+var sessionStartTime = Date.now();
+
+function trackInteraction() {
+  interactionCount++;
+  checkSessionSummary();
+}
+
+function checkSessionSummary() {
+  if (summaryShown) return;
+  // Trigger after 5+ interactions AND 60+ seconds on page
+  var totalInteractions = Object.keys(ratings).length + decisionsApproved + profileSignals.length;
+  var timeOnPage = (Date.now() - sessionStartTime) / 1000;
+  if (totalInteractions >= 5 && timeOnPage >= 60) {
+    showSessionSummary();
+  }
+}
+
+function showSessionSummary() {
+  summaryShown = true;
+  var el = document.getElementById('sessionSummary');
+  if (!el) return;
+
+  // Build "what we learned" section
+  var learned = document.getElementById('summaryLearned');
+  var learnedLines = [];
+  learnedLines.push('<div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;">What we learned about you today</div>');
+
+  var priorities = [], maybes = [], dismissed = [];
+  var sectionNames = {};
+  sections.forEach(function(s) { sectionNames[s.id] = s.name; });
+  Object.keys(ratings).forEach(function(id) {
+    var name = sectionNames[id] || id;
+    if (ratings[id] === 'yes') priorities.push(name);
+    else if (ratings[id] === 'maybe') maybes.push(name);
+    else if (ratings[id] === 'no') dismissed.push(name);
+  });
+
+  if (priorities.length > 0) {
+    learnedLines.push('<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;line-height:1.6;"><span style="color:var(--green);">✓</span> You care about: <strong style="color:var(--text);">' + priorities.join(', ') + '</strong></div>');
+  }
+  if (maybes.length > 0) {
+    learnedLines.push('<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;line-height:1.6;"><span style="color:var(--amber);">~</span> On the fence about: ' + maybes.join(', ') + '</div>');
+  }
+  if (dismissed.length > 0) {
+    learnedLines.push('<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;line-height:1.6;"><span style="color:var(--text-dim);">✕</span> Not interested in: ' + dismissed.join(', ') + '</div>');
+  }
+  if (decisionsApproved > 0) {
+    learnedLines.push('<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;line-height:1.6;"><span style="color:var(--blue);">⚡</span> You approved ' + decisionsApproved + ' decision' + (decisionsApproved > 1 ? 's' : '') + ' — you prefer to move fast</div>');
+  }
+  if (profileSignals.length > 0) {
+    var explored = profileSignals.map(function(s) {
+      var m = s.match(/>Explored:<\/span>\s*(.*)/);
+      return m ? m[1] : '';
+    }).filter(Boolean);
+    if (explored.length > 0) {
+      learnedLines.push('<div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;line-height:1.6;"><span style="color:var(--accent);">👁</span> You dug into: ' + explored.join(', ') + '</div>');
+    }
+  }
+  learned.innerHTML = learnedLines.join('');
+
+  // Build "what changes" section
+  var changes = document.getElementById('summaryChangesList');
+  var changeLines = [];
+  if (priorities.length > 0) {
+    changeLines.push('• <strong>' + priorities[0] + '</strong> moves to the top of your dashboard and gets richer data');
+    if (priorities.length > 1) changeLines.push('• ' + priorities.slice(1).join(', ') + ' — expanded with more detail');
+  }
+  if (dismissed.length > 0) {
+    changeLines.push('• ' + dismissed.join(', ') + ' — collapsed by default, less prominent');
+  }
+  if (decisionsApproved >= 2) {
+    changeLines.push('• System will pre-approve routine decisions under $200 (you can override)');
+  }
+  changeLines.push('• Your co-pilot profile carries forward — next session starts where this one left off');
+  changes.innerHTML = changeLines.map(function(l) { return '<div style="margin-bottom:4px;">' + l + '</div>'; }).join('');
+
+  // Show with animation
+  el.style.display = '';
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(20px)';
+  setTimeout(function() {
+    el.style.transition = 'opacity 0.6s, transform 0.6s';
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+    // Scroll to it
+    setTimeout(function() {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 300);
+  }, 100);
+
+  trackEvent('session_summary_shown', { interactions: interactionCount, ratings_count: Object.keys(ratings).length, decisions: decisionsApproved });
+}
+
+var summaryConfirmation = '';
+
+function confirmSummary(value) {
+  summaryConfirmation = value;
+  var btns = document.querySelectorAll('#sessionSummary .btn-approve, #sessionSummary .btn-review');
+  btns.forEach(function(b) {
+    b.style.opacity = '0.4';
+    b.style.border = '1px solid transparent';
+  });
+  event.target.style.opacity = '1';
+  event.target.style.border = value === 'yes' ? '1.5px solid var(--green)' : value === 'mostly' ? '1.5px solid var(--amber)' : '1.5px solid var(--red)';
+  trackEvent('summary_confirmation', { value: value });
+}
+
+async function submitSummary() {
+  var status = document.getElementById('summaryStatus');
+  var extra = document.getElementById('summaryExtra').value.trim();
+  status.textContent = 'Sending...';
+  status.style.color = 'var(--text-muted)';
+
+  var ratingsSummary = sections.map(function(s) {
+    return s.name + ': ' + (ratings[s.id] || 'not rated');
+  }).join(', ');
+
+  var content = 'REGATTA SESSION WRAP-UP — Anthony\n' +
+    'Confirmation: ' + (summaryConfirmation || 'not answered') + '\n' +
+    'Ratings: ' + ratingsSummary + '\n' +
+    'Decisions approved: ' + decisionsApproved + '\n' +
+    'Sections explored: ' + profileSignals.length + '\n' +
+    'Time on page: ' + Math.round((Date.now() - sessionStartTime) / 1000) + 's\n' +
+    (extra ? 'Extra feedback: ' + extra : '(no extra feedback)');
+
+  try {
+    var res = await fetch(ATHENA_API + '/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: 'feature',
+        content: content,
+        source_page: 'regatta-copilot-session-summary',
+        user_id: 'anthony_regatta',
+        product: 'athena'
+      })
+    });
+    if (res.ok) {
+      status.style.color = 'var(--green)';
+      status.textContent = '';
+      var card = document.querySelector('#sessionSummary .card');
+      card.innerHTML = '<div style="text-align:center;padding:24px 0;">' +
+        '<div style="font-size:32px;margin-bottom:8px;color:var(--green);">✓</div>' +
+        '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">Session wrapped</div>' +
+        '<div style="font-size:13px;color:var(--text-muted);line-height:1.6;">' +
+        'Everything you did today — the ratings, the decisions, the sections you explored — is now part of your co-pilot\'s memory.<br><br>' +
+        'Next time you open this, it\'ll be different. Shaped by you.</div></div>';
+    } else {
+      throw new Error('HTTP ' + res.status);
+    }
+  } catch (err) {
+    status.style.color = 'var(--red)';
+    status.textContent = 'Could not send — tell Rob directly.';
+  }
+}
 
 // ─── VOICE FEEDBACK ──────────────────────────────────────────
 var voiceActive = false;
