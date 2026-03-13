@@ -98,7 +98,7 @@
         },
         {
             "source": "/watch",
-            "destination": "/watch.html"
+            "destination": "/athena-watch.html"
         },
         {
             "source": "/api",
