@@ -321,6 +321,16 @@ body {
     </div>
   </div>
 
+  <div class="fade-in d2" style="background:linear-gradient(135deg,rgba(201,168,76,0.08),rgba(96,165,250,0.06));border:1px solid rgba(201,168,76,0.15);border-radius:var(--radius);padding:16px 16px 14px;margin-bottom:20px;">
+    <div style="display:flex;align-items:flex-start;gap:12px;">
+      <div style="font-size:22px;flex-shrink:0;margin-top:1px;">🧬</div>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:4px;">This adapts to you</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">Every time you rate a section, approve a decision, or give voice feedback — this app reshapes itself around how you run Regatta. In 30 days it'll look nothing like today, because you'll have taught it what matters to you. You're not just using this — you're building it.</div>
+      </div>
+    </div>
+  </div>
+
   <div class="section fade-in d3">
     <div class="section-head">Completed overnight <span class="count">3 tasks</span></div>
     <div class="card card-success">
@@ -338,7 +348,7 @@ body {
       <div class="info-toggle closed" onclick="toggleSection(this)">How does this work? <span style="font-size:11px;font-weight:500;color:var(--accent);background:var(--accent-glow);padding:1px 7px;border-radius:20px;margin-left:2px;">ⓘ</span></div>
       <div class="section-body collapsed">
         <div class="info-content">
-          <p>Right now this is a prototype showing what the system would deliver. To make it real for Regatta, we'd connect to:</p>
+          <p>Right now this is a prototype showing what the system would deliver. Every section you see here can be real — it just needs to connect to your tools:</p>
           <ul>
             <li><strong>Your POS system</strong> — covers, revenue, average spend, menu item sales (what POS do you use?)</li>
             <li><strong>NowBookIt</strong> — your bookings feed tomorrow's cover forecast and staff planning</li>
@@ -347,8 +357,8 @@ body {
             <li><strong>Google Reviews</strong> — auto-detected sentiment and issue patterns</li>
             <li><strong>Staff shift reflections</strong> — 2-minute voice check-ins build capability profiles over time</li>
           </ul>
+          <p><strong>Here's the different part:</strong> this isn't a fixed dashboard. The sections you rate "Use it" get richer and more detailed. The ones you say "Nah" to get quieter. Your decisions teach the system what matters to you. In a month, your co-pilot won't look like anyone else's — because you built it by using it.</p>
           <p>Compliance scanning and competitor monitoring are already live — that intelligence runs every 12 hours right now.</p>
-          <p>The system breaks your week into tasks, runs what it can overnight, and leaves you with just the decisions that need your brain. It gets smarter every week because it learns your patterns.</p>
         </div>
       </div>
       <div class="task-row">
@@ -680,7 +690,8 @@ body {
   <div class="section fade-in d10" id="feedbackSection" style="background:linear-gradient(135deg,#1a237e,#0d1452);border:1px solid rgba(96,165,250,0.2);border-radius:var(--radius);padding:20px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;">
     <div style="margin-bottom:10px;">
       <div style="font-size:20px;font-weight:700;">What do you reckon?</div>
-      <div style="font-size:13px;color:var(--blue);font-weight:500;margin-top:4px;">Your feedback goes straight into the build queue — quick wins get built overnight</div>
+      <div style="font-size:13px;color:var(--blue);font-weight:500;margin-top:4px;">This is how you shape your co-pilot — what you say here changes what you see next time</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:6px;line-height:1.5;">Tell us what's useful, what's noise, what's missing. Quick wins get built overnight. Big ideas go on the roadmap. Either way, your Regatta co-pilot gets smarter because of what you tell it.</div>
     </div>
 
     <div style="margin-bottom: 14px;">
@@ -742,7 +753,8 @@ body {
 function approve(btn,msg){
   var d=btn.closest('.decision');
   d.style.borderColor='var(--green)';
-  d.innerHTML='<div style="text-align:center;padding:8px 0;color:var(--green);font-weight:600">'+msg+' \u2713</div>';
+  d.innerHTML='<div style="text-align:center;padding:8px 0;color:var(--green);font-weight:600">'+msg+' \u2713</div><div style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:2px;">The system learns your decision patterns over time</div>';
+  trackEvent('decision_approve', { decision: msg });
 }
 
 function toggleSection(head) {
@@ -773,6 +785,7 @@ setTimeout(function(){document.getElementById('prog').style.width='60%'},600);
       timestamp: new Date().toISOString(),
       session_id: SESSION_ID,
       user_id: 'anthony_regatta',
+      product: 'athena',
       page: 'regatta-copilot'
     }, extra || {});
     EVENT_QUEUE.push(ev);
@@ -867,6 +880,23 @@ function rate(sectionId, value) {
       btn.style.color = 'var(--text-dim)';
     }
   });
+  // Show adaptive feedback — the manifest pattern made visible
+  var adaptiveMsg = {
+    yes: "This section will be prioritised and expanded for you",
+    maybe: "Noted — we'll keep this but won't push it",
+    no: "Got it — this will fade from your view over time"
+  };
+  var adaptiveColor = {yes:'var(--green)',maybe:'var(--amber)',no:'var(--text-dim)'};
+  var container = document.getElementById('rate_' + sectionId).parentElement;
+  var existing = container.querySelector('.adapt-msg');
+  if (existing) existing.remove();
+  var msg = document.createElement('div');
+  msg.className = 'adapt-msg';
+  msg.style.cssText = 'font-size:11px;color:' + adaptiveColor[value] + ';margin-top:6px;text-align:right;opacity:0;transition:opacity 0.3s;';
+  msg.textContent = adaptiveMsg[value];
+  container.appendChild(msg);
+  setTimeout(function() { msg.style.opacity = '1'; }, 50);
+  setTimeout(function() { msg.style.opacity = '0'; setTimeout(function(){ if(msg.parentElement) msg.remove(); }, 300); }, 3000);
 }
 
 async function submitFeedback() {
@@ -897,7 +927,8 @@ async function submitFeedback() {
       feedback_type: 'feature',
       content: 'REGATTA CLUB FEEDBACK — Section ratings from Anthony:\n' + ratingsSummary,
       source_page: 'regatta-copilot',
-      user_id: 'anthony_regatta'
+      user_id: 'anthony_regatta',
+      product: 'athena'
     });
 
     if (topPriority) {
@@ -905,7 +936,8 @@ async function submitFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — #1 time saver request from Anthony: ' + topPriority,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta'
+        user_id: 'anthony_regatta',
+      product: 'athena'
       });
     }
 
@@ -914,7 +946,8 @@ async function submitFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — What\'s missing (Anthony): ' + missing,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta'
+        user_id: 'anthony_regatta',
+      product: 'athena'
       });
     }
 
@@ -923,7 +956,8 @@ async function submitFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — Other ideas/reactions (Anthony): ' + other,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta'
+        user_id: 'anthony_regatta',
+      product: 'athena'
       });
     }
 
@@ -939,7 +973,7 @@ async function submitFeedback() {
 
     if (ok > 0) {
       fbStatus.style.color = 'var(--green)';
-      fbStatus.textContent = 'Sent — Rob will see this today. Quick wins get built overnight.';
+      fbStatus.textContent = 'Sent — your co-pilot is already learning from this.';
       // Replace the form with a thank you
       setTimeout(function() {
         document.getElementById('feedbackCard').innerHTML =
@@ -947,8 +981,9 @@ async function submitFeedback() {
           '<div style="font-size:32px;margin-bottom:8px;color:var(--green);">&#10003;</div>' +
           '<div style="font-size:16px;font-weight:600;margin-bottom:6px;">Feedback received</div>' +
           '<div style="font-size:13px;color:var(--text-muted);line-height:1.5;">' +
-          'Rob\'s build system is reviewing your input now.<br>Quick wins get built overnight on dedicated hardware.<br>' +
-          'Check back tomorrow — your Regatta Club co-pilot might already look different.</div></div>';
+          'Your ratings and ideas are shaping what this co-pilot becomes.<br>' +
+          'Check back tomorrow — sections you rated "Use it" will be richer,<br>' +
+          'things you said "Nah" to will start fading. That\'s the system learning you.</div></div>';
       }, 2000);
     } else {
       throw new Error('No items sent');
@@ -1184,12 +1219,13 @@ async function sendVoiceFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — Voice feedback from Anthony: ' + text,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta'
+        user_id: 'anthony_regatta',
+      product: 'athena'
       })
     });
     if (res.ok) {
       fbStatus.style.color = 'var(--green)';
-      fbStatus.textContent = 'Sent — Rob will see this today. Quick wins get built overnight.';
+      fbStatus.textContent = 'Heard you — this will shape what your co-pilot shows you next time.';
       sendBtn.classList.remove('visible');
       document.getElementById('voiceTranscript').textContent = '';
       document.getElementById('voiceTranscript').classList.remove('has-text');
