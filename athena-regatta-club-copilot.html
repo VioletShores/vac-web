@@ -750,8 +750,73 @@ function toggleSection(head) {
   var body = head.nextElementSibling;
   while (body && !body.classList.contains('section-body')) body = body.nextElementSibling;
   if (body) body.classList.toggle('collapsed');
+  // event tracking
+  var isExpanded = !head.classList.contains('closed');
+  var sectionId = head.textContent.trim().replace(/\s+/g, ' ').substring(0, 60);
+  trackEvent(isExpanded ? 'expand' : 'collapse', { section_id: sectionId });
 }
 setTimeout(function(){document.getElementById('prog').style.width='60%'},600);
+
+// ─── EVENT TRACKING ───────────────────────────────────────────
+(function() {
+  var SESSION_ID = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+  var EVENT_QUEUE = [];
+  var PAGE_START = Date.now();
+  var SCROLL_MILESTONES = {25: false, 50: false, 75: false, 100: false};
+
+  window.trackEvent = function(event_type, extra) {
+    var ev = Object.assign({
+      event_type: event_type,
+      timestamp: new Date().toISOString(),
+      session_id: SESSION_ID,
+      user_id: 'anthony_regatta',
+      page: 'regatta-copilot'
+    }, extra || {});
+    EVENT_QUEUE.push(ev);
+  };
+
+  function flushEvents() {
+    if (!EVENT_QUEUE.length) return;
+    var batch = EVENT_QUEUE.splice(0);
+    var payload = JSON.stringify({ events: batch });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('https://api.athenapilot.ai/v1/events', new Blob([payload], { type: 'application/json' }));
+    } else {
+      fetch('https://api.athenapilot.ai/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }).catch(function(){});
+    }
+  }
+
+  // Batch every 30 seconds
+  setInterval(flushEvents, 30000);
+
+  // Flush on unload / visibility change
+  window.addEventListener('beforeunload', function() {
+    trackEvent('time_on_page', { duration_ms: Date.now() - PAGE_START });
+    flushEvents();
+  });
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') {
+      trackEvent('time_on_page', { duration_ms: Date.now() - PAGE_START });
+      flushEvents();
+    }
+  });
+
+  // Scroll depth milestones
+  window.addEventListener('scroll', function() {
+    var scrolled = window.scrollY + window.innerHeight;
+    var total = document.documentElement.scrollHeight;
+    var pct = Math.floor((scrolled / total) * 100);
+    [25, 50, 75, 100].forEach(function(m) {
+      if (!SCROLL_MILESTONES[m] && pct >= m) {
+        SCROLL_MILESTONES[m] = true;
+        trackEvent('scroll_depth', { section_id: 'page', milestone: m });
+      }
+    });
+  }, { passive: true });
+})();
 
 // ─── FEEDBACK SYSTEM ──────────────────────────────────────────
 var ATHENA_API = 'https://api.athenapilot.ai';
@@ -788,6 +853,7 @@ function buildRatings() {
 
 function rate(sectionId, value) {
   ratings[sectionId] = value;
+  trackEvent('rating_tap', { section_id: sectionId, rating: value });
   var colors = {yes:'var(--green)',maybe:'var(--amber)',no:'var(--text-dim)'};
   var bgs = {yes:'rgba(52,211,153,0.15)',maybe:'rgba(251,191,36,0.15)',no:'rgba(255,255,255,0.06)'};
   ['yes','maybe','no'].forEach(function(v) {
@@ -804,6 +870,7 @@ function rate(sectionId, value) {
 }
 
 async function submitFeedback() {
+  trackEvent('feedback_submit', { section_id: 'feedback_form' });
   var fbStatus = document.getElementById('fbStatus');
   fbStatus.textContent = 'Sending...';
   fbStatus.style.color = 'var(--text-muted)';
