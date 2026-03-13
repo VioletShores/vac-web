@@ -315,7 +315,7 @@ async function submitVouch() {
   document.getElementById('vouch_btn').disabled = true;
 
   try {
-    const createRes = await fetch(VAC_API + '/v1/vouch', {
+    const createRes = await fetch(VAC_API + '/v1/vouch/request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
