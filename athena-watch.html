@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Athena Watch</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0D0F17;
+  --navy-light: #1A1D29;
+  --accent: #C9A84C;
+  --accent-light: #E8D48B;
+  --accent-glow: rgba(201,168,76,0.12);
+  --green: #34d399;
+  --green-bg: rgba(52,211,153,0.10);
+  --red: #f87171;
+  --red-bg: rgba(248,113,113,0.10);
+  --blue: #60a5fa;
+  --text: #e8eaf0;
+  --text-muted: #9498A8;
+  --text-dim: #6B7084;
+  --border: rgba(201,168,76,0.10);
+  --radius: 14px;
+  --radius-sm: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  background: var(--navy);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { max-width: 480px; margin: 0 auto; padding: 0 16px 48px; }
+
+/* Header */
+.header { padding: 32px 0 28px; display: flex; align-items: center; gap: 14px; }
+.logo-mark {
+  width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(201,168,76,0.1);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo-mark svg { width: 24px; height: 24px; }
+.header-text .title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 26px; font-weight: 600; letter-spacing: 0.3px;
+}
+.header-text .sub { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+/* Form */
+.form { display: flex; flex-direction: column; gap: 14px; }
+
+label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  display: block; margin-bottom: 6px;
+}
+
+input[type="url"],
+textarea,
+select {
+  width: 100%;
+  background: var(--navy-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 14px 16px;
+  outline: none;
+  transition: border-color 0.15s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+input[type="url"]:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+}
+input[type="url"]::placeholder,
+textarea::placeholder { color: var(--text-dim); }
+
+textarea { resize: none; min-height: 72px; line-height: 1.5; }
+
+/* Select wrapper for arrow */
+.select-wrap { position: relative; }
+.select-wrap::after {
+  content: '';
+  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--text-muted);
+  pointer-events: none;
+}
+select option { background: #1A1D29; }
+
+/* Button */
+.btn-submit {
+  width: 100%;
+  background: var(--accent);
+  color: #0D0F17;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  padding: 16px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  letter-spacing: 0.2px;
+}
+.btn-submit:active { transform: scale(0.98); }
+.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* Loading */
+.loading {
+  display: none;
+  align-items: center; justify-content: center;
+  gap: 12px;
+  padding: 28px;
+  background: var(--navy-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.loading.active { display: flex; }
+.spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Result */
+.result {
+  display: none;
+  background: var(--navy-light);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.result.active { display: block; }
+
+.result-header {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.result-type {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--accent);
+  background: var(--accent-glow);
+  padding: 3px 10px; border-radius: 20px;
+}
+.result-url {
+  font-size: 12px; color: var(--text-dim);
+  max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.result-body { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+
+.result-section-label {
+  font-size: 11px; font-weight: 600; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+}
+.result-summary { font-size: 15px; line-height: 1.6; color: var(--text); }
+
+.topics { display: flex; flex-wrap: wrap; gap: 8px; }
+.topic {
+  font-size: 13px;
+  background: rgba(96,165,250,0.10);
+  color: var(--blue);
+  padding: 4px 12px; border-radius: 20px;
+}
+
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag {
+  font-size: 13px;
+  background: var(--accent-glow);
+  color: var(--accent);
+  padding: 4px 12px; border-radius: 20px;
+}
+
+.btn-reset {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  margin-top: 4px;
+}
+.btn-reset:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Error */
+.error {
+  display: none;
+  background: var(--red-bg);
+  border: 1px solid rgba(248,113,113,0.20);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 14px;
+  color: var(--red);
+}
+.error.active { display: block; }
+
+/* Footer */
+.footer {
+  margin-top: 40px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.footer span { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="logo-mark">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L2 19h20L12 2z" stroke="#C9A84C" stroke-width="1.5" stroke-linejoin="round"/>
+        <path d="M12 8v6M12 16.5v.5" stroke="#C9A84C" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="header-text">
+      <div class="title">Athena Watch</div>
+      <div class="sub">Send a link to Athena for analysis</div>
+    </div>
+  </div>
+
+  <form class="form" id="watchForm" autocomplete="off">
+
+    <div>
+      <label for="url">URL</label>
+      <input
+        type="url"
+        id="url"
+        name="url"
+        placeholder="Paste link here…"
+        autofocus
+        required
+        inputmode="url"
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+      >
+    </div>
+
+    <div>
+      <label for="note">Note <span style="text-transform:none;font-weight:400;color:var(--text-dim)">(optional)</span></label>
+      <textarea id="note" name="note" placeholder="Why is this interesting?"></textarea>
+    </div>
+
+    <div>
+      <label for="category">Category</label>
+      <div class="select-wrap">
+        <select id="category" name="category">
+          <option value="auto">Auto-detect</option>
+          <option value="product">Product</option>
+          <option value="personal">Personal</option>
+          <option value="competitor">Competitor</option>
+          <option value="regulatory">Regulatory</option>
+          <option value="industry">Industry</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="error" id="errorBox"></div>
+
+    <button type="submit" class="btn-submit" id="submitBtn">Send to Athena</button>
+  </form>
+
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    <span>Athena is reading…</span>
+  </div>
+
+  <div class="result" id="result">
+    <div class="result-header">
+      <div class="result-type" id="resultType">—</div>
+      <div class="result-url" id="resultUrl"></div>
+    </div>
+    <div class="result-body">
+      <div>
+        <div class="result-section-label">Summary</div>
+        <div class="result-summary" id="resultSummary"></div>
+      </div>
+      <div id="topicsSection" style="display:none">
+        <div class="result-section-label">Key Topics</div>
+        <div class="topics" id="resultTopics"></div>
+      </div>
+      <div id="tagsSection" style="display:none">
+        <div class="result-section-label">Suggested Tags</div>
+        <div class="tags" id="resultTags"></div>
+      </div>
+    </div>
+    <div style="padding: 0 18px 18px">
+      <button class="btn-reset" id="resetBtn">Send another link</button>
+    </div>
+  </div>
+
+  <div class="footer">powered by <span>Athena</span></div>
+</div>
+
+<script>
+const form = document.getElementById('watchForm');
+const submitBtn = document.getElementById('submitBtn');
+const loading = document.getElementById('loading');
+const result = document.getElementById('result');
+const errorBox = document.getElementById('errorBox');
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.classList.add('active');
+}
+
+function hideError() {
+  errorBox.classList.remove('active');
+  errorBox.textContent = '';
+}
+
+function showLoading() {
+  form.style.display = 'none';
+  loading.classList.add('active');
+  result.classList.remove('active');
+}
+
+function showResult(data, url) {
+  loading.classList.remove('active');
+
+  document.getElementById('resultType').textContent = data.content_type || data.type || 'Article';
+  document.getElementById('resultUrl').textContent = (() => {
+    try { return new URL(url).hostname; } catch { return url; }
+  })();
+  document.getElementById('resultSummary').textContent = data.summary || '(No summary returned)';
+
+  const topics = data.key_topics || data.topics || [];
+  const topicsEl = document.getElementById('resultTopics');
+  const topicsSec = document.getElementById('topicsSection');
+  if (topics.length) {
+    topicsEl.innerHTML = topics.map(t => `<span class="topic">${t}</span>`).join('');
+    topicsSec.style.display = '';
+  }
+
+  const tags = data.suggested_tags || data.tags || [];
+  const tagsEl = document.getElementById('resultTags');
+  const tagsSec = document.getElementById('tagsSection');
+  if (tags.length) {
+    tagsEl.innerHTML = tags.map(t => `<span class="tag">#${t}</span>`).join('');
+    tagsSec.style.display = '';
+  }
+
+  result.classList.add('active');
+}
+
+function resetForm() {
+  result.classList.remove('active');
+  form.style.display = '';
+  form.reset();
+  document.getElementById('topicsSection').style.display = 'none';
+  document.getElementById('tagsSection').style.display = 'none';
+  hideError();
+  document.getElementById('url').focus();
+}
+
+document.getElementById('resetBtn').addEventListener('click', resetForm);
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideError();
+
+  const url = document.getElementById('url').value.trim();
+  const note = document.getElementById('note').value.trim();
+  const category = document.getElementById('category').value;
+
+  if (!url) {
+    showError('Please enter a URL.');
+    return;
+  }
+
+  const payload = {
+    user_id: 'maestro',
+    url,
+    ...(note && { note }),
+    ...(category !== 'auto' && { category }),
+  };
+
+  showLoading();
+
+  try {
+    const res = await fetch('https://api.athenapilot.ai/v1/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      let errMsg = `Error ${res.status}`;
+      try {
+        const errData = await res.json();
+        errMsg = errData.detail || errData.message || errMsg;
+      } catch {}
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+    showResult(data, url);
+
+  } catch (err) {
+    loading.classList.remove('active');
+    form.style.display = '';
+    showError(err.message || 'Something went wrong. Please try again.');
+    submitBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>

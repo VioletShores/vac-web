@@ -97,6 +97,10 @@
             "destination": "/athena-regatta-club-copilot.html"
         },
         {
+            "source": "/watch",
+            "destination": "/athena-watch.html"
+        },
+        {
             "source": "/api",
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
