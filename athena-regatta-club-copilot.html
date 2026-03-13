@@ -76,6 +76,11 @@ body {
   font-size: 11px; background: var(--accent-glow); color: var(--accent);
   padding: 2px 8px; border-radius: 20px; font-weight: 500;
 }
+.section-head.collapsible { cursor:pointer; user-select:none; }
+.section-head.collapsible::after { content:'▾'; margin-left:auto; font-size:14px; color:var(--text-dim); transition:transform 0.2s; }
+.section-head.collapsible.closed::after { transform:rotate(-90deg); }
+.section-body { overflow:hidden; transition:max-height 0.3s ease, opacity 0.2s ease; max-height:2000px; opacity:1; }
+.section-body.collapsed { max-height:0; opacity:0; }
 
 /* Cards */
 .card {
@@ -267,7 +272,8 @@ body {
   </div>
 
   <div class="section fade-in d5">
-    <div class="section-head">Intelligence</div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Intelligence</div>
+    <div class="section-body collapsed">
     <div class="card">
       <div class="intel-item">
         <div class="intel-tag alert">Alert</div>
@@ -285,10 +291,12 @@ body {
         <div class="intel-action">Fix weekend flow &rarr;</div>
       </div>
     </div>
+      </div>
   </div>
 
   <div class="section fade-in d6">
-    <div class="section-head">Your team <span class="count">what they're telling you</span></div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Your team <span class="count">what they're telling you</span></div>
+    <div class="section-body collapsed">
     <div class="card">
       <div class="staff-row">
         <div class="avatar" style="background:rgba(52,211,153,0.15);color:var(--green);">MR</div>
@@ -321,10 +329,12 @@ body {
     <div style="font-size:11px;color:var(--text-dim);margin-top:4px;padding:0 4px;">
       Your team talks into their phone for 2 minutes at the end of each shift. The system learns who's good at what.
     </div>
+      </div>
   </div>
 
   <div class="section fade-in d7">
-    <div class="section-head">This week at Regatta</div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">This week at Regatta</div>
+    <div class="section-body collapsed">
     <div class="card">
       <div class="event-row">
         <div style="text-align:center;flex-shrink:0;width:40px;">
@@ -357,10 +367,12 @@ body {
         </div>
       </div>
     </div>
+      </div>
   </div>
 
   <div class="section fade-in d8">
-    <div class="section-head">Compliance watch <span class="count">50 casuals</span></div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Compliance watch <span class="count">50 casuals</span></div>
+    <div class="section-body collapsed">
     <div class="card">
       <div class="intel-item">
         <div class="intel-tag alert">Action required</div>
@@ -386,10 +398,12 @@ body {
     <div style="font-size:11px;color:var(--text-dim);margin-top:4px;padding:0 4px;">
       Legislation changes are scanned automatically. When something affects your business, it shows up here — not buried in an email you didn't read.
     </div>
+      </div>
   </div>
 
   <div class="section fade-in d9">
-    <div class="section-head">Strategic ideas for you <span class="count">from overnight research</span></div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Strategic ideas for you <span class="count">from overnight research</span></div>
+    <div class="section-body collapsed">
     <div class="card">
       <div class="intel-item">
         <div class="intel-tag opportunity">Global trend → local opportunity</div>
@@ -415,10 +429,12 @@ body {
     <div style="font-size:11px;color:var(--text-dim);margin-top:4px;padding:0 4px;">
       These ideas come from scanning global hospitality research, local market data, and your specific business context every 12 hours. Not generic advice — tailored to a waterfront club restaurant with 50 casuals in Haberfield.
     </div>
+      </div>
   </div>
 
   <div class="section fade-in d10">
-    <div class="section-head">Your comms rhythm this week <span class="count">recommended</span></div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Your comms rhythm this week <span class="count">recommended</span></div>
+    <div class="section-body collapsed">
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;padding:0 4px;">
       Based on what's actually happening in the business — not a generic template. You tweak the rhythm, the system prepares the content.
     </div>
@@ -471,10 +487,12 @@ body {
     <div style="font-size:11px;color:var(--text-dim);margin-top:4px;padding:0 4px;">
       Every brief is written in your voice based on what actually happened — shift reflections, supplier deliveries, bookings data, customer feedback. Not templates. You approve or tweak, it sends. Staff feel informed without you writing a single email.
     </div>
+      </div>
   </div>
 
   <div class="section fade-in d10">
-    <div class="section-head">Supplier relationships <span class="count">seafood is everything</span></div>
+    <div class="section-head collapsible closed" onclick="toggleSection(this)">Supplier relationships <span class="count">seafood is everything</span></div>
+    <div class="section-body collapsed">
     <div class="card">
       <div class="staff-row">
         <div class="avatar" style="background:rgba(96,165,250,0.15);color:var(--blue);">PS</div>
@@ -519,6 +537,7 @@ body {
     <div style="font-size:11px;color:var(--text-dim);margin-top:4px;padding:0 4px;">
       For a seafood restaurant, your suppliers ARE your menu. The system tracks availability, price movements, quality, reliability, and delivery patterns — so you know what to order, when to switch, and when to push back on price. You'll never miss a seasonal glut again.
     </div>
+      </div>
   </div>
 
   <div class="section fade-in d10">
@@ -612,6 +631,13 @@ function approve(btn,msg){
   var d=btn.closest('.decision');
   d.style.borderColor='var(--green)';
   d.innerHTML='<div style="text-align:center;padding:8px 0;color:var(--green);font-weight:600">'+msg+' \u2713</div>';
+}
+
+function toggleSection(head) {
+  head.classList.toggle('closed');
+  var body = head.nextElementSibling;
+  while (body && !body.classList.contains('section-body')) body = body.nextElementSibling;
+  if (body) body.classList.toggle('collapsed');
 }
 setTimeout(function(){document.getElementById('prog').style.width='60%'},600);
 
