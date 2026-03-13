@@ -52,6 +52,7 @@ body {
 .header-text .venue { font-size: 11px; color: var(--accent); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-top: 1px; }
 
 /* Metrics */
+@keyframes vPulse { 0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(1.4);opacity:0.5} }
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
 .metric {
   background: var(--navy-card); border: 1px solid var(--border);
@@ -573,6 +574,21 @@ body {
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">Any other ideas or reactions?</div>
         <textarea id="fbOther" style="width:100%;background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:14px;color:var(--text);resize:vertical;min-height:60px;" placeholder="Anything at all — what excited you, what worried you, what confused you..."></textarea>
       </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;font-weight:500;">Or just talk — easier than typing</div>
+        <div id="voiceBox" style="background:rgba(10,22,40,0.8);border:1px solid rgba(96,165,250,0.15);border-radius:12px;padding:14px;cursor:pointer;" onclick="toggleVoiceFeedback()">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div id="voiceDot" style="width:40px;height:40px;border-radius:50%;background:rgba(96,165,250,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <div id="voiceDotInner" style="width:16px;height:16px;border-radius:50%;background:var(--blue);transition:all 0.3s;"></div>
+            </div>
+            <div>
+              <div id="voiceLabel" style="font-size:14px;color:var(--text-muted);">Tap to talk your feedback — speak freely</div>
+              <div id="voiceSub" style="font-size:11px;color:var(--text-dim);margin-top:2px;">Your words get transcribed and added to the feedback above</div>
+            </div>
+          </div>
+        </div>
+        <div id="voiceTranscript" style="display:none;margin-top:8px;background:rgba(10,22,40,0.8);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-muted);line-height:1.5;min-height:40px;"></div>
+      </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-primary" style="flex:1" onclick="submitFeedback()">Send feedback to Rob</button>
       </div>
@@ -739,6 +755,103 @@ async function submitFeedback() {
 }
 
 buildRatings();
+
+// ─── VOICE FEEDBACK (real speech recognition) ─────────────────
+var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+var voiceActive = false;
+var recognition = null;
+var fullTranscript = '';
+
+function toggleVoiceFeedback() {
+  if (!SpeechRecognition) {
+    document.getElementById('voiceLabel').textContent = 'Voice not supported on this browser — type instead';
+    document.getElementById('voiceLabel').style.color = 'var(--red)';
+    return;
+  }
+
+  if (voiceActive) {
+    stopVoice();
+  } else {
+    startVoice();
+  }
+}
+
+function startVoice() {
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-AU';
+
+  var dot = document.getElementById('voiceDotInner');
+  var label = document.getElementById('voiceLabel');
+  var sub = document.getElementById('voiceSub');
+  var transcriptEl = document.getElementById('voiceTranscript');
+
+  dot.style.background = 'var(--red)';
+  dot.style.animation = 'vPulse 1.2s infinite';
+  label.textContent = 'Listening... tap again when done';
+  label.style.color = 'var(--red)';
+  sub.textContent = 'Speak naturally — everything gets captured';
+  transcriptEl.style.display = 'block';
+  transcriptEl.textContent = '';
+  voiceActive = true;
+
+  var interim = '';
+  recognition.onresult = function(e) {
+    var final = '';
+    interim = '';
+    for (var i = 0; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        final += e.results[i][0].transcript + ' ';
+      } else {
+        interim += e.results[i][0].transcript;
+      }
+    }
+    fullTranscript = final;
+    transcriptEl.textContent = (final + interim).trim() || 'Listening...';
+  };
+
+  recognition.onerror = function(e) {
+    if (e.error !== 'no-speech') {
+      label.textContent = 'Mic error — try again or type instead';
+      label.style.color = 'var(--red)';
+      stopVoice();
+    }
+  };
+
+  recognition.onend = function() {
+    if (voiceActive) {
+      // Auto-restart if still active (recognition times out after silence)
+      try { recognition.start(); } catch(e) {}
+    }
+  };
+
+  recognition.start();
+}
+
+function stopVoice() {
+  voiceActive = false;
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {}
+  }
+
+  var dot = document.getElementById('voiceDotInner');
+  var label = document.getElementById('voiceLabel');
+  var sub = document.getElementById('voiceSub');
+  var fbOther = document.getElementById('fbOther');
+
+  dot.style.background = 'var(--green)';
+  dot.style.animation = 'none';
+  label.textContent = 'Captured — added to your feedback';
+  label.style.color = 'var(--green)';
+  sub.textContent = 'Tap to record more, or hit send below';
+
+  // Append transcript to the "other ideas" textarea
+  if (fullTranscript.trim()) {
+    var existing = fbOther.value.trim();
+    fbOther.value = (existing ? existing + '\n\n' : '') + '[Voice] ' + fullTranscript.trim();
+  }
+}
 </script>
 </body>
 </html>
