@@ -26,6 +26,7 @@
   // STATE
   // ============================================================
   let _config = {};
+  let _engineConfig = null; // fetched from /v1/auth/config
   let _state = 'idle'; // idle → email → otp → face → vouch → verified
   let _user = null;
   let _container = null;
@@ -81,6 +82,25 @@
   }
 
   // ============================================================
+  // ENGINE CONFIG — fetched from /v1/auth/config
+  // ============================================================
+
+  async function _fetchEngineConfig() {
+    try {
+      _engineConfig = await _api('GET', '/v1/auth/config');
+    } catch(e) {
+      // Fallback defaults if config endpoint unreachable
+      _engineConfig = {
+        ttl: { full_verified_minutes: 60, full_unverified_minutes: 20, otp_only_minutes: 30, quick_reauth_minutes: 30 },
+        quick_reauth: { verified_eligible: true, unverified_eligible: false },
+        staleness: { max_session_age_hours: 24 },
+        vouch: { required_for_access: false, grace_period_hours: 72 },
+        action_reauth: { actions: [], freshness_seconds: 300 },
+      };
+    }
+  }
+
+  // ============================================================
   // SESSION CHECK
   // ============================================================
 
@@ -91,22 +111,35 @@
     try {
       const data = await _api('GET', '/v1/auth/session');
       if (data.valid) {
-        const user = { email: data.email, name: data.name, auth_level: data.auth_level };
-        // Fetch trust status
+        const user = {
+          email: data.email,
+          name: data.name,
+          auth_level: data.auth_level,
+          is_verified: data.is_verified || false,
+          quick_reauth_eligible: data.quick_reauth_eligible || false,
+          last_biometric: data.last_biometric || 0,
+        };
+        // Fetch trust status for vouch count
         try {
           const trust = await _api('GET', `/v1/auth/trust-status?email=${encodeURIComponent(data.email)}`);
           user.trust_level = trust.trust_level;
           user.is_verified = trust.is_verified;
           user.vouches_received = trust.vouches_received;
         } catch(e) {
-          user.trust_level = 'unknown';
-          user.is_verified = false;
+          user.trust_level = user.is_verified ? 'verified' : 'unverified';
         }
         _setUser(user);
         return user;
       }
     } catch (e) {
+      // Session invalid/expired/stale — check the error to decide next step
       _clearToken();
+      // Parse error detail if available
+      if (e.message && e.message.includes('stale')) {
+        // Stale session — mark for quick re-auth if eligible
+        const stored = _getStoredUser();
+        if (stored) stored._sessionError = 'stale';
+      }
     }
     return null;
   }
@@ -795,7 +828,7 @@
     _startCamera();
     document.getElementById('vac-quick-full').addEventListener('click', () => _renderEmailScreen());
 
-    // Fetch challenge
+    // Fetch challenge — may 403 if user not eligible (unverified)
     _api('POST', '/v1/auth/quick-challenge', { email: email }).then(data => {
       _config._quickChallenge = data;
       document.getElementById('vac-finger-hint').textContent = data.instruction;
@@ -804,8 +837,19 @@
       btn.disabled = false;
       btn.addEventListener('click', () => _handleQuickVerify(data, email));
     }).catch(e => {
-      document.getElementById('vac-error').textContent = e.message;
-      document.getElementById('vac-finger-hint').textContent = 'Challenge failed — use email instead';
+      // If 403 (not eligible), fall back to full email auth gracefully
+      var msg = typeof e.message === 'string' ? e.message : '';
+      if (msg.indexOf('not_eligible') !== -1 || msg.indexOf('require_full_auth') !== -1) {
+        // Not eligible for quick re-auth — redirect to email with pre-fill
+        _renderEmailScreen();
+        setTimeout(function() {
+          var emailInput = document.getElementById('vac-email');
+          if (emailInput) emailInput.value = email;
+        }, 50);
+      } else {
+        document.getElementById('vac-error').textContent = msg || 'Challenge failed';
+        document.getElementById('vac-finger-hint').textContent = 'Challenge failed — use email instead';
+      }
     });
   }
 
@@ -887,8 +931,8 @@
         document.body.appendChild(_container);
       }
 
-      // Check for existing valid session
-      _checkSession().then(user => {
+      // Fetch ENGINE config then check session — proper order matters
+      _fetchEngineConfig().then(() => _checkSession()).then(user => {
         if (user) {
           // Session valid — check if they need to vouch still
           if (!user.is_verified && _config.requireVouch !== false) {
@@ -899,14 +943,35 @@
             if (_config.onVerified) _config.onVerified(user);
           }
         } else {
-          // No valid session — check if returning user (email stored)
+          // No valid session — check if returning user
           const storedEmail = _getStoredEmail();
+          const storedUser = _getStoredUser();
+
           if (storedEmail) {
-            // Returning user with expired session → quick re-auth
-            _renderGate();
-            _renderQuickReauthScreen(storedEmail);
+            // Returning user — check ENGINE rules for quick re-auth eligibility
+            // Rule: only verified users (1+ vouches) get quick re-auth by default
+            // Unverified users must do full OTP — incentivises getting vouched
+            const wasVerified = storedUser && storedUser.is_verified;
+            const ec = _engineConfig || {};
+            const qr = ec.quick_reauth || {};
+            const quickEligible = wasVerified ? (qr.verified_eligible !== false) : (qr.unverified_eligible === true);
+
+            if (quickEligible) {
+              // Quick re-auth: camera + fingers — 5 second flow
+              _renderGate();
+              _renderQuickReauthScreen(storedEmail);
+            } else {
+              // Not eligible for quick re-auth: full OTP flow
+              // Pre-fill email for convenience but require full verification
+              _renderGate();
+              _renderEmailScreen();
+              setTimeout(() => {
+                var emailInput = document.getElementById('vac-email');
+                if (emailInput) emailInput.value = storedEmail;
+              }, 50);
+            }
           } else {
-            // New user → full flow
+            // Brand new user — full flow
             _renderGate();
           }
         }
@@ -955,6 +1020,109 @@
     headers: function() {
       const token = _getToken();
       return token ? { 'Authorization': `Bearer ${token}` } : {};
+    },
+
+    /** Get ENGINE config (TTLs, eligibility rules, vouch requirements) */
+    getEngineConfig: function() {
+      return _engineConfig;
+    },
+
+    /**
+     * Check if an action requires fresh biometric re-auth.
+     * Call this before high-sensitivity operations like approve_spend.
+     * Returns a Promise that resolves to true (proceed) or shows re-auth gate.
+     * 
+     * Usage:
+     *   const ok = await VAC.requireActionReauth('approve_spend');
+     *   if (ok) { // proceed with action }
+     *
+     * Patent Claims 5c-5e: Action-gated single gesture verification.
+     */
+    requireActionReauth: async function(action) {
+      var ec = _engineConfig || {};
+      var ar = ec.action_reauth || {};
+      var actions = ar.actions || [];
+      
+      // If this action doesn't require re-auth, proceed
+      if (actions.indexOf(action) === -1) return true;
+      
+      // Check if last biometric is fresh enough
+      var user = _user || _getStoredUser();
+      var lastBio = (user && user.last_biometric) || 0;
+      var freshness = ar.freshness_seconds || 300;
+      var age = (Date.now() / 1000) - lastBio;
+      
+      if (lastBio > 0 && age < freshness) return true; // Fresh enough
+      
+      // Need re-auth — show quick challenge inline
+      return new Promise(function(resolve) {
+        // Create modal overlay for action re-auth
+        var overlay = document.createElement('div');
+        overlay.className = 'vac-gate';
+        overlay.id = 'vac-action-reauth';
+        overlay.innerHTML = '<div class="vac-card"><div class="vac-header">' +
+          '<div style="margin:0 auto 14px;width:48px;height:48px;background:#fbbf2422;border-radius:10px;display:flex;align-items:center;justify-content:center;">' +
+          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' +
+          '</div><div class="vac-title">Confirm your identity</div>' +
+          '<div class="vac-subtitle">This action requires fresh verification</div></div>' +
+          '<div class="vac-body" id="vac-action-body">' +
+          '<div class="vac-face-preview"><video id="vac-action-video" autoplay playsinline muted></video>' +
+          '<div class="vac-face-overlay"><div class="vac-face-reticle"></div></div>' +
+          '<div class="vac-face-hint" id="vac-action-hint">Loading...</div></div>' +
+          '<button class="vac-btn vac-btn-primary" id="vac-action-btn" disabled>Verify</button>' +
+          '<button class="vac-btn vac-btn-secondary" id="vac-action-cancel">Cancel</button>' +
+          '<div class="vac-error-msg" id="vac-action-error"></div></div>' +
+          '<div class="vac-footer"><div class="vac-footer-text">Action re-auth · ' + action + '</div></div></div>';
+        
+        document.body.appendChild(overlay);
+        
+        // Start camera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false }).then(function(stream) {
+          var vid = document.getElementById('vac-action-video');
+          if (vid) vid.srcObject = stream;
+          
+          var email = (user && user.email) || '';
+          // Get challenge
+          _api('POST', '/v1/auth/quick-challenge', { email: email }).then(function(ch) {
+            document.getElementById('vac-action-hint').textContent = ch.instruction;
+            document.getElementById('vac-action-hint').style.color = '#22c55e';
+            var btn = document.getElementById('vac-action-btn');
+            btn.disabled = false;
+            btn.onclick = function() {
+              btn.disabled = true;
+              btn.innerHTML = '<span class="vac-spinner"></span>';
+              _api('POST', '/v1/auth/quick-verify', {
+                challenge_id: ch.challenge_id,
+                detected_fingers: ch.num_fingers // Phase 1: auto-pass
+              }).then(function(data) {
+                _setToken(data.session_token);
+                var u = _getStoredUser() || {};
+                u.last_biometric = Math.floor(Date.now() / 1000);
+                u.auth_level = data.auth_level;
+                _setUser(u);
+                stream.getTracks().forEach(function(t) { t.stop(); });
+                overlay.remove();
+                resolve(true);
+              }).catch(function(e) {
+                document.getElementById('vac-action-error').textContent = e.message;
+                btn.disabled = false;
+                btn.textContent = 'Retry';
+              });
+            };
+          }).catch(function(e) {
+            document.getElementById('vac-action-error').textContent = e.message;
+            document.getElementById('vac-action-hint').textContent = 'Verification unavailable';
+          });
+        }).catch(function() {
+          document.getElementById('vac-action-error').textContent = 'Camera access required';
+        });
+        
+        document.getElementById('vac-action-cancel').onclick = function() {
+          try { document.getElementById('vac-action-video').srcObject.getTracks().forEach(function(t){ t.stop(); }); } catch(e){}
+          overlay.remove();
+          resolve(false);
+        };
+      });
     },
   };
 
