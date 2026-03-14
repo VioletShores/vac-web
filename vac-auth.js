@@ -862,18 +862,12 @@
         '<div class="vac-face-preview" id="vac-face-preview">' +
           '<video id="vac-face-video" autoplay playsinline muted></video>' +
           '<div class="vac-face-overlay"><div class="vac-face-reticle"></div></div>' +
-          '<div class="vac-face-hint" style="color:#22c55e;">Face match + ' + fingerNum + ' ' + fingerPlural + ' for liveness</div></div>' +
+          '<div class="vac-face-hint" style="color:#22c55e;background:rgba(0,0,0,0.85);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;">Hold up ' + fingerWord + ' ' + fingerPlural + '</div></div>' +
         '<button class="vac-btn vac-btn-primary" id="vac-quick-btn">' +
           '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verify it\'s me</button>' +
-        '<button class="vac-btn vac-btn-secondary" id="vac-quick-full">Use email instead</button>' +
         '<div class="vac-error-msg" id="vac-error"></div>';
 
       _startCamera();
-      document.getElementById('vac-quick-full').addEventListener('click', function() {
-        _stopCamera();
-        _renderEmailScreen();
-        setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
-      });
       document.getElementById('vac-quick-btn').addEventListener('click', function() {
         _handleFaceReauth(email);
       });
