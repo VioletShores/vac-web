@@ -87,6 +87,23 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .footer { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center; }
 .footer-text { font-family: var(--mono); font-size: 9px; color: var(--text-dim); }
 .footer-text a { color: var(--text-dim); text-decoration: none; }
+
+/* Task dashboard */
+@keyframes spin { to { transform: rotate(360deg); } }
+.task-spinner { width: 10px; height: 10px; border: 1.5px solid rgba(59,130,246,0.3); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; flex-shrink: 0; }
+.task-item { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+.task-item:last-child { border-bottom: none; }
+.task-body { flex: 1; min-width: 0; }
+.task-intent { font-size: 12px; color: var(--text-muted); line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.task-meta { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.task-badge { font-family: var(--mono); font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 500; white-space: nowrap; flex-shrink: 0; margin-top: 1px; }
+.task-badge.running  { background: #3b82f615; color: #3b82f6; }
+.task-badge.queued   { background: #f59e0b15; color: #f59e0b; }
+.task-badge.completed{ background: #22c55e15; color: #22c55e; }
+.task-badge.failed   { background: #ef444415; color: #ef4444; }
+.task-group-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 4px; }
+.task-group-label:first-child { margin-top: 0; }
+.tasks-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 12px 0; }
 </style>
 </head>
 <body>
@@ -127,6 +144,17 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
     <div class="brief-item">
       <div class="brief-icon" style="background:#f59e0b10;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
       <div class="brief-text"><strong>Deadlines:</strong> NIST Listening Session — 5 days (20 March). Patent Supp #7+#8 — 8 days (23 March).</div>
+    </div>
+  </div>
+
+  <!-- Athena Tasks -->
+  <div class="section d3" id="athena-tasks-section">
+    <div class="section-label" style="color:#8b5cf6;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      Athena Tasks <span class="tag" id="tasks-tag" style="background:#8b5cf615;color:#8b5cf6;">loading</span>
+    </div>
+    <div id="tasks-content">
+      <div class="tasks-empty">Loading tasks…</div>
     </div>
   </div>
 
@@ -272,8 +300,118 @@ VAC.init({
     var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
     var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     document.getElementById('greetingSub').textContent = days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()] + ' — Sydney';
+    startTaskPolling();
   }
 });
+
+// ── Athena Tasks ──────────────────────────────────────────────────────────
+function relTime(iso) {
+  if (!iso) return '';
+  var diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (diff < 60) return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+  return Math.floor(diff/86400) + 'd ago';
+}
+
+function renderTasks(tasks) {
+  var running   = tasks.filter(function(t){ return t.status === 'running'; });
+  var queued    = tasks.filter(function(t){ return t.status === 'queued' || t.status === 'pending'; });
+  var done      = tasks.filter(function(t){ return t.status === 'completed' || t.status === 'failed'; })
+                       .sort(function(a,b){ return new Date(b.completed_at||b.updated_at||b.created_at) - new Date(a.completed_at||a.updated_at||a.created_at); })
+                       .slice(0, 5);
+
+  var tag = document.getElementById('tasks-tag');
+  var activeCount = running.length + queued.length;
+  tag.textContent = activeCount > 0 ? activeCount + ' active' : 'idle';
+
+  var html = '';
+
+  if (running.length) {
+    html += '<div class="task-group-label">Running</div>';
+    running.forEach(function(t) {
+      var intent = (t.intent || t.summary || 'Task').substring(0, 72);
+      if ((t.intent||'').length > 72) intent += '…';
+      html += '<div class="task-item">' +
+        '<div class="task-spinner" style="margin-top:3px;"></div>' +
+        '<div class="task-body">' +
+          '<div class="task-intent">' + escHtml(intent) + '</div>' +
+          '<div class="task-meta">' + escHtml(t.repo || '—') + ' · ' + relTime(t.started_at || t.created_at) + '</div>' +
+        '</div>' +
+        '<span class="task-badge running">running</span>' +
+        '</div>';
+    });
+  }
+
+  if (queued.length) {
+    html += '<div class="task-group-label">Queued</div>';
+    queued.forEach(function(t) {
+      var intent = (t.intent || t.summary || 'Task').substring(0, 72);
+      if ((t.intent||'').length > 72) intent += '…';
+      html += '<div class="task-item">' +
+        '<div style="width:10px;flex-shrink:0;"></div>' +
+        '<div class="task-body">' +
+          '<div class="task-intent">' + escHtml(intent) + '</div>' +
+          '<div class="task-meta">' + escHtml(t.repo || '—') + ' · ' + relTime(t.created_at) + '</div>' +
+        '</div>' +
+        '<span class="task-badge queued">queued</span>' +
+        '</div>';
+    });
+  }
+
+  if (done.length) {
+    html += '<div class="task-group-label">Recently completed</div>';
+    done.forEach(function(t) {
+      var intent = (t.intent || t.summary || 'Task').substring(0, 72);
+      if ((t.intent||'').length > 72) intent += '…';
+      var status = t.status === 'failed' ? 'failed' : 'completed';
+      var ts = t.completed_at || t.updated_at || t.created_at;
+      html += '<div class="task-item">' +
+        '<div style="width:10px;flex-shrink:0;"></div>' +
+        '<div class="task-body">' +
+          '<div class="task-intent">' + escHtml(intent) + '</div>' +
+          '<div class="task-meta">' + escHtml(t.repo || '—') + ' · ' + relTime(ts) + '</div>' +
+        '</div>' +
+        '<span class="task-badge ' + status + '">' + status + '</span>' +
+        '</div>';
+    });
+  }
+
+  if (!html) {
+    html = '<div class="tasks-empty">No tasks yet</div>';
+  }
+
+  document.getElementById('tasks-content').innerHTML = html;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function loadTasks() {
+  try {
+    var headers = { 'Content-Type': 'application/json' };
+    if (window.VAC_USER && window.VAC_USER.token) headers['Authorization'] = 'Bearer ' + window.VAC_USER.token;
+    var res = await fetch('https://api.athenapilot.ai/v1/tasks', { headers: headers });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+    var tasks = data.tasks || data || [];
+    renderTasks(Array.isArray(tasks) ? tasks : []);
+  } catch(e) {
+    var tag = document.getElementById('tasks-tag');
+    if (tag) { tag.textContent = 'error'; }
+    var el = document.getElementById('tasks-content');
+    if (el) el.innerHTML = '<div class="tasks-empty" style="color:var(--text-dim);">Unable to load tasks</div>';
+  }
+}
+
+// Kick off after auth
+var _tasksInterval = null;
+function startTaskPolling() {
+  loadTasks();
+  if (_tasksInterval) clearInterval(_tasksInterval);
+  _tasksInterval = setInterval(loadTasks, 30000);
+}
 
 async function submitFeedback() {
   var btn = document.getElementById('fb-btn');
