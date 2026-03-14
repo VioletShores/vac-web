@@ -715,6 +715,11 @@
       return;
     }
 
+    // Check for invite params — pre-fill voucher info from invite link
+    var urlParams = new URLSearchParams(window.location.search);
+    var inviterEmail = urlParams.get('inviter') || '';
+    var inviterName = urlParams.get('inviter_name') || '';
+
     const hasPending = trust.vouches_pending > 0;
 
     screen.innerHTML = `
@@ -761,6 +766,14 @@
 
     if (!hasPending) {
       document.getElementById('vac-vouch-btn').addEventListener('click', () => _handleRequestVouch());
+      // Pre-fill from invite link
+      if (inviterName) document.getElementById('vac-voucher-name').value = inviterName;
+      if (inviterEmail) document.getElementById('vac-voucher-email').value = inviterEmail;
+      // Auto-send vouch request if both invite params present
+      if (inviterName && inviterEmail) {
+        console.log('[VAC] Invite detected — auto-sending vouch request to', inviterEmail);
+        setTimeout(function() { _handleRequestVouch(); }, 500);
+      }
     }
 
     // Poll for vouch confirmation — auto-transition to verified

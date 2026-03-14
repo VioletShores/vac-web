@@ -113,6 +113,22 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
     <div class="section-header"><span class="section-label">Locked</span><span class="section-line"></span></div>
     <div class="app-grid" id="app-grid-locked"></div>
   </div>
+
+  <div class="section-header fade-4"><span class="section-label">Invite someone</span><span class="section-line"></span></div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:8px;" class="fade-4" id="invite-section">
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.4;">Invite someone to use one of your apps. They'll get an email with a link to sign up and you'll be their trust chain voucher.</div>
+    <input id="inv-name" placeholder="Their name" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);" />
+    <input id="inv-email" placeholder="Their email" type="email" inputmode="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);" />
+    <select id="inv-app" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);-webkit-appearance:none;">
+      <option value="hub">Athena Hub (general)</option>
+    </select>
+    <input id="inv-msg" placeholder="Personal message (optional)" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:10px;font-family:var(--sans);" />
+    <button onclick="sendInvite()" style="width:100%;padding:11px 16px;border-radius:8px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:var(--green);color:#000;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:6px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Send invite
+    </button>
+    <div id="inv-status" style="font-size:11px;margin-top:8px;text-align:center;min-height:16px;"></div>
+  </div>
   <div class="section-header fade-4"><span class="section-label">Marketplace</span><span class="section-line"></span></div>
   <div class="marketplace fade-5">
     <div class="mp-title">Copilot blueprints</div>
@@ -126,7 +142,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
     <div class="hub-footer-text">identity by <a href="https://vacprotocol.org" target="_blank">vac protocol</a> · powered by <a href="https://athenapilot.ai" target="_blank">athena</a> · violet shores pty ltd</div>
   </div>
 </div>
-<script src="/vac-auth.js?v=1773463404"></script>
+<script src="/vac-auth.js?v=1773463780"></script>
 <script>
 var API = 'https://vac-system-production.up.railway.app';
 
@@ -185,6 +201,7 @@ function renderHub(user) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
       renderApps(data.accessible || [], 'app-grid-accessible', false);
+      populateInviteDropdown(data.accessible || []);
       if (data.locked && data.locked.length > 0) {
         document.getElementById('locked-section').style.display = 'block';
         renderApps(data.locked, 'app-grid-locked', true);
@@ -232,6 +249,44 @@ function sendVouchFromHub() {
   }).then(function(r) { return r.json(); }).then(function(d) {
     status.textContent = 'Vouch request sent to ' + email; status.style.color = '#22c55e';
   }).catch(function(e) { status.textContent = e.message; status.style.color = '#ef4444'; });
+}
+
+function populateInviteDropdown(apps) {
+  var sel = document.getElementById('inv-app');
+  if (!sel) return;
+  apps.forEach(function(app) {
+    var opt = document.createElement('option');
+    opt.value = app.id;
+    opt.textContent = app.name;
+    sel.appendChild(opt);
+  });
+}
+
+function sendInvite() {
+  var name = document.getElementById('inv-name').value.trim();
+  var email = document.getElementById('inv-email').value.trim().toLowerCase();
+  var appId = document.getElementById('inv-app').value;
+  var msg = document.getElementById('inv-msg').value.trim();
+  var status = document.getElementById('inv-status');
+  
+  if (!name) { status.textContent = 'Enter their name'; status.style.color = '#ef4444'; return; }
+  if (!email || !email.includes('@') || !email.includes('.')) { status.textContent = 'Enter a valid email'; status.style.color = '#ef4444'; return; }
+  
+  status.textContent = 'Sending invite...'; status.style.color = 'var(--text-muted)';
+  fetch(API + '/v1/auth/invite', {
+    method: 'POST',
+    headers: Object.assign({'Content-Type': 'application/json'}, VAC.headers()),
+    body: JSON.stringify({ invitee_email: email, invitee_name: name, app_id: appId, message: msg })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.invited) {
+      status.innerHTML = '<span style="color:#22c55e;">Invite sent to ' + email + ' for ' + d.app_name + '</span>';
+      document.getElementById('inv-name').value = '';
+      document.getElementById('inv-email').value = '';
+      document.getElementById('inv-msg').value = '';
+    } else {
+      status.textContent = d.detail || d.message || 'Failed'; status.style.color = '#ef4444';
+    }
+  }).catch(function(e) { status.textContent = e.message || 'Send failed'; status.style.color = '#ef4444'; });
 }
 </script>
 </body>
