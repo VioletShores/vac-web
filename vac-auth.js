@@ -420,16 +420,50 @@
       <label class="vac-label">Email address</label>
       <input type="email" class="vac-input" id="vac-email" 
         placeholder="you@example.com" autocomplete="email" inputmode="email" autofocus />
-      <button class="vac-btn vac-btn-primary" id="vac-send-btn">
+      <div id="vac-email-hint" style="font-size:12px;color:#4b5563;margin-top:6px;min-height:18px;transition:color 0.2s;"></div>
+      <button class="vac-btn vac-btn-primary" id="vac-send-btn" disabled>
         Send verification code
       </button>
       <div class="vac-error-msg" id="vac-error"></div>
     `;
     const input = document.getElementById('vac-email');
     const btn = document.getElementById('vac-send-btn');
+    const hint = document.getElementById('vac-email-hint');
 
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
+    function validateEmail() {
+      var val = input.value.trim();
+      if (!val) {
+        hint.textContent = '';
+        hint.style.color = '#4b5563';
+        btn.disabled = true;
+        return;
+      }
+      // Basic email pattern: something@something.something
+      var isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+      if (isValid) {
+        hint.textContent = '';
+        btn.disabled = false;
+        input.style.borderColor = '#22c55e';
+      } else if (val.includes('@') && val.indexOf('@') < val.length - 1) {
+        // Has @ but not complete yet — gentle nudge
+        hint.textContent = 'e.g. you@example.com';
+        hint.style.color = '#6b7280';
+        btn.disabled = true;
+        input.style.borderColor = '#2a3040';
+      } else {
+        hint.textContent = 'Enter a valid email address';
+        hint.style.color = '#fbbf24';
+        btn.disabled = true;
+        input.style.borderColor = '#2a3040';
+      }
+    }
+
+    input.addEventListener('input', validateEmail);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !btn.disabled) btn.click(); });
     btn.addEventListener('click', () => _handleSendOTP());
+
+    // If email was pre-filled (returning user), validate immediately
+    setTimeout(validateEmail, 100);
   }
 
   async function _handleSendOTP() {
