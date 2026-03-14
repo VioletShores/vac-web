@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Shan's Intelligence — Athena</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Athena">
+<link rel="apple-touch-icon" href="/branding/vac-logo-square-dark.png">
+<meta name="theme-color" content="#f8f4ee">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=DM+Sans:wght@400;500;600&family=Playfair+Display:ital,wght@0,600;0,700;1,500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f8f4ee;
+  --surface: #fdfaf6;
+  --surface-raised: #ffffff;
+  --border: #e4d9cc;
+  --border-soft: #ede6da;
+  --text: #2a2018;
+  --text-muted: #7a6e62;
+  --text-dim: #b8aea0;
+  --rose: #b07868;
+  --rose-glow: rgba(176,120,104,0.08);
+  --rose-border: rgba(176,120,104,0.18);
+  --sage: #7a9e7e;
+  --sage-glow: rgba(122,158,126,0.08);
+  --sage-border: rgba(122,158,126,0.18);
+  --mauve: #9e7a8e;
+  --mauve-glow: rgba(158,122,142,0.08);
+  --mauve-border: rgba(158,122,142,0.18);
+  --amber: #c49a5a;
+  --amber-glow: rgba(196,154,90,0.08);
+  --amber-border: rgba(196,154,90,0.18);
+  --teal: #6a9e9a;
+  --teal-glow: rgba(106,158,154,0.08);
+  --sans: 'DM Sans', sans-serif;
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --display: 'Playfair Display', Georgia, serif;
+  --radius: 14px;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes shimmer { 0%,100% { opacity:0.4; } 50% { opacity:0.7; } }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+.page { max-width: 520px; margin: 0 auto; padding: 0 16px 56px; display: none; }
+.d1 { animation: fadeUp 0.5s ease 0.05s both; }
+.d2 { animation: fadeUp 0.5s ease 0.12s both; }
+.d3 { animation: fadeUp 0.5s ease 0.19s both; }
+.d4 { animation: fadeUp 0.5s ease 0.26s both; }
+.d5 { animation: fadeUp 0.5s ease 0.33s both; }
+.d6 { animation: fadeUp 0.5s ease 0.40s both; }
+.d7 { animation: fadeUp 0.5s ease 0.47s both; }
+
+/* Header */
+.header { padding: 22px 0 18px; display: flex; align-items: center; justify-content: space-between; }
+.header-left { display: flex; align-items: center; gap: 10px; }
+.header-icon { width: 36px; height: 36px; border-radius: 50%; background: var(--rose-glow); border: 1px solid var(--rose-border); display: flex; align-items: center; justify-content: center; }
+.header-title { font-family: var(--display); font-size: 19px; font-weight: 600; color: var(--text); letter-spacing: 0.01em; }
+.header-right { text-align: right; }
+.header-email { font-size: 10px; color: var(--text-dim); font-family: var(--sans); }
+.header-nav { display: flex; gap: 6px; margin-top: 4px; justify-content: flex-end; }
+.header-nav a { font-size: 10px; color: var(--text-muted); text-decoration: none; padding: 2px 8px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface-raised); letter-spacing: 0.02em; }
+.header-nav a:hover { border-color: var(--rose-border); color: var(--rose); }
+
+/* Divider linen texture strip */
+.linen-rule { height: 1px; background: linear-gradient(to right, transparent, var(--border), transparent); margin: 2px 0 18px; }
+
+/* Greeting */
+.greeting { font-family: var(--display); font-size: 30px; font-weight: 700; color: var(--text); margin-bottom: 3px; line-height: 1.15; }
+.greeting-italic { font-style: italic; color: var(--rose); }
+.greeting-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 22px; font-family: var(--serif); letter-spacing: 0.02em; }
+
+/* Section */
+.section { background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+.section-label { font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.8px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; font-family: var(--sans); }
+.section-label svg { flex-shrink: 0; }
+.tag { font-size: 9px; padding: 2px 7px; border-radius: 20px; font-weight: 500; letter-spacing: 0.04em; font-family: var(--sans); }
+
+/* Cards */
+.card { background: var(--surface-raised); border: 1px solid var(--border-soft); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+.card:last-child { margin-bottom: 0; }
+.card-title { font-family: var(--display); font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.3; margin-bottom: 4px; }
+.card-meta { font-size: 11px; color: var(--text-dim); margin-bottom: 8px; font-family: var(--sans); }
+.card-summary { font-size: 13px; color: var(--text-muted); line-height: 1.6; font-family: var(--serif); }
+.card-summary strong { color: var(--text); font-weight: 600; }
+
+/* Video card */
+.vid { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
+.vid-thumb { width: 76px; height: 50px; border-radius: 8px; background: var(--bg); flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); overflow: hidden; }
+
+/* Morning briefing */
+.brief-item { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); align-items: flex-start; }
+.brief-item:last-child { border-bottom: none; padding-bottom: 0; }
+.brief-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.brief-text { font-size: 13px; color: var(--text-muted); line-height: 1.5; flex: 1; font-family: var(--serif); }
+.brief-text strong { color: var(--text); font-weight: 600; }
+
+/* Creative prompt */
+.creative-prompt { background: linear-gradient(135deg, #fdf6f0, #f8f0f4); border: 1px solid var(--rose-border); border-radius: 12px; padding: 16px; margin-top: 12px; position: relative; overflow: hidden; }
+.creative-prompt::before { content: '"'; font-family: var(--display); font-size: 80px; color: var(--rose); opacity: 0.12; position: absolute; top: -10px; left: 8px; line-height: 1; pointer-events: none; }
+.creative-prompt-label { font-size: 9px; font-weight: 600; color: var(--rose); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 8px; font-family: var(--sans); }
+.creative-prompt-text { font-family: var(--display); font-size: 15px; font-style: italic; color: var(--text); line-height: 1.6; }
+
+/* Te Ao Māori calendar */
+.maramataka-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); align-items: flex-start; }
+.maramataka-item:last-child { border-bottom: none; padding-bottom: 0; }
+.maramataka-date { font-family: var(--sans); font-size: 10px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; width: 36px; flex-shrink: 0; padding-top: 2px; }
+.maramataka-text { font-family: var(--serif); font-size: 13px; color: var(--text-muted); line-height: 1.5; flex: 1; }
+.maramataka-text strong { color: var(--text); }
+
+/* Feedback */
+.fb-area { width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--surface-raised); color:var(--text); font-size:13px; font-family:var(--serif); resize:vertical; min-height:60px; }
+.fb-area:focus { outline: none; border-color: var(--rose-border); }
+.fb-btn { width:100%; margin-top:8px; padding:11px; border-radius:10px; border:1px solid var(--rose); background:transparent; color:var(--rose); font-size:13px; font-weight:600; cursor:pointer; font-family:var(--sans); letter-spacing:0.04em; transition: background 0.2s, color 0.2s; }
+.fb-btn:hover { background:var(--rose); color:#fff; }
+
+/* Footer */
+.footer { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--border-soft); text-align: center; }
+.footer-text { font-size: 9px; color: var(--text-dim); font-family: var(--sans); letter-spacing: 0.05em; text-transform: uppercase; }
+.footer-text a { color: var(--text-dim); text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="vac-auth"></div>
+<div class="page" id="vac-app-content" style="display:none;">
+
+  <div class="header d1">
+    <div class="header-left">
+      <div class="header-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b07868" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="header-title">Shan's Intelligence</div>
+    </div>
+    <div class="header-right">
+      <div class="header-email" id="user-email"></div>
+      <div class="header-nav"><a href="/hub">Hub</a></div>
+    </div>
+  </div>
+
+  <div class="linen-rule"></div>
+
+  <!-- Greeting -->
+  <div class="d1">
+    <div class="greeting">Good morning, <span class="greeting-italic">Shan</span></div>
+    <div class="greeting-sub" id="greetingSub">Sunday 15 March — Auckland</div>
+  </div>
+
+  <!-- Morning Briefing + Creative Prompt -->
+  <div class="section d2">
+    <div class="section-label">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--rose)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Morning briefing
+    </div>
+    <div class="brief-item">
+      <div class="brief-icon" style="background:var(--amber-glow); border: 1px solid var(--amber-border);">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#c49a5a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 18a5 5 0 0 0-10 0"/><line x1="12" y1="9" x2="12" y2="2"/><line x1="4.22" y1="10.22" x2="5.64" y2="11.64"/><line x1="1" y1="18" x2="3" y2="18"/><line x1="21" y1="18" x2="23" y2="18"/><line x1="18.36" y1="11.64" x2="19.78" y2="10.22"/></svg>
+      </div>
+      <div class="brief-text"><strong>Auckland 18°C</strong> — clear morning, light southerly. Golden light until 9am — ideal for photography or a slow walk before the day begins.</div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-icon" style="background:var(--sage-glow); border: 1px solid var(--sage-border);">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7a9e7e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      </div>
+      <div class="brief-text"><strong>FolioAI:</strong> 3 new portfolio submissions overnight. Designer community growing — 47 active members this week. Your pinned mood boards have been viewed 12 times.</div>
+    </div>
+    <div class="brief-item">
+      <div class="brief-icon" style="background:var(--rose-glow); border: 1px solid var(--rose-border);">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b07868" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </div>
+      <div class="brief-text"><strong>This week:</strong> Matariki planning session Tuesday · NZFW submission deadline Friday · Whanau gathering Sunday.</div>
+    </div>
+
+    <!-- Creative Prompt -->
+    <div class="creative-prompt">
+      <div class="creative-prompt-label">Today's creative prompt</div>
+      <div class="creative-prompt-text" id="creative-prompt-text">Find one texture today — rough bark, worn linen, smooth stone — and photograph it in the morning light. Let it be the starting point for something you make this week.</div>
+    </div>
+  </div>
+
+  <!-- Fashion -->
+  <div class="section d3">
+    <div class="section-label" style="color:var(--rose);">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b07868" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H7v10a2 2 0 002 2h6a2 2 0 002-2V10h3.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>
+      Fashion <span class="tag" style="background:var(--rose-glow); color:var(--rose); border:1px solid var(--rose-border);">runway &amp; trends</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Paris Fashion Week SS26 — Quiet Luxury Deepens</div>
+      <div class="card-meta">Vogue Runway · 2 days ago</div>
+      <div class="card-summary">The SS26 season confirmed a continuing pivot away from maximalism. <strong>Loewe</strong> opened with sculptural linen forms in undyed natural tones — pieces that felt as much like architecture as clothing. <strong>The Row</strong> stayed the course: fluid silk separates, nothing performative. The emerging thread across houses: <strong>material honesty</strong>. Clothes that want to be touched, not photographed.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">The Return of Natural Dye — Colour as Slow Practice</div>
+      <div class="card-meta">Dezeen Fashion · 3 days ago</div>
+      <div class="card-summary">Independent studios across Auckland, Tokyo, and Copenhagen are returning to plant-based dye processes. Indigo, onion skin, and iron-tannin mordants are creating colour palettes impossible to replicate digitally. <strong>The appeal:</strong> the colour changes with the wearer, with washing, with time. It is fashion that breathes.</div>
+    </div>
+
+    <div class="card">
+      <div class="vid">
+        <div class="vid-thumb" style="background:var(--rose-glow); border-color:var(--rose-border);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div>
+          <div class="card-title">How to Style Elevated Basics — The Capsule Edit</div>
+          <div class="card-meta">Wendy's Lookbook · 18 min · transcribed today</div>
+        </div>
+      </div>
+      <div class="card-summary">
+        <strong>Summary:</strong> Breaks down the architecture of a capsule wardrobe through fabric weight and proportion rather than colour. Key insight: pairing two oversized pieces works when one is structured (blazer, tailored trouser) and one is relaxed (linen shirt, wide-leg pant). The "effortless" look comes from intentional contrast in texture — rough linen against smooth silk, matte cotton against polished leather. Three outfit formulas that work across every season.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="vid">
+        <div class="vid-thumb" style="background:var(--rose-glow); border-color:var(--rose-border);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div>
+          <div class="card-title">SS26 Trend Report — What's Actually Wearable</div>
+          <div class="card-meta">Leonie Hanne · 24 min · transcribed today</div>
+        </div>
+      </div>
+      <div class="card-summary">
+        <strong>Key takeaways:</strong> Sheer layering over opaque base continues to dominate. Proportion shift — higher waists, longer hemlines, narrower shoulders. <strong>Colour story:</strong> warm whites, deep terracotta, moss, and a single pop accent (often persimmon or burnt sienna). The "naked shoe" moment — barely-there sandals in nude tones to elongate the leg — is the single most versatile trend to adopt now.
+      </div>
+    </div>
+  </div>
+
+  <!-- Mindful Living -->
+  <div class="section d4">
+    <div class="section-label" style="color:var(--sage);">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7a9e7e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12M12 12C12 7 8 3 3 3s2 6 9 9M12 12c0-5 4-9 9-9s-2 6-9 9"/></svg>
+      Mindful living <span class="tag" style="background:var(--sage-glow); color:var(--sage); border:1px solid var(--sage-border);">wabi-sabi · biophilic</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">The Art of the Imperfect Home — Wabi-Sabi in Practice</div>
+      <div class="card-meta">Kinfolk Magazine · this week</div>
+      <div class="card-summary">Wabi-sabi resists the Instagram-ready interior. <strong>It asks:</strong> what in this space shows time has passed? A chipped rim, an uneven wall, a hand-thrown bowl with a thumb impression. The Japanese concept of <em>mono no aware</em> — the gentle sadness of transience — is the emotional core. Design principle: buy fewer things, but things with histories. Allow the room to feel lived-in rather than curated.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Biophilic Architecture in Aotearoa — Five Local Studios</div>
+      <div class="card-meta">Architecture NZ · 4 days ago</div>
+      <div class="card-summary">Five Auckland and Wellington studios bringing biophilic principles to residential work: natural ventilation as design driver, structural timber left exposed, native plantings as interior elements rather than decoration. <strong>Common thread:</strong> the view out the window is designed as carefully as the furniture. Light, not objects, is the primary material.</div>
+    </div>
+
+    <div class="card">
+      <div class="vid">
+        <div class="vid-thumb" style="background:var(--sage-glow); border-color:var(--sage-border);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div>
+          <div class="card-title">Japanese Minimalism — Why Less Feels Like More</div>
+          <div class="card-meta">Studio McGee · 21 min · transcribed today</div>
+        </div>
+      </div>
+      <div class="card-summary">
+        <strong>Summary:</strong> Explores the concept of <em>ma</em> (間) — negative space as an active presence. In Japanese interiors, an empty corner is not an oversight; it is a considered pause. The video walks through five principles: limited material palette (3 max per room), one statement object per surface, seasonal rotation of textiles, daylight over artificial light, and the discipline of the single flower over the arrangement.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="vid">
+        <div class="vid-thumb" style="background:var(--sage-glow); border-color:var(--sage-border);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        </div>
+        <div>
+          <div class="card-title">Calm Spaces — Designing for Mental Rest</div>
+          <div class="card-meta">The Slow Home Studio · 17 min · transcribed today</div>
+        </div>
+      </div>
+      <div class="card-summary">
+        <strong>Key insights:</strong> Spaces that support mental rest share four qualities: acoustic softness (rugs, curtains, natural materials absorb sound), visual rhythm without repetition, a single focal point per room (window, artwork, fireplace), and the scent of something natural (cedar, citrus, earth). The concept of a "reset shelf" — one surface intentionally kept clear — as a daily ritual anchor.
+      </div>
+    </div>
+  </div>
+
+  <!-- Te Ao Māori -->
+  <div class="section d5">
+    <div class="section-label" style="color:var(--teal);">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6a9e9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      Te Ao Māori <span class="tag" style="background:var(--teal-glow); color:var(--teal); border:1px solid rgba(106,158,154,0.25);">maramataka · toi Māori</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Maramataka — Cultural Calendar, March</div>
+      <div class="card-meta">Moon phases &amp; planting guide · Aotearoa</div>
+      <div class="card-summary" style="margin-bottom:0;">
+        <div class="maramataka-item">
+          <div class="maramataka-date">15–17</div>
+          <div class="maramataka-text"><strong>Ōtāne / Ōturu</strong> — full moon period. Strong energy for harvesting, weaving, and creative work. Tides high; fishing good in estuaries. Good days to plant root vegetables.</div>
+        </div>
+        <div class="maramataka-item">
+          <div class="maramataka-date">18–21</div>
+          <div class="maramataka-text"><strong>Rakaunui</strong> — waning begins. Turn inward; review, edit, and consolidate rather than begin new projects. Rest is honoured.</div>
+        </div>
+        <div class="maramataka-item">
+          <div class="maramataka-date">25</div>
+          <div class="maramataka-text"><strong>Tangaroa</strong> — fishing and ocean activity. If you're near the water, this is the day to go.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Toi Māori in Contemporary Spaces — Aho Creative</div>
+      <div class="card-meta">Interior NZ · 5 days ago</div>
+      <div class="card-summary">Auckland studio Aho Creative is integrating toi Māori principles — <em>whakairo</em> (carving), <em>raranga</em> (weaving), and <em>kōwhaiwhai</em> (scroll patterns) — into residential and commercial interiors. Not as decoration, but as structural narrative. <strong>Recent project:</strong> a Tāmaki Makaurau apartment where reclaimed kauri panels carry carved whakapapa references, and woven flax forms the room divider. The client's iwi story is embedded in the architecture.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">NZFW — Māori Designer Showcase Preview</div>
+      <div class="card-meta">NZ Fashion Week · upcoming — late March</div>
+      <div class="card-summary">This season's Māori designer showcase features <strong>six emerging labels</strong> weaving te reo Māori and toi Māori into garment construction and pattern-making. Notable: a label using traditional harakeke fibre in contemporary outerwear, and a jewellery designer drawing kōwhaiwhai geometry into gold forms. Tickets open next week.</div>
+    </div>
+  </div>
+
+  <!-- Creative & Branding -->
+  <div class="section d6">
+    <div class="section-label" style="color:var(--mauve);">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9e7a8e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+      Creative &amp; branding <span class="tag" style="background:var(--mauve-glow); color:var(--mauve); border:1px solid var(--mauve-border);">design industry</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title">FolioAI — What Designers Are Building This Month</div>
+      <div class="card-meta">Platform intelligence · updated today</div>
+      <div class="card-summary">Top categories in new portfolio submissions this week: <strong>brand identity systems</strong> (34%), <strong>editorial &amp; print</strong> (22%), <strong>spatial branding</strong> (18%), <strong>motion identity</strong> (16%). Emerging signal: designers are presenting <em>process</em> — research artifacts, sketch iterations, mood board progressions — as prominently as final work. The "how I think" is becoming the portfolio.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Brand Identity Trends 2026 — The Anti-Logo Era</div>
+      <div class="card-meta">It's Nice That · 3 days ago</div>
+      <div class="card-summary">A generation of brands is replacing the hero mark with a <strong>systematic visual language</strong> — colour, type, texture, motion, tone of voice — that makes the logo almost redundant. The brand <em>is</em> the system. Studios cited: Pentagram's NZ work, Alt Group, Inhouse. Relevant for FolioAI: the portfolio of the future may present a brand's <em>behaviour</em> rather than its assets.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Design Systems for Small Studios — When to Build, When to Borrow</div>
+      <div class="card-meta">Figma Blog · 4 days ago</div>
+      <div class="card-summary">Argues that small studios often over-engineer design systems too early, creating maintenance overhead that slows client work. The recommendation: <strong>a "just enough" system</strong> — type scale, spacing tokens, colour system, and component library limited to what you've actually built twice. The discipline is knowing when to stop abstracting. FolioAI relevance: portfolio presentation templates that are opinionated but not rigid.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">The Designer's Role in AI Tools — Authorship in a Generative Age</div>
+      <div class="card-meta">Eye Magazine · this week</div>
+      <div class="card-summary">As AI image tools proliferate, the conversation in design circles is shifting from <em>will AI replace designers</em> to <em>what constitutes authorship</em>. The designers gaining recognition are those using AI as one tool in a rigorous process — not replacing the aesthetic judgment, but accelerating iteration. <strong>The differentiator:</strong> taste. The ability to know when to stop generating and start editing remains entirely human.</div>
+    </div>
+  </div>
+
+  <!-- Feedback -->
+  <div class="section d7">
+    <div class="section-label">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Shape your feed
+    </div>
+    <div style="font-size:12px; color:var(--text-dim); margin-bottom:10px; font-family:var(--serif);">What's missing? What do you want more of?</div>
+    <textarea id="fb-text" class="fb-area" placeholder="e.g. More on Pacific design, jewellery trends, sustainable textiles..."></textarea>
+    <button onclick="submitFeedback()" id="fb-btn" class="fb-btn">Send feedback</button>
+    <div id="fb-status" style="font-size:11px; text-align:center; margin-top:6px; min-height:16px; color:var(--text-dim); font-family:var(--sans);"></div>
+  </div>
+
+  <div class="footer d7">
+    <div class="footer-text">identity by <a href="https://vacprotocol.org">vac protocol</a> · powered by <a href="https://athenapilot.ai">athena</a> · violet shores pty ltd</div>
+  </div>
+</div>
+
+<script src="/vac-auth.js?v=1773521997"></script>
+<script>
+VAC.init({
+  app: 'shan-intel',
+  appName: "Shan's Intelligence",
+  requireFace: true,
+  onVerified: function(user) {
+    document.getElementById('vac-app-content').style.display = '';
+    document.getElementById('user-email').textContent = user.email;
+    window.VAC_USER = user;
+
+    // Greeting
+    var h = new Date().getHours();
+    var g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    document.querySelector('.greeting').innerHTML = g + ', <span class="greeting-italic">Shan</span>';
+
+    // Date line
+    var d = new Date();
+    var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    document.getElementById('greetingSub').textContent = days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()] + ' — Auckland';
+
+    // Rotate creative prompts
+    var prompts = [
+      'Find one texture today — rough bark, worn linen, smooth stone — and photograph it in the morning light. Let it be the starting point for something you make this week.',
+      'Choose a colour you wouldn\'t normally wear and find three things in your home that share that colour. Notice the conversation between them.',
+      'Write one sentence about what your ideal space smells like. Design backwards from that sensation.',
+      'Draw something with your non-dominant hand. The awkwardness is the point — let go of precision and find a different kind of mark.',
+      'Look at something old and something new side by side. What does the old one know that the new one doesn\'t?',
+      'Pick one object that has moved with you through multiple homes. Photograph it where it lives now. What does its placement say?',
+      'Name the three colours that feel most like "you" this season. How are they different from six months ago?'
+    ];
+    var idx = d.getDay(); // rotates by day of week
+    document.getElementById('creative-prompt-text').textContent = prompts[idx];
+  }
+});
+
+async function submitFeedback() {
+  var btn = document.getElementById('fb-btn');
+  var status = document.getElementById('fb-status');
+  var text = document.getElementById('fb-text').value.trim();
+  if (!text) { status.textContent = 'Type something first'; status.style.color = '#b07868'; return; }
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    await fetch('https://api.athenapilot.ai/v1/feedback', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback_type: 'intelligence_feed', content: 'SHAN INTEL FEED: ' + text, source_page: 'shan-intel', user_id: (window.VAC_USER && window.VAC_USER.email) || 'shan', product: 'athena' })
+    });
+    status.textContent = 'Saved — your feed will adapt';
+    status.style.color = '#7a9e7e';
+    document.getElementById('fb-text').value = '';
+  } catch(e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = '#b07868';
+  }
+  btn.disabled = false; btn.textContent = 'Send feedback';
+}
+</script>
+</body>
+</html>
