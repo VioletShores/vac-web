@@ -46,7 +46,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font); color: var(--text-secondary); background: var(--bg); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100dvh; }
 
-.page { max-width: 560px; margin: 0 auto; padding: 0 20px 60px; }
+.page { max-width: 560px; margin: 0 auto; padding: 0 clamp(12px, 4vw, 20px) 40px; }
 
 /* Nav */
 .nav { border-bottom: 1px solid var(--border); padding: 0 20px; background: rgba(13,17,23,0.95); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; }
@@ -71,9 +71,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 .header { text-align: center; padding: clamp(4px, 1vh, 12px) 0 clamp(4px, 1vh, 10px); position: relative; }
-.header-eyebrow { font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
-.header-title { font-size: 24px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
-.header-sub { font-size: 13px; color: var(--text-tertiary); margin-top: 4px; max-width: 400px; margin-left: auto; margin-right: auto; }
+.header-eyebrow { font-family: var(--mono); font-size: clamp(9px, 2.5vw, 11px); color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+.header-title { font-size: clamp(18px, 5vw, 24px); font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+.header-sub { font-size: clamp(11px, 3vw, 13px); color: var(--text-tertiary); margin-top: 4px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.4; }
 
 /* Forms */
 .form-group { margin-bottom: 16px; }
@@ -91,24 +91,24 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .btn-secondary:hover { border-color: var(--purple); background: var(--purple-bg); }
 
 /* Camera */
-.camera-container { position: relative; width: 100%; aspect-ratio: 16/10; min-height: clamp(160px, 28vh, 220px); max-height: clamp(200px, 35vh, 320px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
+.camera-container { position: relative; width: 100%; aspect-ratio: 4/3; max-height: clamp(200px, 40vh, 320px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
 .camera-container.recording { border-color: var(--error); box-shadow: 0 0 20px rgba(248,81,73,0.15); }
 .camera-container.verified { border-color: var(--success); box-shadow: 0 0 20px rgba(63,185,80,0.15); }
 #videoPreview, #videoPreviewRec { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; background: #000; }
 
 /* Face oval guide */
-.face-oval { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 180px; height: 240px; pointer-events: none; }
+.face-oval { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: clamp(120px, 35vw, 180px); height: clamp(160px, 45vw, 240px); pointer-events: none; }
 .face-oval-ring { fill: none; stroke: var(--purple); stroke-width: 2; stroke-dasharray: 8 4; opacity: 0.6; transition: all 0.3s; }
 .camera-container.face-detected .face-oval-ring { stroke: var(--success); stroke-dasharray: none; opacity: 0.8; }
-.face-oval-label { position: absolute; bottom: -24px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 3px; }
+.face-oval-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; }
 
 /* Countdown ring */
-.countdown-ring-wrap { width: 100px; height: 100px; margin: 8px auto; position: relative; }
+.countdown-ring-wrap { width: clamp(72px, 18vw, 100px); height: clamp(72px, 18vw, 100px); margin: 4px auto; position: relative; }
 .countdown-ring-wrap svg { transform: rotate(-90deg); width: 100%; height: 100%; }
 .countdown-ring-wrap .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
 .countdown-ring-wrap .ring-fill { fill: none; stroke: var(--purple); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 245; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
 .countdown-ring-wrap .ring-fill.recording { stroke: var(--error); }
-.countdown-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 32px; font-weight: 700; color: var(--text-primary); }
+.countdown-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: clamp(24px, 6vw, 32px); font-weight: 700; color: var(--text-primary); }
 
 /* Privacy statement */
 .privacy-statement { display: flex; align-items: flex-start; gap: 6px; padding: clamp(4px, 0.8vh, 8px) clamp(6px, 1vw, 10px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: clamp(6px, 1vh, 14px); font-size: clamp(10px, 1.2vw, 12px); color: var(--text-tertiary); line-height: 1.4; }
@@ -121,24 +121,24 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 @keyframes bounce-down { 0%,100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
 
 /* Audio level indicator */
-.audio-level { position: absolute; bottom: 24px; right: 24px; display: flex; align-items: flex-end; gap: 2px; height: 24px; background: rgba(0,0,0,0.6); padding: 4px 6px; border-radius: 4px; }
+.audio-level { position: absolute; top: 8px; right: 8px; display: flex; align-items: flex-end; gap: 2px; height: 20px; background: rgba(0,0,0,0.7); padding: 3px 5px; border-radius: 4px; }
 .audio-bar { width: 3px; background: var(--success); border-radius: 1px; transition: height 0.08s ease-out; min-height: 2px; }
 .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
-.camera-corners { position: absolute; inset: 16px; }
-.camera-corners::before, .camera-corners::after { content: ''; position: absolute; width: 24px; height: 24px; border-color: var(--purple); border-style: solid; }
+.camera-corners { position: absolute; inset: 8px; }
+.camera-corners::before, .camera-corners::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: var(--purple); border-style: solid; }
 .camera-corners::before { top: 0; left: 0; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
 .camera-corners::after { top: 0; right: 0; border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; }
-.camera-corners-bottom { position: absolute; inset: 16px; }
-.camera-corners-bottom::before, .camera-corners-bottom::after { content: ''; position: absolute; width: 24px; height: 24px; border-color: var(--purple); border-style: solid; }
+.camera-corners-bottom { position: absolute; inset: 8px; }
+.camera-corners-bottom::before, .camera-corners-bottom::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: var(--purple); border-style: solid; }
 .camera-corners-bottom::before { bottom: 0; left: 0; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; }
 .camera-corners-bottom::after { bottom: 0; right: 0; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; }
-.camera-label { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 1.5px; text-transform: uppercase; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 4px; }
-.rec-indicator { position: absolute; top: 24px; right: 24px; display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--error); letter-spacing: 1px; background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px; }
+.camera-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--teal); letter-spacing: 1.5px; text-transform: uppercase; background: rgba(0,0,0,0.7); padding: 3px 10px; border-radius: 4px; }
+.rec-indicator { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; color: var(--error); letter-spacing: 1px; background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 4px; }
 .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); animation: pulse-rec 1s ease-in-out infinite; }
 @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.camera-challenge { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); max-width: 80%; text-align: center; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(108,92,231,0.3); }
-.camera-challenge-text { font-size: 16px; font-weight: 600; color: var(--text-primary); }
-.camera-challenge-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+.camera-challenge { position: absolute; bottom: 8px; left: 8px; right: 8px; text-align: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(108,92,231,0.3); }
+.camera-challenge-text { font-size: clamp(13px, 3.5vw, 16px); font-weight: 600; color: var(--text-primary); line-height: 1.3; }
+.camera-challenge-sub { font-size: clamp(10px, 2.5vw, 12px); color: var(--text-tertiary); margin-top: 2px; }
 
 /* Progress */
 .progress-container { text-align: center; padding: 16px 0; }
@@ -344,8 +344,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             Back
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
-        <div class="header-title">Camera & Microphone</div>
-        <div class="header-sub">We'll record a short video of you speaking a challenge phrase, then showing fingers for each digit. Hold each pose briefly, then change to the next. Takes about 8 seconds.</div>
+        <div class="header-title">Camera & Mic</div>
+        <div class="header-sub">Short video: say a phrase, show fingers. About 8 seconds.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
@@ -354,7 +354,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <div class="camera-corners"></div>
             <div class="camera-corners-bottom"></div>
             <div class="face-oval" id="faceOval">
-                <svg viewBox="0 0 180 240" width="180" height="240">
+                <svg viewBox="0 0 180 240" width="100%" height="100%">
                     <ellipse class="face-oval-ring" cx="90" cy="120" rx="75" ry="105"/>
                 </svg>
                 <div class="face-oval-label" id="faceOvalLabel">Position face in oval</div>
@@ -363,8 +363,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </div>
     </div>
     <div class="privacy-statement">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.6 6.8 6 7.5 3.4-.7 6-4 6-7.5V4L8 1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>Your biometric data is processed in real-time for verification only. Video is not stored after analysis. VAC Protocol does not retain facial images or voice recordings.</span>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.6 6.8 6 7.5 3.4-.7 6-4 6-7.5V4L8 1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>We store a text description of your appearance — <strong style="color:var(--text-secondary);">no photos or video are retained.</strong> Recording is analysed in real-time and discarded.</span>
     </div>
     <button class="btn-primary" id="btnCamera" onclick="requestCamera()">
         Enable Camera & Microphone
@@ -424,7 +424,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <div class="camera-corners"></div>
             <div class="camera-corners-bottom"></div>
             <div class="face-oval">
-                <svg viewBox="0 0 180 240" width="180" height="240">
+                <svg viewBox="0 0 180 240" width="100%" height="100%">
                     <ellipse class="face-oval-ring" cx="90" cy="120" rx="75" ry="105"/>
                 </svg>
             </div>
@@ -459,10 +459,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="countdown-number" id="countdownTimer">3</div>
     </div>
     <!-- Combined capture explanation (visible during recording) -->
-    <div id="combinedCaptureInfo" style="margin-top: 12px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
-        <div style="font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">One action, six signals</div>
-        <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
-            Speaking the phrase while showing fingers captures your face, voice, lip movements, challenge response, and finger gesture — producing six independent biometric signals from one recording. The finger count must match the digits you spoke.
+    <div id="combinedCaptureInfo" style="margin-top: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;">How it works</div>
+        <div style="font-size: clamp(11px, 3vw, 13px); color: var(--text-secondary); line-height: 1.5;">
+            Say the phrase, then show the fingers. One recording captures face, voice, lip sync, and gesture — 6 signals verified by AI.
         </div>
     </div>
 </div>
