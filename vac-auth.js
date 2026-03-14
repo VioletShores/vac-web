@@ -912,11 +912,19 @@
 
       console.log('[VAC] Face re-auth SUCCESS. Confidence:', data.face_match.confidence);
       _setToken(data.session_token);
-      _setUser({
+      var userObj = {
         email: data.email, name: data.email.split('@')[0],
         auth_level: data.auth_level, is_verified: data.is_verified,
         last_biometric: Math.floor(Date.now() / 1000),
-      });
+      };
+      // Fetch trust status so hub shows correct vouch count
+      try {
+        var trust = await _api('GET', '/v1/auth/trust-status?email=' + encodeURIComponent(data.email));
+        userObj.trust_level = trust.trust_level;
+        userObj.is_verified = trust.is_verified;
+        userObj.vouches_received = trust.vouches_received;
+      } catch(te) { console.log('[VAC] Trust status fetch failed:', te.message); }
+      _setUser(userObj);
       _stopCamera();
       _handleAuthComplete();
 
