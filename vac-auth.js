@@ -847,55 +847,98 @@
       // Fetch random finger challenge
       return _api('GET', '/v1/auth/face-reauth-challenge?email=' + encodeURIComponent(email));
     }).then(function(challenge) {
-      if (!challenge || !challenge.fingers) return; // face ref check already redirected
+      if (!challenge || !challenge.fingers) return;
 
       var fingerNum = challenge.fingers;
       var fingerWord = {1:'one',2:'two',3:'three',4:'four',5:'five'}[fingerNum] || String(fingerNum);
       var fingerPlural = fingerNum > 1 ? 'fingers' : 'finger';
+      _config._reauthFingers = fingerNum;
+      _config._reauthFingerWord = fingerWord;
+      _config._reauthFingerPlural = fingerPlural;
       console.log('[VAC] Face re-auth challenge:', fingerNum, 'fingers');
 
-      screen.innerHTML = '<div class="vac-step-indicator"><div class="vac-step active"></div></div>' +
+      // STEP 1: Face capture — no fingers yet
+      screen.innerHTML = '<div class="vac-step-indicator"><div class="vac-step active"></div><div class="vac-step"></div></div>' +
         '<p style="font-size:14px;color:#9ca3af;text-align:center;margin-bottom:4px;">' +
           'Welcome back, <strong style="color:#fff;">' + email + '</strong></p>' +
-        '<p style="font-size:13px;color:#6b7280;text-align:center;margin-bottom:16px;">' +
-          'Look at the camera and hold up <strong style="color:#22c55e;font-size:16px;">' + fingerWord + ' ' + fingerPlural + '</strong></p>' +
+        '<p style="font-size:14px;color:#fff;text-align:center;margin-bottom:12px;font-weight:600;">' +
+          'Step 1: Look at the camera</p>' +
+        '<p style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:12px;">' +
+          'Keep hands down — face only</p>' +
         '<div class="vac-face-preview" id="vac-face-preview">' +
           '<video id="vac-face-video" autoplay playsinline muted></video>' +
           '<div class="vac-face-overlay"><div class="vac-face-reticle"></div></div>' +
-          '<div class="vac-face-hint" style="color:#22c55e;background:rgba(0,0,0,0.85);padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;">Hold up ' + fingerWord + ' ' + fingerPlural + '</div></div>' +
-        '<button class="vac-btn vac-btn-primary" id="vac-quick-btn">' +
-          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verify it\'s me</button>' +
+          '<div class="vac-face-hint" style="color:#22c55e;background:rgba(0,0,0,0.85);padding:6px 14px;border-radius:6px;font-size:13px;font-weight:600;">Face only — no fingers yet</div></div>' +
+        '<button class="vac-btn vac-btn-primary" id="vac-capture-face">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Capture face</button>' +
         '<div class="vac-error-msg" id="vac-error"></div>';
 
       _startCamera();
-      document.getElementById('vac-quick-btn').addEventListener('click', function() {
-        _handleFaceReauth(email);
+      document.getElementById('vac-capture-face').addEventListener('click', function() {
+        _handleReauthStep1(email);
       });
     }).catch(function(e) {
-      console.log('[VAC] Face re-auth setup failed:', e.message, '— full auth');
+      console.log('[VAC] Face re-auth setup failed:', e.message);
       _renderEmailScreen();
       setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
     });
   }
 
-  async function _handleFaceReauth(email) {
-    var btn = document.getElementById('vac-quick-btn');
+  async function _handleReauthStep1(email) {
+    // Capture face frame (no fingers)
+    var btn = document.getElementById('vac-capture-face');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="vac-spinner"></span> Capturing...';
+
+    var video = document.getElementById('vac-face-video');
+    var canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    _config._reauthFaceFrame = canvas.toDataURL('image/jpeg', 0.8);
+    console.log('[VAC] Face captured. Moving to finger step.');
+
+    // STEP 2: Finger capture
+    var fingerWord = _config._reauthFingerWord;
+    var fingerPlural = _config._reauthFingerPlural;
+    var fingerNum = _config._reauthFingers;
+    var screen = document.getElementById('vac-screen');
+
+    screen.innerHTML = '<div class="vac-step-indicator"><div class="vac-step done"></div><div class="vac-step active"></div></div>' +
+      '<p style="font-size:14px;color:#fff;text-align:center;margin-bottom:8px;font-weight:600;">' +
+        'Step 2: Hold up <span style="color:#22c55e;font-size:18px;">' + fingerWord + ' ' + fingerPlural + '</span></p>' +
+      '<p style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:12px;">' +
+        'Keep your hand near your face so we can see both</p>' +
+      '<div class="vac-face-preview" id="vac-face-preview">' +
+        '<video id="vac-face-video-2" autoplay playsinline muted></video>' +
+        '<div class="vac-face-overlay"><div class="vac-face-reticle"></div></div>' +
+        '<div class="vac-face-hint" style="color:#22c55e;background:rgba(0,0,0,0.85);padding:6px 14px;border-radius:6px;font-size:15px;font-weight:700;">' + fingerNum + '</div></div>' +
+      '<button class="vac-btn vac-btn-primary" id="vac-capture-fingers">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verify</button>' +
+      '<div class="vac-error-msg" id="vac-error"></div>';
+
+    // Reattach camera to new video element
+    var vid2 = document.getElementById('vac-face-video-2');
+    if (_videoStream) vid2.srcObject = _videoStream;
+
+    document.getElementById('vac-capture-fingers').addEventListener('click', function() {
+      _handleReauthStep2(email);
+    });
+  }
+
+  async function _handleReauthStep2(email) {
+    var btn = document.getElementById('vac-capture-fingers');
     var err = document.getElementById('vac-error');
     btn.disabled = true;
-    btn.innerHTML = '<span class="vac-spinner"></span> Matching face...';
+    btn.innerHTML = '<span class="vac-spinner"></span> Matching...';
     err.textContent = '';
 
     try {
-      // Capture face frame
-      var video = document.getElementById('vac-face-video');
+      // Capture finger frame
+      var video = document.getElementById('vac-face-video-2');
       var canvas = document.createElement('canvas');
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      var faceFrame = canvas.toDataURL('image/jpeg', 0.8);
-
-      // Slight delay then capture finger frame
-      await new Promise(function(r) { setTimeout(r, 500); });
       canvas.getContext('2d').drawImage(video, 0, 0);
       var fingerFrame = canvas.toDataURL('image/jpeg', 0.8);
 
@@ -903,7 +946,7 @@
 
       var data = await _api('POST', '/v1/auth/face-reauth', {
         email: email,
-        face_frame: faceFrame,
+        face_frame: _config._reauthFaceFrame,
         finger_frame: fingerFrame,
       });
 
@@ -941,7 +984,7 @@
         return;
       }
 
-      // Still have retries
+      // Still have retries — go back to step 1
       var retriesMatch = msg.match(/(\d+) attempt/);
       var retries = retriesMatch ? retriesMatch[1] : '?';
       err.textContent = 'Face did not match. ' + retries + ' attempt' + (retries !== '1' ? 's' : '') + ' remaining.';
