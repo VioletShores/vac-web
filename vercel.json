@@ -137,6 +137,10 @@
             "destination": "/athena-shan.html"
         },
         {
+            "source": "/privacy",
+            "destination": "/athena-privacy.html"
+        },
+        {
             "source": "/api",
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
