@@ -718,6 +718,102 @@ body {
       <div id="voiceFbStatus" style="font-size:13px;text-align:center;margin-top:8px;min-height:18px;"></div>
     </div>
 
+  <!-- Supplier price watch — agent checks prices daily -->
+  <div class="section fade-in d9">
+    <div class="section-head" style="border-left:3px solid #f59e0b;padding-left:12px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      Supplier price watch <span class="count" style="background:#f59e0b20;color:#f59e0b;">daily check</span>
+    </div>
+    <div class="section-body">
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;">Your agent checks supplier pricing overnight and flags changes. Prices as of this morning.</div>
+
+      <!-- Price comparison table -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:rgba(245,158,11,0.06);">
+              <th style="text-align:left;padding:10px 12px;color:var(--text-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Item</th>
+              <th style="text-align:left;padding:10px 8px;color:var(--text-dim);font-weight:600;font-size:11px;">Supplier</th>
+              <th style="text-align:right;padding:10px 12px;color:var(--text-dim);font-weight:600;font-size:11px;">Price</th>
+              <th style="text-align:right;padding:10px 12px;color:var(--text-dim);font-weight:600;font-size:11px;">Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:10px 12px;color:var(--text);font-weight:500;" rowspan="2">Table cloths<br><span style="font-size:10px;color:var(--text-dim);font-weight:400;">White, 230cm round</span></td>
+              <td style="padding:10px 8px;color:var(--text-muted);">Hotels R Us</td>
+              <td style="padding:10px 12px;text-align:right;color:#22c55e;font-weight:600;font-family:var(--mono,monospace);">$17.50</td>
+              <td style="padding:10px 12px;text-align:right;color:#22c55e;font-size:11px;">↓ $1.50</td>
+            </tr>
+            <tr style="border-top:1px solid rgba(30,37,51,0.5);">
+              <td style="padding:10px 8px;color:var(--text-muted);">Linen House</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--text);font-weight:600;font-family:var(--mono,monospace);">$19.00</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--text-dim);font-size:11px;">—</td>
+            </tr>
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:10px 12px;color:var(--text);font-weight:500;" rowspan="3">Napkins<br><span style="font-size:10px;color:var(--text-dim);font-weight:400;">Cotton, white, 50×50</span></td>
+              <td style="padding:10px 8px;color:var(--text-muted);">Hotels R Us</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--text);font-weight:600;font-family:var(--mono,monospace);">$3.20</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--text-dim);font-size:11px;">—</td>
+            </tr>
+            <tr style="border-top:1px solid rgba(30,37,51,0.5);">
+              <td style="padding:10px 8px;color:var(--text-muted);">Linen House</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--text);font-weight:600;font-family:var(--mono,monospace);">$3.80</td>
+              <td style="padding:10px 12px;text-align:right;color:#ef4444;font-size:11px;">↑ $0.30</td>
+            </tr>
+            <tr style="border-top:1px solid rgba(30,37,51,0.5);">
+              <td style="padding:10px 8px;color:var(--text-muted);">Direct Textiles</td>
+              <td style="padding:10px 12px;text-align:right;color:#22c55e;font-weight:600;font-family:var(--mono,monospace);">$2.90</td>
+              <td style="padding:10px 12px;text-align:right;color:#22c55e;font-size:11px;">↓ $0.20</td>
+            </tr>
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:10px 12px;color:var(--text);font-weight:500;" rowspan="2">Chicken breast<br><span style="font-size:10px;color:var(--text-dim);font-weight:400;">Fresh, per kg</span></td>
+              <td style="padding:10px 8px;color:var(--text-muted);">Bidfood</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--text);font-weight:600;font-family:var(--mono,monospace);">$12.40/kg</td>
+              <td style="padding:10px 12px;text-align:right;color:#ef4444;font-size:11px;">↑ $0.80</td>
+            </tr>
+            <tr style="border-top:1px solid rgba(30,37,51,0.5);">
+              <td style="padding:10px 8px;color:var(--text-muted);">PFD Foods</td>
+              <td style="padding:10px 12px;text-align:right;color:#22c55e;font-weight:600;font-family:var(--mono,monospace);">$11.90/kg</td>
+              <td style="padding:10px 12px;text-align:right;color:var(--text-dim);font-size:11px;">—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Alerts -->
+      <div style="margin-top:10px;padding:10px 14px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);border-radius:8px;">
+        <div style="font-size:11px;color:#22c55e;font-weight:600;margin-bottom:4px;">SAVINGS FOUND</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.5;">Switching tablecloths to Hotels R Us saves <strong style="color:#22c55e;">$1.50/unit</strong>. At ~40/week that's <strong style="color:#22c55e;">$60/week</strong> or ~$3,100/year.</div>
+      </div>
+      <div style="margin-top:6px;padding:10px 14px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:8px;">
+        <div style="font-size:11px;color:#ef4444;font-weight:600;margin-bottom:4px;">PRICE ALERT</div>
+        <div style="font-size:12px;color:var(--text-muted);line-height:1.5;">Bidfood chicken breast up <strong style="color:#ef4444;">$0.80/kg</strong> since last week. PFD Foods is now cheaper — consider switching or renegotiating.</div>
+      </div>
+
+      <!-- Add items / suppliers -->
+      <div style="margin-top:14px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;" id="supplier-setup">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px;">Track more items</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.4;">Tell me what you buy regularly and who you buy it from. I'll check prices overnight and show you the comparison each morning.</div>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input id="sup-item" placeholder="Item (e.g. tablecloths)" style="flex:2;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(10,22,40,0.7);color:var(--text);font-size:12px;font-family:inherit;" />
+          <input id="sup-supplier" placeholder="Supplier" style="flex:1.5;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(10,22,40,0.7);color:var(--text);font-size:12px;font-family:inherit;" />
+          <input id="sup-price" placeholder="$" style="flex:0.8;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(10,22,40,0.7);color:var(--text);font-size:12px;font-family:inherit;" />
+        </div>
+        <div style="display:flex;gap:6px;">
+          <input id="sup-url" placeholder="Supplier website (optional — helps the agent find prices)" style="flex:1;padding:8px 10px;border-radius:6px;border:1px solid var(--border);background:rgba(10,22,40,0.7);color:var(--text);font-size:12px;font-family:inherit;" />
+          <button onclick="addSupplierItem()" style="padding:8px 14px;border-radius:6px;border:none;background:var(--accent);color:#000;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;font-family:inherit;">Add</button>
+        </div>
+        <div id="sup-status" style="font-size:11px;margin-top:6px;min-height:16px;text-align:center;"></div>
+      </div>
+
+      <div style="font-size:11px;color:var(--text-dim);margin-top:10px;text-align:center;line-height:1.4;">
+        Your agent checks supplier websites and catalogues overnight using VAC-authorised access.<br>
+        Every price check is logged in the trust chain — accountable and auditable.
+      </div>
+    </div>
+  </div>
+
   <!-- Personal feed — the copilot knows the whole person -->
   <div class="section fade-in d8">
     <div class="section-head" style="border-left:3px solid #0ea5e9;padding-left:12px;">
@@ -991,6 +1087,7 @@ var sections = [
   {id:'staff', name:'Staff shift reflections', desc:'2-min voice check-ins building strength profiles for casuals'},
   {id:'compliance', name:'Compliance watch', desc:'Casual conversion thresholds, wage theft, payday super alerts'},
   {id:'strategic', name:'Strategic ideas from research', desc:'Global trends applied to your business, subscription dining etc'},
+  {id:'supplier', name:'Supplier price watch', desc:'Daily price comparisons across your suppliers — savings alerts'},
   {id:'comms', name:'Staff communications rhythm', desc:'Auto-drafted briefings in your voice, weekly wrap-ups'},
   {id:'supplier', name:'Supplier tracking & intelligence', desc:'What\'s fresh, price alerts, reliability scores, reorder triggers'},
   {id:'voice', name:'Voice interface', desc:'Talk to the system hands-free while prepping'},
@@ -1638,7 +1735,7 @@ async function sendVoiceFeedback() {
 }
 
 </script>
-<script src="/vac-auth.js?v=1773485905"></script>
+<script src="/vac-auth.js?v=1773518314"></script>
 <script>
 VAC.init({
   app: 'regatta',
@@ -1775,6 +1872,33 @@ function showOnboarding(user, onboardKey) {
     </div>
   `;
   document.body.appendChild(overlay);
+}
+
+function addSupplierItem() {
+  var item = document.getElementById('sup-item').value.trim();
+  var supplier = document.getElementById('sup-supplier').value.trim();
+  var price = document.getElementById('sup-price').value.trim();
+  var url = document.getElementById('sup-url').value.trim();
+  var status = document.getElementById('sup-status');
+  if (!item || !supplier) { status.textContent = 'Enter item and supplier'; status.style.color = '#ef4444'; return; }
+  status.textContent = 'Adding...'; status.style.color = 'var(--text-dim)';
+  fetch('https://api.athenapilot.ai/v1/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      feedback_type: 'supplier_tracking',
+      content: 'SUPPLIER ITEM REQUEST | Item: ' + item + ' | Supplier: ' + supplier + ' | Price: ' + price + ' | URL: ' + url,
+      source_page: 'regatta-copilot-supplier',
+      user_id: (window.VAC_USER && window.VAC_USER.email) || 'anonymous',
+      product: 'athena'
+    })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    status.innerHTML = '<span style="color:#22c55e;">Added! ' + item + ' from ' + supplier + ' — agent will check prices overnight.</span>';
+    document.getElementById('sup-item').value = '';
+    document.getElementById('sup-supplier').value = '';
+    document.getElementById('sup-price').value = '';
+    document.getElementById('sup-url').value = '';
+  }).catch(function(e) { status.textContent = 'Failed: ' + e.message; status.style.color = '#ef4444'; });
 }
 
 function onboardStep(n) {
