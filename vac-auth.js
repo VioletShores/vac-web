@@ -48,7 +48,9 @@
     const data = await res.json();
     if (!res.ok) {
       const msg = data.detail || data.error || `HTTP ${res.status}`;
-      throw new Error(typeof msg === 'object' ? (msg.message || JSON.stringify(msg)) : msg);
+      const err = new Error(typeof msg === 'object' ? (msg.message || JSON.stringify(msg)) : msg);
+      err._detail = data.detail;  // preserve full detail for debug display
+      throw err;
     }
     return data;
   }
@@ -944,7 +946,10 @@
       // Still have retries
       var retriesMatch = msg.match(/(\d+) attempt/);
       var retries = retriesMatch ? retriesMatch[1] : '?';
-      err.textContent = 'Verification failed. ' + retries + ' attempt' + (retries !== '1' ? 's' : '') + ' remaining.';
+      var debugStr = '';
+      try { if (e._detail && e._detail._debug) debugStr = JSON.stringify(e._detail._debug); } catch(x) {}
+      err.innerHTML = 'Verification failed. ' + retries + ' attempt' + (retries !== '1' ? 's' : '') + ' remaining.' +
+        (debugStr ? '<div style="font-size:9px;color:#4b5264;margin-top:6px;font-family:monospace;word-break:break-all;max-height:80px;overflow:auto;">' + debugStr.replace(/</g,'&lt;') + '</div>' : '');
       btn.disabled = false;
       btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Try again';
     }
