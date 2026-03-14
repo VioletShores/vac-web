@@ -1579,7 +1579,9 @@ async function startVoice() {
   var transcript = document.getElementById('voiceTranscript');
   transcript.textContent = '';
   transcript.classList.remove('has-text');
-  document.getElementById('voiceSendBtn').classList.remove('visible');
+  var sendBtnEl = document.getElementById('voiceSendBtn');
+  sendBtnEl.classList.remove('visible');
+  sendBtnEl.disabled = false;
   btn.classList.add('recording');
   btn.innerHTML = STOP_SVG + ' Stop recording';
   levelBar.style.display = 'block';
@@ -1724,6 +1726,7 @@ async function sendVoiceFeedback() {
     if (res.ok) {
       fbStatus.style.color = 'var(--green)';
       fbStatus.textContent = 'Heard you — this will shape what your co-pilot shows you next time.';
+      sendBtn.disabled = false;
       sendBtn.classList.remove('visible');
       document.getElementById('voiceTranscript').textContent = '';
       document.getElementById('voiceTranscript').classList.remove('has-text');
