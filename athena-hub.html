@@ -4,301 +4,209 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Athena — Your Co-Pilot Hub</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0a0c10;
-  --surface: #111318;
-  --surface-raised: #181b23;
-  --border: #1e2533;
-  --text: #e8eaf0;
-  --text-muted: #9498a8;
-  --text-dim: #5c6070;
+  --bg: #08090c;
+  --surface: #0f1116;
+  --surface-raised: #15171e;
+  --surface-hover: #1a1d26;
+  --border: #1c2030;
+  --border-hover: #2a2f42;
+  --text: #e4e6ed;
+  --text-muted: #8b90a3;
+  --text-dim: #4e5264;
   --green: #22c55e;
-  --green-bg: rgba(34,197,94,0.08);
-  --amber: #fbbf24;
-  --amber-bg: rgba(251,191,36,0.08);
-  --red: #ef4444;
+  --green-muted: #16a34a;
+  --green-glow: rgba(34,197,94,0.06);
+  --green-border: rgba(34,197,94,0.12);
+  --amber: #eab308;
+  --amber-glow: rgba(234,179,8,0.06);
+  --amber-border: rgba(234,179,8,0.12);
   --purple: #8b5cf6;
-  --radius: 14px;
+  --blue: #3b82f6;
+  --orange: #f59e0b;
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --sans: 'DM Sans', -apple-system, sans-serif;
+  --radius: 12px;
+  --radius-lg: 16px;
 }
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.15); } 50% { box-shadow: 0 0 20px 4px rgba(34,197,94,0.08); } }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: 'DM Sans', -apple-system, sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-}
-.hub { max-width: 520px; margin: 0 auto; padding: 0 16px 40px; display: none; }
-
-/* Header */
-.hub-header {
-  padding: 28px 0 24px;
-  display: flex; align-items: center; justify-content: space-between;
-}
-.hub-brand {
-  display: flex; align-items: center; gap: 12px;
-}
-.hub-logo {
-  width: 40px; height: 40px; border-radius: 10px;
-  background: var(--green-bg); border: 1px solid rgba(34,197,94,0.15);
-  display: flex; align-items: center; justify-content: center;
-}
-.hub-title { font-size: 20px; font-weight: 700; color: #fff; }
-.hub-user {
-  text-align: right; font-size: 11px; line-height: 1.6;
-}
-.hub-user a { color: var(--text-dim); text-decoration: none; cursor: pointer; }
-.hub-user a:hover { color: var(--text-muted); }
-
-/* Trust banner */
-.trust-banner {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  margin-bottom: 24px;
-  display: flex; align-items: center; gap: 14px;
-}
-.trust-icon {
-  width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px;
-}
-.trust-icon.verified { background: var(--green-bg); }
-.trust-icon.unverified { background: var(--amber-bg); }
-.trust-text { flex: 1; }
-.trust-level { font-size: 15px; font-weight: 600; }
-.trust-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
-
-/* Section header */
-.section-label {
-  font-size: 11px; font-weight: 600; color: var(--text-dim);
-  text-transform: uppercase; letter-spacing: 1px;
-  margin: 24px 0 12px;
-}
-
-/* App cards */
-.app-grid { display: flex; flex-direction: column; gap: 10px; }
-.app-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  display: flex; align-items: center; gap: 16px;
-  text-decoration: none; color: inherit;
-  transition: border-color 0.2s, background 0.2s;
-  cursor: pointer;
-}
-.app-card:hover { border-color: #2a3040; background: var(--surface-raised); }
-.app-card.locked { opacity: 0.5; cursor: not-allowed; }
-.app-card.locked:hover { border-color: var(--border); background: var(--surface); }
-.app-icon {
-  width: 48px; height: 48px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 24px; flex-shrink: 0;
-}
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+.hub { max-width: 520px; margin: 0 auto; padding: 0 16px 48px; display: none; }
+.fade-1 { animation: fadeUp 0.4s ease 0.05s both; }
+.fade-2 { animation: fadeUp 0.4s ease 0.12s both; }
+.fade-3 { animation: fadeUp 0.4s ease 0.19s both; }
+.fade-4 { animation: fadeUp 0.4s ease 0.26s both; }
+.fade-5 { animation: fadeUp 0.4s ease 0.33s both; }
+.hub-header { padding: 28px 0 20px; display: flex; align-items: center; justify-content: space-between; }
+.hub-brand { display: flex; align-items: center; gap: 10px; }
+.hub-logo { width: 36px; height: 36px; border-radius: 8px; background: var(--green-glow); border: 1px solid var(--green-border); display: flex; align-items: center; justify-content: center; }
+.hub-wordmark { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+.hub-user { text-align: right; }
+.hub-user-email { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+.hub-signout { font-size: 10px; color: var(--text-dim); cursor: pointer; text-decoration: none; border: none; background: none; font-family: var(--sans); padding: 0; }
+.hub-signout:hover { color: var(--text-muted); }
+.trust-banner { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; }
+.trust-shield { width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.trust-shield.verified { background: var(--green-glow); border: 1px solid var(--green-border); animation: pulseGlow 3s ease infinite; }
+.trust-shield.unverified { background: var(--amber-glow); border: 1px solid var(--amber-border); }
+.trust-info { flex: 1; }
+.trust-level-row { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.trust-level-text { font-size: 16px; font-weight: 700; }
+.trust-vouches { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 5px; background: var(--surface-raised); color: var(--text-muted); }
+.trust-detail { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.section-header { display: flex; align-items: center; gap: 8px; margin: 28px 0 12px; padding: 0 2px; }
+.section-label { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; }
+.section-line { flex: 1; height: 1px; background: var(--border); }
+.app-grid { display: flex; flex-direction: column; gap: 8px; }
+.app-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; transition: all 0.15s ease; cursor: pointer; }
+.app-card:hover { border-color: var(--border-hover); background: var(--surface-hover); transform: translateX(2px); }
+.app-card.locked { opacity: 0.45; cursor: default; }
+.app-card.locked:hover { border-color: var(--border); background: var(--surface); transform: none; }
+.app-icon-wrap { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .app-info { flex: 1; min-width: 0; }
-.app-name { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 2px; }
-.app-desc { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
-.app-badge {
-  font-size: 10px; font-weight: 600; padding: 3px 8px;
-  border-radius: 6px; flex-shrink: 0; text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-.app-badge.owner { background: var(--green-bg); color: var(--green); }
-.app-badge.member { background: rgba(139,92,246,0.1); color: var(--purple); }
-.app-badge.locked { background: rgba(251,191,36,0.08); color: var(--amber); }
-.app-arrow {
-  color: var(--text-dim); flex-shrink: 0;
-  transition: transform 0.2s;
-}
-.app-card:hover .app-arrow { transform: translateX(3px); }
-.app-unlock { font-size: 11px; color: var(--amber); margin-top: 4px; }
-
-/* Marketplace CTA */
-.marketplace-card {
-  background: linear-gradient(135deg, rgba(139,92,246,0.06), rgba(34,197,94,0.06));
-  border: 1px dashed #2a3040;
-  border-radius: var(--radius);
-  padding: 24px 20px;
-  text-align: center;
-  margin-top: 12px;
-}
-.marketplace-card h3 { font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 6px; }
-.marketplace-card p { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px; }
-.marketplace-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-.mp-btn {
-  padding: 10px 20px; border-radius: 10px; font-size: 13px; font-weight: 600;
-  border: none; cursor: pointer; transition: opacity 0.2s;
-  text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
-}
-.mp-btn:hover { opacity: 0.85; }
+.app-name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 2px; }
+.app-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+.app-unlock { font-size: 10px; color: var(--amber); margin-top: 4px; font-family: var(--mono); display: flex; align-items: center; gap: 4px; }
+.app-role { font-family: var(--mono); font-size: 9px; font-weight: 500; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+.app-role.owner { background: var(--green-glow); color: var(--green); border: 1px solid var(--green-border); }
+.app-role.locked { background: var(--amber-glow); color: var(--amber); border: 1px solid var(--amber-border); }
+.app-arrow { color: var(--text-dim); flex-shrink: 0; transition: transform 0.15s; }
+.app-card:hover .app-arrow { transform: translateX(2px); color: var(--text-muted); }
+.marketplace { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; margin-top: 8px; position: relative; overflow: hidden; }
+.marketplace::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--green-border), var(--purple), var(--green-border), transparent); }
+.mp-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.mp-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 18px; }
+.mp-btns { display: flex; gap: 8px; }
+.mp-btn { flex: 1; padding: 11px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; transition: all 0.15s; text-decoration: none; display: flex; align-items: center; justify-content: center; gap: 6px; font-family: var(--sans); }
 .mp-btn-browse { background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); }
+.mp-btn-browse:hover { border-color: var(--border-hover); background: var(--surface-hover); }
 .mp-btn-publish { background: var(--green); color: #000; }
-
-/* Footer */
-.hub-footer {
-  margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--border);
-  text-align: center;
-}
-.hub-footer-text {
-  font-size: 10px; color: var(--text-dim);
-  font-family: 'SF Mono', SFMono-Regular, Menlo, monospace;
-}
+.mp-btn-publish:hover { background: var(--green-muted); }
+.hub-footer { margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; }
+.hub-footer-text { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 0.5px; }
 .hub-footer-text a { color: var(--text-dim); text-decoration: none; }
+.hub-footer-text a:hover { color: var(--text-muted); }
 </style>
 </head>
 <body>
 <div id="vac-auth"></div>
 <div class="hub" id="hub-content">
-
-  <div class="hub-header">
+  <div class="hub-header fade-1">
     <div class="hub-brand">
-      <div class="hub-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
-      </div>
-      <div class="hub-title">Athena</div>
+      <div class="hub-logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <div class="hub-wordmark">Athena</div>
     </div>
-    <div class="hub-user" id="hub-user">
-      <a onclick="VAC.logout();location.reload();">Sign out</a>
-    </div>
-  </div>
-
-  <!-- Trust banner -->
-  <div class="trust-banner" id="trust-banner">
-    <div class="trust-icon" id="trust-icon"></div>
-    <div class="trust-text">
-      <div class="trust-level" id="trust-level"></div>
-      <div class="trust-detail" id="trust-detail"></div>
+    <div class="hub-user">
+      <div class="hub-user-email" id="hub-email"></div>
+      <button class="hub-signout" onclick="VAC.logout();location.reload();">sign out</button>
     </div>
   </div>
-
-  <!-- Your apps -->
-  <div class="section-label">Your apps</div>
-  <div class="app-grid" id="app-grid-accessible"></div>
-
-  <!-- Locked / upgrade -->
-  <div id="locked-section" style="display:none;">
-    <div class="section-label">Unlock with more vouches</div>
+  <div class="trust-banner fade-2" id="trust-banner"></div>
+  <div class="section-header fade-3"><span class="section-label">Your apps</span><span class="section-line"></span></div>
+  <div class="app-grid fade-3" id="app-grid-accessible"></div>
+  <div id="locked-section" style="display:none;" class="fade-4">
+    <div class="section-header"><span class="section-label">Locked</span><span class="section-line"></span></div>
     <div class="app-grid" id="app-grid-locked"></div>
   </div>
-
-  <!-- Marketplace -->
-  <div class="section-label">Marketplace</div>
-  <div class="marketplace-card">
-    <h3>Copilot blueprints</h3>
-    <p>Browse blueprints from other users or publish your own app configuration to the marketplace. Every published blueprint carries a trust chain back to the domain expert who shaped it.</p>
-    <div class="marketplace-btns">
-      <a class="mp-btn mp-btn-browse" href="#" onclick="alert('Marketplace coming soon — you will be the first publishers.')">Browse blueprints</a>
-      <a class="mp-btn mp-btn-publish" href="#" onclick="alert('Publishing will be available once your copilot has enough interaction data to share meaningfully.')">Publish yours</a>
+  <div class="section-header fade-4"><span class="section-label">Marketplace</span><span class="section-line"></span></div>
+  <div class="marketplace fade-5">
+    <div class="mp-title">Copilot blueprints</div>
+    <div class="mp-desc">Browse blueprints shaped by domain experts or publish your own configuration. Every published blueprint carries a cryptographic trust chain back to the contributor who shaped it.</div>
+    <div class="mp-btns">
+      <button class="mp-btn mp-btn-browse" onclick="alert('Marketplace launching soon. You and your users will be the first publishers.')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Browse</button>
+      <button class="mp-btn mp-btn-publish" onclick="alert('Publishing available once your copilot has enough interaction data to share meaningfully.')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Publish</button>
     </div>
   </div>
-
-  <div class="hub-footer">
-    <div class="hub-footer-text">
-      Identity by <a href="https://vacprotocol.org" target="_blank">VAC Protocol</a> · Powered by <a href="https://athenapilot.ai" target="_blank">Athena</a> · Violet Shores Pty Ltd
-    </div>
+  <div class="hub-footer fade-5">
+    <div class="hub-footer-text">identity by <a href="https://vacprotocol.org" target="_blank">vac protocol</a> · powered by <a href="https://athenapilot.ai" target="_blank">athena</a> · violet shores pty ltd</div>
   </div>
 </div>
-
 <script src="/vac-auth.js"></script>
 <script>
 var API = 'https://vac-system-production.up.railway.app';
 
+/* Lucide SVG icons by app category — no emoji, ever */
+var APP_ICONS = {
+  hospitality: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>',
+  healthcare: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+  security: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  intelligence: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>',
+  finance: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+  default: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>',
+};
+var ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+var LOCK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+var SHIELD_OK = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>';
+var SHIELD_WARN = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+
 function renderHub(user) {
   document.getElementById('hub-content').style.display = 'block';
+  document.getElementById('hub-email').textContent = user.email;
 
-  // User info
-  var userEl = document.getElementById('hub-user');
-  userEl.innerHTML = '<div style="color:var(--text-muted);font-size:12px;font-weight:500;">' + (user.name || user.email.split('@')[0]) + '</div>'
-    + '<div style="color:var(--text-dim);font-size:10px;font-family:monospace;">' + user.email + '</div>'
-    + '<a onclick="VAC.logout();location.reload();" style="font-size:10px;">Sign out</a>';
-
-  // Trust banner
+  var banner = document.getElementById('trust-banner');
   var verified = user.is_verified;
   var level = user.trust_level || 'unverified';
   var vouches = user.vouches_received || 0;
-  var iconEl = document.getElementById('trust-icon');
-  var levelEl = document.getElementById('trust-level');
-  var detailEl = document.getElementById('trust-detail');
+  var shieldClass = verified ? 'verified' : 'unverified';
+  var shieldSvg = verified ? SHIELD_OK : SHIELD_WARN;
+  var levelColor = verified ? '#22c55e' : '#eab308';
+  var levelText = level === 'trusted' ? 'Trusted' : level === 'verified' ? 'Verified' : level === 'pending' ? 'Pending' : 'Unverified';
+  var detailText = verified
+    ? 'Quick re-auth enabled' + (level === 'trusted' ? ' · Full platform access' : '')
+    : 'Get someone to vouch for you to unlock quick re-auth and more apps';
 
-  if (level === 'trusted') {
-    iconEl.className = 'trust-icon verified';
-    iconEl.textContent = '🛡️';
-    levelEl.style.color = '#22c55e';
-    levelEl.textContent = 'Trusted';
-    detailEl.textContent = vouches + ' vouches · Full access to all apps';
-  } else if (level === 'verified') {
-    iconEl.className = 'trust-icon verified';
-    iconEl.textContent = '✓';
-    levelEl.style.color = '#22c55e';
-    levelEl.textContent = 'Verified';
-    detailEl.textContent = vouches + ' vouch' + (vouches > 1 ? 'es' : '') + ' · Quick re-auth enabled';
-  } else {
-    iconEl.className = 'trust-icon unverified';
-    iconEl.textContent = '⚠';
-    levelEl.style.color = '#fbbf24';
-    levelEl.textContent = 'Unverified';
-    detailEl.textContent = 'Ask someone to vouch for you to unlock more apps and faster re-auth';
-  }
+  banner.innerHTML =
+    '<div class="trust-shield ' + shieldClass + '">' + shieldSvg + '</div>' +
+    '<div class="trust-info">' +
+      '<div class="trust-level-row">' +
+        '<span class="trust-level-text" style="color:' + levelColor + ';">' + levelText + '</span>' +
+        '<span class="trust-vouches">' + vouches + ' vouch' + (vouches !== 1 ? 'es' : '') + '</span>' +
+      '</div>' +
+      '<div class="trust-detail">' + detailText + '</div>' +
+    '</div>';
 
-  // Fetch apps from backend
   fetch(API + '/v1/auth/apps', { headers: VAC.headers() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-      renderApps(data.accessible || [], 'app-grid-accessible');
+      renderApps(data.accessible || [], 'app-grid-accessible', false);
       if (data.locked && data.locked.length > 0) {
         document.getElementById('locked-section').style.display = 'block';
-        renderApps(data.locked, 'app-grid-locked');
+        renderApps(data.locked, 'app-grid-locked', true);
       }
     })
-    .catch(function(e) {
-      console.error('[Hub] Failed to load apps:', e);
-      document.getElementById('app-grid-accessible').innerHTML =
-        '<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center;">Could not load apps. Please try refreshing.</div>';
-    });
+    .catch(function(e) { console.error('[Hub]', e); });
 }
 
-function renderApps(apps, containerId) {
+function renderApps(apps, containerId, isLocked) {
   var grid = document.getElementById(containerId);
   grid.innerHTML = '';
-
   apps.forEach(function(app) {
-    var isLocked = app.access === 'locked';
     var card = document.createElement('a');
     card.className = 'app-card' + (isLocked ? ' locked' : '');
     if (!isLocked) card.href = app.url;
+    var iconSvg = APP_ICONS[app.category] || APP_ICONS.default;
+    var iconColor = app.color || '#8b90a3';
     card.innerHTML =
-      '<div class="app-icon" style="background:' + app.color + '15;border:1px solid ' + app.color + '22;">' +
-        '<span>' + app.icon + '</span>' +
-      '</div>' +
-      '<div class="app-info">' +
-        '<div class="app-name">' + app.name + '</div>' +
+      '<div class="app-icon-wrap" style="background:' + iconColor + '10;border:1px solid ' + iconColor + '18;">' +
+        '<span style="color:' + iconColor + ';">' + iconSvg + '</span></div>' +
+      '<div class="app-info"><div class="app-name">' + app.name + '</div>' +
         '<div class="app-desc">' + app.description + '</div>' +
-        (isLocked ? '<div class="app-unlock">' + (app.unlock_reason || 'More vouches needed') + '</div>' : '') +
+        (isLocked ? '<div class="app-unlock">' + LOCK + ' ' + (app.unlock_reason || 'More vouches needed') + '</div>' : '') +
       '</div>' +
-      (app.role === 'owner' ? '<span class="app-badge owner">Owner</span>' : '') +
-      (isLocked
-        ? '<span class="app-badge locked">Locked</span>'
-        : '<svg class="app-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>');
+      (app.role === 'owner' ? '<span class="app-role owner">owner</span>' : '') +
+      (isLocked ? '<span class="app-role locked">locked</span>' : '<span class="app-arrow">' + ARROW + '</span>');
     grid.appendChild(card);
   });
-
-  if (apps.length === 0) {
-    grid.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:20px;text-align:center;">No apps yet. Browse the marketplace to get started.</div>';
+  if (apps.length === 0 && !isLocked) {
+    grid.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:24px;text-align:center;font-family:var(--mono);">No apps yet. Browse the marketplace to get started.</div>';
   }
 }
 
-VAC.init({
-  app: 'hub',
-  appName: 'Athena',
-  requireFace: true,
-  onVerified: function(user) {
-    renderHub(user);
-  }
-});
+VAC.init({ app: 'hub', appName: 'Athena', requireFace: true, onVerified: function(user) { renderHub(user); } });
 </script>
 </body>
 </html>
