@@ -1106,20 +1106,17 @@ function resetDermAnalysis() {
   });
 }
 </script>
-<script src="/vac-auth.js?v=1773467279"></script>
+<script src="/vac-auth.js?v=1773468207"></script>
 <script>
 VAC.init({
   app: 'derm',
   appName: 'Zagarella Dermatology',
   requireFace: true,
   onVerified: function(user) {
-    document.getElementById('vac-app-content').style.display = '';
-    var greetEl = document.querySelector('.greeting');
-    if (greetEl && user && user.name) {
-      var name = user.name.charAt(0).toUpperCase() + user.name.slice(1);
-      greetEl.textContent = greetEl.textContent.replace('Sam', name);
-    }
-    // Show trust badge — verified status + vouch count
+    window.VAC_USER = user;
+    console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level, '| Trust:', user.trust_level, '| Vouches:', user.vouches_received);
+
+    // Show trust badge
     var badge = document.getElementById('vac-user-badge');
     if (badge && user) {
       var verified = user.is_verified;
@@ -1132,11 +1129,171 @@ VAC.init({
         + (vouches > 0 ? '<div style="color:var(--text-muted);font-size:10px;">' + vouches + ' vouch' + (vouches > 1 ? 'es' : '') + '</div>' : '')
         + '<div style="color:var(--text-muted);font-size:10px;">' + user.email + '</div>';
     }
-    // Wire VAC token into existing API calls
-    window.VAC_USER = user;
-    console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level, '| Trust:', user.trust_level, '| Vouches:', user.vouches_received);
+
+    var greetEl = document.querySelector('.greeting');
+    if (greetEl && user && user.name) {
+      var name = user.name.charAt(0).toUpperCase() + user.name.slice(1);
+      greetEl.textContent = greetEl.textContent.replace('Sam', name);
+    }
+
+    // Check if first visit — show onboarding
+    var onboardKey = 'athena_onboarded_derm_' + user.email;
+    if (!localStorage.getItem(onboardKey)) {
+      showOnboarding(user, onboardKey);
+    } else {
+      document.getElementById('vac-app-content').style.display = '';
+    }
   }
 });
+
+function showOnboarding(user, onboardKey) {
+  var firstName = (user.name || 'there').split(/[@.]/)[0];
+  firstName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+
+  var overlay = document.createElement('div');
+  overlay.id = 'onboard-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:var(--bg);z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;';
+  overlay.innerHTML = `
+    <div style="max-width:480px;margin:0 auto;padding:24px 20px 60px;">
+      <!-- Welcome -->
+      <div id="onboard-step-1" style="animation:fadeIn 0.4s ease;">
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="width:64px;height:64px;margin:0 auto 16px;border-radius:16px;background:rgba(37,99,235,0.1);border:1px solid rgba(37,99,235,0.2);display:flex;align-items:center;justify-content:center;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <div style="font-size:22px;font-weight:700;color:var(--text);margin-bottom:6px;">Welcome, ${firstName}</div>
+          <div style="font-size:14px;color:var(--text-muted);line-height:1.5;">
+            Rob set up this co-pilot for you and shared some initial context to get started — including that you play guitar in a band.
+          </div>
+        </div>
+
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px;">
+          <div style="font-size:11px;color:var(--accent);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">What Rob shared</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">
+            • You're a dermatologist running a clinical practice<br>
+            • You play guitar in a band — music is a big part of your life<br>
+            • Your co-pilot includes a personal music feed alongside clinical tools
+          </div>
+        </div>
+
+        <div style="background:linear-gradient(135deg,rgba(37,99,235,0.06),rgba(124,58,237,0.04));border:1px solid rgba(37,99,235,0.15);border-radius:12px;padding:16px;margin-bottom:24px;">
+          <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:4px;">But that's only the beginning.</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.5;">
+            Help me understand more about you — your practice, your preferences, what your perfect day looks like — so I can become genuinely useful to you.
+          </div>
+        </div>
+
+        <button onclick="onboardStep(2)" style="width:100%;padding:14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">Let's personalise it</button>
+        <button onclick="skipOnboarding('${onboardKey}')" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text-muted);font-size:13px;cursor:pointer;font-family:inherit;margin-top:8px;">Skip for now — explore first</button>
+      </div>
+
+      <!-- Questions -->
+      <div id="onboard-step-2" style="display:none;">
+        <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;">About your practice</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Answer what you'd like — skip any that don't apply.</div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;color:var(--text-dim);font-weight:500;display:block;margin-bottom:6px;">What's your clinical focus?</label>
+          <input id="ob-focus" placeholder="e.g. Skin cancer screening, cosmetic, general, paediatric" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;" />
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;color:var(--text-dim);font-weight:500;display:block;margin-bottom:6px;">What takes up too much of your time?</label>
+          <textarea id="ob-pain" rows="2" placeholder="e.g. Referral letters at 9pm, photo triage backlog, Medicare billing complexity..." style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;color:var(--text-dim);font-weight:500;display:block;margin-bottom:6px;">How many patients do you see per day roughly?</label>
+          <input id="ob-volume" placeholder="e.g. 20-30" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;" />
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="font-size:12px;color:var(--text-dim);font-weight:500;display:block;margin-bottom:6px;">What software/tools do you use now?</label>
+          <input id="ob-tools" placeholder="e.g. Best Practice, Dermengine, Xero, Medicare Online" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;" />
+        </div>
+
+        <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:8px;margin-bottom:16px;">
+          <div style="font-size:18px;font-weight:700;color:var(--text);margin-bottom:4px;">Beyond work</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Your co-pilot is for your whole life, not just the clinic.</div>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:12px;color:var(--text-dim);font-weight:500;display:block;margin-bottom:6px;">Tell me about your band — what genre, how often do you play?</label>
+            <textarea id="ob-music" rows="2" placeholder="e.g. We play blues/rock covers, gig twice a month at local pubs" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:12px;color:var(--text-dim);font-weight:500;display:block;margin-bottom:6px;">What else are you into? Hobbies, sport, things you follow?</label>
+            <textarea id="ob-hobbies" rows="2" placeholder="e.g. Cricket, cooking, true crime podcasts, classic cars..." style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;resize:vertical;"></textarea>
+          </div>
+
+          <div style="margin-bottom:16px;">
+            <label style="font-size:12px;color:var(--text-dim);font-weight:500;display:block;margin-bottom:6px;">YouTube channels or podcasts you love?</label>
+            <input id="ob-channels" placeholder="e.g. That Pedal Show, Rick Beato, Joe Rogan" style="width:100%;padding:12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;font-family:inherit;" />
+          </div>
+        </div>
+
+        <button onclick="submitOnboarding('derm', '${onboardKey}')" id="ob-submit" style="width:100%;padding:14px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;">Save &amp; open my co-pilot</button>
+        <div id="ob-status" style="font-size:12px;text-align:center;margin-top:8px;min-height:18px;"></div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+}
+
+function onboardStep(n) {
+  document.getElementById('onboard-step-1').style.display = 'none';
+  document.getElementById('onboard-step-2').style.display = '';
+  document.getElementById('onboard-step-2').style.animation = 'fadeIn 0.3s ease';
+}
+
+function skipOnboarding(key) {
+  localStorage.setItem(key, Date.now());
+  document.getElementById('onboard-overlay').remove();
+  document.getElementById('vac-app-content').style.display = '';
+}
+
+async function submitOnboarding(appId, key) {
+  var btn = document.getElementById('ob-submit');
+  var status = document.getElementById('ob-status');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  var data = {
+    focus: (document.getElementById('ob-focus') || {}).value || '',
+    pain_points: (document.getElementById('ob-pain') || {}).value || '',
+    volume: (document.getElementById('ob-volume') || {}).value || '',
+    tools: (document.getElementById('ob-tools') || {}).value || '',
+    music: (document.getElementById('ob-music') || {}).value || '',
+    hobbies: (document.getElementById('ob-hobbies') || {}).value || '',
+    channels: (document.getElementById('ob-channels') || {}).value || '',
+  };
+
+  try {
+    await fetch('https://vac-system-production.up.railway.app/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: 'onboarding',
+        content: 'ONBOARDING [' + appId + '] | ' + JSON.stringify(data),
+        source_page: appId + '-copilot-onboarding',
+        user_id: vacUserId(),
+        product: 'athena'
+      })
+    });
+    localStorage.setItem(key, Date.now());
+    status.style.color = '#22c55e';
+    status.textContent = 'Saved! Loading your co-pilot...';
+    setTimeout(function() {
+      document.getElementById('onboard-overlay').remove();
+      document.getElementById('vac-app-content').style.display = '';
+    }, 1000);
+  } catch(e) {
+    status.style.color = '#ef4444';
+    status.textContent = 'Could not save — ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Try again';
+  }
+}
 </script>
 </body>
 </html>
