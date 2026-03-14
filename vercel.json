@@ -129,6 +129,14 @@
             "destination": "/athena-watch.html"
         },
         {
+            "source": "/my",
+            "destination": "/athena-my.html"
+        },
+        {
+            "source": "/shan",
+            "destination": "/athena-shan.html"
+        },
+        {
             "source": "/api",
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
@@ -163,6 +171,18 @@
         },
         {
             "source": "/auth",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+            ]
+        },
+        {
+            "source": "/my",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+            ]
+        },
+        {
+            "source": "/shan",
             "headers": [
                 { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
             ]
