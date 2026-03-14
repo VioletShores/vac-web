@@ -287,7 +287,8 @@ body {
 </style>
 </head>
 <body>
-<div class="app">
+<div id="vac-auth"></div>
+<div class="app" id="vac-app-content" style="display:none;">
 
   <div class="header fade-in">
     <div class="logo-mark" style="background:linear-gradient(135deg,#1a237e,#283593);font-family:'DM Serif Display',serif;font-size:16px;letter-spacing:-0.5px;">RC</div>
@@ -1569,6 +1570,24 @@ async function sendVoiceFeedback() {
   }
 }
 
+</script>
+<script src="/vac-auth.js"></script>
+<script>
+VAC.init({
+  app: 'regatta',
+  appName: 'Regatta Club Co-Pilot',
+  requireFace: true,
+  onVerified: function(user) {
+    document.getElementById('vac-app-content').style.display = '';
+    // Update greeting with verified name if available
+    var greetEl = document.querySelector('.greeting');
+    if (greetEl && user && user.name) {
+      var name = user.name.charAt(0).toUpperCase() + user.name.slice(1);
+      greetEl.textContent = greetEl.textContent.replace('Anthony', name);
+    }
+    console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level);
+  }
+});
 </script>
 </body>
 </html>

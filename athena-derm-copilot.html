@@ -193,7 +193,8 @@ body {
 </style>
 </head>
 <body>
-<div class="app">
+<div id="vac-auth"></div>
+<div class="app" id="vac-app-content" style="display:none;">
 
   <div class="header fade-in">
     <div class="logo-mark">SZ</div>
@@ -1037,6 +1038,23 @@ function resetDermAnalysis() {
     b.style.borderColor = 'var(--border)';
   });
 }
+</script>
+<script src="/vac-auth.js"></script>
+<script>
+VAC.init({
+  app: 'derm',
+  appName: 'Zagarella Dermatology',
+  requireFace: true,
+  onVerified: function(user) {
+    document.getElementById('vac-app-content').style.display = '';
+    var greetEl = document.querySelector('.greeting');
+    if (greetEl && user && user.name) {
+      var name = user.name.charAt(0).toUpperCase() + user.name.slice(1);
+      greetEl.textContent = greetEl.textContent.replace('Sam', name);
+    }
+    console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level);
+  }
+});
 </script>
 </body>
 </html>
