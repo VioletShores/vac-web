@@ -143,6 +143,31 @@
     ],
     "headers": [
         {
+            "source": "/hub",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+                { "key": "Pragma", "value": "no-cache" }
+            ]
+        },
+        {
+            "source": "/regatta",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+            ]
+        },
+        {
+            "source": "/derm",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+            ]
+        },
+        {
+            "source": "/auth",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+            ]
+        },
+        {
             "source": "/vac-auth.js",
             "headers": [
                 {
