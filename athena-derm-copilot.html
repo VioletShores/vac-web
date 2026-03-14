@@ -813,6 +813,68 @@ body {
     </div>
   </div>
 
+  <!-- Personal feed — the copilot knows the whole person -->
+  <div class="section fade-in d8">
+    <div class="section-head" style="border-left:3px solid #f59e0b;padding-left:12px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      For you — music &amp; guitar <span class="count" style="background:#f59e0b20;color:#f59e0b;">personal</span>
+    </div>
+    <div class="section-body">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">YouTube transcripts and summaries tagged to your interests</div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="width:80px;height:52px;border-radius:6px;background:#1a1a2e;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;">5 Guitar Warm-Up Exercises That Changed My Playing</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Justin Guitar · 12 min · transcribed today</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.5;padding:10px;background:var(--bg);border-radius:6px;">
+          <strong style="color:var(--text);">Summary:</strong> Five progressive warm-up exercises starting with chromatic spider walks, moving to string-skipping patterns, then hammer-on/pull-off chains. Key insight: the "silent fretting" technique (fretting without picking) builds finger independence faster than traditional scales. Recommends 10 minutes before every session.
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="width:80px;height:52px;border-radius:6px;background:#1a1a2e;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;">Best Pedalboard Setup for Live Band Gigs 2026</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">That Pedal Show · 22 min · transcribed today</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.5;padding:10px;background:var(--bg);border-radius:6px;">
+          <strong style="color:var(--text);">Summary:</strong> Signal chain for live performance: tuner → compressor → overdrive → delay → reverb. Argues against multi-effects in favour of dedicated pedals for reliability. Power supply recommendation: isolated outputs are non-negotiable for noise-free live sound. Budget setup vs pro setup compared.
+        </div>
+      </div>
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;">
+        <div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="width:80px;height:52px;border-radius:6px;background:#1a1a2e;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:var(--text);line-height:1.3;">How to EQ Guitar in a Full Band Mix</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Produce Like a Pro · 15 min · transcribed today</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.5;padding:10px;background:var(--bg);border-radius:6px;">
+          <strong style="color:var(--text);">Summary:</strong> Cut 200-400Hz to avoid mud when bass and guitar overlap. Boost 2-4kHz for presence in the mix. Use high-pass filter at 80Hz on guitar — let the bass own the low end. For live bands: mid-scoop sounds great solo but disappears in the band mix. Keep the mids.
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-top:12px;">
+        <button style="padding:8px 20px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-muted);font-size:12px;cursor:pointer;font-family:inherit;" onclick="alert('YouTube feed integration coming soon. Tell us what channels and topics you want.')">
+          Manage your music feed
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Feedback section -->
   <div class="section fade-in d8" style="background:linear-gradient(135deg,rgba(37,99,235,0.04),rgba(124,58,237,0.03));border:1px solid rgba(37,99,235,0.12);border-radius:var(--radius);padding:20px;margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px;">
     <div style="margin-bottom:14px;">
@@ -1044,7 +1106,7 @@ function resetDermAnalysis() {
   });
 }
 </script>
-<script src="/vac-auth.js?v=1773464310"></script>
+<script src="/vac-auth.js?v=1773467279"></script>
 <script>
 VAC.init({
   app: 'derm',
