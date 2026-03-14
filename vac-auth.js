@@ -1080,8 +1080,16 @@
       }).then(user => {
         if (user) {
           console.log('[VAC] Session valid:', user.email, '| verified:', user.is_verified, '| level:', user.auth_level);
-          // Session valid — check if they need to vouch still
-          if (!user.is_verified && _config.requireVouch !== false) {
+          
+          // Check if session has full biometric — OTP-only is not enough
+          var hasBiometric = user.auth_level === 'full' || user.auth_level === 'quick';
+          
+          if (_config.requireFace !== false && !hasBiometric) {
+            // Session exists but only OTP — need face verification still
+            console.log('[VAC] OTP session only, face verification required');
+            _renderGate();
+            _renderFaceScreen();
+          } else if (!user.is_verified && _config.requireVouch !== false) {
             _renderGate();
             _renderVouchScreen();
           } else {
