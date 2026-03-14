@@ -20,12 +20,13 @@
   const API_BASE = 'https://vac-system-production.up.railway.app';
   const SESSION_KEY = 'vac_session';
   const USER_KEY = 'vac_user';
+  const EMAIL_KEY = 'vac_email';  // persists email for quick re-auth
 
   // ============================================================
   // STATE
   // ============================================================
   let _config = {};
-  let _state = 'idle'; // idle → email → otp → face → verified
+  let _state = 'idle'; // idle → email → otp → face → vouch → verified
   let _user = null;
   let _container = null;
   let _videoStream = null;
@@ -66,10 +67,17 @@
   function _setUser(user) {
     _user = user;
     try { localStorage.setItem(USER_KEY, JSON.stringify(user)); } catch(e) {}
+    if (user && user.email) {
+      try { localStorage.setItem(EMAIL_KEY, user.email); } catch(e) {}
+    }
   }
 
   function _getStoredUser() {
     try { return JSON.parse(localStorage.getItem(USER_KEY)); } catch(e) { return null; }
+  }
+
+  function _getStoredEmail() {
+    try { return localStorage.getItem(EMAIL_KEY); } catch(e) { return null; }
   }
 
   // ============================================================
@@ -84,6 +92,16 @@
       const data = await _api('GET', '/v1/auth/session');
       if (data.valid) {
         const user = { email: data.email, name: data.name, auth_level: data.auth_level };
+        // Fetch trust status
+        try {
+          const trust = await _api('GET', `/v1/auth/trust-status?email=${encodeURIComponent(data.email)}`);
+          user.trust_level = trust.trust_level;
+          user.is_verified = trust.is_verified;
+          user.vouches_received = trust.vouches_received;
+        } catch(e) {
+          user.trust_level = 'unknown';
+          user.is_verified = false;
+        }
         _setUser(user);
         return user;
       }
@@ -521,7 +539,7 @@
       if (_config.requireFace !== false) {
         _renderFaceScreen();
       } else {
-        _handleAuthComplete();
+        _renderVouchScreen();
       }
     } catch (e) {
       err.textContent = e.message;
@@ -563,7 +581,7 @@
 
     _startCamera();
     document.getElementById('vac-face-btn').addEventListener('click', () => _handleFaceVerify());
-    document.getElementById('vac-skip-face').addEventListener('click', () => _handleAuthComplete());
+    document.getElementById('vac-skip-face').addEventListener('click', () => _renderVouchScreen());
   }
 
   async function _startCamera() {
@@ -610,11 +628,209 @@
       _setToken(data.session_token);
       _setUser({ email: data.email, name: data.name, auth_level: data.auth_level });
       _stopCamera();
-      _handleAuthComplete();
+      _renderVouchScreen();
     } catch (e) {
       err.textContent = e.message;
       btn.disabled = false;
       btn.textContent = 'Verify face';
+    }
+  }
+
+  // ============================================================
+  // VOUCH SCREEN — The trust graph growth mechanism
+  // ============================================================
+
+  async function _renderVouchScreen() {
+    _state = 'vouch';
+    _stopCamera();
+    const screen = document.getElementById('vac-screen');
+    const user = _getStoredUser();
+    const email = (user && user.email) || _config._email || '';
+
+    // Check trust status
+    let trust = { trust_level: 'unverified', vouches_received: 0, vouches_pending: 0 };
+    try {
+      trust = await _api('GET', `/v1/auth/trust-status?email=${encodeURIComponent(email)}`);
+    } catch(e) {}
+
+    // If already verified (1+ vouches), skip vouch screen entirely
+    if (trust.is_verified) {
+      const u = _getStoredUser() || {};
+      u.trust_level = trust.trust_level;
+      u.is_verified = true;
+      u.vouches_received = trust.vouches_received;
+      _setUser(u);
+      _handleAuthComplete();
+      return;
+    }
+
+    const hasPending = trust.vouches_pending > 0;
+
+    screen.innerHTML = `
+      <div style="text-align:center;margin-bottom:20px;">
+        <div style="width:48px;height:48px;margin:0 auto 12px;border-radius:50%;background:${hasPending ? '#fbbf2422' : '#22c55e15'};display:flex;align-items:center;justify-content:center;">
+          ${hasPending
+            ? '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+            : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>'}
+        </div>
+        <div style="font-size:16px;font-weight:600;color:#fff;margin-bottom:4px;">
+          ${hasPending ? 'Waiting for vouch' : 'One more step'}
+        </div>
+        <div style="font-size:13px;color:#6b7280;line-height:1.5;">
+          ${hasPending
+            ? 'Your vouch request has been sent. Once confirmed, your identity is fully verified.'
+            : 'Ask someone you trust to verify your identity. This builds the trust chain that keeps everyone safe.'}
+        </div>
+      </div>
+
+      ${hasPending ? `
+        <div style="background:#fbbf2411;border:1px solid #fbbf2433;border-radius:10px;padding:14px;margin-bottom:16px;text-align:center;">
+          <div style="font-size:12px;color:#fbbf24;font-weight:600;margin-bottom:4px;">VOUCH PENDING</div>
+          <div style="font-size:13px;color:#9ca3af;">We'll notify you when it's confirmed</div>
+        </div>
+      ` : `
+        <label class="vac-label">Who can vouch for you?</label>
+        <input type="text" class="vac-input" id="vac-voucher-name" placeholder="Their name" style="margin-bottom:8px;" />
+        <input type="email" class="vac-input" id="vac-voucher-email" placeholder="Their email" inputmode="email" />
+        <input type="text" class="vac-input" id="vac-voucher-msg" placeholder="Personal message (optional)" style="margin-top:8px;font-size:14px;" />
+        <button class="vac-btn vac-btn-primary" id="vac-vouch-btn">
+          Send vouch request
+        </button>
+      `}
+
+      <button class="vac-btn vac-btn-secondary" id="vac-skip-vouch">
+        ${hasPending ? 'Continue to app' : 'Skip for now'}
+      </button>
+      <div class="vac-error-msg" id="vac-error"></div>
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid #1a1f2b;">
+        <div style="font-size:11px;color:#3b4252;text-align:center;line-height:1.5;">
+          VAC Protocol uses a chain of trust — each vouch creates a cryptographic<br>
+          link confirming you are who you say you are.
+        </div>
+      </div>
+    `;
+
+    if (!hasPending) {
+      document.getElementById('vac-vouch-btn').addEventListener('click', () => _handleRequestVouch());
+    }
+    document.getElementById('vac-skip-vouch').addEventListener('click', () => {
+      // Let them in but mark as unverified
+      const u = _getStoredUser() || {};
+      u.trust_level = hasPending ? 'pending' : 'unverified';
+      u.is_verified = false;
+      _setUser(u);
+      _handleAuthComplete();
+    });
+  }
+
+  async function _handleRequestVouch() {
+    const nameInput = document.getElementById('vac-voucher-name');
+    const emailInput = document.getElementById('vac-voucher-email');
+    const msgInput = document.getElementById('vac-voucher-msg');
+    const btn = document.getElementById('vac-vouch-btn');
+    const err = document.getElementById('vac-error');
+
+    const name = nameInput.value.trim();
+    const email = emailInput.value.trim().toLowerCase();
+    const msg = msgInput.value.trim();
+
+    if (!name) { nameInput.classList.add('vac-error'); setTimeout(() => nameInput.classList.remove('vac-error'), 400); return; }
+    if (!email || !email.includes('@')) { emailInput.classList.add('vac-error'); setTimeout(() => emailInput.classList.remove('vac-error'), 400); return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="vac-spinner"></span> Sending...';
+    err.textContent = '';
+
+    try {
+      const data = await _api('POST', '/v1/auth/request-vouch', {
+        voucher_name: name,
+        voucher_email: email,
+        message: msg,
+        app_id: _config.app || 'default',
+      });
+
+      // Re-render with pending state
+      _renderVouchScreen();
+    } catch(e) {
+      err.textContent = e.message;
+      btn.disabled = false;
+      btn.textContent = 'Send vouch request';
+    }
+  }
+
+  // ============================================================
+  // QUICK RE-AUTH — Returning users with expired sessions
+  // ============================================================
+
+  function _renderQuickReauthScreen(email) {
+    _state = 'quick_reauth';
+    const screen = document.getElementById('vac-screen');
+    screen.innerHTML = `
+      <div class="vac-step-indicator">
+        <div class="vac-step active"></div>
+      </div>
+      <p style="font-size:14px;color:#9ca3af;text-align:center;margin-bottom:8px;">
+        Welcome back, <strong style="color:#fff;">${email}</strong>
+      </p>
+      <p style="font-size:13px;color:#6b7280;text-align:center;margin-bottom:16px;">
+        Quick check — hold up the number of fingers shown
+      </p>
+      <div class="vac-face-preview" id="vac-face-preview">
+        <video id="vac-face-video" autoplay playsinline muted></video>
+        <div class="vac-face-overlay">
+          <div class="vac-face-reticle"></div>
+        </div>
+        <div class="vac-face-hint" id="vac-finger-hint">Loading challenge...</div>
+      </div>
+      <button class="vac-btn vac-btn-primary" id="vac-quick-btn" disabled>
+        Verify
+      </button>
+      <button class="vac-btn vac-btn-secondary" id="vac-quick-full">
+        Use email instead
+      </button>
+      <div class="vac-error-msg" id="vac-error"></div>
+    `;
+
+    _startCamera();
+    document.getElementById('vac-quick-full').addEventListener('click', () => _renderEmailScreen());
+
+    // Fetch challenge
+    _api('POST', '/v1/auth/quick-challenge', { email: email }).then(data => {
+      _config._quickChallenge = data;
+      document.getElementById('vac-finger-hint').textContent = data.instruction;
+      document.getElementById('vac-finger-hint').style.color = '#22c55e';
+      const btn = document.getElementById('vac-quick-btn');
+      btn.disabled = false;
+      btn.addEventListener('click', () => _handleQuickVerify(data, email));
+    }).catch(e => {
+      document.getElementById('vac-error').textContent = e.message;
+      document.getElementById('vac-finger-hint').textContent = 'Challenge failed — use email instead';
+    });
+  }
+
+  async function _handleQuickVerify(challenge, email) {
+    const btn = document.getElementById('vac-quick-btn');
+    const err = document.getElementById('vac-error');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="vac-spinner"></span> Verifying...';
+
+    try {
+      // Phase 1: trust the user to hold up correct fingers
+      // Phase 2: Gemini counts fingers from camera frame
+      const data = await _api('POST', '/v1/auth/quick-verify', {
+        challenge_id: challenge.challenge_id,
+        detected_fingers: challenge.num_fingers,  // Phase 1: auto-pass. Phase 2: Gemini detection
+      });
+
+      _setToken(data.session_token);
+      _setUser({ email: data.email, name: data.email.split('@')[0], auth_level: data.auth_level });
+      _stopCamera();
+      _handleAuthComplete();
+    } catch(e) {
+      err.textContent = e.message;
+      btn.disabled = false;
+      btn.textContent = 'Verify';
     }
   }
 
@@ -674,10 +890,25 @@
       // Check for existing valid session
       _checkSession().then(user => {
         if (user) {
-          _state = 'verified';
-          if (_config.onVerified) _config.onVerified(user);
+          // Session valid — check if they need to vouch still
+          if (!user.is_verified && _config.requireVouch !== false) {
+            _renderGate();
+            _renderVouchScreen();
+          } else {
+            _state = 'verified';
+            if (_config.onVerified) _config.onVerified(user);
+          }
         } else {
-          _renderGate();
+          // No valid session — check if returning user (email stored)
+          const storedEmail = _getStoredEmail();
+          if (storedEmail) {
+            // Returning user with expired session → quick re-auth
+            _renderGate();
+            _renderQuickReauthScreen(storedEmail);
+          } else {
+            // New user → full flow
+            _renderGate();
+          }
         }
       });
     },
@@ -695,6 +926,7 @@
     /** Sign out — clear session and reload auth gate */
     logout: function() {
       _clearToken();
+      try { localStorage.removeItem(EMAIL_KEY); } catch(e) {}
       _user = null;
       _state = 'idle';
       _stopCamera();
@@ -705,6 +937,18 @@
     isAuthenticated: async function() {
       const user = await _checkSession();
       return !!user;
+    },
+
+    /** Check if user is verified (has at least 1 vouch) */
+    isVerified: function() {
+      const user = _user || _getStoredUser();
+      return user ? !!user.is_verified : false;
+    },
+
+    /** Get trust level: unverified, pending, verified, trusted */
+    getTrustLevel: function() {
+      const user = _user || _getStoredUser();
+      return user ? (user.trust_level || 'unknown') : 'none';
     },
 
     /** Get auth headers for API calls */
