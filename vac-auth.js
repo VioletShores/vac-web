@@ -593,6 +593,7 @@
 
   function _renderFaceScreen() {
     _state = 'face';
+    _stopCamera(); // Don't start camera here — auth.html handles it
     const screen = document.getElementById('vac-screen');
     screen.innerHTML = `
       <div class="vac-step-indicator">
@@ -600,32 +601,36 @@
         <div class="vac-step done"></div>
         <div class="vac-step active"></div>
       </div>
-      <p style="font-size:14px; color:#9ca3af; text-align:center; margin-bottom:16px;">
-        Quick face check to confirm it's you
-      </p>
-      <div class="vac-face-preview" id="vac-face-preview">
-        <video id="vac-face-video" autoplay playsinline muted></video>
-        <div class="vac-face-overlay">
-          <div class="vac-face-reticle"></div>
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="width:56px;height:56px;margin:0 auto 14px;border-radius:14px;background:#22c55e10;border:1px solid #22c55e22;display:flex;align-items:center;justify-content:center;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         </div>
-        <div class="vac-face-hint">Position your face in the oval</div>
+        <div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px;">Biometric verification</div>
+        <div style="font-size:13px;color:#6b7280;line-height:1.5;">
+          You'll speak a challenge phrase on camera while showing finger gestures.
+          This creates your biometric identity — face, voice, lip sync, and gesture verified by AI.
+        </div>
       </div>
       <button class="vac-btn vac-btn-primary" id="vac-face-btn">
-        Verify face
-      </button>
-      <button class="vac-btn vac-btn-secondary" id="vac-skip-face">
-        Skip for now
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+        Start verification
       </button>
       <div class="vac-error-msg" id="vac-error"></div>
     `;
 
-    _startCamera();
-    document.getElementById('vac-face-btn').addEventListener('click', () => _handleFaceVerify());
-    document.getElementById('vac-skip-face').addEventListener('click', () => _renderVouchScreen());
+    document.getElementById('vac-face-btn').addEventListener('click', function() {
+      // Redirect to auth.html with copilot mode — does REAL Gemini + Deepgram verification
+      var callback = window.location.pathname || '/hub';
+      var authUrl = '/auth?mode=copilot&callback=' + encodeURIComponent(callback);
+      console.log('[VAC] Redirecting to real biometric verification:', authUrl);
+      window.location.href = authUrl;
+    });
   }
 
+  // Camera helpers (still used by quick re-auth)
   async function _startCamera() {
     const video = document.getElementById('vac-face-video');
+    if (!video) return;
     try {
       _videoStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
@@ -633,7 +638,8 @@
       });
       video.srcObject = _videoStream;
     } catch (e) {
-      document.getElementById('vac-error').textContent = 'Camera access required for face verification.';
+      var errEl = document.getElementById('vac-error');
+      if (errEl) errEl.textContent = 'Camera access required for verification.';
     }
   }
 
@@ -641,38 +647,6 @@
     if (_videoStream) {
       _videoStream.getTracks().forEach(t => t.stop());
       _videoStream = null;
-    }
-  }
-
-  async function _handleFaceVerify() {
-    const btn = document.getElementById('vac-face-btn');
-    const err = document.getElementById('vac-error');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="vac-spinner"></span> Verifying...';
-
-    try {
-      // Capture frame
-      const video = document.getElementById('vac-face-video');
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      const frame = canvas.toDataURL('image/jpeg', 0.7);
-
-      const data = await _api('POST', '/v1/auth/face-verify', {
-        session_token: _getToken(),
-        face_frame: frame,
-      });
-
-      // Upgrade session
-      _setToken(data.session_token);
-      _setUser({ email: data.email, name: data.name, auth_level: data.auth_level });
-      _stopCamera();
-      _renderVouchScreen();
-    } catch (e) {
-      err.textContent = e.message;
-      btn.disabled = false;
-      btn.textContent = 'Verify face';
     }
   }
 
@@ -738,9 +712,6 @@
         </button>
       `}
 
-      <button class="vac-btn vac-btn-secondary" id="vac-skip-vouch">
-        ${hasPending ? 'Continue to app' : 'Skip for now'}
-      </button>
       <div class="vac-error-msg" id="vac-error"></div>
 
       <div style="margin-top:16px;padding-top:14px;border-top:1px solid #1a1f2b;">
@@ -754,14 +725,37 @@
     if (!hasPending) {
       document.getElementById('vac-vouch-btn').addEventListener('click', () => _handleRequestVouch());
     }
-    document.getElementById('vac-skip-vouch').addEventListener('click', () => {
-      // Let them in but mark as unverified
-      const u = _getStoredUser() || {};
-      u.trust_level = hasPending ? 'pending' : 'unverified';
-      u.is_verified = false;
-      _setUser(u);
-      _handleAuthComplete();
-    });
+
+    // Poll for vouch confirmation — auto-transition to verified
+    if (hasPending || _state === 'vouch') {
+      _startVouchPolling(email);
+    }
+  }
+
+  var _vouchPollTimer = null;
+  function _startVouchPolling(email) {
+    if (_vouchPollTimer) clearInterval(_vouchPollTimer);
+    console.log('[VAC] Vouch polling started for:', email);
+    _vouchPollTimer = setInterval(async function() {
+      try {
+        var trust = await _api('GET', '/v1/auth/trust-status?email=' + encodeURIComponent(email));
+        if (trust.is_verified) {
+          clearInterval(_vouchPollTimer);
+          _vouchPollTimer = null;
+          console.log('[VAC] Vouch confirmed! Transitioning to verified.');
+          // Update stored user
+          var u = _getStoredUser() || {};
+          u.trust_level = trust.trust_level;
+          u.is_verified = true;
+          u.vouches_received = trust.vouches_received;
+          _setUser(u);
+          // Show success and enter app
+          _handleAuthComplete();
+        }
+      } catch(e) {
+        console.log('[VAC] Vouch poll error:', e.message);
+      }
+    }, 10000); // Check every 10 seconds
   }
 
   async function _handleRequestVouch() {

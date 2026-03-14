@@ -1444,6 +1444,7 @@ async function runRealVerification(videoBlob) {
         }
 
         authResult = await resp.json();
+        authResult._challenge_id = challengeData?.challenge_id || ''; // for copilot mode biometric upgrade
         clearInterval(progressTimer);
 
         // Update modality displays with real results
@@ -2329,6 +2330,111 @@ setTimeout(checkScroll, 200);
 // Re-check after step transitions
 const _origGoToStep = goToStep;
 goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
+
+// ============================================================
+// COPILOT MODE — when auth.html is opened from vac-auth.js SDK
+// Skips identity/OTP, does full biometrics, upgrades copilot session
+// ============================================================
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') !== 'copilot') return;
+    
+    const callback = params.get('callback') || '/hub';
+    console.log('[VAC/COPILOT] Copilot mode activated. Callback:', callback);
+    
+    // Read identity from SDK's localStorage
+    let user = null;
+    try { user = JSON.parse(localStorage.getItem('vac_user')); } catch(e) {}
+    const email = (user && user.email) || params.get('email') || '';
+    const name = (user && user.name) || params.get('name') || email.split('@')[0];
+    
+    if (!email) {
+        console.error('[VAC/COPILOT] No email found — cannot proceed');
+        return;
+    }
+    
+    console.log('[VAC/COPILOT] Identity from SDK:', name, email);
+    
+    // Pre-fill identity fields
+    const nameInput = document.getElementById('inputName');
+    const emailInput = document.getElementById('inputEmail');
+    if (nameInput) nameInput.value = name;
+    if (emailInput) emailInput.value = email;
+    
+    // Mark OTP as confirmed (SDK already verified email via OTP)
+    try {
+        const confirmed = JSON.parse(localStorage.getItem('vac_otp_confirmed') || '{}');
+        confirmed[email.toLowerCase()] = Date.now();
+        localStorage.setItem('vac_otp_confirmed', JSON.stringify(confirmed));
+    } catch(e) {}
+    
+    // Skip identity + OTP, go straight to AV check (step 1)
+    setTimeout(function() {
+        goToStep(1);
+    }, 200);
+    
+    // Watch for verification success (step 4) and upgrade copilot session
+    const successObserver = new MutationObserver(function() {
+        const step4 = document.getElementById('step4');
+        if (step4 && step4.classList.contains('active') && typeof authResult !== 'undefined' && authResult) {
+            successObserver.disconnect();
+            console.log('[VAC/COPILOT] Biometric verification complete. Upgrading session...');
+            
+            const score = authResult.biometric_verification
+                ? authResult.biometric_verification.overall_score
+                : 0.75;
+            const method = authResult.biometric_verification
+                ? authResult.biometric_verification.method
+                : 'multi_modal_simulated';
+            const challengeId = authResult._challenge_id || '';
+            const sessionToken = localStorage.getItem('vac_session') || '';
+            
+            // Call biometric-upgrade endpoint
+            fetch(API_BASE + '/v1/auth/biometric-upgrade', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_token: sessionToken,
+                    challenge_id: challengeId,
+                    overall_score: score,
+                    verification_method: method,
+                }),
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.session_token) {
+                    // Store upgraded session
+                    localStorage.setItem('vac_session', data.session_token);
+                    try {
+                        const u = JSON.parse(localStorage.getItem('vac_user') || '{}');
+                        u.auth_level = data.auth_level;
+                        u.is_verified = data.is_verified;
+                        u.last_biometric = Math.floor(Date.now() / 1000);
+                        localStorage.setItem('vac_user', JSON.stringify(u));
+                    } catch(e) {}
+                    console.log('[VAC/COPILOT] Session upgraded. Redirecting to', callback);
+                    setTimeout(function() {
+                        window.location.href = callback;
+                    }, 1500); // Brief pause so user sees success screen
+                } else {
+                    console.error('[VAC/COPILOT] Upgrade failed:', data);
+                    // Still redirect — they have OTP session at minimum
+                    setTimeout(function() { window.location.href = callback; }, 2000);
+                }
+            })
+            .catch(function(e) {
+                console.error('[VAC/COPILOT] Upgrade error:', e);
+                setTimeout(function() { window.location.href = callback; }, 2000);
+            });
+        }
+    });
+    
+    // Observe step4 for class changes
+    const step4El = document.getElementById('step4');
+    if (step4El) {
+        successObserver.observe(step4El, { attributes: true, attributeFilter: ['class'] });
+    }
+})();
 
 // Restore verified state from localStorage
 (function() {
