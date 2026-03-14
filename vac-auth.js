@@ -64,7 +64,19 @@
   }
 
   function _clearToken() {
-    try { localStorage.removeItem(SESSION_KEY); localStorage.removeItem(USER_KEY); } catch(e) {}
+    // Only clear the session token — user identity persists for re-auth routing
+    // User data (email, name, is_verified, trust_level) survives session expiry
+    // so the SDK knows to route to face re-auth, not full OTP
+    try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+  }
+
+  function _clearAll() {
+    // Full clear — used only by logout (leaving the device)
+    try {
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(EMAIL_KEY);
+    } catch(e) {}
   }
 
   function _setUser(user) {
@@ -1188,8 +1200,7 @@
     /** Sign out — clears EVERYTHING. Forces full re-auth (email + OTP + biometric). 
      *  Use when leaving a shared device. */
     logout: function() {
-      _clearToken();
-      try { localStorage.removeItem(EMAIL_KEY); } catch(e) {}
+      _clearAll();
       _user = null;
       _state = 'idle';
       _stopCamera();

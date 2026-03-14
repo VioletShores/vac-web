@@ -1,0 +1,18 @@
+{
+  "name": "Athena Co-Pilot",
+  "short_name": "Athena",
+  "description": "Your AI co-pilot — verified by VAC Protocol",
+  "start_url": "/hub",
+  "display": "standalone",
+  "background_color": "#08090c",
+  "theme_color": "#22c55e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/branding/vac-logo-square-dark.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
