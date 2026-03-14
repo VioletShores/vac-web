@@ -332,9 +332,10 @@
         pointer-events:none;
       }
       .vac-face-reticle {
-        width:160px; height:200px;
-        border:2px dashed #22c55e44;
+        width:clamp(130px,40vw,160px); height:clamp(170px,50vw,200px);
+        border:3px dashed #22c55ecc;
         border-radius:80px;
+        box-shadow: 0 0 0 3px rgba(0,0,0,0.4), 0 0 20px rgba(34,197,94,0.3);
       }
       .vac-face-hint {
         position:absolute; bottom:12px; left:0; right:0;
