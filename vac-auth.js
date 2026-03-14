@@ -443,12 +443,30 @@
       }
       // Basic email pattern: something@something.something
       var isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-      if (isValid) {
+      
+      // Common typo detection
+      var typo = '';
+      var domain = val.split('@')[1] || '';
+      if (domain.endsWith('.con')) typo = 'Did you mean .com?';
+      else if (domain.endsWith('.cmo')) typo = 'Did you mean .com?';
+      else if (domain.endsWith('.vom')) typo = 'Did you mean .com?';
+      else if (domain.endsWith('.cm')) typo = 'Did you mean .com?';
+      else if (domain.endsWith('.ney')) typo = 'Did you mean .net?';
+      else if (domain.endsWith('.og')) typo = 'Did you mean .org?';
+      else if (domain.match(/gmal\.|gmial\.|gmaol\./)) typo = 'Did you mean gmail.com?';
+      else if (domain.match(/hotmal\.|hotmai\./)) typo = 'Did you mean hotmail.com?';
+      else if (domain.match(/yahooo?\./)) typo = 'Did you mean yahoo.com?';
+      
+      if (isValid && typo) {
+        hint.textContent = typo;
+        hint.style.color = '#fbbf24';
+        btn.disabled = false;  // Allow but warn
+        input.style.borderColor = '#fbbf24';
+      } else if (isValid) {
         hint.textContent = '';
         btn.disabled = false;
         input.style.borderColor = '#22c55e';
       } else if (val.includes('@') && val.indexOf('@') < val.length - 1) {
-        // Has @ but not complete yet — gentle nudge
         hint.textContent = 'e.g. you@example.com';
         hint.style.color = '#6b7280';
         btn.disabled = true;

@@ -34,6 +34,14 @@
 @keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 @keyframes pulseGlow { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.15); } 50% { box-shadow: 0 0 20px 4px rgba(34,197,94,0.08); } }
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* Override iOS Safari autofill yellow background */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px var(--surface-raised) inset !important;
+  -webkit-text-fill-color: var(--text) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
 body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
 .hub { max-width: 520px; margin: 0 auto; padding: 0 16px 48px; display: none; }
 .fade-1 { animation: fadeUp 0.4s ease 0.05s both; }
@@ -115,14 +123,14 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
   </div>
 
   <div class="section-header fade-4"><span class="section-label">Invite someone</span><span class="section-line"></span></div>
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px;margin-bottom:8px;" class="fade-4" id="invite-section">
-    <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;line-height:1.4;">Invite someone to use one of your apps. They'll get an email with a link to sign up and you'll be their trust chain voucher.</div>
-    <input id="inv-name" placeholder="Their name" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);" />
-    <input id="inv-email" placeholder="Their email" type="email" inputmode="email" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);" />
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:8px;" class="fade-4" id="invite-section">
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.4;">Send an invite. You'll be their trust chain voucher.</div>
+    <input id="inv-name" placeholder="Their name" autocomplete="off" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised) !important;color:var(--text) !important;font-size:13px;margin-bottom:6px;font-family:var(--sans);-webkit-text-fill-color:var(--text) !important;" />
+    <input id="inv-email" placeholder="Their email" type="email" inputmode="email" autocomplete="off" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised) !important;color:var(--text) !important;font-size:13px;margin-bottom:6px;font-family:var(--sans);-webkit-text-fill-color:var(--text) !important;" />
     <select id="inv-app" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);-webkit-appearance:none;">
       <option value="hub">Athena Hub (general)</option>
     </select>
-    <input id="inv-msg" placeholder="Personal message (optional)" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:10px;font-family:var(--sans);" />
+    <input id="inv-msg" placeholder="Personal message (optional)" autocomplete="off" style="width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised) !important;color:var(--text) !important;font-size:13px;margin-bottom:10px;font-family:var(--sans);-webkit-text-fill-color:var(--text) !important;" />
     <button onclick="sendInvite()" style="width:100%;padding:11px 16px;border-radius:8px;font-size:12px;font-weight:600;border:none;cursor:pointer;background:var(--green);color:#000;font-family:var(--sans);display:flex;align-items:center;justify-content:center;gap:6px;">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
       Send invite
@@ -142,7 +150,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
     <div class="hub-footer-text">identity by <a href="https://vacprotocol.org" target="_blank">vac protocol</a> · powered by <a href="https://athenapilot.ai" target="_blank">athena</a> · violet shores pty ltd</div>
   </div>
 </div>
-<script src="/vac-auth.js?v=1773463780"></script>
+<script src="/vac-auth.js?v=1773464310"></script>
 <script>
 var API = 'https://vac-system-production.up.railway.app';
 
@@ -241,7 +249,7 @@ function sendVouchFromHub() {
   var name = document.getElementById('vac-v-name').value.trim();
   var email = document.getElementById('vac-v-email').value.trim().toLowerCase();
   var status = document.getElementById('vac-v-status');
-  if (!name || !email.includes('@')) { status.textContent = 'Enter their name and email'; status.style.color = '#ef4444'; return; }
+  if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { status.textContent = 'Enter their name and a valid email'; status.style.color = '#ef4444'; return; }
   status.textContent = 'Sending...'; status.style.color = 'var(--text-muted)';
   fetch(API + '/v1/auth/request-vouch', {
     method: 'POST', headers: Object.assign({'Content-Type': 'application/json'}, VAC.headers()),
@@ -262,6 +270,19 @@ function populateInviteDropdown(apps) {
   });
 }
 
+function checkInviteEmail() {
+  var val = document.getElementById('inv-email').value.trim();
+  var hint = document.getElementById('inv-email-hint');
+  if (!val || !val.includes('@')) { hint.textContent = ''; return; }
+  var domain = val.split('@')[1] || '';
+  var typo = '';
+  if (domain.endsWith('.con')) typo = 'Did you mean .com?';
+  else if (domain.endsWith('.cmo') || domain.endsWith('.vom') || domain.endsWith('.cm')) typo = 'Did you mean .com?';
+  else if (domain.match(/gmal\.|gmial\./)) typo = 'Did you mean gmail.com?';
+  else if (domain.match(/hotmal\.|hotmai\./)) typo = 'Did you mean hotmail.com?';
+  hint.textContent = typo; hint.style.color = '#fbbf24';
+}
+
 function sendInvite() {
   var name = document.getElementById('inv-name').value.trim();
   var email = document.getElementById('inv-email').value.trim().toLowerCase();
@@ -270,7 +291,7 @@ function sendInvite() {
   var status = document.getElementById('inv-status');
   
   if (!name) { status.textContent = 'Enter their name'; status.style.color = '#ef4444'; return; }
-  if (!email || !email.includes('@') || !email.includes('.')) { status.textContent = 'Enter a valid email'; status.style.color = '#ef4444'; return; }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { status.textContent = 'Enter a valid email address'; status.style.color = '#ef4444'; return; }
   
   status.textContent = 'Sending invite...'; status.style.color = 'var(--text-muted)';
   fetch(API + '/v1/auth/invite', {
