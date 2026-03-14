@@ -186,7 +186,7 @@ function renderApps(apps, containerId, isLocked) {
   var grid = document.getElementById(containerId);
   grid.innerHTML = '';
   apps.forEach(function(app) {
-    var card = document.createElement('a');
+    var card = document.createElement(isLocked ? 'div' : 'a');
     card.className = 'app-card' + (isLocked ? ' locked' : '');
     if (!isLocked) card.href = app.url;
     var iconSvg = APP_ICONS[app.category] || APP_ICONS.default;
