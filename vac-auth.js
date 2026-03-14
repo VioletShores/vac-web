@@ -799,83 +799,116 @@
 
   function _renderQuickReauthScreen(email) {
     _state = 'quick_reauth';
-    const screen = document.getElementById('vac-screen');
-    screen.innerHTML = `
-      <div class="vac-step-indicator">
-        <div class="vac-step active"></div>
-      </div>
-      <p style="font-size:14px;color:#9ca3af;text-align:center;margin-bottom:8px;">
-        Welcome back, <strong style="color:#fff;">${email}</strong>
-      </p>
-      <p style="font-size:13px;color:#6b7280;text-align:center;margin-bottom:16px;">
-        Quick check — hold up the number of fingers shown
-      </p>
-      <div class="vac-face-preview" id="vac-face-preview">
-        <video id="vac-face-video" autoplay playsinline muted></video>
-        <div class="vac-face-overlay">
-          <div class="vac-face-reticle"></div>
-        </div>
-        <div class="vac-face-hint" id="vac-finger-hint">Loading challenge...</div>
-      </div>
-      <button class="vac-btn vac-btn-primary" id="vac-quick-btn" disabled>
-        Verify
-      </button>
-      <button class="vac-btn vac-btn-secondary" id="vac-quick-full">
-        Use email instead
-      </button>
-      <div class="vac-error-msg" id="vac-error"></div>
-    `;
+    var screen = document.getElementById('vac-screen');
 
-    _startCamera();
-    document.getElementById('vac-quick-full').addEventListener('click', () => _renderEmailScreen());
-
-    // Fetch challenge — may 403 if user not eligible (unverified)
-    _api('POST', '/v1/auth/quick-challenge', { email: email }).then(data => {
-      _config._quickChallenge = data;
-      document.getElementById('vac-finger-hint').textContent = data.instruction;
-      document.getElementById('vac-finger-hint').style.color = '#22c55e';
-      const btn = document.getElementById('vac-quick-btn');
-      btn.disabled = false;
-      btn.addEventListener('click', () => _handleQuickVerify(data, email));
-    }).catch(e => {
-      // If 403 (not eligible), fall back to full email auth gracefully
-      var msg = typeof e.message === 'string' ? e.message : '';
-      if (msg.indexOf('not_eligible') !== -1 || msg.indexOf('require_full_auth') !== -1) {
-        // Not eligible for quick re-auth — redirect to email with pre-fill
+    // First check if face reference exists
+    _api('GET', '/v1/auth/face-ref-status?email=' + encodeURIComponent(email)).then(function(ref) {
+      if (!ref.has_face_reference) {
+        console.log('[VAC] No face reference for', email, '— full auth required');
         _renderEmailScreen();
-        setTimeout(function() {
-          var emailInput = document.getElementById('vac-email');
-          if (emailInput) emailInput.value = email;
-        }, 50);
-      } else {
-        document.getElementById('vac-error').textContent = msg || 'Challenge failed';
-        document.getElementById('vac-finger-hint').textContent = 'Challenge failed — use email instead';
+        setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
+        return;
       }
+
+      screen.innerHTML = '<div class="vac-step-indicator"><div class="vac-step active"></div></div>' +
+        '<p style="font-size:14px;color:#9ca3af;text-align:center;margin-bottom:4px;">' +
+          'Welcome back, <strong style="color:#fff;">' + email + '</strong></p>' +
+        '<p style="font-size:13px;color:#6b7280;text-align:center;margin-bottom:16px;">' +
+          'Look at the camera and hold up <strong style="color:#22c55e;">one finger</strong></p>' +
+        '<div class="vac-face-preview" id="vac-face-preview">' +
+          '<video id="vac-face-video" autoplay playsinline muted></video>' +
+          '<div class="vac-face-overlay"><div class="vac-face-reticle"></div></div>' +
+          '<div class="vac-face-hint" style="color:#22c55e;">Face match + 1 finger for liveness</div></div>' +
+        '<button class="vac-btn vac-btn-primary" id="vac-quick-btn">' +
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verify it\'s me</button>' +
+        '<button class="vac-btn vac-btn-secondary" id="vac-quick-full">Use email instead</button>' +
+        '<div class="vac-error-msg" id="vac-error"></div>';
+
+      _startCamera();
+      document.getElementById('vac-quick-full').addEventListener('click', function() {
+        _stopCamera();
+        _renderEmailScreen();
+        setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
+      });
+      document.getElementById('vac-quick-btn').addEventListener('click', function() {
+        _handleFaceReauth(email);
+      });
+    }).catch(function(e) {
+      console.log('[VAC] Face ref check failed:', e.message, '— full auth');
+      _renderEmailScreen();
+      setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
     });
   }
 
-  async function _handleQuickVerify(challenge, email) {
-    const btn = document.getElementById('vac-quick-btn');
-    const err = document.getElementById('vac-error');
+  async function _handleFaceReauth(email) {
+    var btn = document.getElementById('vac-quick-btn');
+    var err = document.getElementById('vac-error');
     btn.disabled = true;
-    btn.innerHTML = '<span class="vac-spinner"></span> Verifying...';
+    btn.innerHTML = '<span class="vac-spinner"></span> Matching face...';
+    err.textContent = '';
 
     try {
-      // Phase 1: trust the user to hold up correct fingers
-      // Phase 2: Gemini counts fingers from camera frame
-      const data = await _api('POST', '/v1/auth/quick-verify', {
-        challenge_id: challenge.challenge_id,
-        detected_fingers: challenge.num_fingers,  // Phase 1: auto-pass. Phase 2: Gemini detection
+      // Capture face frame
+      var video = document.getElementById('vac-face-video');
+      var canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      var faceFrame = canvas.toDataURL('image/jpeg', 0.8);
+
+      // Slight delay then capture finger frame
+      await new Promise(function(r) { setTimeout(r, 500); });
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      var fingerFrame = canvas.toDataURL('image/jpeg', 0.8);
+
+      console.log('[VAC] Sending face re-auth for:', email);
+
+      var data = await _api('POST', '/v1/auth/face-reauth', {
+        email: email,
+        face_frame: faceFrame,
+        finger_frame: fingerFrame,
       });
 
+      console.log('[VAC] Face re-auth SUCCESS. Confidence:', data.face_match.confidence);
       _setToken(data.session_token);
-      _setUser({ email: data.email, name: data.email.split('@')[0], auth_level: data.auth_level });
+      _setUser({
+        email: data.email, name: data.email.split('@')[0],
+        auth_level: data.auth_level, is_verified: data.is_verified,
+        last_biometric: Math.floor(Date.now() / 1000),
+      });
       _stopCamera();
       _handleAuthComplete();
+
     } catch(e) {
-      err.textContent = e.message;
+      var msg = e.message || '';
+      console.log('[VAC] Face re-auth failed:', msg);
+
+      if (msg.indexOf('require_full_auth') !== -1 || msg.indexOf('max_retries') !== -1 || msg.indexOf('no_face_reference') !== -1) {
+        _stopCamera();
+        var screen = document.getElementById('vac-screen');
+        screen.innerHTML =
+          '<div style="text-align:center;padding:20px 0;">' +
+            '<div style="width:56px;height:56px;margin:0 auto 14px;border-radius:50%;background:#ef444422;display:flex;align-items:center;justify-content:center;">' +
+              '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>' +
+            '</div>' +
+            '<div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px;">Identity not confirmed</div>' +
+            '<div style="font-size:13px;color:#6b7280;line-height:1.5;margin-bottom:20px;">' +
+              'Face did not match the verified identity.<br>Full verification required.</div>' +
+            '<button class="vac-btn vac-btn-primary" id="vac-go-full">Continue with full verification</button>' +
+          '</div>';
+        document.getElementById('vac-go-full').addEventListener('click', function() {
+          _renderEmailScreen();
+          setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
+        });
+        return;
+      }
+
+      // Still have retries
+      var retriesMatch = msg.match(/(\d+) attempt/);
+      var retries = retriesMatch ? retriesMatch[1] : '?';
+      err.textContent = 'Face did not match. ' + retries + ' attempt' + (retries !== '1' ? 's' : '') + ' remaining.';
       btn.disabled = false;
-      btn.textContent = 'Verify';
+      btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Try again';
     }
   }
 
