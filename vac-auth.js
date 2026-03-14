@@ -1128,14 +1128,37 @@
       return _getToken();
     },
 
-    /** Sign out — clear session and reload auth gate */
+    /** Sign out — clears EVERYTHING. Forces full re-auth (email + OTP + biometric). 
+     *  Use when leaving a shared device. */
     logout: function() {
       _clearToken();
       try { localStorage.removeItem(EMAIL_KEY); } catch(e) {}
       _user = null;
       _state = 'idle';
       _stopCamera();
+      if (_vouchPollTimer) { clearInterval(_vouchPollTimer); _vouchPollTimer = null; }
       if (_container) _renderGate();
+    },
+
+    /** Lock — clears session but keeps identity. Next visit triggers face re-auth.
+     *  Use for "I'm stepping away but this is still my device." 
+     *  Simulates what happens when session expires naturally. */
+    lock: function() {
+      _clearToken();
+      _user = null;
+      _state = 'idle';
+      _stopCamera();
+      if (_vouchPollTimer) { clearInterval(_vouchPollTimer); _vouchPollTimer = null; }
+      // EMAIL_KEY stays — triggers face re-auth on next init
+      if (_container) {
+        var email = _getStoredEmail();
+        if (email) {
+          _renderGate();
+          _renderQuickReauthScreen(email);
+        } else {
+          _renderGate();
+        }
+      }
     },
 
     /** Check if session is currently valid */
