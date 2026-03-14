@@ -333,9 +333,9 @@
       }
       .vac-face-reticle {
         width:clamp(130px,40vw,160px); height:clamp(170px,50vw,200px);
-        border:3px dashed #22c55ecc;
+        border:2.5px dashed #22c55ecc;
         border-radius:80px;
-        box-shadow: 0 0 0 3px rgba(0,0,0,0.4), 0 0 20px rgba(34,197,94,0.3);
+        box-shadow: 0 0 0 3px rgba(0,0,0,0.4), 0 0 16px rgba(34,197,94,0.25);
       }
       .vac-face-hint {
         position:absolute; bottom:12px; left:0; right:0;

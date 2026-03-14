@@ -126,7 +126,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
     <div class="hub-footer-text">identity by <a href="https://vacprotocol.org" target="_blank">vac protocol</a> · powered by <a href="https://athenapilot.ai" target="_blank">athena</a> · violet shores pty ltd</div>
   </div>
 </div>
-<script src="/vac-auth.js?v=1773462669"></script>
+<script src="/vac-auth.js?v=1773463107"></script>
 <script>
 var API = 'https://vac-system-production.up.railway.app';
 
@@ -158,7 +158,17 @@ function renderHub(user) {
   var levelText = level === 'trusted' ? 'Trusted' : level === 'verified' ? 'Verified' : level === 'pending' ? 'Pending' : 'Unverified';
   var detailText = verified
     ? 'Quick re-auth enabled' + (level === 'trusted' ? ' · Full platform access' : '')
-    : 'Get someone to vouch for you to unlock quick re-auth and more apps';
+    : 'Ask someone you know to vouch for you — this verifies your identity in the trust chain';
+
+  var vouchCTA = !verified
+    ? '<button onclick="document.getElementById(\'vac-vouch-inline\').style.display=document.getElementById(\'vac-vouch-inline\').style.display===\'none\'?\'block\':\'none\'" style="margin-top:10px;padding:8px 16px;border-radius:6px;border:1px solid #eab30844;background:#eab30810;color:#eab308;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);width:100%;">Request a vouch to get verified</button>' +
+      '<div id="vac-vouch-inline" style="display:none;margin-top:10px;">' +
+        '<input id="vac-v-name" placeholder="Their name" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);" />' +
+        '<input id="vac-v-email" placeholder="Their email" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface-raised);color:var(--text);font-size:13px;margin-bottom:6px;font-family:var(--sans);" />' +
+        '<button onclick="sendVouchFromHub()" style="width:100%;padding:8px 16px;border-radius:6px;border:none;background:#22c55e;color:#000;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);">Send vouch request</button>' +
+        '<div id="vac-v-status" style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:center;"></div>' +
+      '</div>'
+    : '';
 
   banner.innerHTML =
     '<div class="trust-shield ' + shieldClass + '">' + shieldSvg + '</div>' +
@@ -168,7 +178,8 @@ function renderHub(user) {
         '<span class="trust-vouches">' + vouches + ' vouch' + (vouches !== 1 ? 'es' : '') + '</span>' +
       '</div>' +
       '<div class="trust-detail">' + detailText + '</div>' +
-    '</div>';
+    '</div>' +
+    vouchCTA;
 
   fetch(API + '/v1/auth/apps', { headers: VAC.headers() })
     .then(function(r) { return r.json(); })
@@ -208,6 +219,20 @@ function renderApps(apps, containerId, isLocked) {
 }
 
 VAC.init({ app: 'hub', appName: 'Athena', requireFace: true, onVerified: function(user) { renderHub(user); } });
+
+function sendVouchFromHub() {
+  var name = document.getElementById('vac-v-name').value.trim();
+  var email = document.getElementById('vac-v-email').value.trim().toLowerCase();
+  var status = document.getElementById('vac-v-status');
+  if (!name || !email.includes('@')) { status.textContent = 'Enter their name and email'; status.style.color = '#ef4444'; return; }
+  status.textContent = 'Sending...'; status.style.color = 'var(--text-muted)';
+  fetch(API + '/v1/auth/request-vouch', {
+    method: 'POST', headers: Object.assign({'Content-Type': 'application/json'}, VAC.headers()),
+    body: JSON.stringify({ voucher_name: name, voucher_email: email, message: '', app_id: 'hub' })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    status.textContent = 'Vouch request sent to ' + email; status.style.color = '#22c55e';
+  }).catch(function(e) { status.textContent = e.message; status.style.color = '#ef4444'; });
+}
 </script>
 </body>
 </html>
