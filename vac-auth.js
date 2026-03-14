@@ -835,7 +835,7 @@
     _state = 'quick_reauth';
     var screen = document.getElementById('vac-screen');
 
-    // First check if face reference exists
+    // First check if face reference exists, then get finger challenge
     _api('GET', '/v1/auth/face-ref-status?email=' + encodeURIComponent(email)).then(function(ref) {
       if (!ref.has_face_reference) {
         console.log('[VAC] No face reference for', email, '— full auth required');
@@ -844,15 +844,25 @@
         return;
       }
 
+      // Fetch random finger challenge
+      return _api('GET', '/v1/auth/face-reauth-challenge?email=' + encodeURIComponent(email));
+    }).then(function(challenge) {
+      if (!challenge || !challenge.fingers) return; // face ref check already redirected
+
+      var fingerNum = challenge.fingers;
+      var fingerWord = {1:'one',2:'two',3:'three',4:'four',5:'five'}[fingerNum] || String(fingerNum);
+      var fingerPlural = fingerNum > 1 ? 'fingers' : 'finger';
+      console.log('[VAC] Face re-auth challenge:', fingerNum, 'fingers');
+
       screen.innerHTML = '<div class="vac-step-indicator"><div class="vac-step active"></div></div>' +
         '<p style="font-size:14px;color:#9ca3af;text-align:center;margin-bottom:4px;">' +
           'Welcome back, <strong style="color:#fff;">' + email + '</strong></p>' +
         '<p style="font-size:13px;color:#6b7280;text-align:center;margin-bottom:16px;">' +
-          'Look at the camera and hold up <strong style="color:#22c55e;">one finger</strong></p>' +
+          'Look at the camera and hold up <strong style="color:#22c55e;font-size:16px;">' + fingerWord + ' ' + fingerPlural + '</strong></p>' +
         '<div class="vac-face-preview" id="vac-face-preview">' +
           '<video id="vac-face-video" autoplay playsinline muted></video>' +
           '<div class="vac-face-overlay"><div class="vac-face-reticle"></div></div>' +
-          '<div class="vac-face-hint" style="color:#22c55e;">Face match + 1 finger for liveness</div></div>' +
+          '<div class="vac-face-hint" style="color:#22c55e;">Face match + ' + fingerNum + ' ' + fingerPlural + ' for liveness</div></div>' +
         '<button class="vac-btn vac-btn-primary" id="vac-quick-btn">' +
           '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Verify it\'s me</button>' +
         '<button class="vac-btn vac-btn-secondary" id="vac-quick-full">Use email instead</button>' +
@@ -868,7 +878,7 @@
         _handleFaceReauth(email);
       });
     }).catch(function(e) {
-      console.log('[VAC] Face ref check failed:', e.message, '— full auth');
+      console.log('[VAC] Face re-auth setup failed:', e.message, '— full auth');
       _renderEmailScreen();
       setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
     });
