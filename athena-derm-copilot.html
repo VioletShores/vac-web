@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>Dermatology Co-Pilot — powered by Athena</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -12,11 +12,11 @@
   --surface: #FFFFFF;
   --surface-raised: #F1F3F9;
   --accent: #2563EB;
-  --accent-light: #DBEAFE;
+  --accent-light: #BFDBFE;
   --accent-dark: #1D4ED8;
   --green: #059669;
   --green-bg: rgba(5,150,105,0.08);
-  --amber: #D97706;
+  --amber: #B45309;
   --amber-bg: rgba(217,119,6,0.08);
   --red: #DC2626;
   --red-bg: rgba(220,38,38,0.06);
@@ -24,7 +24,7 @@
   --purple-bg: rgba(124,58,237,0.06);
   --text: #1E293B;
   --text-secondary: #475569;
-  --text-muted: #94A3B8;
+  --text-muted: #64748B;
   --border: #E2E8F0;
   --border-light: #F1F5F9;
   --radius: 16px;
@@ -255,7 +255,7 @@ body {
           <div class="triage-desc">Left forearm lesion — irregular borders, colour variation. Changed shape over 3 weeks per patient report.</div>
           <span class="triage-urgency urgency-high">Urgent — see sooner</span>
           <div class="triage-time">Submitted 6:42am · Appointment Thursday</div>
-          <div style="font-size:11px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: asymmetric pigmented lesion, recommend dermoscopy — flagged for priority review</div>
+          <div style="font-size:12px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: asymmetric pigmented lesion, recommend dermoscopy — flagged for priority review</div>
           <div class="triage-actions">
             <button class="btn btn-primary" onclick="triageAction(this,'Moved to today')">Move to today</button>
             <button class="btn btn-outline" onclick="triageAction(this,'Message sent')">Message patient</button>
@@ -270,7 +270,7 @@ body {
           <div class="triage-desc">Recurring rash on both elbows — dry, scaly patches. Reports it's been on and off for 6 months.</div>
           <span class="triage-urgency urgency-medium">Routine</span>
           <div class="triage-time">Submitted yesterday · Appointment Monday</div>
-          <div style="font-size:11px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: consistent with psoriasis presentation — suggest patch test and history review</div>
+          <div style="font-size:12px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: consistent with psoriasis presentation — suggest patch test and history review</div>
           <div class="triage-actions">
             <button class="btn btn-outline" onclick="triageAction(this,'Prep notes added')">Add prep notes</button>
             <button class="btn btn-outline" onclick="triageAction(this,'Auto-reply sent')">Send care tips</button>
@@ -285,7 +285,7 @@ body {
           <div class="triage-desc">Acne flare-up on chin and jawline — started 2 weeks ago, worse around period. Currently using benzoyl peroxide.</div>
           <span class="triage-urgency urgency-low">Low priority</span>
           <div class="triage-time">Submitted last night · Appointment next Wednesday</div>
-          <div style="font-size:11px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: hormonal pattern acne — current treatment appropriate, may benefit from topical retinoid</div>
+          <div style="font-size:12px;color:var(--purple);margin-top:4px;font-weight:500;">AI assessment: hormonal pattern acne — current treatment appropriate, may benefit from topical retinoid</div>
           <div class="triage-actions">
             <button class="btn btn-green" onclick="triageAction(this,'Auto-response sent')">Auto-respond: stay the course</button>
             <button class="btn btn-outline" onclick="triageAction(this,'Flagged for review')">Review in detail</button>
@@ -308,14 +308,14 @@ body {
       <div id="dermStep1">
         <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;">Step 1 — Where on the body?</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;" id="bodyLocationBtns">
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Face/Neck')">Face / Neck</button>
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Scalp')">Scalp</button>
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Chest/Torso')">Chest / Torso</button>
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Back')">Back</button>
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Arms')">Arms</button>
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Hands')">Hands</button>
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Legs')">Legs</button>
-          <button class="btn btn-outline" style="font-size:11px;padding:6px 12px;" onclick="selectBodyLocation(this,'Feet')">Feet</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Face/Neck')">Face / Neck</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Scalp')">Scalp</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Chest/Torso')">Chest / Torso</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Back')">Back</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Arms')">Arms</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Hands')">Hands</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Legs')">Legs</button>
+          <button class="btn btn-outline" style="font-size:12px;padding:10px 14px;min-height:44px;" onclick="selectBodyLocation(this,'Feet')">Feet</button>
         </div>
       </div>
 
@@ -489,15 +489,15 @@ body {
               <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
             </div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">David S. Lee, MD · 18 min · Hosted by Adewole Adamson, MD</div>
-            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:10px 12px;min-height:44px;border:1px solid var(--border);display:inline-flex;align-items:center;">Read summary</div>
             <div class="section-body collapsed">
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
                 Solid organ transplant recipients have significantly elevated skin cancer risk due to immunosuppression. Dr Lee describes a structured surveillance program that stratifies patients by risk level and schedules appropriate screening intervals. Key takeaway for your practice: any transplant patients in your care should be on an annual full-body check at minimum, with high-risk patients every 3-6 months. The program showed improved early detection rates and reduced advanced-stage diagnoses.
                 <div style="margin-top:6px;"><strong>For your practice:</strong> Any transplant patients on your list should be flagged for structured surveillance — the evidence for risk-stratified screening is now strong.</div>
                 <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
                 </div>
               </div>
             </div>
@@ -514,15 +514,15 @@ body {
               <span class="sched-badge" style="background:var(--accent-light);color:var(--accent);">New</span>
             </div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Lindsey Bordone, MD · 20 min · CME eligible</div>
-            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:10px 12px;min-height:44px;border:1px solid var(--border);display:inline-flex;align-items:center;">Read summary</div>
             <div class="section-body collapsed">
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
                 With GLP-1 agonists (Ozempic, Wegovy) now prescribed to millions, dermatologists are seeing unexpected skin effects. Dr Bordone covers the emerging evidence: potential improvement in hidradenitis suppurativa and psoriasis through anti-inflammatory mechanisms, but also reports of rapid facial aging ("Ozempic face") from dramatic weight loss. Practical guidance on counselling patients about skin changes during GLP-1 therapy and when to adjust treatment plans.
                 <div style="margin-top:6px;"><strong>Relevant to your practice:</strong> With GLP-1 prescriptions rising rapidly, you may be seeing more patients presenting with these skin changes.</div>
                 <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
                 </div>
               </div>
             </div>
@@ -536,15 +536,15 @@ body {
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;">Dermasphere — 3D Total-Body Photography for Melanoma</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Based on JAMA Derm RCT by Monika Janda, PhD</div>
-            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:10px 12px;min-height:44px;border:1px solid var(--border);display:inline-flex;align-items:center;">Read summary</div>
             <div class="section-body collapsed">
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
                 A randomised clinical trial evaluated 3D total-body photography systems in high-risk melanoma patients. The technology captures the entire skin surface in standardised lighting, allowing AI-assisted comparison over time to detect new or changed lesions. Results showed improved detection of melanoma in situ compared to standard clinical photography. The Dermasphere hosts discuss practical considerations: cost, space requirements, patient acceptance, and whether the technology is ready for private practice.
                 <div style="margin-top:6px;"><strong>For Sam:</strong> This connects directly to your photo triage concept — what you're building manually, these systems automate at full-body scale.</div>
                 <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
                 </div>
               </div>
             </div>
@@ -558,14 +558,14 @@ body {
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;">EADV — Editor's Picks Feb 2026</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Prof. Carle Paul · 15 min</div>
-            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read summary</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:10px 12px;min-height:44px;border:1px solid var(--border);display:inline-flex;align-items:center;">Read summary</div>
             <div class="section-body collapsed">
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
                 Three highlights: (1) Trichophyton antifungal resistance is emerging as a significant challenge — particularly drug-resistant T. indotineae spreading from South Asia to Europe and Australia. (2) The SOFFIA statement on stopping progression of frontal fibrosing alopecia provides the first consensus guidelines. (3) Long-term outcomes for allogenic transplantation in advanced cutaneous T-cell lymphoma — a new treatment option for refractory cases.
                 <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
                 </div>
               </div>
             </div>
@@ -583,15 +583,15 @@ body {
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;">Nature: AI vs Skin Cancer — The Future of Dermatology Diagnosis</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">England's NHS trialling DERM platform by Skin Analytics</div>
-            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read AI summary</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:10px 12px;min-height:44px;border:1px solid var(--border);display:inline-flex;align-items:center;">Read AI summary</div>
             <div class="section-body collapsed">
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
                 The NHS is running a clinical trial of the DERM platform — patients photograph skin lesions with a smartphone using a dermoscopic lens attachment, images upload to an AI platform that flags urgent cases. The system matched physician-level accuracy in early trials. Key concern raised: limited data on effectiveness for darker skin tones, and some dermatologists worry about removing trained clinicians from the triage step. The technology is promising but not yet a replacement for clinical judgment.
                 <div style="margin-top:6px;"><strong>Why this matters:</strong> Your photo triage feature follows the same architecture — patient-submitted images with AI flagging. You're already building what the NHS is trialling.</div>
                 <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
                 </div>
               </div>
             </div>
@@ -605,15 +605,15 @@ body {
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;">Memorial Sloan Kettering: AI for Melanoma Detection</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Dr Veronica Rotemberg on AI models for skin imaging</div>
-            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read AI summary</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:10px 12px;min-height:44px;border:1px solid var(--border);display:inline-flex;align-items:center;">Read AI summary</div>
             <div class="section-body collapsed">
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
                 Dr Rotemberg explains how AI can analyse both dermoscopic and total body images to identify high-risk lesions patients might not notice. Melanoma caught early is curable with surgery alone — making AI-assisted early detection potentially lifesaving. She stresses that AI performance depends heavily on image quality and training data diversity, and calls for rigorous clinical trials before deployment.
                 <div style="margin-top:6px;"><strong>Key insight:</strong> "Melanoma can be cured if caught early — AI detection at the photography stage is the biggest opportunity in dermatology right now."</div>
                 <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
                 </div>
               </div>
             </div>
@@ -627,15 +627,15 @@ body {
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;">Dermatology Times: PathAI's Future Vision for AI in Derm</div>
             <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Andy Beck, MD, PhD — CEO PathAI · Published today</div>
-            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:4px 8px;border:1px solid var(--border);display:inline-flex;">Read AI summary</div>
+            <div class="info-toggle closed" onclick="toggleSection(this)" style="font-size:12px;margin-top:6px;margin-bottom:0;padding:10px 12px;min-height:44px;border:1px solid var(--border);display:inline-flex;align-items:center;">Read AI summary</div>
             <div class="section-body collapsed">
               <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;padding:10px 0;">
                 PathAI's CEO describes a future where patients routinely scan their skin at home using AI, receive alerts when changes are detected, and then see a dermatologist who uses AI-assisted digital pathology for definitive diagnosis after biopsy. The full pipeline: home monitoring → clinical evaluation → AI-enhanced pathology → personalised treatment. Their PathAssist Derm tool is already showing dermatopathologist-level accuracy in research settings.
                 <div style="margin-top:6px;"><strong>The vision:</strong> This is almost exactly what your co-pilot is building towards — patient self-monitoring with AI, connected to your expertise for the decisions that matter.</div>
                 <div style="display:flex;gap:6px;margin-top:8px;">
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
-                  <button class="btn btn-outline" style="font-size:10px;padding:4px 10px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--green);color:var(--green);" onclick="this.style.background='var(--green-bg)';this.textContent='Noted ✓';briefingFb(this,'more')">More like this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;" onclick="this.style.background='var(--surface-raised)';this.textContent='Noted ✓';briefingFb(this,'less')">Less of this</button>
+                  <button class="btn btn-outline" style="font-size:11px;padding:10px 12px;min-height:44px;border-color:var(--amber);color:var(--amber);" onclick="this.style.background='var(--amber-bg)';this.textContent='Saved ✓';briefingFb(this,'save')">Save for later</button>
                 </div>
               </div>
             </div>
@@ -830,7 +830,7 @@ body {
   <div class="footer fade-in">
     <div style="text-align:center;font-size:13px;font-weight:500;">Zagarella Dermatology Co-Pilot</div>
     <div style="text-align:center;font-size:10px;color:var(--text-muted);margin-top:8px;letter-spacing:0.5px;">powered by <strong>Athena</strong> adaptive intelligence · identity by <strong>VAC Protocol</strong></div>
-    <div style="text-align:center;font-size:9px;color:var(--text-muted);margin-top:4px;">Patent Pending · Violet Shores Pty Ltd · AU 2026901730</div>
+    <div style="text-align:center;font-size:11px;color:var(--text-muted);margin-top:4px;">Patent Pending · Violet Shores Pty Ltd · AU 2026901730</div>
   </div>
 
 </div>
