@@ -51,7 +51,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .header-right { text-align: right; }
 .header-email { font-family: var(--mono); font-size: 10px; color: var(--text-dim); }
 .header-nav { display: flex; gap: 6px; margin-top: 4px; }
-.header-nav a { font-size: 10px; color: var(--text-muted); text-decoration: none; padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px; }
+.header-nav a { font-size: 10px; color: var(--text-muted); text-decoration: none; padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; min-height: 32px; display: inline-flex; align-items: center; }
 .header-nav a:hover { border-color: var(--green-border); color: var(--green); }
 
 /* Greeting */
@@ -104,6 +104,9 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .task-group-label { font-family: var(--mono); font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 4px; }
 .task-group-label:first-child { margin-top: 0; }
 .tasks-empty { font-size: 12px; color: var(--text-dim); text-align: center; padding: 12px 0; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
 </style>
 </head>
 <body>

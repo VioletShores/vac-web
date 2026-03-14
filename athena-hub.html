@@ -61,7 +61,7 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .hub-wordmark { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
 .hub-user { text-align: right; }
 .hub-user-email { font-family: var(--mono); font-size: 11px; color: var(--text-muted); margin-bottom: 3px; }
-.hub-signout { font-size: 11px; color: var(--text-muted); cursor: pointer; text-decoration: none; border: none; background: none; font-family: var(--sans); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); }
+.hub-signout { font-size: 11px; color: var(--text-muted); cursor: pointer; text-decoration: none; border: none; background: none; font-family: var(--sans); padding: 6px 10px; border-radius: 4px; border: 1px solid var(--border); min-height: 32px; display: inline-flex; align-items: center; }
 .hub-signout:hover { color: #fff; border-color: var(--border-hover); }
 .trust-banner { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; }
 .trust-shield { width: 52px; height: 52px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
@@ -104,6 +104,9 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .hub-footer-text { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 0.5px; }
 .hub-footer-text a { color: var(--text-dim); text-decoration: none; }
 .hub-footer-text a:hover { color: var(--text-muted); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
 </style>
 </head>
 <body>

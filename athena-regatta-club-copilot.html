@@ -290,6 +290,9 @@ body {
 .voice-send-btn.visible { display: block; }
 .voice-send-btn:active { transform: scale(0.97); }
 .voice-send-btn:disabled { opacity: 0.6; cursor: default; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
 </style>
 </head>
 <body>
@@ -305,7 +308,7 @@ body {
     </div>
     <div id="vac-signout" style="position:absolute;top:24px;right:0;font-size:11px;text-align:right;max-width:200px;line-height:1.6;">
       <div id="vac-user-badge" style="color:var(--text-dim);font-family:'SF Mono',monospace;word-break:break-all;"></div>
-      <a onclick="VAC.logout();location.reload();" style="color:#9498a8;cursor:pointer;text-decoration:none;font-size:11px;padding:2px 8px;border:1px solid #1e2533;border-radius:4px;">Sign out</a>
+      <a onclick="VAC.logout();location.reload();" style="color:#9498a8;cursor:pointer;text-decoration:none;font-size:11px;padding:6px 10px;border:1px solid #1e2533;border-radius:4px;display:inline-flex;align-items:center;min-height:32px;">Sign out</a>
     </div>
   </div>
 
