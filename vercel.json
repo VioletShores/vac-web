@@ -141,6 +141,10 @@
             "destination": "/athena-privacy.html"
         },
         {
+            "source": "/engine",
+            "destination": "/athena-engine.html"
+        },
+        {
             "source": "/api",
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
@@ -156,6 +160,13 @@
     "headers": [
         {
             "source": "/hub",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
+                { "key": "Pragma", "value": "no-cache" }
+            ]
+        },
+        {
+            "source": "/engine",
             "headers": [
                 { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
                 { "key": "Pragma", "value": "no-cache" }

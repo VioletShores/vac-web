@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>ENGINE — VAC Config</title>
+<meta name="theme-color" content="#08090c">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #08090c;
+  --surface: #0f1116;
+  --surface-raised: #15171e;
+  --surface-hover: #1a1d26;
+  --border: #1c2030;
+  --border-hover: #2a2f42;
+  --text: #e4e6ed;
+  --text-muted: #8b90a3;
+  --text-dim: #4e5264;
+  --green: #22c55e;
+  --green-muted: #16a34a;
+  --green-glow: rgba(34,197,94,0.06);
+  --green-border: rgba(34,197,94,0.12);
+  --amber: #eab308;
+  --amber-glow: rgba(234,179,8,0.06);
+  --amber-border: rgba(234,179,8,0.12);
+  --purple: #8b5cf6;
+  --blue: #3b82f6;
+  --red: #ef4444;
+  --red-glow: rgba(239,68,68,0.06);
+  --red-border: rgba(239,68,68,0.12);
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --sans: 'DM Sans', -apple-system, sans-serif;
+  --radius: 12px;
+  --radius-lg: 16px;
+}
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+/* ── Auth Gate ── */
+#auth-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.auth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+}
+.auth-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+.auth-icon.checking { background: var(--amber-glow); border: 1px solid var(--amber-border); }
+.auth-icon.denied { background: var(--red-glow); border: 1px solid var(--red-border); }
+.auth-icon.spinner { background: var(--surface-raised); border: 1px solid var(--border); }
+.auth-spinner {
+  width: 20px; height: 20px;
+  border: 2px solid var(--border);
+  border-top-color: var(--text-muted);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto;
+}
+.auth-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.auth-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
+.auth-btn {
+  display: inline-block;
+  padding: 10px 22px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.auth-btn:hover { border-color: var(--green); color: var(--green); }
+
+/* ── Main Layout ── */
+#engine-content { display: none; max-width: 760px; margin: 0 auto; padding: 0 16px 64px; animation: fadeUp 0.4s ease both; }
+
+/* ── Header ── */
+.engine-header { padding: 28px 0 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.engine-brand { display: flex; align-items: center; gap: 12px; }
+.engine-logo {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--green-glow); border: 1px solid var(--green-border);
+  display: flex; align-items: center; justify-content: center;
+}
+.engine-wordmark { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+.engine-wordmark span { color: var(--text-muted); font-weight: 400; }
+.engine-user { display: flex; align-items: center; gap: 10px; }
+.engine-user-email { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+.engine-badge {
+  font-family: var(--mono); font-size: 9px; font-weight: 500;
+  padding: 3px 7px; border-radius: 5px;
+  background: var(--red-glow); border: 1px solid var(--red-border); color: var(--red);
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
+
+/* ── Section Header ── */
+.section-header { display: flex; align-items: center; gap: 8px; margin: 32px 0 12px; padding: 0 2px; }
+.section-label { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; }
+.section-line { flex: 1; height: 1px; background: var(--border); }
+.section-desc { font-size: 12px; color: var(--text-dim); margin: -6px 0 12px 2px; }
+
+/* ── Variable Cards ── */
+.var-list { display: flex; flex-direction: column; gap: 6px; }
+.var-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 3px 16px;
+  align-items: start;
+}
+.var-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  grid-column: 1;
+  grid-row: 1;
+}
+.var-value {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  white-space: nowrap;
+  text-align: right;
+}
+.var-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  grid-column: 1;
+  grid-row: 2;
+  line-height: 1.4;
+}
+.var-env {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  display: block;
+  margin-top: 2px;
+}
+
+/* ── Object Value (dict display) ── */
+.var-row.var-obj {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto auto;
+}
+.var-obj .var-value {
+  grid-column: 1;
+  grid-row: 2;
+  text-align: left;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.var-obj .var-desc { grid-row: 3; margin-top: 6px; }
+.dict-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 4px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.dict-key { color: var(--text-muted); }
+.dict-val { color: var(--green); font-weight: 600; }
+
+/* ── Read-only banner ── */
+.readonly-banner {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.readonly-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
+.readonly-text { font-size: 12px; color: var(--text-muted); }
+.readonly-text strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<!-- Auth Gate -->
+<div id="auth-gate">
+  <div class="auth-card" id="auth-card">
+    <div class="auth-icon spinner"><div class="auth-spinner"></div></div>
+    <div class="auth-title">Verifying identity…</div>
+    <div class="auth-sub">Checking your biometric session</div>
+  </div>
+</div>
+
+<!-- Engine Content (hidden until auth passes) -->
+<div id="engine-content">
+
+  <div class="engine-header">
+    <div class="engine-brand">
+      <div class="engine-logo">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <path d="M10 2L17 6V14L10 18L3 14V6L10 2Z" stroke="#22c55e" stroke-width="1.5" fill="none"/>
+          <path d="M10 6L14 8.5V13.5L10 16L6 13.5V8.5L10 6Z" fill="rgba(34,197,94,0.15)" stroke="#22c55e" stroke-width="1"/>
+        </svg>
+      </div>
+      <div>
+        <div class="engine-wordmark">ENGINE <span>/ VAC Config</span></div>
+      </div>
+    </div>
+    <div class="engine-user">
+      <div class="engine-badge">admin</div>
+      <div class="engine-user-email" id="user-email">—</div>
+    </div>
+  </div>
+
+  <div class="readonly-banner">
+    <div class="readonly-dot"></div>
+    <div class="readonly-text"><strong>Read-only view.</strong> Values shown are defaults from <code style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">vac-backend/config.py</code>. Env vars override at runtime.</div>
+  </div>
+
+  <!-- ── Session TTLs ── -->
+  <div class="section-header">
+    <span class="section-label">Session TTLs</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="section-desc">How long sessions remain valid before requiring re-verification.</div>
+  <div class="var-list">
+    <div class="var-row">
+      <div class="var-name">SESSION_TOKEN_TTL_MINUTES</div>
+      <div class="var-value">60 min</div>
+      <div class="var-desc">Full verification session lifetime. After this, user must complete full biometric re-auth.
+        <span class="var-env">env: VAC_SESSION_TTL_MINUTES</span>
+      </div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">QUICK_REAUTH_TTL_MINUTES</div>
+      <div class="var-value">30 min</div>
+      <div class="var-desc">Quick re-auth (finger count) session lifetime. Shorter window for low-friction re-verification.
+        <span class="var-env">env: VAC_QUICK_REAUTH_TTL_MINUTES</span>
+      </div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">OTP_EXPIRY_MINUTES</div>
+      <div class="var-value">10 min</div>
+      <div class="var-desc">One-time passcode validity window. OTPs expire after this duration regardless of use.</div>
+    </div>
+  </div>
+
+  <!-- ── Quick Re-Auth ── -->
+  <div class="section-header">
+    <span class="section-label">Quick Re-Auth</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="section-desc">Parameters governing the lightweight finger-count re-authentication challenge.</div>
+  <div class="var-list">
+    <div class="var-row">
+      <div class="var-name">QUICK_REAUTH_FINGER_DIGITS</div>
+      <div class="var-value">5</div>
+      <div class="var-desc">Max fingers displayed for quick re-auth challenge. System picks a random count 1–N.
+        <span class="var-env">env: VAC_QUICK_REAUTH_MAX_FINGERS</span>
+      </div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">CHALLENGE_NUM_DIGITS_DEFAULT</div>
+      <div class="var-value">3</div>
+      <div class="var-desc">Default number of digits appended to spoken challenge phrase.</div>
+    </div>
+    <div class="var-row var-obj">
+      <div class="var-name">CHALLENGE_DIGIT_COUNTS</div>
+      <div class="var-value">
+        <span class="dict-entry"><span class="dict-key">low</span><span class="dict-val">3</span></span>
+        <span class="dict-entry"><span class="dict-key">medium</span><span class="dict-val">4</span></span>
+        <span class="dict-entry"><span class="dict-key">high</span><span class="dict-val">5</span></span>
+      </div>
+      <div class="var-desc">Digits appended to challenge phrase per risk tier. Higher risk = longer challenge sequence.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">CHALLENGE_PHRASE_VARIANTS</div>
+      <div class="var-value">5</div>
+      <div class="var-desc">Number of phrase templates to select from when generating a challenge. More variants reduce replay predictability.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">MIN_MODALITIES_FOR_CHAIN</div>
+      <div class="var-value">2</div>
+      <div class="var-desc">Minimum number of verification modalities required to mint a trust chain.</div>
+    </div>
+  </div>
+
+  <!-- ── Staleness Thresholds (Freshness Tiers) ── -->
+  <div class="section-header">
+    <span class="section-label">Staleness Thresholds</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="section-desc">Verification freshness tiers — trust decays as sessions age. (Patent Claims 16–38)</div>
+  <div class="var-list">
+    <div class="var-row">
+      <div class="var-name">FRESHNESS_TIER_FULL_HOURS</div>
+      <div class="var-value">1 hr</div>
+      <div class="var-desc">Verification within this window is considered <strong style="color:var(--green)">FULL</strong> trust. Highest freshness tier.
+        <span class="var-env">env: VAC_FRESHNESS_FULL_HOURS</span>
+      </div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">FRESHNESS_TIER_HIGH_HOURS</div>
+      <div class="var-value">24 hr</div>
+      <div class="var-desc">Verification within this window is considered <strong style="color:var(--blue)">HIGH</strong> trust. Same-day freshness.
+        <span class="var-env">env: VAC_FRESHNESS_HIGH_HOURS</span>
+      </div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">FRESHNESS_TIER_MODERATE_HOURS</div>
+      <div class="var-value">168 hr <span style="color:var(--text-dim);font-weight:400">(7d)</span></div>
+      <div class="var-desc">Verification within this window is considered <strong style="color:var(--amber)">MODERATE</strong> trust. Week-old freshness.
+        <span class="var-env">env: VAC_FRESHNESS_MODERATE_HOURS</span>
+      </div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">FRESHNESS_TIER_AGING_HOURS</div>
+      <div class="var-value">720 hr <span style="color:var(--text-dim);font-weight:400">(30d)</span></div>
+      <div class="var-desc">Verification within this window is considered <strong style="color:var(--red)">AGING</strong> trust. Month-old — near expiry.
+        <span class="var-env">env: VAC_FRESHNESS_AGING_HOURS</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Vouch Requirements ── -->
+  <div class="section-header">
+    <span class="section-label">Vouch Requirements</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="section-desc">Trust tier thresholds and vouch decay parameters for the trust graph.</div>
+  <div class="var-list">
+    <div class="var-row var-obj">
+      <div class="var-name">TRUST_TIER_THRESHOLDS</div>
+      <div class="var-value">
+        <span class="dict-entry"><span class="dict-key">verified</span><span class="dict-val">1 vouch</span></span>
+        <span class="dict-entry"><span class="dict-key">vouched</span><span class="dict-val">3 vouches</span></span>
+        <span class="dict-entry"><span class="dict-key">trusted</span><span class="dict-val">10 vouches</span></span>
+      </div>
+      <div class="var-desc">Minimum independent vouches required to reach each trust tier. Vouches must come from verified+ members.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">VOUCH_DECAY_DAYS</div>
+      <div class="var-value">365 d</div>
+      <div class="var-desc">Days before a vouch loses weight in the trust graph. Encourages ongoing relationships over stale connections.</div>
+    </div>
+  </div>
+
+  <!-- ── Biometric Thresholds ── -->
+  <div class="section-header">
+    <span class="section-label">Biometric Thresholds</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="section-desc">Confidence and matching thresholds for liveness, deepfake, and lip-sync scoring.</div>
+  <div class="var-list">
+    <div class="var-row">
+      <div class="var-name">LIVENESS_BLINK_THRESHOLD</div>
+      <div class="var-value">0.80</div>
+      <div class="var-desc">Gemini confidence score required to pass liveness check. Below this = challenge fails.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">DEEPFAKE_CONFIDENCE_THRESHOLD</div>
+      <div class="var-value">0.50</div>
+      <div class="var-desc">Below this confidence = flagged as suspicious. Used during deepfake detection stage.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">CHALLENGE_WORD_MATCH_THRESHOLD</div>
+      <div class="var-value">0.60</div>
+      <div class="var-desc">Fraction of core words that must match the spoken challenge. Lowered for accent tolerance — 5 other modalities carry identity proof.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">LIP_SYNC_MISMATCH_PENALTY</div>
+      <div class="var-value">0.50×</div>
+      <div class="var-desc">Multiply biometric confidence by this factor when lip sync doesn't match audio.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">LIP_SYNC_MISMATCH_CAP</div>
+      <div class="var-value">0.50</div>
+      <div class="var-desc">Maximum score achievable when lip-sync doesn't match. Hard cap regardless of other signals.</div>
+    </div>
+  </div>
+
+  <!-- ── Recording ── -->
+  <div class="section-header">
+    <span class="section-label">Recording</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="section-desc">Parameters controlling the biometric video recording session.</div>
+  <div class="var-list">
+    <div class="var-row">
+      <div class="var-name">RECORDING_DURATION_MS</div>
+      <div class="var-value">15 000 ms</div>
+      <div class="var-desc">Total recording window in milliseconds (15 seconds). Covers full challenge sequence.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">RECORDING_COUNTDOWN_SEC</div>
+      <div class="var-value">3 s</div>
+      <div class="var-desc">Countdown displayed to the user before recording begins.</div>
+    </div>
+    <div class="var-row">
+      <div class="var-name">MAX_RECORDING_RETRIES</div>
+      <div class="var-value">5</div>
+      <div class="var-desc">Maximum number of times a user can re-record before the session is rejected.</div>
+    </div>
+  </div>
+
+  <!-- ── OTP ── -->
+  <div class="section-header">
+    <span class="section-label">Email / OTP</span>
+    <div class="section-line"></div>
+  </div>
+  <div class="section-desc">One-time passcode delivery and validation settings.</div>
+  <div class="var-list">
+    <div class="var-row">
+      <div class="var-name">OTP_LENGTH</div>
+      <div class="var-value">6 digits</div>
+      <div class="var-desc">Number of digits in each one-time passcode sent via email.</div>
+    </div>
+  </div>
+
+</div><!-- /engine-content -->
+
+<script>
+const API = 'https://vac-system-production.up.railway.app';
+
+function findToken() {
+  // Check localStorage first (hub pattern)
+  const ls = localStorage.getItem('vac_session');
+  if (ls) return ls;
+  // Check sessionStorage (admin pattern)
+  for (let i = 0; i < sessionStorage.length; i++) {
+    const key = sessionStorage.key(i);
+    if (key && key.startsWith('vac_token_')) return sessionStorage.getItem(key);
+  }
+  return null;
+}
+
+function setAuthCard(icon, title, sub, action) {
+  const card = document.getElementById('auth-card');
+  card.innerHTML = `
+    <div class="auth-icon ${icon.cls}">${icon.content}</div>
+    <div class="auth-title">${title}</div>
+    <div class="auth-sub">${sub}</div>
+    ${action ? `<a href="${action.href}" class="auth-btn">${action.label}</a>` : ''}
+  `;
+}
+
+async function checkAuth() {
+  const token = findToken();
+  if (!token) {
+    setAuthCard(
+      { cls: 'denied', content: '🔒' },
+      'No active session',
+      'Admin access requires biometric verification.',
+      { href: '/auth?redirect=' + encodeURIComponent(window.location.href), label: 'Verify Identity →' }
+    );
+    return;
+  }
+
+  try {
+    const r = await fetch(API + '/v1/session/verify', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+
+    if (!r.ok) {
+      setAuthCard(
+        { cls: 'denied', content: '⏱' },
+        'Session expired',
+        'Your biometric session has expired. Please re-verify.',
+        { href: '/auth?redirect=' + encodeURIComponent(window.location.href), label: 'Re-verify →' }
+      );
+      return;
+    }
+
+    const d = await r.json();
+
+    // Check admin status
+    if (!d.is_admin && d.auth_level !== 'admin') {
+      // Try an admin endpoint as a secondary check
+      const adminCheck = await fetch(API + '/v1/admin/stats', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (adminCheck.status === 403) {
+        setAuthCard(
+          { cls: 'denied', content: '🚫' },
+          'Access denied',
+          'ENGINE is restricted to admin users. Your account (' + (d.email || 'unknown') + ') does not have admin access.',
+          null
+        );
+        return;
+      }
+    }
+
+    // Auth passed — show content
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('engine-content').style.display = 'block';
+    document.getElementById('user-email').textContent = d.email || '';
+
+  } catch (e) {
+    setAuthCard(
+      { cls: 'denied', content: '⚠' },
+      'Auth error',
+      'Could not reach VAC system: ' + e.message,
+      { href: window.location.href, label: 'Retry' }
+    );
+  }
+}
+
+checkAuth();
+</script>
+</body>
+</html>
