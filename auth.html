@@ -345,7 +345,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Mic</div>
-        <div class="header-sub">Short video: say a phrase, show fingers. About 8 seconds.</div>
+        <div class="header-sub">Say a phrase, then show fingers one at a time. Wait for the ✓ before changing to the next number.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
@@ -462,7 +462,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <div id="combinedCaptureInfo" style="margin-top: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
         <div style="font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;">How it works</div>
         <div style="font-size: clamp(11px, 3vw, 13px); color: var(--text-secondary); line-height: 1.5;">
-            Say the phrase, then show the fingers. One recording captures face, voice, lip sync, and gesture — 6 signals verified by AI.
+            Say the phrase, then show each finger count one at a time. Wait for the ✓ before moving to the next number. One recording, 6 signals verified by AI.
         </div>
     </div>
 </div>
@@ -1336,7 +1336,7 @@ function beginRecording() {
                 else if (di === digitIndex) circles += '<span style="display:inline-flex;width:52px;height:52px;border-radius:50%;border:2px solid var(--purple);background:rgba(124,92,252,0.15);color:white;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
                 else circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
             }
-            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SHOW FINGERS — hold, then change</span><div style="display:flex;justify-content:center;margin:8px 0">' + circles + '</div><span style="font-size:13px;opacity:0.7">Say \u201c' + digit + '\u201d and show ' + digit + ' fingers</span>';
+            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SHOW FINGERS — wait for ✓</span><div style="display:flex;justify-content:center;margin:8px 0">' + circles + '</div><span style="font-size:13px;opacity:0.7">Show ' + digit + ' finger' + (digit > 1 ? 's' : '') + ' — wait for the tick</span>';
         }
     }
     updatePhasePrompt(0);
