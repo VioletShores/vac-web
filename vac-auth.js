@@ -947,31 +947,96 @@
   }
 
   function _handleAuthComplete() {
-    _state = 'verified';
     _stopCamera();
+    if (_vouchPollTimer) { clearInterval(_vouchPollTimer); _vouchPollTimer = null; }
 
-    const user = _getStoredUser();
-    const overlay = document.getElementById('vac-gate-overlay');
+    var user = _getStoredUser();
+    var overlay = document.getElementById('vac-gate-overlay');
+    var screen = document.getElementById('vac-screen');
+    var isFullAuth = user && (user.auth_level === 'full' || user.auth_level === 'otp');
 
     // Brief success flash
-    const screen = document.getElementById('vac-screen');
-    screen.innerHTML = `
-      <div style="text-align:center; padding:20px 0;">
-        <div class="vac-success-icon">${_svgCheck()}</div>
-        <div style="font-size:16px; font-weight:600; color:#fff; margin-bottom:4px;">Verified</div>
-        <div style="font-size:13px; color:#6b7280;">${user?.email || ''}</div>
-      </div>
-    `;
+    screen.innerHTML =
+      '<div style="text-align:center; padding:20px 0;">' +
+        '<div class="vac-success-icon">' + _svgCheck() + '</div>' +
+        '<div style="font-size:16px; font-weight:600; color:#fff; margin-bottom:4px;">Verified</div>' +
+        '<div style="font-size:13px; color:#6b7280;">' + (user ? user.email : '') + '</div>' +
+      '</div>';
 
-    setTimeout(() => {
-      // Fade out
-      overlay.style.transition = 'opacity 0.3s';
-      overlay.style.opacity = '0';
-      setTimeout(() => {
-        overlay.remove();
-        if (_config.onVerified) _config.onVerified(user);
-      }, 300);
-    }, 800);
+    setTimeout(function() {
+      // Only ask for feedback on full auth, not quick re-auth
+      if (isFullAuth) {
+        _renderAuthFeedback(user, overlay);
+      } else {
+        _fadeOutAndComplete(user, overlay);
+      }
+    }, 1000);
+  }
+
+  function _renderAuthFeedback(user, overlay) {
+    var screen = document.getElementById('vac-screen');
+    screen.innerHTML =
+      '<div style="text-align:center;padding:8px 0 4px;">' +
+        '<div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:4px;">How was the verification?</div>' +
+        '<div style="font-size:12px;color:#6b7280;margin-bottom:18px;">Your feedback helps us improve</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:14px;" id="vac-fb-btns">' +
+        '<button class="vac-btn vac-btn-secondary" data-rating="easy" style="flex:1;margin:0;font-size:13px;padding:12px 0;">' +
+          '<span style="font-size:18px;display:block;margin-bottom:2px;">&#x1f44d;</span>Easy</button>' +
+        '<button class="vac-btn vac-btn-secondary" data-rating="ok" style="flex:1;margin:0;font-size:13px;padding:12px 0;">' +
+          '<span style="font-size:18px;display:block;margin-bottom:2px;">&#x1f44c;</span>Fine</button>' +
+        '<button class="vac-btn vac-btn-secondary" data-rating="difficult" style="flex:1;margin:0;font-size:13px;padding:12px 0;">' +
+          '<span style="font-size:18px;display:block;margin-bottom:2px;">&#x1f612;</span>Difficult</button>' +
+      '</div>' +
+      '<textarea id="vac-fb-text" class="vac-input" placeholder="Anything else? (optional)" style="min-height:56px;resize:none;font-size:13px;margin-bottom:10px;"></textarea>' +
+      '<button class="vac-btn vac-btn-primary" id="vac-fb-submit" style="margin:0;">Continue</button>' +
+      '<div class="vac-error-msg" id="vac-fb-status"></div>';
+
+    var selectedRating = '';
+    var btns = document.querySelectorAll('#vac-fb-btns button');
+    btns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        btns.forEach(function(b) { b.style.borderColor = '#2a3040'; b.style.background = 'transparent'; });
+        btn.style.borderColor = '#22c55e';
+        btn.style.background = 'rgba(34,197,94,0.06)';
+        selectedRating = btn.getAttribute('data-rating');
+      });
+    });
+
+    document.getElementById('vac-fb-submit').addEventListener('click', function() {
+      var text = document.getElementById('vac-fb-text').value.trim();
+      var statusEl = document.getElementById('vac-fb-status');
+
+      // Send feedback (don't block — fire and forget)
+      if (selectedRating || text) {
+        var feedbackContent = 'Auth experience: ' + (selectedRating || 'no rating');
+        if (text) feedbackContent += ' — ' + text;
+        _api('POST', '/v1/feedback', {
+          feedback_type: 'feature',
+          content: feedbackContent,
+          source_page: 'vac-auth-sdk',
+          user_id: user ? user.email : 'anonymous',
+          product: 'vac',
+        }).then(function() {
+          console.log('[VAC] Auth feedback sent:', selectedRating, text);
+        }).catch(function(e) {
+          console.log('[VAC] Auth feedback send failed:', e.message);
+        });
+      }
+
+      _fadeOutAndComplete(user, overlay);
+    });
+  }
+
+  function _fadeOutAndComplete(user, overlay) {
+    _state = 'verified';
+    if (!overlay) { if (_config.onVerified) _config.onVerified(user); return; }
+    overlay.style.transition = 'opacity 0.3s';
+    overlay.style.opacity = '0';
+    setTimeout(function() {
+      overlay.remove();
+      if (_config.onVerified) _config.onVerified(user);
+    }, 300);
   }
 
   // ============================================================
