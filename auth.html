@@ -446,8 +446,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     </div>
     <!-- Speed toggle -->
     <div id="speedToggle" style="display:flex;justify-content:center;gap:8px;margin-bottom:10px;">
-        <button onclick="setSpeed('relaxed')" id="speedRelaxed" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-tertiary);cursor:pointer;">Relaxed</button>
-        <button onclick="setSpeed('normal')" id="speedNormal" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--teal);background:rgba(45,212,191,0.1);color:var(--teal);cursor:pointer;">Normal</button>
+        <button onclick="setSpeed('relaxed')" id="speedRelaxed" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--teal);background:rgba(45,212,191,0.1);color:var(--teal);cursor:pointer;">Relaxed</button>
+        <button onclick="setSpeed('normal')" id="speedNormal" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-tertiary);cursor:pointer;">Normal</button>
         <button onclick="setSpeed('fast')" id="speedFast" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-tertiary);cursor:pointer;">Fast</button>
     </div>
     <div class="timer-label" id="timerLabel">Recording in</div>
@@ -659,7 +659,7 @@ let recordedChunks = [];
 let authResult = null;
 let challengeData = null;
 let fingerFallback = 'none';
-let challengeSpeed = 'normal'; // 'relaxed', 'normal', 'fast'
+let challengeSpeed = 'relaxed'; // 'relaxed', 'normal', 'fast'
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
