@@ -160,10 +160,12 @@
 
       .vac-gate {
         position:fixed; inset:0; z-index:99999;
-        display:flex; align-items:center; justify-content:center;
+        display:flex; align-items:flex-start; justify-content:center;
         background:linear-gradient(145deg, #0a0c10 0%, #0d1117 50%, #0a0f14 100%);
         font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
         color:#e0e0e0;
+        overflow-y:auto; -webkit-overflow-scrolling:touch;
+        padding:clamp(16px, 5vh, 60px) 16px;
       }
       .vac-gate * { box-sizing:border-box; margin:0; padding:0; }
 
@@ -172,8 +174,9 @@
         background:#111318;
         border:1px solid #1e2533;
         border-radius:16px;
-        overflow:hidden;
+        overflow:visible;
         animation:vacFadeIn 0.4s ease;
+        flex-shrink:0;
       }
 
       .vac-header {
@@ -217,12 +220,12 @@
       .vac-input.vac-error { border-color:#ef4444; animation:vacShake 0.4s; }
 
       .vac-otp-row {
-        display:flex; gap:8px; justify-content:center;
+        display:flex; gap:clamp(4px, 2vw, 8px); justify-content:center;
       }
       .vac-otp-digit {
-        width:48px; height:56px;
+        width:clamp(40px, 12vw, 48px); height:clamp(48px, 14vw, 56px);
         text-align:center;
-        font-size:24px; font-weight:600;
+        font-size:clamp(20px, 5vw, 24px); font-weight:600;
         background:#0d0f17;
         border:1px solid #2a3040;
         border-radius:10px;
@@ -434,6 +437,7 @@
     const btn = document.getElementById('vac-send-btn');
     const err = document.getElementById('vac-error');
     const email = input.value.trim().toLowerCase();
+    console.log('[VAC] Send OTP for:', email);
 
     if (!email || !email.includes('@')) {
       input.classList.add('vac-error');
@@ -448,9 +452,11 @@
 
     try {
       await _api('POST', '/v1/auth/login', { email, app_id: _config.app || 'default' });
+      console.log('[VAC] OTP sent, rendering OTP screen');
       _config._email = email;
       _renderOTPScreen();
     } catch (e) {
+      console.error('[VAC] OTP send failed:', e.message);
       err.textContent = e.message;
       btn.disabled = false;
       btn.textContent = 'Send verification code';
@@ -459,6 +465,7 @@
 
   function _renderOTPScreen() {
     _state = 'otp';
+    console.log('[VAC] Rendering OTP screen for:', _config._email);
     const screen = document.getElementById('vac-screen');
     screen.innerHTML = `
       <div class="vac-step-indicator">
@@ -932,8 +939,12 @@
       }
 
       // Fetch ENGINE config then check session — proper order matters
-      _fetchEngineConfig().then(() => _checkSession()).then(user => {
+      _fetchEngineConfig().then(() => {
+        console.log('[VAC] Engine config loaded:', _engineConfig ? 'ok' : 'fallback');
+        return _checkSession();
+      }).then(user => {
         if (user) {
+          console.log('[VAC] Session valid:', user.email, '| verified:', user.is_verified, '| level:', user.auth_level);
           // Session valid — check if they need to vouch still
           if (!user.is_verified && _config.requireVouch !== false) {
             _renderGate();
@@ -946,6 +957,7 @@
           // No valid session — check if returning user
           const storedEmail = _getStoredEmail();
           const storedUser = _getStoredUser();
+          console.log('[VAC] No session. Stored email:', storedEmail || 'none', '| Stored user verified:', storedUser && storedUser.is_verified);
 
           if (storedEmail) {
             // Returning user — check ENGINE rules for quick re-auth eligibility
@@ -958,11 +970,12 @@
 
             if (quickEligible) {
               // Quick re-auth: camera + fingers — 5 second flow
+              console.log('[VAC] Quick re-auth for:', storedEmail);
               _renderGate();
               _renderQuickReauthScreen(storedEmail);
             } else {
               // Not eligible for quick re-auth: full OTP flow
-              // Pre-fill email for convenience but require full verification
+              console.log('[VAC] Full OTP required (not eligible for quick re-auth)');
               _renderGate();
               _renderEmailScreen();
               setTimeout(() => {
@@ -972,6 +985,7 @@
             }
           } else {
             // Brand new user — full flow
+            console.log('[VAC] New user — full auth flow');
             _renderGate();
           }
         }

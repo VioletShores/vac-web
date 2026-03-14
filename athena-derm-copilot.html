@@ -203,9 +203,9 @@ body {
       <div class="sub">Here's who needs your attention today</div>
       <div class="practice">Zagarella Dermatology &bull; <span style="color:var(--text-muted);">powered by Athena</span></div>
     </div>
-    <div id="vac-signout" style="position:absolute;top:24px;right:0;font-size:11px;">
-      <span id="vac-user-badge" style="color:var(--text-muted);font-family:'SF Mono',monospace;"></span>
-      <a onclick="VAC.logout();location.reload();" style="color:var(--text-muted);cursor:pointer;margin-left:8px;text-decoration:none;opacity:0.6;">Sign out</a>
+    <div id="vac-signout" style="position:absolute;top:24px;right:0;font-size:11px;text-align:right;max-width:200px;line-height:1.6;">
+      <div id="vac-user-badge" style="color:var(--text-muted);font-family:'SF Mono',monospace;word-break:break-all;"></div>
+      <a onclick="VAC.logout();location.reload();" style="color:var(--text-muted);cursor:pointer;text-decoration:none;opacity:0.6;font-size:10px;">Sign out</a>
     </div>
   </div>
 
@@ -1057,12 +1057,22 @@ VAC.init({
       var name = user.name.charAt(0).toUpperCase() + user.name.slice(1);
       greetEl.textContent = greetEl.textContent.replace('Sam', name);
     }
-    // Show user badge
+    // Show trust badge — verified status + vouch count
     var badge = document.getElementById('vac-user-badge');
-    if (badge && user) badge.textContent = user.email;
+    if (badge && user) {
+      var verified = user.is_verified;
+      var level = user.trust_level || 'unverified';
+      var vouches = user.vouches_received || 0;
+      var icon = verified ? '✓' : '⚠';
+      var color = verified ? '#22c55e' : '#fbbf24';
+      var label = level === 'trusted' ? 'Trusted' : level === 'verified' ? 'Verified' : level === 'pending' ? 'Pending vouch' : 'Unverified';
+      badge.innerHTML = '<div style="color:' + color + ';font-weight:600;">' + icon + ' ' + label + '</div>'
+        + (vouches > 0 ? '<div style="color:var(--text-muted);font-size:10px;">' + vouches + ' vouch' + (vouches > 1 ? 'es' : '') + '</div>' : '')
+        + '<div style="color:var(--text-muted);font-size:10px;">' + user.email + '</div>';
+    }
     // Wire VAC token into existing API calls
     window.VAC_USER = user;
-    console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level);
+    console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level, '| Trust:', user.trust_level, '| Vouches:', user.vouches_received);
   }
 });
 </script>
