@@ -117,6 +117,10 @@
             "destination": "/athena-invite.html"
         },
         {
+            "source": "/invite/:id",
+            "destination": "/athena-invite.html"
+        },
+        {
             "source": "/watch",
             "destination": "/athena-watch.html"
         },
