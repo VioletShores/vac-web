@@ -121,6 +121,10 @@
             "destination": "/athena-invite.html"
         },
         {
+            "source": "/hub",
+            "destination": "/athena-hub.html"
+        },
+        {
             "source": "/watch",
             "destination": "/athena-watch.html"
         },
