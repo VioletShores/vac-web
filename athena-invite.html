@@ -2,219 +2,130 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Invite — Athena Co-Pilot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>You're invited — Athena Co-Pilot</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root { --bg:#F8F9FC; --surface:#FFFFFF; --accent:#2563EB; --accent-light:#DBEAFE; --green:#059669; --green-bg:rgba(5,150,105,0.08); --text:#1E293B; --text-secondary:#475569; --text-muted:#94A3B8; --border:#E2E8F0; --radius:16px; --shadow:0 1px 3px rgba(0,0,0,0.04),0 1px 2px rgba(0,0,0,0.06); }
-* { box-sizing:border-box; margin:0; padding:0; }
-body { font-family:'DM Sans',-apple-system,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; }
-.app { max-width:480px; margin:0 auto; padding:24px 16px 40px; }
-h1 { font-family:'Playfair Display',serif; font-size:28px; margin-bottom:6px; }
-.sub { font-size:14px; color:var(--text-secondary); margin-bottom:24px; line-height:1.5; }
-.card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); margin-bottom:16px; }
-label { font-size:13px; font-weight:600; color:var(--text-secondary); display:block; margin-bottom:6px; }
-input, select { width:100%; padding:12px; border:1.5px solid var(--border); border-radius:10px; font-family:inherit; font-size:14px; color:var(--text); margin-bottom:14px; }
-input:focus, select:focus { outline:none; border-color:var(--accent); }
-.btn { width:100%; padding:14px; border-radius:10px; border:none; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer; background:var(--accent); color:white; }
-.btn:active { transform:scale(0.98); }
-.btn:disabled { opacity:0.6; cursor:default; }
-.status { font-size:13px; text-align:center; margin-top:10px; min-height:18px; }
-.sent-card { text-align:center; padding:30px 20px; }
-.sent-card .check { font-size:48px; margin-bottom:12px; }
-.sent-card .title { font-size:18px; font-weight:600; margin-bottom:8px; }
-.sent-card .desc { font-size:13px; color:var(--text-secondary); line-height:1.6; }
-.sent-card .link { font-size:12px; color:var(--accent); word-break:break-all; margin-top:12px; padding:10px; background:var(--accent-light); border-radius:8px; cursor:pointer; }
-.preview { background:var(--accent-light); border-radius:10px; padding:14px; margin-bottom:14px; font-size:13px; color:var(--text-secondary); line-height:1.6; }
-.preview strong { color:var(--text); }
-.footer { text-align:center; font-size:10px; color:var(--text-muted); margin-top:20px; }
+:root {
+  --bg: #F8F9FC; --surface: #FFFFFF; --accent: #2563EB; --accent-light: #DBEAFE;
+  --green: #059669; --green-bg: rgba(5,150,105,0.08); --purple: #7C3AED;
+  --text: #1E293B; --text-secondary: #475569; --text-muted: #94A3B8;
+  --border: #E2E8F0; --radius: 16px;
+  --shadow: 0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+.page { max-width: 480px; margin: 0 auto; padding: 40px 20px; }
+.logo { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
+.logo-mark { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #2563EB, #7C3AED); display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; font-weight: 700; }
+.logo-text { font-size: 18px; font-weight: 600; }
+.logo-text span { color: var(--text-muted); font-weight: 400; font-size: 14px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; box-shadow: var(--shadow); margin-bottom: 16px; }
+.invite-from { font-size: 13px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.invite-title { font-family: 'Playfair Display', serif; font-size: 28px; font-weight: 500; line-height: 1.3; margin-bottom: 12px; }
+.invite-desc { font-size: 15px; color: var(--text-secondary); line-height: 1.7; margin-bottom: 24px; }
+.feature { display: flex; gap: 12px; padding: 10px 0; }
+.feature-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.feature-text { font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
+.feature-text strong { color: var(--text); }
+.btn { display: block; width: 100%; padding: 16px; border-radius: 12px; border: none; font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center; text-decoration: none; }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--accent); color: white; margin-bottom: 10px; }
+.btn-secondary { background: transparent; color: var(--text-secondary); border: 1.5px solid var(--border); }
+.verify-note { display: flex; gap: 10px; align-items: flex-start; margin-top: 20px; padding: 14px; background: var(--green-bg); border-radius: 10px; }
+.verify-note-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.footer { text-align: center; padding: 24px 0; font-size: 11px; color: var(--text-muted); }
+.fade-in { opacity: 0; transform: translateY(16px); animation: fadeUp 0.6s ease forwards; }
+@keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
+.d1{animation-delay:0.1s} .d2{animation-delay:0.2s} .d3{animation-delay:0.3s}
+#inviteContent { display: none; }
+#unknownInvite { display: none; }
 </style>
 </head>
 <body>
-<div class="app">
-
-  <h1>Invite to Co-Pilot</h1>
-  <div class="sub">Send someone their personalised Athena co-pilot. They'll receive an email with a link to their app and an invitation to verify their identity with VAC.</div>
-
-  <div class="card" id="inviteForm">
-    <label>Their name</label>
-    <input type="text" id="invName" placeholder="e.g. Anthony, Sam">
-
-    <label>Their email</label>
-    <input type="email" id="invEmail" placeholder="e.g. anthony@regattaclub.com.au">
-
-    <label>Which co-pilot?</label>
-    <select id="invApp">
-      <option value="">Select...</option>
-      <option value="regatta">Regatta Club — Hospitality (Anthony)</option>
-      <option value="derm">Zagarella Dermatology — Medical Practice (Sam)</option>
-    </select>
-
-    <label>Personal message (optional)</label>
-    <input type="text" id="invMessage" placeholder="e.g. Hey mate, check this out — built it for you">
-
-    <div id="invPreview" class="preview" style="display:none;"></div>
-
-    <button class="btn" id="invSendBtn" onclick="sendInvite()">Send invite</button>
-    <div class="status" id="invStatus"></div>
+<div class="page">
+  <div class="logo fade-in">
+    <div class="logo-mark">A</div>
+    <div class="logo-text">Athena <span>Co-Pilot</span></div>
   </div>
-
-  <div class="card sent-card" id="sentCard" style="display:none;">
-    <div class="check">✉️</div>
-    <div class="title" id="sentTitle">Invite sent!</div>
-    <div class="desc" id="sentDesc"></div>
-    <div class="link" id="sentLink" onclick="copyLink()"></div>
-    <div style="font-size:11px;color:var(--text-muted);margin-top:8px;" id="copyStatus"></div>
-    <button class="btn" style="margin-top:16px;background:transparent;color:var(--accent);border:1.5px solid var(--accent);" onclick="resetForm()">Send another invite</button>
+  <div id="inviteContent">
+    <div class="card fade-in d1">
+      <div class="invite-from" id="inviteFrom"></div>
+      <div class="invite-title" id="inviteTitle"></div>
+      <div class="invite-desc" id="inviteDesc"></div>
+      <div id="inviteFeatures" style="margin-bottom:24px;"></div>
+      <a class="btn btn-primary" id="launchBtn" href="#">Open your co-pilot</a>
+      <a class="btn btn-secondary" id="authBtn" href="#">Verify your identity first</a>
+      <div class="verify-note">
+        <div style="font-size:18px;flex-shrink:0;">🔐</div>
+        <div class="verify-note-text">Identity verification is optional but recommended. It enables face-verified approvals and secure communications. Powered by VAC Protocol.</div>
+      </div>
+    </div>
+    <div class="card fade-in d2" style="background:linear-gradient(135deg,rgba(37,99,235,0.03),rgba(124,58,237,0.02));">
+      <div style="font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px;">What makes this different</div>
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.7;">This isn't a fixed app. Every time you use it — rate a section, approve a decision, give feedback — it reshapes itself around what matters to you. Your co-pilot in 30 days will look nothing like today, because you'll have taught it how you work.</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:10px;">Patent Pending · Powered by Athena adaptive intelligence</div>
+    </div>
   </div>
-
-  <div class="footer">
-    Athena Co-Pilot · Patent Pending · Violet Shores Pty Ltd
+  <div id="unknownInvite" class="card fade-in">
+    <div style="text-align:center;padding:20px 0;">
+      <div style="font-size:32px;margin-bottom:12px;">🔗</div>
+      <div style="font-size:18px;font-weight:600;margin-bottom:8px;">Invite not found</div>
+      <div style="font-size:14px;color:var(--text-secondary);">This invite link doesn't match any active invitation. Check with the person who sent it.</div>
+    </div>
   </div>
-
+  <div class="footer fade-in d3">Athena Co-Pilot · Violet Shores Pty Ltd<br>Patent Pending · Identity by VAC Protocol</div>
 </div>
-
 <script>
-var VAC_API = 'https://vac-system-production.up.railway.app';
-var ATHENA_API = 'https://api.athenapilot.ai';
-var BASE_URL = 'https://athenapilot.ai';
-
-var appConfig = {
-  regatta: {
-    title: 'Regatta Club Co-Pilot',
-    path: '/regatta',
-    greeting: 'Your co-pilot for running Regatta Club is ready.',
-    color: '#C9A84C'
+var INVITES = {
+  anthony: {
+    name: 'Anthony', from: 'Rob',
+    title: 'Your Regatta Club co-pilot is ready',
+    desc: "Rob built this specifically for you and Regatta Club. It's a prototype — your feedback literally shapes what it becomes. Rate the sections, tell it what's missing, and watch it evolve around how you run the club.",
+    features: [
+      { icon: '🌙', text: '<strong>Overnight tasks</strong> — stock checks, social posts, supplier research while you sleep' },
+      { icon: '📊', text: '<strong>Intelligence</strong> — competitor monitoring, Fair Work compliance, local event opportunities' },
+      { icon: '🎤', text: '<strong>Voice feedback</strong> — talk to the system hands-free, it learns your priorities' },
+      { icon: '👥', text: '<strong>Staff insights</strong> — shift reflections build capability profiles over time' },
+    ],
+    app_url: '/regatta', auth_url: '/auth',
   },
-  derm: {
-    title: 'Zagarella Dermatology Co-Pilot',
-    path: '/derm',
-    greeting: 'Your co-pilot for your dermatology practice is ready.',
-    color: '#2563EB'
+  sam: {
+    name: 'Sam', from: 'Rob',
+    title: 'Your dermatology co-pilot is ready',
+    desc: "Rob built this for your practice. It handles the admin so you can focus on your patients. The morning briefing scans the latest research and AI developments overnight. And the photo analysis — take a photo of any skin area and see what the AI thinks in real time.",
+    features: [
+      { icon: '📸', text: '<strong>Photo triage with live AI</strong> — take a photo, get instant analysis. Patients can submit photos before their visit.' },
+      { icon: '🧬', text: '<strong>Morning intelligence</strong> — latest derm research, AI developments, podcasts and YouTube summarised' },
+      { icon: '💬', text: '<strong>Patient communications</strong> — draft responses in your voice, auto-reply to common questions' },
+      { icon: '⚡', text: '<strong>Auto-rules</strong> — teach it: "For mild cases, send my standard care plan automatically"' },
+    ],
+    app_url: '/derm', auth_url: '/auth',
   }
 };
-
-// Preview update
-document.getElementById('invName').addEventListener('input', updatePreview);
-document.getElementById('invEmail').addEventListener('input', updatePreview);
-document.getElementById('invApp').addEventListener('change', updatePreview);
-document.getElementById('invMessage').addEventListener('input', updatePreview);
-
-function updatePreview() {
-  var name = document.getElementById('invName').value.trim();
-  var email = document.getElementById('invEmail').value.trim();
-  var app = document.getElementById('invApp').value;
-  var msg = document.getElementById('invMessage').value.trim();
-  var el = document.getElementById('invPreview');
-
-  if (name && app) {
-    var config = appConfig[app];
-    el.style.display = '';
-    el.innerHTML = '<strong>Email preview:</strong><br><br>' +
-      'Hi ' + name + ',<br><br>' +
-      (msg ? msg + '<br><br>' : '') +
-      config.greeting + '<br><br>' +
-      '<strong>' + config.title + '</strong><br>' +
-      BASE_URL + config.path + '<br><br>' +
-      'To verify your identity and unlock all features, you\'ll be invited to complete a quick face verification through VAC Protocol.<br><br>' +
-      '— Rob';
-  } else {
-    el.style.display = 'none';
-  }
+function init() {
+  var path = window.location.pathname.replace(/\/$/, '');
+  var inviteId = path.split('/').pop().toLowerCase();
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('for')) inviteId = params.get('for').toLowerCase();
+  var invite = INVITES[inviteId];
+  if (!invite) { document.getElementById('unknownInvite').style.display = ''; return; }
+  document.getElementById('inviteContent').style.display = '';
+  document.getElementById('inviteFrom').textContent = 'Invited by ' + invite.from;
+  document.getElementById('inviteTitle').textContent = invite.title;
+  document.getElementById('inviteDesc').textContent = invite.desc;
+  var h = '';
+  invite.features.forEach(function(f) { h += '<div class="feature"><div class="feature-icon">' + f.icon + '</div><div class="feature-text">' + f.text + '</div></div>'; });
+  document.getElementById('inviteFeatures').innerHTML = h;
+  document.getElementById('launchBtn').href = invite.app_url;
+  document.getElementById('launchBtn').textContent = 'Open your co-pilot, ' + invite.name;
+  document.getElementById('authBtn').href = invite.auth_url + '?redirect=' + encodeURIComponent(invite.app_url);
+  document.title = invite.name + ' — Your Athena Co-Pilot is Ready';
+  fetch('https://api.athenapilot.ai/v1/events', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ events: [{ event_type: 'invite_view', timestamp: new Date().toISOString(), session_id: 'invite_' + inviteId, user_id: inviteId, page: 'invite' }]})
+  }).catch(function() {});
 }
-
-async function sendInvite() {
-  var name = document.getElementById('invName').value.trim();
-  var email = document.getElementById('invEmail').value.trim();
-  var app = document.getElementById('invApp').value;
-  var msg = document.getElementById('invMessage').value.trim();
-  var status = document.getElementById('invStatus');
-
-  if (!name || !email || !app) {
-    status.textContent = 'Fill in name, email, and select an app.';
-    status.style.color = '#DC2626';
-    return;
-  }
-
-  var btn = document.getElementById('invSendBtn');
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
-  status.textContent = '';
-
-  var config = appConfig[app];
-  var copilotUrl = BASE_URL + config.path;
-
-  try {
-    // Step 1: Create vouch request (Rob vouching for them)
-    var vouchResp = await fetch(VAC_API + '/v1/vouch/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        requester_name: name,
-        requester_email: email,
-        voucher_name: 'Rob Zagarella',
-        voucher_email: 'rob@violetshores.com',
-        vouch_type: 'identity',
-        message: (msg || 'Welcome to your Athena co-pilot') + ' | App: ' + config.title + ' | URL: ' + copilotUrl,
-        source_app: 'athena-copilot',
-        source_context: app
-      })
-    });
-
-    var vouchData = {};
-    if (vouchResp.ok) {
-      vouchData = await vouchResp.json();
-    }
-
-    // Step 2: Log to Athena feedback for tracking
-    await fetch(ATHENA_API + '/v1/feedback', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        feedback_type: 'invite',
-        content: 'INVITE SENT: ' + name + ' (' + email + ') → ' + config.title + ' | Vouch: ' + (vouchData.request_id || 'none'),
-        source_page: 'invite',
-        user_id: 'rob',
-        product: 'athena'
-      })
-    }).catch(function() {});
-
-    // Step 3: Show success
-    document.getElementById('inviteForm').style.display = 'none';
-    document.getElementById('sentCard').style.display = '';
-    document.getElementById('sentTitle').textContent = 'Invite sent to ' + name + '!';
-    document.getElementById('sentDesc').innerHTML = 'VAC vouch request emailed to <strong>' + email + '</strong>.<br>They\'ll receive a link to verify their identity.<br><br>In the meantime, share the co-pilot link directly:';
-    document.getElementById('sentLink').textContent = copilotUrl;
-    document.getElementById('sentLink').dataset.url = copilotUrl;
-
-  } catch(err) {
-    status.textContent = 'Could not send — check connection and try again.';
-    status.style.color = '#DC2626';
-  }
-
-  btn.disabled = false;
-  btn.textContent = 'Send invite';
-}
-
-function copyLink() {
-  var url = document.getElementById('sentLink').dataset.url;
-  navigator.clipboard.writeText(url).then(function() {
-    document.getElementById('copyStatus').textContent = 'Link copied to clipboard!';
-  }).catch(function() {
-    document.getElementById('copyStatus').textContent = 'Long-press to copy the link above.';
-  });
-}
-
-function resetForm() {
-  document.getElementById('inviteForm').style.display = '';
-  document.getElementById('sentCard').style.display = 'none';
-  document.getElementById('invName').value = '';
-  document.getElementById('invEmail').value = '';
-  document.getElementById('invApp').value = '';
-  document.getElementById('invMessage').value = '';
-  document.getElementById('invPreview').style.display = 'none';
-  document.getElementById('invStatus').textContent = '';
-}
+init();
 </script>
 </body>
 </html>
