@@ -290,12 +290,16 @@ body {
 <div id="vac-auth"></div>
 <div class="app" id="vac-app-content" style="display:none;">
 
-  <div class="header fade-in">
+  <div class="header fade-in" style="position:relative;">
     <div class="logo-mark" style="background:linear-gradient(135deg,#1a237e,#283593);font-family:'DM Serif Display',serif;font-size:16px;letter-spacing:-0.5px;">RC</div>
     <div class="header-text">
       <div class="greeting" id="greetingText">Hey Anthony</div>
       <div class="sub">Here's what your week could look like with a co-pilot</div>
       <div class="venue">Regatta Club &bull; Haberfield Rowers &bull; <span style="color:var(--text-dim)">powered by Athena</span></div>
+    </div>
+    <div id="vac-signout" style="position:absolute;top:24px;right:0;font-size:11px;">
+      <span id="vac-user-badge" style="color:var(--text-dim);font-family:'SF Mono',monospace;"></span>
+      <a onclick="VAC.logout();location.reload();" style="color:var(--text-dim);cursor:pointer;margin-left:8px;text-decoration:none;opacity:0.6;">Sign out</a>
     </div>
   </div>
 
@@ -868,7 +872,7 @@ setTimeout(function(){document.getElementById('prog').style.width='60%'},600);
       event_type: event_type,
       timestamp: new Date().toISOString(),
       session_id: SESSION_ID,
-      user_id: 'anthony_regatta',
+      user_id: vacUserId(),
       product: 'athena',
       page: 'regatta-copilot'
     }, extra || {});
@@ -917,6 +921,7 @@ setTimeout(function(){document.getElementById('prog').style.width='60%'},600);
 
 // ─── FEEDBACK SYSTEM ──────────────────────────────────────────
 var ATHENA_API = 'https://api.athenapilot.ai';
+function vacUserId() { return (window.VAC_USER && window.VAC_USER.email) || 'anonymous'; }
 var sections = [
   {id:'overnight', name:'Overnight task completion', desc:'System does stock checks, social posts etc while you sleep'},
   {id:'taskfrag', name:'Task fragmentation', desc:'Breaking Saturday prep into sub-tasks with progress tracking'},
@@ -1011,7 +1016,7 @@ async function submitFeedback() {
       feedback_type: 'feature',
       content: 'REGATTA CLUB FEEDBACK — Section ratings from Anthony:\n' + ratingsSummary,
       source_page: 'regatta-copilot',
-      user_id: 'anthony_regatta',
+      user_id: vacUserId(),
       product: 'athena'
     });
 
@@ -1020,7 +1025,7 @@ async function submitFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — #1 time saver request from Anthony: ' + topPriority,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta',
+        user_id: vacUserId(),
       product: 'athena'
       });
     }
@@ -1030,7 +1035,7 @@ async function submitFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — What\'s missing (Anthony): ' + missing,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta',
+        user_id: vacUserId(),
       product: 'athena'
       });
     }
@@ -1040,7 +1045,7 @@ async function submitFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — Other ideas/reactions (Anthony): ' + other,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta',
+        user_id: vacUserId(),
       product: 'athena'
       });
     }
@@ -1296,7 +1301,7 @@ async function submitSummary() {
         feedback_type: 'feature',
         content: content,
         source_page: 'regatta-copilot-session-summary',
-        user_id: 'anthony_regatta',
+        user_id: vacUserId(),
         product: 'athena'
       })
     });
@@ -1547,7 +1552,7 @@ async function sendVoiceFeedback() {
         feedback_type: 'feature',
         content: 'REGATTA CLUB — Voice feedback from Anthony: ' + text,
         source_page: 'regatta-copilot',
-        user_id: 'anthony_regatta',
+        user_id: vacUserId(),
       product: 'athena'
       })
     });
@@ -1579,12 +1584,17 @@ VAC.init({
   requireFace: true,
   onVerified: function(user) {
     document.getElementById('vac-app-content').style.display = '';
-    // Update greeting with verified name if available
+    // Update greeting with verified name
     var greetEl = document.querySelector('.greeting');
     if (greetEl && user && user.name) {
       var name = user.name.charAt(0).toUpperCase() + user.name.slice(1);
       greetEl.textContent = greetEl.textContent.replace('Anthony', name);
     }
+    // Show user badge
+    var badge = document.getElementById('vac-user-badge');
+    if (badge && user) badge.textContent = user.email;
+    // Wire VAC token into existing feedback calls
+    window.VAC_USER = user;
     console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level);
   }
 });

@@ -196,12 +196,16 @@ body {
 <div id="vac-auth"></div>
 <div class="app" id="vac-app-content" style="display:none;">
 
-  <div class="header fade-in">
+  <div class="header fade-in" style="position:relative;">
     <div class="logo-mark">SZ</div>
     <div class="header-text">
       <div class="greeting" id="greetingText">Good morning Sam</div>
       <div class="sub">Here's who needs your attention today</div>
       <div class="practice">Zagarella Dermatology &bull; <span style="color:var(--text-muted);">powered by Athena</span></div>
+    </div>
+    <div id="vac-signout" style="position:absolute;top:24px;right:0;font-size:11px;">
+      <span id="vac-user-badge" style="color:var(--text-muted);font-family:'SF Mono',monospace;"></span>
+      <a onclick="VAC.logout();location.reload();" style="color:var(--text-muted);cursor:pointer;margin-left:8px;text-decoration:none;opacity:0.6;">Sign out</a>
     </div>
   </div>
 
@@ -838,6 +842,7 @@ body {
 
 <script>
 var ATHENA_API = 'https://api.athenapilot.ai';
+function vacUserId() { return (window.VAC_USER && window.VAC_USER.email) || 'anonymous'; }
 
 function toggleSection(head) {
   head.classList.toggle('closed');
@@ -876,7 +881,7 @@ async function submitFeedback() {
         feedback_type: 'feature',
         content: content,
         source_page: 'derm-copilot',
-        user_id: 'sam_zagarella',
+        user_id: vacUserId(),
         product: 'athena'
       })
     });
@@ -961,7 +966,7 @@ async function runDermAnalysis() {
         image_base64: dermImageBase64,
         media_type: dermMediaType,
         description: desc,
-        user_id: 'sam_zagarella'
+        user_id: vacUserId()
       })
     });
     document.getElementById('dermLoading').style.display = 'none';
@@ -997,7 +1002,7 @@ function dermFeedback(btn, value) {
       feedback_type: 'derm_correction',
       content: 'DERM AI FEEDBACK: ' + value + ' | Location: ' + dermBodyLocation + ' | Description: ' + (document.getElementById('dermDesc').value || 'none'),
       source_page: 'derm-copilot',
-      user_id: 'sam_zagarella',
+      user_id: vacUserId(),
       product: 'athena'
     })
   }).catch(function() {});
@@ -1013,7 +1018,7 @@ function briefingFb(btn, action) {
       feedback_type: 'briefing_preference',
       content: 'BRIEFING FEEDBACK: ' + action + ' | Item: ' + title,
       source_page: 'derm-copilot-briefing',
-      user_id: 'sam_zagarella',
+      user_id: vacUserId(),
       product: 'athena'
     })
   }).catch(function() {});
@@ -1052,6 +1057,11 @@ VAC.init({
       var name = user.name.charAt(0).toUpperCase() + user.name.slice(1);
       greetEl.textContent = greetEl.textContent.replace('Sam', name);
     }
+    // Show user badge
+    var badge = document.getElementById('vac-user-badge');
+    if (badge && user) badge.textContent = user.email;
+    // Wire VAC token into existing API calls
+    window.VAC_USER = user;
     console.log('[VAC] Authenticated:', user.email, '| Level:', user.auth_level);
   }
 });
