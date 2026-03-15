@@ -190,6 +190,17 @@ body {
 }
 .footer a { color:var(--accent); text-decoration:none; }
 
+/* Star rating widget */
+.star-widget { display:flex; gap:4px; }
+.star {
+  font-size:26px; cursor:pointer; color:#d1d5db;
+  transition:color 0.15s, transform 0.1s; line-height:1;
+  -webkit-user-select:none; user-select:none;
+  min-width:32px; min-height:32px; display:inline-flex; align-items:center; justify-content:center;
+}
+.star.active { color:#f59e0b; }
+.star:active { transform:scale(0.88); }
+
 .fade-in { opacity:0; transform:translateY(12px); animation:fadeUp 0.5s ease forwards; }
 @keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
 .d1{animation-delay:0.1s} .d2{animation-delay:0.2s} .d3{animation-delay:0.3s}
@@ -822,6 +833,117 @@ body {
     </div>
   </div>
 
+  <!-- Research Analysis -->
+  <div class="section fade-in d8">
+    <div class="section-head">Research analysis <span class="count" style="background:var(--purple-bg);color:var(--purple);">new</span></div>
+
+    <!-- Varey et al meta-analysis card -->
+    <div class="card" style="border-left:3px solid var(--purple);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px;">
+        <div style="flex:1;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--purple);margin-bottom:4px;">Meta-Analysis Critique</div>
+          <div style="font-size:14px;font-weight:600;line-height:1.4;">Varey et al — Sentinel Node Biopsy in Melanoma</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Multi-model critical analysis · 2 rounds</div>
+        </div>
+        <div style="background:var(--amber-bg);border:1px solid rgba(217,119,6,0.2);border-radius:8px;padding:8px 12px;text-align:center;flex-shrink:0;">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;color:var(--amber);margin-bottom:2px;">Verdict</div>
+          <div style="font-size:20px;font-weight:700;color:var(--amber);">5–6<span style="font-size:13px;">/10</span></div>
+          <div style="font-size:10px;color:var(--amber);">Evidence</div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-secondary);margin-bottom:6px;">Round 1 — Initial Analysis</div>
+        <div style="background:var(--surface-raised);border-radius:8px;padding:12px;">
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.75;">
+            <div style="margin-bottom:5px;">• <strong>Heterogeneity concerns</strong> — pooled studies span 15+ years with significant protocol variation; I² values not adequately addressed.</div>
+            <div style="margin-bottom:5px;">• <strong>Survival benefit ambiguity</strong> — SNB improves regional control and staging, but overall survival benefit remains debated; this distinction is not clearly drawn.</div>
+            <div style="margin-bottom:5px;">• <strong>Selection bias risk</strong> — inclusion criteria favour positive-outcome studies; funnel plot asymmetry suggests publication bias.</div>
+            <div>• <strong>T-stage subgroup underpowered</strong> — conclusions about &lt;1.0mm melanoma drawn from insufficient sample size.</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:var(--text-secondary);margin-bottom:6px;">Round 2 — Specialist Pressure Test</div>
+        <div style="background:var(--purple-bg);border-radius:8px;padding:12px;border:1px solid rgba(124,58,237,0.1);">
+          <div style="font-size:12px;color:var(--text-secondary);line-height:1.75;">
+            <div style="margin-bottom:5px;">• <strong>MSLT-II context missing</strong> — analysis does not engage with MSLT-II data showing completion lymph node dissection does not improve melanoma-specific survival, which reframes SNB utility.</div>
+            <div style="margin-bottom:5px;">• <strong>Adjuvant therapy era ignored</strong> — with pembrolizumab and targeted therapy now standard, SNB's role in guiding adjuvant decisions needs reanalysis.</div>
+            <div style="margin-bottom:5px;">• <strong>Quality of life absent</strong> — lymphoedema rates and patient-reported outcomes not included despite being clinically decisive.</div>
+            <div>• <strong>Conclusion overstates certainty</strong> — "SNB should be standard" framing is not supported by the pooled data quality; GRADE evidence would be moderate at best.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Model rating cards -->
+    <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin:12px 0 8px;text-transform:uppercase;letter-spacing:0.4px;">Rate the analysis quality</div>
+
+    <div class="card" style="padding:14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#f97316,#dc2626);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0;">C</div>
+          <div><div style="font-size:13px;font-weight:600;">Claude</div><div style="font-size:11px;color:var(--text-muted);">Anthropic</div></div>
+        </div>
+        <div class="star-widget" data-model="claude">
+          <span class="star" data-val="1" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="2" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="3" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="4" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="5" onclick="rateStar(this)">★</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#0ea5e9,#1d4ed8);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0;">G</div>
+          <div><div style="font-size:13px;font-weight:600;">Grok</div><div style="font-size:11px;color:var(--text-muted);">xAI</div></div>
+        </div>
+        <div class="star-widget" data-model="grok">
+          <span class="star" data-val="1" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="2" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="3" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="4" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="5" onclick="rateStar(this)">★</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#4285f4,#34a853);display:flex;align-items:center;justify-content:center;color:white;font-size:13px;font-weight:700;flex-shrink:0;">G</div>
+          <div><div style="font-size:13px;font-weight:600;">Gemini</div><div style="font-size:11px;color:var(--text-muted);">Google</div></div>
+        </div>
+        <div class="star-widget" data-model="gemini">
+          <span class="star" data-val="1" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="2" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="3" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="4" onclick="rateStar(this)">★</span>
+          <span class="star" data-val="5" onclick="rateStar(this)">★</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Specialist feedback fields -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;">Your specialist perspective</div>
+      <div style="margin-bottom:10px;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;font-weight:500;">As a specialist, what did the analysis miss?</div>
+        <textarea id="researchMissed" style="width:100%;background:var(--surface-raised);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:13px;color:var(--text);resize:vertical;min-height:64px;" placeholder="e.g. Failed to address lymph node ultrasound as an alternative staging tool, or the role of PET-CT in high-risk staging..."></textarea>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;font-weight:500;">Overall assessment</div>
+        <textarea id="researchOverall" style="width:100%;background:var(--surface-raised);border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-family:inherit;font-size:13px;color:var(--text);resize:vertical;min-height:64px;" placeholder="Useful for teaching rounds? Would you share with registrars? Any claims needing clinical correction?"></textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%;padding:12px;font-size:14px;" onclick="submitResearchFeedback()">Submit specialist feedback</button>
+      <div id="researchFbStatus" style="font-size:12px;text-align:center;margin-top:8px;min-height:16px;"></div>
+    </div>
+  </div>
+
   <!-- Personal feed — the copilot knows the whole person -->
   <div class="section fade-in d8">
     <div class="section-head" style="border-left:3px solid #f59e0b;padding-left:12px;">
@@ -969,6 +1091,66 @@ async function submitFeedback() {
   } catch(e) {
     status.style.color = 'var(--red)';
     status.textContent = 'Could not send — tell Rob directly.';
+  }
+}
+
+// ─── RESEARCH ANALYSIS ───────────────────────────────────────
+function rateStar(star) {
+  var widget = star.closest('.star-widget');
+  var modelId = widget.dataset.model;
+  var rating = parseInt(star.dataset.val, 10);
+  var stars = widget.querySelectorAll('.star');
+  stars.forEach(function(s) {
+    s.classList.toggle('active', parseInt(s.dataset.val, 10) <= rating);
+  });
+  fetch(ATHENA_API + '/v1/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      feedback_type: 'model_rating',
+      model_id: modelId,
+      rating: rating,
+      source_page: 'derm-copilot',
+      context: 'varey-snb-meta-analysis',
+      user_id: vacUserId(),
+      product: 'athena'
+    })
+  }).catch(function() {});
+}
+
+async function submitResearchFeedback() {
+  var status = document.getElementById('researchFbStatus');
+  var missed = document.getElementById('researchMissed').value.trim();
+  var overall = document.getElementById('researchOverall').value.trim();
+  if (!missed && !overall) {
+    status.textContent = 'Add your assessment first.';
+    status.style.color = 'var(--amber)';
+    return;
+  }
+  status.textContent = 'Sending...';
+  status.style.color = 'var(--text-muted)';
+  try {
+    var res = await fetch(ATHENA_API + '/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: 'specialist_review',
+        content: 'VAREY SNB META-ANALYSIS\nWhat was missed: ' + (missed || '—') + '\nOverall: ' + (overall || '—'),
+        source_page: 'derm-copilot',
+        context: 'varey-snb-meta-analysis',
+        user_id: vacUserId(),
+        product: 'athena'
+      })
+    });
+    if (res.ok) {
+      status.style.color = 'var(--green)';
+      status.textContent = 'Submitted — thank you.';
+      document.getElementById('researchMissed').value = '';
+      document.getElementById('researchOverall').value = '';
+    } else { throw new Error('fail'); }
+  } catch(e) {
+    status.style.color = 'var(--red)';
+    status.textContent = 'Could not send — try again.';
   }
 }
 
