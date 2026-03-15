@@ -1136,8 +1136,12 @@
           // Check if session has full biometric — OTP-only is not enough
           var hasBiometric = user.auth_level === 'full' || user.auth_level === 'quick';
           
-          if (_config.requireFace !== false && !hasBiometric) {
-            // Session exists but only OTP — need face verification still
+          // Trusted/verified users with active session: skip face requirement on page navigation
+          // Biometric is for first-time auth and critical actions, not every page change
+          var isTrusted = user.is_verified && (user.vouches_received >= 1 || user.trust_level === 'trusted' || user.trust_level === 'verified');
+          
+          if (_config.requireFace !== false && !hasBiometric && !isTrusted) {
+            // New/unverified user with OTP-only — need face verification
             console.log('[VAC] OTP session only, face verification required');
             _renderGate();
             _renderFaceScreen();
