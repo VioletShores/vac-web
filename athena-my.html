@@ -286,12 +286,12 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
   </div>
 </div>
 
-<script src="/vac-auth.js?v=1773538980"></script>
+<script src="/vac-auth.js?v=1773541636"></script>
 <script>
 VAC.init({
   app: 'rob-intel',
   appName: "Rob's Intelligence",
-  requireFace: true,
+  requireFace: false, // Trusted users auth via session — face only for critical actions
   onVerified: function(user) {
     document.getElementById('vac-app-content').style.display = '';
     document.getElementById('user-email').textContent = user.email;
