@@ -546,7 +546,7 @@
 
 <div id="vac-auth"></div>
 
-<div class="app" id="vac-app-content" style="display:none;">
+<div class="app" id="vac-app-content">
 
     <!-- Greeting -->
     <div class="greeting-bar fade-in d1">
@@ -882,7 +882,7 @@
     // ── VAC Auth ───────────────────────────────────────────────────
     VAC.init({
         app: 'dad-copilot',
-        requireFace: true,
+        requireFace: false,
         onVerified: function(user) {
             document.getElementById('vac-app-content').style.display = 'block';
         }
