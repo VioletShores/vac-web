@@ -149,6 +149,10 @@
             "destination": "/athena-engine.html"
         },
         {
+            "source": "/dad",
+            "destination": "/athena-dad.html"
+        },
+        {
             "source": "/api",
             "destination": "https://vac-system-production.up.railway.app/docs"
         },
@@ -202,6 +206,12 @@
         },
         {
             "source": "/shan",
+            "headers": [
+                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+            ]
+        },
+        {
+            "source": "/dad",
             "headers": [
                 { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
             ]

@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Dad's Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Georgia&family=Lora:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #FDF6EC;
+            --surface: #FFFDF8;
+            --surface2: #F5EDD8;
+            --border: #D4B896;
+            --text: #2C1A0A;
+            --text-muted: #6B4C2A;
+            --green: #2D7A3A;
+            --green-light: #EAF5EC;
+            --green-border: #7DC48A;
+            --amber: #B8620A;
+            --amber-light: #FEF3E2;
+            --blue: #1A5276;
+            --blue-light: #EBF5FB;
+            --lock-gold: #C9941A;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Lora', Georgia, serif;
+            font-size: 18px;
+            line-height: 1.65;
+            min-height: 100vh;
+        }
+
+        #vac-auth {
+            font-family: 'Lora', Georgia, serif;
+        }
+
+        .app {
+            max-width: 560px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+        }
+
+        /* ── Header ── */
+        .greeting-bar {
+            text-align: center;
+            padding: 28px 16px 20px;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 28px;
+        }
+
+        .greeting-bar .logo-mark {
+            font-size: 36px;
+            margin-bottom: 8px;
+        }
+
+        .greeting-bar h1 {
+            font-size: 30px;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 4px;
+        }
+
+        .greeting-bar .date-line {
+            font-size: 17px;
+            color: var(--text-muted);
+            font-style: italic;
+        }
+
+        /* ── Section ── */
+        .section {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 16px;
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: var(--surface2);
+            padding: 18px 20px 16px;
+            border-bottom: 1.5px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-header .icon {
+            font-size: 26px;
+            flex-shrink: 0;
+        }
+
+        .section-header h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .section-body {
+            padding: 20px;
+        }
+
+        /* ── Tide Section ── */
+        .tide-summary {
+            background: var(--blue-light);
+            border: 1.5px solid #AED6F1;
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-bottom: 18px;
+        }
+
+        .tide-summary .temp-row {
+            font-size: 17px;
+            color: var(--blue);
+            margin-bottom: 6px;
+        }
+
+        .tide-summary .temp-row strong {
+            font-size: 20px;
+        }
+
+        .tide-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 18px;
+        }
+
+        .tide-table th {
+            text-align: left;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-muted);
+            padding: 6px 8px;
+            border-bottom: 1.5px solid var(--border);
+        }
+
+        .tide-table td {
+            padding: 10px 8px;
+            font-size: 17px;
+            border-bottom: 1px solid var(--surface2);
+        }
+
+        .tide-table .high {
+            color: var(--blue);
+            font-weight: 600;
+        }
+
+        .tide-table .low {
+            color: var(--amber);
+            font-weight: 600;
+        }
+
+        .best-window {
+            background: var(--green-light);
+            border: 1.5px solid var(--green-border);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+        }
+
+        .best-window .bw-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--green);
+            margin-bottom: 6px;
+        }
+
+        .best-window p {
+            font-size: 17px;
+            color: var(--text);
+        }
+
+        .fish-spots {
+            margin-bottom: 18px;
+        }
+
+        .fish-spots h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .spot-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--surface2);
+        }
+
+        .spot-row:last-child {
+            border-bottom: none;
+        }
+
+        .spot-row .fish-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .spot-row .spot-info {
+            flex: 1;
+        }
+
+        .spot-row .spot-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .spot-row .spot-detail {
+            font-size: 16px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .fb-note {
+            background: var(--amber-light);
+            border: 1.5px solid #F0C080;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 16px;
+            color: var(--text);
+            line-height: 1.55;
+        }
+
+        .fb-note strong {
+            color: var(--amber);
+        }
+
+        /* ── Password Vault ── */
+        .security-note {
+            background: var(--green-light);
+            border: 1.5px solid var(--green-border);
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-bottom: 20px;
+            font-size: 17px;
+            line-height: 1.6;
+        }
+
+        .security-note .lock-emoji {
+            font-size: 26px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .cred-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .cred-card {
+            background: var(--surface);
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .cred-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px 18px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            min-height: 72px;
+            transition: background 0.15s ease;
+        }
+
+        .cred-header:active {
+            background: var(--surface2);
+        }
+
+        .cred-lock-icon {
+            font-size: 28px;
+            flex-shrink: 0;
+            color: var(--lock-gold);
+        }
+
+        .cred-info {
+            flex: 1;
+        }
+
+        .cred-name {
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .cred-hint {
+            font-size: 15px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .cred-tap-hint {
+            font-size: 14px;
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        .cred-reveal {
+            display: none;
+            border-top: 1.5px solid var(--border);
+            padding: 16px 18px;
+            background: var(--surface2);
+        }
+
+        .cred-reveal.open {
+            display: block;
+        }
+
+        .verify-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            background: var(--green);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-family: 'Lora', Georgia, serif;
+            font-size: 19px;
+            font-weight: 700;
+            padding: 16px 20px;
+            cursor: pointer;
+            min-height: 60px;
+            transition: background 0.15s ease, transform 0.1s ease;
+            margin-bottom: 12px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .verify-btn:active {
+            background: #1E5C28;
+            transform: scale(0.98);
+        }
+
+        .revealed-content {
+            display: none;
+            background: #fff;
+            border: 1.5px solid var(--green-border);
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+
+        .revealed-content.showing {
+            display: block;
+        }
+
+        .revealed-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--surface2);
+            font-size: 17px;
+        }
+
+        .revealed-row:last-child {
+            border-bottom: none;
+        }
+
+        .revealed-row .label {
+            color: var(--text-muted);
+            font-size: 15px;
+        }
+
+        .revealed-row .value {
+            font-weight: 700;
+            color: var(--text);
+            font-size: 20px;
+            letter-spacing: 0.04em;
+        }
+
+        .hide-btn {
+            margin-top: 10px;
+            font-size: 15px;
+            color: var(--text-muted);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-family: 'Lora', Georgia, serif;
+            text-decoration: underline;
+            padding: 6px 0;
+        }
+
+        /* ── Reminders ── */
+        .reminder-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .reminder-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 14px 16px;
+            background: var(--surface2);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .reminder-item .r-icon {
+            font-size: 24px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .reminder-item .r-text {
+            font-size: 18px;
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .reminder-item .r-time {
+            font-size: 15px;
+            color: var(--text-muted);
+            margin-top: 3px;
+        }
+
+        /* ── Weather ── */
+        .weather-main {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .weather-icon {
+            font-size: 64px;
+            flex-shrink: 0;
+        }
+
+        .weather-details {
+            flex: 1;
+        }
+
+        .weather-temp {
+            font-size: 42px;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1;
+        }
+
+        .weather-desc {
+            font-size: 20px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .weather-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--surface2);
+            font-size: 17px;
+        }
+
+        .weather-row:last-child {
+            border-bottom: none;
+        }
+
+        .weather-row .wlabel {
+            color: var(--text-muted);
+        }
+
+        .weather-row .wvalue {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* ── Sign out ── */
+        .signout-row {
+            text-align: center;
+            margin-top: 32px;
+        }
+
+        .signout-btn {
+            background: none;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-family: 'Lora', Georgia, serif;
+            font-size: 16px;
+            color: var(--text-muted);
+            padding: 12px 24px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+
+        .signout-btn:active {
+            background: var(--surface2);
+        }
+
+        /* ── Animations ── */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeUp 0.5s ease forwards;
+        }
+
+        .d1 { animation-delay: 0.05s; }
+        .d2 { animation-delay: 0.15s; }
+        .d3 { animation-delay: 0.25s; }
+        .d4 { animation-delay: 0.35s; }
+        .d5 { animation-delay: 0.45s; }
+        .d6 { animation-delay: 0.55s; }
+
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .fade-in {
+                animation: none;
+                opacity: 1;
+                transform: none;
+            }
+        }
+
+        @media (max-width: 400px) {
+            body { font-size: 17px; }
+            .greeting-bar h1 { font-size: 26px; }
+            .weather-temp { font-size: 36px; }
+            .weather-icon { font-size: 52px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="vac-auth"></div>
+
+<div class="app" id="vac-app-content" style="display:none;">
+
+    <!-- Greeting -->
+    <div class="greeting-bar fade-in d1">
+        <div class="logo-mark">☀️</div>
+        <h1 id="greeting-text">Good morning, Dad</h1>
+        <div class="date-line" id="date-line">Sunday 15 March 2026</div>
+    </div>
+
+    <!-- 1. Fishing at The Spit -->
+    <div class="section fade-in d2">
+        <div class="section-header">
+            <span class="icon">🎣</span>
+            <h2>Fishing at The Spit</h2>
+        </div>
+        <div class="section-body">
+
+            <div class="tide-summary">
+                <div class="temp-row">🌊 Middle Harbour &nbsp;·&nbsp; Today's Tides</div>
+                <div class="temp-row">🌡️ Water temp: <strong>22°C</strong> &nbsp;·&nbsp; Good visibility</div>
+            </div>
+
+            <table class="tide-table" aria-label="Today's tide times">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Tide</th>
+                        <th>Height</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2:14 am</td>
+                        <td class="low">Low ↓</td>
+                        <td>0.24 m</td>
+                    </tr>
+                    <tr>
+                        <td>8:32 am</td>
+                        <td class="high">High ↑</td>
+                        <td>1.43 m</td>
+                    </tr>
+                    <tr>
+                        <td>2:51 pm</td>
+                        <td class="low">Low ↓</td>
+                        <td>0.31 m</td>
+                    </tr>
+                    <tr>
+                        <td>8:48 pm</td>
+                        <td class="high">High ↑</td>
+                        <td>1.38 m</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="best-window">
+                <div class="bw-title">🕐 Best fishing windows today</div>
+                <p>Two hours either side of high tide works well — <strong>6:30 am – 10:30 am</strong> and again <strong>6:45 pm – 10:45 pm</strong>. The incoming tide in the morning is usually the most active.</p>
+            </div>
+
+            <div class="fish-spots">
+                <h3>What's biting where</h3>
+
+                <div class="spot-row">
+                    <span class="fish-icon">🐟</span>
+                    <div class="spot-info">
+                        <div class="spot-name">Bream</div>
+                        <div class="spot-detail">The pylons and rock ledges under the Spit Bridge. Use prawns or hardbody lures on the outgoing tide.</div>
+                    </div>
+                </div>
+
+                <div class="spot-row">
+                    <span class="fish-icon">🐠</span>
+                    <div class="spot-info">
+                        <div class="spot-name">Flathead</div>
+                        <div class="spot-detail">Sandy bottom around Clontarf Beach and the channel. Soft plastics on the bottom work well in the morning.</div>
+                    </div>
+                </div>
+
+                <div class="spot-row">
+                    <span class="fish-icon">🐡</span>
+                    <div class="spot-info">
+                        <div class="spot-name">Whiting</div>
+                        <div class="spot-detail">The shallow flats toward Sandy Bay. Beach worms or pippis, keep the bait small and on the sand.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fb-note">
+                💬 <strong>Tip:</strong> Check the local Facebook fishing groups for today's reports — other anglers often post what they caught and where just this morning.
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 2. Password Vault -->
+    <div class="section fade-in d3">
+        <div class="section-header">
+            <span class="icon">🔐</span>
+            <h2>Your Passwords &amp; PINs</h2>
+        </div>
+        <div class="section-body">
+
+            <div class="security-note">
+                <span class="lock-emoji">🔒</span>
+                Your passwords are locked behind your face. Nobody else can see them — not even us. Much safer than writing them on a piece of paper.
+            </div>
+
+            <div class="cred-list">
+
+                <div class="cred-card" id="cred-1">
+                    <div class="cred-header" onclick="toggleCred('cred-1')" role="button" aria-expanded="false" aria-label="View internet banking password">
+                        <span class="cred-lock-icon">🔒</span>
+                        <div class="cred-info">
+                            <div class="cred-name">Internet Banking</div>
+                            <div class="cred-hint">Commonwealth Bank</div>
+                        </div>
+                        <span class="cred-tap-hint">Tap to view →</span>
+                    </div>
+                    <div class="cred-reveal" id="reveal-cred-1">
+                        <button class="verify-btn" onclick="verifyAndShow('cred-1')">
+                            😊 Verify it is you
+                        </button>
+                        <div class="revealed-content" id="content-cred-1">
+                            <div class="revealed-row">
+                                <span class="label">Customer number</span>
+                                <span class="value">06251847</span>
+                            </div>
+                            <div class="revealed-row">
+                                <span class="label">Password</span>
+                                <span class="value">Sunrise#99</span>
+                            </div>
+                            <button class="hide-btn" onclick="hideCred('cred-1')">Hide again</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cred-card" id="cred-2">
+                    <div class="cred-header" onclick="toggleCred('cred-2')" role="button" aria-expanded="false" aria-label="View email password">
+                        <span class="cred-lock-icon">🔒</span>
+                        <div class="cred-info">
+                            <div class="cred-name">Email</div>
+                            <div class="cred-hint">Gmail account</div>
+                        </div>
+                        <span class="cred-tap-hint">Tap to view →</span>
+                    </div>
+                    <div class="cred-reveal" id="reveal-cred-2">
+                        <button class="verify-btn" onclick="verifyAndShow('cred-2')">
+                            😊 Verify it is you
+                        </button>
+                        <div class="revealed-content" id="content-cred-2">
+                            <div class="revealed-row">
+                                <span class="label">Email address</span>
+                                <span class="value" style="font-size:16px;">dadsemail@gmail.com</span>
+                            </div>
+                            <div class="revealed-row">
+                                <span class="label">Password</span>
+                                <span class="value">Harbour22!</span>
+                            </div>
+                            <button class="hide-btn" onclick="hideCred('cred-2')">Hide again</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cred-card" id="cred-3">
+                    <div class="cred-header" onclick="toggleCred('cred-3')" role="button" aria-expanded="false" aria-label="View Netflix PIN">
+                        <span class="cred-lock-icon">🔒</span>
+                        <div class="cred-info">
+                            <div class="cred-name">Netflix</div>
+                            <div class="cred-hint">Streaming TV</div>
+                        </div>
+                        <span class="cred-tap-hint">Tap to view →</span>
+                    </div>
+                    <div class="cred-reveal" id="reveal-cred-3">
+                        <button class="verify-btn" onclick="verifyAndShow('cred-3')">
+                            😊 Verify it is you
+                        </button>
+                        <div class="revealed-content" id="content-cred-3">
+                            <div class="revealed-row">
+                                <span class="label">Email</span>
+                                <span class="value" style="font-size:16px;">dadsemail@gmail.com</span>
+                            </div>
+                            <div class="revealed-row">
+                                <span class="label">Password</span>
+                                <span class="value">Fishing#55</span>
+                            </div>
+                            <button class="hide-btn" onclick="hideCred('cred-3')">Hide again</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cred-card" id="cred-4">
+                    <div class="cred-header" onclick="toggleCred('cred-4')" role="button" aria-expanded="false" aria-label="View phone PIN">
+                        <span class="cred-lock-icon">🔒</span>
+                        <div class="cred-info">
+                            <div class="cred-name">Phone PIN</div>
+                            <div class="cred-hint">iPhone unlock code</div>
+                        </div>
+                        <span class="cred-tap-hint">Tap to view →</span>
+                    </div>
+                    <div class="cred-reveal" id="reveal-cred-4">
+                        <button class="verify-btn" onclick="verifyAndShow('cred-4')">
+                            😊 Verify it is you
+                        </button>
+                        <div class="revealed-content" id="content-cred-4">
+                            <div class="revealed-row">
+                                <span class="label">PIN</span>
+                                <span class="value" style="font-size:32px; letter-spacing:0.15em;">4 2 1 8</span>
+                            </div>
+                            <button class="hide-btn" onclick="hideCred('cred-4')">Hide again</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Reminders -->
+    <div class="section fade-in d4">
+        <div class="section-header">
+            <span class="icon">📋</span>
+            <h2>Reminders</h2>
+        </div>
+        <div class="section-body">
+            <div class="reminder-list">
+
+                <div class="reminder-item">
+                    <span class="r-icon">💊</span>
+                    <div>
+                        <div class="r-text">Take morning tablet with breakfast</div>
+                        <div class="r-time">Every day — morning</div>
+                    </div>
+                </div>
+
+                <div class="reminder-item">
+                    <span class="r-icon">📞</span>
+                    <div>
+                        <div class="r-text">Call Rob — Sunday afternoons</div>
+                        <div class="r-time">Weekly — Sunday 3:00 pm</div>
+                    </div>
+                </div>
+
+                <div class="reminder-item">
+                    <span class="r-icon">🐟</span>
+                    <div>
+                        <div class="r-text">Fishing trip with the boys — next Saturday</div>
+                        <div class="r-time">Saturday 21 March — 6:00 am</div>
+                    </div>
+                </div>
+
+                <div class="reminder-item">
+                    <span class="r-icon">🩺</span>
+                    <div>
+                        <div class="r-text">Doctor check-up</div>
+                        <div class="r-time">Thursday 26 March — 10:30 am</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Weather -->
+    <div class="section fade-in d5">
+        <div class="section-header">
+            <span class="icon">🌤️</span>
+            <h2>Weather — Sydney</h2>
+        </div>
+        <div class="section-body">
+
+            <div class="weather-main">
+                <div class="weather-icon">⛅</div>
+                <div class="weather-details">
+                    <div class="weather-temp">24°C</div>
+                    <div class="weather-desc">Partly cloudy</div>
+                </div>
+            </div>
+
+            <div class="weather-row">
+                <span class="wlabel">Feels like</span>
+                <span class="wvalue">23°C</span>
+            </div>
+            <div class="weather-row">
+                <span class="wlabel">High / Low</span>
+                <span class="wvalue">26° / 19°</span>
+            </div>
+            <div class="weather-row">
+                <span class="wlabel">Wind</span>
+                <span class="wvalue">NE 18 km/h</span>
+            </div>
+            <div class="weather-row">
+                <span class="wlabel">Humidity</span>
+                <span class="wvalue">65%</span>
+            </div>
+            <div class="weather-row">
+                <span class="wlabel">UV Index</span>
+                <span class="wvalue">High — wear sunscreen</span>
+            </div>
+            <div class="weather-row">
+                <span class="wlabel">Sunrise / Sunset</span>
+                <span class="wvalue">6:22 am / 7:11 pm</span>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Sign out -->
+    <div class="signout-row fade-in d6">
+        <button class="signout-btn" onclick="VAC.logout(); location.reload();">Sign out</button>
+    </div>
+
+</div><!-- /.app -->
+
+<script src="/vac-auth.js"></script>
+<script>
+    // ── Greeting ──────────────────────────────────────────────────
+    function setGreeting() {
+        var h = new Date().getHours();
+        var part = h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening';
+        document.getElementById('greeting-text').textContent = 'Good ' + part + ', Dad';
+
+        var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var now = new Date();
+        var dateStr = days[now.getDay()] + ' ' + now.getDate() + ' ' + months[now.getMonth()] + ' ' + now.getFullYear();
+        document.getElementById('date-line').textContent = dateStr;
+
+        // swap sun icon by time of day
+        var logos = { morning: '🌅', afternoon: '☀️', evening: '🌆' };
+        document.querySelector('.logo-mark').textContent = logos[part];
+    }
+    setGreeting();
+
+    // ── VAC Auth ───────────────────────────────────────────────────
+    VAC.init({
+        app: 'dad-copilot',
+        requireFace: true,
+        onVerified: function(user) {
+            document.getElementById('vac-app-content').style.display = 'block';
+        }
+    });
+
+    // ── Password Vault ─────────────────────────────────────────────
+    function toggleCred(id) {
+        var reveal = document.getElementById('reveal-' + id);
+        var header = document.querySelector('#' + id + ' .cred-header');
+        var isOpen = reveal.classList.contains('open');
+
+        // Close all others
+        document.querySelectorAll('.cred-reveal').forEach(function(el) {
+            el.classList.remove('open');
+        });
+        document.querySelectorAll('.cred-header').forEach(function(el) {
+            el.setAttribute('aria-expanded', 'false');
+        });
+        document.querySelectorAll('.revealed-content').forEach(function(el) {
+            el.classList.remove('showing');
+        });
+
+        if (!isOpen) {
+            reveal.classList.add('open');
+            header.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    function verifyAndShow(id) {
+        // In a real deployment this would call VAC.requireActionReauth()
+        // For now, face was already verified at login — show the content
+        var content = document.getElementById('content-' + id);
+        var btn = document.querySelector('#reveal-' + id + ' .verify-btn');
+        content.classList.add('showing');
+        if (btn) btn.style.display = 'none';
+    }
+
+    function hideCred(id) {
+        var reveal = document.getElementById('reveal-' + id);
+        var header = document.querySelector('#' + id + ' .cred-header');
+        var content = document.getElementById('content-' + id);
+        var btn = document.querySelector('#reveal-' + id + ' .verify-btn');
+        reveal.classList.remove('open');
+        content.classList.remove('showing');
+        header.setAttribute('aria-expanded', 'false');
+        if (btn) btn.style.display = '';
+    }
+</script>
+
+</body>
+</html>
