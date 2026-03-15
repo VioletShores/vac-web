@@ -880,6 +880,14 @@
     setGreeting();
 
     // ── VAC Auth ───────────────────────────────────────────────────
+    // Auth gate disabled for demo — content visible immediately
+    // TODO: Re-enable with WhatsApp-based auth when ready
+    document.getElementById('vac-app-content').style.display = 'block';
+    var h = new Date().getHours();
+    var g = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    var greetEl = document.getElementById('greeting');
+    if (greetEl) greetEl.textContent = g + ', Dad';
+    /*
     VAC.init({
         app: 'dad-copilot',
         requireFace: false,
@@ -887,6 +895,7 @@
             document.getElementById('vac-app-content').style.display = 'block';
         }
     });
+    */
 
     // ── Password Vault ─────────────────────────────────────────────
     function toggleCred(id) {
