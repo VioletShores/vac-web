@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-<title>ENGINE — VAC Config</title>
+<title>ATHENA OS — Live Worker Topology</title>
 <meta name="theme-color" content="#08090c">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -18,529 +18,683 @@
   --text-muted: #8b90a3;
   --text-dim: #4e5264;
   --green: #22c55e;
-  --green-muted: #16a34a;
   --green-glow: rgba(34,197,94,0.06);
   --green-border: rgba(34,197,94,0.12);
   --amber: #eab308;
   --amber-glow: rgba(234,179,8,0.06);
   --amber-border: rgba(234,179,8,0.12);
   --purple: #8b5cf6;
+  --purple-glow: rgba(139,92,246,0.08);
+  --purple-border: rgba(139,92,246,0.15);
   --blue: #3b82f6;
+  --blue-glow: rgba(59,130,246,0.06);
+  --blue-border: rgba(59,130,246,0.12);
+  --teal: #14b8a6;
   --red: #ef4444;
-  --red-glow: rgba(239,68,68,0.06);
-  --red-border: rgba(239,68,68,0.12);
-  --mono: 'JetBrains Mono', 'SF Mono', monospace;
-  --sans: 'DM Sans', -apple-system, sans-serif;
+  --mono: 'JetBrains Mono','SF Mono',monospace;
+  --sans: 'DM Sans',-apple-system,sans-serif;
   --radius: 12px;
   --radius-lg: 16px;
 }
-@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-@keyframes spin { to { transform: rotate(360deg); } }
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; -webkit-font-smoothing: antialiased; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+@keyframes glow { 0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} 50%{box-shadow:0 0 14px 3px rgba(34,197,94,0.18)} }
+@keyframes slideIn { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+@keyframes scanline { from{transform:translateY(-100%)} to{transform:translateY(500%)} }
 
-/* ── Auth Gate ── */
-#auth-gate {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.auth-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 32px;
-  max-width: 400px;
-  width: 100%;
-  text-align: center;
-}
-.auth-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  margin: 0 auto 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-.auth-icon.checking { background: var(--amber-glow); border: 1px solid var(--amber-border); }
-.auth-icon.denied { background: var(--red-glow); border: 1px solid var(--red-border); }
-.auth-icon.spinner { background: var(--surface-raised); border: 1px solid var(--border); }
-.auth-spinner {
-  width: 20px; height: 20px;
-  border: 2px solid var(--border);
-  border-top-color: var(--text-muted);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin: 0 auto;
-}
-.auth-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
-.auth-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.5; }
-.auth-btn {
-  display: inline-block;
-  padding: 10px 22px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border-hover);
-  border-radius: 8px;
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.auth-btn:hover { border-color: var(--green); color: var(--green); }
-
-/* ── Main Layout ── */
-#engine-content { display: none; max-width: 760px; margin: 0 auto; padding: 0 16px 64px; animation: fadeUp 0.4s ease both; }
-
-/* ── Header ── */
-.engine-header { padding: 28px 0 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-.engine-brand { display: flex; align-items: center; gap: 12px; }
-.engine-logo {
-  width: 36px; height: 36px; border-radius: 8px;
-  background: var(--green-glow); border: 1px solid var(--green-border);
-  display: flex; align-items: center; justify-content: center;
-}
-.engine-wordmark { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
-.engine-wordmark span { color: var(--text-muted); font-weight: 400; }
-.engine-user { display: flex; align-items: center; gap: 10px; }
-.engine-user-email { font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
-.engine-badge {
-  font-family: var(--mono); font-size: 9px; font-weight: 500;
-  padding: 3px 7px; border-radius: 5px;
-  background: var(--red-glow); border: 1px solid var(--red-border); color: var(--red);
-  letter-spacing: 0.5px; text-transform: uppercase;
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
 }
 
-/* ── Section Header ── */
-.section-header { display: flex; align-items: center; gap: 8px; margin: 32px 0 12px; padding: 0 2px; }
-.section-label { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1.5px; }
-.section-line { flex: 1; height: 1px; background: var(--border); }
-.section-desc { font-size: 12px; color: var(--text-dim); margin: -6px 0 12px 2px; }
+.page { max-width:1160px; margin:0 auto; padding:0 20px 80px; animation:fadeUp 0.4s ease both; }
 
-/* ── Variable Cards ── */
-.var-list { display: flex; flex-direction: column; gap: 6px; }
-.var-row {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 18px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  gap: 3px 16px;
-  align-items: start;
+/* Header */
+.os-header {
+  padding:24px 0 20px;
+  display:flex; align-items:center; justify-content:space-between;
+  border-bottom:1px solid var(--border);
+  margin-bottom:24px;
+  flex-wrap:wrap; gap:12px;
 }
-.var-name {
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text);
-  grid-column: 1;
-  grid-row: 1;
+.os-brand { display:flex; align-items:center; gap:14px; }
+.os-logo {
+  width:42px; height:42px; border-radius:10px;
+  background:var(--green-glow); border:1px solid var(--green-border);
+  display:flex; align-items:center; justify-content:center; flex-shrink:0;
 }
-.var-value {
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--green);
-  grid-column: 2;
-  grid-row: 1 / 3;
-  align-self: center;
-  white-space: nowrap;
-  text-align: right;
+.os-title { font-family:var(--mono); font-size:11px; font-weight:500; color:var(--green); letter-spacing:1.5px; text-transform:uppercase; }
+.os-subtitle { font-size:19px; font-weight:700; color:#fff; letter-spacing:-0.3px; margin-top:3px; }
+.os-right { display:flex; align-items:center; gap:12px; }
+.live-pill {
+  display:flex; align-items:center; gap:7px;
+  font-family:var(--mono); font-size:11px; color:var(--text-muted);
+  background:var(--surface); border:1px solid var(--border);
+  padding:6px 12px; border-radius:20px;
 }
-.var-desc {
-  font-size: 12px;
-  color: var(--text-muted);
-  grid-column: 1;
-  grid-row: 2;
-  line-height: 1.4;
+.live-dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s ease infinite; flex-shrink:0; }
+.live-dot.stale { background:var(--amber); }
+.refresh-btn {
+  font-family:var(--mono); font-size:11px;
+  padding:6px 14px; background:var(--surface);
+  border:1px solid var(--border-hover); border-radius:8px;
+  color:var(--text-muted); cursor:pointer; transition:all 0.15s;
 }
-.var-env {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-dim);
-  display: block;
-  margin-top: 2px;
+.refresh-btn:hover { border-color:var(--green); color:var(--green); }
+
+/* Metrics */
+.metrics-bar { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:24px; }
+@media(max-width:600px){ .metrics-bar{grid-template-columns:repeat(2,1fr)} }
+.metric-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px 16px; }
+.metric-label { font-family:var(--mono); font-size:9px; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:6px; }
+.metric-value { font-family:var(--mono); font-size:22px; font-weight:600; color:#fff; }
+.metric-value span { font-size:12px; color:var(--text-muted); font-weight:400; }
+
+/* Section header */
+.sh { display:flex; align-items:center; gap:10px; margin:0 0 14px; }
+.sh-label { font-family:var(--mono); font-size:10px; font-weight:500; color:var(--text-dim); text-transform:uppercase; letter-spacing:1.5px; white-space:nowrap; }
+.sh-line { flex:1; height:1px; background:var(--border); }
+.sh-pill {
+  font-family:var(--mono); font-size:9px; padding:2px 8px;
+  border-radius:4px; background:var(--surface-raised);
+  border:1px solid var(--border); color:var(--text-dim); white-space:nowrap;
 }
 
-/* ── Object Value (dict display) ── */
-.var-row.var-obj {
-  grid-template-columns: 1fr;
-  grid-template-rows: auto auto auto;
-}
-.var-obj .var-value {
-  grid-column: 1;
-  grid-row: 2;
-  text-align: left;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.var-obj .var-desc { grid-row: 3; margin-top: 6px; }
-.dict-entry {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 4px 10px;
-  font-family: var(--mono);
-  font-size: 12px;
-}
-.dict-key { color: var(--text-muted); }
-.dict-val { color: var(--green); font-weight: 600; }
+/* Worker grid */
+.worker-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:28px; }
+@media(max-width:768px){ .worker-grid{grid-template-columns:repeat(2,1fr)} }
+@media(max-width:480px){ .worker-grid{grid-template-columns:1fr} }
 
-/* ── Read-only banner ── */
-.readonly-banner {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px 18px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+.worker-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:16px;
+  position:relative; overflow:hidden; transition:border-color 0.3s, box-shadow 0.3s;
 }
-.readonly-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); flex-shrink: 0; }
-.readonly-text { font-size: 12px; color: var(--text-muted); }
-.readonly-text strong { color: var(--text); }
+.worker-card.s-working { border-color:var(--green-border); animation:glow 3s ease infinite; }
+.worker-card.s-waiting { border-color:var(--amber-border); }
+.worker-card.s-working::after {
+  content:''; position:absolute; left:0; right:0; height:80px;
+  background:linear-gradient(180deg,transparent,rgba(34,197,94,0.03),transparent);
+  animation:scanline 4s linear infinite; pointer-events:none;
+}
+.wc-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.wc-id { font-family:var(--mono); font-size:10px; color:var(--text-dim); }
+.wc-badge {
+  font-family:var(--mono); font-size:9px; font-weight:500;
+  padding:3px 8px; border-radius:5px; text-transform:uppercase; letter-spacing:0.5px;
+}
+.b-working { background:var(--green-glow); border:1px solid var(--green-border); color:var(--green); }
+.b-waiting  { background:var(--amber-glow); border:1px solid var(--amber-border); color:var(--amber); }
+.b-idle     { background:var(--surface-raised); border:1px solid var(--border); color:var(--text-dim); }
+.wc-type-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.wc-icon { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.ti-orchestrate { background:var(--purple-glow); border:1px solid var(--purple-border); }
+.ti-code        { background:var(--blue-glow); border:1px solid var(--blue-border); }
+.ti-research    { background:rgba(20,184,166,0.06); border:1px solid rgba(20,184,166,0.15); }
+.ti-vision      { background:var(--amber-glow); border:1px solid var(--amber-border); }
+.wc-typename { font-size:14px; font-weight:600; color:#fff; }
+.wc-typemeta { font-family:var(--mono); font-size:10px; color:var(--text-muted); }
+.wc-task { font-size:12px; color:var(--text-muted); line-height:1.4; min-height:32px; margin-bottom:10px; }
+.wc-task strong { color:var(--text); font-weight:500; }
+.wc-task.empty { color:var(--text-dim); font-style:italic; }
+.wc-footer { display:flex; align-items:center; justify-content:space-between; }
+.wc-elapsed { font-family:var(--mono); font-size:10px; color:var(--text-dim); }
+.wc-model   { font-family:var(--mono); font-size:9px; color:var(--text-dim); }
+
+/* Topology */
+.topo-wrap {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:20px;
+  margin-bottom:28px; overflow:hidden;
+}
+.topo-svg { width:100%; height:280px; display:block; }
+
+/* Bottom 2-col */
+.bottom-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+@media(max-width:768px){ .bottom-grid{grid-template-columns:1fr} }
+
+/* Task tree */
+.tree-panel {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:20px;
+  max-height:340px; overflow-y:auto;
+}
+.tree-panel::-webkit-scrollbar{width:4px}
+.tree-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.tree-node { padding:7px 10px; border-radius:8px; margin-bottom:3px; animation:slideIn 0.3s ease both; }
+.tree-node:hover{background:var(--surface-raised)}
+.tree-inner { display:flex; align-items:flex-start; gap:7px; }
+.tree-conn { font-family:var(--mono); font-size:12px; color:var(--text-dim); flex-shrink:0; margin-top:1px; }
+.tree-content { flex:1; min-width:0; }
+.tree-task { font-size:12px; color:var(--text); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tree-meta { display:flex; align-items:center; gap:6px; margin-top:3px; }
+.tree-badge { font-family:var(--mono); font-size:9px; padding:1px 6px; border-radius:4px; }
+.tree-w { font-family:var(--mono); font-size:9px; color:var(--text-dim); }
+
+/* Audit chain */
+.audit-panel {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius-lg); padding:20px;
+  max-height:340px; overflow-y:auto;
+}
+.audit-panel::-webkit-scrollbar{width:4px}
+.audit-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.audit-entry { border-bottom:1px solid var(--border); padding:9px 0; animation:slideIn 0.3s ease both; }
+.audit-entry:last-child{border-bottom:none}
+.audit-flow { display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+.a-from { font-family:var(--mono); font-size:11px; color:var(--purple); font-weight:500; }
+.a-arr  { color:var(--text-dim); font-size:10px; }
+.a-to   { font-family:var(--mono); font-size:11px; color:var(--blue); font-weight:500; }
+.a-time { font-family:var(--mono); font-size:9px; color:var(--text-dim); margin-left:auto; }
+.a-msg  { font-size:11px; color:var(--text-muted); margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.a-hash { font-family:var(--mono); font-size:9px; color:var(--text-dim); }
+.a-hash span { color:var(--green); }
+
+/* Trust graph */
+.trust-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+@media(max-width:768px){ .trust-grid{grid-template-columns:repeat(2,1fr)} }
+.trust-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
+.t-type  { font-size:13px; font-weight:600; color:#fff; margin-bottom:3px; }
+.t-model { font-family:var(--mono); font-size:10px; color:var(--green); margin-bottom:8px; }
+.t-bar   { height:3px; background:var(--border); border-radius:2px; margin-bottom:7px; overflow:hidden; }
+.t-fill  { height:100%; border-radius:2px; }
+.t-score { font-family:var(--mono); font-size:10px; color:var(--text-muted); }
+.t-reason{ font-size:11px; color:var(--text-dim); margin-top:6px; line-height:1.4; }
+
+.empty-state { text-align:center; padding:28px; color:var(--text-dim); font-size:12px; font-family:var(--mono); }
 </style>
 </head>
 <body>
+<div class="page">
 
-<!-- Auth Gate -->
-<div id="auth-gate">
-  <div class="auth-card" id="auth-card">
-    <div class="auth-icon spinner"><div class="auth-spinner"></div></div>
-    <div class="auth-title">Verifying identity…</div>
-    <div class="auth-sub">Checking your biometric session</div>
+<!-- Header -->
+<header class="os-header">
+  <div class="os-brand">
+    <div class="os-logo">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M11 2L19 6.5V15.5L11 20L3 15.5V6.5L11 2Z" stroke="#22c55e" stroke-width="1.5" fill="none"/>
+        <path d="M11 6L16 8.75V13.75L11 16.5L6 13.75V8.75L11 6Z" fill="rgba(34,197,94,0.15)" stroke="#22c55e" stroke-width="1"/>
+        <circle cx="11" cy="11" r="1.5" fill="#22c55e"/>
+      </svg>
+    </div>
+    <div>
+      <div class="os-title">Athena Operating System</div>
+      <div class="os-subtitle">Live Worker Topology</div>
+    </div>
+  </div>
+  <div class="os-right">
+    <div class="live-pill">
+      <div class="live-dot" id="live-dot"></div>
+      <span id="refresh-status">Connecting…</span>
+    </div>
+    <button class="refresh-btn" onclick="manualRefresh()">↺ Refresh</button>
+  </div>
+</header>
+
+<!-- Metrics -->
+<div class="metrics-bar">
+  <div class="metric-card">
+    <div class="metric-label">Active Workers</div>
+    <div class="metric-value" id="m-workers">—</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Tasks Running</div>
+    <div class="metric-value" id="m-tasks">—</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Msg Flows / cycle</div>
+    <div class="metric-value" id="m-msgs">—</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-label">Audit Entries</div>
+    <div class="metric-value" id="m-audit">—</div>
   </div>
 </div>
 
-<!-- Engine Content (hidden until auth passes) -->
-<div id="engine-content">
+<!-- Worker Grid -->
+<div class="sh">
+  <span class="sh-label">Worker Status</span>
+  <div class="sh-line"></div>
+  <span class="sh-pill">6 workers · auto-refresh 5s</span>
+</div>
+<div class="worker-grid" id="worker-grid"></div>
 
-  <div class="engine-header">
-    <div class="engine-brand">
-      <div class="engine-logo">
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-          <path d="M10 2L17 6V14L10 18L3 14V6L10 2Z" stroke="#22c55e" stroke-width="1.5" fill="none"/>
-          <path d="M10 6L14 8.5V13.5L10 16L6 13.5V8.5L10 6Z" fill="rgba(34,197,94,0.15)" stroke="#22c55e" stroke-width="1"/>
-        </svg>
-      </div>
-      <div>
-        <div class="engine-wordmark">ENGINE <span>/ VAC Config</span></div>
-      </div>
-    </div>
-    <div class="engine-user">
-      <div class="engine-badge">admin</div>
-      <div class="engine-user-email" id="user-email">—</div>
-    </div>
-  </div>
+<!-- Message Flow Topology -->
+<div class="sh">
+  <span class="sh-label">Message Flow Topology</span>
+  <div class="sh-line"></div>
+  <span class="sh-pill">CSS animated · inter-worker IPC</span>
+</div>
+<div class="topo-wrap">
+  <svg class="topo-svg" id="topo-svg" viewBox="0 0 1120 280" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0,8 3,0 6" fill="rgba(34,197,94,0.5)"/>
+      </marker>
+      <filter id="gf" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="3" result="blur"/>
+        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <!-- dot grid bg -->
+    <pattern id="dotgrid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="0.8" fill="rgba(255,255,255,0.04)"/>
+    </pattern>
+    <rect width="100%" height="100%" fill="url(#dotgrid)"/>
+    <g id="g-paths"></g>
+    <g id="g-packets"></g>
+    <g id="g-nodes"></g>
+    <g id="g-labels"></g>
+  </svg>
+</div>
 
-  <div class="readonly-banner">
-    <div class="readonly-dot"></div>
-    <div class="readonly-text"><strong>Read-only view.</strong> Values shown are defaults from <code style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">vac-backend/config.py</code>. Env vars override at runtime.</div>
+<!-- Task Tree + Audit Chain -->
+<div class="bottom-grid">
+  <div>
+    <div class="sh">
+      <span class="sh-label">Task Delegation Tree</span>
+      <div class="sh-line"></div>
+    </div>
+    <div class="tree-panel" id="task-tree">
+      <div class="empty-state">Waiting for tasks…</div>
+    </div>
   </div>
+  <div>
+    <div class="sh">
+      <span class="sh-label">VAC Delegation Chain</span>
+      <div class="sh-line"></div>
+      <span class="sh-pill">Claims 16–50</span>
+    </div>
+    <div class="audit-panel" id="audit-chain">
+      <div class="empty-state">No messages yet…</div>
+    </div>
+  </div>
+</div>
 
-  <!-- ── Session TTLs ── -->
-  <div class="section-header">
-    <span class="section-label">Session TTLs</span>
-    <div class="section-line"></div>
-  </div>
-  <div class="section-desc">How long sessions remain valid before requiring re-verification.</div>
-  <div class="var-list">
-    <div class="var-row">
-      <div class="var-name">SESSION_TOKEN_TTL_MINUTES</div>
-      <div class="var-value">60 min</div>
-      <div class="var-desc">Full verification session lifetime. After this, user must complete full biometric re-auth.
-        <span class="var-env">env: VAC_SESSION_TTL_MINUTES</span>
-      </div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">QUICK_REAUTH_TTL_MINUTES</div>
-      <div class="var-value">30 min</div>
-      <div class="var-desc">Quick re-auth (finger count) session lifetime. Shorter window for low-friction re-verification.
-        <span class="var-env">env: VAC_QUICK_REAUTH_TTL_MINUTES</span>
-      </div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">OTP_EXPIRY_MINUTES</div>
-      <div class="var-value">10 min</div>
-      <div class="var-desc">One-time passcode validity window. OTPs expire after this duration regardless of use.</div>
-    </div>
-  </div>
+<!-- Trust Graph -->
+<div class="sh">
+  <span class="sh-label">Trust Graph — Model Assignments</span>
+  <div class="sh-line"></div>
+</div>
+<div class="trust-grid" id="trust-grid"></div>
 
-  <!-- ── Quick Re-Auth ── -->
-  <div class="section-header">
-    <span class="section-label">Quick Re-Auth</span>
-    <div class="section-line"></div>
-  </div>
-  <div class="section-desc">Parameters governing the lightweight finger-count re-authentication challenge.</div>
-  <div class="var-list">
-    <div class="var-row">
-      <div class="var-name">QUICK_REAUTH_FINGER_DIGITS</div>
-      <div class="var-value">5</div>
-      <div class="var-desc">Max fingers displayed for quick re-auth challenge. System picks a random count 1–N.
-        <span class="var-env">env: VAC_QUICK_REAUTH_MAX_FINGERS</span>
-      </div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">CHALLENGE_NUM_DIGITS_DEFAULT</div>
-      <div class="var-value">3</div>
-      <div class="var-desc">Default number of digits appended to spoken challenge phrase.</div>
-    </div>
-    <div class="var-row var-obj">
-      <div class="var-name">CHALLENGE_DIGIT_COUNTS</div>
-      <div class="var-value">
-        <span class="dict-entry"><span class="dict-key">low</span><span class="dict-val">3</span></span>
-        <span class="dict-entry"><span class="dict-key">medium</span><span class="dict-val">4</span></span>
-        <span class="dict-entry"><span class="dict-key">high</span><span class="dict-val">5</span></span>
-      </div>
-      <div class="var-desc">Digits appended to challenge phrase per risk tier. Higher risk = longer challenge sequence.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">CHALLENGE_PHRASE_VARIANTS</div>
-      <div class="var-value">5</div>
-      <div class="var-desc">Number of phrase templates to select from when generating a challenge. More variants reduce replay predictability.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">MIN_MODALITIES_FOR_CHAIN</div>
-      <div class="var-value">2</div>
-      <div class="var-desc">Minimum number of verification modalities required to mint a trust chain.</div>
-    </div>
-  </div>
-
-  <!-- ── Staleness Thresholds (Freshness Tiers) ── -->
-  <div class="section-header">
-    <span class="section-label">Staleness Thresholds</span>
-    <div class="section-line"></div>
-  </div>
-  <div class="section-desc">Verification freshness tiers — trust decays as sessions age. (Patent Claims 16–38)</div>
-  <div class="var-list">
-    <div class="var-row">
-      <div class="var-name">FRESHNESS_TIER_FULL_HOURS</div>
-      <div class="var-value">1 hr</div>
-      <div class="var-desc">Verification within this window is considered <strong style="color:var(--green)">FULL</strong> trust. Highest freshness tier.
-        <span class="var-env">env: VAC_FRESHNESS_FULL_HOURS</span>
-      </div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">FRESHNESS_TIER_HIGH_HOURS</div>
-      <div class="var-value">24 hr</div>
-      <div class="var-desc">Verification within this window is considered <strong style="color:var(--blue)">HIGH</strong> trust. Same-day freshness.
-        <span class="var-env">env: VAC_FRESHNESS_HIGH_HOURS</span>
-      </div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">FRESHNESS_TIER_MODERATE_HOURS</div>
-      <div class="var-value">168 hr <span style="color:var(--text-dim);font-weight:400">(7d)</span></div>
-      <div class="var-desc">Verification within this window is considered <strong style="color:var(--amber)">MODERATE</strong> trust. Week-old freshness.
-        <span class="var-env">env: VAC_FRESHNESS_MODERATE_HOURS</span>
-      </div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">FRESHNESS_TIER_AGING_HOURS</div>
-      <div class="var-value">720 hr <span style="color:var(--text-dim);font-weight:400">(30d)</span></div>
-      <div class="var-desc">Verification within this window is considered <strong style="color:var(--red)">AGING</strong> trust. Month-old — near expiry.
-        <span class="var-env">env: VAC_FRESHNESS_AGING_HOURS</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Vouch Requirements ── -->
-  <div class="section-header">
-    <span class="section-label">Vouch Requirements</span>
-    <div class="section-line"></div>
-  </div>
-  <div class="section-desc">Trust tier thresholds and vouch decay parameters for the trust graph.</div>
-  <div class="var-list">
-    <div class="var-row var-obj">
-      <div class="var-name">TRUST_TIER_THRESHOLDS</div>
-      <div class="var-value">
-        <span class="dict-entry"><span class="dict-key">verified</span><span class="dict-val">1 vouch</span></span>
-        <span class="dict-entry"><span class="dict-key">vouched</span><span class="dict-val">3 vouches</span></span>
-        <span class="dict-entry"><span class="dict-key">trusted</span><span class="dict-val">10 vouches</span></span>
-      </div>
-      <div class="var-desc">Minimum independent vouches required to reach each trust tier. Vouches must come from verified+ members.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">VOUCH_DECAY_DAYS</div>
-      <div class="var-value">365 d</div>
-      <div class="var-desc">Days before a vouch loses weight in the trust graph. Encourages ongoing relationships over stale connections.</div>
-    </div>
-  </div>
-
-  <!-- ── Biometric Thresholds ── -->
-  <div class="section-header">
-    <span class="section-label">Biometric Thresholds</span>
-    <div class="section-line"></div>
-  </div>
-  <div class="section-desc">Confidence and matching thresholds for liveness, deepfake, and lip-sync scoring.</div>
-  <div class="var-list">
-    <div class="var-row">
-      <div class="var-name">LIVENESS_BLINK_THRESHOLD</div>
-      <div class="var-value">0.80</div>
-      <div class="var-desc">Gemini confidence score required to pass liveness check. Below this = challenge fails.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">DEEPFAKE_CONFIDENCE_THRESHOLD</div>
-      <div class="var-value">0.50</div>
-      <div class="var-desc">Below this confidence = flagged as suspicious. Used during deepfake detection stage.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">CHALLENGE_WORD_MATCH_THRESHOLD</div>
-      <div class="var-value">0.60</div>
-      <div class="var-desc">Fraction of core words that must match the spoken challenge. Lowered for accent tolerance — 5 other modalities carry identity proof.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">LIP_SYNC_MISMATCH_PENALTY</div>
-      <div class="var-value">0.50×</div>
-      <div class="var-desc">Multiply biometric confidence by this factor when lip sync doesn't match audio.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">LIP_SYNC_MISMATCH_CAP</div>
-      <div class="var-value">0.50</div>
-      <div class="var-desc">Maximum score achievable when lip-sync doesn't match. Hard cap regardless of other signals.</div>
-    </div>
-  </div>
-
-  <!-- ── Recording ── -->
-  <div class="section-header">
-    <span class="section-label">Recording</span>
-    <div class="section-line"></div>
-  </div>
-  <div class="section-desc">Parameters controlling the biometric video recording session.</div>
-  <div class="var-list">
-    <div class="var-row">
-      <div class="var-name">RECORDING_DURATION_MS</div>
-      <div class="var-value">15 000 ms</div>
-      <div class="var-desc">Total recording window in milliseconds (15 seconds). Covers full challenge sequence.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">RECORDING_COUNTDOWN_SEC</div>
-      <div class="var-value">3 s</div>
-      <div class="var-desc">Countdown displayed to the user before recording begins.</div>
-    </div>
-    <div class="var-row">
-      <div class="var-name">MAX_RECORDING_RETRIES</div>
-      <div class="var-value">5</div>
-      <div class="var-desc">Maximum number of times a user can re-record before the session is rejected.</div>
-    </div>
-  </div>
-
-  <!-- ── OTP ── -->
-  <div class="section-header">
-    <span class="section-label">Email / OTP</span>
-    <div class="section-line"></div>
-  </div>
-  <div class="section-desc">One-time passcode delivery and validation settings.</div>
-  <div class="var-list">
-    <div class="var-row">
-      <div class="var-name">OTP_LENGTH</div>
-      <div class="var-value">6 digits</div>
-      <div class="var-desc">Number of digits in each one-time passcode sent via email.</div>
-    </div>
-  </div>
-
-</div><!-- /engine-content -->
+</div><!-- /page -->
 
 <script>
 const API = 'https://vac-system-production.up.railway.app';
 
-function findToken() {
-  // Check localStorage first (hub pattern)
-  const ls = localStorage.getItem('vac_session');
-  if (ls) return ls;
-  // Check sessionStorage (admin pattern)
-  for (let i = 0; i < sessionStorage.length; i++) {
-    const key = sessionStorage.key(i);
-    if (key && key.startsWith('vac_token_')) return sessionStorage.getItem(key);
-  }
-  return null;
+/* ── Static definitions ── */
+const WDEFS = [
+  { id:'worker-1', sid:'W1', type:'orchestrate', model:'claude-opus-4-6',            x:560, y:60  },
+  { id:'worker-2', sid:'W2', type:'code',        model:'claude-sonnet-4-6',           x:180, y:170 },
+  { id:'worker-3', sid:'W3', type:'research',    model:'claude-sonnet-4-6',           x:370, y:220 },
+  { id:'worker-4', sid:'W4', type:'vision',      model:'claude-sonnet-4-6',           x:750, y:220 },
+  { id:'worker-5', sid:'W5', type:'code',        model:'claude-sonnet-4-6',           x:940, y:170 },
+  { id:'worker-6', sid:'W6', type:'research',    model:'claude-haiku-4-5-20251001',   x:560, y:230 },
+];
+const WMAP = {};
+WDEFS.forEach(w => WMAP[w.sid] = w);
+
+const TCONF = {
+  orchestrate: { emoji:'⚙', color:'#8b5cf6', label:'Orchestrate', cls:'ti-orchestrate' },
+  code:        { emoji:'⌨', color:'#3b82f6', label:'Code',        cls:'ti-code'        },
+  research:    { emoji:'🔍', color:'#14b8a6', label:'Research',    cls:'ti-research'    },
+  vision:      { emoji:'👁', color:'#eab308', label:'Vision',      cls:'ti-vision'      },
+};
+
+const TRUST = [
+  { type:'orchestrate', model:'claude-opus-4-6',          score:98, color:'#8b5cf6', reason:'Highest reasoning; holds full context, task routing authority, and multi-worker delegation.' },
+  { type:'code',        model:'claude-sonnet-4-6',         score:92, color:'#3b82f6', reason:'Strong code generation verified by test suites before output is forwarded downstream.' },
+  { type:'research',    model:'claude-sonnet-4-6',         score:88, color:'#14b8a6', reason:'Reliable retrieval with citation; scope-limited to read-only, non-mutating queries.' },
+  { type:'vision',      model:'claude-sonnet-4-6',         score:85, color:'#eab308', reason:'Multimodal analysis; image inputs isolated to sandboxed vision worker context.' },
+];
+
+/* ── Demo scenarios ── */
+const SCENARIOS = [
+  {
+    workers:[
+      {id:'worker-1',status:'working',task:'Route investor demo request to specialists',elapsed:12},
+      {id:'worker-2',status:'working',task:'Generate TypeScript SDK types for /v1/auth',elapsed:8},
+      {id:'worker-3',status:'idle',task:null,elapsed:0},
+      {id:'worker-4',status:'waiting',task:'Awaiting diagram upload from user',elapsed:45},
+      {id:'worker-5',status:'working',task:'Review PR #142 — security diff analysis',elapsed:23},
+      {id:'worker-6',status:'idle',task:null,elapsed:0},
+    ],
+    flows:[
+      {from:'W1',to:'W2',msg:'delegate: generate API types'},
+      {from:'W1',to:'W5',msg:'delegate: PR security review'},
+    ],
+    tasks:[
+      {id:'T-001',intent:'Process investor demo request',status:'working',worker:'W1',depth:0},
+      {id:'T-002',intent:'Generate TypeScript SDK types',status:'working',worker:'W2',depth:1,parent:'T-001'},
+      {id:'T-003',intent:'PR #142 security review',status:'working',worker:'W5',depth:1,parent:'T-001'},
+    ],
+  },
+  {
+    workers:[
+      {id:'worker-1',status:'working',task:'Analyze NIST 800-63B compliance gap',elapsed:5},
+      {id:'worker-2',status:'idle',task:null,elapsed:0},
+      {id:'worker-3',status:'working',task:'Retrieve NIST SP 800-63B rev4 guidance',elapsed:3},
+      {id:'worker-4',status:'working',task:'Parse biometric threshold diagrams',elapsed:7},
+      {id:'worker-5',status:'idle',task:null,elapsed:0},
+      {id:'worker-6',status:'working',task:'Search patent prior art — Claims 16–50',elapsed:18},
+    ],
+    flows:[
+      {from:'W1',to:'W3',msg:'delegate: NIST doc retrieval'},
+      {from:'W1',to:'W4',msg:'delegate: biometric diagram parse'},
+      {from:'W1',to:'W6',msg:'delegate: patent prior art search'},
+      {from:'W3',to:'W1',msg:'result: compliance guidance found'},
+    ],
+    tasks:[
+      {id:'T-010',intent:'NIST 800-63B compliance analysis',status:'working',worker:'W1',depth:0},
+      {id:'T-011',intent:'Retrieve NIST guidance doc',status:'working',worker:'W3',depth:1,parent:'T-010'},
+      {id:'T-012',intent:'Parse biometric diagrams',status:'working',worker:'W4',depth:1,parent:'T-010'},
+      {id:'T-013',intent:'Patent prior art search',status:'working',worker:'W6',depth:1,parent:'T-010'},
+      {id:'T-014',intent:'Cross-ref patent claims 16–50',status:'waiting',worker:'W6',depth:2,parent:'T-013'},
+    ],
+  },
+  {
+    workers:[
+      {id:'worker-1',status:'idle',task:null,elapsed:0},
+      {id:'worker-2',status:'working',task:'Fix session token refresh race condition',elapsed:90},
+      {id:'worker-3',status:'working',task:'Research JWT rotation best practices',elapsed:45},
+      {id:'worker-4',status:'idle',task:null,elapsed:0},
+      {id:'worker-5',status:'working',task:'Write unit tests for token refresh logic',elapsed:30},
+      {id:'worker-6',status:'waiting',task:'Await code review from W2',elapsed:5},
+    ],
+    flows:[
+      {from:'W2',to:'W3',msg:'query: JWT best practice references'},
+      {from:'W3',to:'W2',msg:'result: RFC 7519 §4.1.4 rotation'},
+      {from:'W2',to:'W5',msg:'delegate: write test coverage'},
+    ],
+    tasks:[
+      {id:'T-020',intent:'Fix session token refresh bug',status:'working',worker:'W2',depth:0},
+      {id:'T-021',intent:'Research JWT rotation practices',status:'working',worker:'W3',depth:1,parent:'T-020'},
+      {id:'T-022',intent:'Write unit tests for refresh',status:'working',worker:'W5',depth:1,parent:'T-020'},
+    ],
+  },
+];
+
+let scIdx = 0;
+let sc = SCENARIOS[0];
+let auditLog = [];
+let auditTotal = 0;
+let lastRefresh = null;
+
+/* ── Helpers ── */
+function fakeHash(){ let h=''; const c='0123456789abcdef'; for(let i=0;i<16;i++) h+=c[Math.random()*16|0]; return h; }
+function trunc(s,n){ return s&&s.length>n?s.slice(0,n)+'…':s||''; }
+function nowTime(){ return new Date().toISOString().split('T')[1].split('.')[0]; }
+function elapsedStr(s){ if(!s) return ''; return s>=60? (s/60|0)+'m '+(s%60)+'s' : s+'s'; }
+
+/* ── Render workers ── */
+function renderWorkers(workers){
+  let active=0;
+  document.getElementById('worker-grid').innerHTML = WDEFS.map(def=>{
+    const w = workers.find(x=>x.id===def.id)||{status:'idle',task:null,elapsed:0};
+    const tc = TCONF[def.type];
+    if(w.status==='working') active++;
+    return `<div class="worker-card s-${w.status}">
+      <div class="wc-top">
+        <span class="wc-id">${def.id}</span>
+        <span class="wc-badge b-${w.status}">${w.status.toUpperCase()}</span>
+      </div>
+      <div class="wc-type-row">
+        <div class="wc-icon ${tc.cls}">${tc.emoji}</div>
+        <div>
+          <div class="wc-typename">${tc.label}</div>
+          <div class="wc-typemeta">${def.sid}</div>
+        </div>
+      </div>
+      <div class="wc-task${w.task?'':' empty'}">
+        ${w.task?`<strong>↳</strong> ${trunc(w.task,55)}`:'No active task'}
+      </div>
+      <div class="wc-footer">
+        <span class="wc-elapsed">${w.elapsed>0?'⏱ '+elapsedStr(w.elapsed):''}</span>
+        <span class="wc-model">${def.model.replace('claude-','')}</span>
+      </div>
+    </div>`;
+  }).join('');
+  return active;
 }
 
-function setAuthCard(icon, title, sub, action) {
-  const card = document.getElementById('auth-card');
-  card.innerHTML = `
-    <div class="auth-icon ${icon.cls}">${icon.content}</div>
-    <div class="auth-title">${title}</div>
-    <div class="auth-sub">${sub}</div>
-    ${action ? `<a href="${action.href}" class="auth-btn">${action.label}</a>` : ''}
-  `;
+/* ── Render SVG topology ── */
+function renderTopology(flows, workers){
+  const NS='http://www.w3.org/2000/svg';
+  ['g-paths','g-packets','g-nodes','g-labels'].forEach(id=>{ document.getElementById(id).innerHTML=''; });
+  const gP=document.getElementById('g-paths');
+  const gK=document.getElementById('g-packets');
+  const gN=document.getElementById('g-nodes');
+  const gL=document.getElementById('g-labels');
+
+  // All possible edges (dim)
+  [['W1','W2'],['W1','W3'],['W1','W4'],['W1','W5'],['W1','W6'],
+   ['W2','W3'],['W3','W6'],['W4','W6'],['W5','W6'],['W2','W5']].forEach(([a,b])=>{
+    const wa=WMAP[a], wb=WMAP[b]; if(!wa||!wb) return;
+    const el=document.createElementNS(NS,'line');
+    el.setAttribute('x1',wa.x); el.setAttribute('y1',wa.y);
+    el.setAttribute('x2',wb.x); el.setAttribute('y2',wb.y);
+    el.setAttribute('stroke','rgba(255,255,255,0.04)');
+    el.setAttribute('stroke-width','1');
+    el.setAttribute('stroke-dasharray','4 6');
+    gP.appendChild(el);
+  });
+
+  // Active flows
+  flows.forEach((flow,i)=>{
+    const wa=WMAP[flow.from], wb=WMAP[flow.to]; if(!wa||!wb) return;
+    const pid=`fp${i}`;
+    // glow line
+    const gl=document.createElementNS(NS,'line');
+    gl.setAttribute('x1',wa.x); gl.setAttribute('y1',wa.y);
+    gl.setAttribute('x2',wb.x); gl.setAttribute('y2',wb.y);
+    gl.setAttribute('stroke','rgba(34,197,94,0.25)'); gl.setAttribute('stroke-width','2');
+    gl.setAttribute('marker-end','url(#arr)');
+    gP.appendChild(gl);
+    // motion path
+    const mp=document.createElementNS(NS,'path');
+    mp.setAttribute('id',pid); mp.setAttribute('d',`M${wa.x} ${wa.y} L${wb.x} ${wb.y}`);
+    mp.setAttribute('fill','none'); mp.setAttribute('stroke','none');
+    gP.appendChild(mp);
+    // packet circle
+    const c=document.createElementNS(NS,'circle');
+    c.setAttribute('r','5'); c.setAttribute('fill','#22c55e');
+    c.setAttribute('filter','url(#gf)');
+    const am=document.createElementNS(NS,'animateMotion');
+    am.setAttribute('dur',(1.4+i*0.35)+'s'); am.setAttribute('repeatCount','indefinite');
+    am.setAttribute('calcMode','spline'); am.setAttribute('keySplines','0.4 0 0.6 1');
+    const mpt=document.createElementNS(NS,'mpath');
+    mpt.setAttributeNS('http://www.w3.org/1999/xlink','href','#'+pid);
+    am.appendChild(mpt); c.appendChild(am);
+    const ao=document.createElementNS(NS,'animate');
+    ao.setAttribute('attributeName','opacity'); ao.setAttribute('values','0;1;1;1;0');
+    ao.setAttribute('keyTimes','0;0.05;0.5;0.95;1');
+    ao.setAttribute('dur',(1.4+i*0.35)+'s'); ao.setAttribute('repeatCount','indefinite');
+    c.appendChild(ao); gK.appendChild(c);
+    // label
+    const lx=(wa.x+wb.x)/2, ly=(wa.y+wb.y)/2-13;
+    const lt=document.createElementNS(NS,'text');
+    lt.setAttribute('x',lx); lt.setAttribute('y',ly);
+    lt.setAttribute('text-anchor','middle');
+    lt.setAttribute('font-family',"'JetBrains Mono',monospace");
+    lt.setAttribute('font-size','9');
+    lt.setAttribute('fill','rgba(34,197,94,0.55)');
+    lt.textContent=trunc(flow.msg,30);
+    gL.appendChild(lt);
+  });
+
+  // Worker nodes
+  WDEFS.forEach(def=>{
+    const tc=TCONF[def.type];
+    const ws=(workers||[]).find(w=>w.id===def.id)||{status:'idle'};
+    const g=document.createElementNS(NS,'g');
+    g.setAttribute('transform',`translate(${def.x},${def.y})`);
+    // box
+    const bdr = ws.status==='working'?'rgba(34,197,94,0.4)':ws.status==='waiting'?'rgba(234,179,8,0.3)':'rgba(255,255,255,0.08)';
+    const rect=document.createElementNS(NS,'rect');
+    rect.setAttribute('x','-46'); rect.setAttribute('y','-22');
+    rect.setAttribute('width','92'); rect.setAttribute('height','44');
+    rect.setAttribute('rx','8'); rect.setAttribute('fill','#0f1116');
+    rect.setAttribute('stroke',bdr); rect.setAttribute('stroke-width','1.5');
+    g.appendChild(rect);
+    // glow pulse for working
+    if(ws.status==='working'){
+      const gr=document.createElementNS(NS,'rect');
+      gr.setAttribute('x','-46'); gr.setAttribute('y','-22');
+      gr.setAttribute('width','92'); gr.setAttribute('height','44');
+      gr.setAttribute('rx','8'); gr.setAttribute('fill','none');
+      gr.setAttribute('stroke','rgba(34,197,94,0.15)'); gr.setAttribute('stroke-width','5');
+      const ag=document.createElementNS(NS,'animate');
+      ag.setAttribute('attributeName','opacity'); ag.setAttribute('values','0.4;1;0.4');
+      ag.setAttribute('dur','2s'); ag.setAttribute('repeatCount','indefinite');
+      gr.appendChild(ag); g.appendChild(gr);
+    }
+    // sid label
+    const sid=document.createElementNS(NS,'text');
+    sid.setAttribute('x','-30'); sid.setAttribute('y','-5');
+    sid.setAttribute('font-family',"'JetBrains Mono',monospace");
+    sid.setAttribute('font-size','11'); sid.setAttribute('font-weight','600');
+    sid.setAttribute('fill','#e4e6ed'); sid.textContent=def.sid;
+    g.appendChild(sid);
+    // type label
+    const tl=document.createElementNS(NS,'text');
+    tl.setAttribute('x','-30'); tl.setAttribute('y','9');
+    tl.setAttribute('font-family',"'JetBrains Mono',monospace");
+    tl.setAttribute('font-size','8'); tl.setAttribute('fill',tc.color);
+    tl.textContent=def.type; g.appendChild(tl);
+    // status dot
+    const dot=document.createElementNS(NS,'circle');
+    dot.setAttribute('cx','34'); dot.setAttribute('cy','-10'); dot.setAttribute('r','4');
+    dot.setAttribute('fill',ws.status==='working'?'#22c55e':ws.status==='waiting'?'#eab308':'#4e5264');
+    if(ws.status==='working'){
+      const ad=document.createElementNS(NS,'animate');
+      ad.setAttribute('attributeName','opacity'); ad.setAttribute('values','1;0.2;1');
+      ad.setAttribute('dur','1.5s'); ad.setAttribute('repeatCount','indefinite');
+      dot.appendChild(ad);
+    }
+    g.appendChild(dot);
+    gN.appendChild(g);
+  });
 }
 
-async function checkAuth() {
-  const token = findToken();
-  if (!token) {
-    setAuthCard(
-      { cls: 'denied', content: '🔒' },
-      'No active session',
-      'Admin access requires biometric verification.',
-      { href: '/auth?redirect=' + encodeURIComponent(window.location.href), label: 'Verify Identity →' }
-    );
-    return;
+/* ── Render task tree ── */
+function renderTree(tasks){
+  const panel=document.getElementById('task-tree');
+  if(!tasks||!tasks.length){ panel.innerHTML='<div class="empty-state">No active tasks</div>'; return; }
+  function node(t,all){
+    const children=all.filter(x=>x.parent===t.id);
+    const badge=t.status==='working'?`<span class="tree-badge b-working">WORKING</span>`
+      :t.status==='waiting'?`<span class="tree-badge b-waiting">WAITING</span>`
+      :`<span class="tree-badge b-idle">DONE</span>`;
+    let h=`<div class="tree-node" style="padding-left:${t.depth*22}px">
+      <div class="tree-inner">
+        ${t.depth>0?'<span class="tree-conn">└─</span>':''}
+        <div class="tree-content">
+          <div class="tree-task">${trunc(t.intent,46)}</div>
+          <div class="tree-meta">${badge}<span class="tree-w">${t.worker}</span><span class="tree-w">${t.id}</span></div>
+        </div>
+      </div>
+    </div>`;
+    children.forEach(c=>{ h+=node(c,all); });
+    return h;
   }
+  panel.innerHTML=tasks.filter(t=>t.depth===0).map(r=>node(r,tasks)).join('');
+}
 
+/* ── Render audit chain ── */
+function addAudit(from,to,content){
+  auditLog.unshift({ from,to,content, time:nowTime(), hash:fakeHash(), id:auditTotal++ });
+  if(auditLog.length>60) auditLog.pop();
+  renderAudit();
+}
+function renderAudit(){
+  const panel=document.getElementById('audit-chain');
+  if(!auditLog.length){ panel.innerHTML='<div class="empty-state">No messages yet…</div>'; return; }
+  panel.innerHTML=auditLog.slice(0,25).map(e=>`
+    <div class="audit-entry">
+      <div class="audit-flow">
+        <span class="a-from">${e.from}</span>
+        <span class="a-arr">→</span>
+        <span class="a-to">${e.to}</span>
+        <span class="a-time">${e.time}</span>
+      </div>
+      <div class="a-msg">${trunc(e.content,62)}</div>
+      <div class="a-hash">sha256: <span>${e.hash}…</span> · msg-${String(e.id).padStart(4,'0')}</div>
+    </div>`).join('');
+  document.getElementById('m-audit').textContent=auditTotal;
+}
+
+/* ── Render trust graph ── */
+function renderTrust(){
+  document.getElementById('trust-grid').innerHTML=TRUST.map(t=>{
+    const tc=TCONF[t.type];
+    return `<div class="trust-card">
+      <div class="t-type">${tc.emoji} ${tc.label}</div>
+      <div class="t-model">${t.model}</div>
+      <div class="t-bar"><div class="t-fill" style="width:${t.score}%;background:${t.color}"></div></div>
+      <div class="t-score">Trust score: ${t.score}/100</div>
+      <div class="t-reason">${t.reason}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Main update ── */
+async function update(){
   try {
-    const r = await fetch(API + '/v1/session/verify', {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-
-    if (!r.ok) {
-      setAuthCard(
-        { cls: 'denied', content: '⏱' },
-        'Session expired',
-        'Your biometric session has expired. Please re-verify.',
-        { href: '/auth?redirect=' + encodeURIComponent(window.location.href), label: 'Re-verify →' }
-      );
-      return;
+    let liveData=null;
+    const token=localStorage.getItem('vac_session');
+    if(token){
+      try {
+        const [wr,tr]=await Promise.all([
+          fetch(API+'/v1/workers/state',{headers:{'Authorization':'Bearer '+token},signal:AbortSignal.timeout(3000)}),
+          fetch(API+'/v1/tasks',{headers:{'Authorization':'Bearer '+token},signal:AbortSignal.timeout(3000)}),
+        ]);
+        if(wr.ok&&tr.ok) liveData={workers:await wr.json(),tasks:await tr.json(),flows:[]};
+      } catch(_){}
     }
-
-    const d = await r.json();
-
-    // Check admin status
-    if (!d.is_admin && d.auth_level !== 'admin') {
-      // Try an admin endpoint as a secondary check
-      const adminCheck = await fetch(API + '/v1/admin/stats', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      if (adminCheck.status === 403) {
-        setAuthCard(
-          { cls: 'denied', content: '🚫' },
-          'Access denied',
-          'ENGINE is restricted to admin users. Your account (' + (d.email || 'unknown') + ') does not have admin access.',
-          null
-        );
-        return;
-      }
+    if(liveData){
+      sc=liveData;
+    } else {
+      if(Math.random()<0.3){ scIdx=(scIdx+1)%SCENARIOS.length; }
+      sc=JSON.parse(JSON.stringify(SCENARIOS[scIdx]));
+      sc.workers.forEach(w=>{ if(w.status!=='idle') w.elapsed+=5; });
     }
-
-    // Auth passed — show content
-    document.getElementById('auth-gate').style.display = 'none';
-    document.getElementById('engine-content').style.display = 'block';
-    document.getElementById('user-email').textContent = d.email || '';
-
-  } catch (e) {
-    setAuthCard(
-      { cls: 'denied', content: '⚠' },
-      'Auth error',
-      'Could not reach VAC system: ' + e.message,
-      { href: window.location.href, label: 'Retry' }
-    );
+    // Audit entries for active flows
+    (sc.flows||[]).forEach(f=>addAudit(f.from,f.to,f.msg));
+    // Render
+    const active=renderWorkers(sc.workers);
+    renderTopology(sc.flows||[],sc.workers);
+    renderTree(sc.tasks||[]);
+    const running=(sc.tasks||[]).filter(t=>t.status==='working').length;
+    document.getElementById('m-workers').innerHTML=`${active} <span>/ 6</span>`;
+    document.getElementById('m-tasks').textContent=running;
+    document.getElementById('m-msgs').textContent=(sc.flows||[]).length;
+    lastRefresh=Date.now();
+    document.getElementById('refresh-status').textContent='Live · just now';
+    document.getElementById('live-dot').className='live-dot';
+  } catch(e){
+    document.getElementById('refresh-status').textContent='Error · retrying';
+    document.getElementById('live-dot').className='live-dot stale';
   }
 }
 
-checkAuth();
+function manualRefresh(){ update(); }
+
+function tickRelTime(){
+  if(!lastRefresh) return;
+  const s=Math.floor((Date.now()-lastRefresh)/1000);
+  document.getElementById('refresh-status').textContent=s<5?'Live · just now':`Live · ${s}s ago`;
+}
+
+/* ── Boot ── */
+renderTrust();
+update();
+setInterval(update,5000);
+setInterval(tickRelTime,1000);
 </script>
 </body>
 </html>
