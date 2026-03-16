@@ -104,10 +104,12 @@
       _engineConfig = await _api('GET', '/v1/auth/config');
     } catch(e) {
       // Fallback defaults if config endpoint unreachable
+      // These match backend production defaults — verified users get 7-day sessions
+      console.warn('[VAC] Engine config fetch failed — using fallback defaults:', e.message);
       _engineConfig = {
-        ttl: { full_verified_minutes: 60, full_unverified_minutes: 20, otp_only_minutes: 30, quick_reauth_minutes: 30 },
+        ttl: { full_verified_minutes: 10080, full_unverified_minutes: 60, otp_only_minutes: 30, quick_reauth_minutes: 10080 },
         quick_reauth: { verified_eligible: true, unverified_eligible: false },
-        staleness: { max_session_age_hours: 24 },
+        staleness: { max_session_age_hours: 336 },  // 14 days
         vouch: { required_for_access: false, grace_period_hours: 72 },
         action_reauth: { actions: [], freshness_seconds: 300 },
       };
@@ -146,13 +148,22 @@
         return user;
       }
     } catch (e) {
-      // Session invalid/expired/stale — check the error to decide next step
-      _clearToken();
-      // Parse error detail if available
-      if (e.message && e.message.includes('stale')) {
-        // Stale session — mark for quick re-auth if eligible
-        const stored = _getStoredUser();
-        if (stored) stored._sessionError = 'stale';
+      // Session invalid/expired/stale — only clear token for explicit auth rejections,
+      // NOT for network errors (Railway restarts, timeouts) — token may still be valid
+      var isNetworkError = !e.message || e.message === 'Failed to fetch' ||
+        e.message === 'Network request failed' || e.message === 'Load failed' ||
+        e.message.indexOf('NetworkError') !== -1 || e.message.indexOf('fetch') !== -1;
+
+      if (!isNetworkError) {
+        console.log('[VAC] Session check failed (auth error) — clearing token:', e.message);
+        _clearToken();
+        // Stale session — mark for quick re-auth routing
+        if (e.message && e.message.includes('stale')) {
+          const stored = _getStoredUser();
+          if (stored) { stored._sessionError = 'stale'; _setUser(stored); }
+        }
+      } else {
+        console.log('[VAC] Session check failed (network error) — keeping token:', e.message);
       }
     }
     return null;
@@ -921,6 +932,24 @@
       });
     }).catch(function(e) {
       console.log('[VAC] Face re-auth setup failed:', e.message);
+      // Network error (e.g. Railway restart): show retry instead of dropping to OTP
+      var isNetworkErr = !e.message || e.message === 'Failed to fetch' ||
+        e.message === 'Network request failed' || e.message === 'Load failed' ||
+        e.message.indexOf('NetworkError') !== -1 || e.message.indexOf('fetch') !== -1;
+      if (isNetworkErr && screen) {
+        screen.innerHTML =
+          '<div style="text-align:center;padding:20px 0;">' +
+            '<div style="font-size:15px;font-weight:500;color:#9ca3af;margin-bottom:16px;">Connection error — please try again</div>' +
+            '<button class="vac-btn vac-btn-primary" id="vac-retry-reauth">Retry</button>' +
+            '<button class="vac-btn vac-btn-secondary" id="vac-retry-otp">Sign in with email instead</button>' +
+          '</div>';
+        document.getElementById('vac-retry-reauth').addEventListener('click', function() { _renderQuickReauthScreen(email); });
+        document.getElementById('vac-retry-otp').addEventListener('click', function() {
+          _renderEmailScreen();
+          setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
+        });
+        return;
+      }
       _renderEmailScreen();
       setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
     });
@@ -939,6 +968,16 @@
     try {
       // Single frame capture — face AND fingers together
       var video = document.getElementById('vac-face-video');
+
+      // Wait for video to be ready (readyState >= 2 means data available for current position)
+      if (!video || video.readyState < 2) {
+        await new Promise(function(resolve, reject) {
+          if (!video) return reject(new Error('Camera not available'));
+          var timeout = setTimeout(function() { reject(new Error('Camera took too long to start')); }, 5000);
+          video.addEventListener('loadeddata', function() { clearTimeout(timeout); resolve(); }, { once: true });
+        });
+      }
+
       var canvas = document.createElement('canvas');
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
@@ -1135,10 +1174,18 @@
           
           // Check if session has full biometric — OTP-only is not enough
           var hasBiometric = user.auth_level === 'full' || user.auth_level === 'quick';
-          
+
           // Trusted/verified users with active session: skip face requirement on page navigation
           // Biometric is for first-time auth and critical actions, not every page change
           var isTrusted = user.is_verified && (user.vouches_received >= 1 || user.trust_level === 'trusted' || user.trust_level === 'verified');
+          // Fallback: if trust-status API failed during _checkSession, use stored user data
+          if (!isTrusted) {
+            var _sv = _getStoredUser();
+            if (_sv && _sv.is_verified && (_sv.vouches_received >= 1 || _sv.trust_level === 'trusted' || _sv.trust_level === 'verified')) {
+              isTrusted = true;
+              console.log('[VAC] isTrusted from stored user data (trust-status API may have failed)');
+            }
+          }
           
           if (_config.requireFace !== false && !hasBiometric && !isTrusted) {
             // New/unverified user with OTP-only — need face verification
