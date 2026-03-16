@@ -104,6 +104,37 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
 .hub-footer-text { font-family: var(--mono); font-size: 9px; color: var(--text-dim); letter-spacing: 0.5px; }
 .hub-footer-text a { color: var(--text-dim); text-decoration: none; }
 .hub-footer-text a:hover { color: var(--text-muted); }
+/* ─── Action cards ─── */
+@keyframes slideOut { from { opacity:1; transform:translateX(0); max-height:200px; } to { opacity:0; transform:translateX(40px); max-height:0; padding:0; margin:0; } }
+@keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+@keyframes toastOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(-8px); } }
+.action-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); display: flex; overflow: hidden; transition: border-color 0.15s; margin-bottom: 8px; }
+.action-card:last-child { margin-bottom: 0; }
+.action-urgency-bar { width: 3px; flex-shrink: 0; }
+.action-urgency-bar.high { background: #ef4444; }
+.action-urgency-bar.medium { background: var(--amber); }
+.action-urgency-bar.low { background: var(--green); }
+.action-body { flex: 1; padding: 14px 14px 12px; min-width: 0; }
+.action-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.action-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.action-title { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.3; flex: 1; }
+.action-desc { font-size: 11px; color: var(--text-muted); line-height: 1.5; margin-bottom: 10px; }
+.action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.action-btn { padding: 7px 12px; border-radius: 7px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; font-family: var(--sans); transition: all 0.12s; white-space: nowrap; line-height: 1; }
+.action-btn.primary { background: var(--green); color: #000; }
+.action-btn.primary:hover { background: var(--green-muted); }
+.action-btn.secondary { background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); }
+.action-btn.secondary:hover { border-color: var(--border-hover); background: var(--surface-hover); }
+.action-btn.dismiss { background: transparent; color: var(--text-dim); padding: 7px 8px; }
+.action-btn.dismiss:hover { color: var(--text-muted); }
+.action-card.removing { animation: slideOut 0.3s ease forwards; pointer-events: none; }
+.actions-empty { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; }
+.actions-empty-icon { color: var(--green); margin-bottom: 8px; display: flex; justify-content: center; }
+.actions-empty-text { font-size: 12px; color: var(--text-muted); }
+.section-badge { font-family: var(--mono); font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: var(--surface-raised); color: var(--text-muted); border: 1px solid var(--border); }
+.section-badge.has-items { background: rgba(239,68,68,0.1); color: #ef4444; border-color: rgba(239,68,68,0.2); }
+/* Toast */
+.hub-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--surface-raised); border: 1px solid var(--border-hover); border-radius: 20px; padding: 9px 18px; font-size: 12px; color: var(--text); font-family: var(--sans); pointer-events: none; z-index: 999; animation: toastIn 0.2s ease; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
@@ -124,6 +155,13 @@ body { font-family: var(--sans); background: var(--bg); color: var(--text); min-
     </div>
   </div>
   <div class="trust-banner fade-2" id="trust-banner"></div>
+  <div class="section-header fade-3" id="actions-header" style="display:none;">
+    <span class="section-label">Actions</span>
+    <span class="section-badge" id="actions-badge"></span>
+    <span class="section-line"></span>
+  </div>
+  <div id="actions-list" class="fade-3"></div>
+
   <div class="section-header fade-3"><span class="section-label">Your apps</span><span class="section-line"></span></div>
   <div class="app-grid fade-3" id="app-grid-accessible"></div>
   <div id="locked-section" style="display:none;" class="fade-4">
@@ -214,6 +252,11 @@ function renderHub(user) {
     '</div>' +
     vouchCTA;
 
+  // Actions — fetch immediately then poll every 60s
+  fetchActions();
+  if (actionsRefreshTimer) clearInterval(actionsRefreshTimer);
+  actionsRefreshTimer = setInterval(fetchActions, 60000);
+
   fetch(API + '/v1/auth/apps', { headers: VAC.headers() })
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -290,6 +333,189 @@ function checkInviteEmail() {
   else if (domain.match(/gmal\.|gmial\./)) typo = 'Did you mean gmail.com?';
   else if (domain.match(/hotmal\.|hotmai\./)) typo = 'Did you mean hotmail.com?';
   hint.textContent = typo; hint.style.color = '#fbbf24';
+}
+
+/* ─── Action Queue ─── */
+var ATHENA_API = 'https://api.athenapilot.ai/v1';
+var actionsRefreshTimer = null;
+
+var ACTION_ICONS = {
+  deadline: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  approval: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+  build_result: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+  draft_reply: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+};
+var ACTION_ICON_COLORS = { deadline: '#ef4444', approval: '#8b5cf6', build_result: '#3b82f6', draft_reply: '#22c55e' };
+
+var MOCK_ACTIONS = [
+  {
+    id: 'action_001',
+    type: 'deadline',
+    title: 'NIST Listening Session Application',
+    description: 'Due 20 March (3 days). Draft ready at athena/docs/NIST-LISTENING-SESSION-APPLICATION.md. Submit to AI-Identity@nist.gov',
+    urgency: 'high',
+    actions: [{ label: 'Submit now', style: 'primary' }, { label: 'Review first', style: 'secondary' }, { label: 'Defer', style: 'dismiss' }],
+    created_at: '2026-03-17T05:00:00Z'
+  },
+  {
+    id: 'action_002',
+    type: 'approval',
+    title: 'Patent Supp 7+8 Filing',
+    description: '85 claims drafted. L-109 audit needed (model vs provider). Deadline 23 March.',
+    urgency: 'high',
+    actions: [{ label: 'Review claims', style: 'primary' }, { label: 'Defer to weekend', style: 'dismiss' }],
+    created_at: '2026-03-17T05:00:00Z'
+  },
+  {
+    id: 'action_003',
+    type: 'build_result',
+    title: 'OS Protocol Phase 1 Complete',
+    description: 'Level 0 Packet data model built. 36 tests passing. 4 API endpoints live. Ready for Phase 2.',
+    urgency: 'low',
+    actions: [{ label: 'Start Phase 2', style: 'primary' }, { label: 'Review code', style: 'secondary' }, { label: 'Noted', style: 'dismiss' }],
+    created_at: '2026-03-17T06:00:00Z'
+  },
+  {
+    id: 'action_004',
+    type: 'draft_reply',
+    title: 'X Reply: Lex Fridman Pod',
+    description: 'Draft reply about AI agent identity for gaming. Tap to review.',
+    urgency: 'low',
+    actions: [{ label: 'Post it', style: 'primary' }, { label: 'Edit', style: 'secondary' }, { label: 'Skip', style: 'dismiss' }],
+    created_at: '2026-03-17T05:00:00Z'
+  }
+];
+
+function normaliseActions(raw) {
+  // Backend may return actions as string array; convert to button spec objects
+  return (raw || []).map(function(a) {
+    var btns = a.actions || [];
+    if (typeof btns[0] === 'string') {
+      btns = btns.map(function(label, i) {
+        return { label: label, style: i === 0 ? 'primary' : i === btns.length - 1 ? 'dismiss' : 'secondary' };
+      });
+    }
+    return Object.assign({}, a, { actions: btns });
+  });
+}
+
+function renderActions(actions) {
+  var header = document.getElementById('actions-header');
+  var badge = document.getElementById('actions-badge');
+  var list = document.getElementById('actions-list');
+  if (!header || !list) return;
+
+  header.style.display = 'flex';
+  var count = actions.length;
+  badge.textContent = count;
+  badge.className = 'section-badge' + (count > 0 ? ' has-items' : '');
+
+  list.innerHTML = '';
+  if (count === 0) {
+    list.innerHTML =
+      '<div class="actions-empty fade-3">' +
+        '<div class="actions-empty-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+        '<div class="actions-empty-text">All clear — no actions pending</div>' +
+      '</div>';
+    return;
+  }
+
+  actions.forEach(function(action) {
+    var icon = ACTION_ICONS[action.type] || ACTION_ICONS.draft_reply;
+    var iconColor = ACTION_ICON_COLORS[action.type] || '#8b90a3';
+    var safeId = String(action.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    var safeStyle = String(action.urgency || 'low').replace(/[^a-z]/g, '');
+    var btns = (action.actions || []).map(function(btn) {
+      var safeBtnStyle = ['primary','secondary','dismiss'].indexOf(btn.style) !== -1 ? btn.style : 'secondary';
+      return '<button class="action-btn ' + safeBtnStyle + '" onclick="handleAction(\'' + safeId + '\',\'' + escAttr(btn.label) + '\',this)">' + escHtml(btn.label) + '</button>';
+    }).join('');
+
+    var card = document.createElement('div');
+    card.className = 'action-card';
+    card.id = 'action-card-' + safeId;
+    card.innerHTML =
+      '<div class="action-urgency-bar ' + safeStyle + '"></div>' +
+      '<div class="action-body">' +
+        '<div class="action-meta">' +
+          '<div class="action-icon" style="background:' + iconColor + '18;color:' + iconColor + ';">' + icon + '</div>' +
+          '<div class="action-title">' + escHtml(action.title) + '</div>' +
+        '</div>' +
+        '<div class="action-desc">' + escHtml(action.description) + '</div>' +
+        '<div class="action-btns">' + btns + '</div>' +
+      '</div>';
+    list.appendChild(card);
+  });
+}
+
+function handleAction(id, actionLabel, btnEl) {
+  if (btnEl) btnEl.disabled = true;
+  fetch(ATHENA_API + '/os/actions/' + id + '/respond', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, VAC.headers()),
+    body: JSON.stringify({ action: actionLabel })
+  }).catch(function() { /* endpoint not live yet — silent */ });
+
+  // Remove card regardless of endpoint availability
+  var card = document.getElementById('action-card-' + id);
+  if (card) {
+    card.classList.add('removing');
+    setTimeout(function() {
+      card.remove();
+      // Update badge count
+      var remaining = document.querySelectorAll('.action-card:not(.removing)').length;
+      var badge = document.getElementById('actions-badge');
+      if (badge) {
+        badge.textContent = remaining;
+        badge.className = 'section-badge' + (remaining > 0 ? ' has-items' : '');
+      }
+      if (remaining === 0) {
+        var list = document.getElementById('actions-list');
+        if (list) list.innerHTML =
+          '<div class="actions-empty">' +
+            '<div class="actions-empty-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>' +
+            '<div class="actions-empty-text">All clear — no actions pending</div>' +
+          '</div>';
+      }
+    }, 300);
+  }
+  showToast('Action sent to Athena');
+}
+
+function fetchActions() {
+  fetch(ATHENA_API + '/os/actions', { headers: VAC.headers() })
+    .then(function(r) {
+      if (!r.ok) throw new Error('not ready');
+      return r.json();
+    })
+    .then(function(data) {
+      renderActions(normaliseActions(data.actions || data));
+    })
+    .catch(function() {
+      // Endpoint not live — use mock data on first load only
+      if (!document.getElementById('actions-list').hasChildNodes()) {
+        renderActions(normaliseActions(MOCK_ACTIONS));
+      }
+    });
+}
+
+function showToast(msg) {
+  var existing = document.querySelector('.hub-toast');
+  if (existing) existing.remove();
+  var toast = document.createElement('div');
+  toast.className = 'hub-toast';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(function() {
+    toast.style.animation = 'toastOut 0.2s ease forwards';
+    setTimeout(function() { toast.remove(); }, 200);
+  }, 2000);
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s || '').replace(/'/g,"\\'");
 }
 
 function sendInvite() {
