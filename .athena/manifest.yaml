@@ -1,0 +1,53 @@
+# vac-web pipeline manifest
+# Frontend repo — all changes need visual QA
+
+default_stages:
+  - IMPLEMENT
+  - REVIEW
+  - UX_VALIDATE
+  - SHIP
+
+paths:
+  "*.html":
+    stages:
+      - IMPLEMENT
+      - REVIEW
+      - UX_VALIDATE
+      - SHIP
+    skills:
+      REVIEW:
+        - /review
+        - /security-audit
+      UX_VALIDATE:
+        - /ux-review
+        - /browse
+    failure_policy:
+      REVIEW_FAIL: return_to_IMPLEMENT
+      UX_VALIDATE_FAIL: return_to_IMPLEMENT
+
+  "*.js":
+    stages:
+      - IMPLEMENT
+      - REVIEW
+      - SHIP
+    skills:
+      REVIEW:
+        - /review
+
+  "*.css":
+    stages:
+      - IMPLEMENT
+      - REVIEW
+      - UX_VALIDATE
+      - SHIP
+
+  "vercel.json":
+    stages:
+      - IMPLEMENT
+      - REVIEW
+      - SHIP
+
+  "docs/**":
+    stages:
+      - IMPLEMENT
+      - SHIP
