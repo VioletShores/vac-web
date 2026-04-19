@@ -1646,44 +1646,80 @@ function beginRecording() {
                 return;
             }
             // ── Phase 2: finger detection (HandLandmarker) or timer fallback ──
+            // Grace period: show "GET READY" prompt for 1.5s before starting detection.
+            // Without this, users with their hand already in frame (preparing) get
+            // instant-advanced through all digits in ~2 seconds (L-280).
             digitStartTime = performance.now();
-            renderFingerPhase(false);
+            const GRACE_MS = 1500;
+            let graceRemaining = Math.ceil(GRACE_MS / 1000);
+            function renderGrace() {
+                var circles = '';
+                for (var di = 0; di < digits.length; di++) {
+                    circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px;opacity:0.5">' + digits[di] + '</span>';
+                }
+                challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
+            }
+            renderGrace();
             try { vacDebug('phase2_entering', null, { detector_ready: FingerDetector.ready, detector_failed: FingerDetector.failed, module_loaded: !!window.__VAC_MediaPipe, digits_count: digits.length }); } catch(_) {}
             console.log('[VAC] Finger phase entering — detector ready=' + FingerDetector.ready + ' failed=' + FingerDetector.failed);
-            if (FingerDetector.ready) {
-                try { vacDebug('phase2_path_detection'); } catch(_) {}
-                rafId = requestAnimationFrame(runDetectionLoop);
-            } else if (FingerDetector.failed) {
-                try { vacDebug('phase2_path_fallback_immediate', 'Detector already failed during init'); } catch(_) {}
-                console.log('[VAC] Finger phase: detector already failed during init, using timer fallback');
-                runTimerFallback();
-            } else {
-                // Init may still be in flight. Kick off init + poll readiness up to
-                // ~10s before giving up. CDN WASM download on 4G can take >5s and
-                // phase 1 may be only 2-5s (SPEED_CONFIG phrase duration).
-                console.log('[VAC] Finger phase: detector not ready yet, waiting for init');
-                FingerDetector.init(); // no-op if already running
-                const POLL_MS = 200;
-                const MAX_POLLS = 50;  // 10 seconds total
-                let polls = 0;
-                const pollInterval = setInterval(function() {
-                    if (recordingStopped) { clearInterval(pollInterval); return; }
-                    polls++;
-                    if (FingerDetector.ready) {
-                        clearInterval(pollInterval);
-                        console.log('[VAC] Finger phase: detector ready after ' + (polls * POLL_MS) + 'ms wait');
-                        rafId = requestAnimationFrame(runDetectionLoop);
-                    } else if (FingerDetector.failed) {
-                        clearInterval(pollInterval);
-                        console.log('[VAC] Finger phase: detector failed while waiting, using timer fallback');
-                        runTimerFallback();
-                    } else if (polls >= MAX_POLLS) {
-                        clearInterval(pollInterval);
-                        console.warn('[VAC] Finger phase: detector init timed out after ' + (MAX_POLLS * POLL_MS) + 'ms, using timer fallback');
-                        runTimerFallback();
-                    }
-                }, POLL_MS);
-            }
+
+            // Count down the grace period visually
+            const graceInterval = setInterval(function() {
+                if (recordingStopped) { clearInterval(graceInterval); return; }
+                graceRemaining--;
+                if (graceRemaining > 0) {
+                    renderGrace();
+                } else {
+                    clearInterval(graceInterval);
+                }
+            }, 1000);
+
+            // After grace period, start the actual detection/fallback path
+            setTimeout(function() {
+                if (recordingStopped) return;
+                clearInterval(graceInterval);
+                // Reset digitStartTime so HINT_TIMEOUT counts from the real start
+                digitStartTime = performance.now();
+                // Seed digitJustSeen=true so a hand already in frame at grace-end
+                // doesn't instantly advance — require the user to drop their hand first.
+                digitJustSeen = true;
+                renderFingerPhase(false);
+                try { vacDebug('phase2_grace_complete', null, { grace_ms: GRACE_MS }); } catch(_) {}
+                if (FingerDetector.ready) {
+                    try { vacDebug('phase2_path_detection'); } catch(_) {}
+                    rafId = requestAnimationFrame(runDetectionLoop);
+                } else if (FingerDetector.failed) {
+                    try { vacDebug('phase2_path_fallback_immediate', 'Detector already failed during init'); } catch(_) {}
+                    console.log('[VAC] Finger phase: detector already failed during init, using timer fallback');
+                    runTimerFallback();
+                } else {
+                    // Init may still be in flight. Kick off init + poll readiness up to
+                    // ~10s before giving up. CDN WASM download on 4G can take >5s and
+                    // phase 1 may be only 2-5s (SPEED_CONFIG phrase duration).
+                    console.log('[VAC] Finger phase: detector not ready yet, waiting for init');
+                    FingerDetector.init(); // no-op if already running
+                    const POLL_MS = 200;
+                    const MAX_POLLS = 50;  // 10 seconds total
+                    let polls = 0;
+                    const pollInterval = setInterval(function() {
+                        if (recordingStopped) { clearInterval(pollInterval); return; }
+                        polls++;
+                        if (FingerDetector.ready) {
+                            clearInterval(pollInterval);
+                            console.log('[VAC] Finger phase: detector ready after ' + (polls * POLL_MS) + 'ms wait');
+                            rafId = requestAnimationFrame(runDetectionLoop);
+                        } else if (FingerDetector.failed) {
+                            clearInterval(pollInterval);
+                            console.log('[VAC] Finger phase: detector failed while waiting, using timer fallback');
+                            runTimerFallback();
+                        } else if (polls >= MAX_POLLS) {
+                            clearInterval(pollInterval);
+                            console.warn('[VAC] Finger phase: detector init timed out after ' + (MAX_POLLS * POLL_MS) + 'ms, using timer fallback');
+                            runTimerFallback();
+                        }
+                    }, POLL_MS);
+                }
+            }, GRACE_MS);
         } else {
             updatePhasePrompt(elapsedSec);
         }
