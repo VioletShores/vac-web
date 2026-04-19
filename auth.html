@@ -265,8 +265,16 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 </style>
 <!-- MediaPipe HandLandmarker for real-time finger detection (with graceful fallback to timer) -->
 <script type="module">
-  import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
-  window.__VAC_MediaPipe = { HandLandmarker, FilesetResolver };
+  try {
+    const t0 = performance.now();
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+    window.__VAC_MediaPipe = { HandLandmarker: mod.HandLandmarker, FilesetResolver: mod.FilesetResolver };
+    window.__VAC_MediaPipe_load_ms = Math.round(performance.now() - t0);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-ready', { detail: { ms: window.__VAC_MediaPipe_load_ms } }));
+  } catch (e) {
+    window.__VAC_MediaPipe_error = String(e && e.message || e);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-error', { detail: { error: window.__VAC_MediaPipe_error } }));
+  }
 </script>
 </head>
 <body>
@@ -655,6 +663,51 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <script>
 const API_BASE = 'https://vac-system-production.up.railway.app';
 
+// ── Telemetry: POST to /v1/auth/debug at each interesting decision point ──
+// Goal: see what actually happens on user phones when auth fails, instead of
+// guessing from desktop. Fire-and-forget — must never block or fail the auth flow.
+const VAC_DEBUG_SESSION = 'sess_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now();
+function vacDebug(event, reason, context) {
+    try {
+        const body = { session_id: VAC_DEBUG_SESSION, event: String(event) };
+        if (reason !== undefined && reason !== null) body.reason = String(reason);
+        if (context) {
+            try { body.context = context; } catch(_) {}
+        }
+        // Best-effort: don't await, don't care about errors, don't block anything
+        fetch(API_BASE + '/v1/auth/debug', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            keepalive: true,  // survives page unload
+        }).catch(function() {});
+        // Also mirror to console so local debugging still works
+        console.log('[VAC-DBG]', event, reason || '', context || '');
+    } catch(_) { /* never block auth for telemetry */ }
+}
+// Fire a boot event immediately so we can confirm the session_id in the DB
+vacDebug('auth_page_loaded', null, {
+    ua: navigator.userAgent,
+    online: navigator.onLine,
+    cores: navigator.hardwareConcurrency || 0,
+    lang: navigator.language,
+    screen: window.screen ? (window.screen.width + 'x' + window.screen.height) : 'unknown'
+});
+
+// Listen for MediaPipe module load outcome (fires from the <script type="module"> in head)
+window.addEventListener('vac-mediapipe-ready', function(e) {
+    vacDebug('mediapipe_module_ready', null, { ms: (e.detail && e.detail.ms) || null });
+});
+window.addEventListener('vac-mediapipe-error', function(e) {
+    vacDebug('mediapipe_module_error', (e.detail && e.detail.error) || 'unknown', null);
+});
+// If the module already loaded before this listener attached, log it now
+if (window.__VAC_MediaPipe) {
+    vacDebug('mediapipe_module_ready', null, { ms: window.__VAC_MediaPipe_load_ms || null, late: true });
+} else if (window.__VAC_MediaPipe_error) {
+    vacDebug('mediapipe_module_error', window.__VAC_MediaPipe_error, { late: true });
+}
+
 let currentStep = 0;
 let mediaStream = null;
 let mediaRecorder = null;
@@ -688,6 +741,8 @@ const FingerDetector = (function() {
 
     async function init() {
         if (_isReady || _hasFailed) return _isReady;
+        const _initStart = performance.now();
+        try { vacDebug('fd_init_start'); } catch(_) {}
         try {
             // Wait for the ES-module import at top of <head> to finish.
             // That import sets window.__VAC_MediaPipe. Module loads are async
@@ -702,15 +757,20 @@ const FingerDetector = (function() {
             const mp = window.__VAC_MediaPipe;
             if (!mp) {
                 _hasFailed = true;
+                try { vacDebug('fd_init_no_module', 'Waited ' + MODULE_MAX_WAIT_MS + 'ms, window.__VAC_MediaPipe never set', { module_error: window.__VAC_MediaPipe_error || null, waited_ms: waited }); } catch(_) {}
                 console.warn('[VAC] HandLandmarker init: MediaPipe module did not load within ' + MODULE_MAX_WAIT_MS + 'ms (check network/CSP for cdn.jsdelivr.net)');
                 return false;
             }
+            try { vacDebug('fd_init_module_ready', null, { module_wait_ms: waited, module_load_ms: window.__VAC_MediaPipe_load_ms || null }); } catch(_) {}
             if (waited > 0) {
                 console.log('[VAC] HandLandmarker init: waited ' + waited + 'ms for MediaPipe module to load');
             }
+            const visionStart = performance.now();
             const vision = await mp.FilesetResolver.forVisionTasks(
                 "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
             );
+            try { vacDebug('fd_init_wasm_loaded', null, { ms: Math.round(performance.now() - visionStart) }); } catch(_) {}
+            const modelStart = performance.now();
             _detector = await mp.HandLandmarker.createFromOptions(vision, {
                 baseOptions: {
                     modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
@@ -723,10 +783,12 @@ const FingerDetector = (function() {
                 runningMode: "VIDEO"
             });
             _isReady = true;
+            try { vacDebug('fd_init_ready', null, { model_ms: Math.round(performance.now() - modelStart), total_ms: Math.round(performance.now() - _initStart) }); } catch(_) {}
             console.log('[VAC] HandLandmarker ready — real-time finger detection active');
             return true;
         } catch(e) {
             _hasFailed = true;
+            try { vacDebug('fd_init_exception', e && e.message || String(e), { name: e && e.name || null, total_ms: Math.round(performance.now() - _initStart) }); } catch(_) {}
             console.warn('[VAC] HandLandmarker unavailable, will use timer fallback:', e.message);
             return false;
         }
@@ -1492,6 +1554,7 @@ function beginRecording() {
 
     // Timer fallback — used if HandLandmarker unavailable or too slow. Respects SPEED_CONFIG.digit.
     function runTimerFallback() {
+        try { vacDebug('phase2_timer_fallback', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
         console.log('[VAC] Finger phase: using timer fallback (' + DIGIT_DURATION + 's per digit)');
         let fallbackElapsed = 0;
         const fallbackInterval = setInterval(function() {
@@ -1515,18 +1578,27 @@ function beginRecording() {
 
     // Detection loop (requestAnimationFrame) — advances on ANY finger shown.
     // Server-side Gemini validates the full sequence; this is purely for UX responsiveness.
+    let _detLoopFrames = 0;  // telemetry only
     function runDetectionLoop() {
         if (recordingStopped) return;
         const videoEl = document.getElementById('videoPreviewRec');
         const detected = FingerDetector.detect(videoEl);
+        _detLoopFrames++;
+        if (_detLoopFrames === 1) {
+            try { vacDebug('detect_loop_first_frame', null, { detected: detected, video_ready: (videoEl && videoEl.readyState) || null }); } catch(_) {}
+        }
 
         if (FingerDetector.failed) {
+            try { vacDebug('detect_loop_to_fallback', 'FingerDetector.failed became true during loop', { frames: _detLoopFrames }); } catch(_) {}
             runTimerFallback();
             return;
         }
 
         // Advance on ANY finger count (1+) with debounce — don't gate on per-step correctness.
         if (detected > 0 && !digitJustSeen) {
+            if (currentDigitIndex === 0) {
+                try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected }); } catch(_) {}
+            }
             detectedDigits[currentDigitIndex] = true;
             detectedCounts[currentDigitIndex] = detected;
             digitJustSeen = true;
@@ -1538,6 +1610,7 @@ function beginRecording() {
             ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
             timerEl.textContent = Math.max(Math.ceil(totalDuration - totalElapsed), 0);
             if (currentDigitIndex >= digits.length) {
+                try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
                 renderFingerPhase(false);
                 finishFingerPhase();
                 return;
@@ -1572,10 +1645,13 @@ function beginRecording() {
             // ── Phase 2: finger detection (HandLandmarker) or timer fallback ──
             digitStartTime = performance.now();
             renderFingerPhase(false);
+            try { vacDebug('phase2_entering', null, { detector_ready: FingerDetector.ready, detector_failed: FingerDetector.failed, module_loaded: !!window.__VAC_MediaPipe, digits_count: digits.length }); } catch(_) {}
             console.log('[VAC] Finger phase entering — detector ready=' + FingerDetector.ready + ' failed=' + FingerDetector.failed);
             if (FingerDetector.ready) {
+                try { vacDebug('phase2_path_detection'); } catch(_) {}
                 rafId = requestAnimationFrame(runDetectionLoop);
             } else if (FingerDetector.failed) {
+                try { vacDebug('phase2_path_fallback_immediate', 'Detector already failed during init'); } catch(_) {}
                 console.log('[VAC] Finger phase: detector already failed during init, using timer fallback');
                 runTimerFallback();
             } else {
