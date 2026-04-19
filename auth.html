@@ -453,12 +453,6 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             </div>
         </div>
     </div>
-    <!-- Speed toggle -->
-    <div id="speedToggle" style="display:flex;justify-content:center;gap:8px;margin-bottom:10px;">
-        <button onclick="setSpeed('relaxed')" id="speedRelaxed" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--teal);background:rgba(45,212,191,0.1);color:var(--teal);cursor:pointer;">Relaxed</button>
-        <button onclick="setSpeed('normal')" id="speedNormal" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-tertiary);cursor:pointer;">Normal</button>
-        <button onclick="setSpeed('fast')" id="speedFast" style="font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--text-tertiary);cursor:pointer;">Fast</button>
-    </div>
     <div class="timer-label" id="timerLabel">Recording in</div>
     <div class="countdown-ring-wrap" id="countdownRingWrap">
         <svg viewBox="0 0 100 100">
@@ -781,21 +775,9 @@ if (document.readyState === 'loading') {
 } else {
     setTimeout(FingerDetector.init, 500);
 }
-function setSpeed(speed) {
-    challengeSpeed = speed;
-    ['relaxed','normal','fast'].forEach(s => {
-        const btn = document.getElementById('speed' + s.charAt(0).toUpperCase() + s.slice(1));
-        if (s === speed) {
-            btn.style.borderColor = 'var(--teal)';
-            btn.style.background = 'rgba(45,212,191,0.1)';
-            btn.style.color = 'var(--teal)';
-        } else {
-            btn.style.borderColor = 'var(--border)';
-            btn.style.background = 'none';
-            btn.style.color = 'var(--text-tertiary)';
-        }
-    });
-} // 'none' = fingers, 'voice' = voice only
+// Speed selector removed — real-time finger detection means user's own pace IS the pace.
+// SPEED_CONFIG is retained for timer-fallback timing (when MediaPipe fails on a device).
+// challengeSpeed is locked to 'relaxed' — the most forgiving fallback timing.
 let retryAttempts = 0;
 const MAX_RETRIES = 5;
 let audioContext = null;
