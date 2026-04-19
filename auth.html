@@ -683,12 +683,24 @@ const FingerDetector = (function() {
     let _detector = null;
     let _isReady = false;
     let _hasFailed = false;
+    let _framesProcessed = 0;
+    let _consecutiveSlowFrames = 0;
+    // Mobile first-frame cost (GPU shader compile, WASM JIT warmup) can spike
+    // to 800-1500ms. Give it a warm-up grace period and require *sustained*
+    // slowness before giving up — not a single bad frame.
+    const WARMUP_FRAMES = 5;                      // ignore timing for first 5 frames
+    const SLOW_FRAME_MS = 1500;                   // what counts as "too slow"
+    const CONSECUTIVE_SLOW_LIMIT = 3;             // how many in a row before we bail
 
     async function init() {
         if (_isReady || _hasFailed) return _isReady;
         try {
             const mp = window.__VAC_MediaPipe;
-            if (!mp) { _hasFailed = true; return false; }
+            if (!mp) {
+                _hasFailed = true;
+                console.warn('[VAC] HandLandmarker init: window.__VAC_MediaPipe not present (CDN module failed to load)');
+                return false;
+            }
             const vision = await mp.FilesetResolver.forVisionTasks(
                 "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
             );
@@ -737,10 +749,18 @@ const FingerDetector = (function() {
             return null;
         }
         const ms = performance.now() - t0;
-        if (ms > 500) {
-            console.warn('[VAC] HandLandmarker too slow (' + ms.toFixed(0) + 'ms/frame), switching to timer fallback');
-            _hasFailed = true;
-            return null;
+        _framesProcessed++;
+        if (_framesProcessed > WARMUP_FRAMES) {
+            if (ms > SLOW_FRAME_MS) {
+                _consecutiveSlowFrames++;
+                if (_consecutiveSlowFrames >= CONSECUTIVE_SLOW_LIMIT) {
+                    console.warn('[VAC] HandLandmarker too slow (' + CONSECUTIVE_SLOW_LIMIT + ' consecutive frames > ' + SLOW_FRAME_MS + 'ms, last=' + ms.toFixed(0) + 'ms), switching to timer fallback');
+                    _hasFailed = true;
+                    return null;
+                }
+            } else {
+                _consecutiveSlowFrames = 0;
+            }
         }
         if (!results.landmarks || results.landmarks.length === 0) return -1; // no hand in frame
         return _countFingers(results.landmarks[0]);
@@ -1557,20 +1577,38 @@ function beginRecording() {
             // ── Phase 2: finger detection (HandLandmarker) or timer fallback ──
             digitStartTime = performance.now();
             renderFingerPhase(false);
+            console.log('[VAC] Finger phase entering — detector ready=' + FingerDetector.ready + ' failed=' + FingerDetector.failed);
             if (FingerDetector.ready) {
                 rafId = requestAnimationFrame(runDetectionLoop);
             } else if (FingerDetector.failed) {
+                console.log('[VAC] Finger phase: detector already failed during init, using timer fallback');
                 runTimerFallback();
             } else {
-                // Init may still be in flight (slow device/network) — try once more, else fallback
-                FingerDetector.init().then(function() {
-                    if (recordingStopped) return;
+                // Init may still be in flight. Kick off init + poll readiness up to
+                // ~10s before giving up. CDN WASM download on 4G can take >5s and
+                // phase 1 may be only 2-5s (SPEED_CONFIG phrase duration).
+                console.log('[VAC] Finger phase: detector not ready yet, waiting for init');
+                FingerDetector.init(); // no-op if already running
+                const POLL_MS = 200;
+                const MAX_POLLS = 50;  // 10 seconds total
+                let polls = 0;
+                const pollInterval = setInterval(function() {
+                    if (recordingStopped) { clearInterval(pollInterval); return; }
+                    polls++;
                     if (FingerDetector.ready) {
+                        clearInterval(pollInterval);
+                        console.log('[VAC] Finger phase: detector ready after ' + (polls * POLL_MS) + 'ms wait');
                         rafId = requestAnimationFrame(runDetectionLoop);
-                    } else {
+                    } else if (FingerDetector.failed) {
+                        clearInterval(pollInterval);
+                        console.log('[VAC] Finger phase: detector failed while waiting, using timer fallback');
+                        runTimerFallback();
+                    } else if (polls >= MAX_POLLS) {
+                        clearInterval(pollInterval);
+                        console.warn('[VAC] Finger phase: detector init timed out after ' + (MAX_POLLS * POLL_MS) + 'ms, using timer fallback');
                         runTimerFallback();
                     }
-                });
+                }, POLL_MS);
             }
         } else {
             updatePhasePrompt(elapsedSec);
