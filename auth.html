@@ -797,85 +797,23 @@ const FingerDetector = (function() {
     // Count extended fingers from MediaPipe landmark array (21 points, normalised 0-1).
     // y=0 is top of frame; finger is "up" when tip is above its PIP joint.
     function _countFingers(landmarks) {
-        // Standard MediaPipe hand-counting pattern — more robust than the y-axis
-        // PIP comparison which fails on tilted hands and mirrored front-camera.
-        //
-        // Non-thumb fingers (index, middle, ring, pinky): compare tip distance to
-        // wrist vs PIP distance to wrist. If tip is farther from wrist than its
-        // middle joint is, the finger is extended.
-        //
-        // Thumb: distance from tip (4) to index finger MCP (5) — if that distance
-        // is large relative to the hand size, the thumb is extended.
-        //
-        // Uses 2D euclidean distance; works in both hand orientations.
-        const wrist = landmarks[0];
-        const indexMCP = landmarks[5];
-        const pinkyMCP = landmarks[17];
-
-        // Hand scale: distance from index MCP to pinky MCP across the palm.
-        // Everything normalised to this so different distances-to-camera don't matter.
-        const handScale = Math.hypot(indexMCP.x - pinkyMCP.x, indexMCP.y - pinkyMCP.y);
-        if (handScale < 0.01) return 0; // degenerate, no meaningful hand
-
-        function dist(a, b) {
-            return Math.hypot(a.x - b.x, a.y - b.y);
-        }
-
         let count = 0;
-
-        // Thumb: tip (4) far from index MCP (5) means extended.
-        // Threshold ~80% of hand scale works well in practice.
-        const thumbExtension = dist(landmarks[4], landmarks[5]) / handScale;
-        if (thumbExtension > 0.75) count++;
-
-        // Non-thumb fingers: tip-to-wrist distance vs PIP-to-wrist distance.
-        // When extended, tip is farther from wrist than PIP. When curled, PIP is
-        // about as far as or farther than tip (tip wraps back toward the palm).
-        const fingerPairs = [
-            [8,  6],   // index: tip, PIP
-            [12, 10],  // middle
-            [16, 14],  // ring
-            [20, 18],  // pinky
-        ];
-        for (const [tipIdx, pipIdx] of fingerPairs) {
-            const tipDist = dist(landmarks[tipIdx], wrist);
-            const pipDist = dist(landmarks[pipIdx], wrist);
-            // Tip must be meaningfully farther than PIP — 10% margin avoids jitter
-            if (tipDist > pipDist * 1.1) count++;
-        }
-
+        if (landmarks[4].y  < landmarks[3].y)  count++; // thumb
+        if (landmarks[8].y  < landmarks[6].y)  count++; // index
+        if (landmarks[12].y < landmarks[10].y) count++; // middle
+        if (landmarks[16].y < landmarks[14].y) count++; // ring
+        if (landmarks[20].y < landmarks[18].y) count++; // pinky
         return count;
     }
 
-    let _lastVideoTime = -1;
-    let _lastTimestamp = 0;
     function detect(videoEl) {
         if (!_isReady || _hasFailed || !_detector) return null;
-        // MediaPipe VIDEO mode requires MONOTONICALLY INCREASING timestamps.
-        // Using performance.now() works but doesn't align with actual video frame
-        // presentation. Using video.currentTime * 1000 aligns the detector to the
-        // actual frame being shown. Also: don't re-process the same frame twice —
-        // MediaPipe will reject or silently skip if timestamp <= last.
-        if (!videoEl || videoEl.readyState < 2) return null;
-        const videoTime = videoEl.currentTime;
-        if (videoTime === _lastVideoTime) {
-            // Same frame as last call (common when rAF fires faster than video advances)
-            return null;
-        }
-        _lastVideoTime = videoTime;
-        // Build a strictly-increasing timestamp — clamp to performance.now in ms,
-        // forced strictly greater than the last value MediaPipe saw.
-        let ts = Math.round(videoTime * 1000);
-        if (ts <= _lastTimestamp) ts = _lastTimestamp + 1;
-        _lastTimestamp = ts;
-
         const t0 = performance.now();
         let results;
         try {
-            results = _detector.detectForVideo(videoEl, ts);
+            results = _detector.detectForVideo(videoEl, performance.now());
         } catch(e) {
             console.warn('[VAC] HandLandmarker detect error, switching to timer fallback:', e.message);
-            try { vacDebug('detect_exception', e && e.message || String(e)); } catch(_) {}
             _hasFailed = true;
             return null;
         }
@@ -1651,10 +1589,6 @@ function beginRecording() {
         _detLoopFrames++;
         if (_detLoopFrames === 1) {
             try { vacDebug('detect_loop_first_frame', null, { detected: detected, video_ready: (videoEl && videoEl.readyState) || null }); } catch(_) {}
-        } else if (_detLoopFrames === 30 || _detLoopFrames === 90) {
-            // Diagnostic checkpoints — if first-finger-advance takes a while, we'll see
-            // what detected values came back during the lag window.
-            try { vacDebug('detect_loop_checkpoint', null, { frame: _detLoopFrames, detected: detected }); } catch(_) {}
         }
 
         if (FingerDetector.failed) {
