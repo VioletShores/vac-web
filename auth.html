@@ -1436,8 +1436,11 @@ function startCountdown() {
 }
 
 function beginRecording() {
+    try { vacDebug('begin_recording_called'); } catch(_) {}
     document.getElementById('recIndicator').style.display = 'flex';
-    document.getElementById('speedToggle').style.display = 'none';
+    // Speed toggle was removed — guard against null (it may or may not be present)
+    const _speedToggle = document.getElementById('speedToggle');
+    if (_speedToggle) _speedToggle.style.display = 'none';
     document.getElementById('audioLevel').style.display = 'flex';
     document.getElementById('cameraBoxRec').classList.add('recording');
     document.getElementById('timerLabel').textContent = 'Recording';
