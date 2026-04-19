@@ -263,6 +263,11 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
 </style>
+<!-- MediaPipe HandLandmarker for real-time finger detection (with graceful fallback to timer) -->
+<script type="module">
+  import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+  window.__VAC_MediaPipe = { HandLandmarker, FilesetResolver };
+</script>
 </head>
 <body>
 <div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#2DD4BF'" onmouseout="this.style.color='#6B7280'">← Back to VAC Protocol</a></div><script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
@@ -669,6 +674,93 @@ const SPEED_CONFIG = {
     normal:  { phrase: 3, digit: 1, countdown: 2 },
     fast:    { phrase: 2, digit: 0.8, countdown: 1 }
 };
+
+// ── Real-time finger detection (MediaPipe HandLandmarker) ────────────────────
+// Loaded async from CDN in <head>. Falls back to timer mode if CDN fails or
+// device is too slow. Counts extended fingers per frame; server-side Gemini
+// remains the trust gate — this is purely for UX responsiveness.
+const FingerDetector = (function() {
+    let _detector = null;
+    let _isReady = false;
+    let _hasFailed = false;
+
+    async function init() {
+        if (_isReady || _hasFailed) return _isReady;
+        try {
+            const mp = window.__VAC_MediaPipe;
+            if (!mp) { _hasFailed = true; return false; }
+            const vision = await mp.FilesetResolver.forVisionTasks(
+                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+            );
+            _detector = await mp.HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                    delegate: "GPU"
+                },
+                numHands: 1,
+                minHandDetectionConfidence: 0.5,
+                minHandPresenceConfidence: 0.5,
+                minTrackingConfidence: 0.5,
+                runningMode: "VIDEO"
+            });
+            _isReady = true;
+            console.log('[VAC] HandLandmarker ready — real-time finger detection active');
+            return true;
+        } catch(e) {
+            _hasFailed = true;
+            console.warn('[VAC] HandLandmarker unavailable, will use timer fallback:', e.message);
+            return false;
+        }
+    }
+
+    // Count extended fingers from MediaPipe landmark array (21 points, normalised 0-1).
+    // y=0 is top of frame; finger is "up" when tip is above its PIP joint.
+    function _countFingers(landmarks) {
+        let count = 0;
+        if (landmarks[4].y  < landmarks[3].y)  count++; // thumb
+        if (landmarks[8].y  < landmarks[6].y)  count++; // index
+        if (landmarks[12].y < landmarks[10].y) count++; // middle
+        if (landmarks[16].y < landmarks[14].y) count++; // ring
+        if (landmarks[20].y < landmarks[18].y) count++; // pinky
+        return count;
+    }
+
+    function detect(videoEl) {
+        if (!_isReady || _hasFailed || !_detector) return null;
+        const t0 = performance.now();
+        let results;
+        try {
+            results = _detector.detectForVideo(videoEl, performance.now());
+        } catch(e) {
+            console.warn('[VAC] HandLandmarker detect error, switching to timer fallback:', e.message);
+            _hasFailed = true;
+            return null;
+        }
+        const ms = performance.now() - t0;
+        if (ms > 500) {
+            console.warn('[VAC] HandLandmarker too slow (' + ms.toFixed(0) + 'ms/frame), switching to timer fallback');
+            _hasFailed = true;
+            return null;
+        }
+        if (!results.landmarks || results.landmarks.length === 0) return -1; // no hand in frame
+        return _countFingers(results.landmarks[0]);
+    }
+
+    return {
+        init: init,
+        detect: detect,
+        get ready() { return _isReady; },
+        get failed() { return _hasFailed; }
+    };
+})();
+
+// Kick off HandLandmarker init as soon as the page loads so it's ready by
+// the time the user reaches the recording step (takes ~1-2s to download model).
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(FingerDetector.init, 500); });
+} else {
+    setTimeout(FingerDetector.init, 500);
+}
 function setSpeed(speed) {
     challengeSpeed = speed;
     ['relaxed','normal','fast'].forEach(s => {
@@ -1345,17 +1437,143 @@ function beginRecording() {
     }
     updatePhasePrompt(0);
 
-    const recInterval = setInterval(() => {
+    // ── Finger-phase shared state ──────────────────────────────────────────
+    let detectedDigits = new Array(digits.length).fill(false);
+    let detectedCounts = new Array(digits.length).fill(0);  // actual finger count seen per position
+    let digitJustSeen = false;  // debounce: require fingers-down between gestures
+    let currentDigitIndex = 0;
+    let rafId = null;
+    let recordingStopped = false;
+    let digitStartTime = 0;
+    let hintShown = false;
+    const HINT_TIMEOUT_MS = 8000;
+
+    // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
+    function renderFingerPhase(hint) {
+        if (digits.length === 0) { challengeEl.textContent = 'Processing\u2026'; return; }
+        var circles = '';
+        for (var di = 0; di < digits.length; di++) {
+            if (detectedDigits[di]) {
+                circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:#22c55e;color:white;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 6px;box-shadow:0 0 12px rgba(34,197,94,0.4);">&#10003;</span>';
+            } else if (di === currentDigitIndex) {
+                circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + digits[di] + '</span>';
+            } else {
+                circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + digits[di] + '</span>';
+            }
+        }
+        const safeIndex = Math.min(currentDigitIndex, digits.length - 1);
+        const currentDigit = digits[safeIndex] || '';
+        const hintHtml = hint ? '<div style="color:#fbbf24;font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
+        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show ' + currentDigit + ' finger' + (parseInt(currentDigit,10) > 1 ? 's' : '') + ' near your face</span>' + hintHtml;
+    }
+
+    function finishFingerPhase() {
+        if (recordingStopped) return;
+        recordingStopped = true;
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        challengeEl.textContent = 'Processing\u2026';
+        setTimeout(function() { mediaRecorder.stop(); }, 500);
+    }
+
+    // Timer fallback — used if HandLandmarker unavailable or too slow. Respects SPEED_CONFIG.digit.
+    function runTimerFallback() {
+        console.log('[VAC] Finger phase: using timer fallback (' + DIGIT_DURATION + 's per digit)');
+        let fallbackElapsed = 0;
+        const fallbackInterval = setInterval(function() {
+            if (recordingStopped) { clearInterval(fallbackInterval); return; }
+            fallbackElapsed += 0.2;
+            const totalElapsed = PHRASE_DURATION + fallbackElapsed;
+            ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
+            timerEl.textContent = Math.max(Math.ceil(totalDuration - totalElapsed), 0);
+            const completed = Math.min(Math.floor(fallbackElapsed / DIGIT_DURATION), digits.length);
+            for (let i = 0; i < completed; i++) detectedDigits[i] = true;
+            currentDigitIndex = completed;
+            if (completed >= digits.length) {
+                clearInterval(fallbackInterval);
+                renderFingerPhase(false);
+                finishFingerPhase();
+                return;
+            }
+            renderFingerPhase(false);
+        }, 200);
+    }
+
+    // Detection loop (requestAnimationFrame) — advances on ANY finger shown.
+    // Server-side Gemini validates the full sequence; this is purely for UX responsiveness.
+    function runDetectionLoop() {
+        if (recordingStopped) return;
+        const videoEl = document.getElementById('videoPreviewRec');
+        const detected = FingerDetector.detect(videoEl);
+
+        if (FingerDetector.failed) {
+            runTimerFallback();
+            return;
+        }
+
+        // Advance on ANY finger count (1+) with debounce — don't gate on per-step correctness.
+        if (detected > 0 && !digitJustSeen) {
+            detectedDigits[currentDigitIndex] = true;
+            detectedCounts[currentDigitIndex] = detected;
+            digitJustSeen = true;
+            currentDigitIndex++;
+            digitStartTime = performance.now();
+            hintShown = false;
+            const completedFrac = currentDigitIndex / digits.length;
+            const totalElapsed = PHRASE_DURATION + (completedFrac * (totalDuration - PHRASE_DURATION));
+            ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
+            timerEl.textContent = Math.max(Math.ceil(totalDuration - totalElapsed), 0);
+            if (currentDigitIndex >= digits.length) {
+                renderFingerPhase(false);
+                finishFingerPhase();
+                return;
+            }
+        } else if (detected <= 0 && digitJustSeen) {
+            digitJustSeen = false; // hand dropped or out of frame — ready for next gesture
+        }
+
+        if (!hintShown && digitStartTime > 0 && (performance.now() - digitStartTime) > HINT_TIMEOUT_MS) {
+            hintShown = true;
+        }
+
+        renderFingerPhase(hintShown);
+        rafId = requestAnimationFrame(runDetectionLoop);
+    }
+
+    // ── Phase 1: phrase timer (user speaks the challenge phrase) ───────────
+    const phraseInterval = setInterval(() => {
+        if (recordingStopped) { clearInterval(phraseInterval); return; }
         elapsedMs += TICK_MS;
         const elapsedSec = elapsedMs / 1000;
-        const remaining = Math.ceil(totalDuration - elapsedSec);
-        timerEl.textContent = Math.max(remaining, 0);
+        timerEl.textContent = Math.max(Math.ceil(totalDuration - elapsedSec), 0);
         ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
-        updatePhasePrompt(elapsedSec);
-        if (elapsedSec >= totalDuration) {
-            clearInterval(recInterval);
-            challengeEl.textContent = 'Processing\u2026';
-            setTimeout(() => { mediaRecorder.stop(); }, 500);
+
+        if (elapsedSec >= PHRASE_DURATION) {
+            clearInterval(phraseInterval);
+            // Voice-only mode or no digits → skip straight to completion
+            if (fingerFallback === 'voice' || digits.length === 0) {
+                finishFingerPhase();
+                return;
+            }
+            // ── Phase 2: finger detection (HandLandmarker) or timer fallback ──
+            digitStartTime = performance.now();
+            renderFingerPhase(false);
+            if (FingerDetector.ready) {
+                rafId = requestAnimationFrame(runDetectionLoop);
+            } else if (FingerDetector.failed) {
+                runTimerFallback();
+            } else {
+                // Init may still be in flight (slow device/network) — try once more, else fallback
+                FingerDetector.init().then(function() {
+                    if (recordingStopped) return;
+                    if (FingerDetector.ready) {
+                        rafId = requestAnimationFrame(runDetectionLoop);
+                    } else {
+                        runTimerFallback();
+                    }
+                });
+            }
+        } else {
+            updatePhasePrompt(elapsedSec);
         }
     }, TICK_MS);
 }
