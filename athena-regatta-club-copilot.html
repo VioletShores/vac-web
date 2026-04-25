@@ -1969,5 +1969,29 @@ async function submitOnboarding(appId, key) {
   }
 }
 </script>
+
+<!-- Athena Chat Component (F-29) -->
+<script src="/athena-chat.js"></script>
+<script>
+(function initChat() {
+  var apiKey = localStorage.getItem('athena_anthropic_key') || '';
+
+  var systemPrompt = [
+    'You are the Regatta Club Co-Pilot — a practical, concise AI assistant for Anthony, the venue manager at Regatta Club, a waterfront restaurant and bar in Sydney.',
+    'You know about the venue\'s operations: ~50 casual staff, Friday/Saturday night service, compliance obligations (casual conversion, wage theft legislation), supplier relationships, and competitor monitoring.',
+    'Anthony is also into deep sea fishing off Sydney Heads — marlin, kingfish, snapper.',
+    'Be direct and action-oriented. Prioritise operational advice. Keep responses short unless detail is needed.',
+    'Current date: ' + new Date().toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) + '.',
+  ].join(' ');
+
+  AthenaChat.init({
+    apiKey:       apiKey,
+    systemPrompt: systemPrompt,
+    threadKey:    'regatta',
+    title:        'Regatta Co-Pilot',
+    accentColor:  '#C9A84C',
+  });
+})();
+</script>
 </body>
 </html>

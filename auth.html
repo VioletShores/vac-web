@@ -259,6 +259,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .transcript-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 .transcript-text { font-size: 14px; color: var(--text-primary); font-style: italic; }
 .transcript-match { font-family: var(--mono); font-size: 11px; margin-top: 6px; }
+/* Real-time detection feedback */
+@keyframes digit-tick { 0%{transform:scale(1.35)} 100%{transform:scale(1)} }
+.digit-tick-anim { animation: digit-tick 0.2s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
@@ -689,6 +692,15 @@ const MAX_RETRIES = 5;
 let audioContext = null;
 let audioAnalyser = null;
 let audioAnimFrame = null;
+
+// Real-time hand detection state
+let _mpHL = null;           // MediaPipe HandLandmarker instance
+let _mpLoaded = false;      // load attempted?
+let _rtLoopId = null;       // rAF ID
+let _rtOn = false;          // detection running?
+let _rtLastCount = -1;      // last detected finger count (-1=no hand)
+const MATCH_HOLD_MS = 500;  // hold correct count for this long (ms)
+const DIG_FALLBACK_MS = 15000; // per-digit timer fallback (ms)
 
 function toggleOrgFields() {
     const el = document.getElementById('optionalFields');
@@ -1221,6 +1233,8 @@ function goToChallenge() {
     recVid.setAttribute('playsinline', '');
     recVid.play().catch(() => {});
     goToStep(2);
+    // Pre-load hand detector now (non-blocking) so it's ready when recording starts
+    _mpLoad();
     // Auto-start countdown after brief delay (no button press needed)
     setTimeout(() => startCountdown(), 800);
 }
@@ -1273,25 +1287,13 @@ function beginRecording() {
     document.getElementById('cameraBoxRec').classList.add('recording');
     document.getElementById('timerLabel').textContent = 'Recording';
 
-    // Start audio level monitoring
     startAudioMonitor();
-
     recordedChunks = [];
 
     // MediaRecorder mimeType fallback chain (Chrome → Safari → default)
-    const mimeTypes = [
-        'video/webm;codecs=vp9,opus',
-        'video/webm;codecs=vp8,opus',
-        'video/webm',
-        'video/mp4',
-    ];
+    const mimeTypes = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
     let selectedMime = '';
-    for (const mime of mimeTypes) {
-        if (MediaRecorder.isTypeSupported(mime)) {
-            selectedMime = mime;
-            break;
-        }
-    }
+    for (const mime of mimeTypes) { if (MediaRecorder.isTypeSupported(mime)) { selectedMime = mime; break; } }
 
     console.log('[Recording] Audio tracks before MediaRecorder start:', mediaStream.getAudioTracks().length, mediaStream.getAudioTracks().map(t => t.label + ' enabled=' + t.enabled + ' muted=' + t.muted));
     const options = selectedMime ? { mimeType: selectedMime } : {};
@@ -1300,24 +1302,14 @@ function beginRecording() {
     mediaRecorder.onstop = () => { onRecordingComplete(); };
     mediaRecorder.start();
 
-    // Show combined capture info
     document.getElementById('combinedCaptureInfo').style.display = 'block';
 
-    // Simultaneous: say greeting (4s), then say+show each digit (2s each)
-    const digits = challengeData?.digits || [];
+    const digits = (fingerFallback === 'voice') ? [] : (challengeData?.digits || []);
     const PHRASE_DURATION = SPEED_CONFIG[challengeSpeed].phrase;
-    const DIGIT_DURATION = SPEED_CONFIG[challengeSpeed].digit;
-    const BUFFER = 0;
-    const totalDuration = PHRASE_DURATION + (digits.length * DIGIT_DURATION) + BUFFER;
-    const totalSeconds = Math.ceil(totalDuration);
-
-    let elapsedMs = 0;
-    const TICK_MS = 200; // Update 5x per second for smooth sub-second timing
     const timerEl = document.getElementById('countdownTimer');
     const ringFill = document.getElementById('countdownRingFill');
     const challengeEl = document.getElementById('challengeText');
     const circumference = 2 * Math.PI * 39;
-    timerEl.textContent = totalSeconds;
     ringFill.classList.add('recording');
     ringFill.style.strokeDashoffset = 0;
 
@@ -1344,18 +1336,101 @@ function beginRecording() {
         }
     }
     updatePhasePrompt(0);
+    // Start real-time hand detection loop
+    startDetectionLoop(document.getElementById('videoPreviewRec'));
 
-    const recInterval = setInterval(() => {
+    // Detection-driven state
+    let detDigitIdx = 0;
+    let matchStartMs = 0;
+    let digitStartMs = 0;
+    let inFingerPhase = false;
+    let recDone = false;
+    // Estimated display total: phrase + ~2.5s per digit
+    const estTotal = PHRASE_DURATION + Math.max(digits.length * 2.5, 0.5);
+    timerEl.textContent = Math.ceil(estTotal);
+
+    // Show initial phrase prompt
+    const phrase = challengeData?.phrase || '';
+    challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + phrase + '"';
+
+    let elapsedMs = 0;
+    const TICK_MS = 100;
+    let recIntervalId;
+
+    function advanceDig() {
+        detDigitIdx++;
+        matchStartMs = 0;
+        digitStartMs = Date.now();
+    }
+
+    function endRec() {
+        if (recDone) return;
+        recDone = true;
+        clearInterval(recIntervalId);
+        stopDetectionLoop();
+        challengeEl.textContent = 'Processing\u2026';
+        timerEl.textContent = '✓';
+        ringFill.style.strokeDashoffset = circumference;
+        setTimeout(() => { mediaRecorder.stop(); }, 300);
+    }
+
+    recIntervalId = setInterval(() => {
+        if (recDone) return;
         elapsedMs += TICK_MS;
         const elapsedSec = elapsedMs / 1000;
-        const remaining = Math.ceil(totalDuration - elapsedSec);
-        timerEl.textContent = Math.max(remaining, 0);
-        ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
-        updatePhasePrompt(elapsedSec);
-        if (elapsedSec >= totalDuration) {
-            clearInterval(recInterval);
-            challengeEl.textContent = 'Processing\u2026';
-            setTimeout(() => { mediaRecorder.stop(); }, 500);
+
+        if (elapsedSec < PHRASE_DURATION) {
+            // ── Phrase phase: timer-driven (unchanged) ──
+            const rem = Math.ceil(PHRASE_DURATION - elapsedSec);
+            timerEl.textContent = rem;
+            ringFill.style.strokeDashoffset = circumference * (elapsedSec / estTotal);
+        } else {
+            // ── Finger phase: detection-driven ──
+            if (!inFingerPhase) {
+                inFingerPhase = true;
+                digitStartMs = Date.now();
+            }
+
+            if (digits.length === 0) { endRec(); return; }
+            if (detDigitIdx >= digits.length) { endRec(); return; }
+
+            const expDig = digits[detDigitIdx];
+            const detected = _rtLastCount;
+            const nowMs = Date.now();
+
+            // Fallback: per-digit timeout → timer-advance
+            if (nowMs - digitStartMs > DIG_FALLBACK_MS) {
+                console.log('[VAC/RT] Fallback advancing digit', detDigitIdx, '(no detection in 15s)');
+                advanceDig();
+                if (detDigitIdx >= digits.length) { endRec(); return; }
+                _rtRenderFingerPrompt(digits, detDigitIdx, -1, 0, challengeEl);
+                return;
+            }
+
+            // Detection-driven advancement
+            if (detected >= 0 && detected === expDig) {
+                if (!matchStartMs) matchStartMs = nowMs;
+                const holdMs = nowMs - matchStartMs;
+                if (holdMs >= MATCH_HOLD_MS) {
+                    // ✓ Digit confirmed by detection!
+                    _rtPlayTick();
+                    advanceDig();
+                    if (detDigitIdx < digits.length) {
+                        _rtRenderFingerPrompt(digits, detDigitIdx, -1, 0, challengeEl);
+                    }
+                    return;
+                }
+                _rtRenderFingerPrompt(digits, detDigitIdx, detected, holdMs, challengeEl);
+            } else {
+                matchStartMs = 0;
+                _rtRenderFingerPrompt(digits, detDigitIdx, detected, 0, challengeEl);
+            }
+
+            // Update ring: phrase portion + proportional finger portion
+            const phrasePct = PHRASE_DURATION / estTotal;
+            const fingerPct = (detDigitIdx / digits.length) * (1 - phrasePct);
+            ringFill.style.strokeDashoffset = circumference * (phrasePct + fingerPct);
+            timerEl.textContent = expDig; // show current expected digit in ring
         }
     }, TICK_MS);
 }
@@ -1364,6 +1439,7 @@ function beginRecording() {
 async function onRecordingComplete() {
     document.getElementById('recIndicator').style.display = 'none';
     document.getElementById('cameraBoxRec').classList.remove('recording');
+    stopDetectionLoop(); // ensure detection is stopped
     stopAudioMonitor();
 
     // Stop camera
@@ -2178,6 +2254,133 @@ function stopAudioMonitor() {
     audioContext = null;
     audioAnalyser = null;
     document.getElementById('audioLevel').style.display = 'none';
+}
+
+// ============================================================
+// REAL-TIME HAND DETECTION — MediaPipe HandLandmarker
+// ============================================================
+
+async function _mpLoad() {
+    if (_mpHL) return _mpHL;
+    if (_mpLoaded) return null;
+    _mpLoaded = true;
+    try {
+        const { HandLandmarker, FilesetResolver } = await import(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/vision_bundle.mjs'
+        );
+        const wasm = await FilesetResolver.forVisionTasks(
+            'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.8/wasm'
+        );
+        _mpHL = await HandLandmarker.createFromOptions(wasm, {
+            baseOptions: {
+                modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+                delegate: 'GPU',
+            },
+            runningMode: 'VIDEO',
+            numHands: 1,
+        });
+        console.log('[VAC/RT] HandLandmarker ready');
+        return _mpHL;
+    } catch(e) {
+        console.warn('[VAC/RT] HandLandmarker unavailable (timer fallback active):', e.message);
+        return null;
+    }
+}
+
+function _mpCountFingers(lm) {
+    if (!lm || lm.length < 21) return -1;
+    let n = 0;
+    // Index, middle, ring, pinky: tip y above PIP y (smaller y = higher in image)
+    [[8,6],[12,10],[16,14],[20,18]].forEach(([t,p]) => { if (lm[t].y < lm[p].y) n++; });
+    // Thumb: tip far from palm centre vs CMC (handedness-agnostic)
+    const cx = (lm[0].x + lm[9].x) / 2, cy = (lm[0].y + lm[9].y) / 2;
+    const tipD = Math.hypot(lm[4].x - cx, lm[4].y - cy);
+    const cmcD = Math.hypot(lm[1].x - cx, lm[1].y - cy);
+    if (cmcD > 0 && tipD / cmcD > 1.4) n++;
+    return n;
+}
+
+function startDetectionLoop(videoEl) {
+    if (_rtOn) stopDetectionLoop();
+    _rtOn = true;
+    _rtLastCount = -1;
+    // Reset face-detected class for fresh start
+    const box = document.getElementById('cameraBoxRec');
+    if (box) box.classList.remove('face-detected');
+
+    let lastMs = 0;
+    function loop() {
+        if (!_rtOn) return;
+        _rtLoopId = requestAnimationFrame(loop);
+        const now = performance.now();
+        if (now - lastMs < 100) return; // ~10 fps
+        lastMs = now;
+        if (!_mpHL || !videoEl || videoEl.readyState < 2) return;
+        try {
+            const res = _mpHL.detectForVideo(videoEl, now);
+            if (res.landmarks && res.landmarks.length > 0) {
+                _rtLastCount = _mpCountFingers(res.landmarks[0]);
+                // Use hand presence as face-detected proxy
+                const b = document.getElementById('cameraBoxRec');
+                if (b && !b.classList.contains('face-detected')) {
+                    b.classList.add('face-detected');
+                    const lbl = document.getElementById('faceOvalLabel');
+                    if (lbl) lbl.textContent = 'Face detected';
+                }
+            } else {
+                _rtLastCount = -1;
+            }
+        } catch(e) { /* silent */ }
+    }
+    // Pre-load model (may already be loading from goToChallenge) then start loop
+    _mpLoad().then(() => loop());
+}
+
+function stopDetectionLoop() {
+    _rtOn = false;
+    if (_rtLoopId) { cancelAnimationFrame(_rtLoopId); _rtLoopId = null; }
+}
+
+function _rtPlayTick() {
+    try {
+        const c = new AudioContext();
+        const o = c.createOscillator(), g = c.createGain();
+        o.connect(g); g.connect(c.destination);
+        o.frequency.value = 880;
+        g.gain.setValueAtTime(0.07, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.12);
+        o.start(); o.stop(c.currentTime + 0.12);
+        setTimeout(() => c.close(), 250);
+    } catch(e) {}
+}
+
+function _rtRenderFingerPrompt(digits, curIdx, detected, holdMs, el) {
+    if (curIdx >= digits.length) return;
+    let circles = '';
+    for (let di = 0; di < digits.length; di++) {
+        if (di < curIdx) {
+            circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--success);color:white;align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px;box-shadow:0 0 10px rgba(63,185,80,0.45)" class="digit-tick-anim">&#10003;</span>';
+        } else if (di === curIdx) {
+            const matched = detected === digits[di];
+            const bc = matched ? 'var(--success)' : 'var(--purple)';
+            const bg = matched ? 'rgba(63,185,80,0.15)' : 'rgba(124,92,252,0.15)';
+            const glow = matched ? ';box-shadow:0 0 14px rgba(63,185,80,0.55)' : '';
+            circles += '<span style="display:inline-flex;width:52px;height:52px;border-radius:50%;border:2px solid ' + bc + ';background:' + bg + ';color:white;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 4px' + glow + '">' + digits[di] + '</span>';
+        } else {
+            circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
+        }
+    }
+    let status = '';
+    const exp = digits[curIdx];
+    if (detected < 0) {
+        status = '<span style="font-size:12px;color:var(--text-tertiary)">Hold hand in frame…</span>';
+    } else if (detected === exp) {
+        const pct = Math.min(Math.round(holdMs / MATCH_HOLD_MS * 100), 99);
+        status = '<span style="font-size:12px;color:var(--success)">✓ ' + detected + ' finger' + (detected !== 1 ? 's' : '') + ' — hold… ' + pct + '%</span>';
+    } else {
+        status = '<span style="font-size:12px;color:var(--text-secondary)">Show ' + exp + ' finger' + (exp !== 1 ? 's' : '') + (detected >= 0 ? ' (seeing ' + detected + ')' : '') + '</span>';
+    }
+    el.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SHOW FINGERS — wait for ✓</span><div style="display:flex;justify-content:center;margin:8px 0">' + circles + '</div>' + status;
 }
 
 function openMessage() {
