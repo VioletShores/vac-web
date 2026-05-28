@@ -1528,6 +1528,12 @@ function beginRecording() {
     window.__vacDetectedCounts = new Array(digits.length).fill(0);
     let detectedCounts = window.__vacDetectedCounts;  // actual finger count seen per position
     let digitJustSeen = false;  // debounce: require fingers-down between gestures
+    // W4.1 stability gate: require a count to be HELD STABLE for ~0.6s before
+    // accepting it, so the loop advances on a deliberate hold — not on the first
+    // transient frame of any finger (which raced through all 3 digits in ~2s).
+    let stableCount = 0;          // the count currently being "held" and counted toward stability
+    let stableFrames = 0;         // consecutive frames that count has been steady
+    const STABLE_FRAMES_NEEDED = 12;  // ~0.6s at ~20fps — a deliberate hold, not a flicker
     let currentDigitIndex = 0;
     let rafId = null;
     let recordingStopped = false;
@@ -1651,33 +1657,71 @@ function beginRecording() {
             return;
         }
 
-        // Advance on ANY finger count (1+) with debounce — don't gate on per-step correctness.
+        // W4.1 STABILITY-GATED advance: a finger count must be HELD STABLE for
+        // STABLE_FRAMES_NEEDED consecutive frames before we accept it and advance.
+        // This replaces the old "advance on the first frame of any finger" logic
+        // that raced through all digits in ~2s when the hand was already in frame.
         if (detected > 0 && !digitJustSeen) {
-            if (currentDigitIndex === 0) {
-                try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected }); } catch(_) {}
+            if (detected === stableCount) {
+                stableFrames++;
+            } else {
+                stableCount = detected;   // count changed — restart the hold timer
+                stableFrames = 1;
             }
-            detectedDigits[currentDigitIndex] = true;
-            detectedCounts[currentDigitIndex] = detected;
-            digitJustSeen = true;
-            currentDigitIndex++;
-            digitStartTime = performance.now();
-            hintShown = false;
-            const completedFrac = currentDigitIndex / digits.length;
-            const totalElapsed = PHRASE_DURATION + (completedFrac * (totalDuration - PHRASE_DURATION));
-            ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
-            timerEl.textContent = Math.max(Math.ceil(totalDuration - totalElapsed), 0);
-            if (currentDigitIndex >= digits.length) {
-                try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
-                renderFingerPhase(false);
-                finishFingerPhase();
-                return;
+            if (stableFrames >= STABLE_FRAMES_NEEDED) {
+                // Count held steady long enough — accept this gesture.
+                if (currentDigitIndex === 0) {
+                    try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
+                }
+                detectedDigits[currentDigitIndex] = true;
+                detectedCounts[currentDigitIndex] = detected;
+                digitJustSeen = true;     // require hand-drop before next gesture
+                stableCount = 0;
+                stableFrames = 0;
+                currentDigitIndex++;
+                digitStartTime = performance.now();
+                hintShown = false;
+                const completedFrac = currentDigitIndex / digits.length;
+                const totalElapsed = PHRASE_DURATION + (completedFrac * (totalDuration - PHRASE_DURATION));
+                ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
+                timerEl.textContent = Math.max(Math.ceil(totalDuration - totalElapsed), 0);
+                if (currentDigitIndex >= digits.length) {
+                    try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
+                    renderFingerPhase(false);
+                    finishFingerPhase();
+                    return;
+                }
             }
-        } else if (detected <= 0 && digitJustSeen) {
-            digitJustSeen = false; // hand dropped or out of frame — ready for next gesture
+        } else if (detected <= 0) {
+            // Hand dropped / out of frame — reset both the debounce and the hold.
+            if (digitJustSeen) digitJustSeen = false; // ready for next gesture
+            stableCount = 0;
+            stableFrames = 0;
         }
 
         if (!hintShown && digitStartTime > 0 && (performance.now() - digitStartTime) > HINT_TIMEOUT_MS) {
             hintShown = true;
+        }
+
+        // W4.1: real-time detection status so the user SEES the hold being
+        // recognised ("detecting 2… → got it") rather than guessing.
+        var liveEl = document.getElementById('vacLiveDetect');
+        if (!liveEl) {
+            liveEl = document.createElement('div');
+            liveEl.id = 'vacLiveDetect';
+            liveEl.style.cssText = 'text-align:center;margin-top:6px;font-family:var(--mono);font-size:13px;letter-spacing:0.5px;min-height:18px';
+            if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(liveEl);
+        }
+        if (digitJustSeen) {
+            liveEl.style.color = 'var(--text-tertiary)';
+            liveEl.textContent = 'Lower your hand for the next gesture';
+        } else if (detected > 0) {
+            const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
+            liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
+            liveEl.textContent = pct >= 100 ? ('Got ' + detected + ' \u2713') : ('Detecting ' + detected + '\u2026 ' + pct + '%');
+        } else {
+            liveEl.style.color = 'var(--text-tertiary)';
+            liveEl.textContent = 'Show your fingers';
         }
 
         renderFingerPhase(hintShown);
