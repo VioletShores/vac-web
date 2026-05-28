@@ -1533,6 +1533,7 @@ function beginRecording() {
     // transient frame of any finger (which raced through all 3 digits in ~2s).
     let stableCount = 0;          // the count currently being "held" and counted toward stability
     let stableFrames = 0;         // consecutive frames that count has been steady
+    let lastAcceptedCount = 0;    // W4.1: last count we accepted — require a CHANGE before next accept (hand stays up)
     const STABLE_FRAMES_NEEDED = 12;  // ~0.6s at ~20fps — a deliberate hold, not a flicker
     let currentDigitIndex = 0;
     let rafId = null;
@@ -1657,27 +1658,29 @@ function beginRecording() {
             return;
         }
 
-        // W4.1 STABILITY-GATED advance: a finger count must be HELD STABLE for
-        // STABLE_FRAMES_NEEDED consecutive frames before we accept it and advance.
-        // This replaces the old "advance on the first frame of any finger" logic
-        // that raced through all digits in ~2s when the hand was already in frame.
-        if (detected > 0 && !digitJustSeen) {
+        // W4.1 HAND-STAYS-UP model (Rob): the user keeps their hand up the whole
+        // time and just CHANGES the number of fingers for each digit. We advance
+        // when a count is held STABLE for ~0.6s AND it differs from the last count
+        // we accepted. No "drop your hand between numbers" — the CHANGE is the gate.
+        // Note: we only need to detect that a DISTINCT stable gesture was held; the
+        // ACTUAL finger count is validated later server-side by Gemini (Rob's point).
+        if (detected > 0) {
             if (detected === stableCount) {
                 stableFrames++;
             } else {
                 stableCount = detected;   // count changed — restart the hold timer
                 stableFrames = 1;
             }
-            if (stableFrames >= STABLE_FRAMES_NEEDED) {
-                // Count held steady long enough — accept this gesture.
+            // Accept when held steady long enough AND it's a change from the last
+            // accepted count (lastAcceptedCount starts at 0, so the first hold counts).
+            if (stableFrames >= STABLE_FRAMES_NEEDED && detected !== lastAcceptedCount) {
                 if (currentDigitIndex === 0) {
                     try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
                 }
                 detectedDigits[currentDigitIndex] = true;
                 detectedCounts[currentDigitIndex] = detected;
-                digitJustSeen = true;     // require hand-drop before next gesture
-                stableCount = 0;
-                stableFrames = 0;
+                lastAcceptedCount = detected;   // require a CHANGE before the next accept
+                stableFrames = 0;               // reset hold timer; keep stableCount as-is
                 currentDigitIndex++;
                 digitStartTime = performance.now();
                 hintShown = false;
@@ -1692,9 +1695,9 @@ function beginRecording() {
                     return;
                 }
             }
-        } else if (detected <= 0) {
-            // Hand dropped / out of frame — reset both the debounce and the hold.
-            if (digitJustSeen) digitJustSeen = false; // ready for next gesture
+        } else {
+            // Hand fully dropped / out of frame — reset the hold (but NOT
+            // lastAcceptedCount; dropping the hand isn't required, just allowed).
             stableCount = 0;
             stableFrames = 0;
         }
@@ -1712,16 +1715,19 @@ function beginRecording() {
             liveEl.style.cssText = 'text-align:center;margin-top:6px;font-family:var(--mono);font-size:13px;letter-spacing:0.5px;min-height:18px';
             if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(liveEl);
         }
-        if (digitJustSeen) {
-            liveEl.style.color = 'var(--text-tertiary)';
-            liveEl.textContent = 'Lower your hand for the next gesture';
-        } else if (detected > 0) {
-            const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
-            liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
-            liveEl.textContent = pct >= 100 ? ('Got ' + detected + ' \u2713') : ('Detecting ' + detected + '\u2026 ' + pct + '%');
+        if (detected > 0) {
+            if (detected === lastAcceptedCount) {
+                // Same as last accepted — user needs to change to the next number.
+                liveEl.style.color = 'var(--text-tertiary)';
+                liveEl.textContent = 'Change to the next number';
+            } else {
+                const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
+                liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
+                liveEl.textContent = pct >= 100 ? ('Got it \u2713') : ('Hold steady\u2026 ' + pct + '%');
+            }
         } else {
             liveEl.style.color = 'var(--text-tertiary)';
-            liveEl.textContent = 'Show your fingers';
+            liveEl.textContent = 'Show the number of fingers';
         }
 
         renderFingerPhase(hintShown);
@@ -1778,9 +1784,11 @@ function beginRecording() {
                 clearInterval(graceInterval);
                 // Reset digitStartTime so HINT_TIMEOUT counts from the real start
                 digitStartTime = performance.now();
-                // Seed digitJustSeen=true so a hand already in frame at grace-end
-                // doesn't instantly advance — require the user to drop their hand first.
-                digitJustSeen = true;
+                // W4.1 hand-stays-up model: no drop-hand gate. A hand already in
+                // frame at grace-end won't instant-advance because the stability
+                // gate requires the count to be HELD ~0.6s before it's accepted.
+                stableCount = 0;
+                stableFrames = 0;
                 renderFingerPhase(false);
                 try { vacDebug('phase2_grace_complete', null, { grace_ms: GRACE_MS }); } catch(_) {}
                 if (FingerDetector.ready) {
