@@ -1512,14 +1512,21 @@ function beginRecording() {
                 else if (di === digitIndex) circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + digits[di] + '</span>';
                 else circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + digits[di] + '</span>';
             }
-            challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show ' + digit + ' finger' + (digit > 1 ? 's' : '') + ' near your face</span>';
+            // W3.5 refactor: generic prompt — no per-step expected count.
+            // User already saw the full sequence in the challenge phrase; per-step
+            // count hints created "guess by trial and error" UX when the ticked
+            // count didn't match what the user thought they'd shown.
+            challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
         }
     }
     updatePhasePrompt(0);
 
     // ── Finger-phase shared state ──────────────────────────────────────────
     let detectedDigits = new Array(digits.length).fill(false);
-    let detectedCounts = new Array(digits.length).fill(0);  // actual finger count seen per position
+    // W3.5: lift detectedCounts to window scope so the upload step can attach
+    // it as a client-detected-sequence hint for server-side cross-validation.
+    window.__vacDetectedCounts = new Array(digits.length).fill(0);
+    let detectedCounts = window.__vacDetectedCounts;  // actual finger count seen per position
     let digitJustSeen = false;  // debounce: require fingers-down between gestures
     let currentDigitIndex = 0;
     let rafId = null;
@@ -1541,10 +1548,15 @@ function beginRecording() {
                 circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + digits[di] + '</span>';
             }
         }
-        const safeIndex = Math.min(currentDigitIndex, digits.length - 1);
-        const currentDigit = digits[safeIndex] || '';
+        // W3.5 refactor: generic per-step prompt.
+        // The detection loop already advances on ANY finger > 0 (line below);
+        // server validates the full sequence at the end. Showing the expected
+        // count per-step taught users to expect "did it accept my guess?" — the
+        // green tick reads as "we got this position, on to the next."
         const hintHtml = hint ? '<div style="color:#fbbf24;font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
-        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show ' + currentDigit + ' finger' + (parseInt(currentDigit,10) > 1 ? 's' : '') + ' near your face</span>' + hintHtml;
+        const remaining = digits.length - currentDigitIndex;
+        const stepLabel = remaining > 1 ? (remaining + ' gestures to go') : (remaining === 1 ? 'last gesture' : 'done');
+        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     }
 
     function finishFingerPhase() {
@@ -1769,6 +1781,11 @@ async function runRealVerification(videoBlob) {
         formData.append('email', userData().email);
         formData.append('org_name', userData().org);
         formData.append('org_role', userData().role);
+        // W3.5: send client-detected finger sequence (MediaPipe HandLandmarker).
+        // Server cross-validates against Gemini's analysis. Empty if MediaPipe
+        // failed or voice-only fallback; server falls back to Gemini-only then.
+        const clientSeq = (window.__vacDetectedCounts || []).filter(function(n) { return n > 0; });
+        formData.append('client_detected_counts', JSON.stringify(clientSeq));
 
         stepEl.textContent = 'Analysing biometrics…';
         detailEl.textContent = 'Gemini (face) + Deepgram (voice)';
