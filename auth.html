@@ -1585,6 +1585,10 @@ function beginRecording() {
     function runTimerFallback() {
         try { vacDebug('phase2_timer_fallback_no_autoadvance', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
         console.log('[VAC] Finger phase: detector unavailable — holding for user, NOT auto-advancing (W4.1)');
+        // W4.1 fix: remove the detection-path status element so the two UIs don't
+        // render simultaneously (the collision Rob's screenshot showed).
+        var _ld = document.getElementById('vacLiveDetect');
+        if (_ld) _ld.remove();
         // Visible status so Rob/users immediately know detection isn't running.
         var statusEl = document.getElementById('vacDetectStatus');
         if (!statusEl) {
@@ -1708,6 +1712,11 @@ function beginRecording() {
 
         // W4.1: real-time detection status — prominent + step-aware so the user
         // always knows which number they're on and whether a hold is registering.
+        // Also remove any fallback-path UI so the two don't render together.
+        var _fbStatus = document.getElementById('vacDetectStatus');
+        if (_fbStatus) _fbStatus.remove();
+        var _fbBtn = document.getElementById('vacManualAdvance');
+        if (_fbBtn) _fbBtn.remove();
         var liveEl = document.getElementById('vacLiveDetect');
         if (!liveEl) {
             liveEl = document.createElement('div');
