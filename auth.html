@@ -1706,28 +1706,37 @@ function beginRecording() {
             hintShown = true;
         }
 
-        // W4.1: real-time detection status so the user SEES the hold being
-        // recognised ("detecting 2… → got it") rather than guessing.
+        // W4.1: real-time detection status — prominent + step-aware so the user
+        // always knows which number they're on and whether a hold is registering.
         var liveEl = document.getElementById('vacLiveDetect');
         if (!liveEl) {
             liveEl = document.createElement('div');
             liveEl.id = 'vacLiveDetect';
-            liveEl.style.cssText = 'text-align:center;margin-top:6px;font-family:var(--mono);font-size:13px;letter-spacing:0.5px;min-height:18px';
+            liveEl.style.cssText = 'text-align:center;margin-top:10px;font-family:var(--mono);font-size:17px;font-weight:700;letter-spacing:0.5px;min-height:26px;transition:color 0.15s';
             if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(liveEl);
         }
-        if (detected > 0) {
-            if (detected === lastAcceptedCount) {
-                // Same as last accepted — user needs to change to the next number.
-                liveEl.style.color = 'var(--text-tertiary)';
-                liveEl.textContent = 'Change to the next number';
-            } else {
-                const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
-                liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
-                liveEl.textContent = pct >= 100 ? ('Got it \u2713') : ('Hold steady\u2026 ' + pct + '%');
-            }
+        var stepNum = currentDigitIndex + 1;            // 1-based for display
+        var totalSteps = digits.length;
+        var justAccepted = (performance.now() - (digitStartTime || 0)) < 700; // brief "Got it" window after an accept
+        if (currentDigitIndex >= totalSteps) {
+            liveEl.style.color = '#22c55e';
+            liveEl.textContent = 'All gestures captured \u2713';
+        } else if (justAccepted && lastAcceptedCount > 0) {
+            // Brief confirmation right after accepting a digit.
+            liveEl.style.color = '#22c55e';
+            liveEl.textContent = 'Got it \u2713  \u2014  now show number ' + stepNum;
+        } else if (detected > 0 && detected !== lastAcceptedCount) {
+            const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
+            liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
+            liveEl.textContent = pct >= 100
+                ? ('Got it \u2713')
+                : ('Number ' + stepNum + ' of ' + totalSteps + ' \u2014 hold steady ' + pct + '%');
+        } else if (detected > 0 && detected === lastAcceptedCount) {
+            liveEl.style.color = '#fbbf24';
+            liveEl.textContent = 'Now change to number ' + stepNum + ' of ' + totalSteps;
         } else {
-            liveEl.style.color = 'var(--text-tertiary)';
-            liveEl.textContent = 'Show the number of fingers';
+            liveEl.style.color = 'var(--text-secondary)';
+            liveEl.textContent = 'Show number ' + stepNum + ' of ' + totalSteps;
         }
 
         renderFingerPhase(hintShown);
