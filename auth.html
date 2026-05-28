@@ -1568,26 +1568,68 @@ function beginRecording() {
     }
 
     // Timer fallback — used if HandLandmarker unavailable or too slow. Respects SPEED_CONFIG.digit.
+    // W4.1 (D-VAC-GESTURE-REALTIME-DETECTION): the OLD fallback auto-advanced
+    // through digits on a clock regardless of what the user showed — the bug Rob
+    // hit (timer marched 1→3 without detecting). NEW behaviour: detection is the
+    // ONLY thing that advances a step. When MediaPipe is unavailable we do NOT
+    // silently auto-advance; we show an explicit status so the user knows the
+    // camera detector isn't running, and we hold the current step. The timer is
+    // a per-step TIMEOUT hint, never an auto-advance.
     function runTimerFallback() {
-        try { vacDebug('phase2_timer_fallback', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
-        console.log('[VAC] Finger phase: using timer fallback (' + DIGIT_DURATION + 's per digit)');
+        try { vacDebug('phase2_timer_fallback_no_autoadvance', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
+        console.log('[VAC] Finger phase: detector unavailable — holding for user, NOT auto-advancing (W4.1)');
+        // Visible status so Rob/users immediately know detection isn't running.
+        var statusEl = document.getElementById('vacDetectStatus');
+        if (!statusEl) {
+            statusEl = document.createElement('div');
+            statusEl.id = 'vacDetectStatus';
+            statusEl.style.cssText = 'text-align:center;margin-top:8px;font-family:var(--mono);font-size:12px;letter-spacing:0.5px';
+            if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(statusEl);
+        }
+        statusEl.style.color = '#fbbf24';
+        statusEl.textContent = 'Camera detector unavailable — hold each gesture, then tap to advance';
+        renderFingerPhase(false);
+
+        // Per-step MANUAL advance (no auto-advance). User taps to confirm each
+        // gesture is held. This is the safety net when detection is down — it
+        // never marches ahead on its own.
+        function ensureAdvanceButton() {
+            var btn = document.getElementById('vacManualAdvance');
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.id = 'vacManualAdvance';
+                btn.style.cssText = 'display:block;margin:10px auto 0;padding:10px 22px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer';
+                btn.textContent = 'Holding it ✓ — next';
+                if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(btn);
+                btn.addEventListener('click', function() {
+                    if (recordingStopped) return;
+                    // record that the user confirmed this position (count unknown
+                    // without detection — server-side Gemini remains the trust gate
+                    // on the recorded video; this only drives UI progression).
+                    detectedDigits[currentDigitIndex] = true;
+                    currentDigitIndex++;
+                    if (currentDigitIndex >= digits.length) {
+                        btn.remove();
+                        if (statusEl) statusEl.remove();
+                        renderFingerPhase(false);
+                        finishFingerPhase();
+                    } else {
+                        renderFingerPhase(false);
+                    }
+                });
+            }
+            btn.textContent = (currentDigitIndex >= digits.length - 1) ? 'Holding it ✓ — finish' : 'Holding it ✓ — next';
+        }
+        ensureAdvanceButton();
+
+        // Keep the ring ticking purely as a visual (does NOT advance steps).
         let fallbackElapsed = 0;
         const fallbackInterval = setInterval(function() {
             if (recordingStopped) { clearInterval(fallbackInterval); return; }
             fallbackElapsed += 0.2;
             const totalElapsed = PHRASE_DURATION + fallbackElapsed;
-            ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
+            ringFill.style.strokeDashoffset = circumference * Math.min(totalElapsed / totalDuration, 1);
             timerEl.textContent = Math.max(Math.ceil(totalDuration - totalElapsed), 0);
-            const completed = Math.min(Math.floor(fallbackElapsed / DIGIT_DURATION), digits.length);
-            for (let i = 0; i < completed; i++) detectedDigits[i] = true;
-            currentDigitIndex = completed;
-            if (completed >= digits.length) {
-                clearInterval(fallbackInterval);
-                renderFingerPhase(false);
-                finishFingerPhase();
-                return;
-            }
-            renderFingerPhase(false);
         }, 200);
     }
 
