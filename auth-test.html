@@ -249,6 +249,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
 /* Error */
 .error-msg { font-size: 13px; color: var(--error); text-align: center; margin-top: 12px; font-family: var(--mono); }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Claim mapping pills */
 .claim-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
@@ -2294,6 +2295,42 @@ function showRetry(result) {
     // Collect failed modalities
     const mods = result.biometric_verification?.modalities || [];
     const failed = mods.filter(m => m.status === 'failed' || m.status === 'error');
+
+    // S110 UX fix: separate OUR-FAULT service errors (Gemini/engine hiccup) from
+    // GENUINE user-side mismatches. A security product should never show a user a
+    // wall of red "service unavailable" — that reads as "you were rejected" when
+    // the fault is ours. If the ONLY problems are service errors, show a calm,
+    // reassuring message and auto-retry silently instead of a red failure panel.
+    const serviceErrors = failed.filter(m => m.status === 'error');
+    const realFailures  = failed.filter(m => m.status === 'failed');
+    const onlyServiceErrors = serviceErrors.length > 0 && realFailures.length === 0;
+
+    if (onlyServiceErrors) {
+        const stepEl = document.getElementById('progressStep');
+        const detailEl = document.getElementById('progressDetail');
+        const ringEl = document.getElementById('progressRing');
+        try {
+            if (stepEl) stepEl.textContent = 'Just a moment…';
+            if (detailEl) detailEl.textContent = 'A couple of checks couldn\u2019t run just now \u2014 that\u2019s on our side, not yours. Retrying automatically.';
+            if (ringEl) ringEl.style.stroke = 'var(--teal)';
+        } catch(_) {}
+        // Hide the alarming red "WHY IT FAILED" card + the per-modality red rows context.
+        try { document.getElementById('failReasons').parentElement.style.display = 'none'; } catch(_) {}
+        const verifiedCount = mods.filter(m => m.status === 'passed').length;
+        document.getElementById('retryTipsList').innerHTML =
+            '<div style="display:flex;align-items:center;gap:8px;color:var(--text-secondary)">'
+          + '<span style="display:inline-block;width:14px;height:14px;border:2px solid var(--teal);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>'
+          + 'Re-running the checks that didn\u2019t respond' + (verifiedCount ? ' \u2014 ' + verifiedCount + ' already passed' : '') + '\u2026</div>';
+        // Soften the retry button + auto-retry after a short, honest pause.
+        const retryBtn = document.querySelector('#retrySection button[onclick="retryVerification()"]');
+        if (retryBtn) retryBtn.textContent = 'Retry now';
+        document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
+        if (retryAttempts < MAX_RETRIES) {
+            if (window.__vacAutoRetry) clearTimeout(window.__vacAutoRetry);
+            window.__vacAutoRetry = setTimeout(function(){ try { retryVerification(); } catch(_){} }, 2500);
+        }
+        return; // do NOT fall through to the red failure panel
+    }
 
     if (failed.length > 0) {
         const reasons = failed.map(m => {
