@@ -1313,7 +1313,11 @@ function startAVChecks() {
                 const n = FingerDetector.detect(pv);          // warms the model + gives landmarks
                 const lm = FingerDetector.landmarks;
                 _avDrawHand(pv, lm);
-                if (lm) {
+                if (avChecks.hand) {
+                    // Already passed — LATCHED. Keep the skeleton drawing for feedback,
+                    // but don't nag the user to re-show their hand once they've proven it.
+                    document.getElementById('avHandHint').style.display='none';
+                } else if (lm) {
                     // well-framed? (reuse the same edge logic as the in-challenge guard)
                     let minX=1,maxX=0,minY=1,maxY=0;
                     for (const p of lm){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
