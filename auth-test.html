@@ -1735,7 +1735,6 @@ function beginRecording() {
     let _detLoopFrames = 0;  // telemetry only
     function runDetectionLoop() {
         if (recordingStopped) return;
-        if (_warmupActive) { _warmupActive = false; if (_warmupRAF) cancelAnimationFrame(_warmupRAF); }  // S110: warm-up done, real loop owns the camera now
         const videoEl = document.getElementById('videoPreviewRec');
         const detected = FingerDetector.detect(videoEl);
         _drawHandSkeleton(videoEl, FingerDetector.landmarks);
@@ -1852,23 +1851,6 @@ function beginRecording() {
         renderFingerPhase(hintShown);
         rafId = requestAnimationFrame(runDetectionLoop);
     }
-
-    // ── Detector warm-up (S110): MediaPipe's first inference is the expensive one
-    // (GPU shader compile + WASM JIT, ~0.8-1.5s) — that cold start used to land on
-    // the FIRST digit, causing the lag/desync Rob saw (dots appear late, in sync only
-    // by the 2nd number). Run silent inference DURING the speak phase so the model is
-    // already hot when the finger phase begins. No skeleton draw, no advancement —
-    // pure warm-up; it stops itself once the real detection loop takes over.
-    let _warmupRAF = null;
-    let _warmupActive = true;
-    (function warmUpDetector() {
-        if (!_warmupActive || recordingStopped) return;
-        if (FingerDetector.ready) {
-            const vEl = document.getElementById('videoPreviewRec');
-            try { FingerDetector.detect(vEl); } catch(_) {}  // discard result — just warming the pipeline
-        }
-        _warmupRAF = requestAnimationFrame(warmUpDetector);
-    })();
 
     // ── Phase 1: phrase timer (user speaks the challenge phrase) ───────────
     const phraseInterval = setInterval(() => {
