@@ -1783,10 +1783,15 @@ function beginRecording() {
                 digitStartTime = performance.now();
                 hintShown = false;
                 try { renderDigitStrip(currentDigitIndex); } catch(_) {}
+                // S110 timer reconciliation: in the FINGER phase, detection drives
+                // the pace, so the ring shows PROGRESS (digits done) — not a shrinking
+                // countdown that races the user. Removes the false deadline pressure.
                 const completedFrac = currentDigitIndex / digits.length;
-                const totalElapsed = PHRASE_DURATION + (completedFrac * (totalDuration - PHRASE_DURATION));
-                ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
-                timerEl.textContent = Math.max(Math.ceil(totalDuration - totalElapsed), 0);
+                ringFill.classList.remove('recording');
+                ringFill.style.stroke = 'var(--teal)';
+                ringFill.style.strokeDashoffset = circumference * (1 - completedFrac);
+                timerEl.style.fontSize = '14px';
+                timerEl.textContent = currentDigitIndex + '/' + digits.length;
                 if (currentDigitIndex >= digits.length) {
                     try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
                     renderFingerPhase(false);
@@ -1904,6 +1909,16 @@ function beginRecording() {
                 stableCount = 0;
                 stableFrames = 0;
                 renderFingerPhase(false);
+                // S110: switch the ring/number from countdown to calm progress at
+                // the start of the detection phase — the user shows numbers at their
+                // own pace; nothing is racing a clock here.
+                try {
+                    ringFill.classList.remove('recording');
+                    ringFill.style.stroke = 'var(--teal)';
+                    ringFill.style.strokeDashoffset = circumference;
+                    timerEl.style.fontSize = '14px';
+                    timerEl.textContent = '0/' + digits.length;
+                } catch(_) {}
                 try { vacDebug('phase2_grace_complete', null, { grace_ms: GRACE_MS }); } catch(_) {}
                 if (FingerDetector.ready) {
                     try { vacDebug('phase2_path_detection'); } catch(_) {}
