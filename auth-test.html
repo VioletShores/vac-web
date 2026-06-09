@@ -740,7 +740,7 @@ const FingerDetector = (function() {
     // slowness before giving up — not a single bad frame.
     const WARMUP_FRAMES = 5;                      // ignore timing for first 5 frames
     const SLOW_FRAME_MS = 1500;                   // what counts as "too slow"
-    const CONSECUTIVE_SLOW_LIMIT = 3;             // how many in a row before we bail
+    const CONSECUTIVE_SLOW_LIMIT = 6;             // how many in a row before we bail (raised from 3 — fallback is permanent, so don't trip on transient hiccups)
 
     async function init() {
         if (_isReady || _hasFailed) return _isReady;
@@ -856,7 +856,17 @@ const FingerDetector = (function() {
         detect: detect,
         get landmarks() { return _lastLandmarks; },
         get ready() { return _isReady; },
-        get failed() { return _hasFailed; }
+        get failed() { return _hasFailed; },
+        // S110 fix: clear the slow-frame latch so a 2nd auth attempt re-engages
+        // detection instead of staying stuck in timer fallback. _detector + the
+        // loaded model are preserved; only the per-run failure flags reset.
+        reset() {
+            if (_detector && !_hasFailed) { /* already healthy, nothing to do */ }
+            _hasFailed = false;
+            _consecutiveSlowFrames = 0;
+            _framesProcessed = 0;
+            _lastLandmarks = null;
+        }
     };
 })();
 
@@ -1454,6 +1464,7 @@ function startCountdown() {
 
 function beginRecording() {
     try { vacDebug('begin_recording_called'); } catch(_) {}
+    try { FingerDetector.reset(); } catch(_) {}  // S110: clear slow-frame latch so retry re-engages detection
     document.getElementById('recIndicator').style.display = 'flex';
     // Speed toggle was removed — guard against null (it may or may not be present)
     const _speedToggle = document.getElementById('speedToggle');
