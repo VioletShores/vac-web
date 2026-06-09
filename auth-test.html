@@ -437,6 +437,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     </div>
     <div class="camera-container recording" id="cameraBoxRec">
         <video id="videoPreviewRec" autoplay playsinline muted></video>
+        <canvas id="handOverlay" style="position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none;z-index:4;"></canvas>
         <div class="camera-overlay">
             <div class="camera-corners"></div>
             <div class="camera-corners-bottom"></div>
@@ -732,6 +733,7 @@ const FingerDetector = (function() {
     let _hasFailed = false;
     let _framesProcessed = 0;
     let _consecutiveSlowFrames = 0;
+    let _lastLandmarks = null;
     // Mobile first-frame cost (GPU shader compile, WASM JIT warmup) can spike
     // to 800-1500ms. Give it a warm-up grace period and require *sustained*
     // slowness before giving up — not a single bad frame.
@@ -843,13 +845,15 @@ const FingerDetector = (function() {
                 _consecutiveSlowFrames = 0;
             }
         }
-        if (!results.landmarks || results.landmarks.length === 0) return -1; // no hand in frame
+        if (!results.landmarks || results.landmarks.length === 0) { _lastLandmarks = null; return -1; } // no hand in frame
+        _lastLandmarks = results.landmarks[0];
         return _countFingers(results.landmarks[0]);
     }
 
     return {
         init: init,
         detect: detect,
+        get landmarks() { return _lastLandmarks; },
         get ready() { return _isReady; },
         get failed() { return _hasFailed; }
     };
@@ -1658,11 +1662,28 @@ function beginRecording() {
 
     // Detection loop (requestAnimationFrame) — advances on ANY finger shown.
     // Server-side Gemini validates the full sequence; this is purely for UX responsiveness.
+    // Skeleton overlay (S110, Rob): dots + connector lines on the hand during the finger
+    // phase — shows the user the system is tracking them live. Same MediaPipe landmarks
+    // already used for counting; purely visual.
+    const _HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+    function _drawHandSkeleton(videoEl, lm){
+        const cv=document.getElementById('handOverlay');
+        if(!cv||!videoEl) return;
+        const ctx=cv.getContext('2d');
+        if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
+        ctx.clearRect(0,0,cv.width,cv.height);
+        if(!lm) return;
+        ctx.strokeStyle='rgba(0,206,201,0.7)'; ctx.lineWidth=3;
+        for(const [a,b] of _HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
+        for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,4,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
+    }
+
     let _detLoopFrames = 0;  // telemetry only
     function runDetectionLoop() {
         if (recordingStopped) return;
         const videoEl = document.getElementById('videoPreviewRec');
         const detected = FingerDetector.detect(videoEl);
+        _drawHandSkeleton(videoEl, FingerDetector.landmarks);
         _detLoopFrames++;
         if (_detLoopFrames === 1) {
             try { vacDebug('detect_loop_first_frame', null, { detected: detected, video_ready: (videoEl && videoEl.readyState) || null }); } catch(_) {}
