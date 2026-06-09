@@ -1669,13 +1669,15 @@ function beginRecording() {
     function _drawHandSkeleton(videoEl, lm){
         const cv=document.getElementById('handOverlay');
         if(!cv||!videoEl) return;
-        const ctx=cv.getContext('2d');
+        if(!cv._ctx) cv._ctx=cv.getContext('2d',{willReadFrequently:false});
+        const ctx=cv._ctx;
         if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
         ctx.clearRect(0,0,cv.width,cv.height);
         if(!lm) return;
-        ctx.strokeStyle='rgba(0,206,201,0.7)'; ctx.lineWidth=3;
+        ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
         for(const [a,b] of _HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
-        for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,4,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
+        const r=Math.max(5, cv.width*0.011);
+        for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
     }
 
     let _detLoopFrames = 0;  // telemetry only
