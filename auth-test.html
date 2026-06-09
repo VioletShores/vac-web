@@ -1494,7 +1494,14 @@ function beginRecording() {
     }
 
     console.log('[Recording] Audio tracks before MediaRecorder start:', mediaStream.getAudioTracks().length, mediaStream.getAudioTracks().map(t => t.label + ' enabled=' + t.enabled + ' muted=' + t.muted));
-    const options = selectedMime ? { mimeType: selectedMime } : {};
+    // S110: cap bitrate so the recorded video stays small enough for Gemini's
+    // inline-request size limit. Uncapped 1280x960 webm can exceed ~20MB on
+    // longer (3-digit) recordings → base64 inline send to Gemini intermittently
+    // fails as "service unavailable". 1.5Mbps video + 64kbps audio keeps a
+    // ~10s clip well under the cap while staying clear enough for liveness/lip-sync.
+    const options = selectedMime
+        ? { mimeType: selectedMime, videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 }
+        : { videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 };
     mediaRecorder = new MediaRecorder(mediaStream, options);
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = () => { onRecordingComplete(); };
