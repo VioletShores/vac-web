@@ -2038,7 +2038,7 @@ function beginRecording() {
             // and (b) DRAW THE SKELETON during grace so the user sees their hand tracked
             // immediately — advancement is still held until grace ends.
             digitStartTime = performance.now();
-            const GRACE_MS = 600;
+            const GRACE_MS = 300;
             let graceRemaining = Math.ceil(GRACE_MS / 1000);
             // skeleton-during-grace: visual feedback only, no advancement
             let _graceDrawRAF = null;
