@@ -437,6 +437,12 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="header-eyebrow">Step 3 of 4</div>
         <div class="header-title">Complete the Challenge</div>
     </div>
+    <!-- S110: persistent target-digit strip ABOVE the video so the numbers are always
+         clear and never fade behind the hand/skeleton overlay -->
+    <div id="digitStrip" style="display:none;margin:0 0 12px;text-align:center;">
+        <div style="font-size:11px;color:var(--teal);font-family:var(--mono);letter-spacing:1.5px;font-weight:600;margin-bottom:8px;">SHOW THESE NUMBERS WITH YOUR FINGERS</div>
+        <div id="digitStripRow" style="display:flex;justify-content:center;gap:10px;"></div>
+    </div>
     <div class="camera-container recording" id="cameraBoxRec">
         <video id="videoPreviewRec" autoplay playsinline muted></video>
         <canvas id="handOverlay" style="position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none;z-index:4;"></canvas>
@@ -1557,6 +1563,25 @@ function beginRecording() {
     }
     updatePhasePrompt(0);
 
+    // S110: render the persistent above-video digit strip (current digit highlighted).
+    function renderDigitStrip(currentIdx) {
+        const strip = document.getElementById('digitStrip');
+        const row = document.getElementById('digitStripRow');
+        if (!strip || !row) return;
+        strip.style.display = 'block';
+        var html = '';
+        for (var i = 0; i < digits.length; i++) {
+            if (i < currentIdx) {
+                html += '<span style="display:inline-flex;width:46px;height:46px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:22px;font-weight:700;box-shadow:0 0 14px rgba(34,197,94,0.45);">&#10003;</span>';
+            } else if (i === currentIdx) {
+                html += '<span style="display:inline-flex;width:58px;height:58px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.25);color:#fff;align-items:center;justify-content:center;font-size:34px;font-weight:800;animation:pulse 1s ease infinite;">' + digits[i] + '</span>';
+            } else {
+                html += '<span style="display:inline-flex;width:46px;height:46px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);align-items:center;justify-content:center;font-size:20px;font-weight:700;">' + digits[i] + '</span>';
+            }
+        }
+        row.innerHTML = html;
+    }
+
     // ── Finger-phase shared state ──────────────────────────────────────────
     let detectedDigits = new Array(digits.length).fill(false);
     // W3.5: lift detectedCounts to window scope so the upload step can attach
@@ -1606,6 +1631,7 @@ function beginRecording() {
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
+        try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
         // S110 detection<->recording sync fix: detection can race ahead of the
@@ -1756,6 +1782,7 @@ function beginRecording() {
                 currentDigitIndex++;
                 digitStartTime = performance.now();
                 hintShown = false;
+                try { renderDigitStrip(currentDigitIndex); } catch(_) {}
                 const completedFrac = currentDigitIndex / digits.length;
                 const totalElapsed = PHRASE_DURATION + (completedFrac * (totalDuration - PHRASE_DURATION));
                 ringFill.style.strokeDashoffset = circumference * (totalElapsed / totalDuration);
@@ -1850,6 +1877,7 @@ function beginRecording() {
                 challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
             }
             renderGrace();
+            try { renderDigitStrip(0); } catch(_) {}
             try { vacDebug('phase2_entering', null, { detector_ready: FingerDetector.ready, detector_failed: FingerDetector.failed, module_loaded: !!window.__VAC_MediaPipe, digits_count: digits.length }); } catch(_) {}
             console.log('[VAC] Finger phase entering — detector ready=' + FingerDetector.ready + ' failed=' + FingerDetector.failed);
 
