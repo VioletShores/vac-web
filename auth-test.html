@@ -1908,6 +1908,14 @@ function beginRecording() {
             } else {
                 stableCount = detected;   // count changed — restart the hold timer
                 stableFrames = 1;
+                // S110 RACING FIX: also restart the DWELL clock when the count changes
+                // to a new value we haven't accepted. The bug: digitStartTime only reset
+                // on ADVANCE, so it measured time-since-last-advance — meaning after the
+                // first digit, the dwell was already satisfied by the time the user formed
+                // the next digit, and later digits advanced after only ~0.2s of holding
+                // (the frame gate), racing through. Resetting here makes the dwell measure
+                // how long THIS digit has actually been held.
+                if (detected !== lastAcceptedCount) { digitStartTime = performance.now(); }
             }
             // Accept when held steady long enough AND it's a change from the last
             // accepted count (lastAcceptedCount starts at 0, so the first hold counts).
@@ -1921,6 +1929,10 @@ function beginRecording() {
                 if (currentDigitIndex === 0) {
                     try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
                 }
+                // S110: per-digit advance log so the 1->2 and 2->3 dwell gaps are
+                // directly measurable (observer flagged the logs only emitted the FIRST
+                // advance). dwell_ms = how long since the dwell clock started for this digit.
+                try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: detected, held_frames: stableFrames, dwell_ms: Math.round(_nowMs - digitStartTime) }); } catch(_) {}
                 detectedDigits[currentDigitIndex] = true;
                 detectedCounts[currentDigitIndex] = detected;
                 lastAcceptedCount = detected;   // require a CHANGE before the next accept
