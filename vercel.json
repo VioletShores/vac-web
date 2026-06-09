@@ -1,255 +1,289 @@
 {
-    "rewrites": [
+  "rewrites": [
+    {
+      "source": "/about",
+      "destination": "/athena-about.html"
+    },
+    {
+      "source": "/deck",
+      "destination": "/deck.html"
+    },
+    {
+      "source": "/standards",
+      "destination": "/standards.html"
+    },
+    {
+      "source": "/trust",
+      "destination": "/trust.html"
+    },
+    {
+      "source": "/tribunal",
+      "destination": "/tribunal-demo.html"
+    },
+    {
+      "source": "/keyvault",
+      "destination": "/keyvault.html"
+    },
+    {
+      "source": "/roadmap",
+      "destination": "/roadmap.html"
+    },
+    {
+      "source": "/sdk",
+      "destination": "/sdk.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/launch-demo",
+      "destination": "/launch-demo.html"
+    },
+    {
+      "source": "/app",
+      "destination": "/app.html"
+    },
+    {
+      "source": "/deck",
+      "destination": "/deck.html"
+    },
+    {
+      "source": "/auth",
+      "destination": "/auth.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/dashboard.html"
+    },
+    {
+      "source": "/msg",
+      "destination": "/msg.html"
+    },
+    {
+      "source": "/vat/verify/:jti",
+      "destination": "/vat-verify.html?jti=:jti"
+    },
+    {
+      "source": "/vouch/:id",
+      "destination": "/vouch.html?id=:id"
+    },
+    {
+      "source": "/groups",
+      "destination": "/groups.html"
+    },
+    {
+      "source": "/agents",
+      "destination": "/agents.html"
+    },
+    {
+      "source": "/intelligence",
+      "destination": "/intelligence.html"
+    },
+    {
+      "source": "/compare",
+      "destination": "/compare.html"
+    },
+    {
+      "source": "/demo",
+      "destination": "/control-demo.html"
+    },
+    {
+      "source": "/developers",
+      "destination": "/developers.html"
+    },
+    {
+      "source": "/apikeys",
+      "destination": "/apikeys.html"
+    },
+    {
+      "source": "/athena-onboard",
+      "destination": "/athena-onboard.html"
+    },
+    {
+      "source": "/athena-regatta-club-copilot",
+      "destination": "/athena-regatta-club-copilot.html"
+    },
+    {
+      "source": "/athena-derm-copilot",
+      "destination": "/athena-derm-copilot.html"
+    },
+    {
+      "source": "/regatta",
+      "destination": "/athena-regatta-club-copilot.html"
+    },
+    {
+      "source": "/derm",
+      "destination": "/athena-derm-copilot.html"
+    },
+    {
+      "source": "/invite/:id",
+      "destination": "/athena-invite.html"
+    },
+    {
+      "source": "/invite",
+      "destination": "/athena-invite.html"
+    },
+    {
+      "source": "/invite/:id",
+      "destination": "/athena-invite.html"
+    },
+    {
+      "source": "/hub",
+      "destination": "/athena-hub.html"
+    },
+    {
+      "source": "/watch",
+      "destination": "/athena-watch.html"
+    },
+    {
+      "source": "/my",
+      "destination": "/athena-my.html"
+    },
+    {
+      "source": "/shan",
+      "destination": "/athena-shan.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/athena-privacy.html"
+    },
+    {
+      "source": "/engine",
+      "destination": "/athena-engine.html"
+    },
+    {
+      "source": "/dad",
+      "destination": "/athena-dad.html"
+    },
+    {
+      "source": "/api",
+      "destination": "https://vac-system-production.up.railway.app/docs"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "https://vac-system-production.up.railway.app/openapi.json"
+    },
+    {
+      "source": "/api/openapi.json",
+      "destination": "https://vac-system-production.up.railway.app/openapi.json"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/hub",
+      "headers": [
         {
-            "source": "/about",
-            "destination": "/athena-about.html"
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
         },
         {
-            "source": "/deck",
-            "destination": "/deck.html"
-        },
-        {
-            "source": "/standards",
-            "destination": "/standards.html"
-        },
-        {
-            "source": "/trust",
-            "destination": "/trust.html"
-        },
-        {
-            "source": "/keyvault",
-            "destination": "/keyvault.html"
-        },
-        {
-            "source": "/roadmap",
-            "destination": "/roadmap.html"
-        },
-        {
-            "source": "/sdk",
-            "destination": "/sdk.html"
-        },
-        {
-            "source": "/admin",
-            "destination": "/admin.html"
-        },
-        {
-            "source": "/launch-demo",
-            "destination": "/launch-demo.html"
-        },
-        {
-            "source": "/app",
-            "destination": "/app.html"
-        },
-        {
-            "source": "/deck",
-            "destination": "/deck.html"
-        },
-        {
-            "source": "/auth",
-            "destination": "/auth.html"
-        },
-        {
-            "source": "/dashboard",
-            "destination": "/dashboard.html"
-        },
-        {
-            "source": "/msg",
-            "destination": "/msg.html"
-        },
-        {
-            "source": "/vat/verify/:jti",
-            "destination": "/vat-verify.html?jti=:jti"
-        },
-        {
-            "source": "/vouch/:id",
-            "destination": "/vouch.html?id=:id"
-        },
-        {
-            "source": "/groups",
-            "destination": "/groups.html"
-        },
-        {
-            "source": "/agents",
-            "destination": "/agents.html"
-        },
-        {
-            "source": "/intelligence",
-            "destination": "/intelligence.html"
-        },
-        {
-            "source": "/compare",
-            "destination": "/compare.html"
-        },
-        {
-            "source": "/demo",
-            "destination": "/control-demo.html"
-        },
-        {
-            "source": "/developers",
-            "destination": "/developers.html"
-        },
-        {
-            "source": "/apikeys",
-            "destination": "/apikeys.html"
-        },
-        {
-            "source": "/athena-onboard",
-            "destination": "/athena-onboard.html"
-        },
-        {
-            "source": "/athena-regatta-club-copilot",
-            "destination": "/athena-regatta-club-copilot.html"
-        },
-        {
-            "source": "/athena-derm-copilot",
-            "destination": "/athena-derm-copilot.html"
-        },
-        {
-            "source": "/regatta",
-            "destination": "/athena-regatta-club-copilot.html"
-        },
-        {
-            "source": "/derm",
-            "destination": "/athena-derm-copilot.html"
-        },
-        {
-            "source": "/invite/:id",
-            "destination": "/athena-invite.html"
-        },
-        {
-            "source": "/invite",
-            "destination": "/athena-invite.html"
-        },
-        {
-            "source": "/invite/:id",
-            "destination": "/athena-invite.html"
-        },
-        {
-            "source": "/hub",
-            "destination": "/athena-hub.html"
-        },
-        {
-            "source": "/watch",
-            "destination": "/athena-watch.html"
-        },
-        {
-            "source": "/my",
-            "destination": "/athena-my.html"
-        },
-        {
-            "source": "/shan",
-            "destination": "/athena-shan.html"
-        },
-        {
-            "source": "/privacy",
-            "destination": "/athena-privacy.html"
-        },
-        {
-            "source": "/engine",
-            "destination": "/athena-engine.html"
-        },
-        {
-            "source": "/dad",
-            "destination": "/athena-dad.html"
-        },
-        {
-            "source": "/api",
-            "destination": "https://vac-system-production.up.railway.app/docs"
-        },
-        {
-            "source": "/openapi.json",
-            "destination": "https://vac-system-production.up.railway.app/openapi.json"
-        },
-        {
-            "source": "/api/openapi.json",
-            "destination": "https://vac-system-production.up.railway.app/openapi.json"
+          "key": "Pragma",
+          "value": "no-cache"
         }
-    ],
-    "headers": [
+      ]
+    },
+    {
+      "source": "/engine",
+      "headers": [
         {
-            "source": "/hub",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-                { "key": "Pragma", "value": "no-cache" }
-            ]
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
         },
         {
-            "source": "/engine",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-                { "key": "Pragma", "value": "no-cache" }
-            ]
-        },
-        {
-            "source": "/regatta",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-            ]
-        },
-        {
-            "source": "/derm",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-            ]
-        },
-        {
-            "source": "/auth",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-            ]
-        },
-        {
-            "source": "/my",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-            ]
-        },
-        {
-            "source": "/shan",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-            ]
-        },
-        {
-            "source": "/dad",
-            "headers": [
-                { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
-            ]
-        },
-        {
-            "source": "/vac-auth.js",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "no-cache, no-store, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/(.*)\\.html",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "no-cache, no-store, must-revalidate"
-                },
-                {
-                    "key": "Pragma",
-                    "value": "no-cache"
-                }
-            ]
-        },
-        {
-            "source": "/(.*).html",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "no-cache, no-store, must-revalidate"
-                },
-                {
-                    "key": "Pragma",
-                    "value": "no-cache"
-                }
-            ]
+          "key": "Pragma",
+          "value": "no-cache"
         }
-    ]
+      ]
+    },
+    {
+      "source": "/regatta",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/derm",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/auth",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/my",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/shan",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/dad",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/vac-auth.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/(.*).html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        }
+      ]
+    }
+  ]
 }
