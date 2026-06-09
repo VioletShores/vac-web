@@ -1563,6 +1563,7 @@ function beginRecording() {
     let stableFrames = 0;         // consecutive frames that count has been steady
     let lastAcceptedCount = 0;    // W4.1: last count we accepted — require a CHANGE before next accept (hand stays up)
     const STABLE_FRAMES_NEEDED = 12;  // ~0.6s at ~20fps — a deliberate hold, not a flicker
+    const MIN_DIGIT_DWELL_MS = 700;   // S110: each digit must be held ~0.7s wall-clock before advancing, so the recorded video captures every pose for Gemini (frame-rate independent)
     let currentDigitIndex = 0;
     let rafId = null;
     let recordingStopped = false;
@@ -1599,7 +1600,12 @@ function beginRecording() {
         recordingStopped = true;
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
-        setTimeout(function() { mediaRecorder.stop(); }, 500);
+        // S110 detection<->recording sync fix: detection can race ahead of the
+        // recorded video (Gemini saw only the first digit of [2,3,5]). Keep the
+        // recorder running a tail buffer AFTER the last digit so the video
+        // actually contains footage of every digit pose before we stop + send
+        // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
+        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
     }
 
     // Timer fallback — used if HandLandmarker unavailable or too slow. Respects SPEED_CONFIG.digit.
@@ -1725,7 +1731,13 @@ function beginRecording() {
             }
             // Accept when held steady long enough AND it's a change from the last
             // accepted count (lastAcceptedCount starts at 0, so the first hold counts).
-            if (stableFrames >= STABLE_FRAMES_NEEDED && detected !== lastAcceptedCount) {
+            // S110 sync fix: ALSO require a wall-clock minimum dwell (MIN_DIGIT_DWELL_MS)
+            // since at 60fps STABLE_FRAMES_NEEDED=12 is only ~0.2s — too fast for the
+            // recorded video to capture each pose, so Gemini saw only the first digit.
+            const _nowMs = performance.now();
+            if (digitStartTime === 0) digitStartTime = _nowMs;  // first digit: start the dwell clock on first stable detection
+            const _dwellOk = (_nowMs - digitStartTime) >= MIN_DIGIT_DWELL_MS;
+            if (stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount) {
                 if (currentDigitIndex === 0) {
                     try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
                 }
