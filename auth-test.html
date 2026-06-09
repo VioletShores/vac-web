@@ -2010,12 +2010,25 @@ function beginRecording() {
                 return;
             }
             // ── Phase 2: finger detection (HandLandmarker) or timer fallback ──
-            // Grace period: show "GET READY" prompt for 1.5s before starting detection.
-            // Without this, users with their hand already in frame (preparing) get
-            // instant-advanced through all digits in ~2 seconds (L-280).
+            // S110 (evidence-led fix): the first-finger "lag" was NOT cold-start — the
+            // console showed detection works on its first active frame. The cause was
+            // this grace period being a 1.5s DETECTION BLACKOUT (the detect loop didn't
+            // run at all during it), so dots/lines couldn't appear for 1.5s on digit 1.
+            // Fix: (a) shorten grace to 600ms (the ~0.6s stability gate + the new hand
+            // pre-flight already prevent instant-advance, so the long grace is redundant),
+            // and (b) DRAW THE SKELETON during grace so the user sees their hand tracked
+            // immediately — advancement is still held until grace ends.
             digitStartTime = performance.now();
-            const GRACE_MS = 1500;
+            const GRACE_MS = 600;
             let graceRemaining = Math.ceil(GRACE_MS / 1000);
+            // skeleton-during-grace: visual feedback only, no advancement
+            let _graceDrawRAF = null;
+            (function graceDraw(){
+                if (recordingStopped) return;
+                const gv = document.getElementById('videoPreviewRec');
+                try { FingerDetector.detect(gv); _drawHandSkeleton(gv, FingerDetector.landmarks); document.getElementById('cameraBoxRec').classList.toggle('hand-visible', !!FingerDetector.landmarks); } catch(_){}
+                _graceDrawRAF = requestAnimationFrame(graceDraw);
+            })();
             function renderGrace() {
                 var circles = '';
                 for (var di = 0; di < digits.length; di++) {
@@ -2043,6 +2056,7 @@ function beginRecording() {
             setTimeout(function() {
                 if (recordingStopped) return;
                 clearInterval(graceInterval);
+                if (_graceDrawRAF) cancelAnimationFrame(_graceDrawRAF);  // stop grace-draw before the real loop owns the camera
                 // Reset digitStartTime so HINT_TIMEOUT counts from the real start
                 digitStartTime = performance.now();
                 // W4.1 hand-stays-up model: no drop-hand gate. A hand already in
