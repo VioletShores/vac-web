@@ -873,6 +873,16 @@ const FingerDetector = (function() {
             _consecutiveSlowFrames = 0;
             _framesProcessed = 0;
             _lastLandmarks = null;
+        },
+        // S110 (v2): safe ONE-SHOT warm-up. Triggers MediaPipe's expensive first
+        // inference (GPU shader compile / WASM JIT) ahead of the finger phase so the
+        // first digit isn't laggy. Unlike the reverted loop version: it's a single
+        // guarded call that CANNOT trip _hasFailed and does NOT run a competing loop —
+        // so it can't corrupt the real detection loop's timestamp sequence. Safe to
+        // call a couple of times (e.g. on voice onset during the speak phase).
+        warmOnce(videoEl) {
+            if (!_isReady || !_detector || !videoEl || videoEl.readyState < 2) return;
+            try { _detector.detectForVideo(videoEl, performance.now()); } catch(_) { /* swallow — warm-up errors must NOT fail the detector */ }
         }
     };
 })();
@@ -1423,6 +1433,39 @@ function goToChallenge() {
     recVid.muted = true;
     recVid.setAttribute('playsinline', '');
     recVid.play().catch(() => {});
+    // S110 (v2): voice-triggered detector warm-up (Rob's idea). When the user starts
+    // SPEAKING the phrase, fire a few guarded one-shot MediaPipe inferences so the
+    // model's cold-start cost is paid during speech — not on the first finger. Uses
+    // the same audio-analyser pattern as the mic test. One-shot calls (not a loop),
+    // capped, and they CANNOT trip the failure latch — so this can't regress the real
+    // detection loop the way the previous loop-based warm-up did.
+    try {
+        const warmCtx = new AudioContext();
+        if (warmCtx.state === 'suspended') warmCtx.resume();
+        const warmAnalyser = warmCtx.createAnalyser();
+        warmAnalyser.fftSize = 256;
+        const warmSrc = warmCtx.createMediaStreamSource(mediaStream.clone());
+        warmSrc.connect(warmAnalyser);
+        const warmBuf = new Uint8Array(warmAnalyser.fftSize);
+        let warmCount = 0;
+        const WARM_MAX = 4;                 // a few one-shots is enough to compile the pipeline
+        const warmDeadline = performance.now() + 12000;  // self-cancel after 12s no matter what
+        let warmRAF = null;
+        function stopWarm() { try { warmCtx.close(); } catch(_) {} if (warmRAF) cancelAnimationFrame(warmRAF); }
+        function watchForVoice() {
+            if (warmCount >= WARM_MAX || performance.now() > warmDeadline) { stopWarm(); return; }
+            warmAnalyser.getByteTimeDomainData(warmBuf);
+            let maxDev = 0;
+            for (let i = 0; i < warmBuf.length; i++) { const d = Math.abs(warmBuf[i] - 128); if (d > maxDev) maxDev = d; }
+            const level = (maxDev / 128) * 100;
+            if (level > 8) {  // voice onset — warm the detector once (guarded, can't fail it)
+                FingerDetector.warmOnce(recVid);
+                warmCount++;
+            }
+            warmRAF = requestAnimationFrame(watchForVoice);
+        }
+        watchForVoice();
+    } catch (e) { /* warm-up is best-effort; never block the flow */ }
     goToStep(2);
     // Auto-start countdown after brief delay (no button press needed)
     setTimeout(() => startCountdown(), 800);
