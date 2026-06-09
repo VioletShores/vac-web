@@ -126,7 +126,21 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .verify-link{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--teal);text-decoration:none;border:1px solid var(--teal-border);background:var(--teal-bg);border-radius:6px;padding:7px 12px;margin-top:12px;transition:all .15s;}
 .verify-link:hover{border-color:var(--teal);color:var(--text-primary);}
 .real-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;letter-spacing:.5px;margin-left:8px;}
-@media(max-width:560px){.hero h1{font-size:27px;}.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}}
+
+/* more use cases + CTA */
+.more-cases{margin-top:52px;}
+.more-intro{font-size:14.5px;color:var(--text-secondary);max-width:660px;margin-bottom:22px;}
+.more-intro .pull{color:var(--text-primary);font-weight:600;}
+.case-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.case{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.case-t{font-weight:600;color:var(--text-primary);font-size:14px;margin-bottom:8px;}
+.case-d{font-size:12.5px;color:var(--text-tertiary);line-height:1.55;}
+.cta{margin-top:18px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.cta-h{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.cta-d{font-size:13.5px;color:var(--text-secondary);max-width:520px;}
+.cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;}
+.cta-btn:hover{background:var(--purple-dim);}
+@media(max-width:560px){.hero h1{font-size:27px;}.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}}
 </style>
 </head>
 <body>
@@ -198,6 +212,20 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <strong>What's real today vs. what's next.</strong> The cryptographic signing, the authority chain, and the verification are <strong>live and in production now</strong> — the token in the walkthrough is genuinely signed and you can verify it. The trust/tribunal <em>workflow skin</em> over these primitives is what we'd build with the Law Society. Live biometric capture is wired and connects to the walkthrough in the next phase (this preview simulates that one step so it can be shared as a link).
       </div>
     </div><!-- /tab-arch -->
+
+    <section class="more-cases">
+      <p class="section-label">The same protocol, other high-stakes domains</p>
+      <p class="more-intro">Verified human authority, policy that travels with the work, and a sealed, auditable decision trail are not specific to legal trusts. The same primitives apply wherever <span class="pull">who authorised what, under which rules</span> has to be provable after the fact.</p>
+      <div class="case-grid">
+        <div class="case"><div class="case-t">Defence &amp; sovereign systems</div><div class="case-d">Chain-of-command authority for autonomous and AI-assisted systems — a verifiable record that a cleared human authorised an action, under encoded rules of engagement, that an oversight body can audit. Sovereignty-sensitive by design: policy stays with the operator, not on a vendor's servers.</div></div>
+        <div class="case"><div class="case-t">Regulated finance &amp; custody</div><div class="case-d">Authorisation trails for high-value transactions where an auditor must later prove a verified human signed off under specific conditions — without exposing the underlying confidential rules.</div></div>
+        <div class="case"><div class="case-t">Critical infrastructure &amp; energy</div><div class="case-d">Verifiable authority for actions on physical systems — who is permitted to act, under what conditions, with a tamper-evident record for the regulator.</div></div>
+      </div>
+      <div class="cta">
+        <div class="cta-text"><div class="cta-h">See a fit — or know someone who should see this?</div><div class="cta-d">If a domain you work in needs verifiable human authority with an auditable trail, or you can introduce us to someone who does, we'd value the conversation.</div></div>
+        <a class="cta-btn" href="mailto:enterprise@vacprotocol.org?subject=VAC%20Trust%20%26%20Tribunal%20%E2%80%94%20introduction" target="_blank" rel="noopener">Start a conversation</a>
+      </div>
+    </section>
 
     <div class="foot">
       <strong>What this preview shows:</strong> the shape of the flow, built on VAC primitives that already exist — verified identity, a policy-carrying packet that holds the trust's rules, automatic condition-checking, a human authorisation step, and a sealed, lodged decision with an audit trail.
@@ -308,7 +336,7 @@ document.getElementById('advance').onclick=()=>{
     document.querySelector('.step[data-i="'+stepIdx+'"]').classList.add('revealed');
     document.querySelector('.step[data-i="'+stepIdx+'"]').scrollIntoView({behavior:'smooth',block:'center'});
     const adv=document.getElementById('advance');
-    adv.textContent = stepIdx===cur.steps.length-1 ? 'Seal &amp; lodge decision' : 'Next step';
+    adv.textContent = stepIdx===cur.steps.length-1 ? 'Seal & lodge decision' : 'Next step';
   } else {
     document.getElementById('advance').disabled=true;
     showReceipt();
