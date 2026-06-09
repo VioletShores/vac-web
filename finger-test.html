@@ -135,20 +135,26 @@ function angle(a,b,c){
   let cos=dot/(m1*m2); cos=Math.max(-1,Math.min(1,cos));
   return Math.acos(cos)*180/Math.PI; // 0 = perfectly straight, larger = more bent
 }
-// thumb: spread/abduction — distance of tip from index-MCP relative to hand scale
-function thumbOut(lm){
-  const tip=lm[4], idxMcp=lm[5], wrist=lm[0];
-  const scale=Math.hypot(lm[9].x-wrist.x, lm[9].y-wrist.y)||1; // wrist→middle-MCP as hand size
-  const d=Math.hypot(tip.x-idxMcp.x, tip.y-idxMcp.y);
-  return d/scale; // larger = thumb extended out
+// thumb: orientation-invariant joint-angle (CMC→MCP vs MCP→TIP) is the primary signal —
+// a straight/extended thumb keeps those segments aligned (small angle); a tucked thumb bends.
+// Combined with a spread check (tip far from the index-finger base) to reject false-positives
+// when the thumb is folded across the palm but still roughly straight.
+function thumbState(lm){
+  const bend = angle(lm[1], lm[2], lm[4]);      // CMC→MCP vs MCP→TIP, orientation-free
+  const wrist=lm[0];
+  const scale=Math.hypot(lm[9].x-wrist.x, lm[9].y-wrist.y)||1;
+  const spread=Math.hypot(lm[4].x-lm[5].x, lm[4].y-lm[5].y)/scale; // tip vs index-MCP
+  // extended only if BOTH reasonably straight AND spread away from the hand
+  const up = bend < 40 && spread > 0.62;
+  return {up, bend, spread};
 }
 
 function countFingers(lm){
   let count=0; const states=[];
-  // thumb (index 0 in FINGERS)
-  const to=thumbOut(lm); const thumbUp=to>0.55;
-  states.push({up:thumbUp, metric:to, isThumb:true});
-  if(thumbUp) count++;
+  // thumb (index 0 in FINGERS) — angle + spread combined
+  const t=thumbState(lm);
+  states.push({up:t.up, metric:t.bend, spread:t.spread, isThumb:true});
+  if(t.up) count++;
   // four fingers: small bend-angle = straight = extended
   for(let i=1;i<5;i++){
     const [_,mcp,pip,dip,tip]=FINGERS[i];
@@ -182,7 +188,7 @@ function loop(){
       states.forEach((s,i)=>{
         const st=document.getElementById('st'+i), ang=document.getElementById('ang'+i), bar=document.getElementById('bar'+i);
         st.textContent=s.up?'up':'down'; st.className='finger-state '+(s.up?'up':'down');
-        if(s.isThumb){ang.textContent=s.metric.toFixed(2);bar.style.width=Math.min(100,s.metric*90)+'%';}
+        if(s.isThumb){ang.textContent=Math.round(s.metric)+'° / '+s.spread.toFixed(2);bar.style.width=Math.max(0,100-s.metric*1.6)+'%';}
         else{ang.textContent=Math.round(s.metric)+'°';bar.style.width=Math.max(0,100-s.metric*1.6)+'%';}
       });
       // tick when count matches target and holds ~4 frames
