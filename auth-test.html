@@ -1714,6 +1714,9 @@ function beginRecording() {
     let lastAcceptedCount = 0;    // W4.1: last count we accepted — require a CHANGE before next accept (hand stays up)
     const STABLE_FRAMES_NEEDED = 12;  // ~0.6s at ~20fps — a deliberate hold, not a flicker
     const MIN_DIGIT_DWELL_MS = 700;   // S110: each digit must be held ~0.7s wall-clock before advancing, so the recorded video captures every pose for Gemini (frame-rate independent)
+    let _confirmUntil = 0;            // S110: during a confirmation beat after an accept, pause new accepts + delay next-number reveal
+    const CONFIRM_BEAT_MS = 900;      // length of the "Got it ✓" beat between digits
+    let _confirmStripPending = -1;    // digit index whose strip-highlight is waiting for the beat to end
     let currentDigitIndex = 0;
     let rafId = null;
     let recordingStopped = false;
@@ -1928,7 +1931,7 @@ function beginRecording() {
             const _nowMs = performance.now();
             if (digitStartTime === 0) digitStartTime = _nowMs;  // first digit: start the dwell clock on first stable detection
             const _dwellOk = (_nowMs - digitStartTime) >= MIN_DIGIT_DWELL_MS;
-            if (stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount) {
+            if (stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount && _nowMs >= _confirmUntil) {
                 if (currentDigitIndex === 0) {
                     try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
                 }
@@ -1943,7 +1946,14 @@ function beginRecording() {
                 currentDigitIndex++;
                 digitStartTime = performance.now();
                 hintShown = false;
-                try { renderDigitStrip(currentDigitIndex); } catch(_) {}
+                // S110 CONFIRMATION BEAT (Rob): instead of instantly highlighting the next
+                // number (which made the user feel they were chasing it), hold a clear
+                // "Got it ✓" moment. During _confirmUntil we (a) pause accepting new digits,
+                // (b) delay advancing the digit-strip highlight, so the user registers success
+                // and can reposition before the next number is revealed.
+                _confirmUntil = performance.now() + CONFIRM_BEAT_MS;
+                _confirmStripPending = currentDigitIndex;   // reveal this next-number highlight when the beat ends
+                // NOTE: digit-strip highlight is advanced AFTER the beat (see below), not here.
                 // S110 timer reconciliation: in the FINGER phase, detection drives
                 // the pace, so the ring shows PROGRESS (digits done) — not a shrinking
                 // countdown that races the user. Removes the false deadline pressure.
@@ -1987,21 +1997,30 @@ function beginRecording() {
         }
         var stepNum = currentDigitIndex + 1;            // 1-based for display
         var totalSteps = digits.length;
-        var justAccepted = (performance.now() - (digitStartTime || 0)) < 700; // brief "Got it" window after an accept
+        var _now = performance.now();
+        var inConfirmBeat = _now < _confirmUntil;       // S110: the "Got it ✓" hold between digits
+        // When the beat ends, NOW reveal the next number's highlight (delayed from accept).
+        if (!inConfirmBeat && _confirmStripPending >= 0) {
+            try { renderDigitStrip(_confirmStripPending); } catch(_) {}
+            _confirmStripPending = -1;
+        }
         if (currentDigitIndex >= totalSteps) {
             liveEl.style.color = '#22c55e';
             liveEl.textContent = 'All gestures captured \u2713';
-        } else if (justAccepted && lastAcceptedCount > 0) {
-            // Brief confirmation right after accepting a digit.
+        } else if (inConfirmBeat) {
+            // Clear, deliberate confirmation moment — big tick, no next number yet.
             liveEl.style.color = '#22c55e';
-            liveEl.textContent = 'Got it \u2713  \u2014  now show number ' + stepNum;
+            liveEl.style.fontSize = '22px';
+            liveEl.textContent = '\u2713  Got it';
         } else if (detected > 0 && detected !== lastAcceptedCount) {
+            liveEl.style.fontSize = '17px';
             const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
             liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
             liveEl.textContent = pct >= 100
                 ? ('Got it \u2713')
                 : ('Number ' + stepNum + ' of ' + totalSteps + ' \u2014 hold steady ' + pct + '%');
         } else if (detected > 0 && detected === lastAcceptedCount) {
+            liveEl.style.fontSize = '17px';
             liveEl.style.color = '#fbbf24';
             liveEl.textContent = 'Now change to number ' + stepNum + ' of ' + totalSteps;
         } else {
