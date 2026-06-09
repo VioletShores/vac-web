@@ -409,6 +409,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 Refresh camera &amp; mic
             </button>
         </div>
+        <!-- S110 (F-559): guided sequential pre-flight — tells the user exactly which
+             check to satisfy next, one at a time, so the hand step (and its framing) is
+             impossible to miss. Driven by avChecks in updateAVReady. -->
+        <div id="avGuide" style="text-align:center;font-size:15px;font-weight:600;color:var(--text-primary);background:var(--purple-bg,rgba(108,92,231,0.08));border:1px solid var(--purple-border,rgba(108,92,231,0.25));border-radius:10px;padding:12px 16px;margin-bottom:10px;">Checking your camera…</div>
         <!-- Status pills — horizontal row -->
         <div style="display: flex; justify-content: space-between; gap: 6px;">
             <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
@@ -1132,9 +1136,10 @@ async function requestCamera() {
             err.style.display = 'block';
         }
 
-        btn.textContent = 'Ready — Proceed to Challenge';
-        btn.disabled = false;
+        btn.textContent = 'Complete the checks above';
+        btn.disabled = true;            // S110: start gated; updateAVReady enables once light+mic+hand all pass
         btn.onclick = goToChallenge;
+        updateAVReady();                // reflect current check state immediately
         // Fetch adaptive modality requirements
         fetchModalityRequirements();
     } catch (e) {
@@ -1404,10 +1409,27 @@ function updateMicTips() {
 
 function updateAVReady() {
     const btn = document.getElementById('btnCamera');
-    const allGood = avChecks.light && avChecks.mic;
-    if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready')) {
+    const guide = document.getElementById('avGuide');
+    // S110 (F-559): guided sequential gate — walk the user through light → mic → hand,
+    // one at a time, with explicit instructions. All three must pass before Start.
+    if (guide) {
+        if (!avChecks.light) {
+            guide.textContent = 'Step 1 of 3 — find good lighting so your face is clearly visible';
+        } else if (!avChecks.mic) {
+            guide.textContent = 'Step 2 of 3 — say a few words to test your microphone';
+        } else if (!avChecks.hand) {
+            guide.textContent = 'Step 3 of 3 — hold your whole hand up in view (you\u2019ll see it tracked)';
+        } else {
+            guide.textContent = 'All set \u2713  You\u2019re ready to verify';
+            guide.style.color = 'var(--success)';
+            guide.style.borderColor = 'var(--success-border, rgba(63,185,80,0.3))';
+            guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
+        }
+    }
+    const allGood = avChecks.light && avChecks.mic && avChecks.hand;
+    if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
         btn.disabled = !allGood;
-        btn.textContent = allGood ? 'Ready — Proceed to Challenge' : 'Proceed to Challenge';
+        btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
     }
 }
 
