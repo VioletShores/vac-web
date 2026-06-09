@@ -446,6 +446,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <div class="camera-container recording" id="cameraBoxRec">
         <video id="videoPreviewRec" autoplay playsinline muted></video>
         <canvas id="handOverlay" style="position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none;z-index:4;"></canvas>
+        <div id="framingHint" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(210,153,34,0.92);color:#0D1117;font-weight:600;font-size:13px;padding:8px 14px;border-radius:8px;max-width:90%;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,0.4);"></div>
         <div class="camera-overlay">
             <div class="camera-corners"></div>
             <div class="camera-corners-bottom"></div>
@@ -1674,6 +1675,7 @@ function beginRecording() {
         if (recordingStopped) return;
         recordingStopped = true;
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
+        try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
         // S110 detection<->recording sync fix: detection can race ahead of the
@@ -1760,6 +1762,32 @@ function beginRecording() {
     // phase — shows the user the system is tracking them live. Same MediaPipe landmarks
     // already used for counting; purely visual.
     const _HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+    // S110: detect when the hand is too close / clipped by the frame edges so we
+    // can prompt the user to pull back. MediaPipe can't count reliably when not all
+    // 21 landmarks are visible. We check (a) any landmark near/past an edge and
+    // (b) the hand bounding box filling most of the frame. Debounced so the prompt
+    // doesn't flicker on momentary edge touches.
+    let _framingBadFrames = 0;
+    function _checkHandFraming(lm) {
+        const banner = document.getElementById('framingHint');
+        if (!lm) { _framingBadFrames = 0; if (banner) banner.style.display = 'none'; return; }
+        let minX=1, maxX=0, minY=1, maxY=0;
+        for (const p of lm) { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+        const EDGE = 0.04;
+        const clipped = (minX < EDGE || maxX > 1-EDGE || minY < EDGE || maxY > 1-EDGE);
+        const tooBig  = ((maxX-minX) > 0.85 || (maxY-minY) > 0.9);
+        if (clipped || tooBig) { _framingBadFrames++; } else { _framingBadFrames = 0; }
+        if (banner) {
+            if (_framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
+                banner.textContent = tooBig ? 'Move your hand back a little — keep your whole hand in view'
+                                            : 'Center your hand — keep it fully inside the frame';
+                banner.style.display = 'block';
+            } else if (_framingBadFrames === 0) {
+                banner.style.display = 'none';
+            }
+        }
+    }
+
     function _drawHandSkeleton(videoEl, lm){
         const cv=document.getElementById('handOverlay');
         if(!cv||!videoEl) return;
@@ -1781,6 +1809,11 @@ function beginRecording() {
         const detected = FingerDetector.detect(videoEl);
         _drawHandSkeleton(videoEl, FingerDetector.landmarks);
         try { document.getElementById('cameraBoxRec').classList.toggle('hand-visible', !!FingerDetector.landmarks); } catch(_){}
+        // S110: hand-too-close / partially-out-of-frame guard (Rob — last digit
+        // failed until he pulled his hand back so the whole hand was in frame).
+        // MediaPipe needs all 21 landmarks visible to count reliably; if the hand
+        // is clipped at an edge or fills the frame, prompt the user to pull back.
+        try { _checkHandFraming(FingerDetector.landmarks); } catch(_){}
         _detLoopFrames++;
         if (_detLoopFrames === 1) {
             try { vacDebug('detect_loop_first_frame', null, { detected: detected, video_ready: (videoEl && videoEl.readyState) || null }); } catch(_) {}
