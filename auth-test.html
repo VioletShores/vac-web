@@ -369,6 +369,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     </div>
     <div class="camera-container" id="cameraBox">
         <video id="videoPreview" autoplay playsinline muted></video>
+        <canvas id="avHandOverlay" style="position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none;z-index:4;"></canvas>
         <div class="camera-overlay">
             <div class="camera-corners"></div>
             <div class="camera-corners-bottom"></div>
@@ -412,7 +413,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div style="display: flex; justify-content: space-between; gap: 6px;">
             <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
             <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span></div>
+            <div id="avPillHand" class="av-pill"><span id="avHandIcon" class="av-pill-icon spinning"></span><span id="avHandLabel">Hand</span></div>
         </div>
+        <div id="avHandHint" style="display:none;text-align:center;font-size:12px;color:var(--teal);margin-top:8px;font-weight:500;">Hold your hand up — we'll show you it being tracked</div>
     </div>
     <div style="text-align: center; margin-top: 4px;">
         <div id="adaptiveAuthBar" class="adaptive-auth-bar standard" style="display:none;"></div>
@@ -1205,7 +1208,7 @@ function showDeviceInfo() {
 let avCheckFrame = null;
 let avAudioCtx = null;
 let avAnalyser = null;
-let avChecks = { light: false, mic: false };
+let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 
 function startAVChecks() {
@@ -1294,12 +1297,54 @@ function startAVChecks() {
         } catch (e) { /* canvas errors are non-fatal */ }
         } // end throttle block
 
+        // S110 (F-559): hand pre-flight. Run the SAME FingerDetector here so the user
+        // sees the skeleton (the "impress" moment), confirms detection works, AND the
+        // model warms up — so the first finger in the challenge isn't laggy. Additive:
+        // separate video (videoPreview), separate overlay (avHandOverlay); does NOT
+        // touch the in-challenge loop. Guarded — never blocks Proceed.
+        try {
+            if (FingerDetector.ready) {
+                const pv = document.getElementById('videoPreview');
+                const n = FingerDetector.detect(pv);          // warms the model + gives landmarks
+                const lm = FingerDetector.landmarks;
+                _avDrawHand(pv, lm);
+                if (lm) {
+                    // well-framed? (reuse the same edge logic as the in-challenge guard)
+                    let minX=1,maxX=0,minY=1,maxY=0;
+                    for (const p of lm){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+                    const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
+                    const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
+                    if (clipped || tooBig) { setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
+                    else { setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none'; }
+                } else {
+                    document.getElementById('avHandHint').style.display='block';
+                    document.getElementById('avHandHint').textContent='Hold your hand up — we\u2019ll show you it being tracked';
+                }
+            }
+        } catch(_) { /* hand pre-flight is best-effort; never block */ }
+
         // Update proceed button
         updateAVReady();
         updateMicTips();
         avCheckFrame = requestAnimationFrame(runAVFrame);
     }
     avCheckFrame = requestAnimationFrame(runAVFrame);
+}
+
+// S110 (F-559): draw the hand skeleton on the pre-flight camera (the "impress" moment).
+const _AV_HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function _avDrawHand(videoEl, lm){
+    const cv=document.getElementById('avHandOverlay');
+    if(!cv||!videoEl||!videoEl.videoWidth) return;
+    if(!cv._ctx) cv._ctx=cv.getContext('2d');
+    const ctx=cv._ctx;
+    if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if(!lm) return;
+    ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
+    for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
+    const r=Math.max(5,cv.width*0.011);
+    for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
 }
 
 // SVG icons (from folioAI — clean, professional, no emoji)
@@ -1312,9 +1357,9 @@ const AV_ICONS = {
 };
 
 function setAVStatus(check, status, label) {
-    const pillMap = { face: 'avPillFace', light: 'avPillLight', mic: 'avPillMic' };
-    const iconMap = { face: 'avFaceIcon', light: 'avLightIcon', mic: 'avMicIcon' };
-    const labelMap = { face: 'avFaceLabel', light: 'avLightLabel', mic: 'avMicLabel' };
+    const pillMap = { face: 'avPillFace', light: 'avPillLight', mic: 'avPillMic', hand: 'avPillHand' };
+    const iconMap = { face: 'avFaceIcon', light: 'avLightIcon', mic: 'avMicIcon', hand: 'avHandIcon' };
+    const labelMap = { face: 'avFaceLabel', light: 'avLightLabel', mic: 'avMicLabel', hand: 'avHandLabel' };
     const pill = document.getElementById(pillMap[check]);
     const iconEl = document.getElementById(iconMap[check]);
     const labelEl = document.getElementById(labelMap[check]);
@@ -1376,7 +1421,7 @@ function stopAVChecks() {
 function retryAVSetup() {
     // Stop existing checks
     stopAVChecks();
-    avChecks = { face: false, light: false, mic: false };
+    avChecks = { face: false, light: false, mic: false, hand: false };
     // Stop existing stream
     const video = document.getElementById('videoPreview');
     if (video && video.srcObject) {
