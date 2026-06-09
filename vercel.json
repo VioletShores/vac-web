@@ -171,6 +171,10 @@
     {
       "source": "/finger-test",
       "destination": "/finger-test.html"
+    },
+    {
+      "source": "/auth-test",
+      "destination": "/auth-test.html"
     }
   ],
   "headers": [
