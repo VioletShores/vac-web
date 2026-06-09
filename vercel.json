@@ -167,6 +167,10 @@
     {
       "source": "/api/openapi.json",
       "destination": "https://vac-system-production.up.railway.app/openapi.json"
+    },
+    {
+      "source": "/finger-test",
+      "destination": "/finger-test.html"
     }
   ],
   "headers": [

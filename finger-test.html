@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VAC — Finger Detection Test Bench</title>
+<style>
+:root{
+  --bg:#0D1117;--surface:#161B22;--surface-raised:#1C2128;--border:#30363D;--border-light:#3D444D;
+  --text-primary:#F0F6FC;--text-secondary:#C9D1D9;--text-tertiary:#8B949E;--text-quaternary:#6E7681;
+  --purple:#6C5CE7;--purple-dim:#5A4BD1;--purple-bg:rgba(108,92,231,0.08);--purple-border:rgba(108,92,231,0.25);
+  --teal:#00CEC9;--teal-bg:rgba(0,206,201,0.08);--teal-border:rgba(0,206,201,0.2);
+  --success:#3FB950;--success-bg:rgba(63,185,80,0.10);--success-border:rgba(63,185,80,0.3);
+  --amber:#D29922;--error:#F85149;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text-secondary);font-family:var(--font);min-height:100vh;padding:24px;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:760px;margin:0 auto;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
+h1{font-size:22px;color:var(--text-primary);font-weight:700;margin-bottom:6px;}
+.sub{font-size:14px;color:var(--text-tertiary);margin-bottom:20px;}
+.status{font-family:var(--mono);font-size:12px;padding:8px 14px;border-radius:7px;margin-bottom:16px;display:inline-block;}
+.status.loading{color:var(--amber);background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.25);}
+.status.ready{color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);}
+.status.err{color:var(--error);background:rgba(248,81,73,0.08);border:1px solid rgba(248,81,73,0.3);}
+
+.stage{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:14px;overflow:hidden;border:1px solid var(--border);}
+#video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+#overlay{position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);}
+.count-badge{position:absolute;top:16px;left:16px;background:rgba(13,17,23,0.85);backdrop-filter:blur(8px);border:1px solid var(--border-light);border-radius:12px;padding:14px 20px;z-index:3;}
+.count-num{font-family:var(--mono);font-size:46px;font-weight:700;color:var(--text-primary);line-height:1;}
+.count-label{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1px;text-transform:uppercase;margin-top:4px;}
+.tick{position:absolute;top:16px;right:16px;width:54px;height:54px;border-radius:50%;background:var(--success-bg);border:2px solid var(--success-border);display:flex;align-items:center;justify-content:center;z-index:3;opacity:0;transform:scale(0.7);transition:all .25s;}
+.tick.show{opacity:1;transform:scale(1);}
+.fps{position:absolute;bottom:12px;right:14px;font-family:var(--mono);font-size:10px;color:var(--text-quaternary);z-index:3;}
+
+.target{display:flex;align-items:center;gap:14px;margin:18px 0;flex-wrap:wrap;}
+.target-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;text-transform:uppercase;}
+.digit-btns{display:flex;gap:6px;}
+.digit-btn{font-family:var(--mono);font-size:15px;font-weight:600;width:42px;height:42px;border-radius:9px;border:1px solid var(--border-light);background:var(--surface);color:var(--text-secondary);cursor:pointer;transition:all .15s;}
+.digit-btn:hover{border-color:var(--purple-border);}
+.digit-btn.sel{background:var(--purple-bg);border-color:var(--purple);color:var(--purple);}
+.digit-btn.hit{background:var(--success-bg);border-color:var(--success);color:var(--success);}
+
+.readout{margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+.readout h3{font-size:12px;font-family:var(--mono);color:var(--text-tertiary);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;}
+.finger-row{display:flex;align-items:center;gap:10px;padding:5px 0;font-family:var(--mono);font-size:12.5px;}
+.finger-name{width:64px;color:var(--text-tertiary);}
+.bar{flex:1;height:8px;background:var(--surface-raised);border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;background:var(--teal);width:0;transition:width .1s;}
+.finger-state{width:54px;text-align:right;font-weight:600;}
+.finger-state.up{color:var(--success);}
+.finger-state.down{color:var(--text-quaternary);}
+.angle{width:48px;text-align:right;color:var(--text-quaternary);font-size:11px;}
+
+.controls{margin-top:18px;display:flex;gap:12px;flex-wrap:wrap;}
+.btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:8px;padding:12px 22px;cursor:pointer;border:1px solid transparent;}
+.btn-primary{background:var(--purple);color:#fff;}
+.btn-primary:hover{background:var(--purple-dim);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.note{margin-top:20px;font-size:12.5px;color:var(--text-tertiary);background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:14px 16px;line-height:1.6;}
+.note strong{color:var(--text-secondary);}
+.tune{margin-top:14px;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12px;color:var(--text-tertiary);}
+.tune input{flex:1;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">VAC · gesture auth · test bench</div>
+  <h1>Finger detection — orientation test</h1>
+  <p class="sub">Proving the orientation-invariant finger math (S101 design: vector-angle, not tip-y&lt;pip-y) before it goes near the auth flow. Hold your hand at different angles — upright, sideways, tilted, toward the camera — and watch whether the count stays correct.</p>
+
+  <div class="status loading" id="status">Loading MediaPipe hand model…</div>
+
+  <div class="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="count-badge"><div class="count-num" id="countNum">–</div><div class="count-label">fingers</div></div>
+    <div class="tick" id="tick"><svg width="26" height="26" viewBox="0 0 26 26" fill="none"><path d="M6 13l5 5 9-10" stroke="#3FB950" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    <div class="fps" id="fps"></div>
+  </div>
+
+  <div class="target">
+    <span class="target-label">Target digit</span>
+    <div class="digit-btns" id="digitBtns"></div>
+    <span style="font-size:12.5px;color:var(--text-tertiary)">— tick fires when the count matches &amp; holds steady</span>
+  </div>
+
+  <div class="readout">
+    <h3>Per-finger detection (live)</h3>
+    <div id="fingers"></div>
+  </div>
+
+  <div class="tune">
+    <span>Straight-angle threshold: <span id="thVal">35</span>°</span>
+    <input type="range" id="thresh" min="15" max="60" value="35">
+    <span style="color:var(--text-quaternary)">lower = stricter</span>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="start">Start camera</button>
+  </div>
+
+  <div class="note">
+    <strong>What we're testing:</strong> each finger is judged by the <em>angle</em> between its base→middle and middle→tip segments — a straight finger keeps those segments roughly aligned (small angle) regardless of which way the hand points; a curled finger bends them sharply. That's why it should survive rotation. <strong>Known hard case</strong> (flagged in the S101 review): a finger pointing <em>straight at the lens</em> foreshortens in 2D and may misread — test that one deliberately so we see the real limit. The thumb uses a separate spread test. Nothing here touches the real auth yet.
+  </div>
+</div>
+
+<script type="module">
+const statusEl=document.getElementById('status');
+const video=document.getElementById('video');
+const overlay=document.getElementById('overlay');
+const ctx=overlay.getContext('2d');
+const countNum=document.getElementById('countNum');
+const tickEl=document.getElementById('tick');
+const fpsEl=document.getElementById('fps');
+const fingersEl=document.getElementById('fingers');
+const FINGERS=[['Thumb',1,2,3,4],['Index',5,6,7,8],['Middle',9,10,11,12],['Ring',13,14,15,16],['Pinky',17,18,19,20]];
+let target=null, threshold=35, landmarker=null, running=false, lastT=0, hitFrames=0;
+
+// build per-finger readout rows + digit buttons
+fingersEl.innerHTML=FINGERS.map((f,i)=>`<div class="finger-row"><span class="finger-name">${f[0]}</span><div class="bar"><div class="bar-fill" id="bar${i}"></div></div><span class="angle" id="ang${i}">–</span><span class="finger-state down" id="st${i}">down</span></div>`).join('');
+const db=document.getElementById('digitBtns');
+[0,1,2,3,4,5].forEach(n=>{const b=document.createElement('button');b.className='digit-btn';b.textContent=n;b.onclick=()=>{target=n;document.querySelectorAll('.digit-btn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};db.appendChild(b);});
+document.getElementById('thresh').oninput=e=>{threshold=+e.target.value;document.getElementById('thVal').textContent=threshold;};
+
+// vector helpers — orientation-invariant: angle between (a→b) and (b→c)
+function angle(a,b,c){
+  const v1={x:b.x-a.x,y:b.y-a.y}, v2={x:c.x-b.x,y:c.y-b.y};
+  const dot=v1.x*v2.x+v1.y*v2.y;
+  const m1=Math.hypot(v1.x,v1.y), m2=Math.hypot(v2.x,v2.y);
+  if(m1===0||m2===0) return 180;
+  let cos=dot/(m1*m2); cos=Math.max(-1,Math.min(1,cos));
+  return Math.acos(cos)*180/Math.PI; // 0 = perfectly straight, larger = more bent
+}
+// thumb: spread/abduction — distance of tip from index-MCP relative to hand scale
+function thumbOut(lm){
+  const tip=lm[4], idxMcp=lm[5], wrist=lm[0];
+  const scale=Math.hypot(lm[9].x-wrist.x, lm[9].y-wrist.y)||1; // wrist→middle-MCP as hand size
+  const d=Math.hypot(tip.x-idxMcp.x, tip.y-idxMcp.y);
+  return d/scale; // larger = thumb extended out
+}
+
+function countFingers(lm){
+  let count=0; const states=[];
+  // thumb (index 0 in FINGERS)
+  const to=thumbOut(lm); const thumbUp=to>0.55;
+  states.push({up:thumbUp, metric:to, isThumb:true});
+  if(thumbUp) count++;
+  // four fingers: small bend-angle = straight = extended
+  for(let i=1;i<5;i++){
+    const [_,mcp,pip,dip,tip]=FINGERS[i];
+    const a=angle(lm[mcp],lm[pip],lm[tip]); // base→pip vs pip→tip
+    const up=a<threshold;
+    states.push({up,metric:a,isThumb:false});
+    if(up) count++;
+  }
+  return {count,states};
+}
+
+function drawLandmarks(lm){
+  overlay.width=video.videoWidth; overlay.height=video.videoHeight;
+  ctx.clearRect(0,0,overlay.width,overlay.height);
+  const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+  ctx.strokeStyle='rgba(0,206,201,0.6)'; ctx.lineWidth=3;
+  CONN.forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(lm[a].x*overlay.width,lm[a].y*overlay.height);ctx.lineTo(lm[b].x*overlay.width,lm[b].y*overlay.height);ctx.stroke();});
+  lm.forEach(p=>{ctx.beginPath();ctx.arc(p.x*overlay.width,p.y*overlay.height,4,0,7);ctx.fillStyle='#6C5CE7';ctx.fill();});
+}
+
+function loop(){
+  if(!running) return;
+  const now=performance.now();
+  if(video.readyState>=2){
+    const res=landmarker.detectForVideo(video, now);
+    if(res.landmarks && res.landmarks.length){
+      const lm=res.landmarks[0];
+      drawLandmarks(lm);
+      const {count,states}=countFingers(lm);
+      countNum.textContent=count;
+      states.forEach((s,i)=>{
+        const st=document.getElementById('st'+i), ang=document.getElementById('ang'+i), bar=document.getElementById('bar'+i);
+        st.textContent=s.up?'up':'down'; st.className='finger-state '+(s.up?'up':'down');
+        if(s.isThumb){ang.textContent=s.metric.toFixed(2);bar.style.width=Math.min(100,s.metric*90)+'%';}
+        else{ang.textContent=Math.round(s.metric)+'°';bar.style.width=Math.max(0,100-s.metric*1.6)+'%';}
+      });
+      // tick when count matches target and holds ~4 frames
+      if(target!==null && count===target){hitFrames++;}else{hitFrames=0;}
+      if(hitFrames>=4){tickEl.classList.add('show');const b=document.querySelectorAll('.digit-btn')[target];if(b)b.classList.add('hit');}
+      else{tickEl.classList.remove('show');}
+    }else{
+      ctx.clearRect(0,0,overlay.width,overlay.height);countNum.textContent='–';tickEl.classList.remove('show');hitFrames=0;
+    }
+  }
+  if(now-lastT>0){fpsEl.textContent=Math.round(1000/(now-lastT))+' fps';}
+  lastT=now;
+  requestAnimationFrame(loop);
+}
+
+async function init(){
+  try{
+    const vision=await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+    const {HandLandmarker,FilesetResolver}=vision;
+    const fileset=await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+    landmarker=await HandLandmarker.createFromOptions(fileset,{
+      baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",delegate:"GPU"},
+      numHands:1,runningMode:"VIDEO",minHandDetectionConfidence:0.5,minTrackingConfidence:0.5
+    });
+    statusEl.textContent='Model ready — start the camera'; statusEl.className='status ready';
+    document.getElementById('start').disabled=false;
+  }catch(e){
+    statusEl.textContent='Model load failed: '+(e.message||e)+' — (this is the CDN-fragility defect; the real fix self-hosts the model)';
+    statusEl.className='status err';
+  }
+}
+document.getElementById('start').disabled=true;
+document.getElementById('start').onclick=async()=>{
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480}});
+    video.srcObject=stream;
+    await video.play();
+    running=true; target=1;
+    document.querySelectorAll('.digit-btn')[1].classList.add('sel');
+    document.getElementById('start').textContent='Running';
+    document.getElementById('start').disabled=true;
+    loop();
+  }catch(e){statusEl.textContent='Camera access denied or unavailable: '+(e.message||e);statusEl.className='status err';}
+};
+init();
+</script>
+</body>
+</html>
