@@ -726,11 +726,15 @@ const QA = (function () {
         panel.id = 'qaOverlay';
         panel.style.cssText = [
             'position:fixed', 'top:0', 'right:0', 'z-index:99999',
-            'max-width:360px', 'padding:8px 10px',
+            // cap to the viewport so the panel can never exceed the screen width...
+            'max-width:min(360px,94vw)', 'box-sizing:border-box', 'padding:8px 10px',
             'background:rgba(8,10,16,0.92)', 'border:1px solid #2DD4BF',
             'border-radius:0 0 0 8px', 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
             'font-size:11px', 'line-height:1.45', 'color:#C9D1D9',
-            'white-space:pre', 'pointer-events:none', 'box-shadow:0 4px 20px rgba(0,0,0,0.5)'
+            // ...and pre-wrap so the long `live:` line WRAPS (keeping sOk visible)
+            // instead of running off the right edge; overflow-wrap breaks long tokens.
+            'white-space:pre-wrap', 'overflow-wrap:anywhere',
+            'pointer-events:none', 'box-shadow:0 4px 20px rgba(0,0,0,0.5)'
         ].join(';');
         document.body.appendChild(panel);
     }
