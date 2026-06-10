@@ -262,8 +262,11 @@ f4474f1 re-entry (#1+#4) · 0edaf72 VAD tune · 3b0f57c #2 diag · 15161a8 gate
 
 ### COMMIT STATE (all pushed to Schemo512/f561-multimodal-advance-gate)
 ```
-9536236  unification: speech onset re-arms the gesture (hand-lower → fallback-only)  [NEEDS LIVE-VERIFY]
-a80f066  Model B reliability: per-digit cross-modal voice binding (SUPP-7)           [live-verified per Rob]
+428c712  QA-overlay integrity: reset rows/result on recorder_started (fresh overlay/run)  [fixed the phantom re-auth race]
+2e19557  integrity: resetModalities() before each verify (no stale-7/7 on re-auth)        [addendum-13 #3 family]
+7e6057b  HANDOFF addendum 17
+9536236  unification: speech onset re-arms the gesture (hand-lower → fallback-only)  [LIVE-VERIFIED — 7/7 clean run]
+a80f066  Model B reliability: per-digit cross-modal voice binding (SUPP-7)           [live-verified]
 686f05b  diag: expected challenge digits + exp:N in QA overlay
 27bc2c9  HANDOFF addendum 16
 a062245  (3) instruction text OUT of camera overlay + de-dupe (finding #3)
@@ -274,11 +277,16 @@ a062245  (3) instruction text OUT of camera overlay + de-dupe (finding #3)
 ```
 
 ### LIVE-PASS RESULTS
-- First full pass PASSED (modulo addendum-13 #3 integrity gate). Misdetection (cnt≠exp) seen on NEARLY EVERY pass — a distinct digit misread as the last-accepted count. That's why 24c4352 is KEPT and why the unification (9536236) exists.
+- **7/7 PASSED — full clean end-to-end run, all modalities green, service healthy.** This is the target state: the whole Model B + gate + unification stack working. (The earlier F-558 erroring was a TRANSIENT service outage — confirmed it passes when the service is up.)
+- Unification (9536236) live-verified: on a misdetect the spoken number advances; hand-lower no longer fires in normal use.
+- Misdetection (cnt≠exp) seen on NEARLY EVERY pass — a distinct digit misread as the last-accepted count. That's why 24c4352 is KEPT and why the unification exists.
 - Backend repeated-digit case is PHANTOM: deployed generator never produces repeats (30/30 distinct; random.sample). The real deadlock cause was misdetection, proven by exp:N≠cnt on a passing run (686f05b diagnostic).
 
-### NEXT: ONE live pass to verify the unification (9536236)
-On a misdetect (cnt≠exp on ?qa=1), the "Lower your hand" prompt should NOT fire — the SPOKEN NUMBER should advance you (speech onset re-arms the gesture). Watch win→on→s per digit; confirm no pre-satisfaction and that hand-lower stays absent in normal use.
+### RE-AUTH INTEGRITY + INSTRUMENT FIXES (this session) — and the CLEAN BILL on the gate
+Two stale-state-on-re-entry bugs (same family as the #1/#4 re-auth DOM bugs), both fixed:
+1. **Stale-7/7 (integrity-class, addendum-13 #3 family) — `2e19557`.** The modality panel (modFace…modDuress + summary) was reset to pending ONLY by static HTML at page load; nothing reset it between runs. On re-auth it showed the PRIOR run's "7/7 passed" while the NEW verify spinner ("Computing trust score…") was still running — a pass displayed before THIS run returned. Fix: `resetModalities()` at the top of `runRealVerification` (the choke point every verify funnels through) → tiles ⏳, summary "Checking…".
+2. **Phantom re-auth RACE was a QA-OVERLAY ARTIFACT — `428c712`.** The module-level QA `rows` array survived re-entry; `recorder_started` re-anchored `t0` but kept the prior run's rows, so guarded fields (gestureAt/speechAt/onsetAt, set only if==null) showed the OLD run's timestamps against the NEW clock → impossible orderings (adv-before-speech, wild out-of-order adv) that READ as a race. Fix: reset rows/result/recStop/expected on `recorder_started`.
+- **CLEAN BILL — the gate is fully RE-ENTRANT.** Every per-digit gate variable (currentDigitIndex, speechReady[], speechWindowStart, _acceptArmed, _sawSilence, _speechGateStarted, _speechMode, _vadRAF, stableFrames, _lastAcceptedCount, recordingStopped) is declared INSIDE `beginRecording` (lines ~1931–1974) and re-initialized fresh every run. Detector timestamps are monotonic (performance.now); audioAnalyser is recreated; prior loops self-terminate. **There is NO re-auth gate race.** F-562 reusing the Model B per-digit unit inherits a clean, re-entrant gate.
 
 ### MODEL B — how it works now (the reusable per-digit unit, for F-562)
 - Phrase phase = GREETING ONLY (finger mode); numbers are spoken per-digit. Voice-only + manual-fallback keep the FULL phrase (manual fallback prompts "show AND say each number").
