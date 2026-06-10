@@ -220,3 +220,38 @@ Root cause (Rob observed live + static trace): on the re-auth recording, the phr
 ### DEBT: every committed change here is UNVERIFIED by a live hand except the one pass above (which predates the blank-phrase + VAD-tune fixes). One honest live re-auth pass is owed before `/auth`.
 
 ### GATE still stands: no `/auth` promotion until addendum-13 #3 resolved + a clean honest real-hand run.
+
+## S111 addendum 16 (10 Jun) — FIRST LIVE PASS PASSED. 3 gate/UX fixes + diagnostics committed & pushed. 24c4352 kept (premise corrected: misdetection, not repeats).
+
+### LIVE PASS #1 RESULT: PASSED / VERIFIED (first honest real-hand pass)
+6/7 modalities passed earlier; this pass completed end-to-end. The addendum-13 #3 integrity gate still blocks `/auth` promotion, but the flow itself now works on a real hand.
+
+### COMMIT STATE (all pushed to Schemo512/f561-multimodal-advance-gate)
+```
+686f05b  S111 diag: log expected challenge digits + exp:N in QA overlay
+a062245  (3) move instruction text out of camera overlay + de-dupe (finding #3)
+255f279  (2) gate phrase->digits transition on speech, not a timer
+24c4352  (1) repeated/MISDETECTION deadlock — Option 2 fresh-gesture gate
+87fe3a6  require phrase AND digits (close bypass #1) · 4f59cd3 blank/stale guard (#5)
+f4474f1 re-entry (#1+#4) · 0edaf72 VAD tune · 3b0f57c #2 diag · 15161a8 gate
+1e4bd95 / f268371  F-560 overlay
+```
+
+### 24c4352 — KEPT. PREMISE CORRECTED.
+- The "repeated-digit challenge" premise was PHANTOM: the deployed backend NEVER produces repeats. Evidence: 30/30 live `/v1/vat/auth/challenge` samples were 3 DISTINCT digits; `_non_sequential_digits` uses `random.sample(1..5, n)` (distinct by construction) and also rejects sequential runs ("prevents hold-same-fingers confusion"). A `[2,4,4]` challenge cannot occur.
+- The REAL value is MISDETECTION-DEADLOCK protection. The old count-change guard (`detected !== lastAcceptedCount`) hard-deadlocks when MediaPipe misreads a DISTINCT digit as the last-accepted count — even though challenges are distinct.
+- LIVE EVIDENCE (the deciding data): on the PASSING run the QA overlay showed `D1 cnt:4≠exp:2` — a distinct digit (expected 2) misread by MediaPipe as 4. That is exactly the misdetection case 24c4352's fresh-gesture re-arm protects against, witnessed on pass one. KEEP it.
+- The `exp:N` / `≠exp` diagnostic (686f05b) earned its keep on pass one — it's how we distinguished misdetection from a malformed challenge. KEEP it.
+
+### THREE ISSUES FIXED THIS SESSION (all /codex-passed, now LIVE-verified by pass #1)
+- (1) 24c4352 — deadlock removed (per above). Repeat = quick re-show; distinct misdetect = re-show recovers.
+- (2) 255f279 — phrase phase holds until VAD hears speech (timer/unavailable/hard-cap fallbacks).
+- (3) a062245 — instruction text moved OUT of the camera overlay (was behind the z-index:4 skeleton) into a panel below the feed; numbers de-duped to the single #digitStrip above.
+
+### OPEN FROM LIVE PASS #2 (being worked next)
+- FIRST-FINGER LAG (visibility): the delay before the skeleton appears / detection starts looks dead to a first-time user. Make it VISIBLE ("Starting camera… / detecting your hand…" state) + add a warm-up timestamp (warm-up-start vs first-detected-frame) to measure the real lag. Don't just chase warm-up timing.
+- RE-AUTH DEAD-END: clicking re-authenticate lands on the Camera & Mic pre-flight with "Complete the checks above" GREYED OUT and no way forward, even though Light/Mic/Hand all show green. The enable-Start gate isn't recognizing the passed checks on the re-auth path (likely the same re-entry state-reset family: `avChecks` not reflecting the re-run checks, or enable logic reading stale state).
+
+### STILL OPEN: engine.py stale cleanup (flagged, separate) · bypasses #2/#3 (detector-fallback / audioAnalyser-null → gesture-only) deferred · addendum-13 #3 integrity (sequenced after a clean pass — leave alone).
+
+### GATE unchanged: no `/auth` until addendum-13 #3 resolved + a clean honest real-hand run.
