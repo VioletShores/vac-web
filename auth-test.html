@@ -1899,12 +1899,14 @@ function beginRecording() {
     let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
     let _speechGateStarted = false;
     let _lastVadRms = 0;             // latest VAD RMS, surfaced to the QA overlay for live calibration
-    // VAD threshold — TUNABLE. Client-side energy-RMS (0..1), NOT FolioAI's Deepgram
-    // word-confidence (different units entirely). Method: above the 0.05 noise gate
-    // (startAudioMonitor), below a speaking voice. 0.12 is a sane starting guess —
-    // EXPECT to tune it live by watching rms (silent floor) vs rms (speaking) on ?qa=1.
-    const VAD_SPEECH_RMS = 0.12;
-    const VAD_SPEECH_FRAMES = 3;     // sustained frames above threshold to count as a voiced event (~debounce)
+    // VAD threshold — client-side energy-RMS (0..1), NOT FolioAI's Deepgram word-confidence
+    // (different units entirely). Tuned live (S111, Rob): measured silent floor ~0.074,
+    // speaking ~0.175–0.242. 0.14 sits in that gap (clears the floor by ~0.066, ~0.035 below
+    // quietest speech). The gap is tight, so FRAMES is raised to require sustained voicing —
+    // a brief transient (breath/tap/movement) can't hold above thr for ~100ms and false-fire
+    // (the silent-advance bug). Re-tune live on ?qa=1 by watching rms (silent) vs rms (speaking).
+    const VAD_SPEECH_RMS = 0.14;
+    const VAD_SPEECH_FRAMES = 6;     // ~100ms sustained above threshold (raised 3->6 so transients can't fire)
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
 
     // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
