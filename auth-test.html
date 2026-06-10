@@ -687,6 +687,140 @@ const API_BASE = 'https://vac-system-production.up.railway.app';
 // Goal: see what actually happens on user phones when auth fails, instead of
 // guessing from desktop. Fire-and-forget — must never block or fail the auth flow.
 const VAC_DEBUG_SESSION = 'sess_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now();
+// ── F-560: ?qa=1 multi-modal advance-gate debug overlay ─────────────────────
+// A live on-screen instrument: per-digit gesture-confirmed-at / speech-confirmed-at
+// / advance-fired-at, the dwell timer, detector state each frame, recorder
+// start/stop, and final pass/fail + which modality failed. This is the substrate
+// that makes the F-561 gesture-AND-speech advance gate verifiable by WATCHING it,
+// not by grep. The speech column reads "—" until F-561 wires it via
+// vacDebug('speech_confirm', null, { digit_index }). Zero cost when ?qa!=1 —
+// every hook is guarded on QA.on.
+//
+//   discrete events ──vacDebug()──▶ QA.onEvent()  (server trail + panel, in sync)
+//   per-frame state ──QA.frame()──▶ cache(every frame) + paint(~10Hz, no POST)
+//
+const QA = (function () {
+    const params = new URLSearchParams(window.location.search);
+    const on = params.get('qa') === '1';
+    const demo = on && params.get('qaDemo') === '1';
+
+    let t0 = 0;              // recorder-start anchor (performance.now())
+    let recStop = null;     // ms since t0 when the recorder stopped
+    let recStarted = false;
+    const rows = [];        // [{ gestureAt, speechAt, advanceAt, count }]
+    let result = null;      // { pass:bool, failed:[name] }
+    let live = null;        // latest per-frame state, cached EVERY frame
+    let lastPaint = 0;
+    let panel = null, liveEl = null;
+
+    function relNow() { return t0 ? (performance.now() - t0) : null; }
+    function ms(v) { return v == null ? '—' : ('+' + Math.round(v) + 'ms'); }
+    function row(i) {
+        while (rows.length <= i) rows.push({ gestureAt: null, speechAt: null, advanceAt: null, count: null });
+        return rows[i];
+    }
+
+    function ensurePanel() {
+        if (panel || !on || !document.body) return;
+        panel = document.createElement('div');
+        panel.id = 'qaOverlay';
+        panel.style.cssText = [
+            'position:fixed', 'top:0', 'right:0', 'z-index:99999',
+            'max-width:360px', 'padding:8px 10px',
+            'background:rgba(8,10,16,0.92)', 'border:1px solid #2DD4BF',
+            'border-radius:0 0 0 8px', 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
+            'font-size:11px', 'line-height:1.45', 'color:#C9D1D9',
+            'white-space:pre', 'pointer-events:none', 'box-shadow:0 4px 20px rgba(0,0,0,0.5)'
+        ].join(';');
+        document.body.appendChild(panel);
+    }
+
+    function paintLine() {
+        if (!liveEl || !live) return;
+        const s = live;
+        liveEl.textContent =
+            'live: det=' + s.detected + ' stable=' + s.stableFrames + '/' + s.need +
+            ' dwell=' + s.dwellMs + 'ms beat=' + s.beatMs + ' gOk=' + (s.gestureOk ? 'Y' : 'N') + ' sOk=—';
+    }
+
+    function render() {
+        ensurePanel();
+        if (!panel) return;
+        let html = '';
+        if (demo) {
+            html += '<div style="background:#D6336C;color:#fff;font-weight:700;padding:3px 6px;margin:-8px -10px 6px;letter-spacing:0.5px;">DEMO — SYNTHETIC DATA, NOT A LIVE RUN</div>';
+        }
+        html += '<b style="color:#2DD4BF">VAC QA · advance-gate</b>\n';
+        html += '<span style="color:#6E7681">per-digit: g=gesture  s=speech  adv=advance</span>\n';
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const heldNoAdv = (r.gestureAt != null && r.advanceAt == null);
+            html += 'D' + i +
+                '  g:' + ms(r.gestureAt) +
+                '  s:' + ms(r.speechAt) +
+                '  adv:' + (r.advanceAt == null ? (heldNoAdv ? '— (held, no advance)' : '—') : ms(r.advanceAt)) +
+                (r.count != null ? '  cnt:' + r.count : '') + '\n';
+        }
+        if (rows.length === 0) html += '<span style="color:#6E7681">(no digits yet)</span>\n';
+        html += '<span id="qaLive" style="color:#fbbf24">live: —</span>\n';
+        html += 'rec: ' + (recStarted ? 'start+0ms' : '—') + (recStop != null ? '  stop' + ms(recStop) : '') + '\n';
+        if (result) {
+            html += '<b style="color:' + (result.pass ? '#3FB950' : '#F85149') + '">RESULT: ' +
+                (result.pass ? 'PASS' : 'FAIL') + '</b>  fail:' + (result.failed.length ? result.failed.join(',') : 'none') + '\n';
+        }
+        html += '<span style="color:#6E7681">speech col “—” = F-561 not wired</span>';
+        panel.innerHTML = html;
+        liveEl = panel.querySelector('#qaLive');
+        paintLine();
+    }
+
+    // Discrete-event bus — vacDebug fans every event here when QA.on (D1: hybrid).
+    function onEvent(event, ctx) {
+        if (!on || demo) return;   // demo panel is static synthetic data, never overwritten
+        if (event === 'recorder_started') {
+            t0 = performance.now(); recStarted = true; render();
+        } else if (event === 'recorder_stopped') {
+            recStop = relNow(); render();
+        } else if (event === 'gesture_confirm' && ctx && typeof ctx.digit_index === 'number') {
+            const r = row(ctx.digit_index); if (r.gestureAt == null) { r.gestureAt = relNow(); render(); }
+        } else if (event === 'speech_confirm' && ctx && typeof ctx.digit_index === 'number') {
+            const r = row(ctx.digit_index); if (r.speechAt == null) { r.speechAt = relNow(); render(); }
+        } else if (event === 'detect_digit_advance' && ctx && typeof ctx.digit_index === 'number') {
+            const r = row(ctx.digit_index); r.advanceAt = relNow(); r.count = ctx.fingers_shown; render();
+        } else if (event === 'qa_final_result' && ctx) {
+            result = { pass: !!ctx.pass, failed: ctx.failed || [] }; render();
+        }
+    }
+
+    function frame(s) {
+        if (!on || demo) return;
+        live = s;                              // cache EVERY frame so discrete reads see true-latest
+        const now = performance.now();
+        if (now - lastPaint < 100) return;     // D2: throttle paint to ~10Hz, textContent only
+        lastPaint = now;
+        paintLine();
+    }
+
+    function runDemo() {
+        // Synthetic data ONLY — the persistent banner makes that unmistakable (D3).
+        t0 = 1; recStarted = true; recStop = 4100;
+        rows.push({ gestureAt: 812, speechAt: null, advanceAt: 812, count: 2 });
+        rows.push({ gestureAt: 1640, speechAt: null, advanceAt: 1640, count: 3 });
+        rows.push({ gestureAt: 2510, speechAt: null, advanceAt: null, count: null }); // held, no advance
+        result = { pass: true, failed: [] };
+        live = { detected: 5, stableFrames: 12, need: 12, dwellMs: 740, beatMs: 0, gestureOk: true };
+        render();
+    }
+
+    if (on) {
+        const boot = demo ? runDemo : render;   // demo: synthetic panel; live: empty panel proves ?qa=1 took effect
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+        else boot();
+    }
+
+    return { on, demo, onEvent, frame };
+})();
+
 function vacDebug(event, reason, context) {
     try {
         const body = { session_id: VAC_DEBUG_SESSION, event: String(event) };
@@ -701,6 +835,9 @@ function vacDebug(event, reason, context) {
             body: JSON.stringify(body),
             keepalive: true,  // survives page unload
         }).catch(function() {});
+        // F-560: fan discrete events out to the ?qa=1 on-screen overlay — single
+        // event bus, so the panel and the server telemetry read the same calls.
+        try { if (QA.on) QA.onEvent(event, context); } catch(_) {}
         // Also mirror to console so local debugging still works
         console.log('[VAC-DBG]', event, reason || '', context || '');
     } catch(_) { /* never block auth for telemetry */ }
@@ -1628,8 +1765,9 @@ function beginRecording() {
         : { videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 };
     mediaRecorder = new MediaRecorder(mediaStream, options);
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = () => { onRecordingComplete(); };
+    mediaRecorder.onstop = () => { try { vacDebug('recorder_stopped'); } catch(_) {} onRecordingComplete(); };
     mediaRecorder.start();
+    try { vacDebug('recorder_started'); } catch(_) {}  // F-560: anchor the QA overlay clock (t0) at the real recorder start
 
     // Show combined capture info
     document.getElementById('combinedCaptureInfo').style.display = 'block';
@@ -1723,6 +1861,7 @@ function beginRecording() {
     let digitStartTime = 0;
     let hintShown = false;
     const HINT_TIMEOUT_MS = 8000;
+    let _qaGestureLatched = false;  // F-560: gesture-confirmed fires once per digit, reset on advance
 
     // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
     function renderFingerPhase(hint) {
@@ -1931,7 +2070,19 @@ function beginRecording() {
             const _nowMs = performance.now();
             if (digitStartTime === 0) digitStartTime = _nowMs;  // first digit: start the dwell clock on first stable detection
             const _dwellOk = (_nowMs - digitStartTime) >= MIN_DIGIT_DWELL_MS;
-            if (stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount && _nowMs >= _confirmUntil) {
+            // F-561 substrate: gesture readiness is now its own named signal, split
+            // out from the advance decision. Today _gestureOk && beat-clear advances in
+            // the SAME frame; F-561 will additionally require speechReady[currentDigitIndex]
+            // here, at which point gesture-confirmed-at and advance-fired-at diverge.
+            const _gestureOk = stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount;
+            // F-560: record gesture-confirmed-at once per digit, independent of advance,
+            // so the overlay shows the gesture→advance gap the instant F-561 gates on speech.
+            if (_gestureOk && !_qaGestureLatched) {
+                _qaGestureLatched = true;
+                try { vacDebug('gesture_confirm', null, { digit_index: currentDigitIndex }); } catch(_) {}
+            }
+            if (QA.on) { try { QA.frame({ detected: detected, stableFrames: stableFrames, need: STABLE_FRAMES_NEEDED, dwellMs: Math.round(_nowMs - digitStartTime), beatMs: Math.max(0, Math.round(_confirmUntil - _nowMs)), gestureOk: _gestureOk }); } catch(_) {} }
+            if (_gestureOk && _nowMs >= _confirmUntil) {
                 if (currentDigitIndex === 0) {
                     try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
                 }
@@ -1946,6 +2097,7 @@ function beginRecording() {
                 currentDigitIndex++;
                 digitStartTime = performance.now();
                 hintShown = false;
+                _qaGestureLatched = false;   // F-560: arm gesture-confirm for the next digit
                 // S110 CONFIRMATION BEAT (Rob): instead of instantly highlighting the next
                 // number (which made the user feel they were chasing it), hold a clear
                 // "Got it ✓" moment. During _confirmUntil we (a) pause accepting new digits,
@@ -1975,6 +2127,7 @@ function beginRecording() {
             // lastAcceptedCount; dropping the hand isn't required, just allowed).
             stableCount = 0;
             stableFrames = 0;
+            if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false }); } catch(_) {} }
         }
 
         if (!hintShown && digitStartTime > 0 && (performance.now() - digitStartTime) > HINT_TIMEOUT_MS) {
@@ -2283,6 +2436,15 @@ async function runRealVerification(videoBlob) {
         // Final state
         ring.style.strokeDashoffset = 0;
         const passed = authResult.authenticated;
+        // F-560: surface final pass/fail + which modality failed on the QA overlay.
+        // authResult.authenticated stays the source of truth (RESULT line); failed[] is a hint.
+        try {
+            const _qaFailed = (mods || []).filter(function (m) {
+                if (m.name === 'duress') return m.status && m.status !== 'clear';
+                return m.status && m.status !== 'passed' && m.status !== 'verified';
+            }).map(function (m) { return m.name; });
+            vacDebug('qa_final_result', null, { pass: !!passed, failed: _qaFailed });
+        } catch(_) {}
         // Populate Under the Hood with engine data
         try{populateUnderHood(authResult);}catch(uhErr){console.error("Under hood error:",uhErr);}
 
