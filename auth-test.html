@@ -2019,6 +2019,12 @@ function beginRecording() {
         if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
         if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
         speechReady[currentDigitIndex] = true;
+        // S111 unification: a FRESH per-digit speech onset is ALSO a deliberate "new digit"
+        // signal, so it satisfies the gesture re-arm — the user doesn't have to lower their
+        // hand even when MediaPipe misread the count (cnt≠exp). The held gesture + the spoken
+        // number advance; Gemini validates the actual gesture↔number match server-side (SUPP-7).
+        // Hand-lower stays only as the speech-off / genuinely-stuck fallback.
+        _acceptArmed = true;
         // F-561: carry the triggering rms AND the silence→voice onset moment, so the overlay
         // shows the FRESH binding per digit (onset after a real in-window silence — no pre-satisfaction).
         try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null), onset_perf: (typeof onsetAt === 'number' ? onsetAt : null) }); } catch(_) {}
@@ -2410,10 +2416,10 @@ function beginRecording() {
             liveEl.style.fontSize = '17px';
             const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
             const _needSpeech = (_speechMode !== 'off') && !speechReady[currentDigitIndex];
-            if (pct >= 100 && !_acceptArmed) {
-                // Same gesture still held since the last accept (a repeated digit, or a stale
-                // carried-over pose): re-establish it with a quick re-show before this digit can
-                // advance — prevents recording the old pose for the new digit (both modes).
+            if (pct >= 100 && !_acceptArmed && !_needSpeech) {
+                // S111 unification: LAST-RESORT re-show — only when NOT waiting on voice, i.e.
+                // speech-off mode (no VAD re-arm) or genuinely stuck. In VAD mode the spoken
+                // number re-arms the gesture (even on a misdetected count), so this rarely fires.
                 liveEl.style.color = '#fbbf24';
                 liveEl.textContent = 'Lower your hand, then show ' + _curDigit + ' again';
             } else if (pct >= 100 && _needSpeech) {
@@ -2436,7 +2442,10 @@ function beginRecording() {
 
         // F-561: stuck-user escape + persistent "(voice gate off)" note.
         var _gestureHeldReady = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED);
-        var _waitingVoice = _gestureHeldReady && _acceptArmed && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
+        // S111 unification: waiting on voice = gesture held + VAD on + this digit not yet
+        // spoken. No _acceptArmed gate — the spoken number re-arms the gesture (even on a
+        // misdetect), so the voice cue/escape applies whenever we're held and listening.
+        var _waitingVoice = _gestureHeldReady && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
         if (_waitingVoice && _gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS) { _ensureVoiceEscape(); }
         else { _removeVoiceEscape(); }
         _renderVoiceOffNote();
