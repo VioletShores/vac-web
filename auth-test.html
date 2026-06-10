@@ -2398,15 +2398,47 @@ function beginRecording() {
         rafId = requestAnimationFrame(runDetectionLoop);
     }
 
-    // ── Phase 1: phrase timer (user speaks the challenge phrase) ───────────
+    // ── F-561 (S111): gate the phrase→digits transition on SPEECH, not just the timer.
+    // Same class as the per-digit AND-gate but for the phrase phase: don't leave the phrase
+    // until we've actually heard the user speak it (pacing only — Gemini validates content).
+    // Reuses the audioAnalyser from startAudioMonitor. W4.1 fallbacks (never hang): VAD
+    // unavailable → timer; a hard safety cap so a silent/broken mic can't hold forever.
+    let _phraseVoicedTicks = 0;
+    let phraseSpoke = false;
+    const PHRASE_VOICED_TICKS_NEEDED = 3;             // ~600ms of voiced energy (TICK_MS=200)
+    const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer so a silent mic can't hang
+    function _phraseVadTick() {
+        if (!audioAnalyser || phraseSpoke) return;
+        try {
+            const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+            audioAnalyser.getByteFrequencyData(_buf);
+            let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
+            _rms = Math.sqrt(_rms / _buf.length) / 255;
+            if (_rms > VAD_SPEECH_RMS) {
+                if (++_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED) {
+                    phraseSpoke = true;
+                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)) }); } catch(_) {}
+                }
+            } else { _phraseVoicedTicks = Math.max(0, _phraseVoicedTicks - 1); }
+        } catch(_) {}
+    }
+
+    // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
     const phraseInterval = setInterval(() => {
         if (recordingStopped) { clearInterval(phraseInterval); return; }
         elapsedMs += TICK_MS;
         const elapsedSec = elapsedMs / 1000;
         timerEl.textContent = Math.max(Math.ceil(totalDuration - elapsedSec), 0);
         ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
+        _phraseVadTick();   // F-561 (S111): listen for the spoken phrase
 
-        if (elapsedSec >= PHRASE_DURATION) {
+        // F-561: gate phrase→digits on SPEECH, not just the timer. Don't advance until we've
+        // heard the phrase — or VAD is unavailable (timer fallback, W4.1), or the hard cap is
+        // hit so a silent/broken mic can't hang forever.
+        const _phraseTimerDone = elapsedSec >= PHRASE_DURATION;
+        const _phraseGateOk = phraseSpoke || !audioAnalyser || (elapsedSec >= PHRASE_PHASE_MAX_S);
+        if (_phraseTimerDone && _phraseGateOk) {
+            if (audioAnalyser && !phraseSpoke) { try { vacDebug('phrase_speech_timeout', null, { waited_s: Math.round(elapsedSec) }); } catch(_) {} }
             clearInterval(phraseInterval);
             // Voice-only mode or no digits → skip straight to completion
             if (fingerFallback === 'voice' || digits.length === 0) {
@@ -2524,6 +2556,10 @@ function beginRecording() {
                     }, POLL_MS);
                 }
             }, GRACE_MS);
+        } else if (_phraseTimerDone) {
+            // Timer done, still waiting to HEAR the phrase — prompt clearly (pacing only).
+            const _ph = challengeData?.phrase || '';
+            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.7;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;color:#fbbf24">WE’RE LISTENING — SAY THE PHRASE</span>"' + _ph + '"';
         } else {
             updatePhasePrompt(elapsedSec);
         }
