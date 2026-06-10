@@ -711,6 +711,7 @@ const QA = (function () {
     let t0 = 0;              // recorder-start anchor (performance.now())
     let recStop = null;     // ms since t0 when the recorder stopped
     let recStarted = false;
+    let expected = [];      // S111: EXPECTED challenge digits, to show exp:N vs detected cnt: per row (malformed-challenge vs misdetection)
     const rows = [];        // [{ gestureAt, speechAt, advanceAt, count }]
     let result = null;      // { pass:bool, failed:[name] }
     let live = null;        // latest per-frame state, cached EVERY frame
@@ -770,11 +771,12 @@ const QA = (function () {
             const r = rows[i];
             const heldNoAdv = (r.gestureAt != null && r.advanceAt == null);
             html += 'D' + i +
+                (expected[i] != null ? '  exp:' + expected[i] : '') +
                 '  win:' + ms(r.winOpenAt) +
                 '  g:' + ms(r.gestureAt) +
                 '  s:' + ms(r.speechAt) + (r.speechRms != null ? '(rms ' + Number(r.speechRms).toFixed(3) + ')' : '') +
                 '  adv:' + (r.advanceAt == null ? (heldNoAdv ? '— (held, no advance)' : '—') : ms(r.advanceAt)) +
-                (r.count != null ? '  cnt:' + r.count : '') + '\n';
+                (r.count != null ? '  cnt:' + r.count + (expected[i] != null && r.count !== expected[i] ? '≠exp' : '') : '') + '\n';
         }
         if (rows.length === 0) html += '<span style="color:#6E7681">(no digits yet)</span>\n';
         html += '<span id="qaLive" style="color:#fbbf24">live: —</span>\n';
@@ -794,6 +796,10 @@ const QA = (function () {
         if (!on || demo) return;   // demo panel is static synthetic data, never overwritten
         if (event === 'recorder_started') {
             t0 = performance.now(); recStarted = true; render();
+        } else if (event === 'challenge_digits' && ctx && Array.isArray(ctx.digits)) {
+            // S111: the EXPECTED challenge sequence — show exp:N per row so a stuck digit
+            // reveals malformed-challenge (exp == a repeat) vs misdetection (cnt != exp).
+            expected = ctx.digits.slice(); render();
         } else if (event === 'recorder_stopped') {
             recStop = relNow(); render();
         } else if (event === 'gesture_confirm' && ctx && typeof ctx.digit_index === 'number') {
@@ -834,6 +840,7 @@ const QA = (function () {
         rows.push({ gestureAt: 812,  speechAt: 980,  speechRms: 0.187, advanceAt: 1010, winOpenAt: 0,    count: 2 });
         rows.push({ gestureAt: 2210, speechAt: 2360, speechRms: 0.203, advanceAt: 2410, winOpenAt: 1910, count: 3 });
         rows.push({ gestureAt: 3900, speechAt: null, speechRms: null,  advanceAt: null, winOpenAt: 3310, count: null }); // held, waiting on voice
+        expected = [2, 3, 5];  // synthetic expected sequence → shows exp:N per row (D2 exp:5, held)
         result = null;  // run not complete in this snapshot
         live = { detected: 5, stableFrames: 12, need: 12, dwellMs: 740, beatMs: 0, gestureOk: true, speechOk: false, rms: 0.041, thr: 0.120 };
         render();
@@ -1899,6 +1906,10 @@ function beginRecording() {
     }
 
     // ── Finger-phase shared state ──────────────────────────────────────────
+    // S111: log the EXPECTED challenge digits at record start so the QA overlay can show
+    // exp:N next to detected cnt: — a stuck digit then reveals malformed-challenge (exp is a
+    // repeat the backend can't produce) vs misdetection (cnt != exp). Pacing/diagnostic only.
+    try { vacDebug('challenge_digits', null, { digits: digits }); } catch(_) {}
     let detectedDigits = new Array(digits.length).fill(false);
     // W3.5: lift detectedCounts to window scope so the upload step can attach
     // it as a client-detected-sequence hint for server-side cross-validation.
