@@ -255,3 +255,48 @@ f4474f1 re-entry (#1+#4) · 0edaf72 VAD tune · 3b0f57c #2 diag · 15161a8 gate
 ### STILL OPEN: engine.py stale cleanup (flagged, separate) · bypasses #2/#3 (detector-fallback / audioAnalyser-null → gesture-only) deferred · addendum-13 #3 integrity (sequenced after a clean pass — leave alone).
 
 ### GATE unchanged: no `/auth` until addendum-13 #3 resolved + a clean honest real-hand run.
+
+## S111 addendum 17 (10 Jun) — SESSION STATE: Model B cross-modal voice binding built + hardened. Backend work deferred to a vac-system session.
+
+### PRINCIPLE (L-779): the per-digit spoken-number-bound-to-gesture is a CLAIMED VAC security property (SUPP-7 cross-modal gesture-sequence). So we FIX its reliability, never drop to gesture-only. It is also the reusable building block for F-562 (graduated quick re-auth).
+
+### COMMIT STATE (all pushed to Schemo512/f561-multimodal-advance-gate)
+```
+9536236  unification: speech onset re-arms the gesture (hand-lower → fallback-only)  [NEEDS LIVE-VERIFY]
+a80f066  Model B reliability: per-digit cross-modal voice binding (SUPP-7)           [live-verified per Rob]
+686f05b  diag: expected challenge digits + exp:N in QA overlay
+27bc2c9  HANDOFF addendum 16
+a062245  (3) instruction text OUT of camera overlay + de-dupe (finding #3)
+255f279  (2) phrase→digits gated on speech, not a timer
+24c4352  (1) repeated/MISDETECTION deadlock — Option 2 fresh-gesture gate  [KEEP — misdetection, not repeats]
+87fe3a6 require phrase+digits · 4f59cd3 blank/stale guard (#5) · f4474f1 re-entry (#1+#4)
+0edaf72 VAD tune · 3b0f57c #2 diag · 15161a8 gate · 1e4bd95/f268371 F-560 overlay
+```
+
+### LIVE-PASS RESULTS
+- First full pass PASSED (modulo addendum-13 #3 integrity gate). Misdetection (cnt≠exp) seen on NEARLY EVERY pass — a distinct digit misread as the last-accepted count. That's why 24c4352 is KEPT and why the unification (9536236) exists.
+- Backend repeated-digit case is PHANTOM: deployed generator never produces repeats (30/30 distinct; random.sample). The real deadlock cause was misdetection, proven by exp:N≠cnt on a passing run (686f05b diagnostic).
+
+### NEXT: ONE live pass to verify the unification (9536236)
+On a misdetect (cnt≠exp on ?qa=1), the "Lower your hand" prompt should NOT fire — the SPOKEN NUMBER should advance you (speech onset re-arms the gesture). Watch win→on→s per digit; confirm no pre-satisfaction and that hand-lower stays absent in normal use.
+
+### MODEL B — how it works now (the reusable per-digit unit, for F-562)
+- Phrase phase = GREETING ONLY (finger mode); numbers are spoken per-digit. Voice-only + manual-fallback keep the FULL phrase (manual fallback prompts "show AND say each number").
+- Phrase gate = a COMPLETED greeting (sustained voice + end-pause; decay-on-silence rejects scattered noise); ~400ms floor + PHRASE_DURATION timer floor + hard cap.
+- Per-digit = a FRESH silence→voice ONSET in the window (VAD_SILENCE_RMS hysteresis; silence tracked always, re-armed only at accept). The spoken number binds to the gesture; a fresh onset ALSO re-arms the gesture so a misdetect doesn't force a hand-lower. Gemini validates the actual gesture↔number match server-side.
+- Tunable (live): VAD_SILENCE_RMS=0.085, VAD_SPEECH_RMS=0.14, PHRASE_VOICED_TICKS_NEEDED=2.
+- QA overlay (?qa=1) per digit: exp:N (expected) · win: (window open) · on: (silence→voice onset) · s:(rms) · adv: · cnt:N(≠exp flag).
+
+### vac-system BACKEND TODOs (deferred — repo NOT checked out here; do in a backend session)
+1. **No-adjacent-repeat constraint** in `_non_sequential_digits` — HARDENING not urgent (deployed already produces distinct, 30/30). Add explicit `adjacent_equal` rejection + a fallback assert so a future change can't reintroduce repeats. (Makes the repeated-digit re-show provably dead code.)
+2. **F-558**: the deployed analysis service (Gemini) was erroring on a retry pass — 4 modalities (face/deepfake/lip-sync/finger) erroring TOGETHER = service-level/infra, not per-modality reject. Check Railway runtime logs / the File-API path.
+3. **Stale engine.py cleanup**: `vac-web/engine.py` is a stale copy of the generator, not the deployed code (it tripped a codex P1 false-positive). Delete or sync from vac-system.
+
+### FRONTEND STILL OPEN
+- **Hand-detection startup lag** — DIAGNOSED, NOT BUILT. Root: pre-flight hand check (runAVFrame ~1491) AND the challenge loop both gated on `FingerDetector.ready`, with no visible "warming up" state → Start button + skeleton look dead. ONE root, two symptoms (the re-auth "Start greyed" was just Hand ✓ slow, not a state bug). Part (a) safe: visible "warming up" state + idempotent init (add an in-progress guard to init, ~935) + warm-up timestamp. Part (b) start-on-hand-OR-speech = addendum 8/9 MediaPipe-timing DANGER ZONE (two prior chat regressions; can't headless-verify — no GPU).
+- bypasses #2/#3 (detector-fallback / audioAnalyser-null → gesture-only) — deferred; live diagnostics will show if they fire.
+
+### F-562 (graduated quick re-auth) — SPEC PENDING (separate)
+Quick re-auth is being respec'd as a graduated design; the current "full ceremony re-run" (refreshVerification) is NOT the intended flow. DO NOT touch the re-auth path structure for the Model B work. F-562 reuses the Model B per-digit unit (a80f066/9536236).
+
+### GATE unchanged: no `/auth` until addendum-13 #3 (Continue-Anyway marks VERIFIED after failure) is resolved AND a clean honest real-hand run passes.
