@@ -1906,7 +1906,9 @@ function beginRecording() {
     // transient frame of any finger (which raced through all 3 digits in ~2s).
     let stableCount = 0;          // the count currently being "held" and counted toward stability
     let stableFrames = 0;         // consecutive frames that count has been steady
-    let lastAcceptedCount = 0;    // W4.1: last count we accepted — require a CHANGE before next accept (hand stays up)
+    let _acceptArmed = true;      // Option 2 (S111): speech-off re-arm — a continuous hold can't double-accept. Re-armed by a SUSTAINED release OR a stably-held DIFFERENT count (debounced, robust to transient miscounts; codex P2). The VAD path ignores this and uses the per-digit speech window as the new-digit signal, which makes repeated digits ([2,4,4]) solvable.
+    let _lastAcceptedCount = 0;   // speech-off re-arm: a stably-held count != this == a deliberate change
+    let _releaseFrames = 0;       // consecutive detected===0 frames; a SUSTAINED release (>=3) re-arms (1-frame dropouts don't)
     const STABLE_FRAMES_NEEDED = 12;  // ~0.6s at ~20fps — a deliberate hold, not a flicker
     const MIN_DIGIT_DWELL_MS = 700;   // S110: each digit must be held ~0.7s wall-clock before advancing, so the recorded video captures every pose for Gemini (frame-rate independent)
     let _confirmUntil = 0;            // S110: during a confirmation beat after an accept, pause new accepts + delay next-number reveal
@@ -2024,6 +2026,7 @@ function beginRecording() {
     }
     function _speechGateOff(reason) {
         _speechMode = 'off';           // _speechOk becomes true → gesture-only advance, with a visible note
+        _acceptArmed = true;           // Option 2: let the currently-held gesture advance now (escape/degrade), not after a re-show
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
         try { vacDebug('speech_gate_mode', null, { mode: 'off', reason: reason || null }); } catch(_) {}
     }
@@ -2211,37 +2214,44 @@ function beginRecording() {
         // Note: we only need to detect that a DISTINCT stable gesture was held; the
         // ACTUAL finger count is validated later server-side by Gemini (Rob's point).
         if (detected > 0) {
+            _releaseFrames = 0;   // hand present — reset the sustained-release counter
             if (detected === stableCount) {
                 stableFrames++;
             } else {
-                stableCount = detected;   // count changed — restart the hold timer
+                // Count changed — restart the hold timer. digitStartTime resets on ANY change
+                // so the dwell always measures the CURRENT continuous hold (S110 racing fix,
+                // now change-agnostic so repeated digits re-time cleanly too).
+                stableCount = detected;
                 stableFrames = 1;
-                // S110 RACING FIX: also restart the DWELL clock when the count changes
-                // to a new value we haven't accepted. The bug: digitStartTime only reset
-                // on ADVANCE, so it measured time-since-last-advance — meaning after the
-                // first digit, the dwell was already satisfied by the time the user formed
-                // the next digit, and later digits advanced after only ~0.2s of holding
-                // (the frame gate), racing through. Resetting here makes the dwell measure
-                // how long THIS digit has actually been held.
-                if (detected !== lastAcceptedCount) { digitStartTime = performance.now(); }
+                digitStartTime = performance.now();
             }
-            // Accept when held steady long enough AND it's a change from the last
-            // accepted count (lastAcceptedCount starts at 0, so the first hold counts).
-            // S110 sync fix: ALSO require a wall-clock minimum dwell (MIN_DIGIT_DWELL_MS)
-            // since at 60fps STABLE_FRAMES_NEEDED=12 is only ~0.2s — too fast for the
-            // recorded video to capture each pose, so Gemini saw only the first digit.
+            // Speech-off re-arm: a count DIFFERENT from the last accepted, held STABLY, is a
+            // deliberate new gesture — robust to transient miscounts (a 1-frame flicker never
+            // reaches STABLE_FRAMES_NEEDED). A repeated digit (same count) re-arms via a
+            // sustained release instead (codex P2).
+            if (!_acceptArmed && detected !== _lastAcceptedCount && stableFrames >= STABLE_FRAMES_NEEDED) { _acceptArmed = true; }
+            // Accept when held steady long enough (+ the AND-gate's speech / re-arm below).
+            // S110 sync fix: require a wall-clock minimum dwell (MIN_DIGIT_DWELL_MS) since at
+            // 60fps STABLE_FRAMES_NEEDED=12 is only ~0.2s — too fast for the recorded video to
+            // capture each pose, so Gemini saw only the first digit.
             const _nowMs = performance.now();
             if (digitStartTime === 0) digitStartTime = _nowMs;  // first digit: start the dwell clock on first stable detection
             const _dwellOk = (_nowMs - digitStartTime) >= MIN_DIGIT_DWELL_MS;
-            // F-561 substrate: gesture readiness is now its own named signal, split
-            // out from the advance decision. Today _gestureOk && beat-clear advances in
-            // the SAME frame; F-561 will additionally require speechReady[currentDigitIndex]
-            // here, at which point gesture-confirmed-at and advance-fired-at diverge.
-            const _gestureOk = stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount;
-            // F-561 AND-gate: advance requires gesture AND speech for THIS digit. When
-            // the voice gate is off (no analyser, or user-escape) _speechOk is true so
-            // we degrade to gesture-only (W4.1 — never block forever, never silent-advance).
+            // F-561 Option 2 (S111): _gestureOk is just "held steady long enough" — the
+            // count-change guard (detected !== lastAcceptedCount) is GONE, so a repeated
+            // digit ([2,4,4]) is solvable. The per-digit SPEECH window is the new-digit signal.
+            const _gestureOk = stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk;
+            // AND-gate: advance requires gesture AND speech for THIS digit. Voice gate off
+            // (no analyser / user-escape) → _speechOk true → gesture-only (never block forever).
             const _speechOk = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
+            // _acceptArmed = "the gesture is FRESH for THIS digit" — re-established since the
+            // last accept (a stably-held DIFFERENT count, or a sustained release + re-show).
+            // Required in BOTH modes so a stale carried-over pose can't be recorded for the next
+            // digit (codex P2: the gate can't know the expected digit, so it can't tell a real
+            // repeat from a leftover pose — it requires a fresh gesture either way). VAD ALSO
+            // requires speech (the AND-gate). Distinct digit → new count held stably (no drop);
+            // repeated digit → a quick re-show.
+            const _rearmed = _acceptArmed;
             // F-560: record gesture-confirmed-at once per digit, independent of advance,
             // so the overlay shows the gesture→speech→advance gap. Also starts the
             // stuck-user escape timer (gesture ready, waiting on voice).
@@ -2251,7 +2261,7 @@ function beginRecording() {
                 try { vacDebug('gesture_confirm', null, { digit_index: currentDigitIndex }); } catch(_) {}
             }
             if (QA.on) { try { QA.frame({ detected: detected, stableFrames: stableFrames, need: STABLE_FRAMES_NEEDED, dwellMs: Math.round(_nowMs - digitStartTime), beatMs: Math.max(0, Math.round(_confirmUntil - _nowMs)), gestureOk: _gestureOk, speechOk: _speechOk, rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
-            if (_gestureOk && _speechOk && _nowMs >= _confirmUntil) {
+            if (_gestureOk && _speechOk && _rearmed && _nowMs >= _confirmUntil) {
                 if (currentDigitIndex === 0) {
                     try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
                 }
@@ -2261,7 +2271,8 @@ function beginRecording() {
                 try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: detected, held_frames: stableFrames, dwell_ms: Math.round(_nowMs - digitStartTime) }); } catch(_) {}
                 detectedDigits[currentDigitIndex] = true;
                 detectedCounts[currentDigitIndex] = detected;
-                lastAcceptedCount = detected;   // require a CHANGE before the next accept
+                _acceptArmed = false;           // Option 2: speech-off re-arm — needs a sustained release / stable different count before the next accept
+                _lastAcceptedCount = detected;  // for the speech-off "stable different count" re-arm
                 stableFrames = 0;               // reset hold timer; keep stableCount as-is
                 currentDigitIndex++;
                 digitStartTime = performance.now();
@@ -2301,8 +2312,11 @@ function beginRecording() {
                 }
             }
         } else {
-            // Hand fully dropped / out of frame — reset the hold (but NOT
-            // lastAcceptedCount; dropping the hand isn't required, just allowed).
+            // Hand fully dropped — reset the hold. A SUSTAINED release (>=3 frames, robust to
+            // 1-frame detection dropouts) re-arms the speech-off path so a repeated digit can
+            // be shown again (Option 2 / codex P2). Harmless in VAD mode (ignores _acceptArmed).
+            _releaseFrames++;
+            if (_releaseFrames >= 3) _acceptArmed = true;
             stableCount = 0;
             stableFrames = 0;
             if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false, speechOk: (_speechMode === 'off') ? true : speechReady[currentDigitIndex], rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
@@ -2343,11 +2357,18 @@ function beginRecording() {
             liveEl.style.color = '#22c55e';
             liveEl.style.fontSize = '22px';
             liveEl.textContent = '\u2713  Got it';
-        } else if (detected > 0 && detected !== lastAcceptedCount) {
+        } else if (detected > 0) {
+            // Option 2: no more "now change" copy \u2014 a repeated digit is held, not changed.
             liveEl.style.fontSize = '17px';
             const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
             const _needSpeech = (_speechMode !== 'off') && !speechReady[currentDigitIndex];
-            if (pct >= 100 && _needSpeech) {
+            if (pct >= 100 && !_acceptArmed) {
+                // Same gesture still held since the last accept (a repeated digit, or a stale
+                // carried-over pose): re-establish it with a quick re-show before this digit can
+                // advance — prevents recording the old pose for the new digit (both modes).
+                liveEl.style.color = '#fbbf24';
+                liveEl.textContent = 'Lower your hand, then show number ' + stepNum + ' again';
+            } else if (pct >= 100 && _needSpeech) {
                 // F-561: gesture is held + confirmed \u2014 now the voice half of the AND-gate.
                 // Pacing prompt only (on-device VAD), NOT presented as the security check.
                 liveEl.style.color = '#fbbf24';
@@ -2360,18 +2381,14 @@ function beginRecording() {
                     ? ('Got it \u2713')
                     : ('Number ' + stepNum + ' of ' + totalSteps + ' \u2014 hold steady ' + pct + '%');
             }
-        } else if (detected > 0 && detected === lastAcceptedCount) {
-            liveEl.style.fontSize = '17px';
-            liveEl.style.color = '#fbbf24';
-            liveEl.textContent = 'Now change to number ' + stepNum + ' of ' + totalSteps;
         } else {
             liveEl.style.color = 'var(--text-secondary)';
             liveEl.textContent = 'Show number ' + stepNum + ' of ' + totalSteps;
         }
 
         // F-561: stuck-user escape + persistent "(voice gate off)" note.
-        var _gestureHeldReady = (detected > 0 && detected !== lastAcceptedCount && stableFrames >= STABLE_FRAMES_NEEDED);
-        var _waitingVoice = _gestureHeldReady && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
+        var _gestureHeldReady = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED);
+        var _waitingVoice = _gestureHeldReady && _acceptArmed && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
         if (_waitingVoice && _gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS) { _ensureVoiceEscape(); }
         else { _removeVoiceEscape(); }
         _renderVoiceOffNote();
