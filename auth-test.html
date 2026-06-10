@@ -1623,6 +1623,22 @@ function updateAVReady() {
         btn.disabled = !allGood;
         btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
     }
+    // Service-error AUTO-retry: once the (warmed) pre-flight passes, advance to the challenge
+    // automatically — preserves the "retrying automatically" flow without the cold-entry race.
+    // Auto-proceed only when the challenge is ALSO loaded — requestCamera() clears challengeData
+    // before awaiting the fetch, so firing on allGood alone could hit goToChallenge() with a null
+    // challenge and trip its blank guard (spurious auto-retry failure on slow networks). This runs
+    // every AV frame, so it fires the moment both the checks pass AND the challenge has arrived.
+    if (allGood && window.__vacAutoProceedChallenge && !challengeIncomplete()) {
+        window.__vacAutoProceedChallenge = false;   // fire once
+        try { vacDebug('autoretry_preflight_passed'); } catch(_) {}
+        // DEFER out of this runAVFrame callback: calling goToChallenge() inline lets the current
+        // frame re-schedule the AV loop (the requestAnimationFrame at the end of runAVFrame) AFTER
+        // goToChallenge's stopAVChecks() runs, leaving the pre-flight loop (incl FingerDetector.detect)
+        // running during recording. A 0ms defer runs after this frame, so stopAVChecks cancels the
+        // next scheduled frame before it fires (codex).
+        setTimeout(function(){ try { goToChallenge(); } catch(_) {} }, 0);
+    }
 }
 
 function stopAVChecks() {
@@ -1703,7 +1719,15 @@ function goToChallenge() {
     const digitStr = digits.join(', ');
     var greetPart = phrase.replace(/,\s*\d[\d\s,]*$/, '');
     var digitWords = digits.map(function(d) { return d; }).join(' then ');
-    document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers for each number (hold, change, hold):<br><strong>' + digitWords + '</strong></span>';
+    // Voice-aware: in voice-only fallback there is NO finger phase, so the user must speak the
+    // FULL phrase (incl numbers) — show it directly (mirrors setFingerFallback). Finger mode
+    // shows the greeting + the finger instructions. Without this, a voice-only RETRY (routed
+    // through goToChallenge) would prompt only the greeting and fail challenge-response (codex).
+    if (fingerFallback === 'voice') {
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:12px;color:var(--warning);margin-top:8px;display:inline-block">Voice-only mode (reduced trust score)</span>';
+    } else {
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers for each number (hold, change, hold):<br><strong>' + digitWords + '</strong></span>';
+    }
     // Accessibility fallback link
     if (!document.getElementById('fingerFallback')) {
         const fb = document.createElement('div');
@@ -3091,7 +3115,7 @@ function showRetry(result) {
         document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
         if (retryAttempts < MAX_RETRIES) {
             if (window.__vacAutoRetry) clearTimeout(window.__vacAutoRetry);
-            window.__vacAutoRetry = setTimeout(function(){ try { retryVerification(); } catch(_){} }, 2500);
+            window.__vacAutoRetry = setTimeout(function(){ try { retryVerification(true); } catch(_){} }, 2500);  // true = AUTO: auto-proceed through the warmed pre-flight
         }
         return; // do NOT fall through to the red failure panel
     }
@@ -3150,85 +3174,25 @@ function showRetry(result) {
 }
 
 // Retry: go back to camera step with fresh challenge
-async function retryVerification() {
+async function retryVerification(auto) {
     if (retryAttempts >= MAX_RETRIES) return;
-
-    // Reset modality displays
-    ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger', 'modDuress'].forEach(id => {
-        updateModality(id, 'pending', null);
-    });
-
-    // Hide retry section
-    document.getElementById('retrySection').style.display = 'none';
-
-    // Re-request camera
-    try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
-            audio: true,
-        });
-    } catch (e) {
-        // Camera reacquire failed — fall through to the live-stream guard below.
-    }
-    // Need a LIVE stream to record. A prior blank-phrase retry stops + nulls the stream,
-    // so there's no stale fallback to silently reuse — block with a clear error instead
-    // of recording against a dead/null stream (codex).
-    if (!mediaStream || !mediaStream.getTracks().some(function(t){ return t.readyState === 'live'; })) {
-        try { vacDebug('retry_no_live_camera'); } catch(_) {}
-        document.getElementById('retrySection').style.display = 'block';
-        var _frc = document.getElementById('failReasons');
-        if (_frc) { _frc.textContent = 'Couldn’t access your camera. Check permissions and tap Retry again.'; if (_frc.parentElement) _frc.parentElement.style.display = 'block'; }
-        return;
-    }
-
-    // Fetch fresh challenge
-    const d = userData();
-    challengeData = null;  // clear stale challenge first so a FAILED fetch leaves it null and the blank-phrase guard fires (codex)
-    try {
-        const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: d.name, risk_level: 'medium' }),
-        });
-        challengeData = await resp.json();
-        try { vacDebug('challenge_fetched', null, { has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null, path: 'retry' }); } catch(_) {}
-    } catch (e) {
-        console.error('Failed to fetch new challenge:', e);
-        try { vacDebug('challenge_fetch_failed', String(e && e.message || e)); } catch(_) {}
-    }
-
-    // S111: same incomplete-challenge guard as goToChallenge — the retry path also must
-    // never record against a missing phrase OR (in finger mode) a digit-less challenge
-    // (bypass #1). Re-show the retry UI instead of starting a countdown with nothing to do.
-    if (challengeIncomplete()) {
-        try { vacDebug('challenge_blank_blocked', null, { path: 'retry', has_challengeData: !!challengeData, has_phrase: !!(challengeData && challengeData.phrase), has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), finger_fallback: fingerFallback, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
-        // Stop the stream we just acquired before bailing — else repeated retries leak
-        // live camera/mic tracks (codex). The retry's getUserMedia re-acquires next time.
-        try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
-        mediaStream = null;  // don't leave a stopped stream as a false fallback (codex)
-        document.getElementById('retrySection').style.display = 'block';
-        var _fr = document.getElementById('failReasons');
-        if (_fr) { _fr.textContent = 'Couldn’t load your challenge. Check your connection and tap Retry again.'; if (_fr.parentElement) _fr.parentElement.style.display = 'block'; }
-        return;
-    }
-
-    // Set up recording preview
-    const phrase = challengeData?.phrase || `I am ${d.name}, authorising VAC Protocol`;
-    document.getElementById('challengeText').textContent = `"${phrase}"`;
-    const recVid = document.getElementById('videoPreviewRec');
-    recVid.srcObject = mediaStream;
-    recVid.muted = true;
-    recVid.setAttribute('playsinline', '');
-    recVid.play().catch(() => {});
-
-    // Reset countdown ring
-    const ringFill = document.getElementById('countdownRingFill');
-    ringFill.classList.remove('recording');
-    ringFill.style.strokeDashoffset = 0;
-
-    // Go to recording step
-    goToStep(2);
-    startCountdown();
+    // S111 (re-auth RACE fix): route the retry through the SAME pre-flight + goToChallenge
+    // entry as a fresh auth (and as refreshVerification) — NOT a jump straight to step 2.
+    // The old step-2 jump skipped step-1's pre-flight, which does two jobs first-run gets for
+    // free: it WARMS the detector AND FLUSHES MediaPipe's VIDEO-mode tracking against the
+    // current frame (reset() preserves _detector, so its internal tracking survives re-entry).
+    // Entering phase 2 cold + stale, the first detectForVideo calls returned phantom counts and
+    // — with digit 0's gate pre-armed — the digits raced past the user (Heard: "One").
+    // resetBiometricUI(true) preserves the retry budget (does NOT zero retryAttempts).
+    // Blank-phrase / live-stream guards are preserved: requestCamera() re-acquires + fetches,
+    // and goToChallenge()'s challengeIncomplete() guard still blocks an empty challenge.
+    resetBiometricUI(true);
+    // Service-error AUTO-retry preserves its "retrying automatically" UX: auto-proceed through
+    // the (now warmed) pre-flight to recording once the AV checks pass. Manual retry leaves the
+    // user to click Start. Either way the detector is warmed/flushed FIRST — that's the race fix.
+    window.__vacAutoProceedChallenge = !!auto;
+    goToStep(1);          // back to the camera step (email/OTP already confirmed)
+    requestCamera();      // re-acquire camera + pre-flight warm/flush + fetch challenge + wire Start→goToChallenge
 }
 
 // STEP 4: Success
@@ -3405,12 +3369,13 @@ function showSuccess() {
 // the F-559 preflight that warms MediaPipe before recording, so the detector
 // cold-started on the first real digit (#4, the "hang"). This puts the page back to
 // a clean first-run-equivalent state.
-function resetBiometricUI() {
+function resetBiometricUI(preserveRetryBudget) {
     // 1. Nav badge: back to the un-authenticated state. showSuccess() set text
     //    'AUTHENTICATED' + inline teal styling; clear the inline so the .nav-mode
     //    class styling (purple "AUTHENTICATE") applies again.
     var nav = document.getElementById('navStatus');
     if (nav) { nav.textContent = 'AUTHENTICATE'; nav.style.color = ''; nav.style.background = ''; nav.style.borderColor = ''; }
+    window.__vacAutoProceedChallenge = false;   // clear any stale auto-proceed (retry re-sets it right after; refresh leaves it off)
     // 2. Clear both hand-skeleton canvases so the prior run's overlay doesn't linger
     //    (their clearRect only runs inside the live draw loops, which aren't running yet).
     ['handOverlay', 'avHandOverlay'].forEach(function(id) {
@@ -3433,7 +3398,7 @@ function resetBiometricUI() {
     //    "Continue Anyway" button can resurface. NOTE: this only RESETS state for the
     //    new run — it does NOT change the addendum-13 #3 "Continue Anyway" integrity
     //    logic (showSuccess-after-failure), which is a separate, still-pending fix.
-    retryAttempts = 0;
+    if (!preserveRetryBudget) retryAttempts = 0;   // a RETRY must keep counting attempts; a fresh refresh resets
     var retrySec = document.getElementById('retrySection');
     if (retrySec) retrySec.style.display = 'none';
     var contBtn = document.getElementById('btnContinueAnyway');
