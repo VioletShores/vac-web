@@ -716,7 +716,7 @@ const QA = (function () {
     function relNow() { return t0 ? (performance.now() - t0) : null; }
     function ms(v) { return v == null ? '—' : ('+' + Math.round(v) + 'ms'); }
     function row(i) {
-        while (rows.length <= i) rows.push({ gestureAt: null, speechAt: null, advanceAt: null, count: null });
+        while (rows.length <= i) rows.push({ gestureAt: null, speechAt: null, advanceAt: null, count: null, winOpenAt: null, speechRms: null });
         return rows[i];
     }
 
@@ -766,8 +766,9 @@ const QA = (function () {
             const r = rows[i];
             const heldNoAdv = (r.gestureAt != null && r.advanceAt == null);
             html += 'D' + i +
+                '  win:' + ms(r.winOpenAt) +
                 '  g:' + ms(r.gestureAt) +
-                '  s:' + ms(r.speechAt) +
+                '  s:' + ms(r.speechAt) + (r.speechRms != null ? '(rms ' + Number(r.speechRms).toFixed(3) + ')' : '') +
                 '  adv:' + (r.advanceAt == null ? (heldNoAdv ? '— (held, no advance)' : '—') : ms(r.advanceAt)) +
                 (r.count != null ? '  cnt:' + r.count : '') + '\n';
         }
@@ -794,7 +795,17 @@ const QA = (function () {
         } else if (event === 'gesture_confirm' && ctx && typeof ctx.digit_index === 'number') {
             const r = row(ctx.digit_index); if (r.gestureAt == null) { r.gestureAt = relNow(); render(); }
         } else if (event === 'speech_confirm' && ctx && typeof ctx.digit_index === 'number') {
-            const r = row(ctx.digit_index); if (r.speechAt == null) { r.speechAt = relNow(); render(); }
+            // F-561 #2 diag: record WHEN speech fired and the RMS that triggered it,
+            // so a false-fire (rms barely over thr / loud transient) is distinguishable
+            // from a real spoken number on the next live pass.
+            const r = row(ctx.digit_index);
+            if (r.speechAt == null) { r.speechAt = relNow(); r.speechRms = (typeof ctx.rms === 'number' ? ctx.rms : null); render(); }
+        } else if (event === 'speech_window_open' && ctx && typeof ctx.digit_index === 'number') {
+            // F-561 #2 diag: when each digit's speech window opened (relative to t0).
+            // A speechAt at/just-after this == possible bleed; mid-window == false-fire.
+            const r = row(ctx.digit_index);
+            r.winOpenAt = (t0 && typeof ctx.at_perf === 'number') ? (ctx.at_perf - t0) : relNow();
+            render();
         } else if (event === 'detect_digit_advance' && ctx && typeof ctx.digit_index === 'number') {
             const r = row(ctx.digit_index); r.advanceAt = relNow(); r.count = ctx.fingers_shown; render();
         } else if (event === 'qa_final_result' && ctx) {
