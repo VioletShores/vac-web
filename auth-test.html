@@ -140,8 +140,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); animation: pulse-rec 1s ease-in-out infinite; }
 @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124,92,252,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 20px 4px rgba(124,92,252,0.3); } }
-.camera-challenge { position: absolute; bottom: 8px; left: 8px; right: 8px; text-align: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(108,92,231,0.3); transition: opacity 0.3s; }
-.camera-container.hand-visible .camera-challenge { opacity: 0.25; }
+/* S111 #3: instruction text is now a readable panel BELOW the feed (was an absolutely-
+   positioned overlay inside the video, behind the z-index:4 skeleton canvas → unreadable). */
+.challenge-panel { margin: 10px 0 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; text-align: center; }
 .camera-challenge-text { font-size: clamp(13px, 3.5vw, 16px); font-weight: 600; color: var(--text-primary); line-height: 1.3; }
 .camera-challenge-sub { font-size: clamp(10px, 2.5vw, 12px); color: var(--text-tertiary); margin-top: 2px; }
 
@@ -475,11 +476,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 <div class="audio-bar" id="ab3" style="height:2px;"></div>
                 <div class="audio-bar" id="ab4" style="height:2px;"></div>
             </div>
-            <div class="camera-challenge">
-                <div class="camera-challenge-text" id="challengeText">Loading challenge…</div>
-                <div class="camera-challenge-sub">Look at the camera the whole time</div>
-            </div>
         </div>
+    </div>
+    <!-- S111 finding #3: instruction text moved OUT of the camera overlay — it was behind the
+         z-index:4 hand-skeleton canvas (unreadable at the moment it's needed). Now a readable
+         panel BELOW the feed; the numbers live in #digitStrip ABOVE (single source, de-duped). -->
+    <div id="challengePanel" class="challenge-panel">
+        <div class="camera-challenge-text" id="challengeText">Loading challenge…</div>
+        <div class="camera-challenge-sub">Look at the camera the whole time</div>
     </div>
     <div class="timer-label" id="timerLabel">Recording in</div>
     <div class="countdown-ring-wrap" id="countdownRingWrap">
@@ -1948,16 +1952,7 @@ function beginRecording() {
     // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
     function renderFingerPhase(hint) {
         if (digits.length === 0) { challengeEl.textContent = 'Processing\u2026'; return; }
-        var circles = '';
-        for (var di = 0; di < digits.length; di++) {
-            if (detectedDigits[di]) {
-                circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:#22c55e;color:white;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 6px;box-shadow:0 0 12px rgba(34,197,94,0.4);">&#10003;</span>';
-            } else if (di === currentDigitIndex) {
-                circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + digits[di] + '</span>';
-            } else {
-                circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + digits[di] + '</span>';
-            }
-        }
+        // S111 #3: per-digit number circles live in #digitStrip ABOVE the video (single source).
         // W3.5 refactor: generic per-step prompt.
         // The detection loop already advances on ANY finger > 0 (line below);
         // server validates the full sequence at the end. Showing the expected
@@ -1966,7 +1961,7 @@ function beginRecording() {
         const hintHtml = hint ? '<div style="color:#fbbf24;font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
         const remaining = digits.length - currentDigitIndex;
         const stepLabel = remaining > 1 ? (remaining + ' gestures to go') : (remaining === 1 ? 'last gesture' : 'done');
-        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
+        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">Show the next number from the strip above</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     }
 
     function finishFingerPhase() {
@@ -2119,6 +2114,10 @@ function beginRecording() {
                         renderFingerPhase(false);
                         finishFingerPhase();
                     } else {
+                        // S111 #3: the per-step numbers now live ONLY in #digitStrip (the in-frame
+                        // circles were removed), so the manual fallback must advance the strip too —
+                        // else it sticks on the first digit and the user shows the wrong sequence (codex).
+                        try { renderDigitStrip(currentDigitIndex); } catch(_) {}
                         renderFingerPhase(false);
                     }
                 });
@@ -2471,11 +2470,8 @@ function beginRecording() {
                 _graceDrawRAF = requestAnimationFrame(graceDraw);
             })();
             function renderGrace() {
-                var circles = '';
-                for (var di = 0; di < digits.length; di++) {
-                    circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px;opacity:0.5">' + digits[di] + '</span>';
-                }
-                challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
+                // S111 #3: numbers are in #digitStrip above; this panel shows the countdown only.
+                challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
             }
             renderGrace();
             try { renderDigitStrip(0); } catch(_) {}
