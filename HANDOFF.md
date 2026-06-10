@@ -142,3 +142,81 @@ Rob hit a tangled cluster (needs careful evidence-led fix next session, NOT blin
 3. **INTEGRITY BUG (highest priority): "Continue Anyway" → showSuccess() marks VERIFIED after a real FAILURE.** btnContinueAnyway (line ~563) appears after MAX_RETRIES=5 (line ~2339) and calls showSuccess() directly — so a FAILED verification reaches the success/verified state + writes vac_verified to localStorage + posts vac-auth-success. Rob: "got to 5 of 5, gave me Continue Anyway, says I am verified when I really failed." On /auth-test this is contained (test surface, no real users), but it MUST NOT reach /auth. Fix needs a decision: after max retries, show an honest FAILED terminal state — NOT a path to success. (Possibly "Continue Anyway" was a dev convenience; if so, remove it or gate it behind a non-prod flag.)
 **GATE: do NOT promote /auth-test→/auth until #3 (integrity) is resolved + #1/#2 fixed and a clean real-hand run passes honestly.**
 **Diagnostic approach (per L-774): get console + network data first** — for #1, timestamps of last detect_digit_advance vs finishFingerPhase vs recorder.stop; for #3, confirm whether showSuccess is reached with a failed authResult (client lying) vs server returning pass. Evidence before fix.
+
+## S111 addendum 14 (10 Jun) — F-561 AND-gate BUILT (uncommitted) + 4-finding diagnosis cluster + VAD calibration + Gemini-fail root. STOPPED before fixes (integrity-critical, not rushing tired).
+
+**BRANCH:** `Schemo512/f561-multimodal-advance-gate`. All work in `auth-test.html` (test surface; `/auth` untouched).
+
+### WHAT'S COMMITTED vs UNCOMMITTED (do not lose this state)
+- **COMMITTED (F-560 QA overlay):** `f268371` (`?qa=1` advance-gate debug overlay) + `1e4bd95` (wrap so the live line incl sOk stays on-screen). Verified live by Rob.
+- **UNCOMMITTED in working tree (~178 insertions, `auth-test.html`):**
+  - **F-561 advance-gate change** — the real behavior change. Gate at ~line 2205: `if (_gestureOk && _speechOk && _nowMs >= _confirmUntil)`. `_gestureOk` unchanged; advance now ALSO requires `_speechOk` per digit.
+  - **#2 diagnostic instrumentation** (QA overlay layer) — `speech_confirm` now carries triggering `rms`; new `speech_window_open` event; overlay row shows `win:` + `s:…(rms …)`; legend reworded.
+- **NEXT SESSION: split these** — `/codex` the F-561 gate diff → commit F-561 gate on its own → instrumentation can ride with the F-560 overlay lane or stand alone. They're the same file, use `git add -p`.
+- **HANDOFF.md addendum 14 itself is uncommitted** (per Rob's hold) — separate file from the F-561 diff, safe to `git add HANDOFF.md` standalone if you want it in history.
+
+### DECISIONS LOCKED (S111, via /plan-eng-review)
+- **D1 — Speech gate is VAD-ONLY, on-device.** webkitSpeechRecognition is NOT used (in Chrome it streams mic audio to Google = contradicts the doc's "zero network round-trip" + the page's privacy copy). **This SUPERSEDES the F-561 substrate doc's "prefer webkitSpeechRecognition" line — the substrate was wrong on that point.** Words never leave device; content stays server-side Gemini. Reuses existing `audioAnalyser` (startAudioMonitor) — no 2nd AudioContext, no new getUserMedia, no permission prompt.
+- **D2 — Stuck-user escape is explicit, never silent.** Gesture held ready ~12s with no speech → "Mic not working? Tap to continue with gestures only" → `_speechMode='off'` for this digit AND the rest, logged `vacDebug('voice_gate_escape')`. Overrides the wrong 8s "hold hand closer" hint. Fallback chain: VAD → (VAD unavailable) gesture-only + visible "(voice gate off)" note → never silent auto-advance (W4.1).
+
+### (1) VAD CALIBRATION — set next session (Rob's live numbers)
+- **Noise floor (silent) rms = 0.074. Speaking rms = 0.175–0.242.** Gap is TIGHT (~0.10 wide, ~0.035 margin each side).
+- **NEXT: set `VAD_SPEECH_RMS ≈ 0.14`** (currently 0.12, ~line 1895) **AND raise `VAD_SPEECH_FRAMES`** (currently 3 ≈ 50ms, ~line 1896) — e.g. 3→6 (~100ms) — so a brief transient (breath/tap/movement) can't cross the threshold in the tight gap. `VOICE_HELP_TIMEOUT_MS=12000` (~line 1897) also tunable.
+
+### THE 4 FINDINGS — DIAGNOSED ONLY, NOT FIXED (root causes located in code)
+- **#1 — Re-auth stale DOM.** `refreshVerification()` (3155) = `authResult=null` + `goToStep(1)`. `goToStep` (1115) only flips `.active`/dots — never resets the `navStatus` "AUTHENTICATED" badge (set `showSuccess:3000`) nor clears the skeleton canvases (`#handOverlay`/`#avHandOverlay`; `clearRect` only runs inside the draw loops at 1503/2127). Gate/recorder state DOES reset (fresh `beginRecording` closure). So stale state is **purely DOM: badge + canvas.** Integrity-adjacent to addendum-13 #3.
+- **#2 — Silent gesture advanced (`s:+16210`).** Window-reset logic is CORRECT (`speechWindowStart = now + CONFIRM_BEAT_MS` on every advance, ~2224; `_markSpeech` guards `now < speechWindowStart`, ~1961) → bleed unlikely. High-confidence cause = **energy-VAD false-fire on a non-speech transient** (zero voice discrimination; thr 0.12 untuned). Rob's tight live gap (0.074↔0.175) CONFIRMS transients can fire it. Instrumentation now in place to prove per-fire next pass (rms value + window-open time).
+- **#3 — Instruction text occluded by skeleton.** Pure z-index: `.camera-overlay`/`.camera-challenge` (129/143) have NO z-index (=0); `#handOverlay` canvas (458) is `z-index:4` → skeleton paints over `#challengeText`. Worsened by `.camera-container.hand-visible .camera-challenge { opacity:0.25 }` (144). Above-video `#digitStrip` is fine (outside box).
+- **#4 — Re-auth "hang" / first-finger cold-start (`stable=299/dwell=4968` = slow-start, NOT wedged).** SHARES #1's root: `refreshVerification`→`goToStep(1)` **never calls `requestCamera()`**, which is the SOLE caller of `startAVChecks()` = the F-559 pre-flight whose hand pre-flight (~1468) warms MediaPipe before recording. So detector cold-starts on the first real digit. Also: `btnCamera.onclick` rewired to `goToChallenge` in run 1 (1304), never restored, so the camera button bypasses requestCamera on re-entry; stream stopped after success (2481), not re-acquired (only `retryVerification:2948` re-acquires); global `avChecks` (1379) never reset on this path.
+- **#1+#4 FIX (next session):** make `refreshVerification` a PROPER re-entry — model it on `retryVerification` (2935): re-acquire `getUserMedia`, reset `avChecks`, restore `btnCamera.onclick=requestCamera` (or just call `requestCamera()` to re-run the F-559 warm-up), AND clear the badge + both skeleton canvases. One re-entry fix likely kills both the stale-DOM and the cold-start "hang."
+
+### (2) THE LIVE FAIL WAS SERVER-SIDE GEMINI — NOT the gate, NOT liveness
+- face_liveness + deepfake + lip_sync + finger_gesture **all failing together = F-558 video-analysis error signature** (Gemini couldn't analyze the video), not a real biometric reject.
+- **F-558 File API fix is BACKEND** (`vac-system` / Railway `API_BASE=vac-system-production.up.railway.app`) — NOT in vac-web. Grep of `auth-test.html` for File API/upload refs = zero (expected). **NEXT: verify the F-558 File API fix is deployed on the BACKEND the branch points at — check the vac-system repo, not here.**
+
+### (3) RETRY LOOP won't recover after a Gemini fail + accumulates state (D3 row reappearing) = addendum-13 #2, DOWNSTREAM of the Gemini fail (2). Fix after the Gemini/F-558 root.
+
+### SEQUENCING (next session, in order)
+1. **`/codex` the F-561 gate diff** → commit F-561 gate on its own (split from #2 instrumentation).
+2. **Set `VAD_SPEECH_RMS≈0.14` + raise `VAD_SPEECH_FRAMES`** (commit with/after gate).
+3. **Verify F-558 File API fix on the backend** (vac-system) → fix the **Gemini/retry cluster** (addendum-13 #2, downstream of the video-analysis error).
+4. **Fix #1+#4** (refreshVerification proper re-entry) and **#3** (z-index) as separate commits.
+5. **Resolve addendum-13 #3 integrity** ("Continue Anyway" → `showSuccess()` marks VERIFIED after a real FAILURE) — STILL the hard gate.
+6. **THEN promote `/auth-test` → `/auth`.**
+
+### GATE (unchanged from addendum 13): do NOT promote to `/auth` until addendum-13 #3 (integrity: failure must not reach the verified state) is resolved AND a clean honest real-hand run passes. The F-561 AND-gate and the 4 findings above do not change that gate; they sit on top of it.
+
+## S111 addendum 15 (10 Jun) — SUPERSEDES addendum 14's commit-status. F-560/F-561 all committed; live pass killed the F-558 theory; new re-auth blank-phrase bug found + fixed.
+
+### COMMIT STATE (addendum 14 said "uncommitted" — that's STALE; it's all landed)
+```
+<pending>  S111: block recording on blank challenge phrase + diagnostics (this step)
+a2950b6    chore: gitignore .gstack/
+f4474f1    F-561/S111: refreshVerification proper re-entry (#1 stale UI + #4 warm-up)
+0edaf72    F-561: tune VAD threshold (0.12->0.14, frames 3->6)
+3b0f57c    F-561 #2 diag: per-digit window-open + triggering rms
+15161a8    F-561: per-digit gesture-AND-speech advance gate (VAD-only)
+1e4bd95 / f268371  F-560: ?qa=1 overlay (+ wrap)
+```
+Each was /codex-passed (P2s found + fixed before commit). NOTHING PUSHED. The one live pass below ran on code through f4474f1 (PRE blank-phrase fix).
+
+### LIVE PASS RESULT (S111, Rob) — F-558 THEORY IS DEAD
+On a good-framing recording, **6/7 modalities PASSED**: Face 0.95, Deepfake 0.98, Voiceprint 1.00, Lip-Sync 0.97, Finger Gesture 1.00 (Gemini read [3,5,2] correctly). So the earlier all-4-fail was a BAD/DIM CAPTURE, not F-558. Gemini works fine on a good recording. **F-558 backend check PAUSED — not the problem.**
+- The ONLY fail: **Challenge Response 0.40** — "Heard: 3. 5." vs "Expected: Hello, I am Rob Zagarella, 3 5 2".
+- Also confirmed (not a bug): the VAD gate advanced digits without full correct speech — KNOWN gate limit (VAD = sound presence, not content; Gemini owns content).
+
+### NEW BUG (#5) — re-auth blank-phrase + THIS STEP'S FIX
+Root cause (Rob observed live + static trace): on the re-auth recording, the phrase VALUE is blank — the screen shows the static label "SAY THE PHRASE" but no phrase interpolated, so Rob spoke only digits. The template (`updatePhasePrompt:1821`) interpolates correctly (`+ phrase +`), so this is EMPTY `challengeData.phrase` at render, not a template bug.
+- **Fix (committing now):** `goToChallenge` AND `retryVerification` now BLOCK recording when `challengeData.phrase` is blank (never record against a blank challenge → guaranteed Challenge-Response fail), with a retry that re-fetches. Plus diagnostics `challenge_fetched` / `challenge_fetch_failed` / `challenge_blank_blocked` to pin WHY it's empty (failed fetch vs response-missing-phrase) on the next live pass.
+- **Likely also resolves addendum-13 #2** (retry-loop-won't-recover): that was probably the retry path silently recording against a blank/stale challenge and failing every time. The retry guard breaks that loop.
+
+### REMAINING (next steps, in order)
+1. **Confirm blank-phrase root cause** on a live re-auth pass via the new diagnostics; finish the re-fetch fix if the backend response is dropping `phrase`.
+2. **UX (a):** move ALL instruction text OUT of the camera video overlay into a panel above/beside the feed — currently overlaid on face+hand (unreadable) and DUPLICATED (ticks+digit appear both above and inside the frame). **This also kills finding #3 (z-index occlusion).**
+3. **UX (b) / verify #4:** first-finger detection STILL lags on re-auth despite the step-3 warm-up — add a timestamp to verify whether `requestCamera`'s F-559 warm-up actually runs on the re-auth path.
+4. **addendum-13 #3 integrity** ("Continue Anyway" → showSuccess after failure) — sequenced after the above. Leave alone until then.
+5. Then a clean honest live pass → promote `/auth`.
+
+### DEBT: every committed change here is UNVERIFIED by a live hand except the one pass above (which predates the blank-phrase + VAD-tune fixes). One honest live re-auth pass is owed before `/auth`.
+
+### GATE still stands: no `/auth` promotion until addendum-13 #3 resolved + a clean honest real-hand run.
