@@ -721,7 +721,7 @@ const QA = (function () {
     function relNow() { return t0 ? (performance.now() - t0) : null; }
     function ms(v) { return v == null ? '—' : ('+' + Math.round(v) + 'ms'); }
     function row(i) {
-        while (rows.length <= i) rows.push({ gestureAt: null, speechAt: null, advanceAt: null, count: null, winOpenAt: null, speechRms: null });
+        while (rows.length <= i) rows.push({ gestureAt: null, speechAt: null, advanceAt: null, count: null, winOpenAt: null, speechRms: null, onsetAt: null });
         return rows[i];
     }
 
@@ -774,6 +774,7 @@ const QA = (function () {
                 (expected[i] != null ? '  exp:' + expected[i] : '') +
                 '  win:' + ms(r.winOpenAt) +
                 '  g:' + ms(r.gestureAt) +
+                (r.onsetAt != null ? '  on:' + ms(r.onsetAt) : '') +
                 '  s:' + ms(r.speechAt) + (r.speechRms != null ? '(rms ' + Number(r.speechRms).toFixed(3) + ')' : '') +
                 '  adv:' + (r.advanceAt == null ? (heldNoAdv ? '— (held, no advance)' : '—') : ms(r.advanceAt)) +
                 (r.count != null ? '  cnt:' + r.count + (expected[i] != null && r.count !== expected[i] ? '≠exp' : '') : '') + '\n';
@@ -785,7 +786,7 @@ const QA = (function () {
             html += '<b style="color:' + (result.pass ? '#3FB950' : '#F85149') + '">RESULT: ' +
                 (result.pass ? 'PASS' : 'FAIL') + '</b>  fail:' + (result.failed.length ? result.failed.join(',') : 'none') + '\n';
         }
-        html += '<span style="color:#6E7681">VAD calib: set thr in the gap (silent rms &lt; thr &lt; speaking rms). win=window-open · (rms ..)=value that fired s · a blank s time = no voice yet this digit</span>';
+        html += '<span style="color:#6E7681">VAD: win=window-open · on=silence→voice ONSET (fresh per-digit binding; must be after win) · (rms ..)=value that fired s · blank s = no voice yet · live line shows thr</span>';
         panel.innerHTML = html;
         liveEl = panel.querySelector('#qaLive');
         paintLine();
@@ -809,7 +810,7 @@ const QA = (function () {
             // so a false-fire (rms barely over thr / loud transient) is distinguishable
             // from a real spoken number on the next live pass.
             const r = row(ctx.digit_index);
-            if (r.speechAt == null) { r.speechAt = relNow(); r.speechRms = (typeof ctx.rms === 'number' ? ctx.rms : null); render(); }
+            if (r.speechAt == null) { r.speechAt = relNow(); r.speechRms = (typeof ctx.rms === 'number' ? ctx.rms : null); r.onsetAt = (t0 && typeof ctx.onset_perf === 'number') ? (ctx.onset_perf - t0) : null; render(); }
         } else if (event === 'speech_window_open' && ctx && typeof ctx.digit_index === 'number') {
             // F-561 #2 diag: when each digit's speech window opened (relative to t0).
             // A speechAt at/just-after this == possible bleed; mid-window == false-fire.
@@ -837,8 +838,8 @@ const QA = (function () {
         // Mid-run snapshot of the F-561 AND-gate: D0/D1 advanced only after BOTH gesture
         // and speech; D2 is gesture-confirmed but HELD, waiting on voice (sOk=N, rms<thr).
         t0 = 1; recStarted = true; recStop = null;
-        rows.push({ gestureAt: 812,  speechAt: 980,  speechRms: 0.187, advanceAt: 1010, winOpenAt: 0,    count: 2 });
-        rows.push({ gestureAt: 2210, speechAt: 2360, speechRms: 0.203, advanceAt: 2410, winOpenAt: 1910, count: 3 });
+        rows.push({ gestureAt: 812,  speechAt: 980,  speechRms: 0.187, onsetAt: 930,  advanceAt: 1010, winOpenAt: 0,    count: 2 });
+        rows.push({ gestureAt: 2210, speechAt: 2360, speechRms: 0.203, onsetAt: 2300, advanceAt: 2410, winOpenAt: 1910, count: 3 });
         rows.push({ gestureAt: 3900, speechAt: null, speechRms: null,  advanceAt: null, winOpenAt: 3310, count: null }); // held, waiting on voice
         expected = [2, 3, 5];  // synthetic expected sequence → shows exp:N per row (D2 exp:5, held)
         result = null;  // run not complete in this snapshot
@@ -1861,9 +1862,16 @@ function beginRecording() {
     // Phase prompt updater (uses seconds with decimal precision)
     function updatePhasePrompt(sec) {
         if (sec < PHRASE_DURATION) {
-            // Speaking phase
-            const phrase = challengeData?.phrase || '';
-            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + phrase + '"';
+            // Speaking phase. FINGER mode: GREETING ONLY (numbers stripped) — the numbers are
+            // spoken per-digit, each bound to its gesture (SUPP-7). VOICE-ONLY mode skips the
+            // digit phase, so the user must speak the FULL phrase (incl numbers) here (codex).
+            const _full = challengeData?.phrase || '';
+            if (fingerFallback === 'voice') {
+                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"';
+            } else {
+                const _greeting = _full.replace(/,?\s*\d[\d\s,]*$/, '').trim() || _full;
+                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greeting + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">the numbers come next — one per gesture</span>';
+            }
         } else {
             // Finger phase
             const fingerElapsed = sec - PHRASE_DURATION;
@@ -1956,9 +1964,15 @@ function beginRecording() {
     // quietest speech). The gap is tight, so FRAMES is raised to require sustained voicing —
     // a brief transient (breath/tap/movement) can't hold above thr for ~100ms and false-fire
     // (the silent-advance bug). Re-tune live on ?qa=1 by watching rms (silent) vs rms (speaking).
-    const VAD_SPEECH_RMS = 0.14;
+    const VAD_SPEECH_RMS = 0.14;     // voiced threshold (rms above this = voice)
+    const VAD_SILENCE_RMS = 0.085;   // SILENCE threshold (rms below this = silence). Hysteresis gap 0.085–0.14 = "neither", so a fresh utterance must cross from real silence UP through voice — greeting-tail / continuous talk (no preceding in-window silence) can't pre-satisfy a digit. Live-tune above the ~0.074 floor.
     const VAD_SPEECH_FRAMES = 6;     // ~100ms sustained above threshold (raised 3->6 so transients can't fire)
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
+    // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
+    // silence→voice ONSET inside digit i's window, so the spoken number genuinely binds to
+    // that gesture (no pre-satisfaction). Reusable per-digit unit for F-562 quick re-auth.
+    let _sawSilence = false;         // observed real silence since THIS digit's window opened?
+    let _voiceOnsetAt = 0;           // performance.now() when the current fresh voiced run began
 
     // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
     function renderFingerPhase(hint) {
@@ -1999,15 +2013,15 @@ function beginRecording() {
     // words, so on-device energy detection is sufficient. Reuses the existing
     // audioAnalyser (startAudioMonitor) — no second AudioContext, no new getUserMedia,
     // no permission prompt.
-    function _markSpeech(src, rms) {
+    function _markSpeech(src, rms, onsetAt) {
         if (recordingStopped) return;
         if (currentDigitIndex >= digits.length) return;
         if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
         if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
         speechReady[currentDigitIndex] = true;
-        // F-561 #2 diag: carry the triggering rms so a false-fire (marginal/loud transient)
-        // is distinguishable from a real spoken number on the overlay. Gate logic unchanged.
-        try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null) }); } catch(_) {}
+        // F-561: carry the triggering rms AND the silence→voice onset moment, so the overlay
+        // shows the FRESH binding per digit (onset after a real in-window silence — no pre-satisfaction).
+        try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null), onset_perf: (typeof onsetAt === 'number' ? onsetAt : null) }); } catch(_) {}
     }
     function _startSpeechGate() {
         if (_speechGateStarted) return;
@@ -2017,6 +2031,10 @@ function beginRecording() {
         try { vacDebug('speech_gate_mode', null, { mode: 'vad' }); } catch(_) {}
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
         let voiced = 0;
+        // The reusable per-digit unit: fire speechReady ONLY on a silence→voice ONSET inside
+        // the current window. A voiced run that did NOT follow an in-window silence (greeting
+        // tail, continuous talk, room drone) is IGNORED — so it can't pre-satisfy the digit and
+        // the spoken number genuinely binds to the gesture (SUPP-7 cross-modal claim).
         (function tick() {
             if (recordingStopped || _speechMode !== 'vad') { _vadRAF = null; return; }
             try {
@@ -2024,8 +2042,26 @@ function beginRecording() {
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
-                if (rms > VAD_SPEECH_RMS) { if (++voiced >= VAD_SPEECH_FRAMES) { _markSpeech('vad', rms); voiced = 0; } }
-                else { voiced = 0; }
+                const _now = performance.now();
+                if (rms < VAD_SILENCE_RMS) {
+                    // Track silence ALWAYS — even while the window is closed (during the confirm
+                    // beat / grace). A real pause there arms the next digit, so a fresh utterance
+                    // that OVERLAPS the window-open still counts (codex), while continuous
+                    // carry-over (no pause since the last accept) stays rejected.
+                    _sawSilence = true;
+                    voiced = 0;
+                } else if (rms > VAD_SPEECH_RMS) {
+                    if (_now >= speechWindowStart && _sawSilence) {
+                        if (voiced === 0) _voiceOnsetAt = _now;   // onset of this fresh voiced run
+                        if (++voiced >= VAD_SPEECH_FRAMES) {
+                            _markSpeech('vad', rms, _voiceOnsetAt);
+                            voiced = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
+                        }
+                    } else {
+                        voiced = 0;   // window not open yet, OR carry-over with no preceding silence → don't count
+                    }
+                }
+                // 0.085–0.14 band (neither): hold counters, don't change _sawSilence
             } catch(_) {}
             _vadRAF = requestAnimationFrame(tick);
         })();
@@ -2098,7 +2134,7 @@ function beginRecording() {
             if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(statusEl);
         }
         statusEl.style.color = '#fbbf24';
-        statusEl.textContent = 'Camera detector unavailable — hold each gesture, then tap to advance';
+        statusEl.textContent = 'Camera detector unavailable — show AND SAY each number out loud, then tap to advance (your spoken numbers are still recorded for verification)';
         renderFingerPhase(false);
 
         // Per-step MANUAL advance (no auto-advance). User taps to confirm each
@@ -2110,7 +2146,7 @@ function beginRecording() {
                 btn = document.createElement('button');
                 btn.id = 'vacManualAdvance';
                 btn.style.cssText = 'display:block;margin:10px auto 0;padding:10px 22px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer';
-                btn.textContent = 'Holding it ✓ — next';
+                btn.textContent = 'Shown + said it ✓ — next';
                 if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(btn);
                 btn.addEventListener('click', function() {
                     if (recordingStopped) return;
@@ -2133,7 +2169,7 @@ function beginRecording() {
                     }
                 });
             }
-            btn.textContent = (currentDigitIndex >= digits.length - 1) ? 'Holding it ✓ — finish' : 'Holding it ✓ — next';
+            btn.textContent = (currentDigitIndex >= digits.length - 1) ? 'Shown + said it ✓ — finish' : 'Shown + said it ✓ — next';
         }
         ensureAdvanceButton();
 
@@ -2295,6 +2331,7 @@ function beginRecording() {
                 // phantom blank row for a non-existent next digit in the QA overlay).
                 if (currentDigitIndex < digits.length) {
                     speechWindowStart = performance.now() + CONFIRM_BEAT_MS;
+                    _sawSilence = false;   // F-561: require a FRESH in-window silence→voice onset for this new digit
                     try { vacDebug('speech_window_open', null, { digit_index: currentDigitIndex, at_perf: speechWindowStart }); } catch(_) {}
                 }
                 // S110 CONFIRMATION BEAT (Rob): instead of instantly highlighting the next
@@ -2350,7 +2387,8 @@ function beginRecording() {
             liveEl.style.cssText = 'text-align:center;margin-top:10px;font-family:var(--mono);font-size:17px;font-weight:700;letter-spacing:0.5px;min-height:26px;transition:color 0.15s';
             if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(liveEl);
         }
-        var stepNum = currentDigitIndex + 1;            // 1-based for display
+        var stepNum = currentDigitIndex + 1;            // 1-based step for progress display
+        var _curDigit = digits[currentDigitIndex];      // the ACTUAL digit to show + SAY (NOT the step number) — codex: numbers are out of the phrase now, so the per-digit prompt must name the real digit
         var totalSteps = digits.length;
         var _now = performance.now();
         var inConfirmBeat = _now < _confirmUntil;       // S110: the "Got it ✓" hold between digits
@@ -2377,23 +2415,23 @@ function beginRecording() {
                 // carried-over pose): re-establish it with a quick re-show before this digit can
                 // advance — prevents recording the old pose for the new digit (both modes).
                 liveEl.style.color = '#fbbf24';
-                liveEl.textContent = 'Lower your hand, then show number ' + stepNum + ' again';
+                liveEl.textContent = 'Lower your hand, then show ' + _curDigit + ' again';
             } else if (pct >= 100 && _needSpeech) {
-                // F-561: gesture is held + confirmed \u2014 now the voice half of the AND-gate.
+                // F-561: gesture is held + confirmed \u2014 now SAY the bound number (SUPP-7 cross-modal).
                 // Pacing prompt only (on-device VAD), NOT presented as the security check.
                 liveEl.style.color = '#fbbf24';
                 liveEl.textContent = (_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
-                    ? ('We can\u2019t hear you \u2014 say number ' + stepNum + ', or tap below')
-                    : ('Now say number ' + stepNum);
+                    ? ('We can\u2019t hear you \u2014 say \u201c' + _curDigit + '\u201d, or tap below')
+                    : ('Now say \u201c' + _curDigit + '\u201d');
             } else {
                 liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
                 liveEl.textContent = pct >= 100
                     ? ('Got it \u2713')
-                    : ('Number ' + stepNum + ' of ' + totalSteps + ' \u2014 hold steady ' + pct + '%');
+                    : ('Hold steady ' + pct + '%  (' + stepNum + '/' + totalSteps + ')');
             }
         } else {
             liveEl.style.color = 'var(--text-secondary)';
-            liveEl.textContent = 'Show number ' + stepNum + ' of ' + totalSteps;
+            liveEl.textContent = 'Show ' + _curDigit + ' finger' + (_curDigit === 1 ? '' : 's') + ' and say \u201c' + _curDigit + '\u201d';
         }
 
         // F-561: stuck-user escape + persistent "(voice gate off)" note.
@@ -2414,9 +2452,15 @@ function beginRecording() {
     // Reuses the audioAnalyser from startAudioMonitor. W4.1 fallbacks (never hang): VAD
     // unavailable → timer; a hard safety cap so a silent/broken mic can't hold forever.
     let _phraseVoicedTicks = 0;
+    let _phraseSilenceTicks = 0;
+    let _phraseHeardVoice = false;
     let phraseSpoke = false;
-    const PHRASE_VOICED_TICKS_NEEDED = 3;             // ~600ms of voiced energy (TICK_MS=200)
+    const PHRASE_VOICED_TICKS_NEEDED = 2;             // ~400ms voiced — low enough that SHORT greetings ("Hello"/"Hi there") don't stall (codex). Safe because: decay-on-silence + end-pause reject scattered noise, the PHRASE_DURATION timer floors the transition, and the hard cap prevents any hang. LIVE-TUNE.
+    const PHRASE_SILENCE_TICKS_NEEDED = 2;            // ~400ms end-pause = the greeting utterance is COMPLETE (not a mid-word dip)
     const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer so a silent mic can't hang
+    // F-561 (S111): phraseSpoke = a COMPLETED greeting utterance — a sustained voiced run THEN
+    // a real end-pause — not "any 600ms of voice". The greeting is greeting-only now; the NUMBERS
+    // are spoken per-digit (each bound to its gesture), never in the phrase phase.
     function _phraseVadTick() {
         if (!audioAnalyser || phraseSpoke) return;
         try {
@@ -2425,11 +2469,21 @@ function beginRecording() {
             let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
             _rms = Math.sqrt(_rms / _buf.length) / 255;
             if (_rms > VAD_SPEECH_RMS) {
-                if (++_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED) {
+                _phraseSilenceTicks = 0;
+                if (++_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED) _phraseHeardVoice = true;
+            } else if (_rms < VAD_SILENCE_RMS) {
+                if (!_phraseHeardVoice) {
+                    // Not a sustained greeting yet — DECAY scattered voiced ticks so intermittent
+                    // noise (coughs/taps over the phrase) can't accumulate to NEEDED across silences
+                    // (codex). A continuous greeting with brief inter-word dips still survives.
+                    _phraseVoicedTicks = Math.max(0, _phraseVoicedTicks - 1);
+                } else if (++_phraseSilenceTicks >= PHRASE_SILENCE_TICKS_NEEDED) {
+                    // heard a sustained greeting, now a real end-pause → utterance complete
                     phraseSpoke = true;
-                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)) }); } catch(_) {}
+                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
                 }
-            } else { _phraseVoicedTicks = Math.max(0, _phraseVoicedTicks - 1); }
+            }
+            // 0.085–0.14 band (neither): hold counters
         } catch(_) {}
     }
 
@@ -2510,6 +2564,10 @@ function beginRecording() {
                 // F-561: NOW open digit-0's voice window — grace is done and the phrase
                 // is finished, so speech from here is the digit, not the phrase tail (codex P2).
                 speechWindowStart = performance.now();
+                // NOTE: do NOT reset _sawSilence here — silence during grace must arm digit 0
+                // so a number spoken across the grace→window boundary still counts (codex). It
+                // starts false (init) and only a real grace silence sets it true; greeting-tail
+                // bleed (continuous voice, no pause) leaves it false → rejected.
                 try { vacDebug('speech_window_open', null, { digit_index: 0, at_perf: speechWindowStart }); } catch(_) {}
                 // W4.1 hand-stays-up model: no drop-hand gate. A hand already in
                 // frame at grace-end won't instant-advance because the stability
@@ -2564,9 +2622,12 @@ function beginRecording() {
                 }
             }, GRACE_MS);
         } else if (_phraseTimerDone) {
-            // Timer done, still waiting to HEAR the phrase — prompt clearly (pacing only).
-            const _ph = challengeData?.phrase || '';
-            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.7;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;color:#fbbf24">WE’RE LISTENING — SAY THE PHRASE</span>"' + _ph + '"';
+            // Timer done, still waiting to HEAR it — prompt clearly (pacing only). Voice-only
+            // shows the full phrase (numbers spoken here); finger mode shows greeting only.
+            const _full = challengeData?.phrase || '';
+            const _vo = (fingerFallback === 'voice');
+            const _say = _vo ? _full : (_full.replace(/,?\s*\d[\d\s,]*$/, '').trim() || _full);
+            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.7;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;color:#fbbf24">WE’RE LISTENING — SAY THE ' + (_vo ? 'PHRASE' : 'GREETING') + '</span>"' + _say + '"';
         } else {
             updatePhasePrompt(elapsedSec);
         }
