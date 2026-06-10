@@ -1648,22 +1648,32 @@ function retryAVSetup() {
         });
 }
 
+// S111: a challenge is recordable only with a phrase AND — in finger mode — non-empty
+// digits. A digit-less challenge in finger mode would skip the finger phase and the
+// F-561 AND-gate entirely (bypass #1: gate advances without waiting for voice because
+// there are no digits to gate), so block it. Voice-only mode (fingerFallback==='voice')
+// legitimately carries no client digits, so don't require them there.
+function challengeIncomplete() {
+    if (!challengeData || !challengeData.phrase) return true;
+    if (fingerFallback !== 'voice' && !(challengeData.digits && challengeData.digits.length)) return true;
+    return false;
+}
+
 // STEP 1 → 2: Challenge
 function goToChallenge() {
-    // S111: never start recording against a blank/missing challenge phrase — it
-    // guarantees a Challenge-Response failure (the re-auth blank-phrase bug: the
-    // re-fetched challengeData had no phrase, so "SAY THE PHRASE" rendered with no
-    // value and the user spoke nothing). Block + offer a retry that re-fetches,
-    // instead of silently recording against a blank challenge.
-    if (!challengeData || !challengeData.phrase) {
-        try { vacDebug('challenge_blank_blocked', null, { has_challengeData: !!challengeData, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
+    // S111: never start recording against an incomplete challenge — missing phrase
+    // guarantees a Challenge-Response failure, and a digit-less challenge in finger
+    // mode skips the AND-gate (bypass #1). Block + offer a retry that re-fetches,
+    // instead of silently recording against it.
+    if (challengeIncomplete()) {
+        try { vacDebug('challenge_blank_blocked', null, { has_challengeData: !!challengeData, has_phrase: !!(challengeData && challengeData.phrase), has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), finger_fallback: fingerFallback, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
         // Tear down the live AV session before offering a retry — otherwise the retry's
         // requestCamera() opens a SECOND mediaStream + AV loop and the first one leaks
         // (stopAVChecks only cancels the most recent global frame/audio context) (codex P2).
         try { stopAVChecks(); } catch(_) {}
         try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
         var _cerr = document.getElementById('cameraError');
-        if (_cerr) { _cerr.innerHTML = '<div style="color:var(--warning)">Couldn’t load your challenge phrase. Tap “Enable Camera &amp; Microphone” to try again.</div>'; _cerr.style.display = 'block'; }
+        if (_cerr) { _cerr.innerHTML = '<div style="color:var(--warning)">Couldn’t load your challenge. Tap “Enable Camera &amp; Microphone” to try again.</div>'; _cerr.style.display = 'block'; }
         var _b = document.getElementById('btnCamera');
         if (_b) { _b.disabled = false; _b.textContent = 'Enable Camera & Microphone'; _b.onclick = requestCamera; }
         return;  // do NOT goToStep(2)/startCountdown with a blank phrase
@@ -3027,18 +3037,18 @@ async function retryVerification() {
         try { vacDebug('challenge_fetch_failed', String(e && e.message || e)); } catch(_) {}
     }
 
-    // S111: same blank-phrase guard as goToChallenge — the retry path also must never
-    // record against a blank/missing challenge phrase (codex). Re-show the retry UI
-    // instead of starting a countdown with no phrase to say.
-    if (!challengeData || !challengeData.phrase) {
-        try { vacDebug('challenge_blank_blocked', null, { path: 'retry', has_challengeData: !!challengeData, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
+    // S111: same incomplete-challenge guard as goToChallenge — the retry path also must
+    // never record against a missing phrase OR (in finger mode) a digit-less challenge
+    // (bypass #1). Re-show the retry UI instead of starting a countdown with nothing to do.
+    if (challengeIncomplete()) {
+        try { vacDebug('challenge_blank_blocked', null, { path: 'retry', has_challengeData: !!challengeData, has_phrase: !!(challengeData && challengeData.phrase), has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), finger_fallback: fingerFallback, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
         // Stop the stream we just acquired before bailing — else repeated retries leak
         // live camera/mic tracks (codex). The retry's getUserMedia re-acquires next time.
         try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
         mediaStream = null;  // don't leave a stopped stream as a false fallback (codex)
         document.getElementById('retrySection').style.display = 'block';
         var _fr = document.getElementById('failReasons');
-        if (_fr) { _fr.textContent = 'Couldn’t load your challenge phrase. Check your connection and tap Retry again.'; if (_fr.parentElement) _fr.parentElement.style.display = 'block'; }
+        if (_fr) { _fr.textContent = 'Couldn’t load your challenge. Check your connection and tap Retry again.'; if (_fr.parentElement) _fr.parentElement.style.display = 'block'; }
         return;
     }
 
