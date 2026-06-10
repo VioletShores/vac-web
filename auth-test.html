@@ -1285,6 +1285,7 @@ async function requestCamera() {
         btn.textContent = 'Loading challenge…';
         btn.disabled = true;
         const d = userData();
+        challengeData = null;  // clear stale challenge first so a FAILED fetch leaves it null and the blank-phrase guard fires (codex)
         try {
             const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
                 method: 'POST',
@@ -1292,8 +1293,13 @@ async function requestCamera() {
                 body: JSON.stringify({ name: d.name, risk_level: 'medium' }),
             });
             challengeData = await resp.json();
+            // S111 diag: confirm whether the (re-)fetched challenge actually carries a
+            // phrase. The re-auth blank-phrase bug renders "SAY THE PHRASE" with no value,
+            // so this pins empty-fetch vs response-missing-phrase on the next live pass.
+            try { vacDebug('challenge_fetched', null, { has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
         } catch (fetchErr) {
             console.error('[CHALLENGE FETCH]', fetchErr);
+            try { vacDebug('challenge_fetch_failed', String(fetchErr && fetchErr.message || fetchErr)); } catch(_) {}
             // Show error but keep AV checks running
             err.innerHTML = `<div style="color: var(--warning); margin-bottom: 4px;">Could not load challenge — check your connection and try again.</div>`;
             err.style.display = 'block';
@@ -1644,6 +1650,24 @@ function retryAVSetup() {
 
 // STEP 1 → 2: Challenge
 function goToChallenge() {
+    // S111: never start recording against a blank/missing challenge phrase — it
+    // guarantees a Challenge-Response failure (the re-auth blank-phrase bug: the
+    // re-fetched challengeData had no phrase, so "SAY THE PHRASE" rendered with no
+    // value and the user spoke nothing). Block + offer a retry that re-fetches,
+    // instead of silently recording against a blank challenge.
+    if (!challengeData || !challengeData.phrase) {
+        try { vacDebug('challenge_blank_blocked', null, { has_challengeData: !!challengeData, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
+        // Tear down the live AV session before offering a retry — otherwise the retry's
+        // requestCamera() opens a SECOND mediaStream + AV loop and the first one leaks
+        // (stopAVChecks only cancels the most recent global frame/audio context) (codex P2).
+        try { stopAVChecks(); } catch(_) {}
+        try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
+        var _cerr = document.getElementById('cameraError');
+        if (_cerr) { _cerr.innerHTML = '<div style="color:var(--warning)">Couldn’t load your challenge phrase. Tap “Enable Camera &amp; Microphone” to try again.</div>'; _cerr.style.display = 'block'; }
+        var _b = document.getElementById('btnCamera');
+        if (_b) { _b.disabled = false; _b.textContent = 'Enable Camera & Microphone'; _b.onclick = requestCamera; }
+        return;  // do NOT goToStep(2)/startCountdown with a blank phrase
+    }
     stopAVChecks(); // Clean up audio context and animation frame
     const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
     const digits = (fingerFallback === 'voice') ? [] : (challengeData?.digits || []);
@@ -2974,11 +2998,22 @@ async function retryVerification() {
             audio: true,
         });
     } catch (e) {
-        // Camera may still be available from before
+        // Camera reacquire failed — fall through to the live-stream guard below.
+    }
+    // Need a LIVE stream to record. A prior blank-phrase retry stops + nulls the stream,
+    // so there's no stale fallback to silently reuse — block with a clear error instead
+    // of recording against a dead/null stream (codex).
+    if (!mediaStream || !mediaStream.getTracks().some(function(t){ return t.readyState === 'live'; })) {
+        try { vacDebug('retry_no_live_camera'); } catch(_) {}
+        document.getElementById('retrySection').style.display = 'block';
+        var _frc = document.getElementById('failReasons');
+        if (_frc) { _frc.textContent = 'Couldn’t access your camera. Check permissions and tap Retry again.'; if (_frc.parentElement) _frc.parentElement.style.display = 'block'; }
+        return;
     }
 
     // Fetch fresh challenge
     const d = userData();
+    challengeData = null;  // clear stale challenge first so a FAILED fetch leaves it null and the blank-phrase guard fires (codex)
     try {
         const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
             method: 'POST',
@@ -2986,8 +3021,25 @@ async function retryVerification() {
             body: JSON.stringify({ name: d.name, risk_level: 'medium' }),
         });
         challengeData = await resp.json();
+        try { vacDebug('challenge_fetched', null, { has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null, path: 'retry' }); } catch(_) {}
     } catch (e) {
         console.error('Failed to fetch new challenge:', e);
+        try { vacDebug('challenge_fetch_failed', String(e && e.message || e)); } catch(_) {}
+    }
+
+    // S111: same blank-phrase guard as goToChallenge — the retry path also must never
+    // record against a blank/missing challenge phrase (codex). Re-show the retry UI
+    // instead of starting a countdown with no phrase to say.
+    if (!challengeData || !challengeData.phrase) {
+        try { vacDebug('challenge_blank_blocked', null, { path: 'retry', has_challengeData: !!challengeData, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
+        // Stop the stream we just acquired before bailing — else repeated retries leak
+        // live camera/mic tracks (codex). The retry's getUserMedia re-acquires next time.
+        try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
+        mediaStream = null;  // don't leave a stopped stream as a false fallback (codex)
+        document.getElementById('retrySection').style.display = 'block';
+        var _fr = document.getElementById('failReasons');
+        if (_fr) { _fr.textContent = 'Couldn’t load your challenge phrase. Check your connection and tap Retry again.'; if (_fr.parentElement) _fr.parentElement.style.display = 'block'; }
+        return;
     }
 
     // Set up recording preview
