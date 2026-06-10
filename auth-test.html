@@ -3176,11 +3176,58 @@ function showSuccess() {
 }
 
 // Share actions
+// S111 #1+#4: shared reset for a biometric RE-ENTRY. The old refreshVerification()
+// only did goToStep(1), which flips the section but resets nothing — so a second
+// attempt kept the prior run's AUTHENTICATED badge (set by showSuccess) and its
+// hand-skeleton canvas on screen (#1), AND skipped requestCamera()->startAVChecks(),
+// the F-559 preflight that warms MediaPipe before recording, so the detector
+// cold-started on the first real digit (#4, the "hang"). This puts the page back to
+// a clean first-run-equivalent state.
+function resetBiometricUI() {
+    // 1. Nav badge: back to the un-authenticated state. showSuccess() set text
+    //    'AUTHENTICATED' + inline teal styling; clear the inline so the .nav-mode
+    //    class styling (purple "AUTHENTICATE") applies again.
+    var nav = document.getElementById('navStatus');
+    if (nav) { nav.textContent = 'AUTHENTICATE'; nav.style.color = ''; nav.style.background = ''; nav.style.borderColor = ''; }
+    // 2. Clear both hand-skeleton canvases so the prior run's overlay doesn't linger
+    //    (their clearRect only runs inside the live draw loops, which aren't running yet).
+    ['handOverlay', 'avHandOverlay'].forEach(function(id) {
+        var cv = document.getElementById(id);
+        if (cv && cv.getContext) { try { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); } catch(_) {} }
+    });
+    // 3. Reset the AV preflight gate so light/mic/hand must re-pass — this is what
+    //    re-runs the hand preflight that warms the detector.
+    avChecks = { face: false, light: false, mic: false, hand: false };
+    // 4. Restore the camera button to its first-run entry point. Run 1 rewired
+    //    btnCamera.onclick to goToChallenge (requestCamera resets it again at its end).
+    var btnCam = document.getElementById('btnCamera');
+    if (btnCam) { btnCam.onclick = requestCamera; btnCam.disabled = false; btnCam.textContent = 'Enable Camera & Microphone'; }
+    // 5. Stop any still-live tracks from the previous attempt before requestCamera
+    //    acquires a fresh stream (avoids a leaked camera/mic).
+    try { if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); } } catch(_) {}
+    // 6. Reset the retry budget + hide stale failure UI so the new run is truly
+    //    first-run-equivalent (codex P2). Without this, a refresh after earlier failed
+    //    attempts inherits the old MAX_RETRIES budget and the prior retry section /
+    //    "Continue Anyway" button can resurface. NOTE: this only RESETS state for the
+    //    new run — it does NOT change the addendum-13 #3 "Continue Anyway" integrity
+    //    logic (showSuccess-after-failure), which is a separate, still-pending fix.
+    retryAttempts = 0;
+    var retrySec = document.getElementById('retrySection');
+    if (retrySec) retrySec.style.display = 'none';
+    var contBtn = document.getElementById('btnContinueAnyway');
+    if (contBtn) contBtn.style.display = 'none';
+}
+
 function refreshVerification() {
-    // Keep email/OTP confirmed, just redo biometrics
+    // Keep email/OTP confirmed; redo biometrics with a PROPER re-entry (S111 #1+#4):
+    // reset stale UI, then route through the SAME camera+preflight path as a fresh
+    // run so the F-559 warm-up runs again (fixes the lingering badge / prior skeleton
+    // AND the cold-start "hang"). Modeled on retryVerification's re-acquire approach.
     try { localStorage.removeItem('vac_verified'); } catch(e) {}
     authResult = null;
-    goToStep(1); // Skip to camera step (email already confirmed)
+    resetBiometricUI();
+    goToStep(1);        // camera step (email already confirmed)
+    requestCamera();    // re-acquire camera + run startAVChecks (F-559 preflight + MediaPipe warm-up)
 }
 
 function clearAndRestart() {
