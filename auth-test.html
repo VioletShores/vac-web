@@ -796,6 +796,13 @@ const QA = (function () {
     function onEvent(event, ctx) {
         if (!on || demo) return;   // demo panel is static synthetic data, never overwritten
         if (event === 'recorder_started') {
+            // FRESH overlay per recording: rows/result/recStop/expected are module-level and
+            // survive re-entry. Without this reset, a re-auth keeps the PRIOR run's rows — and
+            // since t0 is re-anchored here, guarded fields (gestureAt/speechAt/onsetAt, set only
+            // if==null) display the old run's timestamps against the NEW clock → impossible
+            // orderings (the phantom "re-auth race"). Reset alongside the t0 re-anchor so every
+            // recording reads TRUE. (expected is repopulated by the challenge_digits event.)
+            rows.length = 0; result = null; recStop = null; expected = [];
             t0 = performance.now(); recStarted = true; render();
         } else if (event === 'challenge_digits' && ctx && Array.isArray(ctx.digits)) {
             // S111: the EXPECTED challenge sequence — show exp:N per row so a stuck digit
