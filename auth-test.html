@@ -744,7 +744,13 @@ const QA = (function () {
         const s = live;
         liveEl.textContent =
             'live: det=' + s.detected + ' stable=' + s.stableFrames + '/' + s.need +
-            ' dwell=' + s.dwellMs + 'ms beat=' + s.beatMs + ' gOk=' + (s.gestureOk ? 'Y' : 'N') + ' sOk=—';
+            ' dwell=' + s.dwellMs + 'ms beat=' + s.beatMs +
+            ' gOk=' + (s.gestureOk ? 'Y' : 'N') +
+            ' sOk=' + (s.speechOk == null ? '—' : (s.speechOk ? 'Y' : 'N')) +
+            // F-561: live VAD RMS vs threshold so the gate is calibratable by eye —
+            // silent reads the noise floor, speaking spikes, set thr in the gap.
+            ' rms=' + (s.rms == null ? '—' : Number(s.rms).toFixed(3)) +
+            ' thr=' + (s.thr == null ? '—' : Number(s.thr).toFixed(3));
     }
 
     function render() {
@@ -772,7 +778,7 @@ const QA = (function () {
             html += '<b style="color:' + (result.pass ? '#3FB950' : '#F85149') + '">RESULT: ' +
                 (result.pass ? 'PASS' : 'FAIL') + '</b>  fail:' + (result.failed.length ? result.failed.join(',') : 'none') + '\n';
         }
-        html += '<span style="color:#6E7681">speech col “—” = F-561 not wired</span>';
+        html += '<span style="color:#6E7681">VAD calib: set thr in the gap (silent rms &lt; thr &lt; speaking rms). win=window-open · (rms ..)=value that fired s · a blank s time = no voice yet this digit</span>';
         panel.innerHTML = html;
         liveEl = panel.querySelector('#qaLive');
         paintLine();
@@ -807,12 +813,14 @@ const QA = (function () {
 
     function runDemo() {
         // Synthetic data ONLY — the persistent banner makes that unmistakable (D3).
-        t0 = 1; recStarted = true; recStop = 4100;
-        rows.push({ gestureAt: 812, speechAt: null, advanceAt: 812, count: 2 });
-        rows.push({ gestureAt: 1640, speechAt: null, advanceAt: 1640, count: 3 });
-        rows.push({ gestureAt: 2510, speechAt: null, advanceAt: null, count: null }); // held, no advance
-        result = { pass: true, failed: [] };
-        live = { detected: 5, stableFrames: 12, need: 12, dwellMs: 740, beatMs: 0, gestureOk: true };
+        // Mid-run snapshot of the F-561 AND-gate: D0/D1 advanced only after BOTH gesture
+        // and speech; D2 is gesture-confirmed but HELD, waiting on voice (sOk=N, rms<thr).
+        t0 = 1; recStarted = true; recStop = null;
+        rows.push({ gestureAt: 812,  speechAt: 980,  speechRms: 0.187, advanceAt: 1010, winOpenAt: 0,    count: 2 });
+        rows.push({ gestureAt: 2210, speechAt: 2360, speechRms: 0.203, advanceAt: 2410, winOpenAt: 1910, count: 3 });
+        rows.push({ gestureAt: 3900, speechAt: null, speechRms: null,  advanceAt: null, winOpenAt: 3310, count: null }); // held, waiting on voice
+        result = null;  // run not complete in this snapshot
+        live = { detected: 5, stableFrames: 12, need: 12, dwellMs: 740, beatMs: 0, gestureOk: true, speechOk: false, rms: 0.041, thr: 0.120 };
         render();
     }
 
@@ -1866,6 +1874,27 @@ function beginRecording() {
     let hintShown = false;
     const HINT_TIMEOUT_MS = 8000;
     let _qaGestureLatched = false;  // F-560: gesture-confirmed fires once per digit, reset on advance
+    let _gestureReadyAt = 0;        // F-561: when gesture first went ready for this digit (drives the stuck-user escape timer)
+
+    // ── F-561: per-digit ON-DEVICE voice-pacing gate (energy-VAD) ──────────────
+    // The advance gate becomes gesture AND speech: a digit advances only once the
+    // user has BOTH held the gesture AND spoken during this digit's window, so the
+    // flow is user-paced instead of racing ahead. THIS IS A UX PACING SIGNAL ONLY,
+    // NOT the security check — it runs on-device (VAD energy, no network, words
+    // never leave the device); server-side Gemini stays the content authority.
+    let speechReady = new Array(digits.length).fill(false);  // per-digit: did we hear voice in its window
+    let speechWindowStart = Infinity;  // speech only counts at/after this; Infinity = CLOSED until a digit's window explicitly opens (fail-closed; codex P2)
+    let _speechMode = 'pending';     // 'vad' (on-device gate active) | 'off' (gesture-only + visible note)
+    let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
+    let _speechGateStarted = false;
+    let _lastVadRms = 0;             // latest VAD RMS, surfaced to the QA overlay for live calibration
+    // VAD threshold — TUNABLE. Client-side energy-RMS (0..1), NOT FolioAI's Deepgram
+    // word-confidence (different units entirely). Method: above the 0.05 noise gate
+    // (startAudioMonitor), below a speaking voice. 0.12 is a sane starting guess —
+    // EXPECT to tune it live by watching rms (silent floor) vs rms (speaking) on ?qa=1.
+    const VAD_SPEECH_RMS = 0.12;
+    const VAD_SPEECH_FRAMES = 3;     // sustained frames above threshold to count as a voiced event (~debounce)
+    const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
 
     // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
     function renderFingerPhase(hint) {
@@ -1903,7 +1932,89 @@ function beginRecording() {
         // recorder running a tail buffer AFTER the last digit so the video
         // actually contains footage of every digit pose before we stop + send
         // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
+        try { _stopSpeechGate(); } catch(_){}
+        try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
         setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
+    }
+
+    // ── F-561 voice-pacing gate (VAD-only, on-device) ──────────────────────────
+    // D1 (S111): VAD-only — webkitSpeechRecognition is NOT used because in Chrome it
+    // streams mic audio to Google, contradicting the on-device / zero-network promise
+    // and the page's privacy copy. We only need "did they speak this digit", not the
+    // words, so on-device energy detection is sufficient. Reuses the existing
+    // audioAnalyser (startAudioMonitor) — no second AudioContext, no new getUserMedia,
+    // no permission prompt.
+    function _markSpeech(src, rms) {
+        if (recordingStopped) return;
+        if (currentDigitIndex >= digits.length) return;
+        if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
+        if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
+        speechReady[currentDigitIndex] = true;
+        // F-561 #2 diag: carry the triggering rms so a false-fire (marginal/loud transient)
+        // is distinguishable from a real spoken number on the overlay. Gate logic unchanged.
+        try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null) }); } catch(_) {}
+    }
+    function _startSpeechGate() {
+        if (_speechGateStarted) return;
+        _speechGateStarted = true;
+        if (!audioAnalyser) { _speechGateOff('no_audio_analyser'); return; }  // W4.1: degrade to gesture-only + note
+        _speechMode = 'vad';
+        try { vacDebug('speech_gate_mode', null, { mode: 'vad' }); } catch(_) {}
+        const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+        let voiced = 0;
+        (function tick() {
+            if (recordingStopped || _speechMode !== 'vad') { _vadRAF = null; return; }
+            try {
+                audioAnalyser.getByteFrequencyData(buf);
+                let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+                rms = Math.sqrt(rms / buf.length) / 255;
+                _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
+                if (rms > VAD_SPEECH_RMS) { if (++voiced >= VAD_SPEECH_FRAMES) { _markSpeech('vad', rms); voiced = 0; } }
+                else { voiced = 0; }
+            } catch(_) {}
+            _vadRAF = requestAnimationFrame(tick);
+        })();
+    }
+    function _speechGateOff(reason) {
+        _speechMode = 'off';           // _speechOk becomes true → gesture-only advance, with a visible note
+        if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
+        try { vacDebug('speech_gate_mode', null, { mode: 'off', reason: reason || null }); } catch(_) {}
+    }
+    function _stopSpeechGate() {
+        if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
+    }
+    // Stuck-user escape (D2): gesture held ready but VAD never fires (muted/quiet mic).
+    // Explicit tap, never silent auto-advance; turns the voice gate off for THIS digit
+    // and the rest of the sequence. Voice gate is pacing only, so this doesn't weaken
+    // security (Gemini authoritative).
+    function _ensureVoiceEscape() {
+        if (document.getElementById('vacVoiceEscape')) return;
+        var btn = document.createElement('button');
+        btn.id = 'vacVoiceEscape';
+        btn.style.cssText = 'display:block;margin:8px auto 0;padding:9px 18px;background:var(--warning,#D29922);color:#0D1117;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer';
+        btn.textContent = 'Mic not working? Tap to continue with gestures only';
+        if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(btn);
+        btn.addEventListener('click', function() {
+            _speechGateOff('user_escape');
+            try { vacDebug('voice_gate_escape', null, { digit_index: currentDigitIndex }); } catch(_) {}
+            _removeVoiceEscape();
+        });
+    }
+    function _removeVoiceEscape() {
+        var btn = document.getElementById('vacVoiceEscape');
+        if (btn) btn.remove();
+    }
+    function _renderVoiceOffNote() {
+        var note = document.getElementById('vacVoiceOff');
+        if (_speechMode === 'off') {
+            if (!note) {
+                note = document.createElement('div');
+                note.id = 'vacVoiceOff';
+                note.style.cssText = 'text-align:center;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:0.5px';
+                note.textContent = '(voice gate off)';
+                if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(note);
+            }
+        } else if (note) { note.remove(); }
     }
 
     // Timer fallback — used if HandLandmarker unavailable or too slow. Respects SPEED_CONFIG.digit.
@@ -1915,6 +2026,7 @@ function beginRecording() {
     // camera detector isn't running, and we hold the current step. The timer is
     // a per-step TIMEOUT hint, never an auto-advance.
     function runTimerFallback() {
+        try { _stopSpeechGate(); } catch(_) {}  // F-561: no gesture detection here → voice gate doesn't apply (manual advance only)
         try { vacDebug('phase2_timer_fallback_no_autoadvance', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
         console.log('[VAC] Finger phase: detector unavailable — holding for user, NOT auto-advancing (W4.1)');
         // W4.1 fix: remove the detection-path status element so the two UIs don't
@@ -2079,14 +2191,20 @@ function beginRecording() {
             // the SAME frame; F-561 will additionally require speechReady[currentDigitIndex]
             // here, at which point gesture-confirmed-at and advance-fired-at diverge.
             const _gestureOk = stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount;
+            // F-561 AND-gate: advance requires gesture AND speech for THIS digit. When
+            // the voice gate is off (no analyser, or user-escape) _speechOk is true so
+            // we degrade to gesture-only (W4.1 — never block forever, never silent-advance).
+            const _speechOk = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
             // F-560: record gesture-confirmed-at once per digit, independent of advance,
-            // so the overlay shows the gesture→advance gap the instant F-561 gates on speech.
+            // so the overlay shows the gesture→speech→advance gap. Also starts the
+            // stuck-user escape timer (gesture ready, waiting on voice).
             if (_gestureOk && !_qaGestureLatched) {
                 _qaGestureLatched = true;
+                _gestureReadyAt = _nowMs;
                 try { vacDebug('gesture_confirm', null, { digit_index: currentDigitIndex }); } catch(_) {}
             }
-            if (QA.on) { try { QA.frame({ detected: detected, stableFrames: stableFrames, need: STABLE_FRAMES_NEEDED, dwellMs: Math.round(_nowMs - digitStartTime), beatMs: Math.max(0, Math.round(_confirmUntil - _nowMs)), gestureOk: _gestureOk }); } catch(_) {} }
-            if (_gestureOk && _nowMs >= _confirmUntil) {
+            if (QA.on) { try { QA.frame({ detected: detected, stableFrames: stableFrames, need: STABLE_FRAMES_NEEDED, dwellMs: Math.round(_nowMs - digitStartTime), beatMs: Math.max(0, Math.round(_confirmUntil - _nowMs)), gestureOk: _gestureOk, speechOk: _speechOk, rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
+            if (_gestureOk && _speechOk && _nowMs >= _confirmUntil) {
                 if (currentDigitIndex === 0) {
                     try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
                 }
@@ -2102,6 +2220,15 @@ function beginRecording() {
                 digitStartTime = performance.now();
                 hintShown = false;
                 _qaGestureLatched = false;   // F-560: arm gesture-confirm for the next digit
+                _gestureReadyAt = 0;         // F-561: reset the stuck-user escape timer
+                // F-561: the next digit's voice only counts AFTER the confirm beat, so the
+                // tail of THIS digit's spoken number can't bleed forward and pre-satisfy it.
+                // Guard: no window/emit after the final digit advances (codex P3 — avoids a
+                // phantom blank row for a non-existent next digit in the QA overlay).
+                if (currentDigitIndex < digits.length) {
+                    speechWindowStart = performance.now() + CONFIRM_BEAT_MS;
+                    try { vacDebug('speech_window_open', null, { digit_index: currentDigitIndex, at_perf: speechWindowStart }); } catch(_) {}
+                }
                 // S110 CONFIRMATION BEAT (Rob): instead of instantly highlighting the next
                 // number (which made the user feel they were chasing it), hold a clear
                 // "Got it ✓" moment. During _confirmUntil we (a) pause accepting new digits,
@@ -2131,7 +2258,7 @@ function beginRecording() {
             // lastAcceptedCount; dropping the hand isn't required, just allowed).
             stableCount = 0;
             stableFrames = 0;
-            if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false }); } catch(_) {} }
+            if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false, speechOk: (_speechMode === 'off') ? true : speechReady[currentDigitIndex], rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
         }
 
         if (!hintShown && digitStartTime > 0 && (performance.now() - digitStartTime) > HINT_TIMEOUT_MS) {
@@ -2172,10 +2299,20 @@ function beginRecording() {
         } else if (detected > 0 && detected !== lastAcceptedCount) {
             liveEl.style.fontSize = '17px';
             const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
-            liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
-            liveEl.textContent = pct >= 100
-                ? ('Got it \u2713')
-                : ('Number ' + stepNum + ' of ' + totalSteps + ' \u2014 hold steady ' + pct + '%');
+            const _needSpeech = (_speechMode !== 'off') && !speechReady[currentDigitIndex];
+            if (pct >= 100 && _needSpeech) {
+                // F-561: gesture is held + confirmed \u2014 now the voice half of the AND-gate.
+                // Pacing prompt only (on-device VAD), NOT presented as the security check.
+                liveEl.style.color = '#fbbf24';
+                liveEl.textContent = (_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
+                    ? ('We can\u2019t hear you \u2014 say number ' + stepNum + ', or tap below')
+                    : ('Now say number ' + stepNum);
+            } else {
+                liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
+                liveEl.textContent = pct >= 100
+                    ? ('Got it \u2713')
+                    : ('Number ' + stepNum + ' of ' + totalSteps + ' \u2014 hold steady ' + pct + '%');
+            }
         } else if (detected > 0 && detected === lastAcceptedCount) {
             liveEl.style.fontSize = '17px';
             liveEl.style.color = '#fbbf24';
@@ -2185,7 +2322,15 @@ function beginRecording() {
             liveEl.textContent = 'Show number ' + stepNum + ' of ' + totalSteps;
         }
 
-        renderFingerPhase(hintShown);
+        // F-561: stuck-user escape + persistent "(voice gate off)" note.
+        var _gestureHeldReady = (detected > 0 && detected !== lastAcceptedCount && stableFrames >= STABLE_FRAMES_NEEDED);
+        var _waitingVoice = _gestureHeldReady && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
+        if (_waitingVoice && _gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS) { _ensureVoiceEscape(); }
+        else { _removeVoiceEscape(); }
+        _renderVoiceOffNote();
+        // D2: once the gesture is confirmed and we're only waiting on voice, the 8s
+        // "hold hand closer" hint is wrong here — suppress it.
+        renderFingerPhase(hintShown && !_waitingVoice);
         rafId = requestAnimationFrame(runDetectionLoop);
     }
 
@@ -2214,6 +2359,11 @@ function beginRecording() {
             // and (b) DRAW THE SKELETON during grace so the user sees their hand tracked
             // immediately — advancement is still held until grace ends.
             digitStartTime = performance.now();
+            // F-561: start the on-device VAD gate now (finger phase start) so it's warm,
+            // but keep digit-0's voice window CLOSED through the grace — otherwise the
+            // spoken-PHRASE tail can cross the VAD threshold and pre-satisfy digit 0
+            // without the user saying that digit (codex P2). Window opens at grace-end.
+            _startSpeechGate();
             const GRACE_MS = 300;
             let graceRemaining = Math.ceil(GRACE_MS / 1000);
             // skeleton-during-grace: visual feedback only, no advancement
@@ -2254,6 +2404,10 @@ function beginRecording() {
                 if (_graceDrawRAF) cancelAnimationFrame(_graceDrawRAF);  // stop grace-draw before the real loop owns the camera
                 // Reset digitStartTime so HINT_TIMEOUT counts from the real start
                 digitStartTime = performance.now();
+                // F-561: NOW open digit-0's voice window — grace is done and the phrase
+                // is finished, so speech from here is the digit, not the phrase tail (codex P2).
+                speechWindowStart = performance.now();
+                try { vacDebug('speech_window_open', null, { digit_index: 0, at_perf: speechWindowStart }); } catch(_) {}
                 // W4.1 hand-stays-up model: no drop-hand gate. A hand already in
                 // frame at grace-end won't instant-advance because the stability
                 // gate requires the count to be HELD ~0.6s before it's accepted.
