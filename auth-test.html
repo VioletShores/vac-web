@@ -2669,6 +2669,11 @@ async function runRealVerification(videoBlob) {
     const detailEl = document.getElementById('progressDetail');
     const circumference = 2 * Math.PI * 36;
 
+    // INTEGRITY (re-auth stale-7/7): clear the PRIOR run's modality tiles BEFORE this run's
+    // spinner/fetch, so the panel can never show a pass while THIS verification is still
+    // computing. Every verify path funnels through here, so this covers initial + re-auth.
+    try { resetModalities(); } catch(_) {}
+
     // Progress animation while we wait for backend
     stepEl.textContent = 'Uploading recording…';
     detailEl.textContent = `${(videoBlob.size / 1024).toFixed(0)} KB → verification engines`;
@@ -2927,6 +2932,24 @@ function updateModalitySummary() {
         summary.textContent = `${passed}/${passed+failed} passed`;
         summary.className = 'toggle-summary';
     }
+}
+
+// INTEGRITY: reset every modality tile to PENDING + clear the prior run's detail, so a
+// re-auth can never display a stale pass while the new verification is still computing.
+// Mirrors updateModality's pending branch; updateModalitySummary then recomputes to "Checking…".
+function resetModalities() {
+    var ids = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger', 'modDuress'];
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var statusEl = el.querySelector('.mod-status');
+        var scoreEl = el.querySelector('.mod-score');
+        if (statusEl) { statusEl.textContent = '⏳'; statusEl.style.color = ''; }
+        if (scoreEl) { scoreEl.textContent = '—'; scoreEl.className = 'mod-score pending'; }
+        var dd = el.querySelector('.mod-detail-expand');
+        if (dd) dd.innerHTML = '';   // drop the prior run's Heard/Expected/etc. detail lines
+    });
+    try { updateModalitySummary(); } catch(_) {}   // all pending → "Checking…"
 }
 
 function toggleUnderHood() {
