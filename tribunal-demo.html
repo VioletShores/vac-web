@@ -275,6 +275,20 @@ const MATTERS = [
       {h:"A person authorises (or escalates)",m:"human-in-the-loop",d:"<span class='hil'>On agreement, the bond authority authorises the release. On conflict, a tribunal officer takes the matter.</span> Either way a person decides — automation only clears the uncontested cases."},
       {h:"Outcome sealed &amp; lodged",m:"VAC authority token",d:"The release (or the escalation) is sealed and lodged — a complete, tamper-evident record of what was agreed, verified, and authorised."}
     ]
+  },
+  {
+    id:"poa", n:"04", title:"Power of attorney &amp; enduring guardianship",
+    desc:"An enduring appointment is only valid after a prescribed witness confirms identity and capacity, explains the instrument, and witnesses the signing — a human gate the law already requires.",
+    matter:"MATTER-POA-2026-0832",
+    sub:"NSW enduring power of attorney (financial &amp; legal, survives loss of capacity) and enduring guardianship (health &amp; lifestyle). The law already puts a verified human at the centre of this matter — the protocol makes that gate attributable and auditable.",
+    steps:[
+      {h:"Principal &amp; attorney verify identity",m:"VAC identity · all parties",d:"Today you bring photo ID to the witnessing appointment. Here every party — the principal, the attorney being appointed, the witness — authenticates as a verified node on the authority chain. <span class='policy-chip'>face liveness</span><span class='policy-chip'>identity_confirmed</span>"},
+      {h:"The appointment encoded as a policy-carrying packet",m:"F-495 · the instrument's terms",d:"What is being conferred travels with the matter — enduring power of attorney (financial &amp; legal decisions, continues after capacity is lost) or enduring guardianship (health &amp; lifestyle decisions) — with its conditions and limitations sealed in exactly as drafted. <span class='policy-chip'>witness_prescribed</span><span class='policy-chip'>capacity_confirmed</span><span class='policy-chip'>real_estate =&gt; registered_LRS</span>"},
+      {h:"Capacity confirmed before witnessing",m:"the gate before the gate",d:"The principal must understand the nature and effect of the instrument at the time it is made. Capacity is assessed <span class='hil'>before</span> the witnessing — where there is any doubt, a medical opinion is obtained first; the witness does not proceed without it."},
+      {h:"The prescribed witness authorises",m:"human-in-the-loop · Powers of Attorney Act 2003",d:"<span class='hil'>A prescribed witness — in practice a solicitor or Local Court registrar, never the attorney being appointed — explains the effect of the instrument before it is signed, certifies that the principal appeared to understand it, and witnesses the signing.</span> This certificate is what makes the appointment valid — and it is exactly the kind of human decision the protocol seals."},
+      {h:"Registered with NSW Land Registry Services",m:"if real estate is involved",d:"Before the attorney can deal with the principal's NSW real estate — sell, mortgage or lease it — the enduring power of attorney must be registered with NSW LRS. <span class='policy-chip'>registered_LRS == true</span>"},
+      {h:"Appointment sealed &amp; lodged",m:"VAC authority token",d:"Who appointed whom, under what terms, certified by which witness — sealed, timestamped, independently verifiable. Years later, when the instrument is relied on, the chain of authority is provable rather than arguable."}
+    ]
   }
 ];
 
