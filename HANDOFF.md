@@ -343,3 +343,30 @@ FOLLOW-UP (Rob, separate): real-PHONE test — Mini headless can't verify mobile
 ### vac-system BACKEND TODOs (unchanged, deferred to a backend session): no-adjacent-repeat constraint (hardening), F-558 (Gemini service flaky), stale engine.py cleanup.
 ### FRONTEND STILL OPEN: hand-detection startup-lag VISIBILITY (the "Starting camera…/detecting hand" state + warm-up timestamp — diagnosed, part (a) not built; part (b) start-on-hand-or-speech = addendum 8/9 danger zone). F-562 graduated quick re-auth (separate respec; reuses the per-digit unit; full re-auth is NOT it).
 ### GATE unchanged: no `/auth` until addendum-13 #3 resolved + a clean honest real-hand run.
+
+## S111 addendum 19 (11 Jun) — re-auth made fresh-start-BY-CONSTRUCTION (reload) + the voice fail-open bypass + F-563 sequential UX polish.
+
+### THE STRUCTURAL FIX (32b3fad): re-auth is now a literal page RELOAD
+ROOT (audited): every re-auth bug all session — modality tiles (2e19557), overlay rows (428c712), pre-flight ticks (9321c3e), warm-up skip (4474103), and now the audio analyser + guided DOM — was the SAME class: re-entry didn't reset to fresh-load state, and each new feature leaked NEW state into the hand-rolled in-memory reset. A manual reset needs the discipline that failed 6×, and more features are coming (tribunal, trust graph, AthenaPilot). Rob chose RELOAD.
+- `reauthReload()` saves a one-shot `vac_reauth` blob {ts, auto, retryAttempts, identity} → `location.reload()`. refreshVerification → fresh retry budget; retryVerification (manual + service auto-retry) → keeps budget.
+- `maybeResumeReauth()` on boot consumes the blob (60s expiry, one-shot), re-hydrates identity from it into the form inputs (NO re-OTP), restores the budget, sets auto-proceed+skip-explainer for auto-retry, lands on the camera pre-flight (goToStep(1)+requestCamera).
+- Correct BY CONSTRUCTION: reload GCs every AudioContext (kills the ~6-limit), resets every var+DOM+re-runs warm-up. The stale-state bug class is DEAD and can't recur with future features. Cost: reload flash + ~1-2s cached MediaPipe re-init. Verified headless: blob → reload → step1 camera, identity re-hydrated, no re-OTP. NEEDS LIVE: click re-auth → flash → camera, seamless.
+
+### CRITICAL DIAGNOSIS (the advance-without-voice on re-auth) — REAL bypass, code-proven
+The greeting advanced with no voice because the phrase gate FAIL-OPENS when `audioAnalyser` is null (auth-test.html:2831 `_phraseGateOk = phraseSpoke || !audioAnalyser || hardcap`). On re-auth audioAnalyser was null because startAudioMonitor failed to re-init it (AudioContext accumulation hitting the ~6-limit; assign-after-clone order). Same null also trips `_speechGateOff('no_audio_analyser')` → digits gesture-only. HONESTY: the on-device VAD is UX PACING, NOT the security check — Gemini server-side validates voice authoritatively — so this is a UX/reliability bug (user not prompted to speak → likely server-side challenge-response FAIL), NOT a security bypass of voice verification. Evidence signature on a ?qa=1 repro: `speech_gate_mode {reason:"no_audio_analyser"}` / `phrase_gate_fail_open` + console error + NO `phrase_speech_confirmed` + "(voice gate off)" on digits.
+
+### BELT-AND-SUSPENDERS (2121d2c) — protect first-run + non-reload paths, loud-log the fail-open
+- startAudioMonitor: closes any prior context (no accumulation), guards null stream, resumes suspended, and CLEARS audioAnalyser to null on any setup failure (→ intended W4.1 gesture-only degradation, not a truthy-disconnected analyser that holds to the hard cap then dead-VADs).
+- LOUD logs: console.error + `vacDebug('phrase_gate_fail_open')` if the phrase ever advances with no analyser, and at the digit speech-gate-off — never silent again.
+- `resetGuidedUI()` hides+clears the guided DOM (#vacGuided/#vacSayView/#digitStrip + content) at beginRecording start (the phase-confusion cluster: stale "Show 2 fingers"/say-cover leaking into the new phrase phase).
+
+### F-563 UX POLISH (81b98ce)
+- BIG target number (#vacGuidedNumber, large purple "2") during the show-fingers step.
+- "Say the greeting" (or "Say the phrase" voice-only) takes over the step-2 HEADER in YELLOW during the phrase phase (replacing "Complete the Challenge"); "Show the numbers" at the finger-phase grace start.
+
+### PROCESSING LATENCY = BACKEND (F-558): the "Analysing biometrics…" wait is the `/v1/vat/auth/verify` Gemini multi-modal round-trip (auth-test.html:3047), not frontend (frontend just awaits it behind a cosmetic spinner). Real speedup (stream/parallelise modalities) is vac-system/F-558 backend work — flagged, deferred.
+
+### COMMITS (all pushed): 81b98ce UX · 2121d2c belt-and-suspenders · 32b3fad reload re-auth · 173c02a sequential latch · (earlier F-563 1-5 + re-auth race in addendum 18).
+### NEEDS LIVE (laptop): re-auth flash→camera seamless (no OTP); the no_audio_analyser signature should NOT appear (reload + hardening); sequential show→say flow; big number + yellow header. Real-PHONE test still a separate follow-up.
+### vac-system BACKEND TODOs (unchanged): no-adjacent-repeat constraint, F-558 (Gemini latency + the flaky-service erroring), stale engine.py cleanup.
+### GATE unchanged: no `/auth` until addendum-13 #3 resolved + a clean honest real-hand run.
