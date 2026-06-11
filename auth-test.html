@@ -630,6 +630,26 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div style="font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); margin-top: 2px;" id="successOrg"></div>
         <div style="font-family: var(--mono); font-size: 13px; color: var(--teal); margin-top: 4px;" id="successScore"></div>
     </div>
+
+    <!-- F-563 (4): POST-VERIFICATION "what it means" — bookends the upfront explainer. TWO depths:
+         (A) plain-English, ALWAYS visible, for every user; (B) expandable, COLLAPSED by default. -->
+    <div id="whatItMeans" style="margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(16px,4vw,22px);">
+        <div style="font-size:clamp(16px,4.5vw,20px);font-weight:800;color:var(--text-primary);line-height:1.3;text-align:center;">A digital certificate of <span style="color:var(--teal);">you, a real human</span>, has been minted.</div>
+        <div style="font-size:clamp(13px,3.6vw,15px);line-height:1.6;color:var(--text-secondary);margin-top:12px;">
+            It's a verifiable reflection of you — drawing a clear line between you and any AI agents acting on your behalf. From here on, every action taken under your authority is <strong style="color:var(--text-primary);">attributable and auditable</strong>: agents and decisions in the system can always be traced back to a verified human — you.
+        </div>
+        <!-- (B) Expandable deeper context, collapsed by default -->
+        <button id="whatItMeansToggle" onclick="toggleWhatItEnables()" style="margin-top:14px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:transparent;border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;color:var(--text-secondary);font-size:clamp(13px,3.6vw,14px);font-weight:600;-webkit-tap-highlight-color:transparent;">
+            <span>Learn what this enables</span>
+            <span id="whatItMeansArrow" style="font-size:11px;transition:transform 0.2s;">▸</span>
+        </button>
+        <div id="whatItMeansMore" style="display:none;font-size:clamp(12px,3.4vw,14px);line-height:1.65;color:var(--text-secondary);margin-top:12px;padding-top:4px;">
+            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">Policies travel with the work, not on a server.</strong> Your verified authority is carried inside each unit of work (an L0 policy-carrying packet) — the rules ride along with the task itself, so they hold wherever the work goes, even off-platform.</p>
+            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">A clear human ↔ agent authority line.</strong> AI agents can act for you, but their authority is derived from — and bounded by — your verified human identity. Nothing acts in your name without tracing back to this credential.</p>
+            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">Audit trails by construction.</strong> Because every action is attributable to a verified human, the whole chain of who-did-what is reconstructable after the fact.</p>
+            <p style="margin:0;">Together these are the building blocks of an <strong style="color:var(--text-primary);">operating system for trusted intelligence</strong> — where humans and the agents working for them are accountable by design.</p>
+        </div>
+    </div>
     <!-- Trust Status — live updates from vouch polling -->
     <div id="trustStatusSection" style="margin-top:16px;display:none;">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;">
@@ -3137,6 +3157,17 @@ function toggleModalities() {
     list.classList.toggle('open');
 }
 
+// F-563 (4): expand/collapse the deeper "what this enables" context on the success screen.
+// Collapsed by default so the plain-English payoff isn't buried for a first-time user.
+function toggleWhatItEnables() {
+    var more = document.getElementById('whatItMeansMore');
+    var arrow = document.getElementById('whatItMeansArrow');
+    if (!more) return;
+    var open = more.style.display !== 'none';
+    more.style.display = open ? 'none' : 'block';
+    if (arrow) arrow.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+
 function updateModalitySummary() {
     const mods = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger', 'modDuress'];
     let passed = 0, failed = 0, pending = 0;
@@ -3420,10 +3451,17 @@ function showSuccess() {
     document.getElementById('successScore').textContent = `Trust Score: ${bio.overall_score} · ${trustLabel}`;
 
     // Update header based on pass/fail
+    var _wim = document.getElementById('whatItMeans');
     if (!r.authenticated) {
         document.getElementById('successEyebrow').textContent = 'PARTIAL AUTHENTICATION';
         document.getElementById('successEyebrow').style.color = 'var(--warning)';
         document.getElementById('successTitle').textContent = 'Partially Authenticated';
+        // F-563 (4) / integrity: a certificate was NOT minted on a partial/"Continue Anyway" path,
+        // so DON'T show the "digital certificate of you, a real human, has been minted" claim — it
+        // would overstate the trust state (addendum-13 #3 family). Hide the whole block.
+        if (_wim) _wim.style.display = 'none';
+    } else if (_wim) {
+        _wim.style.display = 'block';   // real success — show the minted-certificate explainer
     }
 
     // Verification method badge
