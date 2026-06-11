@@ -237,16 +237,17 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 <script>
 const MATTERS = [
   {
-    id:"property", n:"01", title:"Conditional fund release on property settlement",
-    desc:"Trust holds a deposit; funds release automatically once settlement is verified and both parties confirm.",
+    id:"property", n:"01", title:"Property deposit release on settlement — the order on agent",
+    desc:"The deposit sits in the agent's trust account from exchange to settlement. It releases on a human direction — the solicitor's order on agent.",
     matter:"MATTER-PROP-2026-0471",
-    sub:"A trust holds the buyer's deposit. The release rule fires only when settlement is verified and both parties have authenticated.",
+    sub:"NSW conveyancing as it actually runs: exchange of the Contract for Sale legally binds the purchase, the deposit is held in the agent's trust account, and release turns on the solicitor's written direction — the order on agent.",
     steps:[
-      {h:"Parties verify identity",m:"VAC identity · buyer + vendor",d:"Both parties authenticate. <span class='policy-chip'>face liveness</span><span class='policy-chip'>device-bound</span> Each becomes a verified node on the authority chain — no statutory declarations, no in-person witnessing."},
-      {h:"Trust rules encoded as a policy-carrying packet",m:"F-495 · policies live in the work",d:"The deed's release conditions travel with the matter: <span class='policy-chip'>settlement_verified == true</span><span class='policy-chip'>both_parties_authenticated</span><span class='policy-chip'>release_to = vendor_account</span> The rules are not on a server somewhere — they're sealed into the matter."},
-      {h:"Trigger event arrives",m:"verified settlement notice",d:"The settlement event is received and checked against the packet's conditions. All predicates evaluate true."},
-      {h:"A person authorises",m:"human-in-the-loop",d:"<span class='hil'>The conveyancer reviews and authorises the release.</span> The protocol presents a complete, condition-checked matter; the human makes the call. Nothing releases without this step."},
-      {h:"Decision sealed &amp; lodged",m:"VAC authority token",d:"The authorised release is sealed with a cryptographic token and lodged to the audit chain — tamper-evident, timestamped, independently verifiable."}
+      {h:"Parties verify identity",m:"VAC identity · purchaser + vendor",d:"Both parties authenticate. <span class='policy-chip'>face liveness</span><span class='policy-chip'>device-bound</span> Each becomes a verified node on the authority chain — no statutory declarations, no in-person witnessing."},
+      {h:"Contracts exchange — the purchase becomes binding",m:"Contract for Sale · deposit to trust",d:"Vendor and purchaser sign counterparts of the Contract for Sale, the counterparts are exchanged and dated, and the deposit (usually 10%) is paid into the agent's trust account. Before exchange either side can walk away; <span class='hil'>from exchange, both are bound.</span> A 5-business-day cooling-off period follows (none at auction)."},
+      {h:"Release conditions sealed into the matter",m:"F-495 · policy-carrying packet",d:"The release logic travels with the matter, not on a server: <span class='policy-chip'>cooling_off_expired</span><span class='policy-chip'>settlement_complete == true</span><span class='policy-chip'>order_on_agent_signed</span><span class='policy-chip'>release_to = vendor</span>"},
+      {h:"Trigger event — settlement completes",m:"verified settlement",d:"Settlement (typically about six weeks after exchange) is verified and checked against the packet's conditions. The deposit is still sitting in the agent's trust account — it does not move on settlement alone; it waits on human authority."},
+      {h:"A person authorises — the order on agent",m:"human-in-the-loop · the solicitor",d:"<span class='hil'>The solicitor issues the order on agent — the written direction authorising the agent to release the deposit from the trust account.</span> Today that direction moves as signed paper; here the same human decision is captured as a verified, sealed approval. Nothing releases without this step."},
+      {h:"Decision sealed &amp; lodged",m:"VAC authority token",d:"The authorised release is sealed with a cryptographic token and lodged to the audit chain — who authorised the release of the deposit, under which conditions, provable forever."}
     ]
   },
   {
