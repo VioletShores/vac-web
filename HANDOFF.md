@@ -370,3 +370,11 @@ The greeting advanced with no voice because the phrase gate FAIL-OPENS when `aud
 ### NEEDS LIVE (laptop): re-auth flash→camera seamless (no OTP); the no_audio_analyser signature should NOT appear (reload + hardening); sequential show→say flow; big number + yellow header. Real-PHONE test still a separate follow-up.
 ### vac-system BACKEND TODOs (unchanged): no-adjacent-repeat constraint, F-558 (Gemini latency + the flaky-service erroring), stale engine.py cleanup.
 ### GATE unchanged: no `/auth` until addendum-13 #3 resolved + a clean honest real-hand run.
+
+## S111 addendum 19b (11 Jun) — no-mic recoverability fix (2b8031b) + DEFERRED mic-transparency note.
+
+### FIXED: no-mic dead-end (2b8031b)
+A verification flow must never be unescapable. When the mic fails and the phrase fail-open advances past the greeting, the user was stranded — the "Refresh camera & mic" recovery existed only in the pre-flight. Fix (reuse, don't rebuild): `_showNoMicRecovery()` surfaces an honest panel ("No microphone detected — voice check skipped; gestures still verified, servers re-check voice from the recording") with 3 reachable exits — "Reconnect mic & retry" (reauthReload → pre-flight mic test), "Continue — skip voice" (gesture-only, explicit), "Start over" (reauthReload). Shown during the greeting (phraseInterval) + at the digit speech-gate-off, ONLY for genuine no-mic (reason 'no_audio_analyser'), not a user-escape. `_dismissNoMic()` sets a per-session flag so the 200ms tick can't recreate it after the user continues. Tied to the loud fail-open log.
+
+### DEFERRED (capture only — do NOT build): macOS Continuity mic device-name transparency
+On desktop with an iPhone nearby, macOS Continuity auto-picks the phone as the mic, which surprises the user. Options weighed: (a) force built-in device — fiddly, risks the wrong device, breaks on varied setups; (b) mic-picker dropdown — adds friction; (c) leave it. DECISION (Rob): LEAVE device selection as-is (the phone is a working mic, the gate works) — but CONSIDER showing the DEVICE NAME in the pre-flight ("Mic: working — iPhone Microphone") so it's transparent rather than surprising. Low-risk transparency over risky device-selection logic, especially pre-demo. Implementation sketch when picked up: read `mediaStream.getAudioTracks()[0].label` and append to the pre-flight mic pill label. NOT started.
