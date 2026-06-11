@@ -1952,6 +1952,7 @@ function startCountdown() {
 
 function beginRecording() {
     try { vacDebug('begin_recording_called'); } catch(_) {}
+    try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
     try { FingerDetector.reset(); } catch(_) {}  // S110: clear slow-frame latch so retry re-engages detection
     document.getElementById('recIndicator').style.display = 'flex';
     // Speed toggle was removed — guard against null (it may or may not be present)
@@ -2299,7 +2300,7 @@ function beginRecording() {
     function _startSpeechGate() {
         if (_speechGateStarted) return;
         _speechGateStarted = true;
-        if (!audioAnalyser) { _speechGateOff('no_audio_analyser'); return; }  // W4.1: degrade to gesture-only + note
+        if (!audioAnalyser) { console.error('[VAC][VOICE] digit voice gate OFF — no audioAnalyser at speech-gate start (pacing only; Gemini still validates voice server-side)'); _speechGateOff('no_audio_analyser'); return; }  // W4.1: degrade to gesture-only + note
         _speechMode = 'vad';
         try { vacDebug('speech_gate_mode', null, { mode: 'vad' }); } catch(_) {}
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
@@ -2830,7 +2831,17 @@ function beginRecording() {
         const _phraseTimerDone = elapsedSec >= PHRASE_DURATION;
         const _phraseGateOk = phraseSpoke || !audioAnalyser || (elapsedSec >= PHRASE_PHASE_MAX_S);
         if (_phraseTimerDone && _phraseGateOk) {
-            if (audioAnalyser && !phraseSpoke) { try { vacDebug('phrase_speech_timeout', null, { waited_s: Math.round(elapsedSec) }); } catch(_) {} }
+            // SHIP-BLOCKER LOUD LOG: the phrase advanced WITHOUT a confirmed voice. The on-device VAD
+            // is UX pacing (Gemini server-side is the authoritative voice check), so this isn't a
+            // security bypass — but a !audioAnalyser fail-open means the user was NOT paced to speak,
+            // which silently degrades the flow. Log it loudly so it's never invisible (the audio
+            // hardening + the re-auth reload should keep this from firing on re-entry).
+            if (!audioAnalyser) {
+                console.error('[VAC][VOICE] phrase gate FAIL-OPEN — advanced with NO audioAnalyser (voice pacing OFF). Not a security bypass (Gemini validates voice server-side) but the user was not prompted to speak.');
+                try { vacDebug('phrase_gate_fail_open', 'no_audioAnalyser', { elapsed_s: Math.round(elapsedSec) }); } catch(_) {}
+            } else if (!phraseSpoke) {
+                try { vacDebug('phrase_speech_timeout', null, { waited_s: Math.round(elapsedSec) }); } catch(_) {}
+            }
             clearInterval(phraseInterval);
             // Voice-only mode or no digits → skip straight to completion
             if (fingerFallback === 'voice' || digits.length === 0) {
@@ -3280,6 +3291,21 @@ function resetModalities() {
         if (dd) dd.innerHTML = '';   // drop the prior run's Heard/Expected/etc. detail lines
     });
     try { updateModalitySummary(); } catch(_) {}   // all pending → "Checking…"
+}
+
+// F-563 belt-and-suspenders: hide + CLEAR the guided-flow DOM (panel, say-cover, progress dots)
+// so stale prompts/numbers from a prior run can't leak into a new session's phrase phase. The
+// re-auth reload moots this for re-auth, but it protects the first run + any non-reload re-entry.
+function resetGuidedUI() {
+    ['vacGuided', 'vacSayView', 'digitStrip'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    var p = document.getElementById('vacGuidedPrompt'); if (p) p.textContent = '';
+    var s = document.getElementById('vacGuidedSub'); if (s) s.textContent = '';
+    var w = document.getElementById('vacSayWord'); if (w) w.textContent = '';
+    var h = document.getElementById('vacSayHint'); if (h) h.textContent = '';
+    var r = document.getElementById('digitStripRow'); if (r) r.innerHTML = '';
 }
 
 function toggleUnderHood() {
@@ -3854,11 +3880,21 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // Audio level monitoring
 function startAudioMonitor() {
     try {
+        // Belt-and-suspenders (the reload already guarantees a fresh context for re-auth, but this
+        // protects the FIRST run and any non-reload path): close any prior context so repeated
+        // entries can't accumulate AudioContexts and hit the browser's ~6-limit (which made
+        // `new AudioContext()` throw → audioAnalyser stayed null → the phrase fail-open bypass).
+        if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        if (!mediaStream) { console.error('[VAC][AUDIO] startAudioMonitor: no mediaStream — voice gate will be OFF'); return; }
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const monitorStream = mediaStream.clone();
-        const source = audioContext.createMediaStreamSource(monitorStream);
+        if (audioContext.state === 'suspended') { audioContext.resume().catch(function(){}); }  // some browsers start suspended → no audio frames until resumed
+        // Assign the analyser BEFORE the (throwable) stream clone/connect, so a failure here leaves a
+        // live (if briefly disconnected) analyser → the phrase gate HOLDS for voice instead of
+        // fail-opening on a null analyser.
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
+        const monitorStream = mediaStream.clone();
+        const source = audioContext.createMediaStreamSource(monitorStream);
         source.connect(audioAnalyser);
 
         const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
@@ -3883,7 +3919,15 @@ function startAudioMonitor() {
         }
         updateLevels();
     } catch (e) {
-        console.warn('Audio monitor unavailable:', e);
+        // CLEAR the analyser on any partial-setup failure (clone/createMediaStreamSource/connect
+        // can throw after it was assigned). A truthy-but-DISCONNECTED analyser would make the gates
+        // hold to the phrase hard cap then wait on a dead VAD; null is correct — it triggers the
+        // intended W4.1 graceful degradation (gesture-only + "(voice gate off)" note) + the loud log
+        // (codex). The accumulation root is fixed by close-prior-context above + the re-auth reload.
+        audioAnalyser = null;
+        if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        console.error('[VAC][AUDIO] startAudioMonitor FAILED — voice gate degrades to off:', e);
+        try { vacDebug('audio_monitor_failed', String(e && e.message || e), { has_stream: !!mediaStream }); } catch(_) {}
     }
 }
 
