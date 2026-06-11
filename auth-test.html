@@ -3578,25 +3578,33 @@ function showRetry(result) {
         const detailEl = document.getElementById('progressDetail');
         const ringEl = document.getElementById('progressRing');
         try {
-            if (stepEl) stepEl.textContent = 'Just a moment…';
-            if (detailEl) detailEl.textContent = 'A couple of checks couldn\u2019t run just now \u2014 that\u2019s on our side, not yours. Retrying automatically.';
-            if (ringEl) ringEl.style.stroke = 'var(--teal)';
+            if (stepEl) stepEl.textContent = 'Some checks couldn’t run';
+            if (detailEl) detailEl.textContent = 'A couple of checks couldn\u2019t run just now \u2014 that\u2019s on our side, not yours.';
+            if (ringEl) ringEl.style.stroke = 'var(--warning)';
         } catch(_) {}
-        // Hide the alarming red "WHY IT FAILED" card + the per-modality red rows context.
-        try { document.getElementById('failReasons').parentElement.style.display = 'none'; } catch(_) {}
+        // Diagnostic-first: KEEP the failure card and show WHICH checks didn\u2019t run (readable, persistent).
         const verifiedCount = mods.filter(m => m.status === 'passed').length;
-        document.getElementById('retryTipsList').innerHTML =
-            '<div style="display:flex;align-items:center;gap:8px;color:var(--text-secondary)">'
-          + '<span style="display:inline-block;width:14px;height:14px;border:2px solid var(--teal);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite"></span>'
-          + 'Re-running the checks that didn\u2019t respond' + (verifiedCount ? ' \u2014 ' + verifiedCount + ' already passed' : '') + '\u2026</div>';
-        // Soften the retry button + auto-retry after a short, honest pause.
+        try {
+            var _frEl = document.getElementById('failReasons');
+            if (_frEl) {
+                _frEl.parentElement.style.display = 'block';
+                _frEl.innerHTML = serviceErrors.map(function(m){ return '<div style="margin-bottom:4px;">' + m.name.replace(/_/g,' ') + ' \u2014 service didn\u2019t respond</div>'; }).join('')
+                    + (verifiedCount ? '<div style="margin-top:6px;color:var(--text-tertiary);">' + verifiedCount + ' check' + (verifiedCount===1?'':'s') + ' already passed</div>' : '');
+            }
+        } catch(_) {}
+        document.getElementById('retryTipsList').textContent = 'Temporary backend hiccups, not a rejection. Tap \u201cRetry now\u201d when you\u2019re ready.';
         const retryBtn = document.querySelector('#retrySection button[onclick="retryVerification()"]');
-        if (retryBtn) retryBtn.textContent = 'Retry now';
-        document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
-        if (retryAttempts < MAX_RETRIES) {
-            if (window.__vacAutoRetry) clearTimeout(window.__vacAutoRetry);
-            window.__vacAutoRetry = setTimeout(function(){ try { retryVerification(true); } catch(_){} }, 2500);  // true = AUTO: auto-proceed through the warmed pre-flight
+        // At the retry limit, "Retry now" (retryVerification) returns early → inert. Give a working
+        // escape: "Start over" (reauthReload, fresh budget) — NOT "Continue Anyway" (that marks verified
+        // after failure = the addendum-13 #3 integrity issue; don't expand it) (codex).
+        if (retryBtn) {
+            if (retryAttempts >= MAX_RETRIES) { retryBtn.textContent = 'Start over'; retryBtn.onclick = function(){ reauthReload({ auto:false, keepRetryBudget:false }); }; }
+            else { retryBtn.textContent = 'Retry now'; }
         }
+        document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
+        // Diagnostic-first (Rob): NO auto-retry/redirect — it reloads the page and wipes the failure
+        // before it can be read. Manual "Retry now" only; the screen + modality panel + ?qa=1 overlay STAY.
+        if (window.__vacAutoRetry) { clearTimeout(window.__vacAutoRetry); window.__vacAutoRetry = null; }
         return; // do NOT fall through to the red failure panel
     }
 
