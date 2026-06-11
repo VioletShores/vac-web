@@ -308,3 +308,38 @@ Two stale-state-on-re-entry bugs (same family as the #1/#4 re-auth DOM bugs), bo
 Quick re-auth is being respec'd as a graduated design; the current "full ceremony re-run" (refreshVerification) is NOT the intended flow. DO NOT touch the re-auth path structure for the Model B work. F-562 reuses the Model B per-digit unit (a80f066/9536236).
 
 ### GATE unchanged: no `/auth` until addendum-13 #3 (Continue-Anyway marks VERIFIED after failure) is resolved AND a clean honest real-hand run passes.
+
+## S111 addendum 18 (11 Jun) — F-563 guided sequential challenge UX (5 parts, all shipped + /codex-clean). Re-auth race fixed (4474103). Presentation/sequencing only — gate untouched.
+
+### RE-AUTH RACE — FIXED (4474103, confirmed working live)
+The "gate is re-entrant" static scope-trace MISSED a real bug the trustworthy overlay then proved: full re-auth via `retryVerification` jumped straight to step-2 (`goToStep(2)+startCountdown`), SKIPPING step-1's pre-flight — which both WARMS the MediaPipe detector AND FLUSHES its VIDEO-mode tracking (reset() preserves _detector). Cold+stale entry → phantom counts → digits raced past the user ("Heard: One"). Fix: retryVerification now routes through `resetBiometricUI(true)+goToStep(1)+requestCamera()` — the identical warmed entry as first-run/refresh. Hardened over 5 codex rounds (auto-retry auto-proceeds through the warmed pre-flight, challenge-ready-guarded, deferred out of runAVFrame; voice-only prompts the full phrase). LESSON: scope-trace ≠ live-entry test; trust the (now-reset) overlay.
+
+### F-563 COMMITS (all pushed to Schemo512/f561-multimodal-advance-gate)
+```
+09006a0  (5) mobile: theme-color + verified responsive at 380px
+e99de4d  (4) post-verification "what it means" explainer (plain always-on + collapsed expandable)
+cd1ea28  (2) guided one-digit-at-a-time: big #vacGuided panel + dual ✓ lamps, dots progress
+02aefb9  (1) upfront explainer + one-time full-sequence preview
+9321c3e  (3) reset pre-flight pills + gate state on every startAVChecks entry
+4474103  re-auth RACE fix (retry routes through the warmed pre-flight)
+```
+
+### WHAT F-563 DOES (reuses the per-digit cross-modal unit; NO gate rewrite)
+- (1) UPFRONT EXPLAINER before the challenge (big text, sets the mental model) + previews the full sequence ONCE for familiarity. The preview lives in the intro ONLY; the challenge reveals one digit at a time. Auto-retry / voice-only skip it. Fixed overlay z-index 200.
+- (2) GUIDED ONE-DIGIT: big #vacGuided panel — current digit large, GESTURE ✓ lamp (lights on ANY stable deliberate gesture — content-blind; Gemini validates count server-side; gating the tick on correctness would re-introduce the misdetection deadlock), then reveals "Now say N" + VOICE ✓ lamp. renderDigitStrip → numberless PROGRESS DOTS (sequence never persistently on-screen). renderFingerPhase now NAMES the digit (fallback no longer relies on the dot strip). Guided "Got it" requires re-arm in speech-off mode.
+- (3) PRE-FLIGHT STALE-TICK RESET: startAVChecks resets Light/Mic/Hand pills AND avChecks state on every entry, so re-auth visibly re-runs the checks (was showing prior session's ✓ while Start stayed disabled).
+- (4) POST-VERIFICATION EXPLAINER: (A) plain-English always-visible "a digital certificate of you, a real human, has been minted" (human↔agent authority line, attributable+auditable); (B) collapsed "Learn what this enables" (L0 policy-carrying packets, audit trails, OS for trusted intelligence). HIDDEN on partial/"Continue Anyway" auth (integrity — addendum-13 #3 family: don't claim a cert that wasn't minted).
+- (5) MOBILE: theme-color #0D1117; verified zero horizontal overflow at 380px across all steps incl the new elements (all clamp()-based); camera frame fills width. No viewport-fit=cover (would breach the notch without safe-area insets).
+
+### KEPT INTACT (per spec — confirmed untouched by F-563): per-digit cross-modal binding + SUPP-7 (a80f066), misdetection re-arm (24c4352 + 9536236), resetModalities/overlay integrity (2e19557/428c712), re-auth pre-flight-warm (4474103).
+
+### NEEDS LIVE (laptop) CONFIRMATION — MediaPipe/VAD timing-adjacent + render, can't verify headless:
+- (1) intro shows the real sequence; dismiss → countdown; auto-retry skips it.
+- (2) gesture ✓ on a stable gesture (any count), voice ✓ on the spoken number, strictly one digit at a time, dots progress; fallback still names the digit.
+- (3) re-auth pre-flight pills visibly re-run from "checking".
+- (4) success explainer shows on a real pass, hidden on partial.
+FOLLOW-UP (Rob, separate): real-PHONE test — Mini headless can't verify mobile camera render or MediaPipe; the 380px reflow is verified, the on-device camera + touch flow is not.
+
+### vac-system BACKEND TODOs (unchanged, deferred to a backend session): no-adjacent-repeat constraint (hardening), F-558 (Gemini service flaky), stale engine.py cleanup.
+### FRONTEND STILL OPEN: hand-detection startup-lag VISIBILITY (the "Starting camera…/detecting hand" state + warm-up timestamp — diagnosed, part (a) not built; part (b) start-on-hand-or-speech = addendum 8/9 danger zone). F-562 graduated quick re-auth (separate respec; reuses the per-digit unit; full re-auth is NOT it).
+### GATE unchanged: no `/auth` until addendum-13 #3 resolved + a clean honest real-hand run.
