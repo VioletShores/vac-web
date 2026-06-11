@@ -390,3 +390,23 @@ Root of the "is it hearing me?" uncertainty = no live mic-level proof. _renderEq
 ### NEEDS LIVE (laptop): greeting big+readable with ✓ heard before digit 1; eq bars move with voice during greeting + each say-step (flat = no mic). Plus the still-pending live confirms: re-auth reload seamless, no_audio_analyser signature gone, no-mic recovery 3 exits, sequential show→say.
 ### DEFERRED (capture-only): Continuity mic device-NAME in pre-flight (addendum 19b). vac-system: no-repeat constraint, F-558 (Gemini latency + flaky erroring), stale engine.py.
 ### GATE unchanged: no `/auth` until addendum-13 #3 + a clean honest real-hand run.
+
+## S111 addendum 21 (11 Jun) — VAD redesign (noise-proof + silent-mic recovery) + countdown prompt + boot-sticky fix.
+
+### VAD REDESIGN (afbf1c5) — Finding 2 (gate fired on background noise) + silent-mic recovery
+The greeting voice gate is a PACING signal (NOT security — Gemini server-side is authoritative; not over-claimed). The old VAD needed only ~400ms above threshold (2 ticks) → a single cough/scrape/hum burst said "✓ Heard it" with no speech. Redesign = the three states:
+- SUSTAINED SPEECH → advance: PHRASE_VOICED_TICKS_NEEDED 2→7 (~1.4s voiced) AND a modulation check (voiced-run rms range > PHRASE_MOD_DELTA=0.045 — flat hum/cough can't pass). 
+- SUSTAINED NEAR-SILENCE → recovery: SILENT_RECOVERY_TICKS (~5.6s rms<VAD_SILENCE_RMS, no voiced) → _showNoMicRecovery('quiet') ("we can't hear you — check your mic"). Catches the CONNECTED-but-near-silent mic (rms 0.033) that slips between null-mic and working and used to hold to the 17s cap. (17s cap kept as final backstop.)
+- TRANSIENT NOISE → decay, keep listening.
+- "Continue — skip voice" → window.__vacVoiceSkipped: greeting advances + digit gate goes gesture-only (digit VAD tick re-checks it; reset per session). Quiet recovery guarded OUT of voice-only mode (no gesture fallback there).
+- CONSTANTS TUNABLE / LIVE-TUNE flagged.
+- CODEX P1 "short greeting stalls" = FALSE POSITIVE from the stale/non-deployed generator. LIVE API (12/12) confirms greetings are always "[word], I am Rob Zagarella" = 5-6 words (~2-2.5s) — never a bare "Hello". So 7 ticks (~1.4s) is safe. (Same stale-engine.py false-positive class as the earlier digits-tightening.)
+
+### FINDING 1 (7116706): the countdown showed a premature "Say: …" greeting (from goToChallenge) that tempted the user to speak before recording. startCountdown now shows neutral "Get ready…"; the greeting prompt (renderGreeting) appears only at beginRecording.
+
+### (c) BOOT-STICKY (f316082): the "Restore verified state" IIFE auto-routed to showSuccess()+goToStep(4) on EVERY load with vac_verified (<24h) → a raw refresh resurrected the verified page. Now it ONLY pre-fills identity (lands on step 0 START); only the reauth flag routes to the camera.
+
+### DEFERRED FALLBACK (Rob's decision — DO NOT BUILD YET): if a live pass shows the smarter-VAD STILL isn't reliable (still fooled by sustained noise, or still stranding), the fallback is a PRESS-AND-HOLD "hold while you say the greeting, release when done" button for the greeting — bulletproof, pure UI, no browser-API dependency. Browser speech-recognition is RULED OUT (cross-browser/mobile variability unacceptable for an auth product on every client device). The smarter-VAD ships first (pure audio-level math = works everywhere); press-and-hold is the escape hatch if it's still unreliable. Digits keep their existing gesture+voice gate either way.
+
+### NEEDS LIVE (laptop): real greeting passes (5-6 words); cough/hum/scrape REJECTED (no false "heard it"); near-silent mic surfaces the "we can't hear you" recovery (not a silent 17s hold); skip-voice degrades cleanly; countdown shows "Get ready…" not the greeting; raw refresh lands on START.
+### GATE unchanged: no `/auth` until addendum-13 #3 + a clean honest real-hand run.
