@@ -500,6 +500,17 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 <div class="audio-bar" id="ab4" style="height:2px;"></div>
             </div>
         </div>
+        <!-- F-563 (2/latch): camera-free "Say N" view. An OPAQUE cover over the feed during the
+             voice step — one thing per screen (show-fingers → say-word). The camera + recorder keep
+             running underneath (Gemini needs the continuous video; detection is harmless — the
+             gesture is latched), but the user sees only the big "Say N" text. z-index above the
+             skeleton canvas (z4). Toggled from the per-frame block. -->
+        <div id="vacSayView" style="display:none;position:absolute;inset:0;z-index:7;background:var(--bg,#0A0F1A);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;gap:10px;">
+            <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-tertiary);font-family:var(--mono);letter-spacing:1.5px;">SAY IT OUT LOUD</div>
+            <div id="vacSayWord" style="font-size:clamp(40px,14vw,72px);font-weight:800;color:#fbbf24;line-height:1;"></div>
+            <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening 🎙️</div>
+            <div id="vacSayHint" style="font-size:12px;color:var(--text-tertiary);min-height:1.2em;"></div>
+        </div>
     </div>
     <!-- S111 finding #3: instruction text moved OUT of the camera overlay — it was behind the
          z-index:4 hand-skeleton canvas (unreadable at the moment it's needed). Now a readable
@@ -639,9 +650,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <!-- F-563 (4): POST-VERIFICATION "what it means" — bookends the upfront explainer. TWO depths:
          (A) plain-English, ALWAYS visible, for every user; (B) expandable, COLLAPSED by default. -->
     <div id="whatItMeans" style="margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(16px,4vw,22px);">
-        <div style="font-size:clamp(16px,4.5vw,20px);font-weight:800;color:var(--text-primary);line-height:1.3;text-align:center;">A digital certificate of <span style="color:var(--teal);">you, a real human</span>, has been minted.</div>
+        <div style="font-size:clamp(16px,4.5vw,20px);font-weight:800;color:var(--text-primary);line-height:1.3;text-align:center;">You're now a <span style="color:var(--teal);">verified human</span> on the record.</div>
         <div style="font-size:clamp(13px,3.6vw,15px);line-height:1.6;color:var(--text-secondary);margin-top:12px;">
-            It's a verifiable reflection of you — drawing a clear line between you and any AI agents acting on your behalf. From here on, every action taken under your authority is <strong style="color:var(--text-primary);">attributable and auditable</strong>: agents and decisions in the system can always be traced back to a verified human — you.
+            Your certificate is live. From here you can put AI agents to work in your name — and each one inherits its authority <strong style="color:var(--text-primary);">from you</strong>, stays bounded by it, and traces back to you. You get the leverage of agents <strong style="color:var(--text-primary);">without</strong> losing accountability: everything done under your authority has a proven human standing behind it.
         </div>
         <!-- (B) Expandable deeper context, collapsed by default -->
         <button id="whatItMeansToggle" onclick="toggleWhatItEnables()" style="margin-top:14px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:transparent;border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;color:var(--text-secondary);font-size:clamp(13px,3.6vw,14px);font-weight:600;-webkit-tap-highlight-color:transparent;">
@@ -2100,31 +2111,47 @@ function beginRecording() {
                 lamp.style.animation = 'none';
             }
         }
+        // F-563 (latch): the camera-free "Say N" cover. ON only during sub-gate 2 (gesture latched,
+        // voice not yet given) → one thing per screen. OFF everywhere else (show phase / beat / done)
+        // so the camera is back for the next digit's gesture.
+        function setSayView(on, word, hint) {
+            var sv = document.getElementById('vacSayView');
+            if (!sv) return;
+            sv.style.display = on ? 'flex' : 'none';
+            if (on) {
+                var w = document.getElementById('vacSayWord'); if (w) w.textContent = '“' + word + '”';
+                var h = document.getElementById('vacSayHint'); if (h) h.textContent = hint || '';
+            }
+        }
         if (opts.done) {
             if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setSayView(false);
             return;
         }
         if (opts.beat) {
             if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setSayView(false);
             return;
         }
         var N = opts.digit;
         if (!opts.gestureDone) {
-            // Sub-gate 1: show the fingers.
+            // Sub-gate 1: show the fingers (camera visible).
             if (promptEl) { promptEl.textContent = 'Show ' + N + ' finger' + (N === 1 ? '' : 's'); promptEl.style.color = 'var(--text-primary)'; }
             if (subEl) subEl.textContent = opts.gesturePct >= 100 ? 'Hold it…' : 'Hold steady';
             setLamp(gLamp, gWrap, 'active', '✋');
             setLamp(vLamp, vWrap, 'pending', '🗣️');
+            setSayView(false);
         } else if (opts.voiceOn && !opts.voiceDone) {
-            // Sub-gate 2: gesture ✓ — now say the number.
+            // Sub-gate 2: gesture ✓ (latched) — switch to the camera-free "Say N" screen.
             if (promptEl) { promptEl.textContent = 'Now say “' + N + '”'; promptEl.style.color = '#fbbf24'; }
             if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — say it a bit louder' : 'Out loud';
             setLamp(gLamp, gWrap, 'done', '✋');
             setLamp(vLamp, vWrap, 'active', '🗣️');
+            setSayView(true, N, opts.voiceHelp ? 'A bit louder…' : '');
         } else if (!opts.voiceOn && opts.rearmed === false) {
             // Speech-off + gesture confirmed but NOT re-armed: the advance gate is BLOCKED (same held
             // pose carried from the last accept). Don't claim "Got it" — prompt the re-show (codex).
@@ -2132,12 +2159,14 @@ function beginRecording() {
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'active', '✋');
             setLamp(vLamp, vWrap, 'pending', '🗣️');
+            setSayView(false);
         } else {
             // Both satisfied (or speech-off + re-armed) — advancing on the next frame.
             if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋');
             setLamp(vLamp, vWrap, opts.voiceOn ? 'done' : 'pending', '🗣️');
+            setSayView(false);
         }
     }
 
@@ -2173,6 +2202,9 @@ function beginRecording() {
     const HINT_TIMEOUT_MS = 8000;
     let _qaGestureLatched = false;  // F-560: gesture-confirmed fires once per digit, reset on advance
     let _gestureReadyAt = 0;        // F-561: when gesture first went ready for this digit (drives the stuck-user escape timer)
+    let _latchedCount = 0;          // F-563: the finger count SHOWN at the moment the gesture latched — recorded as the client-detected count at advance (the hand may be DOWN by advance time during the camera-free say step, so we can't read `detected` then)
+    let _latchedFrames = 0;         // F-563: stableFrames at latch, for the advance log
+    let _escapeAdvancePending = false;  // F-563: the mic-escape was tapped on the say step (gesture already latched, hand down) — let THIS digit through via the latch even though escape switches to speech-off (which otherwise requires a live hand-up gesture)
 
     // ── F-561: per-digit ON-DEVICE voice-pacing gate (energy-VAD) ──────────────
     // The advance gate becomes gesture AND speech: a digit advances only once the
@@ -2227,6 +2259,7 @@ function beginRecording() {
         recordingStopped = true;
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
+        try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): hide the say-cover when capture ends
         try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
@@ -2327,6 +2360,11 @@ function beginRecording() {
         btn.textContent = 'Mic not working? Tap to continue with gestures only';
         if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(btn);
         btn.addEventListener('click', function() {
+            // F-563: the escape only appears once the gesture is latched (waiting on voice). The user
+            // is on the camera-free say step with the hand DOWN — so let THIS digit advance via the
+            // latch, then speech-off (live-gesture) governs the remaining digits. Without this, the
+            // new speech-off live-gesture rule would strand them (hand down) right after escaping.
+            _escapeAdvancePending = _qaGestureLatched;
             _speechGateOff('user_escape');
             try { vacDebug('voice_gate_escape', null, { digit_index: currentDigitIndex }); } catch(_) {}
             _removeVoiceEscape();
@@ -2359,6 +2397,7 @@ function beginRecording() {
     // a per-step TIMEOUT hint, never an auto-advance.
     function runTimerFallback() {
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): the guided detection panel doesn't apply to the manual fallback — hide it
+        try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): no camera-free say-step in the manual fallback
         try { _stopSpeechGate(); } catch(_) {}  // F-561: no gesture detection here → voice gate doesn't apply (manual advance only)
         try { vacDebug('phase2_timer_fallback_no_autoadvance', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
         console.log('[VAC] Finger phase: detector unavailable — holding for user, NOT auto-advancing (W4.1)');
@@ -2528,77 +2567,39 @@ function beginRecording() {
             // count-change guard (detected !== lastAcceptedCount) is GONE, so a repeated
             // digit ([2,4,4]) is solvable. The per-digit SPEECH window is the new-digit signal.
             const _gestureOk = stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk;
-            // AND-gate: advance requires gesture AND speech for THIS digit. Voice gate off
-            // (no analyser / user-escape) → _speechOk true → gesture-only (never block forever).
-            const _speechOk = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
-            // _acceptArmed = "the gesture is FRESH for THIS digit" — re-established since the
-            // last accept (a stably-held DIFFERENT count, or a sustained release + re-show).
-            // Required in BOTH modes so a stale carried-over pose can't be recorded for the next
-            // digit (codex P2: the gate can't know the expected digit, so it can't tell a real
-            // repeat from a leftover pose — it requires a fresh gesture either way). VAD ALSO
-            // requires speech (the AND-gate). Distinct digit → new count held stably (no drop);
-            // repeated digit → a quick re-show.
-            const _rearmed = _acceptArmed;
+            // F-563: the actual ADVANCE (gesture-latched || live) AND speech AND re-arm is now
+            // evaluated at FRAME level after this if/else, so it also fires with the hand DOWN
+            // (camera-free "Say N" step). Here we only DETECT + LATCH the gesture for this digit.
+            const _speechOk = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];  // for the QA live line
             // F-560: record gesture-confirmed-at once per digit, independent of advance,
             // so the overlay shows the gesture→speech→advance gap. Also starts the
             // stuck-user escape timer (gesture ready, waiting on voice).
-            if (_gestureOk && !_qaGestureLatched) {
+            // F-563: the latch must reflect a FRESH gesture for THIS digit, because the say-view
+            // treats _qaGestureLatched as "gesture done" and hides the camera. Gate it on BOTH:
+            //  - after the confirm beat (_nowMs >= _confirmUntil), and
+            //  - _acceptArmed — the re-arm signal (a stably-held DISTINCT count, or a sustained
+            //    release + re-show). A previous pose merely HELD through the beat keeps _acceptArmed
+            //    false (same count, no release), so it can't latch the next digit and pre-hide the
+            //    camera / record the stale count (codex P1). This makes the latch genuinely per-digit.
+            if (_gestureOk && !_qaGestureLatched && _nowMs >= _confirmUntil && _acceptArmed) {
                 _qaGestureLatched = true;
-                _gestureReadyAt = _nowMs;
-                try { vacDebug('gesture_confirm', null, { digit_index: currentDigitIndex }); } catch(_) {}
+                if (!_gestureReadyAt) _gestureReadyAt = _nowMs;   // don't reset the voice-wait timer if it already started at held-ready (below)
+                _latchedCount = detected;     // capture the SHOWN count now — the hand may be down by advance time (camera-free say step)
+                _latchedFrames = stableFrames;
+                // F-563 note: we deliberately do NOT reset speechReady here. If the user said the
+                // number WHILE showing (the old natural way), that is a real fresh onset in THIS
+                // digit's window (binding intact — not pre-satisfaction), so the digit just completes
+                // and the say-screen is skipped (an experienced-user fast path). Resetting it to force
+                // strict show→say sequencing would discard the utterance that re-arms a held repeated
+                // digit ([2,4,4]) via _markSpeech, breaking that flow (codex). The say-screen still
+                // appears for everyone who shows the gesture before speaking — the common case.
+                try { vacDebug('gesture_confirm', null, { digit_index: currentDigitIndex, count: detected }); } catch(_) {}
             }
             if (QA.on) { try { QA.frame({ detected: detected, stableFrames: stableFrames, need: STABLE_FRAMES_NEEDED, dwellMs: Math.round(_nowMs - digitStartTime), beatMs: Math.max(0, Math.round(_confirmUntil - _nowMs)), gestureOk: _gestureOk, speechOk: _speechOk, rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
-            if (_gestureOk && _speechOk && _rearmed && _nowMs >= _confirmUntil) {
-                if (currentDigitIndex === 0) {
-                    try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
-                }
-                // S110: per-digit advance log so the 1->2 and 2->3 dwell gaps are
-                // directly measurable (observer flagged the logs only emitted the FIRST
-                // advance). dwell_ms = how long since the dwell clock started for this digit.
-                try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: detected, held_frames: stableFrames, dwell_ms: Math.round(_nowMs - digitStartTime) }); } catch(_) {}
-                detectedDigits[currentDigitIndex] = true;
-                detectedCounts[currentDigitIndex] = detected;
-                _acceptArmed = false;           // Option 2: speech-off re-arm — needs a sustained release / stable different count before the next accept
-                _lastAcceptedCount = detected;  // for the speech-off "stable different count" re-arm
-                stableFrames = 0;               // reset hold timer; keep stableCount as-is
-                currentDigitIndex++;
-                digitStartTime = performance.now();
-                hintShown = false;
-                _qaGestureLatched = false;   // F-560: arm gesture-confirm for the next digit
-                _gestureReadyAt = 0;         // F-561: reset the stuck-user escape timer
-                // F-561: the next digit's voice only counts AFTER the confirm beat, so the
-                // tail of THIS digit's spoken number can't bleed forward and pre-satisfy it.
-                // Guard: no window/emit after the final digit advances (codex P3 — avoids a
-                // phantom blank row for a non-existent next digit in the QA overlay).
-                if (currentDigitIndex < digits.length) {
-                    speechWindowStart = performance.now() + CONFIRM_BEAT_MS;
-                    _sawSilence = false;   // F-561: require a FRESH in-window silence→voice onset for this new digit
-                    try { vacDebug('speech_window_open', null, { digit_index: currentDigitIndex, at_perf: speechWindowStart }); } catch(_) {}
-                }
-                // S110 CONFIRMATION BEAT (Rob): instead of instantly highlighting the next
-                // number (which made the user feel they were chasing it), hold a clear
-                // "Got it ✓" moment. During _confirmUntil we (a) pause accepting new digits,
-                // (b) delay advancing the digit-strip highlight, so the user registers success
-                // and can reposition before the next number is revealed.
-                _confirmUntil = performance.now() + CONFIRM_BEAT_MS;
-                _confirmStripPending = currentDigitIndex;   // reveal this next-number highlight when the beat ends
-                // NOTE: digit-strip highlight is advanced AFTER the beat (see below), not here.
-                // S110 timer reconciliation: in the FINGER phase, detection drives
-                // the pace, so the ring shows PROGRESS (digits done) — not a shrinking
-                // countdown that races the user. Removes the false deadline pressure.
-                const completedFrac = currentDigitIndex / digits.length;
-                ringFill.classList.remove('recording');
-                ringFill.style.stroke = 'var(--teal)';
-                ringFill.style.strokeDashoffset = circumference * (1 - completedFrac);
-                timerEl.style.fontSize = '14px';
-                timerEl.textContent = currentDigitIndex + '/' + digits.length;
-                if (currentDigitIndex >= digits.length) {
-                    try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
-                    renderFingerPhase(false);
-                    finishFingerPhase();
-                    return;
-                }
-            }
+            // F-563: advance is evaluated at FRAME level (after this if/else), NOT here — because
+            // the camera-free "Say N" step has the hand DOWN (detected===0), and an advance gated
+            // inside `if (detected>0)` would deadlock once the gesture is latched + voice given
+            // (codex P1). The latch (_qaGestureLatched) already captures "gesture confirmed".
         } else {
             // Hand fully dropped — reset the hold. A SUSTAINED release (>=3 frames, robust to
             // 1-frame detection dropouts) re-arms the speech-off path so a repeated digit can
@@ -2608,6 +2609,69 @@ function beginRecording() {
             stableCount = 0;
             stableFrames = 0;
             if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false, speechOk: (_speechMode === 'off') ? true : speechReady[currentDigitIndex], rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
+        }
+
+        // F-563: FRAME-LEVEL advance — fires whether the hand is UP or DOWN, so the camera-free
+        // "Say N" step (hand down) can complete the digit (codex P1: gating advance inside
+        // `if (detected>0)` deadlocked it). The cross-modal binding is fully preserved:
+        //   - _qaGestureLatched = gesture confirmed for THIS digit (set the same frame the live
+        //     gesture first went ready; RESET on advance below → digit N+1 needs a FRESH gesture).
+        //   - speechReady[i] = a FRESH per-digit silence→voice onset (untouched by the latch).
+        //   - _acceptArmed still guards a stale carried-over pose / double-accept.
+        // The count RECORDED is _latchedCount (captured when the gesture latched) — not `detected`,
+        // which is 0 once the hand is down for the say step.
+        var _spOkFrame = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
+        // Speech-off has NO camera-free say step, so it must keep the ORIGINAL live-gesture rule
+        // (hand held now) — else, with _spOkFrame always true, simply lowering the hand (which sets
+        // _acceptArmed) would advance a stale latch without a fresh re-show (codex). VAD mode uses the
+        // latch so the hand can be down for the say step; voice (speechReady[i]) is the completion signal.
+        var _liveGestureOk = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED && digitStartTime > 0 && (performance.now() - digitStartTime) >= MIN_DIGIT_DWELL_MS);
+        var _gateGestureOk = (_speechMode === 'off') ? _liveGestureOk : _qaGestureLatched;
+        // One-shot: a mic-escape on the say step lets the already-latched current digit through.
+        var _advanceNow = (_gateGestureOk && _spOkFrame) || (_escapeAdvancePending && _qaGestureLatched);
+        if (currentDigitIndex < digits.length && _advanceNow && _acceptArmed && performance.now() >= _confirmUntil) {
+            _escapeAdvancePending = false;
+            var _adNow = performance.now();
+            // Count to record: the LATCHED count when latched (VAD say-step / normal — hand may be
+            // down). On the speech-off LIVE path the latch may not have set this frame (its beat-guard
+            // used the earlier _nowMs while this advance's fresh now crossed the beat boundary — codex),
+            // so fall back to the live `detected` (that path requires detected>0, so it's valid; never 0).
+            var _recordCount = _qaGestureLatched ? _latchedCount : detected;
+            var _recordFrames = _qaGestureLatched ? _latchedFrames : stableFrames;
+            if (currentDigitIndex === 0) {
+                try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: _recordCount, held_frames: _recordFrames }); } catch(_) {}
+            }
+            try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: _recordCount, held_frames: _recordFrames, dwell_ms: Math.round(_adNow - digitStartTime) }); } catch(_) {}
+            detectedDigits[currentDigitIndex] = true;
+            detectedCounts[currentDigitIndex] = _recordCount;   // latched count, or live count on the speech-off path — never the hand-down 0
+            _acceptArmed = false;
+            _lastAcceptedCount = _recordCount;
+            stableFrames = 0;
+            currentDigitIndex++;
+            digitStartTime = _adNow;
+            hintShown = false;
+            _qaGestureLatched = false;   // RESET — digit N+1's gesture latch starts FRESH (no bleed)
+            _gestureReadyAt = 0;
+            _latchedCount = 0; _latchedFrames = 0;
+            if (currentDigitIndex < digits.length) {
+                speechWindowStart = performance.now() + CONFIRM_BEAT_MS;
+                _sawSilence = false;   // fresh in-window silence→voice onset required for the new digit
+                try { vacDebug('speech_window_open', null, { digit_index: currentDigitIndex, at_perf: speechWindowStart }); } catch(_) {}
+            }
+            _confirmUntil = performance.now() + CONFIRM_BEAT_MS;
+            _confirmStripPending = currentDigitIndex;
+            var _completedFrac = currentDigitIndex / digits.length;
+            ringFill.classList.remove('recording');
+            ringFill.style.stroke = 'var(--teal)';
+            ringFill.style.strokeDashoffset = circumference * (1 - _completedFrac);
+            timerEl.style.fontSize = '14px';
+            timerEl.textContent = currentDigitIndex + '/' + digits.length;
+            if (currentDigitIndex >= digits.length) {
+                try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
+                renderFingerPhase(false);
+                finishFingerPhase();
+                return;
+            }
         }
 
         if (!hintShown && digitStartTime > 0 && (performance.now() - digitStartTime) > HINT_TIMEOUT_MS) {
@@ -2693,12 +2757,14 @@ function beginRecording() {
             });
         } catch(_) {}
 
-        // F-561: stuck-user escape + persistent "(voice gate off)" note.
+        // F-561/F-563: stuck-user escape + persistent "(voice gate off)" note.
+        // "Waiting on voice" must cover BOTH:
+        //   - latched + hand DOWN (the camera-free say step), and
+        //   - gesture HELD-ready but not yet latched (e.g. an adjacent repeated digit held while a
+        //     broken mic never re-arms it) — else the mic-escape would never appear (codex).
         var _gestureHeldReady = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED);
-        // S111 unification: waiting on voice = gesture held + VAD on + this digit not yet
-        // spoken. No _acceptArmed gate — the spoken number re-arms the gesture (even on a
-        // misdetect), so the voice cue/escape applies whenever we're held and listening.
-        var _waitingVoice = _gestureHeldReady && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
+        if (_gestureHeldReady && !_gestureReadyAt) _gestureReadyAt = _now;   // start the voice-wait timer the moment the gesture is first ready (before the latch)
+        var _waitingVoice = (_qaGestureLatched || _gestureHeldReady) && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
         if (_waitingVoice && _gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS) { _ensureVoiceEscape(); }
         else { _removeVoiceEscape(); }
         _renderVoiceOffNote();
