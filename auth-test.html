@@ -2258,6 +2258,13 @@ function beginRecording() {
     const VAD_SPEECH_RMS = 0.14;     // voiced threshold (rms above this = voice)
     const VAD_SILENCE_RMS = 0.085;   // SILENCE threshold (rms below this = silence). Hysteresis gap 0.085–0.14 = "neither", so a fresh utterance must cross from real silence UP through voice — greeting-tail / continuous talk (no preceding in-window silence) can't pre-satisfy a digit. Live-tune above the ~0.074 floor.
     const VAD_SPEECH_FRAMES = 6;     // ~100ms sustained above threshold (raised 3->6 so transients can't fire)
+    // F-563 (#1): the digit say-step got the SAME tap/beep weakness the greeting had — the old
+    // ~100ms (VAD_SPEECH_FRAMES) bar let a tap/beep satisfy a digit. A SPOKEN number is ~300-500ms
+    // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
+    // duration AND modulation. Shorter than the greeting's 1.4s (a single digit < a multi-word
+    // greeting). PACING ONLY — Gemini server-side stays the authoritative voice check. LIVE-TUNE.
+    const DIGIT_VOICE_MIN_MS = 350;  // a real spoken digit lasts ~this long; a ~100ms tap can't reach it
+    const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
     // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
     // silence→voice ONSET inside digit i's window, so the spoken number genuinely binds to
@@ -2338,10 +2345,11 @@ function beginRecording() {
         try { vacDebug('speech_gate_mode', null, { mode: 'vad' }); } catch(_) {}
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
         let voiced = 0;
+        let voiceMin = 1, voiceMax = 0;   // F-563 (#1): rms range over the current voiced run (the modulation check)
         // The reusable per-digit unit: fire speechReady ONLY on a silence→voice ONSET inside
         // the current window. A voiced run that did NOT follow an in-window silence (greeting
         // tail, continuous talk, room drone) is IGNORED — so it can't pre-satisfy the digit and
-        // the spoken number genuinely binds to the gesture (SUPP-7 cross-modal claim).
+        // the spoken number genuinely binds to the gesture (SUPP-7 cross-modal claim, on-device).
         (function tick() {
             if (recordingStopped || _speechMode !== 'vad') { _vadRAF = null; return; }
             // If the user picked "Continue — skip voice" AFTER the digit VAD already started (they
@@ -2360,16 +2368,29 @@ function beginRecording() {
                     // that OVERLAPS the window-open still counts (codex), while continuous
                     // carry-over (no pause since the last accept) stays rejected.
                     _sawSilence = true;
-                    voiced = 0;
+                    voiced = 0; voiceMin = 1; voiceMax = 0;
                 } else if (rms > VAD_SPEECH_RMS) {
-                    if (_now >= speechWindowStart && _sawSilence) {
-                        if (voiced === 0) _voiceOnsetAt = _now;   // onset of this fresh voiced run
-                        if (++voiced >= VAD_SPEECH_FRAMES) {
-                            _markSpeech('vad', rms, _voiceOnsetAt);
-                            voiced = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
-                        }
+                    // Accumulate the voiced run from its TRUE onset — even if it starts during the
+                    // grace/beat BEFORE the window opens — so a digit begun slightly early still reaches
+                    // the duration bar (codex: don't clamp the onset to window-open). The run only STARTS
+                    // after a real silence (_sawSilence = fresh onset, rejects carry-over/greeting-tail).
+                    if (voiced === 0) {
+                        if (_sawSilence) { _voiceOnsetAt = _now; voiceMin = rms; voiceMax = rms; voiced = 1; }
+                        // else: voice with no preceding in-window silence (carry-over) → ignore
                     } else {
-                        voiced = 0;   // window not open yet, OR carry-over with no preceding silence → don't count
+                        voiced++;
+                        if (rms < voiceMin) voiceMin = rms;
+                        if (rms > voiceMax) voiceMax = rms;
+                    }
+                    // FIRE only once the window is open AND the run is SUSTAINED (>=DIGIT_VOICE_MIN_MS) and
+                    // MODULATED — so a ~100ms tap (too short) or a flat beep/tone (no modulation) can't
+                    // satisfy a digit, while a real spoken number (any reasonable start time) clears both.
+                    if (voiced > 0 && _now >= speechWindowStart
+                        && voiced >= VAD_SPEECH_FRAMES
+                        && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
+                        && (voiceMax - voiceMin) >= DIGIT_MOD_DELTA) {
+                        _markSpeech('vad', rms, _voiceOnsetAt);
+                        voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
                     }
                 }
                 // 0.085–0.14 band (neither): hold counters, don't change _sawSilence
