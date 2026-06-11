@@ -2323,6 +2323,7 @@ function beginRecording() {
         if (_speechGateStarted) return;
         _speechGateStarted = true;
         if (!audioAnalyser) { console.error('[VAC][VOICE] digit voice gate OFF — no audioAnalyser at speech-gate start (pacing only; Gemini still validates voice server-side)'); _speechGateOff('no_audio_analyser'); return; }  // W4.1: degrade to gesture-only + note
+        if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); return; }  // user picked "Continue — skip voice" on the recovery → digits go gesture-only too
         _speechMode = 'vad';
         try { vacDebug('speech_gate_mode', null, { mode: 'vad' }); } catch(_) {}
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
@@ -2333,6 +2334,10 @@ function beginRecording() {
         // the spoken number genuinely binds to the gesture (SUPP-7 cross-modal claim).
         (function tick() {
             if (recordingStopped || _speechMode !== 'vad') { _vadRAF = null; return; }
+            // If the user picked "Continue — skip voice" AFTER the digit VAD already started (they
+            // entered the digit phase before clicking it), turn the gate off now so digits don't keep
+            // waiting on voice (codex). _startSpeechGate's initial check can't catch this later choice.
+            if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); _vadRAF = null; return; }
             try {
                 audioAnalyser.getByteFrequencyData(buf);
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
@@ -2811,9 +2816,18 @@ function beginRecording() {
     let phraseSpoke = false;
     let _phraseHeardAt = 0;                            // F-563: when the greeting was HEARD — drives the "✓ Heard it" beat before advancing (digit parity)
     const GREET_HEARD_BEAT_MS = 800;                  // hold the greeting ✓ this long so the user KNOWS it registered, like a digit's ✓
-    const PHRASE_VOICED_TICKS_NEEDED = 2;             // ~400ms voiced — low enough that SHORT greetings ("Hello"/"Hi there") don't stall (codex). Safe because: decay-on-silence + end-pause reject scattered noise, the PHRASE_DURATION timer floors the transition, and the hard cap prevents any hang. LIVE-TUNE.
+    // F-563 (Finding 2): the on-device VAD is a PACING gate, NOT the security check — Gemini
+    // server-side is the authoritative word verifier. The old ~400ms threshold (2 ticks) fired on a
+    // single cough/scrape/hum burst. Real speech is SUSTAINED + MODULATED over the word duration, so
+    // require ~1.4s of voiced energy AND that it actually varies (a flat hum has near-constant rms).
+    // The greeting is always "[word], I am [name]" (>=~1.5s), so this won't stall it. LIVE-TUNE.
+    const PHRASE_VOICED_TICKS_NEEDED = 7;             // ~1.4s of voiced energy (TICK_MS=200) — a real multi-word greeting, not a transient
+    const PHRASE_MOD_DELTA = 0.045;                  // modulation floor: the voiced run's rms range must exceed this (speech varies; a flat tone/hum doesn't). Best-effort — Gemini is authoritative.
     const PHRASE_SILENCE_TICKS_NEEDED = 2;            // ~400ms end-pause = the greeting utterance is COMPLETE (not a mid-word dip)
-    const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer so a silent mic can't hang
+    const SILENT_RECOVERY_TICKS = 28;                // ~5.6s of genuine near-silence (rms < VAD_SILENCE_RMS) with NO voiced energy → surface the "we can't hear you" recovery (connected-but-silent mic), instead of silently holding to the hard cap. LIVE-TUNE.
+    const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer — a final backstop so it can never hang
+    let _phraseVoicedMin = 1, _phraseVoicedMax = 0;   // rms range during the current voiced run (the modulation check)
+    let _phraseSilentRun = 0;                         // consecutive near-silent ticks (the connected-but-silent-mic detector)
     // F-561 (S111): phraseSpoke = a COMPLETED greeting utterance — a sustained voiced run THEN
     // a real end-pause — not "any 600ms of voice". The greeting is greeting-only now; the NUMBERS
     // are spoken per-digit (each bound to its gesture), never in the phrase phase.
@@ -2824,19 +2838,37 @@ function beginRecording() {
             audioAnalyser.getByteFrequencyData(_buf);
             let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
             _rms = Math.sqrt(_rms / _buf.length) / 255;
+            // (a) CONNECTED-BUT-SILENT mic detector: sustained genuine near-silence with NO voiced
+            // energy → the mic is present but too quiet to ever satisfy the gate. Surface the "we
+            // can't hear you" recovery rather than silently holding to the hard cap (Finding/silent-mic).
+            if (_rms < VAD_SILENCE_RMS) {
+                // NOT in voice-only mode — there the user has no gesture phase to fall back on, so
+                // "skip voice" would leave nothing to verify; let voice-only hard-cap → fail → retry
+                // instead (codex). Finger mode can degrade to gesture-only, so the recovery applies.
+                if (++_phraseSilentRun >= SILENT_RECOVERY_TICKS && fingerFallback !== 'voice') { try { _showNoMicRecovery('quiet'); } catch(_) {} }
+            } else {
+                _phraseSilentRun = 0;
+            }
             if (_rms > VAD_SPEECH_RMS) {
                 _phraseSilenceTicks = 0;
-                if (++_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED) _phraseHeardVoice = true;
+                _phraseVoicedTicks++;
+                if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
+                if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
+                // Finding 2: require SUSTAINED voiced energy (~1.4s) AND modulation — so a single ~400ms
+                // transient (cough/scrape) OR a flat continuous hum can't satisfy "greeting heard".
+                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA) {
+                    _phraseHeardVoice = true;
+                }
             } else if (_rms < VAD_SILENCE_RMS) {
                 if (!_phraseHeardVoice) {
-                    // Not a sustained greeting yet — DECAY scattered voiced ticks so intermittent
-                    // noise (coughs/taps over the phrase) can't accumulate to NEEDED across silences
-                    // (codex). A continuous greeting with brief inter-word dips still survives.
+                    // Not a sustained greeting yet — DECAY the voiced run so intermittent noise can't
+                    // accumulate across silences; reset the modulation window when it fully decays.
                     _phraseVoicedTicks = Math.max(0, _phraseVoicedTicks - 1);
+                    if (_phraseVoicedTicks === 0) { _phraseVoicedMin = 1; _phraseVoicedMax = 0; }
                 } else if (++_phraseSilenceTicks >= PHRASE_SILENCE_TICKS_NEEDED) {
-                    // heard a sustained greeting, now a real end-pause → utterance complete
+                    // sustained, modulated voiced run THEN a real end-pause → utterance complete
                     phraseSpoke = true;
-                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
+                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
                 }
             }
             // 0.085–0.14 band (neither): hold counters
@@ -2891,7 +2923,8 @@ function beginRecording() {
         // heard the phrase — or VAD is unavailable (timer fallback, W4.1), or the hard cap is
         // hit so a silent/broken mic can't hang forever.
         const _phraseTimerDone = elapsedSec >= PHRASE_DURATION;
-        const _phraseGateOk = phraseSpoke || !audioAnalyser || (elapsedSec >= PHRASE_PHASE_MAX_S);
+        // window.__vacVoiceSkipped = the user picked "Continue — skip voice" on the recovery panel.
+        const _phraseGateOk = phraseSpoke || !audioAnalyser || window.__vacVoiceSkipped || (elapsedSec >= PHRASE_PHASE_MAX_S);
         // F-563: KEEP the original PHRASE_DURATION timer floor (don't early-advance — a natural pause
         // mid-greeting can trip phraseSpoke on a PARTIAL greeting, and cutting off the rest would fail
         // server-side phrase verification; codex). The UX win is the "✓ Heard it" BEAT: once the
@@ -3381,6 +3414,7 @@ function resetGuidedUI() {
     var r = document.getElementById('digitStripRow'); if (r) r.innerHTML = '';
     try { _hideNoMicRecovery(); } catch(_) {}   // clear any stale no-mic recovery panel from a prior run
     window.__vacNoMicDismissed = false;          // fresh per session — re-offer recovery if the mic is still out
+    window.__vacVoiceSkipped = false;            // fresh per session — don't carry a prior "skip voice" choice
 }
 
 function toggleUnderHood() {
@@ -3602,17 +3636,21 @@ function reauthReload(opts) {
 // genuinely unavailable mid-flow (audioAnalyser null → the phrase fail-open advances past the
 // greeting, gesture-only), SURFACE it honestly + offer reachable exits — reusing what we already
 // have (the pre-flight mic test, reached via the reload primitive) rather than rebuilding recovery UI.
-function _showNoMicRecovery() {
+function _showNoMicRecovery(reason) {
     if (window.__vacNoMicDismissed) return;             // user chose "Continue — skip voice" → don't nag again this session
     if (document.getElementById('vacNoMic')) return;    // idempotent — show once, persist until acted on
     var host = document.getElementById('challengePanel');
     if (!host || !host.parentElement) return;
+    // 'quiet' = a CONNECTED-but-near-silent mic (Finding/silent-mic) → "we can't hear you";
+    // default ('no_mic' / null analyser) → "No microphone detected". Same actions either way.
+    var _quiet = (reason === 'quiet');
+    var _title = _quiet ? 'We can’t hear you — check your mic' : 'No microphone detected — voice check skipped';
     var panel = document.createElement('div');
     panel.id = 'vacNoMic';
     panel.style.cssText = 'margin:10px 0 0;padding:12px 14px;background:rgba(210,153,34,0.08);border:1px solid var(--warning,#D29922);border-radius:10px;text-align:center;';
     panel.innerHTML =
-        '<div style="font-size:13px;font-weight:700;color:var(--warning,#D29922);margin-bottom:4px;">No microphone detected — voice check skipped</div>' +
-        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">Your gestures are still verified, and our servers re-check voice from the recording. Choose how to continue:</div>' +
+        '<div style="font-size:13px;font-weight:700;color:var(--warning,#D29922);margin-bottom:4px;">' + _title + '</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">' + (_quiet ? 'Your mic is connected but very quiet. Speak up, move closer, or pick a different mic — or continue (your gestures are still verified, and our servers re-check voice from the recording).' : 'Your gestures are still verified, and our servers re-check voice from the recording. Choose how to continue:') + '</div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">' +
           '<button onclick="reauthReload({auto:false,keepRetryBudget:false})" style="flex:1;min-width:150px;padding:9px 12px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄 Reconnect mic &amp; retry</button>' +
           '<button onclick="_dismissNoMic()" style="flex:1;min-width:150px;padding:9px 12px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Continue — skip voice</button>' +
@@ -3629,6 +3667,7 @@ function _hideNoMicRecovery() {   // generic cleanup hide (finish / reset) — d
 // phrase tick would otherwise recreate it every 200ms). Reset per session in resetGuidedUI.
 function _dismissNoMic() {
     window.__vacNoMicDismissed = true;
+    window.__vacVoiceSkipped = true;   // F-563: "Continue — skip voice" → the gates degrade to gesture-only (greeting advances, digits don't wait on voice). Honest: voice pacing is skipped; Gemini still validates voice server-side.
     _hideNoMicRecovery();
     try { vacDebug('no_mic_recovery_dismissed'); } catch(_) {}
 }
