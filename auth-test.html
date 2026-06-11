@@ -1829,7 +1829,9 @@ function goToChallenge() {
     if (fingerFallback === 'voice') {
         document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:12px;color:var(--warning);margin-top:8px;display:inline-block">Voice-only mode (reduced trust score)</span>';
     } else {
-        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers for each number (hold, change, hold):<br><strong>' + digitWords + '</strong></span>';
+        // F-563 (#4): full phrase INCLUDING the digits (say all up front — the backend matches the
+        // whole transcript). (This text is the pre-countdown lead-in; renderGreeting owns the live prompt.)
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers for each number (hold, change, hold):<br><strong>' + digitWords + '</strong></span>';
     }
     // Accessibility fallback link
     if (!document.getElementById('fingerFallback')) {
@@ -2050,8 +2052,8 @@ function beginRecording() {
             if (fingerFallback === 'voice') {
                 challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"';
             } else {
-                const _greeting = _full.replace(/,?\s*\d[\d\s,]*$/, '').trim() || _full;
-                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greeting + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">the numbers come next — one per gesture</span>';
+                // F-563 (#4): full phrase INCLUDING the digits (say all up front) — matches the backend.
+                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number with your fingers</span>';
             }
         } else {
             // Finger phase
@@ -2914,11 +2916,18 @@ function beginRecording() {
     function renderGreeting() {
         var _full = challengeData?.phrase || '';
         var _vo = (fingerFallback === 'voice');
-        var _say = _vo ? _full : (_full.replace(/,?\s*\d[\d\s,]*$/, '').trim() || _full);
+        // F-563 (#4): show the FULL phrase INCLUDING the digits (say them all up front), not the
+        // greeting-only strip. The backend matches the whole transcript (set-overlap), so the digits
+        // must be spoken here to reach it; finger mode ALSO re-says each digit per-gesture (on-device
+        // pacing). Reconciles the screen with what the backend expects. (Server-side cross-modal
+        // binding is a separate vac-system fix — see the backend ticket; not over-claimed here.)
+        var _say = _full;
         var _st = document.getElementById('step2Title');
-        if (phraseSpoke && !_vo) {   // ✓ Heard it beat — FINGER mode only. Voice-only speaks the full
-                                     // phrase here (greeting + numbers), so phraseSpoke fires mid-phrase
-                                     // — don't flash "Heard it" while they're still reading the numbers.
+        // ✓ Heard it beat — FINGER mode only, AND only AFTER the read window (PHRASE_DURATION). The
+        // phrase now includes the digits, so phraseSpoke can fire on a pause after the greeting clause
+        // — keep the FULL phrase visible through the read window so the user actually says the digits
+        // up front; only confirm once the window has elapsed (codex).
+        if (phraseSpoke && !_vo && (elapsedMs / 1000) >= PHRASE_DURATION) {
             if (_st) { _st.textContent = 'Greeting heard'; _st.style.color = '#22c55e'; }
             // Don't instruct "now the numbers" yet — the digit phase doesn't start until the timer
             // floor + the "GET READY — SHOW FINGERS IN" grace countdown, which is what actually cues it
@@ -2928,11 +2937,12 @@ function beginRecording() {
             var _eqH = document.getElementById('vacEqGreeting'); if (_eqH) _eqH.style.display = 'none';   // ✓ → hide the listening eq
             return;
         }
-        if (_st) { _st.textContent = _vo ? 'Say the phrase' : 'Say the greeting'; _st.style.color = '#fbbf24'; }
+        if (_st) { _st.textContent = 'Say the phrase'; _st.style.color = '#fbbf24'; }
         var _listening = (elapsedMs / 1000) >= PHRASE_DURATION;   // past the read window → emphasise "we're listening"
         challengeEl.innerHTML =
-            '<div style="font-size:clamp(11px,3vw,12px);font-family:var(--mono);letter-spacing:1.5px;color:#fbbf24;margin-bottom:6px;">' + (_listening ? '🎙️ LISTENING — SAY IT OUT LOUD' : 'READ THIS OUT LOUD') + '</div>'
-            + '<div style="font-size:clamp(22px,6.5vw,32px);font-weight:800;color:#fbbf24;line-height:1.3;">“' + _say + '”</div>';
+            '<div style="font-size:clamp(11px,3vw,12px);font-family:var(--mono);letter-spacing:1.5px;color:#fbbf24;margin-bottom:6px;">' + (_listening ? '🎙️ LISTENING — SAY IT OUT LOUD' : 'READ THIS OUT LOUD — INCLUDING THE NUMBERS') + '</div>'
+            + '<div style="font-size:clamp(22px,6.5vw,32px);font-weight:800;color:#fbbf24;line-height:1.3;">“' + _say + '”</div>'
+            + (_vo ? '' : '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">then you’ll show each number with your fingers</div>');
         // Show the live eq (STABLE element in #challengePanel, updated every frame by startAudioMonitor)
         // — proof the mic is hearing the greeting. Hidden if there's no mic (eq can't move anyway).
         var _eq = document.getElementById('vacEqGreeting'); if (_eq) _eq.style.display = audioAnalyser ? 'flex' : 'none';
@@ -2962,8 +2972,13 @@ function beginRecording() {
         // greeting is heard, show ✓, then advance after the beat. The ✓ itself appears immediately on
         // phraseSpoke (in renderGreeting) for instant feedback; the timer floor still governs advance.
         const _voiceOnly = (fingerFallback === 'voice');
-        if (phraseSpoke && !_phraseHeardAt) _phraseHeardAt = performance.now();
-        const _heardBeatDone = !phraseSpoke || (performance.now() - _phraseHeardAt >= GREET_HEARD_BEAT_MS);
+        // Start the "✓ Heard it" beat only once the read window has ALSO elapsed (the phrase now
+        // includes the digits, so phraseSpoke can fire early on a greeting-clause pause). Aligning the
+        // beat start with the floor keeps the ✓ visible for its full beat instead of being skipped
+        // because the timer already lapsed (codex). The `_phraseHeardAt &&` guard avoids treating an
+        // unset (0) timestamp as "beat already done".
+        if (phraseSpoke && _phraseTimerDone && !_phraseHeardAt) _phraseHeardAt = performance.now();
+        const _heardBeatDone = !phraseSpoke || (_phraseHeardAt && (performance.now() - _phraseHeardAt >= GREET_HEARD_BEAT_MS));
         // Voice-only speaks the full phrase here (no digit phase) → no "heard it" beat, just the timer gate.
         const _advanceGreeting = _phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone);
         if (_advanceGreeting) {
