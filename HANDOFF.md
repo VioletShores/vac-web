@@ -410,3 +410,17 @@ The greeting voice gate is a PACING signal (NOT security — Gemini server-side 
 
 ### NEEDS LIVE (laptop): real greeting passes (5-6 words); cough/hum/scrape REJECTED (no false "heard it"); near-silent mic surfaces the "we can't hear you" recovery (not a silent 17s hold); skip-voice degrades cleanly; countdown shows "Get ready…" not the greeting; raw refresh lands on START.
 ### GATE unchanged: no `/auth` until addendum-13 #3 + a clean honest real-hand run.
+
+## S111 addendum 22 (11 Jun) — digit VAD hardened (#1) + say-digits-up-front (#4); SECURITY findings #2/#3 → F-564 backend ticket.
+
+### FRONTEND SHIPPED (auth-test.html, this branch):
+- #1 (e4a8473) — DIGIT VAD hardened: the per-digit "say N" steps got the SAME tap/beep weakness the greeting had (fired on ~100ms). Now requires SUSTAINED (>=DIGIT_VOICE_MIN_MS=350ms) + MODULATED (rms range >= DIGIT_MOD_DELTA=0.030) voiced run — a tap/beep can't satisfy a digit. Accumulates from true onset (overlap case preserved). Tunable/LIVE-TUNE.
+- #4 (f39dc84) — SAY DIGITS UP FRONT: the greeting now shows the FULL phrase including digits ("…Rob Zagarella, 2 5 4") so the user says them up front (the backend matches the whole transcript) AND re-says each per-gesture. Full phrase stays visible through the read window; "✓ Heard it" only after the floor.
+
+### SECURITY FINDINGS — vac-system BACKEND (cannot fix from vac-web) → docs/F-564-SERVER-SIDE-CROSS-MODAL-BINDING-BACKEND.md
+- #2: challenge-match is a lenient whole-transcript SET-OVERLAP (engine.py ~631, match_ratio >= CHALLENGE_WORD_MATCH_THRESHOLD<=0.80) → 2-of-3 digits PASSED at 80%. Fix: require ALL digits (and ideally in order), not a percentage.
+- #3 (THE security one): the SUPP-7 per-digit cross-modal binding is NOT enforced server-side — gestures (finger_gesture, Gemini vision) and the spoken phrase (voice, set-overlap) are SEPARATE modalities combined by weighted sum (voice only 0.20); NO per-position binding of spoken-digit-to-gesture, and the backend lacks the data (frontend sends only the whole recording + client_detected_counts). The binding is currently a UX construct, NOT a verified server-side property. Fix needs: (a) frontend SENDS per-digit voice timing aligned to per-gesture video, (b) backend verifies each digit spoken during its gesture + ALL required. DO NOT OVERCLAIM the binding until F-564 lands.
+
+### Speed ("Analysing biometrics" slow) = backend Gemini, F-558 (separate, confirmed).
+### DEFERRED (not built): press-and-hold greeting fallback if the smart-VAD still proves unreliable live (addendum 21). Continuity mic device-NAME in pre-flight (addendum 19b).
+### GATE unchanged: no `/auth` until addendum-13 #3 + a clean honest real-hand run. (F-564 cross-modal binding is now ALSO a gate on claiming the SUPP-7 property.)
