@@ -18,7 +18,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 .page-shell{background:var(--bg)!important;min-height:100vh;color:var(--text-secondary);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px;}
-.wrap{max-width:880px;margin:0 auto;padding:0 24px;}
+.wrap{max-width:880px;margin:0 auto;padding:0 clamp(16px,4vw,24px);}
 
 /* preview banner — honesty (never present mock as real) */
 .preview-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:10px 24px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;}
@@ -33,15 +33,15 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
 .hero{margin-bottom:44px;}
 .eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
-.hero h1{font-size:34px;line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:680px;}
-.hero p{font-size:16px;color:var(--text-secondary);max-width:640px;}
+.hero h1{font-size:clamp(24px,5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:680px;}
+.hero p{font-size:clamp(14.5px,3.8vw,16px);color:var(--text-secondary);max-width:640px;}
 .hero .pull{color:var(--text-primary);font-weight:600;}
 
 .section-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px;}
 
 /* matter cards */
 .matters{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:14px;}
-.matter{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;cursor:pointer;transition:border-color .15s,background .15s;text-align:left;width:100%;font-family:var(--font);}
+.matter{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(14px,3.5vw,18px) clamp(14px,4vw,20px);cursor:pointer;transition:border-color .15s,background .15s;text-align:left;width:100%;font-family:var(--font);}
 .matter:hover{border-color:var(--purple-border);background:var(--surface-raised);}
 .matter.sel{border-color:var(--purple);background:var(--purple-bg);}
 .matter-top{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
@@ -50,11 +50,11 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .matter-desc{font-size:13.5px;color:var(--text-tertiary);padding-left:42px;}
 
 /* flow stage */
-.stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;margin-top:24px;display:none;}
+.stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:clamp(16px,4.5vw,28px);margin-top:24px;display:none;}
 .stage.show{display:block;animation:fade .3s ease;}
 @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
 .stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;flex-wrap:wrap;}
-.stage-head h2{font-size:19px;color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;}
+.stage-head h2{font-size:clamp(17px,4.5vw,19px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;}
 .stage-matter{font-family:var(--mono);font-size:11px;color:var(--teal);}
 .stage-sub{font-size:14px;color:var(--text-tertiary);margin-bottom:24px;}
 
@@ -67,13 +67,53 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .step-dot.done{border-color:var(--success);background:var(--success-bg);color:var(--success);}
 .step-conn{width:2px;flex:1;background:var(--border);min-height:18px;margin:2px 0;}
 .step-conn.done{background:var(--success);}
-.step-body{padding-bottom:22px;flex:1;}
+.step-body{padding-bottom:22px;flex:1;min-width:0;}
 .step-body h3{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:3px;}
 .step-meta{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
-.step-detail{font-size:13.5px;color:var(--text-secondary);margin-top:8px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:6px;padding:11px 13px;display:none;}
+.step-detail{font-size:13.5px;color:var(--text-secondary);margin-top:8px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:6px;padding:11px 13px;display:none;overflow-wrap:break-word;}
 .step.revealed .step-detail{display:block;}
 .policy-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
 .hil{color:var(--amber);font-weight:600;}
+
+/* dual-workflow toggle (matter 01) */
+.view-toggle{display:none;gap:8px;margin:14px 0 16px;flex-wrap:wrap;}
+.vt-btn{font-family:var(--mono);font-size:clamp(10.5px,2.9vw,12px);letter-spacing:.4px;font-weight:600;padding:8px 13px;border-radius:7px;border:1px solid var(--border-light);background:transparent;color:var(--text-tertiary);cursor:pointer;transition:all .15s;}
+.vt-btn:hover{color:var(--text-secondary);border-color:var(--text-tertiary);}
+.vt-btn.sel{border-color:var(--purple);color:var(--purple);background:var(--purple-bg);}
+.vt-btn[data-view="vac"].sel{border-color:var(--amber);color:var(--amber);background:var(--amber-bg);}
+
+/* thesis panel — the differentiator argument, visible copy */
+.thesis{background:linear-gradient(135deg,var(--amber-bg),var(--surface-raised));border:1px solid var(--amber-border);border-radius:10px;padding:clamp(16px,4vw,22px);margin:0 0 14px;}
+.thesis-eyebrow{font-family:var(--mono);font-size:10.5px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.thesis p{font-size:13.5px;color:var(--text-secondary);}
+.thesis .pullq{display:block;font-size:clamp(17px,4.6vw,20px);font-weight:700;color:var(--text-primary);letter-spacing:-.3px;margin:12px 0;border-left:3px solid var(--amber);padding-left:14px;}
+
+/* forward-path honesty note */
+.fwd-note{margin:0 0 22px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--text-secondary);overflow-wrap:break-word;}
+.fwd-note strong{color:var(--text-primary);}
+
+/* hero step — the step a bare smart contract cannot do */
+.step.hero-step .step-dot{border-color:var(--amber-border);color:var(--amber);}
+.step.hero-step .step-dot.active{border-color:var(--amber);color:var(--amber);box-shadow:0 0 12px rgba(210,153,34,0.45);}
+.step.hero-step .step-dot.done{border-color:var(--success);color:var(--success);box-shadow:none;}
+.step.hero-step .step-detail{border-left-color:var(--amber);}
+.hero-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 6px;letter-spacing:1px;text-transform:uppercase;margin-left:8px;vertical-align:2px;max-width:100%;}
+.ctx-note{margin-top:10px;border-top:1px dashed var(--amber-border);padding-top:10px;}
+.ctx-note em{color:var(--amber);font-style:normal;font-weight:600;}
+
+/* F-570 embedded feedback surface */
+.fb{margin-top:12px;border:1px dashed var(--border-light);background:rgba(210,153,34,0.04);border-radius:8px;padding:12px 14px;}
+.fb-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;}
+.fb-q{font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:8px;}
+.fb-input{width:100%;background:var(--bg);border:1px solid var(--border-light);border-radius:6px;color:var(--text-secondary);font-family:var(--font);font-size:13px;line-height:1.5;padding:8px 10px;resize:vertical;min-height:58px;}
+.fb-input::placeholder{color:var(--text-tertiary);}
+.fb-input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-bg);}
+@media(pointer:coarse){.fb-input{font-size:16px;}}
+.saved-hint{font-family:var(--mono);font-size:11px;color:var(--amber);margin:-10px 0 18px;}
+.fb-row{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;}
+.fb-save{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .15s;}
+.fb-save:hover{border-color:var(--amber);}
+.fb-status{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
 
 /* controls */
 .controls{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
@@ -103,8 +143,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--text-quaternary);}
 
 /* tabs */
-.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:28px;}
-.tab{font-family:var(--font);font-size:14px;font-weight:600;color:var(--text-tertiary);background:transparent;border:none;border-bottom:2px solid transparent;padding:10px 16px;cursor:pointer;transition:all .15s;margin-bottom:-1px;}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:28px;flex-wrap:wrap;}
+.tab{font-family:var(--font);font-size:clamp(13px,3.5vw,14px);font-weight:600;color:var(--text-tertiary);background:transparent;border:none;border-bottom:2px solid transparent;padding:10px clamp(10px,3vw,16px);cursor:pointer;transition:all .15s;margin-bottom:-1px;}
 .tab:hover{color:var(--text-secondary);}
 .tab.sel{color:var(--purple);border-bottom-color:var(--purple);}
 
@@ -112,7 +152,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .arch{display:flex;flex-direction:column;gap:14px;}
 .arch-row{display:flex;align-items:stretch;gap:14px;}
 .arch-row.single{justify-content:stretch;}
-.arch-node{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;position:relative;}
+.arch-node{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(14px,3.5vw,18px);position:relative;min-width:0;}
 .arch-node.wide{flex:1;border-color:var(--success-border);background:linear-gradient(180deg,var(--success-bg),var(--surface));}
 .arch-node.hil-node{border-color:var(--amber-border);background:linear-gradient(180deg,var(--amber-bg),var(--surface));}
 .an-n{font-family:var(--mono);font-size:11px;color:var(--purple);border:1px solid var(--purple-border);border-radius:5px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
@@ -123,7 +163,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .arch-arrow{display:flex;align-items:center;color:var(--text-quaternary);font-size:20px;flex:0 0 auto;}
 .arch-note{margin-top:20px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;font-size:13.5px;color:var(--text-secondary);}
 .arch-note strong{color:var(--text-primary);}
-.verify-link{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--teal);text-decoration:none;border:1px solid var(--teal-border);background:var(--teal-bg);border-radius:6px;padding:7px 12px;margin-top:12px;transition:all .15s;}
+.verify-link{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--teal);text-decoration:none;border:1px solid var(--teal-border);background:var(--teal-bg);border-radius:6px;padding:7px 12px;margin-top:12px;transition:all .15s;max-width:100%;}
 .verify-link:hover{border-color:var(--teal);color:var(--text-primary);}
 .real-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;letter-spacing:.5px;margin-left:8px;}
 
@@ -135,12 +175,12 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .case{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
 .case-t{font-weight:600;color:var(--text-primary);font-size:14px;margin-bottom:8px;}
 .case-d{font-size:12.5px;color:var(--text-tertiary);line-height:1.55;}
-.cta{margin-top:18px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:22px 24px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.cta{margin-top:18px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:clamp(16px,4.5vw,22px) clamp(16px,5vw,24px);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
 .cta-h{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
 .cta-d{font-size:13.5px;color:var(--text-secondary);max-width:520px;}
 .cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;}
 .cta-btn:hover{background:var(--purple-dim);}
-@media(max-width:560px){.hero h1{font-size:27px;}.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}}
+@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}}
 </style>
 </head>
 <body>
@@ -173,7 +213,13 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
     <section class="stage" id="stage">
       <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
+      <!-- labels are set per-matter in renderStage (cur.todayLabel / cur.vacLabel); static text is the matter-01 default -->
+      <div class="view-toggle" id="viewToggle" role="group" aria-label="Choose workflow view">
+        <button class="vt-btn" data-view="today" aria-pressed="false">Today — order on agent</button>
+        <button class="vt-btn" data-view="vac" aria-pressed="false">With VAC/VAT — programmable escrow</button>
+      </div>
       <p class="stage-sub" id="stageSub"></p>
+      <div id="vacIntro" style="display:none;"></div>
       <div class="steps" id="steps"></div>
       <div class="controls">
         <button class="btn btn-primary" id="advance">Begin</button>
@@ -235,18 +281,52 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 </div>
 
 <script>
+// F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
+const fbKey=id=>'vac-fb-'+id;
+const storageOK=(()=>{try{localStorage.setItem(fbKey('probe'),'1');localStorage.removeItem(fbKey('probe'));return true;}catch(e){return false;}})();
+const fb=(id,q)=>`<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" data-fb="${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><span class="fb-status" id="fbs-${id}" role="status">Notes stay in this browser — nothing is sent anywhere yet.</span></div></div>`;
+
 const MATTERS = [
   {
-    id:"property", n:"01", title:"Conditional fund release on property settlement",
-    desc:"Trust holds a deposit; funds release automatically once settlement is verified and both parties confirm.",
+    id:"property", n:"01", title:"Property deposit release on settlement — the order on agent",
+    desc:"The deposit sits in the agent's trust account from exchange to settlement. It releases only on written human authority from both sides — the order on agent. Two views: as it runs today, and reimagined on VAC rails.",
     matter:"MATTER-PROP-2026-0471",
-    sub:"A trust holds the buyer's deposit. The release rule fires only when settlement is verified and both parties have authenticated.",
+    sub:"NSW conveyancing as it actually runs: exchange of the Contract for Sale legally binds the purchase, the deposit is held in the agent's trust account as stakeholder, and release turns on signed human directions from both sides — the purchaser's order on agent and the vendor's solicitor's accompanying direction.",
     steps:[
-      {h:"Parties verify identity",m:"VAC identity · buyer + vendor",d:"Both parties authenticate. <span class='policy-chip'>face liveness</span><span class='policy-chip'>device-bound</span> Each becomes a verified node on the authority chain — no statutory declarations, no in-person witnessing."},
-      {h:"Trust rules encoded as a policy-carrying packet",m:"F-495 · policies live in the work",d:"The deed's release conditions travel with the matter: <span class='policy-chip'>settlement_verified == true</span><span class='policy-chip'>both_parties_authenticated</span><span class='policy-chip'>release_to = vendor_account</span> The rules are not on a server somewhere — they're sealed into the matter."},
-      {h:"Trigger event arrives",m:"verified settlement notice",d:"The settlement event is received and checked against the packet's conditions. All predicates evaluate true."},
-      {h:"A person authorises",m:"human-in-the-loop",d:"<span class='hil'>The conveyancer reviews and authorises the release.</span> The protocol presents a complete, condition-checked matter; the human makes the call. Nothing releases without this step."},
-      {h:"Decision sealed &amp; lodged",m:"VAC authority token",d:"The authorised release is sealed with a cryptographic token and lodged to the audit chain — tamper-evident, timestamped, independently verifiable."}
+      {h:"Parties verify identity",m:"VAC identity · purchaser + vendor",d:"Both parties authenticate. <span class='policy-chip'>face liveness</span><span class='policy-chip'>device-bound</span> Each becomes a verified node on the authority chain — replacing <span class='hil'>identity witnessing</span>: the statutory declarations and in-person checks that exist only to prove who signed. Where the law makes the witness part of the instrument itself — a prescribed witness for a power of attorney (matter 04) — that witness is preserved, not replaced."},
+      {h:"Contracts exchange — the purchase becomes binding",m:"Contract for Sale · deposit to trust",d:"Vendor and purchaser sign counterparts of the Contract for Sale, the counterparts are exchanged and dated, and the deposit (usually 10%) is paid into the agent's trust account. Before exchange either side can walk away; <span class='hil'>from exchange, both are bound.</span> A 5-business-day cooling-off period follows (none at auction)."},
+      {h:"Release conditions sealed into the matter",m:"F-495 · policy-carrying packet",d:"The release logic travels with the matter, not on a server: <span class='policy-chip'>cooling_off_expired</span><span class='policy-chip'>settlement_complete == true</span><span class='policy-chip'>order_on_agent_signed</span><span class='policy-chip'>vendor_direction_received</span><span class='policy-chip'>release_to = vendor</span>"},
+      {h:"Trigger event — settlement completes",m:"verified settlement",d:"Settlement (typically about six weeks after exchange) is verified and checked against the packet's conditions. The deposit is still sitting in the agent's trust account — it does not move on settlement alone; it waits on human authority."},
+      {h:"People authorise — the order on agent, both sides",m:"human-in-the-loop · both solicitors",d:"<span class='hil'>The purchaser's solicitor prepares the order on agent — the written direction, signed by or for the purchaser, authorising release of the deposit from the trust account — and the vendor's solicitor adds their own written direction to the agent.</span> A stakeholder releases only on written authority reflecting both sides. Two human decisions, today moving as signed paper; here each is a verified, sealed approval on the same chain. Nothing releases without them."},
+      {h:"Decision sealed &amp; lodged",m:"VAC authority token",d:"The authorised release is sealed with a cryptographic token and lodged to the audit chain — who authorised the release of the deposit, under which conditions, provable forever."}
+    ],
+    todayLabel:"Today — order on agent",
+    vacLabel:"With VAC/VAT — programmable escrow",
+    heroBadge:"the step smart contracts can&#39;t do",
+    vacAudit:[
+      ['00:00','matter opened · policy-carrying packet attached'],
+      ['00:01','parties verified · authority chain nodes issued'],
+      ['00:02','deposit received into programmable escrow'],
+      ['00:03','settlement verified · release window open'],
+      ['00:04','purchaser-side authorisation · verified human · within window'],
+      ['00:04','vendor-side authorisation · verified human · sealed to same chain'],
+      ['00:05','release signed (Ed25519) · sealed to audit chain']
+    ],
+    vacTitle:"Property deposit release — reimagined on VAC rails",
+    vacSub:"The same matter, rebuilt: a programmable escrow as next-generation stakeholder, release conditions that check themselves, and a verified human — not a private key — authorising the release in verified context. The open legal questions are flagged inline for expert review.",
+    vacThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">Why smart contracts never shipped this</div>
+      <p>Smart-contract conveyancing has been trialled for years — NSW Land Registry Services ran a blockchain proof of concept for eConveyancing with ChromaWay, and firms like MinterEllison have written on smart legal contracts — and none of it has shipped in NSW. Even PEXA, which digitised lodgment and settlement, leaves the deposit releasing on signed paper directions. The missing piece is not escrow code: a smart contract can move money, but it cannot prove that a verified, attributable human authorised the move.</p>
+      <span class="pullq">A private key is not a person.</span>
+      <p>That missing piece is exactly what VAC supplies: a verified human identity — face liveness, deepfake scan, cross-modal gesture + voice — cryptographically bound to the programmable release. VAT — the verifiable authority token — and the policy-carrying packet seal the authority and the conditions into the same record, provable forever. That is why VAC can take conveyancing where smart contracts alone have stalled.</p>
+    </div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed.</strong> The identity and signing technology on this view — VAC verification, VAT tokens, the sealed chain — is live in production; the token at the end is genuinely signed and independently verifiable, and the identity step is simulated in this shareable preview (see the banner). The conveyancing application is a forward path, not a current legal product: where the deposit is paid to the agent, as the standard Contract for Sale provides, statute makes it trust money that must be banked to the agent's trust account (Property and Stock Agents Act 2002 s 86; licensed conveyancers and solicitors sit under equivalent trust-money regimes) — and a programmable escrow as depositholder would need regulatory recognition. No legal-availability claim on this view is stated as settled; the key open questions are flagged inline, for Caroline to confirm or correct.</div>`,
+    vacSteps:[
+      {h:"Programmable escrow holds the deposit",m:"next-generation stakeholder · proposition for review",d:"On exchange the deposit moves into a programmable escrow instead of the agent's trust account — a substitution of the same kind a deposit bond already makes today: where the vendor agrees, an issuer's guarantee replaces cash in trust entirely, proof that how the deposit is held is contractual, not fixed. (A bond avoids holding cash at all; this escrow would hold it — exactly the question below.) The escrow would be operated by a regulated third party — or the existing stakeholder on new rails — and VAC itself never takes custody: it supplies the verified human authority that gates the operator's release. Nothing about the escrow is discretionary; it can act only on the sealed conditions and verified human authority in the steps that follow. <span class='hil'>Open legal question:</span> the trust-account obligation attaches by statute to the agent, conveyancer or solicitor who holds the money (Property and Stock Agents Act 2002 s 86; Conveyancers Licensing Act 2003) — no recognised regime yet exists for a programmable escrow as depositholder."+fb('escrow',"Is a non-trust-account programmable escrow legally reachable for a NSW property deposit (contractual structure like the deposit bond, regulatory sandbox, or statutory amendment) — and what's the realistic reform path?")},
+      {h:"Release conditions travel with the matter — checked automatically",m:"F-495 · policy-carrying packet",d:"The same conditions as today, but nobody has to chase them: <span class='policy-chip'>cooling_off_expired</span><span class='policy-chip'>settlement_verified</span><span class='policy-chip'>both_sides_authorised</span><span class='policy-chip'>release_to = vendor</span> The packet travels with the matter and evaluates itself when the trigger event lands. What is today a solicitor reading the file and writing a letter becomes a condition check done in seconds — and logged."},
+      {h:"A verified human authorises the release — in verified context",m:"VAC · verified person · verified time &amp; place",hero:true,d:"The release is not fired by a key or a script. <span class='hil'>A verified human authorises it through VAC — face liveness, deepfake scan, cross-modal gesture + voice — and that authorisation is cryptographically bound to the escrow release itself,</span> doing the work of the two written directions the law expects today: the purchaser's order on agent and the vendor's direction become verified human decisions from both sides, sealed to the same chain. And the authority carries its own context — valid only when, and if required where, the packet says it is: <span class='policy-chip'>valid_after = settlement_verified</span><span class='policy-chip'>valid_within = release_window</span><span class='policy-chip'>valid_from = verified_location</span><div class='ctx-note'>Only verified human authority can do this. A smart contract cannot verify that a human is really present at a place and time; a witness can watch a signature but cannot cryptographically prove when or where. A private key can be stolen, shared or silently coerced — a VAC authorisation is attributable to <em>a person, at a time, at a place</em>, on a liveness-checked face and voice.</div>"+fb('authority',"Would a sealed VAC authorisation satisfy the stakeholder's need for a written direction from each side (the Electronic Transactions Act 2000 (NSW) analysis) — and does binding the authority to a verified time window and location strengthen or complicate that?")},
+      {h:"The solicitor's role moves to advice &amp; exceptions",m:"human expertise where it matters",d:"No one is removing solicitors from conveyancing. The routing work — preparing the order, chasing the vendor's direction, confirming receipt — is what disappears. The solicitor advises on the contract, sets the release conditions in the packet, and takes the exceptions: the discrepancy, the dispute, the matter that should never auto-clear. <span class='hil'>Judgment stays human; the paper shuffling doesn't.</span>"+fb('solicitor',"NSW doesn't mandate solicitor involvement in conveyancing — so which steps on this path would the profession, insurers or lenders insist stay with a practitioner anyway?")},
+      {h:"Sealed to the same auditable chain — and fraud gets harder",m:"VAC authority token · provable forever",d:"Every condition result and both human authorisations — each with its verified time and, where required, place — are sealed to the same chain as the matter. That is more defensible than a paper trail reconstructed from emails years later, and it directly attacks a live fraud problem: payment-redirection scams intercept EFT deposits on their way to trust accounts because an email with a BSB in it carries no proof of who sent it. Here the deposit moves only into the sealed escrow named in the packet, and releases only on liveness-verified human authority. There is no email to spoof."+fb('liability',"Does programmatic release create a liability gap — if a condition evaluates wrongly or an authorisation is procured by fraud, who carries it: the escrow operator, the solicitor, the protocol, an insurer?")}
     ]
   },
   {
@@ -264,15 +344,157 @@ const MATTERS = [
   },
   {
     id:"bond", n:"03", title:"Rental bond / deposit dispute",
-    desc:"A held deposit releases on an agreed split once both parties verify — only genuine disputes escalate to a tribunal.",
+    desc:"A NSW rental bond is held by Fair Trading, not the landlord — released only by agreement of all parties or by NCAT order. Two views: the one-sided claim race the law allows today, and a verified mutual-agreement window on VAC rails.",
     matter:"MATTER-BOND-2026-1903",
-    sub:"High volume, low value, painfully costly for the small party. The simple cases self-resolve; only real disputes reach a human tribunal.",
+    todayLabel:"Today — RBO claim & 14-day race",
+    vacLabel:"With VAC — verified mutual agreement",
+    heroBadge:"what a smart contract can&#39;t prove",
+    sub:"How a NSW rental bond actually works today: the bond is lodged with NSW Fair Trading through Rental Bonds Online (RBO) — not held by the landlord or agent — and released only by agreement of all parties or by order of NCAT. But the claim process is one-sided by design, and that is where the disputes come from.",
     steps:[
-      {h:"Tenant &amp; landlord verify identity",m:"VAC identity · both parties",d:"Both authenticate. <span class='policy-chip'>face liveness</span><span class='policy-chip'>tenancy-matched</span> Verified parties, no he-said-she-said about who agreed to what."},
-      {h:"Release terms encoded as a policy-carrying packet",m:"F-495 · the bond agreement",d:"<span class='policy-chip'>condition_evidence_submitted</span><span class='policy-chip'>both_parties_agree_split</span><span class='policy-chip'>release split = agreed_terms</span> The agreed release logic travels with the matter."},
-      {h:"Condition check",m:"evidence + agreement",d:"Inspection evidence and both parties' positions are checked against the packet. <span class='hil'>If they agree → the simple path. If they conflict → the matter is flagged for tribunal escalation</span> (the protocol routes it to a human; it does not decide a contested split)."},
-      {h:"A person authorises (or escalates)",m:"human-in-the-loop",d:"<span class='hil'>On agreement, the bond authority authorises the release. On conflict, a tribunal officer takes the matter.</span> Either way a person decides — automation only clears the uncontested cases."},
-      {h:"Outcome sealed &amp; lodged",m:"VAC authority token",d:"The release (or the escalation) is sealed and lodged — a complete, tamper-evident record of what was agreed, verified, and authorised."}
+      {h:"The bond is held by NSW Fair Trading — not the landlord",m:"Rental Bonds Online · Residential Tenancies Act 2010",d:"From the start of the tenancy the bond sits with NSW Fair Trading, lodged through Rental Bonds Online (RBO) — mandatory for new residential bonds since January 2017 (Residential Tenancies Act 2010). The landlord or agent never holds the money. <span class='hil'>Release happens only one of two ways: by agreement of all parties, or by order of NCAT.</span> <span class='policy-chip'>held_by = Fair_Trading</span><span class='policy-chip'>release = agreement OR NCAT_order</span>"},
+      {h:"On vacating, a tenant can lodge a claim immediately",m:"RBO claim · s.163 Residential Tenancies Act 2010",d:"When the tenancy ends, RBO lets the tenant lodge a claim for the bond <span class='hil'>immediately</span>. Under s.163 of the Residential Tenancies Act 2010 a party can claim the bond <span class='hil'>whether or not the other party agrees</span> — the claim is not gated on mutual consent. <span class='policy-chip'>claim_by = either_party</span><span class='policy-chip'>mutual_agreement = not_required</span>"},
+      {h:"The other party has 14 days to dispute — or it auto-pays",m:"the 14-day race",d:"Once a claim is lodged, the other side has <span class='hil'>14 days to dispute it</span>. Miss the window and Fair Trading pays the bond out as claimed. <span class='hil'>This is a race, not an agreement</span> — first to claim starts the clock, and silence is treated as consent. <span class='policy-chip'>dispute_window = 14_days</span><span class='policy-chip'>no_dispute =&gt; auto_pay</span>"},
+      {h:"Contested claims escalate to NCAT",m:"NSW Civil &amp; Administrative Tribunal",d:"If the other party disputes in time, the matter goes to NCAT to decide the split. <span class='hil'>This one-sided, race-like claim structure is an acknowledged consequence of RBO and a driver of bond disputes reaching the tribunal</span> — a high-volume, low-value caseload where the time and stress fall hardest on the smaller party. The tribunal works; the friction is everything upstream of it."},
+      {h:"Decided — but only after the race and the wait",m:"the real cost when it goes wrong",d:"A bond is a few weeks' rent, yet a contested claim can mean weeks of waiting, evidence-gathering and a tribunal hearing over a sum smaller than the cost of fighting for it. <span class='hil'>There is no verified mutual-agreement step anywhere in this flow</span> — nothing that lets both parties confirm, up front and provably, what they actually agreed to. That gap is the whole problem."}
+    ],
+    todayAudit:[
+      ['00:00','tenancy ends · bond held by Fair Trading via RBO'],
+      ['00:01','tenant lodges RBO claim · s.163 · mutual agreement not required'],
+      ['00:02','14-day dispute clock starts'],
+      ['00:03','dispute lodged → NCAT, or silence → auto-pay as claimed'],
+      ['00:04','contested split decided at NCAT · weeks later']
+    ],
+    vacTitle:"Rental bond — a verified mutual-agreement window on VAC rails",
+    vacSub:"The same bond, reimagined: instead of a one-sided claim race, both parties verify as humans and the agreed split becomes a verified, mutual, sealed agreement — a time-bound window where both confirm, not a clock that pays out on silence. Only genuine disputes go to NCAT, with a tamper-proof record of what each party actually agreed. A forward path that enhances the 'by agreement' release the statute already allows — open questions flagged inline for your review.",
+    vacThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">Why a smart contract was never enough</div>
+      <p>A smart contract can split a bond and release the money — that part is easy. What it cannot do is prove that the tenant <em>and</em> the landlord are verified, attributable humans who <strong>mutually authorised</strong> that split. Today's RBO system has the same gap from the other side: it has no verified mutual-agreement step at all, so it falls back on a one-sided claim under s.163 and a 14-day clock that treats silence as consent.</p>
+      <span class="pullq">The missing piece isn't escrow code — it's verified mutual authority.</span>
+      <p>That is exactly what VAC supplies: both parties verified by face liveness and cross-modal gesture + voice, the agreed split sealed as a 2-of-2 verified-party agreement (F-576), inside a verified time-bound window (F-574) where each party agrees from a valid context — not a race. The agreement, and who authorised it, is provable forever.</p>
+    </div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed — and why this is a lighter ask.</strong> The identity, signing and sealing technology on this view — VAC verification, the VAT token, the sealed chain — is live in production, and the token at the end is genuinely signed and independently verifiable (the identity step is simulated in this shareable preview; see the banner). The bond application is a forward path, not a current product. But note the framing: the bond is already held by a government agency under a statute that says release happens <em>by agreement of all parties</em> or by NCAT order (Residential Tenancies Act 2010). VAC doesn't replace the custodian — it makes the existing 'by agreement' path verified and mutual, so fewer one-sided s.163 claims need to reach NCAT at all. That is a lighter reform ask than replacing a depositholder, and plausibly something Fair Trading would want. No legal-availability claim here is stated as settled — the open questions are flagged inline for you to confirm or correct.</div>`,
+    vacAudit:[
+      ['00:00','bond matter opened · agreement policy attached'],
+      ['00:01','tenant + landlord verified · liveness · authority nodes issued'],
+      ['00:02','split proposed · 2-of-2 verified-party agreement (F-576)'],
+      ['00:03','mutual-agreement window open · verified time-bound context (F-574)'],
+      ['00:04','both parties authorised within window · verified humans'],
+      ['00:05','agreed split released on mutual authority · sealed (Ed25519)']
+    ],
+    vacSteps:[
+      {h:"Both parties verify — tenant and landlord, as real humans",m:"VAC identity · liveness · both parties",d:"Before anything is agreed, both the tenant and the landlord authenticate through VAC — <span class='hil'>face liveness, deepfake scan, cross-modal gesture and voice</span> — each becoming a verified node on the authority chain. <span class='policy-chip'>face_liveness</span><span class='policy-chip'>both_parties_verified</span> No more he-said-she-said about who agreed: each side is an attributable, verified human, not an RBO login or an email address."},
+      {h:"The agreed split becomes a verified, mutual, sealed agreement",m:"F-576 · 2-of-2 verified-party threshold",d:"Tenant and landlord agree a split — say 70/30 for a carpet-cleaning deduction — and that agreement seals only when <span class='hil'>both verified parties authorise it: a 2-of-2 threshold (F-576).</span> Not one party claiming while the other stays silent — a genuine mutual agreement, captured as a sealed record of exactly what each side consented to. <span class='policy-chip'>threshold = 2_of_2_verified_parties</span><span class='policy-chip'>split = mutually_agreed</span>"+fb('bond-mutual',"What's the legal path to recognising a VAC-sealed mutual agreement between tenant and landlord as a valid bond-release authority under the Residential Tenancies Act 2010 — alongside the existing 'by agreement' release?")},
+      {h:"The 14-day clock becomes a verified, time-bound mutual-agreement window",m:"F-574 · contextual authority · verified time",hero:true,d:"Today's 14 days is a race: one party claims, and silence pays it out. Here the same period becomes a <span class='hil'>verified, time-bound window in which both parties agree from a valid context</span> — each authorisation valid only when, and if required where, the packet says. <span class='policy-chip'>valid_within = agreement_window</span><span class='policy-chip'>valid_from = verified_context</span><span class='policy-chip'>both_within_window</span><div class='ctx-note'>Only verified mutual authority can do this. A smart contract can split a bond and move the money, but it cannot prove that <em>both</em> a verified tenant and a verified landlord — real, live humans — authorised the split, within the window, from valid contexts. A one-sided claim and a clock can't either. VAC turns the race into an agreement: <em>two verified people, both consenting, within a known window</em>, sealed.</div>"+fb('bond-window',"Does binding both parties' authorisation to a verified time-bound window — instead of a one-sided claim plus a 14-day clock — strengthen the case that a release was genuinely mutual, or add complexity Fair Trading wouldn't want?")},
+      {h:"Agreed splits release on mutual verified authority — no race",m:"verified human authority · both sides",d:"When both verified parties have authorised within the window, the agreed split releases on that mutual authority — <span class='hil'>no 14-day clock running down, no silence-as-consent, no one chasing a form.</span> VAC never holds the bond: Fair Trading (or the existing custodian) stays the depositholder; VAC supplies the verified mutual authority that gates the release. The uncontested cases — the large majority — clear cleanly, and two real people decided it, not a script."},
+      {h:"Only genuine disputes reach NCAT — with a tamper-proof record",m:"VAC authority token · provable forever",d:"Where the parties genuinely disagree, the matter still goes to NCAT — VAC does not decide a contested split. But the tribunal arrives with <span class='hil'>a sealed, tamper-proof record of exactly what each verified party agreed to, and when</span> — no reconstructing intent from emails and RBO logs months later. And because agreed splits resolve on verified mutual authority instead of a one-sided claim, <span class='hil'>fewer s.163 race-driven disputes reach NCAT at all</span> — easing the congestion the current structure creates. <span class='policy-chip'>genuine_disputes_only</span><span class='policy-chip'>sealed_record_of_agreement</span>"+fb('bond-ncat',"Could a verified mutual-agreement mechanism reduce the s.163 one-sided-claim disputes reaching NCAT — and would NSW Fair Trading have an interest in adopting it to ease tribunal load?")}
+    ]
+  },
+  {
+    id:"poa", n:"04", title:"Power of attorney & enduring guardianship",
+    desc:"An enduring appointment is valid only after a prescribed witness explains the instrument and certifies the principal understood it — a human gate the law requires. Two views: the prescribed-witness process the law requires today, and verified digital attestation built on the remote-witnessing reform already in force.",
+    matter:"MATTER-POA-2026-0832",
+    todayLabel:"Today — prescribed witness",
+    vacLabel:"With VAC — verified attestation",
+    heroBadge:"the gap remote witnessing left open",
+    sub:"NSW enduring appointments as the law requires them today: an enduring power of attorney (financial & legal decisions, surviving loss of capacity) under the Powers of Attorney Act 2003, and enduring guardianship (health & lifestyle decisions) under the Guardianship Act 1987 — each valid only when the signing is witnessed and the appointor's apparent understanding certified by the witness the law requires: a prescribed witness for the power of attorney, an eligible witness for the guardianship.",
+    steps:[
+      {h:"The principal makes an enduring appointment — with capacity",m:"Powers of Attorney Act 2003 / Guardianship Act 1987",d:"An enduring power of attorney confers financial &amp; legal decision-making that <span class='hil'>survives loss of capacity</span>; enduring guardianship confers health &amp; lifestyle decisions. The principal must have capacity to understand the nature and effect of the instrument <span class='hil'>at the time it is made</span> — assessed before witnessing, and where there is any doubt a medical opinion is obtained first. <span class='policy-chip'>capacity_at_signing</span><span class='policy-chip'>enduring == survives_incapacity</span>"},
+      {h:"A prescribed witness explains the effect and certifies understanding",m:"Powers of Attorney Act 2003 / Guardianship Act 1987 · the human gate",d:"<span class='hil'>For an enduring power of attorney a prescribed witness — such as a solicitor, barrister or Local Court registrar, and never the attorney being appointed — explains the effect of the instrument to the principal before it is signed, witnesses the signing, and certifies that the principal appeared to understand it.</span> An enduring guardianship appointment is signed before an eligible witness, who certifies that the appointor executed it voluntarily and appeared to understand it (Guardianship Act 1987). Either way the law deliberately places a verified, certifying human at the centre of the appointment — the gate the protocol must respect, not remove."},
+      {h:"The attorney signs acceptance — no authority until accepted",m:"acceptance required",d:"The appointment confers <span class='hil'>no authority until the appointed attorney (or guardian) signs their own acceptance</span> of the role. Witness certificate plus acceptance — two human acts the instrument depends on before it can ever be relied on."},
+      {h:"Remote witnessing is already permitted — over audio-visual link",m:"Electronic Transactions Amendment (Remote Witnessing) Act 2021 (NSW)",d:"Since 2021, and now permanently, the prescribed witnessing of a power of attorney may be done over an <span class='hil'>audio-visual link</span> — the same reform that covers wills. The in-person threshold is already crossed. But the reform kept a human prescribed witness and a conventional signature, and created <em>no</em> verified digital attestation. <span class='policy-chip'>remote_witness_permitted</span><span class='policy-chip'>human_prescribed_witness_required</span><span class='policy-chip'>no_digital_attestation</span>"},
+      {h:"Registered with NSW LRS if real estate — and relied on years later",m:"the real cost when it goes wrong",d:"Before a dealing in the principal's NSW real estate — a sale, a mortgage, or a lease long enough to be registrable — can be lodged on title, the enduring power of attorney itself must be registered with NSW Land Registry Services. <span class='policy-chip'>registered_LRS == true</span> And an enduring POA is typically relied on <span class='hil'>years later, after the principal has lost capacity and can no longer confirm anything</span> — exactly when a challenge to who signed, or whether they understood, is hardest to resolve. The instrument's authenticity rests on paper and the witness's certificate."}
+    ],
+    todayAudit:[
+      ['00:00','enduring appointment drafted · capacity a legal/clinical question'],
+      ['00:01','principal signs · prescribed witness explains effect &amp; certifies understanding'],
+      ['00:02','attorney signs acceptance · no authority until accepted'],
+      ['00:03','remote AV witnessing permitted (2021 Act) · still human prescribed witness, no digital attestation'],
+      ['00:04','registered with NSW LRS if real estate · relied on years later, when capacity is gone']
+    ],
+    vacTitle:"Power of attorney — verified digital attestation",
+    vacSub:"The same enduring appointment, reimagined as a proposed verified-attestation flow on VAC rails: a verified, live principal; the prescribed witness's attestation cryptographically vouched; the signing captured at a verified time and place; the attorney's acceptance and any joint authority sealed in; and a tamper-proof record of exactly who appointed whom, when, and where. This is a forward path, not a way to make a valid enduring appointment today — the open legal questions are flagged inline for your review.",
+    vacThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">Witnessing is the disruption</div>
+      <p>The prescribed witness exists to attest one thing: that the right person, understanding the effect of the instrument, knowingly signed it. The <strong>Electronic Transactions Amendment (Remote Witnessing) Act 2021 (NSW)</strong> already made prescribed witnessing of powers of attorney permanent over an audio-visual link — the same reform that covers wills — so the in-person threshold is already crossed. But the reform kept a human prescribed witness and a conventional signature, and created no verified digital attestation.</p>
+      <span class="pullq">The entire function of the witness is verified identity plus vouching. The law came most of the way — VAC is the attestation layer that could carry the rest.</span>
+      <p>That function — the right person, understanding, knowingly signing — is exactly verified-identity plus vouching, and VAC could provide a <em>richer</em> attestation than a witness signature: identity, liveness, a verified time and place, and a sealed, recorded account. It cannot judge capacity, and it cannot replace the certifying judgment that the principal understood the instrument — that stays human — but it is the next step the 2021 reform itself points toward.</p>
+    </div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed — and a hard limit.</strong> The identity, liveness and signing technology on this view — VAC verification, the VAT token, the sealed chain — is live in production, and the token at the end is genuinely signed and independently verifiable (the identity step is simulated in this shareable preview; see the banner). What is <strong>not</strong> available today is an enduring power of attorney executed by verified digital attestation alone: the Powers of Attorney Act 2003 still requires a human prescribed witness, and the 2021 reform permits that witnessing remotely but did not replace it. This view shows what <em>verified digital attestation could enable, building on the remote-witnessing reform already in force</em> — a next step that would need legislative recognition, not a way to make a valid enduring appointment with VAC today. And one boundary does not move: <span class='hil'>VAC verifies identity and liveness and records the interaction — it does not, and cannot, adjudicate the principal's capacity or certify that they understood the effect of the instrument.</span> That certification is the core of the prescribed witness's role and stays a human, legal judgment. The open questions are flagged inline for you to confirm or correct.</div>`,
+    vacAudit:[
+      ['00:00','POA matter opened · attestation policy attached'],
+      ['00:01','principal verified · liveness + deepfake scan · attestation root issued'],
+      ['00:02','prescribed witness verified · attestation vouched to the signing'],
+      ['00:03','signing captured · verified time + place · session recorded'],
+      ['00:04','attorney acceptance · verified human authorisation'],
+      ['00:05','appointment sealed (Ed25519) · sealed to audit chain']
+    ],
+    vacSteps:[
+      {h:"The principal is verified — real, live, and present",m:"VAC identity · liveness · deepfake scan",d:"Before anything is signed, the principal authenticates through VAC — <span class='hil'>face liveness, deepfake scan, cross-modal gesture and voice</span> — proving a real, living person is making the appointment: not a recording, not a deepfake, not someone else holding the camera. <span class='policy-chip'>face_liveness</span><span class='policy-chip'>deepfake_scan</span><span class='policy-chip'>identity_confirmed</span> This becomes the verified root of the attestation chain — and it directly answers the remote-witnessing regime's blind spot, where a face on a screen could be anyone."},
+      {h:"The prescribed witness's attestation is cryptographically vouched",m:"F-573 · witnessing as verified vouching",d:"The prescribed witness the law requires authenticates too, and their attestation — that this principal, understanding the effect, knowingly signed — is <span class='hil'>cryptographically vouched</span> to the principal's signing. The entire function of the prescribed witness is to attest <em>the right person, understanding the effect, knowingly signed</em> — and that is exactly verified-identity plus vouching. <span class='policy-chip'>prescribed_witness_verified</span><span class='policy-chip'>attestation_vouched</span> The human prescribed witness the reform preserves is kept — VAC makes their attestation attributable and tamper-evident, instead of a signature on a certificate whose provenance is only as good as memory."+fb('poa-path',"The 2021 Act permits remote prescribed-witness AVL for POAs but still requires a human prescribed witness. What's the realistic legal path from 'remote human prescribed witness' to 'verified digital attestation' replacing the prescribed witness for a power of attorney?")},
+      {h:"The signing is captured at a verified time and place",m:"F-574 · verified person · verified time &amp; place",hero:true,d:"The principal's act of appointment is bound to its context: <span class='hil'>a verified time, and a verified place</span> — home, a hospital bedside, the solicitor's office — sealed into the record. <span class='policy-chip'>valid_at = verified_time</span><span class='policy-chip'>captured_from = verified_location</span><span class='policy-chip'>session_recorded</span><div class='ctx-note'>This is a <em>richer attestation than a witness signature</em> — identity + liveness + time + place + a sealed, recorded account, where today's remote-witnessing regime does not even require the session to be recorded. <strong>What it does not do:</strong> VAC proves the principal was real and present (not a deepfake) and preserves a record of the session; it does <em>not</em> adjudicate the principal's capacity, nor certify that they understood the effect of the instrument — that certification is the core of the prescribed witness's role and stays a human, legal judgment. VAC supports it by recording the interaction; it does not replace the judgment.</div>"+fb('poa-capacity',"Where should the capacity / understanding certification sit in a VAC-attested POA flow — VAC records the interaction but does not assess whether the principal understood the effect of the instrument?")},
+      {h:"The witness's wider role is preserved — and the attorney accepts",m:"reform-dependent · acceptance · joint attorneys",d:"A prescribed witness does more than watch a signature: they <span class='hil'>explain the instrument's effect</span> and certify the principal understood it, and a solicitor or registrar may bring advice and professional judgment beyond the witnessing itself. Verified digital attestation could carry the <em>act</em> of witnessing a signing — the step the 2021 reform already moved to an audio-visual link — but the certifying witness is <span class='hil'>preserved, not replaced</span>: the explaining-and-certifying role is reform-dependent and human-anchored, not something verified attestation removes today. The attorney's acceptance is itself a verified human authorisation sealed to the same chain, and where the instrument appoints <span class='hil'>multiple attorneys who must act jointly</span>, VAC can require N-of-M verified authorisation. <span class='policy-chip'>acceptance_signed</span><span class='policy-chip'>threshold = 2_of_2_jointly</span>"+fb('poa-role',"Does the prescribed-witness role (solicitor / Local Court registrar) have functions beyond attestation — legal advice, statutory certification, the capacity-understanding judgment — that must be preserved even if verified digital attestation replaces the signature-witnessing?")},
+      {h:"Sealed, dispute-resistant record — provably the real appointment",m:"VAC authority token · provable forever",d:"Every element — verified principal, the vouched prescribed witness, the time and place of signing, the attorney's acceptance, the unaltered instrument — is sealed into one tamper-proof record. <span class='hil'>An enduring POA is relied on years later, after the principal has lost capacity</span> — exactly when a paper instrument can be contested on 'was it really them, did they understand, were they coerced, is this the real version.' A VAC-attested appointment carries cryptographic proof of identity, liveness, time, place, and an unaltered sealed document — provably authentic in ways a witnessed paper instrument never can be. The capacity judgment still belongs to a human assessor; everything around it becomes provable rather than arguable."}
+    ]
+  },
+  {
+    id:"lease", n:"05", title:"Small-business lease — disclosure & advised sign-off",
+    desc:"A retail lease binds a small-business tenant only after statutory disclosure and a reviewed, advised commitment — gates a policy-carrying packet can hold and prove.",
+    matter:"MATTER-LEASE-2026-1147",
+    sub:"The NSW retail lease process (Retail Leases Act 1994): the lessor discloses before the lease is entered into, a prudent tenant gets the lease reviewed before committing — this matter encodes that as a gate — and longer leases are registered on title.",
+    steps:[
+      {h:"Lessor &amp; lessee verify identity",m:"VAC identity · both parties",d:"Landlord and small-business tenant authenticate. <span class='policy-chip'>face liveness</span><span class='policy-chip'>entity-matched</span> Verified parties on the chain before any disclosure clock starts."},
+      {h:"Lease &amp; disclosure encoded as a policy-carrying packet",m:"F-495 · Retail Leases Act 1994",d:"The lessor's disclosure statement — rent and reviews, outgoings, term and options, fit-out — must be given to the tenant before the lease is entered into (at least 7 days, under the Act). The lease's real conditions travel with the matter: <span class='policy-chip'>disclosure_served</span><span class='policy-chip'>advice_obtained</span><span class='policy-chip'>term &gt; 3y =&gt; registered_LRS</span>"},
+      {h:"Key terms checked against the disclosure",m:"condition evaluation",d:"The terms a tenant's solicitor actually scrutinises — rent and review mechanism, outgoings, term and options, fit-out and make-good obligations, security (bank guarantee or bond), assignment — are evaluated against the packet's predicates. Discrepancies between lease and disclosure are routed out, not papered over."},
+      {h:"The advised tenant signs off",m:"human-in-the-loop · solicitor review",d:"<span class='hil'>The tenant's solicitor reviews the lease against the disclosure statement and signs off, and the tenant commits knowing what they are agreeing to.</span> The law doesn't mandate this review — prudent tenants do it anyway. This matter encodes it as a gate: execution waits until the advised sign-off is recorded."},
+      {h:"Registered with NSW Land Registry Services",m:"leases over 3 years",d:"A lease running beyond three years is registered with NSW LRS, protecting the tenant's interest on the title against an incoming owner. <span class='policy-chip'>registered_LRS == true</span>"},
+      {h:"Lease sealed &amp; lodged",m:"VAC authority token",d:"Disclosure given, advice taken, terms checked, registration done — and who signed off at each gate — sealed into one tamper-evident, independently verifiable record."}
+    ]
+  },
+  {
+    id:"will", n:"06", title:"Will & testament — execution and attestation",
+    desc:"A NSW will is valid only when signed before two witnesses present together, who attest in the testator's presence. Two views: the paper process the law requires today, and verified digital attestation built on the remote-witnessing reform already in force.",
+    matter:"MATTER-WILL-2026-0615",
+    todayLabel:"Today — paper will, two witnesses",
+    vacLabel:"With VAC — verified attestation",
+    heroBadge:"the gap remote witnessing left open",
+    sub:"NSW will execution as the law requires it today (Succession Act 2006 (NSW), s.6): in writing, signed by a testator with testamentary capacity, before two witnesses present at the same time, who attest and sign in the testator's presence.",
+    steps:[
+      {h:"The testator makes the will — in writing, with capacity",m:"s.6 execution · capacity (general law)",d:"A will must be in writing and signed (Succession Act 2006 (NSW), s.6). Separately — and not under s.6 — the testator must have <span class='hil'>testamentary capacity</span>: sound mind, understanding the nature of the act, the extent of the estate, and the claims they ought to consider (the general-law test in Banks v Goodfellow). <span class='policy-chip'>in_writing</span><span class='policy-chip'>capacity_general_law</span> Capacity is assessed as at the time the will is made, and it is a legal and clinical question — a frequent ground of challenge."},
+      {h:"Signed before two witnesses, present at the same time",m:"s.6 · simultaneous presence",d:"The testator signs the will — or acknowledges a signature already made — <span class='hil'>in the presence of two or more witnesses present at the same time.</span> The simultaneous-presence requirement is the heart of due execution and the single most common point of failure in DIY wills."},
+      {h:"The two witnesses attest and sign",m:"s.6 · attestation",d:"The two witnesses attest and sign the will <span class='hil'>in the testator's presence</span> (they need not sign in each other's presence). A beneficiary who acts as a witness risks losing their gift under the interested-witness rule — another trap for the unadvised."},
+      {h:"Remote witnessing is already permitted — over audio-visual link",m:"Electronic Transactions Amendment (Remote Witnessing) Act 2021 (NSW)",d:"Since 2021, and now permanently, a will may be witnessed over an <span class='hil'>audio-visual link</span> — Zoom, FaceTime — with the witnesses watching the signing in real time (now Electronic Transactions Act 2000 (NSW), s.14G). The in-person threshold is already crossed. But the reform kept two human witnesses and a conventional signature, created <em>no</em> verified digital attestation, and does not require the AV session to be recorded. <span class='policy-chip'>human_witnesses_required</span><span class='policy-chip'>no_digital_attestation</span><span class='policy-chip'>session_not_recorded</span>"},
+      {h:"Executed — and contestable only later, in court",m:"the real cost when it goes wrong",d:"If every formality is met the will is validly executed — but none of that is provable until it is challenged. Estate litigation, including challenges to a will's validity, is a large and growing area of dispute in NSW, and the courts examine due execution closely. <span class='hil'>A single execution defect — a witness who stepped out, a signature acknowledged out of sight — can cost an estate tens of thousands of dollars to defend, or void the will; and a beneficiary who signed as a witness can forfeit their gift.</span> The authenticity of a paper will rests on paper and the witnesses' memory, years after they signed."}
+    ],
+    todayAudit:[
+      ['00:00','will drafted · in writing · capacity a legal/clinical question'],
+      ['00:01','testator signs · two witnesses present at the same time'],
+      ['00:02','witnesses attest &amp; sign · in the testator&#39;s presence'],
+      ['00:03','remote AV witnessing permitted (2021 Act) · still human-witnessed, no digital attestation'],
+      ['00:04','executed · validity testable only if later challenged']
+    ],
+    vacTitle:"Will & testament — verified digital attestation",
+    vacSub:"The same will, reimagined as a proposed verified-attestation flow on VAC rails: a verified, live testator; verified witnesses whose attestation is cryptographically vouched; the signing captured at a verified time and place; and a sealed, tamper-proof record of exactly who signed, when, and where. This is a forward path, not a way to make a valid will today — the open legal questions are flagged inline for your review.",
+    vacThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">The law already came most of the way</div>
+      <p>Remote witnessing of wills is not a proposal — it is law. The <strong>Electronic Transactions Amendment (Remote Witnessing) Act 2021 (NSW)</strong> made audio-visual witnessing of wills permanent: a testator can now be witnessed over Zoom or FaceTime, and the in-person threshold the Succession Act once required is already crossed. But the reform left two gaps it openly acknowledges — it still relies on human witnesses and a conventional signature, with no verified digital attestation; and remote witnessing opened a new coercion vulnerability, because a third party can sit off-camera influencing the signatory and the law does not require the session to be recorded.</p>
+      <span class="pullq">The law came most of the way. VAC is the verified-attestation layer that could make remote will execution far more trustworthy.</span>
+      <p>VAC targets exactly those two gaps: verified identity and liveness — strong evidence the testator is real and present, not a deepfake — and a sealed, recorded, tamper-proof account of who signed, when, and where, so off-camera coercion is far harder to exert unseen and far easier to detect afterward. It cannot guarantee the absence of coercion or judge capacity; it is the next step the reform itself points toward — digital attestation a court could be asked to rely on.</p>
+    </div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed — and a hard limit.</strong> The identity, liveness and signing technology on this view — VAC verification, the VAT token, the sealed chain — is live in production, and the token at the end is genuinely signed and independently verifiable (the identity step is simulated in this shareable preview; see the banner). What is <strong>not</strong> available today is a valid will executed digitally through VAC: there is no recognised pathway for executing a will by verified digital attestation alone, and the formalities still rely on human witnesses. This view shows what <em>verified digital attestation could enable, building on the remote-witnessing reform already in force</em> — a next step that would need legislative recognition, not a way to make a valid will with VAC today. And one boundary does not move: <span class='hil'>VAC verifies identity and liveness and records the interaction — it does not, and cannot, adjudicate testamentary capacity (sound mind).</span> Capacity stays a legal and clinical judgment. The open questions are flagged inline for you to confirm or correct.</div>`,
+    vacAudit:[
+      ['00:00','will matter opened · attestation policy attached'],
+      ['00:01','testator verified · liveness + deepfake scan · attestation root issued'],
+      ['00:02','two witnesses verified · attestation vouched to the signing'],
+      ['00:03','signing captured · verified time + place · session recorded'],
+      ['00:04','document sealed · unaltered hash recorded'],
+      ['00:05','attestation signed (Ed25519) · sealed to audit chain']
+    ],
+    vacSteps:[
+      {h:"The testator is verified — real, live, and present",m:"VAC identity · liveness · deepfake scan",d:"Before anything is signed, the testator authenticates through VAC — <span class='hil'>face liveness, deepfake scan, cross-modal gesture and voice</span> — proving a real, living person is present: not a recording, not a deepfake, not someone else holding the camera. <span class='policy-chip'>face_liveness</span><span class='policy-chip'>deepfake_scan</span><span class='policy-chip'>identity_confirmed</span> This becomes the verified root of the attestation chain — and it directly answers the remote-witnessing regime's blind spot, where a face on a screen could be anyone."},
+      {h:"Witnesses verify, and their attestation is vouched",m:"VAC vouching · verified human witnesses",d:"The two witnesses the law requires authenticate too, and their attestation is <span class='hil'>cryptographically vouched</span> to the testator's signing — each witness a verified node confirming they watched this testator sign, at this moment. <span class='policy-chip'>two_witnesses_verified</span><span class='policy-chip'>attestation_vouched</span> The human witness the reform preserves is kept — VAC makes their attestation attributable and tamper-evident, instead of a signature on a page whose provenance is only as good as memory."+fb('will-path',"The 2021 Act permits remote human witnessing of wills but still requires wet-ink. What is the realistic legal path from 'remote human witness' to 'verified digital attestation' for a will?")},
+      {h:"The signing is captured at a verified time and place",m:"VAC · verified person · verified time &amp; place",hero:true,d:"The testator's act of will-making is bound to its context: <span class='hil'>a verified time, and a verified place</span> — home, a hospital bedside, the lawyer's office — sealed into the record. <span class='policy-chip'>valid_at = verified_time</span><span class='policy-chip'>captured_from = verified_location</span><span class='policy-chip'>session_recorded</span><div class='ctx-note'>This narrows the coercion gap. Today's remote-witnessing regime does not require the session to be recorded, so a third party off-camera can influence the signatory unseen. A VAC attestation is liveness-checked and <em>recorded</em> — attributable to a person, at a time, at a place — making undue influence far harder to exert unseen and far easier to detect afterward. <strong>What it does not do:</strong> VAC proves the testator was real and present (not a deepfake) and preserves a record of the session; it cannot guarantee the absence of coercion, and it does not assess testamentary capacity — sound mind remains a legal and clinical judgment.</div>"+fb('coercion',"Would a VAC verified-identity + liveness + sealed recording meaningfully reduce the off-camera-coercion / undue-influence risk the current remote-witnessing regime leaves open — and could that strengthen the case for recognition?")},
+      {h:"Group or threshold approval — where the matter needs it",m:"F-576 · joint executors / collective governance",d:"Some matters need more than one authority. Where a will appoints <span class='hil'>multiple executors who must act jointly</span>, VAC can require N-of-M verified authorisation — say 2-of-3 verified executors — before an estate action proceeds. For assets under <span class='hil'>collective or cultural governance</span>, the same mechanism captures a verified group or percentage consensus rather than a single signature. <span class='policy-chip'>threshold = 2_of_3_executors</span><span class='policy-chip'>group_consensus</span> These are administration-stage authorities — they operate after death, at probate — not part of execution, and are flagged here as a forward-looking capability."+fb('executors',"Multi-executor / group approval: does N-of-M verified-executor authorisation map cleanly onto how joint executors must act, or are there formalities we'd need to preserve?")},
+      {h:"Sealed, dispute-resistant record — provably the real final will",m:"VAC authority token · provable forever",d:"Every element — verified testator, vouched witnesses, the time and place of signing, the unaltered document — is sealed into one tamper-proof record. <span class='hil'>A paper will with two signatures can be contested on ‘was it really them, did they have capacity, were they coerced, is this the real final version.’</span> A VAC-attested will carries cryptographic proof of identity, liveness, time, place, and an unaltered sealed document — provably authentic in ways a witnessed paper will never can be. The capacity question still belongs to a human assessor; everything around it becomes provable rather than arguable."+fb('capacity',"For testamentary capacity: VAC records the interaction but doesn't assess sound mind. Where should the capacity assessment sit in a VAC-attested will flow?")}
     ]
   }
 ];
@@ -296,7 +518,9 @@ const REAL_TOKEN = {
   verify:"https://vacprotocol.org/vat/verify/vat_root_462bce15d63e"
 };
 
-let cur=null, stepIdx=-1;
+let cur=null, stepIdx=-1, stageView='today';
+const isVac=()=>!!(cur&&cur.vacSteps&&stageView==='vac');
+const activeSteps=()=>isVac()?cur.vacSteps:cur.steps;
 const mEl=document.getElementById('matters');
 MATTERS.forEach(m=>{
   const b=document.createElement('button');b.className='matter';b.dataset.id=m.id;
@@ -305,44 +529,87 @@ MATTERS.forEach(m=>{
 });
 
 function selectMatter(id){
-  cur=MATTERS.find(x=>x.id===id);stepIdx=-1;
-  document.querySelectorAll('.matter').forEach(el=>el.classList.toggle('sel',el.dataset.id===id));
-  document.getElementById('stageTitle').textContent=cur.title;
-  document.getElementById('stageMatter').textContent=cur.matter;
-  document.getElementById('stageSub').textContent=cur.sub;
-  const s=document.getElementById('steps');s.innerHTML='';
-  cur.steps.forEach((st,i)=>{
-    const row=document.createElement('div');row.className='step';row.dataset.i=i;
-    row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<cur.steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
-      <div class="step-body"><h3>${st.h}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
-    s.appendChild(row);
-  });
-  document.getElementById('stage').classList.add('show');
-  document.getElementById('receipt').classList.remove('show');
-  const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
+  if(cur&&cur.id!==id)stageView='today';
+  cur=MATTERS.find(x=>x.id===id);
+  document.querySelectorAll('.matter').forEach(el=>{const on=el.dataset.id===id;el.classList.toggle('sel',on);el.setAttribute('aria-pressed',on);});
+  renderStage();
   document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
+// re-rendering always restarts the walkthrough — intentional: the view toggle and reset share this path
+function renderStage(){
+  stepIdx=-1;
+  const vac=isVac();
+  const vt=document.getElementById('viewToggle');
+  vt.style.display=cur.vacSteps?'flex':'none';
+  if(cur.vacSteps)vt.querySelectorAll('.vt-btn').forEach(b=>{const on=b.dataset.view===stageView;b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on);b.textContent=b.dataset.view==='vac'?(cur.vacLabel||'With VAC'):(cur.todayLabel||'Today');});
+  document.getElementById('stageTitle').textContent=vac?(cur.vacTitle||cur.title):cur.title;
+  document.getElementById('stageMatter').textContent=cur.matter;
+  document.getElementById('stageSub').textContent=vac?(cur.vacSub||cur.sub):cur.sub;
+  const intro=document.getElementById('vacIntro');
+  intro.innerHTML=vac?(cur.vacThesis||'')+(cur.vacNote||''):'';
+  intro.style.display=vac?'block':'none';
+  const steps=activeSteps();
+  const heroBadge=cur.heroBadge||'the step smart contracts can&#39;t do';
+  const s=document.getElementById('steps');s.innerHTML='';
+  steps.forEach((st,i)=>{
+    const row=document.createElement('div');row.className='step'+(st.hero?' hero-step':'');row.dataset.i=i;
+    row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
+      <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">'+heroBadge+'</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
+    s.appendChild(row);
+  });
+  let savedCount=0;
+  s.querySelectorAll('.fb-input').forEach(t=>{
+    try{const v=localStorage.getItem(fbKey(t.dataset.fb));if(v){t.value=v;savedCount++;}}catch(e){}
+    if(!storageOK){const st=document.getElementById('fbs-'+t.dataset.fb);st.textContent="Notes can't be kept in this browser (storage is blocked) — copy your note before leaving.";}
+  });
+  if(vac&&savedCount)intro.innerHTML+=`<div class="saved-hint">${savedCount} saved note${savedCount>1?'s':''} on this view — inside the step boxes below.</div>`;
+  document.getElementById('stage').classList.add('show');
+  document.getElementById('receipt').classList.remove('show');
+  const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
+}
+
+document.querySelectorAll('.vt-btn').forEach(b=>{
+  b.onclick=()=>{if(!cur||stageView===b.dataset.view)return;stageView=b.dataset.view;renderStage();b.closest('.view-toggle').scrollIntoView({block:'nearest'});};
+});
+
+// F-570 — keep Caroline's notes locally (honest scope: no backend yet, and the status line says so).
+// Drafts autosave on input so a view toggle / reset / matter switch can't destroy typed text.
+document.getElementById('steps').addEventListener('input',e=>{
+  const t=e.target.closest('.fb-input');if(!t||!storageOK)return;
+  try{localStorage.setItem(fbKey(t.dataset.fb),t.value);}catch(err){return;}
+  const st=document.getElementById('fbs-'+t.dataset.fb);
+  st.textContent='Draft kept in this browser — nothing is sent anywhere yet.';
+});
+document.getElementById('steps').addEventListener('click',e=>{
+  const btn=e.target.closest('.fb-save');if(!btn)return;
+  const id=btn.dataset.fb, t=document.getElementById('fb-'+id), st=document.getElementById('fbs-'+id);
+  let ok=true;try{localStorage.setItem(fbKey(id),t.value);}catch(err){ok=false;}
+  st.textContent=ok?'Saved — kept in this browser only; nothing is sent anywhere yet.':'Could not save in this browser — please copy your note before leaving.';
+  st.style.color=ok?'var(--amber)':'var(--text-secondary)';
+});
+
 document.getElementById('advance').onclick=()=>{
   if(!cur)return;
+  const steps=activeSteps();
   if(stepIdx>=0){
     document.getElementById('dot'+stepIdx).classList.remove('active');
     document.getElementById('dot'+stepIdx).classList.add('done');
     const c=document.getElementById('conn'+stepIdx);if(c)c.classList.add('done');
   }
   stepIdx++;
-  if(stepIdx<cur.steps.length){
+  if(stepIdx<steps.length){
     const dot=document.getElementById('dot'+stepIdx);dot.classList.add('active');
     document.querySelector('.step[data-i="'+stepIdx+'"]').classList.add('revealed');
     document.querySelector('.step[data-i="'+stepIdx+'"]').scrollIntoView({behavior:'smooth',block:'center'});
     const adv=document.getElementById('advance');
-    adv.textContent = stepIdx===cur.steps.length-1 ? 'Seal & lodge decision' : 'Next step';
+    adv.textContent = stepIdx===steps.length-1 ? 'Seal & lodge decision' : 'Next step';
   } else {
     document.getElementById('advance').disabled=true;
     showReceipt();
   }
 };
-document.getElementById('reset').onclick=()=>{if(cur)selectMatter(cur.id);};
+document.getElementById('reset').onclick=()=>{if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
 function showReceipt(){
   const now=new Date();
@@ -351,20 +618,30 @@ function showReceipt(){
     <dt>Authority token</dt><dd class="hl">${REAL_TOKEN.jti} <span class="real-badge">REAL · LIVE</span></dd>
     <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
     <dt>Trust score</dt><dd>${REAL_TOKEN.trust}</dd>
-    <dt>Lodged</dt><dd>${now.toISOString()}</dd>
+    <dt>Lodged</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
     <dt>Authorised by</dt><dd class="hl">Verified human · in the loop</dd>
     <dt>Status</dt><dd class="hl" style="color:var(--success)">SEALED · LODGED · AUDITABLE</dd>`;
-  const log=[
+  const GENERIC_VAC_AUDIT=[
+    ['00:00','matter opened · policy-carrying packet attached'],
+    ['00:01','parties verified · authority chain nodes issued'],
+    ['00:02','conditions evaluated · verified context captured'],
+    ['00:03','verified human authorisation recorded'],
+    ['00:04','decision signed (Ed25519) · sealed to audit chain']
+  ];
+  const GENERIC_TODAY_AUDIT=[
     ['00:00','matter opened · policy-carrying packet attached'],
     ['00:01','parties verified · authority chain nodes issued'],
     ['00:02','trigger event received · conditions evaluated true'],
     ['00:03','human authorisation recorded'],
     ['00:03','decision signed (Ed25519) · lodged to audit chain']
   ];
+  const log=isVac()?(cur.vacAudit||GENERIC_VAC_AUDIT):(cur.todayAudit||GENERIC_TODAY_AUDIT);
   document.getElementById('auditLog').innerHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;">AUDIT TRAIL</div>'+
     log.map(l=>`<div class="audit-line"><span class="t">${l[0]}</span><span>${l[1]}</span></div>`).join('')+
     `<a class="verify-link" href="${REAL_TOKEN.verify}" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
-     <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; only the identity step in this preview is simulated.</div>`;
+     <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${isVac()
+       ?'This token was minted from the VAC production backend and is genuinely signed and verifiable. The matter events in this audit trail are simulated — the reimagined flow is a proposed forward path (see the note above the steps).'
+       :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.'}</div>`;
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
 }
 </script>
