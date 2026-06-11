@@ -1942,6 +1942,16 @@ function startCountdown() {
     let count = SPEED_CONFIG[challengeSpeed].countdown;
     timerEl.textContent = count;
     ringFill.style.strokeDashoffset = 0;
+    // F-563 (Finding 1): during the lead-in countdown the system is NOT yet listening/recording.
+    // goToChallenge() left the greeting ("Say: …") in #challengeText, which tempted the user to
+    // start speaking before beginRecording. Show a neutral "Get ready…" — the greeting prompt
+    // appears ONLY when we're actually listening (renderGreeting, at beginRecording).
+    try {
+        var _ct = document.getElementById('challengeText');
+        if (_ct) _ct.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-secondary);">Get ready…</div>';
+        var _t2 = document.getElementById('step2Title');
+        if (_t2) { _t2.textContent = 'Get ready'; _t2.style.color = ''; }
+    } catch(_) {}
 
     const interval = setInterval(() => {
         count--;
