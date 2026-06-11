@@ -131,6 +131,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 /* Audio level indicator */
 .audio-level { position: absolute; top: 8px; right: 8px; display: flex; align-items: flex-end; gap: 2px; height: 20px; background: rgba(0,0,0,0.7); padding: 3px 5px; border-radius: 4px; }
 .audio-bar { width: 3px; background: var(--success); border-radius: 1px; transition: height 0.08s ease-out; min-height: 2px; }
+/* F-563 (2): live audio equaliser bars (display-only; driven off the mic level the gate analyses) */
+.vac-eq > span { display: inline-block; width: 6px; height: 4px; border-radius: 3px; background: var(--text-quaternary, #6E7681); transition: height 0.1s ease, background 0.1s ease; }
 .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
 .camera-corners { position: absolute; inset: 8px; }
 .camera-corners::before, .camera-corners::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: var(--purple); border-style: solid; }
@@ -510,6 +512,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-tertiary);font-family:var(--mono);letter-spacing:1.5px;">SAY IT OUT LOUD</div>
             <div id="vacSayWord" style="font-size:clamp(40px,14vw,72px);font-weight:800;color:#fbbf24;line-height:1;"></div>
             <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening 🎙️</div>
+            <div id="vacSayEq" class="vac-eq" style="display:flex;justify-content:center;align-items:flex-end;gap:5px;height:36px;margin-top:6px;"><span></span><span></span><span></span><span></span><span></span></div>
             <div id="vacSayHint" style="font-size:12px;color:var(--text-tertiary);min-height:1.2em;"></div>
         </div>
     </div>
@@ -518,6 +521,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
          panel BELOW the feed; the numbers live in #digitStrip ABOVE (single source, de-duped). -->
     <div id="challengePanel" class="challenge-panel">
         <div class="camera-challenge-text" id="challengeText">Loading challenge…</div>
+        <!-- F-563 (2): live audio equaliser — STABLE element (not rewritten by renderGreeting's
+             per-tick innerHTML), driven each frame off the mic level the system is already analysing.
+             DISPLAY-ONLY: proves "we hear you / mic working", never feeds the gate. -->
+        <div id="vacEqGreeting" class="vac-eq" style="display:none;justify-content:center;align-items:flex-end;gap:4px;height:30px;margin-top:8px;"><span></span><span></span><span></span><span></span><span></span></div>
         <div class="camera-challenge-sub">Look at the camera the whole time</div>
     </div>
     <div class="timer-label" id="timerLabel">Recording in</div>
@@ -2274,6 +2281,7 @@ function beginRecording() {
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
         try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): hide the say-cover when capture ends
+        try { var _eg=document.getElementById('vacEqGreeting'); if(_eg) _eg.style.display='none'; } catch(_) {}  // F-563 (2): hide the greeting eq when capture ends
         try { _hideNoMicRecovery(); } catch(_) {}  // F-563: clear the no-mic recovery panel when capture ends
         try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
@@ -2854,14 +2862,17 @@ function beginRecording() {
             // (codex: avoid telling the user to start while input is still ignored).
             challengeEl.innerHTML = '<div style="font-size:clamp(24px,7vw,34px);font-weight:800;color:#22c55e;line-height:1.2;">✓ Heard it</div>'
                 + '<div style="font-size:clamp(12px,3.4vw,14px);color:var(--text-secondary);margin-top:6px;">One moment…</div>';
+            var _eqH = document.getElementById('vacEqGreeting'); if (_eqH) _eqH.style.display = 'none';   // ✓ → hide the listening eq
             return;
         }
         if (_st) { _st.textContent = _vo ? 'Say the phrase' : 'Say the greeting'; _st.style.color = '#fbbf24'; }
         var _listening = (elapsedMs / 1000) >= PHRASE_DURATION;   // past the read window → emphasise "we're listening"
         challengeEl.innerHTML =
             '<div style="font-size:clamp(11px,3vw,12px);font-family:var(--mono);letter-spacing:1.5px;color:#fbbf24;margin-bottom:6px;">' + (_listening ? '🎙️ LISTENING — SAY IT OUT LOUD' : 'READ THIS OUT LOUD') + '</div>'
-            + '<div style="font-size:clamp(22px,6.5vw,32px);font-weight:800;color:#fbbf24;line-height:1.3;">“' + _say + '”</div>'
-            + '<div id="vacEqHost" style="margin-top:10px;display:flex;justify-content:center;"></div>';
+            + '<div style="font-size:clamp(22px,6.5vw,32px);font-weight:800;color:#fbbf24;line-height:1.3;">“' + _say + '”</div>';
+        // Show the live eq (STABLE element in #challengePanel, updated every frame by startAudioMonitor)
+        // — proof the mic is hearing the greeting. Hidden if there's no mic (eq can't move anyway).
+        var _eq = document.getElementById('vacEqGreeting'); if (_eq) _eq.style.display = audioAnalyser ? 'flex' : 'none';
     }
 
     // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
@@ -2892,6 +2903,10 @@ function beginRecording() {
         // Voice-only speaks the full phrase here (no digit phase) → no "heard it" beat, just the timer gate.
         const _advanceGreeting = _phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone);
         if (_advanceGreeting) {
+            // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
+            // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
+            // doesn't run on a timeout/fail-open exit; codex).
+            try { var _egE = document.getElementById('vacEqGreeting'); if (_egE) _egE.style.display = 'none'; } catch(_) {}
             // SHIP-BLOCKER LOUD LOG: the phrase advanced WITHOUT a confirmed voice. The on-device VAD
             // is UX pacing (Gemini server-side is the authoritative voice check), so this isn't a
             // security bypass — but a !audioAnalyser fail-open means the user was NOT paced to speak,
@@ -3355,7 +3370,7 @@ function resetModalities() {
 // so stale prompts/numbers from a prior run can't leak into a new session's phrase phase. The
 // re-auth reload moots this for re-auth, but it protects the first run + any non-reload re-entry.
 function resetGuidedUI() {
-    ['vacGuided', 'vacSayView', 'digitStrip'].forEach(function(id) {
+    ['vacGuided', 'vacSayView', 'digitStrip', 'vacEqGreeting'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
@@ -3972,6 +3987,25 @@ async function fetchModalityRequirements() {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// F-563 (2): LIVE EQUALISER — visualises the mic level the system is already analysing, so the
+// user always has proof "we hear you" (and a mic-dead indicator: speak, bars don't move = no mic,
+// complementing the no-mic recovery). DISPLAY-ONLY — it reads the audio level and writes only bar
+// heights/colours; it does NOT touch the voice gate (silence→onset binding) in any way.
+function _renderEqualiser(rms) {
+    var mult = [0.5, 0.85, 1, 0.85, 0.5];
+    var voiced = rms > 0.12;   // ~mirrors VAD_SPEECH_RMS — a colour cue only (display-only)
+    ['vacEqGreeting', 'vacSayEq'].forEach(function(id) {
+        var host = document.getElementById(id);
+        if (!host) return;
+        var bars = host.children;
+        for (var i = 0; i < bars.length; i++) {
+            var h = Math.max(3, Math.min(28, rms * 130 * (mult[i] || 1)));
+            bars[i].style.height = h + 'px';
+            bars[i].style.background = voiced ? 'var(--teal,#2dd4bf)' : 'var(--text-quaternary,#6E7681)';
+        }
+    });
+}
+
 // Audio level monitoring
 function startAudioMonitor() {
     try {
@@ -4002,6 +4036,7 @@ function startAudioMonitor() {
             for (let i = 0; i < dataArray.length; i++) rms += dataArray[i] * dataArray[i];
             rms = Math.sqrt(rms / dataArray.length) / 255;
             const gated = rms > 0.05 ? rms : 0; // Noise gate: ignore below 5% RMS
+            try { _renderEqualiser(rms); } catch(_) {}   // F-563 (2): live eq off the same mic level (display-only)
 
             const step = Math.floor(dataArray.length / 5);
             for (let i = 0; i < 5; i++) {
