@@ -75,6 +75,40 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .policy-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
 .hil{color:var(--amber);font-weight:600;}
 
+/* dual-workflow toggle (matter 01) */
+.view-toggle{display:none;gap:8px;margin:14px 0 16px;flex-wrap:wrap;}
+.vt-btn{font-family:var(--mono);font-size:clamp(10.5px,2.9vw,12px);letter-spacing:.4px;font-weight:600;padding:8px 13px;border-radius:7px;border:1px solid var(--border-light);background:transparent;color:var(--text-tertiary);cursor:pointer;transition:all .15s;}
+.vt-btn:hover{color:var(--text-secondary);border-color:var(--text-tertiary);}
+.vt-btn.sel{border-color:var(--purple);color:var(--purple);background:var(--purple-bg);}
+.vt-btn[data-view="vac"].sel{border-color:var(--amber);color:var(--amber);background:var(--amber-bg);}
+
+/* thesis panel — the differentiator argument, visible copy */
+.thesis{background:linear-gradient(135deg,var(--amber-bg),var(--surface-raised));border:1px solid var(--amber-border);border-radius:10px;padding:clamp(16px,4vw,22px);margin:0 0 14px;}
+.thesis-eyebrow{font-family:var(--mono);font-size:10.5px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.thesis p{font-size:13.5px;color:var(--text-secondary);}
+.thesis .pullq{display:block;font-size:clamp(17px,4.6vw,20px);font-weight:700;color:var(--text-primary);letter-spacing:-.3px;margin:12px 0;border-left:3px solid var(--amber);padding-left:14px;}
+
+/* forward-path honesty note */
+.fwd-note{margin:0 0 22px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--text-secondary);overflow-wrap:break-word;}
+.fwd-note strong{color:var(--text-primary);}
+
+/* hero step — the step a bare smart contract cannot do */
+.step.hero .step-dot{border-color:var(--amber-border);color:var(--amber);}
+.step.hero .step-dot.active{border-color:var(--amber);color:var(--amber);box-shadow:0 0 12px rgba(210,153,34,0.45);}
+.step.hero .step-detail{border-left-color:var(--amber);}
+.hero-badge{display:inline-block;font-family:var(--mono);font-size:9.5px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 6px;letter-spacing:1px;text-transform:uppercase;margin-left:8px;vertical-align:2px;white-space:nowrap;}
+
+/* F-570 embedded feedback surface */
+.fb{margin-top:12px;border:1px dashed var(--amber-border);background:rgba(210,153,34,0.04);border-radius:8px;padding:12px 14px;}
+.fb-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;}
+.fb-q{font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:8px;}
+.fb-input{width:100%;background:var(--bg);border:1px solid var(--border-light);border-radius:6px;color:var(--text-secondary);font-family:var(--font);font-size:13px;line-height:1.5;padding:8px 10px;resize:vertical;min-height:58px;}
+.fb-input:focus{outline:none;border-color:var(--amber);}
+.fb-row{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;}
+.fb-save{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .15s;}
+.fb-save:hover{border-color:var(--amber);}
+.fb-status{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);}
+
 /* controls */
 .controls{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
 .btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:7px;padding:11px 20px;cursor:pointer;border:1px solid transparent;transition:all .15s;}
@@ -173,7 +207,12 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
     <section class="stage" id="stage">
       <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
+      <div class="view-toggle" id="viewToggle" role="group" aria-label="Choose workflow view">
+        <button class="vt-btn" data-view="today" aria-pressed="false">Today — paper order on agent</button>
+        <button class="vt-btn" data-view="vac" aria-pressed="false">With VAC/VAT — programmable escrow</button>
+      </div>
       <p class="stage-sub" id="stageSub"></p>
+      <div id="vacIntro" style="display:none;"></div>
       <div class="steps" id="steps"></div>
       <div class="controls">
         <button class="btn btn-primary" id="advance">Begin</button>
@@ -235,10 +274,13 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 </div>
 
 <script>
+// F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
+const fb=(id,q)=>`<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><span class="fb-status" id="fbs-${id}">Notes stay in this browser — capture backend is the next phase.</span></div></div>`;
+
 const MATTERS = [
   {
     id:"property", n:"01", title:"Property deposit release on settlement — the order on agent",
-    desc:"The deposit sits in the agent's trust account from exchange to settlement. It releases only on written human authority from both sides — the order on agent.",
+    desc:"The deposit sits in the agent's trust account from exchange to settlement. It releases only on written human authority from both sides — the order on agent. Two views: as it runs today, and reimagined on VAC rails.",
     matter:"MATTER-PROP-2026-0471",
     sub:"NSW conveyancing as it actually runs: exchange of the Contract for Sale legally binds the purchase, the deposit is held in the agent's trust account as stakeholder, and release turns on signed human directions from both sides — the purchaser's order on agent and the vendor's solicitor's accompanying direction.",
     steps:[
@@ -248,6 +290,22 @@ const MATTERS = [
       {h:"Trigger event — settlement completes",m:"verified settlement",d:"Settlement (typically about six weeks after exchange) is verified and checked against the packet's conditions. The deposit is still sitting in the agent's trust account — it does not move on settlement alone; it waits on human authority."},
       {h:"People authorise — the order on agent, both sides",m:"human-in-the-loop · both solicitors",d:"<span class='hil'>The purchaser's solicitor prepares the order on agent — the written direction, signed by or for the purchaser, authorising release of the deposit from the trust account — and the vendor's solicitor adds their own written direction to the agent.</span> A stakeholder releases only on written authority reflecting both sides. Two human decisions, today moving as signed paper; here each is a verified, sealed approval on the same chain. Nothing releases without them."},
       {h:"Decision sealed &amp; lodged",m:"VAC authority token",d:"The authorised release is sealed with a cryptographic token and lodged to the audit chain — who authorised the release of the deposit, under which conditions, provable forever."}
+    ],
+    vacTitle:"Property deposit release — reimagined on VAC rails",
+    vacSub:"The same matter, rebuilt: a programmable escrow as next-generation stakeholder, release conditions that check themselves, and a verified human — not a private key — authorising the release. Bold on the vision, honest on legal status: the open legal questions are flagged inline for expert review.",
+    vacThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">Why smart contracts never shipped this</div>
+      <p>Smart-contract conveyancing has been trialled for years — NSW Land Registry Services piloted blockchain conveyancing with ChromaWay, and firms like MinterEllison have written about programmable settlement — and none of it has shipped. Not because escrow code is hard. Because a smart contract can move money, but it cannot prove that a verified, attributable human authorised the move.</p>
+      <span class="pullq">A private key is not a person.</span>
+      <p>That is the missing piece, and it is exactly what VAC supplies: a verified human identity — face liveness, deepfake scan, cross-modal gesture + voice — cryptographically bound to the programmable release. VAT and the policy-carrying packet seal the authority and the conditions into the same record, provable forever. That is why VAC can take conveyancing where smart contracts alone have stalled.</p>
+    </div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed.</strong> The identity and signing technology on this view — VAC verification, VAT tokens, the sealed chain — is real and live; the token at the end is genuinely signed and independently verifiable. The conveyancing application is a forward path, not a current legal product: NSW law requires the deposit to be held in a trust account today (Property and Stock Agents Act 2002 s 86; Conveyancers Licensing Act 2003 for conveyancers' trust money), and a programmable escrow would need regulatory recognition. None of the legal-availability claims below are settled — each carries an open question for Caroline to confirm or correct.</div>`,
+    vacSteps:[
+      {h:"Programmable escrow holds the deposit",m:"next-generation stakeholder · proposition for review",d:"On exchange the deposit moves into a programmable escrow instead of the agent's trust account — the same substitution a deposit bond already makes today, where the vendor agrees to accept a guarantee instead of cash in trust. The escrow is not discretionary: it can act only on the sealed conditions and the verified human authority in the steps that follow. <span class='hil'>Open legal question:</span> holding the deposit anywhere but a trust account is currently statutory — Property and Stock Agents Act 2002 s 86; Conveyancers Licensing Act 2003 — so this step needs a recognised path."+fb('escrow',"Caroline — is a non-trust-account programmable escrow legally reachable for a NSW property deposit (contractual structure like the deposit bond, regulatory sandbox, or statutory amendment) — and what's the realistic reform path?")},
+      {h:"Release conditions travel with the matter — checked automatically",m:"F-495 · policy-carrying packet",d:"The same conditions as today, but nobody has to chase them: <span class='policy-chip'>cooling_off_expired</span><span class='policy-chip'>settlement_verified</span><span class='policy-chip'>release_to = vendor</span> The packet travels with the matter and evaluates itself when the trigger event lands. What is today a solicitor reading the file and writing a letter becomes a condition check done in seconds — and logged."},
+      {h:"A verified human authorises the release — the missing piece",m:"VAC · what a bare smart contract cannot do",hero:true,d:"The release is not fired by a key or a script. <span class='hil'>A verified human authorises it through VAC — face liveness, deepfake scan, cross-modal gesture + voice — and that authorisation is cryptographically bound to the escrow release itself.</span> The paper order on agent — prepared, signed, posted, chased — becomes a verified human decision sealed to the transaction, and both sides' authority still lands on the chain, exactly as the law expects two written directions today. A private key can be stolen, shared or silently coerced; a VAC authorisation is attributable to a person, at a moment, on a liveness-checked face and voice."},
+      {h:"The solicitor moves up the stack — advisor &amp; exception-handler",m:"human expertise where it matters",d:"No one is removing solicitors from conveyancing. The routing work — preparing the order, chasing the vendor's direction, confirming receipt — is what disappears. The solicitor advises on the contract, sets the release conditions in the packet, and takes the exceptions: the discrepancy, the dispute, the matter that should never auto-clear. <span class='hil'>Judgment stays human; the paper shuffling doesn't.</span>"+fb('solicitor',"What's the minimum statutory solicitor involvement on this path — and which steps would the profession insist stay with a practitioner even where the law doesn't require it?")},
+      {h:"Sealed to the same auditable chain — and fraud gets harder",m:"VAC authority token · provable forever",d:"Every condition result and both human authorisations are sealed to the same chain as the matter — more defensible than a paper trail reconstructed from emails years later. It also directly attacks a live fraud problem: payment-redirection scams intercept EFT deposits on their way to trust accounts because an email with a BSB in it carries no proof of who sent it. Here the deposit moves only into the sealed escrow named in the packet, and releases only on liveness-verified human authority. There is no email to spoof."+fb('liability',"Does programmatic release create a liability gap — if a condition evaluates wrongly or an authorisation is procured by fraud, who carries it: the escrow operator, the solicitor, the protocol, an insurer?")}
     ]
   },
   {
@@ -325,7 +383,9 @@ const REAL_TOKEN = {
   verify:"https://vacprotocol.org/vat/verify/vat_root_462bce15d63e"
 };
 
-let cur=null, stepIdx=-1;
+let cur=null, stepIdx=-1, propView='today';
+const isVac=()=>!!(cur&&cur.vacSteps&&propView==='vac');
+const activeSteps=()=>isVac()?cur.vacSteps:cur.steps;
 const mEl=document.getElementById('matters');
 MATTERS.forEach(m=>{
   const b=document.createElement('button');b.className='matter';b.dataset.id=m.id;
@@ -334,44 +394,72 @@ MATTERS.forEach(m=>{
 });
 
 function selectMatter(id){
-  cur=MATTERS.find(x=>x.id===id);stepIdx=-1;
+  cur=MATTERS.find(x=>x.id===id);
   document.querySelectorAll('.matter').forEach(el=>{const on=el.dataset.id===id;el.classList.toggle('sel',on);el.setAttribute('aria-pressed',on);});
-  document.getElementById('stageTitle').textContent=cur.title;
-  document.getElementById('stageMatter').textContent=cur.matter;
-  document.getElementById('stageSub').textContent=cur.sub;
-  const s=document.getElementById('steps');s.innerHTML='';
-  cur.steps.forEach((st,i)=>{
-    const row=document.createElement('div');row.className='step';row.dataset.i=i;
-    row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<cur.steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
-      <div class="step-body"><h3>${st.h}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
-    s.appendChild(row);
-  });
-  document.getElementById('stage').classList.add('show');
-  document.getElementById('receipt').classList.remove('show');
-  const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
+  renderStage();
   document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
+function renderStage(){
+  stepIdx=-1;
+  const vac=isVac();
+  const vt=document.getElementById('viewToggle');
+  vt.style.display=cur.vacSteps?'flex':'none';
+  if(cur.vacSteps)vt.querySelectorAll('.vt-btn').forEach(b=>{const on=b.dataset.view===propView;b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on);});
+  document.getElementById('stageTitle').textContent=vac?cur.vacTitle:cur.title;
+  document.getElementById('stageMatter').textContent=cur.matter;
+  document.getElementById('stageSub').textContent=vac?cur.vacSub:cur.sub;
+  const intro=document.getElementById('vacIntro');
+  intro.innerHTML=vac?cur.vacThesis+cur.vacNote:'';
+  intro.style.display=vac?'block':'none';
+  const steps=activeSteps();
+  const s=document.getElementById('steps');s.innerHTML='';
+  steps.forEach((st,i)=>{
+    const row=document.createElement('div');row.className='step'+(st.hero?' hero':'');row.dataset.i=i;
+    row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
+      <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">the differentiator</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
+    s.appendChild(row);
+  });
+  s.querySelectorAll('.fb-input').forEach(t=>{try{const v=localStorage.getItem('vac-fb-'+t.id.slice(3));if(v)t.value=v;}catch(e){}});
+  document.getElementById('stage').classList.add('show');
+  document.getElementById('receipt').classList.remove('show');
+  const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
+}
+
+document.querySelectorAll('.vt-btn').forEach(b=>{
+  b.onclick=()=>{if(!cur||propView===b.dataset.view)return;propView=b.dataset.view;renderStage();};
+});
+
+// F-570 — save Caroline's notes locally (honest scope: no backend yet, and the status line says so)
+document.getElementById('steps').addEventListener('click',e=>{
+  const btn=e.target.closest('.fb-save');if(!btn)return;
+  const id=btn.dataset.fb, t=document.getElementById('fb-'+id), st=document.getElementById('fbs-'+id);
+  let ok=true;try{localStorage.setItem('vac-fb-'+id,t.value);}catch(err){ok=false;}
+  st.textContent=ok?'Saved — kept in this browser only; capture backend is the next phase.':'Could not save in this browser — please copy your note before leaving.';
+  st.style.color=ok?'var(--amber)':'var(--text-secondary)';
+});
+
 document.getElementById('advance').onclick=()=>{
   if(!cur)return;
+  const steps=activeSteps();
   if(stepIdx>=0){
     document.getElementById('dot'+stepIdx).classList.remove('active');
     document.getElementById('dot'+stepIdx).classList.add('done');
     const c=document.getElementById('conn'+stepIdx);if(c)c.classList.add('done');
   }
   stepIdx++;
-  if(stepIdx<cur.steps.length){
+  if(stepIdx<steps.length){
     const dot=document.getElementById('dot'+stepIdx);dot.classList.add('active');
     document.querySelector('.step[data-i="'+stepIdx+'"]').classList.add('revealed');
     document.querySelector('.step[data-i="'+stepIdx+'"]').scrollIntoView({behavior:'smooth',block:'center'});
     const adv=document.getElementById('advance');
-    adv.textContent = stepIdx===cur.steps.length-1 ? 'Seal & lodge decision' : 'Next step';
+    adv.textContent = stepIdx===steps.length-1 ? 'Seal & lodge decision' : 'Next step';
   } else {
     document.getElementById('advance').disabled=true;
     showReceipt();
   }
 };
-document.getElementById('reset').onclick=()=>{if(cur)selectMatter(cur.id);};
+document.getElementById('reset').onclick=()=>{if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
 function showReceipt(){
   const now=new Date();
@@ -383,7 +471,14 @@ function showReceipt(){
     <dt>Lodged</dt><dd>${now.toISOString()}</dd>
     <dt>Authorised by</dt><dd class="hl">Verified human · in the loop</dd>
     <dt>Status</dt><dd class="hl" style="color:var(--success)">SEALED · LODGED · AUDITABLE</dd>`;
-  const log=[
+  const log=isVac()?[
+    ['00:00','matter opened · policy-carrying packet attached'],
+    ['00:01','parties verified · authority chain nodes issued'],
+    ['00:02','deposit received into programmable escrow'],
+    ['00:03','settlement verified · conditions evaluated true'],
+    ['00:04','verified human authorisation · bound to escrow release'],
+    ['00:04','release signed (Ed25519) · sealed to audit chain']
+  ]:[
     ['00:00','matter opened · policy-carrying packet attached'],
     ['00:01','parties verified · authority chain nodes issued'],
     ['00:02','trigger event received · conditions evaluated true'],
