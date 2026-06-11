@@ -2274,6 +2274,7 @@ function beginRecording() {
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
         try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): hide the say-cover when capture ends
+        try { _hideNoMicRecovery(); } catch(_) {}  // F-563: clear the no-mic recovery panel when capture ends
         try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
@@ -2358,6 +2359,9 @@ function beginRecording() {
         _acceptArmed = true;           // Option 2: let the currently-held gesture advance now (escape/degrade), not after a re-show
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
         try { vacDebug('speech_gate_mode', null, { mode: 'off', reason: reason || null }); } catch(_) {}
+        // F-563 recoverability: a GENUINE no-mic (null analyser) surfaces the recovery panel; a
+        // deliberate user-escape ('user_escape') does NOT (the user already chose gesture-only).
+        if (reason === 'no_audio_analyser') { try { _showNoMicRecovery(); } catch(_) {} }
     }
     function _stopSpeechGate() {
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
@@ -2836,6 +2840,9 @@ function beginRecording() {
         const elapsedSec = elapsedMs / 1000;
         timerEl.textContent = Math.max(Math.ceil(totalDuration - elapsedSec), 0);
         ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
+        // F-563 recoverability: if there's genuinely no mic, surface the recovery NOW (during the
+        // greeting) instead of letting the user speak into a dead mic and hit the silent dead-end.
+        if (!audioAnalyser && fingerFallback !== 'voice') { try { _showNoMicRecovery(); } catch(_) {} }
         _phraseVadTick();   // F-561 (S111): listen for the spoken phrase
 
         // F-561: gate phrase→digits on SPEECH, not just the timer. Don't advance until we've
@@ -3321,6 +3328,8 @@ function resetGuidedUI() {
     var w = document.getElementById('vacSayWord'); if (w) w.textContent = '';
     var h = document.getElementById('vacSayHint'); if (h) h.textContent = '';
     var r = document.getElementById('digitStripRow'); if (r) r.innerHTML = '';
+    try { _hideNoMicRecovery(); } catch(_) {}   // clear any stale no-mic recovery panel from a prior run
+    window.__vacNoMicDismissed = false;          // fresh per session — re-offer recovery if the mic is still out
 }
 
 function toggleUnderHood() {
@@ -3536,6 +3545,41 @@ function reauthReload(opts) {
     } catch(e) {}
     try { vacDebug('reauth_reload', null, { auto: !!opts.auto, keep_budget: !!opts.keepRetryBudget }); } catch(_) {}
     location.reload();
+}
+
+// F-563 recoverability: a verification flow must NEVER have an unescapable state. When the mic is
+// genuinely unavailable mid-flow (audioAnalyser null → the phrase fail-open advances past the
+// greeting, gesture-only), SURFACE it honestly + offer reachable exits — reusing what we already
+// have (the pre-flight mic test, reached via the reload primitive) rather than rebuilding recovery UI.
+function _showNoMicRecovery() {
+    if (window.__vacNoMicDismissed) return;             // user chose "Continue — skip voice" → don't nag again this session
+    if (document.getElementById('vacNoMic')) return;    // idempotent — show once, persist until acted on
+    var host = document.getElementById('challengePanel');
+    if (!host || !host.parentElement) return;
+    var panel = document.createElement('div');
+    panel.id = 'vacNoMic';
+    panel.style.cssText = 'margin:10px 0 0;padding:12px 14px;background:rgba(210,153,34,0.08);border:1px solid var(--warning,#D29922);border-radius:10px;text-align:center;';
+    panel.innerHTML =
+        '<div style="font-size:13px;font-weight:700;color:var(--warning,#D29922);margin-bottom:4px;">No microphone detected — voice check skipped</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">Your gestures are still verified, and our servers re-check voice from the recording. Choose how to continue:</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">' +
+          '<button onclick="reauthReload({auto:false,keepRetryBudget:false})" style="flex:1;min-width:150px;padding:9px 12px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄 Reconnect mic &amp; retry</button>' +
+          '<button onclick="_dismissNoMic()" style="flex:1;min-width:150px;padding:9px 12px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Continue — skip voice</button>' +
+        '</div>' +
+        '<div style="margin-top:8px;"><a href="#" onclick="reauthReload({auto:false,keepRetryBudget:false});return false;" style="font-size:11px;color:var(--text-tertiary);text-decoration:underline;">Start over</a></div>';
+    host.parentElement.insertBefore(panel, host.nextSibling);
+    try { vacDebug('no_mic_recovery_shown'); } catch(_) {}
+}
+function _hideNoMicRecovery() {   // generic cleanup hide (finish / reset) — does NOT mark the user's choice
+    var p = document.getElementById('vacNoMic');
+    if (p) p.remove();
+}
+// User explicitly chose "Continue — skip voice": dismiss AND don't re-show this session (the
+// phrase tick would otherwise recreate it every 200ms). Reset per session in resetGuidedUI.
+function _dismissNoMic() {
+    window.__vacNoMicDismissed = true;
+    _hideNoMicRecovery();
+    try { vacDebug('no_mic_recovery_dismissed'); } catch(_) {}
 }
 
 async function retryVerification(auto) {
