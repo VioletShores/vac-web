@@ -451,8 +451,26 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <!-- S110: persistent target-digit strip ABOVE the video so the numbers are always
          clear and never fade behind the hand/skeleton overlay -->
     <div id="digitStrip" style="display:none;margin:0 0 12px;text-align:center;">
-        <div style="font-size:11px;color:var(--teal);font-family:var(--mono);letter-spacing:1.5px;font-weight:600;margin-bottom:8px;">SHOW THESE NUMBERS WITH YOUR FINGERS</div>
+        <div style="font-size:11px;color:var(--teal);font-family:var(--mono);letter-spacing:1.5px;font-weight:600;margin-bottom:8px;">YOUR PROGRESS</div>
         <div id="digitStripRow" style="display:flex;justify-content:center;gap:10px;"></div>
+    </div>
+    <!-- F-563 (2): BIG guided one-digit-at-a-time panel. Driven each frame off the EXISTING gate
+         flags (gesture done = _qaGestureLatched; voice done = speechReady[i]) — NO gate change.
+         The big current-digit prompt + the two ✓ lamps carry the flow; the small status below is
+         now secondary. Hidden until the finger phase begins. -->
+    <div id="vacGuided" style="display:none;margin:0 0 12px;text-align:center;">
+        <div id="vacGuidedPrompt" style="font-size:clamp(20px,5.5vw,28px);font-weight:800;color:var(--text-primary);line-height:1.2;min-height:1.2em;"></div>
+        <div id="vacGuidedSub" style="font-size:clamp(12px,3.2vw,14px);color:var(--text-secondary);margin-top:6px;min-height:1.2em;"></div>
+        <div style="display:flex;justify-content:center;gap:clamp(14px,5vw,28px);margin-top:12px;">
+            <div id="vacGuidedGesture" style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.4;transition:opacity 0.2s;">
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(40px,11vw,52px);height:clamp(40px,11vw,52px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(20px,5.5vw,26px);">✋</span>
+                <span style="font-size:11px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">GESTURE</span>
+            </div>
+            <div id="vacGuidedVoice" style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.4;transition:opacity 0.2s;">
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(40px,11vw,52px);height:clamp(40px,11vw,52px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(20px,5.5vw,26px);">🗣️</span>
+                <span style="font-size:11px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">VOICE</span>
+            </div>
+        </div>
     </div>
     <div class="camera-container recording" id="cameraBoxRec">
         <video id="videoPreviewRec" autoplay playsinline muted></video>
@@ -1999,6 +2017,9 @@ function beginRecording() {
     updatePhasePrompt(0);
 
     // S110: render the persistent above-video digit strip (current digit highlighted).
+    // F-563 (2): PROGRESS DOTS only — NO numbers. The current digit's number lives in the big
+    // #vacGuided panel (single focus), so the strip never shows the upcoming sequence and the user
+    // can't race ahead. done = green ✓, current = filled purple dot, upcoming = empty dot.
     function renderDigitStrip(currentIdx) {
         const strip = document.getElementById('digitStrip');
         const row = document.getElementById('digitStripRow');
@@ -2007,14 +2028,92 @@ function beginRecording() {
         var html = '';
         for (var i = 0; i < digits.length; i++) {
             if (i < currentIdx) {
-                html += '<span style="display:inline-flex;width:46px;height:46px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:22px;font-weight:700;box-shadow:0 0 14px rgba(34,197,94,0.45);">&#10003;</span>';
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 0 10px rgba(34,197,94,0.45);">&#10003;</span>';
             } else if (i === currentIdx) {
-                html += '<span style="display:inline-flex;width:58px;height:58px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.25);color:#fff;align-items:center;justify-content:center;font-size:34px;font-weight:800;animation:pulse 1s ease infinite;">' + digits[i] + '</span>';
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.45);animation:pulse 1s ease infinite;"></span>';
             } else {
-                html += '<span style="display:inline-flex;width:46px;height:46px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);align-items:center;justify-content:center;font-size:20px;font-weight:700;">' + digits[i] + '</span>';
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:var(--surface);border:1px solid var(--border);"></span>';
             }
         }
         row.innerHTML = html;
+    }
+
+    // F-563 (2): big guided one-digit panel. Reads the SAME per-digit gate flags the status block
+    // uses (gesture done = _qaGestureLatched; voice done = speechReady[i]) — NO gate logic here, pure
+    // presentation. The gesture ✓ lights on ANY stable deliberate gesture (content-blind — Gemini
+    // validates the count server-side; gating the tick on correctness would re-introduce the
+    // misdetection deadlock). Then the voice sub-gate is revealed; its ✓ lights on the spoken number.
+    function renderGuided(opts) {
+        var wrap = document.getElementById('vacGuided');
+        if (!wrap) return;
+        wrap.style.display = 'block';
+        var promptEl = document.getElementById('vacGuidedPrompt');
+        var subEl = document.getElementById('vacGuidedSub');
+        var gWrap = document.getElementById('vacGuidedGesture');
+        var vWrap = document.getElementById('vacGuidedVoice');
+        var gLamp = gWrap && gWrap.querySelector('.vac-lamp');
+        var vLamp = vWrap && vWrap.querySelector('.vac-lamp');
+        function setLamp(lamp, box, state, restIcon) {
+            if (!lamp || !box) return;
+            if (state === 'done') {
+                box.style.opacity = '1';
+                lamp.textContent = '✓';
+                lamp.style.color = '#fff'; lamp.style.background = '#22c55e';
+                lamp.style.borderColor = '#22c55e'; lamp.style.boxShadow = '0 0 14px rgba(34,197,94,0.45)';
+                lamp.style.animation = 'none';
+            } else if (state === 'active') {
+                box.style.opacity = '1';
+                lamp.textContent = restIcon;
+                lamp.style.color = ''; lamp.style.background = 'rgba(124,92,252,0.18)';
+                lamp.style.borderColor = 'var(--purple)'; lamp.style.boxShadow = '0 0 14px rgba(124,92,252,0.35)';
+                lamp.style.animation = 'pulse 1s ease infinite';
+            } else { // pending/dim
+                box.style.opacity = '0.4';
+                lamp.textContent = restIcon;
+                lamp.style.color = ''; lamp.style.background = '';
+                lamp.style.borderColor = 'var(--border)'; lamp.style.boxShadow = 'none';
+                lamp.style.animation = 'none';
+            }
+        }
+        if (opts.done) {
+            if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            return;
+        }
+        if (opts.beat) {
+            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            return;
+        }
+        var N = opts.digit;
+        if (!opts.gestureDone) {
+            // Sub-gate 1: show the fingers.
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' finger' + (N === 1 ? '' : 's'); promptEl.style.color = 'var(--text-primary)'; }
+            if (subEl) subEl.textContent = opts.gesturePct >= 100 ? 'Hold it…' : 'Hold steady';
+            setLamp(gLamp, gWrap, 'active', '✋');
+            setLamp(vLamp, vWrap, 'pending', '🗣️');
+        } else if (opts.voiceOn && !opts.voiceDone) {
+            // Sub-gate 2: gesture ✓ — now say the number.
+            if (promptEl) { promptEl.textContent = 'Now say “' + N + '”'; promptEl.style.color = '#fbbf24'; }
+            if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — say it a bit louder' : 'Out loud';
+            setLamp(gLamp, gWrap, 'done', '✋');
+            setLamp(vLamp, vWrap, 'active', '🗣️');
+        } else if (!opts.voiceOn && opts.rearmed === false) {
+            // Speech-off + gesture confirmed but NOT re-armed: the advance gate is BLOCKED (same held
+            // pose carried from the last accept). Don't claim "Got it" — prompt the re-show (codex).
+            if (promptEl) { promptEl.textContent = 'Lower your hand, then show ' + N + ' again'; promptEl.style.color = '#fbbf24'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'active', '✋');
+            setLamp(vLamp, vWrap, 'pending', '🗣️');
+        } else {
+            // Both satisfied (or speech-off + re-armed) — advancing on the next frame.
+            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋');
+            setLamp(vLamp, vWrap, opts.voiceOn ? 'done' : 'pending', '🗣️');
+        }
     }
 
     // ── Finger-phase shared state ──────────────────────────────────────────
@@ -2090,13 +2189,19 @@ function beginRecording() {
         const hintHtml = hint ? '<div style="color:#fbbf24;font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
         const remaining = digits.length - currentDigitIndex;
         const stepLabel = remaining > 1 ? (remaining + ' gestures to go') : (remaining === 1 ? 'last gesture' : 'done');
-        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">Show the next number from the strip above</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
+        // F-563 (2): the strip is now numberless progress DOTS, so this prompt must NAME the current
+        // digit itself — otherwise the detector-fallback path (which relies on this text) leaves the
+        // user with no per-step number after the one-time intro (codex).
+        var _cd = digits[currentDigitIndex];
+        var _showNum = (currentDigitIndex < digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' and say “' + _cd + '”') : 'Show the next number';
+        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     }
 
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
+        try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
         try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
@@ -2228,6 +2333,7 @@ function beginRecording() {
     // camera detector isn't running, and we hold the current step. The timer is
     // a per-step TIMEOUT hint, never an auto-advance.
     function runTimerFallback() {
+        try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): the guided detection panel doesn't apply to the manual fallback — hide it
         try { _stopSpeechGate(); } catch(_) {}  // F-561: no gesture detection here → voice gate doesn't apply (manual advance only)
         try { vacDebug('phase2_timer_fallback_no_autoadvance', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
         console.log('[VAC] Finger phase: detector unavailable — holding for user, NOT auto-advancing (W4.1)');
@@ -2543,6 +2649,24 @@ function beginRecording() {
             liveEl.style.color = 'var(--text-secondary)';
             liveEl.textContent = 'Show ' + _curDigit + ' finger' + (_curDigit === 1 ? '' : 's') + ' and say \u201c' + _curDigit + '\u201d';
         }
+
+        // F-563 (2): drive the BIG guided panel off the SAME per-digit flags (no gate change).
+        // gesture done = _qaGestureLatched (set once a stable deliberate gesture is confirmed for
+        // this digit, content-blind); voice done = speechReady[currentDigitIndex].
+        try {
+            var _gPct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
+            renderGuided({
+                done: currentDigitIndex >= totalSteps,
+                beat: inConfirmBeat,
+                digit: _curDigit,
+                gestureDone: _qaGestureLatched,
+                gesturePct: _gPct,
+                voiceOn: (_speechMode !== 'off'),
+                voiceDone: !!speechReady[currentDigitIndex],
+                rearmed: _acceptArmed,   // speech-off: a held pose can be gesture-confirmed but NOT re-armed (blocked) — don't show "Got it"
+                voiceHelp: !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
+            });
+        } catch(_) {}
 
         // F-561: stuck-user escape + persistent "(voice gate off)" note.
         var _gestureHeldReady = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED);
