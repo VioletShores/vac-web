@@ -6,6 +6,11 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- F-563 (5): match the mobile browser chrome to the dark app bg (S96 page-shell pattern).
+     NOT using viewport-fit=cover — the page has edge-aligned chrome (sticky nav, fixed scroll
+     hint) with no env(safe-area-inset) compensation, so cover would render under the notch on
+     iOS (codex). Default viewport keeps the browser's automatic safe-area insets. -->
+<meta name="theme-color" content="#0D1117">
 <title>VAC Verify — Authenticate</title>
 <meta name="description" content="Verify your identity with VAC Verify — cryptographic human provenance powered by VAC Protocol.">
 <meta property="og:title" content="VAC Verify — Authenticate">
