@@ -3473,25 +3473,35 @@ function showRetry(result) {
 }
 
 // Retry: go back to camera step with fresh challenge
+// F-563/STRUCTURAL: re-auth = a LITERAL fresh start via page reload — correct BY CONSTRUCTION.
+// Every prior re-auth bug this session (modality tiles, overlay rows, pre-flight ticks, warm-up
+// skip, audio analyser, guided DOM) was the same root: re-entry didn't fully reset to fresh-load
+// state, and each new feature leaked new state into the in-memory reset. A reload GCs every
+// AudioContext (kills the ~6-limit), resets every module var + DOM node, and re-runs the warm-up —
+// so the whole stale-state bug class dies at once and can't recur with future features. Identity
+// re-hydrates from localStorage on boot (no re-OTP); maybeResumeReauth() lands on the camera
+// pre-flight. See maybeResumeReauth() at the boot IIFE.
+function reauthReload(opts) {
+    opts = opts || {};
+    var d = userData();
+    try {
+        localStorage.setItem('vac_reauth', JSON.stringify({
+            ts: Date.now(),
+            auto: !!opts.auto,
+            // Manual refresh resets the retry budget (fresh start); a retry-after-failure keeps it.
+            retryAttempts: opts.keepRetryBudget ? retryAttempts : 0,
+            name: d.name, email: d.email, org: d.org, role: d.role
+        }));
+    } catch(e) {}
+    try { vacDebug('reauth_reload', null, { auto: !!opts.auto, keep_budget: !!opts.keepRetryBudget }); } catch(_) {}
+    location.reload();
+}
+
 async function retryVerification(auto) {
     if (retryAttempts >= MAX_RETRIES) return;
-    // S111 (re-auth RACE fix): route the retry through the SAME pre-flight + goToChallenge
-    // entry as a fresh auth (and as refreshVerification) — NOT a jump straight to step 2.
-    // The old step-2 jump skipped step-1's pre-flight, which does two jobs first-run gets for
-    // free: it WARMS the detector AND FLUSHES MediaPipe's VIDEO-mode tracking against the
-    // current frame (reset() preserves _detector, so its internal tracking survives re-entry).
-    // Entering phase 2 cold + stale, the first detectForVideo calls returned phantom counts and
-    // — with digit 0's gate pre-armed — the digits raced past the user (Heard: "One").
-    // resetBiometricUI(true) preserves the retry budget (does NOT zero retryAttempts).
-    // Blank-phrase / live-stream guards are preserved: requestCamera() re-acquires + fetches,
-    // and goToChallenge()'s challengeIncomplete() guard still blocks an empty challenge.
-    resetBiometricUI(true);
-    // Service-error AUTO-retry preserves its "retrying automatically" UX: auto-proceed through
-    // the (now warmed) pre-flight to recording once the AV checks pass. Manual retry leaves the
-    // user to click Start. Either way the detector is warmed/flushed FIRST — that's the race fix.
-    window.__vacAutoProceedChallenge = !!auto;
-    goToStep(1);          // back to the camera step (email/OTP already confirmed)
-    requestCamera();      // re-acquire camera + pre-flight warm/flush + fetch challenge + wire Start→goToChallenge
+    // Reload to a guaranteed fresh start. Keeps the retry budget; auto-retry (service errors)
+    // re-proceeds through the warmed pre-flight after boot (the auto flag rides in the blob).
+    reauthReload({ auto: !!auto, keepRetryBudget: true });
 }
 
 // STEP 4: Success
@@ -3712,15 +3722,11 @@ function resetBiometricUI(preserveRetryBudget) {
 }
 
 function refreshVerification() {
-    // Keep email/OTP confirmed; redo biometrics with a PROPER re-entry (S111 #1+#4):
-    // reset stale UI, then route through the SAME camera+preflight path as a fresh
-    // run so the F-559 warm-up runs again (fixes the lingering badge / prior skeleton
-    // AND the cold-start "hang"). Modeled on retryVerification's re-acquire approach.
+    // Structural re-auth: a LITERAL fresh start via reload (correct by construction — see
+    // reauthReload). Manual refresh from the success screen → fresh retry budget. Identity
+    // re-hydrates from localStorage on boot; lands on the camera pre-flight, no re-OTP.
     try { localStorage.removeItem('vac_verified'); } catch(e) {}
-    authResult = null;
-    resetBiometricUI();
-    goToStep(1);        // camera step (email already confirmed)
-    requestCamera();    // re-acquire camera + run startAVChecks (F-559 preflight + MediaPipe warm-up)
+    reauthReload({ auto: false, keepRetryBudget: false });
 }
 
 function clearAndRestart() {
@@ -4043,6 +4049,46 @@ setTimeout(checkScroll, 200);
 // Re-check after step transitions
 const _origGoToStep = goToStep;
 goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
+
+// ============================================================
+// STRUCTURAL RE-AUTH RESUME — consumes the vac_reauth blob left by reauthReload() before the
+// page reloaded. Re-hydrates identity from localStorage (NO re-OTP) and lands on the camera
+// pre-flight, so re-auth is a literal fresh start. Runs once on boot.
+// ============================================================
+function maybeResumeReauth() {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'copilot') return false;   // copilot has its own boot path
+    var raw;
+    try { raw = localStorage.getItem('vac_reauth'); } catch(e) { return false; }
+    if (!raw) return false;
+    try { localStorage.removeItem('vac_reauth'); } catch(e) {}   // one-shot
+    var blob;
+    try { blob = JSON.parse(raw); } catch(e) { return false; }
+    if (!blob || (Date.now() - (blob.ts || 0)) > 60000) return false;   // stale/expired → ignore
+    // Re-hydrate identity into the form (userData() reads these inputs) — no re-OTP.
+    try {
+        if (blob.name)  document.getElementById('inputName').value  = blob.name;
+        if (blob.email) document.getElementById('inputEmail').value = blob.email;
+        if (blob.org)   document.getElementById('inputOrg').value   = blob.org;
+        if (blob.role)  document.getElementById('inputRole').value  = blob.role;
+    } catch(e) {}
+    retryAttempts = (typeof blob.retryAttempts === 'number') ? blob.retryAttempts : 0;
+    if (blob.auto) {
+        // Service-error auto-retry: auto-proceed through the (now warmed) pre-flight + skip the
+        // upfront explainer, as before — but from a guaranteed fresh page state.
+        window.__vacAutoProceedChallenge = true;
+        window.__vacSkipExplainer = true;
+    }
+    try { vacDebug('reauth_resumed', null, { auto: !!blob.auto, retry_attempts: retryAttempts }); } catch(_) {}
+    goToStep(1);        // camera pre-flight (identity confirmed, OTP skipped)
+    requestCamera();    // fresh camera + pre-flight warm/flush + fetch challenge
+    return true;
+}
+(function() {
+    function _run() { try { maybeResumeReauth(); } catch(e) { console.warn('[VAC] reauth resume failed:', e); } }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _run);
+    else _run();
+})();
 
 // ============================================================
 // COPILOT MODE — when auth.html is opened from vac-auth.js SDK
