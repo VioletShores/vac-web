@@ -213,7 +213,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
     <section class="stage" id="stage">
       <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
-      <!-- toggle labels are matter-01 copy — generalise before adding vacSteps to another matter -->
+      <!-- labels are set per-matter in renderStage (cur.todayLabel / cur.vacLabel); static text is the matter-01 default -->
       <div class="view-toggle" id="viewToggle" role="group" aria-label="Choose workflow view">
         <button class="vt-btn" data-view="today" aria-pressed="false">Today — order on agent</button>
         <button class="vt-btn" data-view="vac" aria-pressed="false">With VAC/VAT — programmable escrow</button>
@@ -300,6 +300,18 @@ const MATTERS = [
       {h:"People authorise — the order on agent, both sides",m:"human-in-the-loop · both solicitors",d:"<span class='hil'>The purchaser's solicitor prepares the order on agent — the written direction, signed by or for the purchaser, authorising release of the deposit from the trust account — and the vendor's solicitor adds their own written direction to the agent.</span> A stakeholder releases only on written authority reflecting both sides. Two human decisions, today moving as signed paper; here each is a verified, sealed approval on the same chain. Nothing releases without them."},
       {h:"Decision sealed &amp; lodged",m:"VAC authority token",d:"The authorised release is sealed with a cryptographic token and lodged to the audit chain — who authorised the release of the deposit, under which conditions, provable forever."}
     ],
+    todayLabel:"Today — order on agent",
+    vacLabel:"With VAC/VAT — programmable escrow",
+    heroBadge:"the step smart contracts can&#39;t do",
+    vacAudit:[
+      ['00:00','matter opened · policy-carrying packet attached'],
+      ['00:01','parties verified · authority chain nodes issued'],
+      ['00:02','deposit received into programmable escrow'],
+      ['00:03','settlement verified · release window open'],
+      ['00:04','purchaser-side authorisation · verified human · within window'],
+      ['00:04','vendor-side authorisation · verified human · sealed to same chain'],
+      ['00:05','release signed (Ed25519) · sealed to audit chain']
+    ],
     vacTitle:"Property deposit release — reimagined on VAC rails",
     vacSub:"The same matter, rebuilt: a programmable escrow as next-generation stakeholder, release conditions that check themselves, and a verified human — not a private key — authorising the release in verified context. The open legal questions are flagged inline for expert review.",
     vacThesis:`<div class="thesis">
@@ -370,6 +382,53 @@ const MATTERS = [
       {h:"Registered with NSW Land Registry Services",m:"leases over 3 years",d:"A lease running beyond three years is registered with NSW LRS, protecting the tenant's interest on the title against an incoming owner. <span class='policy-chip'>registered_LRS == true</span>"},
       {h:"Lease sealed &amp; lodged",m:"VAC authority token",d:"Disclosure given, advice taken, terms checked, registration done — and who signed off at each gate — sealed into one tamper-evident, independently verifiable record."}
     ]
+  },
+  {
+    id:"will", n:"06", title:"Will & testament — execution and attestation",
+    desc:"A NSW will is valid only when signed before two witnesses present together, who attest in the testator's presence. Two views: the paper process the law requires today, and verified digital attestation built on the remote-witnessing reform already in force.",
+    matter:"MATTER-WILL-2026-0615",
+    todayLabel:"Today — paper will, two witnesses",
+    vacLabel:"With VAC — verified attestation",
+    heroBadge:"the gap remote witnessing left open",
+    sub:"NSW will execution as the law requires it today (Succession Act 2006 (NSW), s.6): in writing, signed by a testator with testamentary capacity, before two witnesses present at the same time, who attest and sign in the testator's presence.",
+    steps:[
+      {h:"The testator makes the will — in writing, with capacity",m:"Succession Act 2006 (NSW), s.6",d:"A will must be in writing, and the testator must have <span class='hil'>testamentary capacity</span> — sound mind: understanding the nature of the act, the extent of the estate, and the claims they ought to consider. <span class='policy-chip'>in_writing</span><span class='policy-chip'>testamentary_capacity</span> Capacity is assessed as at the time the will is made, and it is a legal and clinical question — a frequent ground of later challenge."},
+      {h:"Signed before two witnesses, present at the same time",m:"s.6 · simultaneous presence",d:"The testator signs the will — or acknowledges a signature already made — <span class='hil'>in the presence of two or more witnesses present at the same time.</span> The simultaneous-presence requirement is the heart of due execution and the single most common point of failure in DIY wills."},
+      {h:"The two witnesses attest and sign",m:"s.6 · attestation",d:"The two witnesses attest and sign the will <span class='hil'>in the testator's presence</span> (they need not sign in each other's presence). A beneficiary who acts as a witness risks losing their gift under the interested-witness rule — another trap for the unadvised."},
+      {h:"Remote witnessing is already permitted — over audio-visual link",m:"Electronic Transactions Amendment (Remote Witnessing) Act 2021 (NSW)",d:"Since 2021, and now permanently, a will may be witnessed over an <span class='hil'>audio-visual link</span> — Zoom, FaceTime — with the witnesses watching the signing in real time. The in-person threshold is already crossed. But the law still requires <span class='policy-chip'>wet_ink_signature</span> and a <span class='policy-chip'>human_witness</span>, and it does <em>not</em> require the AV session to be recorded."},
+      {h:"Executed — and contestable only later, in court",m:"the real cost when it goes wrong",d:"If every formality is met the will is validly executed — but none of that is provable until it is challenged. Will disputes in NSW have risen sharply and the Supreme Court now scrutinises validity more closely than ever. <span class='hil'>A single defect — a witness who stepped out, a signature acknowledged out of sight, a beneficiary in the room — can cost an estate tens of thousands of dollars to defend, or void the will.</span> The authenticity of a paper will rests on paper and the witnesses' memory, years after they signed."}
+    ],
+    todayAudit:[
+      ['00:00','will drafted · in writing · capacity a legal/clinical question'],
+      ['00:01','testator signs · two witnesses present at the same time'],
+      ['00:02','witnesses attest &amp; sign · in the testator&#39;s presence'],
+      ['00:03','remote AV witnessing permitted (2021 Act) · wet-ink still required'],
+      ['00:04','executed · validity testable only if later challenged']
+    ],
+    vacTitle:"Will & testament — verified digital attestation",
+    vacSub:"The same will, executed on VAC rails: a verified, live testator; verified witnesses whose attestation is cryptographically vouched; the signing captured at a verified time and place; and a sealed, tamper-proof record of exactly who signed, when, and where. The open legal questions are flagged inline for your review.",
+    vacThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">The law already came most of the way</div>
+      <p>Remote witnessing of wills is not a proposal — it is law. The <strong>Electronic Transactions Amendment (Remote Witnessing) Act 2021 (NSW)</strong> made audio-visual witnessing of wills permanent: a testator can now be witnessed over Zoom or FaceTime, and the in-person threshold the Succession Act once required is already crossed. But the reform left two gaps it openly acknowledges — it still demands wet-ink signatures and a human witness, with no verified digital attestation; and remote witnessing opened a new coercion vulnerability, because a third party can sit off-camera influencing the signatory and the law does not require the session to be recorded.</p>
+      <span class="pullq">The law came most of the way. VAC is the verified-attestation layer that makes remote will execution actually trustworthy.</span>
+      <p>VAC closes exactly those two gaps: verified identity and liveness — proof the testator is real, present, and neither coerced on-camera nor a deepfake — and a sealed, tamper-proof record of who signed, when, and where. Not a workaround of the formalities, but the next step the reform itself points toward: digital attestation a court could rely on.</p>
+    </div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed — and a hard limit.</strong> The identity, liveness and signing technology on this view — VAC verification, the VAT token, the sealed chain — is live in production, and the token at the end is genuinely signed and independently verifiable (the identity step is simulated in this shareable preview; see the banner). What is <strong>not</strong> available today is a valid will executed digitally through VAC: NSW law still requires a wet-ink signature and a human witness. This view shows what <em>verified digital attestation could enable, building on the remote-witnessing reform already in force</em> — a next step that would need legislative recognition, not a way to make a valid will with VAC today. And one boundary does not move: <span class='hil'>VAC verifies identity, liveness and records the interaction — it does not, and cannot, adjudicate testamentary capacity (sound mind).</span> Capacity stays a legal and clinical judgment. The open questions are flagged inline for you to confirm or correct.</div>`,
+    vacAudit:[
+      ['00:00','will matter opened · attestation policy attached'],
+      ['00:01','testator verified · liveness + deepfake scan · attestation root issued'],
+      ['00:02','two witnesses verified · attestation vouched to the signing'],
+      ['00:03','signing captured · verified time + place · session recorded'],
+      ['00:04','document sealed · unaltered hash recorded'],
+      ['00:05','attestation signed (Ed25519) · sealed to audit chain']
+    ],
+    vacSteps:[
+      {h:"The testator is verified — real, live, and present",m:"VAC identity · liveness · deepfake scan",d:"Before anything is signed, the testator authenticates through VAC — <span class='hil'>face liveness, deepfake scan, cross-modal gesture and voice</span> — proving a real, living person is present: not a recording, not a deepfake, not someone else holding the camera. <span class='policy-chip'>face_liveness</span><span class='policy-chip'>deepfake_scan</span><span class='policy-chip'>identity_confirmed</span> This becomes the verified root of the attestation chain — and it directly answers the remote-witnessing regime's blind spot, where a face on a screen could be anyone."},
+      {h:"Witnesses verify, and their attestation is vouched",m:"VAC vouching · verified human witnesses",d:"The two witnesses the law requires authenticate too, and their attestation is <span class='hil'>cryptographically vouched</span> to the testator's signing — each witness a verified node confirming they watched this testator sign, at this moment. <span class='policy-chip'>two_witnesses_verified</span><span class='policy-chip'>attestation_vouched</span> The human witness the reform preserves is kept — VAC makes their attestation attributable and tamper-evident, instead of a signature on a page whose provenance is only as good as memory."+fb('will-path',"The 2021 Act permits remote human witnessing of wills but still requires wet-ink. What is the realistic legal path from 'remote human witness' to 'verified digital attestation' for a will?")},
+      {h:"The signing is captured at a verified time and place",m:"VAC · verified person · verified time &amp; place",hero:true,d:"The testator's act of will-making is bound to its context: <span class='hil'>a verified time, and a verified place</span> — home, a hospital bedside, the lawyer's office — sealed into the record. <span class='policy-chip'>valid_at = verified_time</span><span class='policy-chip'>captured_from = verified_location</span><span class='policy-chip'>session_recorded</span><div class='ctx-note'>This is the coercion gap closed. Today's remote-witnessing regime does not require the session to be recorded, so a third party off-camera can influence the signatory unseen. A VAC attestation is liveness-checked and <em>recorded</em> — attributable to a person, at a time, at a place — making undue influence far harder to exert and far easier to detect afterward. <strong>What it does not do:</strong> VAC proves the testator was real, present, and free of on-camera coercion; it does not assess testamentary capacity — sound mind remains a legal and clinical judgment.</div>"+fb('coercion',"Would a VAC verified-identity + liveness + sealed recording meaningfully reduce the off-camera-coercion / undue-influence risk the current remote-witnessing regime leaves open — and could that strengthen the case for recognition?")},
+      {h:"Group or threshold approval — where the matter needs it",m:"F-576 · joint executors / collective governance",d:"Some matters need more than one authority. Where a will appoints <span class='hil'>multiple executors who must act jointly</span>, VAC can require N-of-M verified authorisation — say 2-of-3 verified executors — before an estate action proceeds. For assets under <span class='hil'>collective or cultural governance</span>, the same mechanism captures a verified group or percentage consensus rather than a single signature. <span class='policy-chip'>threshold = 2_of_3_executors</span><span class='policy-chip'>group_consensus</span> These are administration-stage authorities — they operate after death, at probate — not part of execution, and are flagged here as a forward-looking capability."+fb('executors',"Multi-executor / group approval: does N-of-M verified-executor authorisation map cleanly onto how joint executors must act, or are there formalities we'd need to preserve?")},
+      {h:"Sealed, dispute-resistant record — provably the real final will",m:"VAC authority token · provable forever",d:"Every element — verified testator, vouched witnesses, the time and place of signing, the unaltered document — is sealed into one tamper-proof record. <span class='hil'>A paper will with two signatures can be contested on ‘was it really them, did they have capacity, were they coerced, is this the real final version.’</span> A VAC-attested will carries cryptographic proof of identity, liveness, time, place, and an unaltered sealed document — provably authentic in ways a witnessed paper will never can be. The capacity question still belongs to a human assessor; everything around it becomes provable rather than arguable."+fb('capacity',"For testamentary capacity: VAC records the interaction but doesn't assess sound mind. Where should the capacity assessment sit in a VAC-attested will flow?")}
+    ]
   }
 ];
 
@@ -416,7 +475,7 @@ function renderStage(){
   const vac=isVac();
   const vt=document.getElementById('viewToggle');
   vt.style.display=cur.vacSteps?'flex':'none';
-  if(cur.vacSteps)vt.querySelectorAll('.vt-btn').forEach(b=>{const on=b.dataset.view===stageView;b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on);});
+  if(cur.vacSteps)vt.querySelectorAll('.vt-btn').forEach(b=>{const on=b.dataset.view===stageView;b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on);b.textContent=b.dataset.view==='vac'?(cur.vacLabel||'With VAC'):(cur.todayLabel||'Today');});
   document.getElementById('stageTitle').textContent=vac?(cur.vacTitle||cur.title):cur.title;
   document.getElementById('stageMatter').textContent=cur.matter;
   document.getElementById('stageSub').textContent=vac?(cur.vacSub||cur.sub):cur.sub;
@@ -424,11 +483,12 @@ function renderStage(){
   intro.innerHTML=vac?(cur.vacThesis||'')+(cur.vacNote||''):'';
   intro.style.display=vac?'block':'none';
   const steps=activeSteps();
+  const heroBadge=cur.heroBadge||'the step smart contracts can&#39;t do';
   const s=document.getElementById('steps');s.innerHTML='';
   steps.forEach((st,i)=>{
     const row=document.createElement('div');row.className='step'+(st.hero?' hero-step':'');row.dataset.i=i;
     row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
-      <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">the step smart contracts can&#39;t do</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
+      <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">'+heroBadge+'</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
     s.appendChild(row);
   });
   let savedCount=0;
@@ -494,26 +554,26 @@ function showReceipt(){
     <dt>Lodged</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
     <dt>Authorised by</dt><dd class="hl">Verified human · in the loop</dd>
     <dt>Status</dt><dd class="hl" style="color:var(--success)">SEALED · LODGED · AUDITABLE</dd>`;
-  const log=isVac()?[
+  const GENERIC_VAC_AUDIT=[
     ['00:00','matter opened · policy-carrying packet attached'],
     ['00:01','parties verified · authority chain nodes issued'],
-    ['00:02','deposit received into programmable escrow'],
-    ['00:03','settlement verified · release window open'],
-    ['00:04','purchaser-side authorisation · verified human · within window'],
-    ['00:04','vendor-side authorisation · verified human · sealed to same chain'],
-    ['00:05','release signed (Ed25519) · sealed to audit chain']
-  ]:[
+    ['00:02','conditions evaluated · verified context captured'],
+    ['00:03','verified human authorisation recorded'],
+    ['00:04','decision signed (Ed25519) · sealed to audit chain']
+  ];
+  const GENERIC_TODAY_AUDIT=[
     ['00:00','matter opened · policy-carrying packet attached'],
     ['00:01','parties verified · authority chain nodes issued'],
     ['00:02','trigger event received · conditions evaluated true'],
     ['00:03','human authorisation recorded'],
     ['00:03','decision signed (Ed25519) · lodged to audit chain']
   ];
+  const log=isVac()?(cur.vacAudit||GENERIC_VAC_AUDIT):(cur.todayAudit||GENERIC_TODAY_AUDIT);
   document.getElementById('auditLog').innerHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;">AUDIT TRAIL</div>'+
     log.map(l=>`<div class="audit-line"><span class="t">${l[0]}</span><span>${l[1]}</span></div>`).join('')+
     `<a class="verify-link" href="${REAL_TOKEN.verify}" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
      <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${isVac()
-       ?'This token was minted from the VAC production backend and is genuinely signed and verifiable. The escrow, deposit movement and condition events in this audit trail are simulated — the reimagined conveyancing flow is a proposed forward path (see the note above the steps).'
+       ?'This token was minted from the VAC production backend and is genuinely signed and verifiable. The matter events in this audit trail are simulated — the reimagined flow is a proposed forward path (see the note above the steps).'
        :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.'}</div>`;
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
 }
