@@ -277,10 +277,10 @@ const MATTERS = [
     ]
   },
   {
-    id:"poa", n:"04", title:"Power of attorney &amp; enduring guardianship",
+    id:"poa", n:"04", title:"Power of attorney & enduring guardianship",
     desc:"An enduring appointment is only valid after a prescribed witness confirms identity and capacity, explains the instrument, and witnesses the signing — a human gate the law already requires.",
     matter:"MATTER-POA-2026-0832",
-    sub:"NSW enduring power of attorney (financial &amp; legal, survives loss of capacity) and enduring guardianship (health &amp; lifestyle). The law already puts a verified human at the centre of this matter — the protocol makes that gate attributable and auditable.",
+    sub:"NSW enduring power of attorney (financial & legal, survives loss of capacity) and enduring guardianship (health & lifestyle). The law already puts a verified human at the centre of this matter — the protocol makes that gate attributable and auditable.",
     steps:[
       {h:"Principal &amp; attorney verify identity",m:"VAC identity · all parties",d:"Today you bring photo ID to the witnessing appointment. Here every party — the principal, the attorney being appointed, the witness — authenticates as a verified node on the authority chain. <span class='policy-chip'>face liveness</span><span class='policy-chip'>identity_confirmed</span>"},
       {h:"The appointment encoded as a policy-carrying packet",m:"F-495 · the instrument's terms",d:"What is being conferred travels with the matter — enduring power of attorney (financial &amp; legal decisions, continues after capacity is lost) or enduring guardianship (health &amp; lifestyle decisions) — with its conditions and limitations sealed in exactly as drafted. <span class='policy-chip'>witness_prescribed</span><span class='policy-chip'>capacity_confirmed</span><span class='policy-chip'>real_estate =&gt; registered_LRS</span>"},
@@ -288,6 +288,20 @@ const MATTERS = [
       {h:"The prescribed witness authorises",m:"human-in-the-loop · Powers of Attorney Act 2003",d:"<span class='hil'>A prescribed witness — in practice a solicitor or Local Court registrar, never the attorney being appointed — explains the effect of the instrument before it is signed, certifies that the principal appeared to understand it, and witnesses the signing.</span> This certificate is what makes the appointment valid — and it is exactly the kind of human decision the protocol seals."},
       {h:"Registered with NSW Land Registry Services",m:"if real estate is involved",d:"Before the attorney can deal with the principal's NSW real estate — sell, mortgage or lease it — the enduring power of attorney must be registered with NSW LRS. <span class='policy-chip'>registered_LRS == true</span>"},
       {h:"Appointment sealed &amp; lodged",m:"VAC authority token",d:"Who appointed whom, under what terms, certified by which witness — sealed, timestamped, independently verifiable. Years later, when the instrument is relied on, the chain of authority is provable rather than arguable."}
+    ]
+  },
+  {
+    id:"lease", n:"05", title:"Small-business lease — disclosure & advised sign-off",
+    desc:"A retail lease binds a small-business tenant only after statutory disclosure and a reviewed, advised commitment — gates a policy-carrying packet can hold and prove.",
+    matter:"MATTER-LEASE-2026-1147",
+    sub:"The NSW retail lease process (Retail Leases Act 1994): the lessor discloses before the lease is entered into, a prudent tenant gets the lease reviewed before committing — this matter encodes that as a gate — and longer leases are registered on title.",
+    steps:[
+      {h:"Lessor &amp; lessee verify identity",m:"VAC identity · both parties",d:"Landlord and small-business tenant authenticate. <span class='policy-chip'>face liveness</span><span class='policy-chip'>entity-matched</span> Verified parties on the chain before any disclosure clock starts."},
+      {h:"Lease &amp; disclosure encoded as a policy-carrying packet",m:"F-495 · Retail Leases Act 1994",d:"The lessor's disclosure statement — rent and reviews, outgoings, term and options, fit-out — must be given to the tenant before the lease is entered into (at least 7 days, under the Act). The lease's real conditions travel with the matter: <span class='policy-chip'>disclosure_served</span><span class='policy-chip'>advice_obtained</span><span class='policy-chip'>term &gt; 3y =&gt; registered_LRS</span>"},
+      {h:"Key terms checked against the disclosure",m:"condition evaluation",d:"The terms a tenant's solicitor actually scrutinises — rent and review mechanism, outgoings, term and options, fit-out and make-good obligations, security (bank guarantee or bond), assignment — are evaluated against the packet's predicates. Discrepancies between lease and disclosure are routed out, not papered over."},
+      {h:"The advised tenant signs off",m:"human-in-the-loop · solicitor review",d:"<span class='hil'>The tenant's solicitor reviews the lease against the disclosure statement and signs off, and the tenant commits knowing what they are agreeing to.</span> The law doesn't mandate this review — prudent tenants do it anyway. This matter encodes it as a gate: execution waits until the advised sign-off is recorded."},
+      {h:"Registered with NSW Land Registry Services",m:"leases over 3 years",d:"A lease running beyond three years is registered with NSW LRS, protecting the tenant's interest on the title against an incoming owner. <span class='policy-chip'>registered_LRS == true</span>"},
+      {h:"Lease sealed &amp; lodged",m:"VAC authority token",d:"Disclosure given, advice taken, terms checked, registration done — and who signed off at each gate — sealed into one tamper-evident, independently verifiable record."}
     ]
   }
 ];
