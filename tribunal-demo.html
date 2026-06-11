@@ -95,17 +95,21 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 /* hero step — the step a bare smart contract cannot do */
 .step.hero-step .step-dot{border-color:var(--amber-border);color:var(--amber);}
 .step.hero-step .step-dot.active{border-color:var(--amber);color:var(--amber);box-shadow:0 0 12px rgba(210,153,34,0.45);}
+.step.hero-step .step-dot.done{border-color:var(--success);color:var(--success);box-shadow:none;}
 .step.hero-step .step-detail{border-left-color:var(--amber);}
-.hero-badge{display:inline-block;font-family:var(--mono);font-size:9.5px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 6px;letter-spacing:1px;text-transform:uppercase;margin-left:8px;vertical-align:2px;white-space:nowrap;}
+.hero-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 6px;letter-spacing:1px;text-transform:uppercase;margin-left:8px;vertical-align:2px;max-width:100%;}
 .ctx-note{margin-top:10px;border-top:1px dashed var(--amber-border);padding-top:10px;}
 .ctx-note em{color:var(--amber);font-style:normal;font-weight:600;}
 
 /* F-570 embedded feedback surface */
-.fb{margin-top:12px;border:1px dashed var(--amber-border);background:rgba(210,153,34,0.04);border-radius:8px;padding:12px 14px;}
+.fb{margin-top:12px;border:1px dashed var(--border-light);background:rgba(210,153,34,0.04);border-radius:8px;padding:12px 14px;}
 .fb-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;}
 .fb-q{font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:8px;}
 .fb-input{width:100%;background:var(--bg);border:1px solid var(--border-light);border-radius:6px;color:var(--text-secondary);font-family:var(--font);font-size:13px;line-height:1.5;padding:8px 10px;resize:vertical;min-height:58px;}
-.fb-input:focus{outline:none;border-color:var(--amber);}
+.fb-input::placeholder{color:var(--text-tertiary);}
+.fb-input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-bg);}
+@media(pointer:coarse){.fb-input{font-size:16px;}}
+.saved-hint{font-family:var(--mono);font-size:11px;color:var(--amber);margin:-10px 0 18px;}
 .fb-row{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;}
 .fb-save{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .15s;}
 .fb-save:hover{border-color:var(--amber);}
@@ -209,8 +213,9 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
     <section class="stage" id="stage">
       <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
+      <!-- toggle labels are matter-01 copy — generalise before adding vacSteps to another matter -->
       <div class="view-toggle" id="viewToggle" role="group" aria-label="Choose workflow view">
-        <button class="vt-btn" data-view="today" aria-pressed="false">Today — paper order on agent</button>
+        <button class="vt-btn" data-view="today" aria-pressed="false">Today — order on agent</button>
         <button class="vt-btn" data-view="vac" aria-pressed="false">With VAC/VAT — programmable escrow</button>
       </div>
       <p class="stage-sub" id="stageSub"></p>
@@ -277,7 +282,9 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
 <script>
 // F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
-const fb=(id,q)=>`<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><span class="fb-status" id="fbs-${id}" role="status">Notes stay in this browser — nothing is sent anywhere yet.</span></div></div>`;
+const fbKey=id=>'vac-fb-'+id;
+const storageOK=(()=>{try{localStorage.setItem(fbKey('probe'),'1');localStorage.removeItem(fbKey('probe'));return true;}catch(e){return false;}})();
+const fb=(id,q)=>`<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" data-fb="${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><span class="fb-status" id="fbs-${id}" role="status">Notes stay in this browser — nothing is sent anywhere yet.</span></div></div>`;
 
 const MATTERS = [
   {
@@ -301,11 +308,11 @@ const MATTERS = [
       <span class="pullq">A private key is not a person.</span>
       <p>That missing piece is exactly what VAC supplies: a verified human identity — face liveness, deepfake scan, cross-modal gesture + voice — cryptographically bound to the programmable release. VAT — the verifiable authority token — and the policy-carrying packet seal the authority and the conditions into the same record, provable forever. That is why VAC can take conveyancing where smart contracts alone have stalled.</p>
     </div>`,
-    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed.</strong> The identity and signing technology on this view — VAC verification, VAT tokens, the sealed chain — is real and live; the token at the end is genuinely signed and independently verifiable. The conveyancing application is a forward path, not a current legal product: where the deposit is paid to the agent, as the standard Contract for Sale provides, statute makes it trust money that must be banked to the agent's trust account (Property and Stock Agents Act 2002 s 86; licensed conveyancers and solicitors sit under equivalent trust-money regimes) — and a programmable escrow as depositholder would need regulatory recognition. No legal-availability claim on this view is stated as settled; the key open questions are flagged inline, for Caroline to confirm or correct.</div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed.</strong> The identity and signing technology on this view — VAC verification, VAT tokens, the sealed chain — is live in production; the token at the end is genuinely signed and independently verifiable, and the identity step is simulated in this shareable preview (see the banner). The conveyancing application is a forward path, not a current legal product: where the deposit is paid to the agent, as the standard Contract for Sale provides, statute makes it trust money that must be banked to the agent's trust account (Property and Stock Agents Act 2002 s 86; licensed conveyancers and solicitors sit under equivalent trust-money regimes) — and a programmable escrow as depositholder would need regulatory recognition. No legal-availability claim on this view is stated as settled; the key open questions are flagged inline, for Caroline to confirm or correct.</div>`,
     vacSteps:[
       {h:"Programmable escrow holds the deposit",m:"next-generation stakeholder · proposition for review",d:"On exchange the deposit moves into a programmable escrow instead of the agent's trust account — a substitution of the same kind a deposit bond already makes today: where the vendor agrees, an issuer's guarantee replaces cash in trust entirely, proof that how the deposit is held is contractual, not fixed. (A bond avoids holding cash at all; this escrow would hold it — exactly the question below.) The escrow would be operated by a regulated third party — or the existing stakeholder on new rails — and VAC itself never takes custody: it supplies the verified human authority that gates the operator's release. Nothing about the escrow is discretionary; it can act only on the sealed conditions and verified human authority in the steps that follow. <span class='hil'>Open legal question:</span> the trust-account obligation attaches by statute to the agent, conveyancer or solicitor who holds the money (Property and Stock Agents Act 2002 s 86; Conveyancers Licensing Act 2003) — no recognised regime yet exists for a programmable escrow as depositholder."+fb('escrow',"Is a non-trust-account programmable escrow legally reachable for a NSW property deposit (contractual structure like the deposit bond, regulatory sandbox, or statutory amendment) — and what's the realistic reform path?")},
       {h:"Release conditions travel with the matter — checked automatically",m:"F-495 · policy-carrying packet",d:"The same conditions as today, but nobody has to chase them: <span class='policy-chip'>cooling_off_expired</span><span class='policy-chip'>settlement_verified</span><span class='policy-chip'>both_sides_authorised</span><span class='policy-chip'>release_to = vendor</span> The packet travels with the matter and evaluates itself when the trigger event lands. What is today a solicitor reading the file and writing a letter becomes a condition check done in seconds — and logged."},
-      {h:"A verified human authorises the release — in verified context",m:"VAC · verified person · verified time &amp; place",hero:true,d:"The release is not fired by a key or a script. <span class='hil'>A verified human authorises it through VAC — face liveness, deepfake scan, cross-modal gesture + voice — and that authorisation is cryptographically bound to the escrow release itself,</span> doing the work of the two written directions the law expects today: the purchaser's order on agent and the vendor's direction become verified human decisions from both sides, sealed to the same chain. And the authority carries its own context — valid only when, and if required where, the packet says it is: <span class='policy-chip'>valid_after = settlement_verified</span><span class='policy-chip'>valid_within = release_window</span><span class='policy-chip'>valid_from = verified_location (optional)</span><div class='ctx-note'>Only verified human authority can do this. A smart contract cannot verify that a human is really present at a place and time; a witness can watch a signature but cannot cryptographically prove when or where. A private key can be stolen, shared or silently coerced — a VAC authorisation is attributable to <em>a person, at a time, at a place</em>, on a liveness-checked face and voice.</div>"+fb('authority',"Would a sealed VAC authorisation satisfy the stakeholder's need for a written direction from each side (the Electronic Transactions Act 2000 (NSW) analysis) — and does binding the authority to a verified time window and location strengthen or complicate that?")},
+      {h:"A verified human authorises the release — in verified context",m:"VAC · verified person · verified time &amp; place",hero:true,d:"The release is not fired by a key or a script. <span class='hil'>A verified human authorises it through VAC — face liveness, deepfake scan, cross-modal gesture + voice — and that authorisation is cryptographically bound to the escrow release itself,</span> doing the work of the two written directions the law expects today: the purchaser's order on agent and the vendor's direction become verified human decisions from both sides, sealed to the same chain. And the authority carries its own context — valid only when, and if required where, the packet says it is: <span class='policy-chip'>valid_after = settlement_verified</span><span class='policy-chip'>valid_within = release_window</span><span class='policy-chip'>valid_from = verified_location</span><div class='ctx-note'>Only verified human authority can do this. A smart contract cannot verify that a human is really present at a place and time; a witness can watch a signature but cannot cryptographically prove when or where. A private key can be stolen, shared or silently coerced — a VAC authorisation is attributable to <em>a person, at a time, at a place</em>, on a liveness-checked face and voice.</div>"+fb('authority',"Would a sealed VAC authorisation satisfy the stakeholder's need for a written direction from each side (the Electronic Transactions Act 2000 (NSW) analysis) — and does binding the authority to a verified time window and location strengthen or complicate that?")},
       {h:"The solicitor's role moves to advice &amp; exceptions",m:"human expertise where it matters",d:"No one is removing solicitors from conveyancing. The routing work — preparing the order, chasing the vendor's direction, confirming receipt — is what disappears. The solicitor advises on the contract, sets the release conditions in the packet, and takes the exceptions: the discrepancy, the dispute, the matter that should never auto-clear. <span class='hil'>Judgment stays human; the paper shuffling doesn't.</span>"+fb('solicitor',"NSW doesn't mandate solicitor involvement in conveyancing — so which steps on this path would the profession, insurers or lenders insist stay with a practitioner anyway?")},
       {h:"Sealed to the same auditable chain — and fraud gets harder",m:"VAC authority token · provable forever",d:"Every condition result and both human authorisations — each with its verified time and, where required, place — are sealed to the same chain as the matter. That is more defensible than a paper trail reconstructed from emails years later, and it directly attacks a live fraud problem: payment-redirection scams intercept EFT deposits on their way to trust accounts because an email with a BSB in it carries no proof of who sent it. Here the deposit moves only into the sealed escrow named in the packet, and releases only on liveness-verified human authority. There is no email to spoof."+fb('liability',"Does programmatic release create a liability gap — if a condition evaluates wrongly or an authorisation is procured by fraud, who carries it: the escrow operator, the solicitor, the protocol, an insurer?")}
     ]
@@ -385,8 +392,8 @@ const REAL_TOKEN = {
   verify:"https://vacprotocol.org/vat/verify/vat_root_462bce15d63e"
 };
 
-let cur=null, stepIdx=-1, propView='today';
-const isVac=()=>!!(cur&&cur.vacSteps&&propView==='vac');
+let cur=null, stepIdx=-1, stageView='today';
+const isVac=()=>!!(cur&&cur.vacSteps&&stageView==='vac');
 const activeSteps=()=>isVac()?cur.vacSteps:cur.steps;
 const mEl=document.getElementById('matters');
 MATTERS.forEach(m=>{
@@ -396,23 +403,25 @@ MATTERS.forEach(m=>{
 });
 
 function selectMatter(id){
+  if(cur&&cur.id!==id)stageView='today';
   cur=MATTERS.find(x=>x.id===id);
   document.querySelectorAll('.matter').forEach(el=>{const on=el.dataset.id===id;el.classList.toggle('sel',on);el.setAttribute('aria-pressed',on);});
   renderStage();
   document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
+// re-rendering always restarts the walkthrough — intentional: the view toggle and reset share this path
 function renderStage(){
   stepIdx=-1;
   const vac=isVac();
   const vt=document.getElementById('viewToggle');
   vt.style.display=cur.vacSteps?'flex':'none';
-  if(cur.vacSteps)vt.querySelectorAll('.vt-btn').forEach(b=>{const on=b.dataset.view===propView;b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on);});
-  document.getElementById('stageTitle').textContent=vac?cur.vacTitle:cur.title;
+  if(cur.vacSteps)vt.querySelectorAll('.vt-btn').forEach(b=>{const on=b.dataset.view===stageView;b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on);});
+  document.getElementById('stageTitle').textContent=vac?(cur.vacTitle||cur.title):cur.title;
   document.getElementById('stageMatter').textContent=cur.matter;
-  document.getElementById('stageSub').textContent=vac?cur.vacSub:cur.sub;
+  document.getElementById('stageSub').textContent=vac?(cur.vacSub||cur.sub):cur.sub;
   const intro=document.getElementById('vacIntro');
-  intro.innerHTML=vac?cur.vacThesis+cur.vacNote:'';
+  intro.innerHTML=vac?(cur.vacThesis||'')+(cur.vacNote||''):'';
   intro.style.display=vac?'block':'none';
   const steps=activeSteps();
   const s=document.getElementById('steps');s.innerHTML='';
@@ -422,21 +431,33 @@ function renderStage(){
       <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">the step smart contracts can&#39;t do</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
     s.appendChild(row);
   });
-  s.querySelectorAll('.fb-input').forEach(t=>{try{const v=localStorage.getItem('vac-fb-'+t.id.slice(3));if(v)t.value=v;}catch(e){}});
+  let savedCount=0;
+  s.querySelectorAll('.fb-input').forEach(t=>{
+    try{const v=localStorage.getItem(fbKey(t.dataset.fb));if(v){t.value=v;savedCount++;}}catch(e){}
+    if(!storageOK){const st=document.getElementById('fbs-'+t.dataset.fb);st.textContent="Notes can't be kept in this browser (storage is blocked) — copy your note before leaving.";}
+  });
+  if(vac&&savedCount)intro.innerHTML+=`<div class="saved-hint">${savedCount} saved note${savedCount>1?'s':''} on this view — inside the step boxes below.</div>`;
   document.getElementById('stage').classList.add('show');
   document.getElementById('receipt').classList.remove('show');
   const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
 }
 
 document.querySelectorAll('.vt-btn').forEach(b=>{
-  b.onclick=()=>{if(!cur||propView===b.dataset.view)return;propView=b.dataset.view;renderStage();};
+  b.onclick=()=>{if(!cur||stageView===b.dataset.view)return;stageView=b.dataset.view;renderStage();b.closest('.view-toggle').scrollIntoView({block:'nearest'});};
 });
 
-// F-570 — save Caroline's notes locally (honest scope: no backend yet, and the status line says so)
+// F-570 — keep Caroline's notes locally (honest scope: no backend yet, and the status line says so).
+// Drafts autosave on input so a view toggle / reset / matter switch can't destroy typed text.
+document.getElementById('steps').addEventListener('input',e=>{
+  const t=e.target.closest('.fb-input');if(!t||!storageOK)return;
+  try{localStorage.setItem(fbKey(t.dataset.fb),t.value);}catch(err){return;}
+  const st=document.getElementById('fbs-'+t.dataset.fb);
+  st.textContent='Draft kept in this browser — nothing is sent anywhere yet.';
+});
 document.getElementById('steps').addEventListener('click',e=>{
   const btn=e.target.closest('.fb-save');if(!btn)return;
   const id=btn.dataset.fb, t=document.getElementById('fb-'+id), st=document.getElementById('fbs-'+id);
-  let ok=true;try{localStorage.setItem('vac-fb-'+id,t.value);}catch(err){ok=false;}
+  let ok=true;try{localStorage.setItem(fbKey(id),t.value);}catch(err){ok=false;}
   st.textContent=ok?'Saved — kept in this browser only; nothing is sent anywhere yet.':'Could not save in this browser — please copy your note before leaving.';
   st.style.color=ok?'var(--amber)':'var(--text-secondary)';
 });
@@ -470,7 +491,7 @@ function showReceipt(){
     <dt>Authority token</dt><dd class="hl">${REAL_TOKEN.jti} <span class="real-badge">REAL · LIVE</span></dd>
     <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
     <dt>Trust score</dt><dd>${REAL_TOKEN.trust}</dd>
-    <dt>Lodged</dt><dd>${now.toISOString()}</dd>
+    <dt>Lodged</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
     <dt>Authorised by</dt><dd class="hl">Verified human · in the loop</dd>
     <dt>Status</dt><dd class="hl" style="color:var(--success)">SEALED · LODGED · AUDITABLE</dd>`;
   const log=isVac()?[
@@ -493,7 +514,7 @@ function showReceipt(){
     `<a class="verify-link" href="${REAL_TOKEN.verify}" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
      <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${isVac()
        ?'This token was minted from the VAC production backend and is genuinely signed and verifiable. The escrow, deposit movement and condition events in this audit trail are simulated — the reimagined conveyancing flow is a proposed forward path (see the note above the steps).'
-       :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; only the identity step in this preview is simulated.'}</div>`;
+       :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.'}</div>`;
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
 }
 </script>
