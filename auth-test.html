@@ -4418,45 +4418,24 @@ function maybeResumeReauth() {
     }
 })();
 
-// Restore verified state from localStorage
+// F-563 (c): pre-fill identity from a prior verified session, but do NOT resurrect the verified
+// SCREEN on a plain page load. The old IIFE auto-routed to showSuccess()+goToStep(4) whenever
+// vac_verified existed (<24h), so a RAW URL refresh landed back on the verified page instead of
+// the email/name start — localStorage was too sticky. Now a plain refresh lands on START (step 0,
+// identity pre-filled); only the reauth flag (maybeResumeReauth) routes to the camera pre-flight.
 (function() {
     try {
         const saved = localStorage.getItem('vac_verified');
         if (!saved) return;
         const data = JSON.parse(saved);
-        // Check if less than 24 hours old
-        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) {
-            localStorage.removeItem('vac_verified');
-            return;
-        }
-        if (!data.email || !data.authResult) return;
-        console.log('[VAC] Restoring verified state for', data.email);
-        // Restore form fields
-        const nameInput = document.getElementById('inputName');
-        const emailInput = document.getElementById('inputEmail');
-        const orgInput = document.getElementById('inputOrg');
-        const roleInput = document.getElementById('inputRole');
-        if (nameInput) nameInput.value = data.name || '';
-        if (emailInput) emailInput.value = data.email || '';
-        if (orgInput) orgInput.value = data.org || '';
-        if (roleInput) roleInput.value = data.role || '';
-        // Restore auth result and skip to success
-        authResult = data.authResult;
-        // Use setTimeout to ensure DOM is fully ready
-        setTimeout(() => {
-            try {
-                showSuccess();
-                goToStep(4);
-                console.log('[VAC] Restored to success screen');
-            } catch(e2) {
-                console.error('[VAC] Restore showSuccess failed:', e2);
-                // Fallback: just show step 4 with basic info
-                goToStep(4);
-                document.getElementById('successName').textContent = data.name || '';
-                document.getElementById('successScore').textContent = 'Trust Score: ' + (data.authResult?.biometric_verification?.overall_score || '0.90');
-            }
-        }, 100);
-    } catch(e) { console.log('[VAC] Restore failed:', e); }
+        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) { localStorage.removeItem('vac_verified'); return; }
+        if (!data.email) return;
+        // Convenience pre-fill only (so the user doesn't re-type) — NO auto-route to the success screen.
+        var _n = document.getElementById('inputName');  if (_n) _n.value = data.name || '';
+        var _e = document.getElementById('inputEmail'); if (_e) _e.value = data.email || '';
+        var _o = document.getElementById('inputOrg');   if (_o) _o.value = data.org || '';
+        var _r = document.getElementById('inputRole');  if (_r) _r.value = data.role || '';
+    } catch(e) { console.log('[VAC] verified pre-fill failed:', e); }
 })();
 </script>
 
