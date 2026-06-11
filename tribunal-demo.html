@@ -33,7 +33,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
 .hero{margin-bottom:44px;}
 .eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
-.hero h1{font-size:clamp(24px,5.5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:680px;}
+.hero h1{font-size:clamp(24px,5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:680px;}
 .hero p{font-size:clamp(14.5px,3.8vw,16px);color:var(--text-secondary);max-width:640px;}
 .hero .pull{color:var(--text-primary);font-weight:600;}
 
@@ -123,7 +123,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .arch-arrow{display:flex;align-items:center;color:var(--text-quaternary);font-size:20px;flex:0 0 auto;}
 .arch-note{margin-top:20px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;font-size:13.5px;color:var(--text-secondary);}
 .arch-note strong{color:var(--text-primary);}
-.verify-link{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--teal);text-decoration:none;border:1px solid var(--teal-border);background:var(--teal-bg);border-radius:6px;padding:7px 12px;margin-top:12px;transition:all .15s;max-width:100%;flex-wrap:wrap;}
+.verify-link{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--teal);text-decoration:none;border:1px solid var(--teal-border);background:var(--teal-bg);border-radius:6px;padding:7px 12px;margin-top:12px;transition:all .15s;max-width:100%;}
 .verify-link:hover{border-color:var(--teal);color:var(--text-primary);}
 .real-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;letter-spacing:.5px;margin-left:8px;}
 
@@ -285,7 +285,7 @@ const MATTERS = [
       {h:"Principal &amp; attorney verify identity",m:"VAC identity · all parties",d:"Today you bring photo ID to the witnessing appointment. Here every party — the principal, the attorney being appointed, the witness — authenticates as a verified node on the authority chain. <span class='policy-chip'>face liveness</span><span class='policy-chip'>identity_confirmed</span>"},
       {h:"The appointment encoded as a policy-carrying packet",m:"F-495 · the instrument's terms",d:"What is being conferred travels with the matter — enduring power of attorney (financial &amp; legal decisions, continues after capacity is lost) or enduring guardianship (health &amp; lifestyle decisions) — with its conditions and limitations sealed in exactly as drafted. <span class='policy-chip'>witness_prescribed</span><span class='policy-chip'>capacity_confirmed</span><span class='policy-chip'>real_estate =&gt; registered_LRS</span>"},
       {h:"Capacity confirmed before witnessing",m:"the gate before the gate",d:"The principal must understand the nature and effect of the instrument at the time it is made. Capacity is assessed <span class='hil'>before</span> the witnessing — where there is any doubt, a medical opinion is obtained first; the witness does not proceed without it."},
-      {h:"The prescribed witness authorises",m:"human-in-the-loop · Powers of Attorney Act 2003",d:"<span class='hil'>A prescribed witness — in practice a solicitor or Local Court registrar, never the attorney being appointed — explains the effect of the instrument before it is signed, certifies that the principal appeared to understand it, and witnesses the signing.</span> This certificate is what makes the appointment valid — and it is exactly the kind of human decision the protocol seals."},
+      {h:"The prescribed witness authorises",m:"human-in-the-loop · Powers of Attorney Act 2003 / Guardianship Act 1987",d:"<span class='hil'>A prescribed witness — in practice a solicitor or Local Court registrar, never the attorney being appointed — explains the effect of the instrument before it is signed, certifies that the principal appeared to understand it, and witnesses the signing.</span> For enduring guardianship, an eligible witness plays the same certifying role under the Guardianship Act 1987. And the appointment confers no authority until the appointed attorney or guardian signs their own acceptance — witness certificate plus acceptance, exactly the human decisions the protocol seals."},
       {h:"Registered with NSW Land Registry Services",m:"if real estate is involved",d:"Before the attorney can deal with the principal's NSW real estate — sell, mortgage or lease it — the enduring power of attorney must be registered with NSW LRS. <span class='policy-chip'>registered_LRS == true</span>"},
       {h:"Appointment sealed &amp; lodged",m:"VAC authority token",d:"Who appointed whom, under what terms, certified by which witness — sealed, timestamped, independently verifiable. Years later, when the instrument is relied on, the chain of authority is provable rather than arguable."}
     ]
@@ -335,7 +335,7 @@ MATTERS.forEach(m=>{
 
 function selectMatter(id){
   cur=MATTERS.find(x=>x.id===id);stepIdx=-1;
-  document.querySelectorAll('.matter').forEach(el=>el.classList.toggle('sel',el.dataset.id===id));
+  document.querySelectorAll('.matter').forEach(el=>{const on=el.dataset.id===id;el.classList.toggle('sel',on);el.setAttribute('aria-pressed',on);});
   document.getElementById('stageTitle').textContent=cur.title;
   document.getElementById('stageMatter').textContent=cur.matter;
   document.getElementById('stageSub').textContent=cur.sub;
