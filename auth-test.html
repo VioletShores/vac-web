@@ -451,7 +451,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             Back
         </button>
         <div class="header-eyebrow">Step 3 of 4</div>
-        <div class="header-title">Complete the Challenge</div>
+        <div class="header-title" id="step2Title">Complete the Challenge</div>
     </div>
     <!-- S110: persistent target-digit strip ABOVE the video so the numbers are always
          clear and never fade behind the hand/skeleton overlay -->
@@ -464,6 +464,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
          The big current-digit prompt + the two ✓ lamps carry the flow; the small status below is
          now secondary. Hidden until the finger phase begins. -->
     <div id="vacGuided" style="display:none;margin:0 0 12px;text-align:center;">
+        <div id="vacGuidedNumber" style="display:none;font-size:clamp(56px,18vw,96px);font-weight:800;color:var(--purple,#7c5cfc);line-height:1;margin-bottom:2px;"></div>
         <div id="vacGuidedPrompt" style="font-size:clamp(20px,5.5vw,28px);font-weight:800;color:var(--text-primary);line-height:1.2;min-height:1.2em;"></div>
         <div id="vacGuidedSub" style="font-size:clamp(12px,3.2vw,14px);color:var(--text-secondary);margin-top:6px;min-height:1.2em;"></div>
         <div style="display:flex;justify-content:center;gap:clamp(14px,5vw,28px);margin-top:12px;">
@@ -2021,6 +2022,10 @@ function beginRecording() {
     // Phase prompt updater (uses seconds with decimal precision)
     function updatePhasePrompt(sec) {
         if (sec < PHRASE_DURATION) {
+            // F-563 UX: the active instruction takes over the header in YELLOW so it can't get lost
+            // among the other text (Rob — "Say the greeting" was getting lost).
+            var _st = document.getElementById('step2Title');
+            if (_st) { _st.textContent = (fingerFallback === 'voice') ? 'Say the phrase' : 'Say the greeting'; _st.style.color = '#fbbf24'; }
             // Speaking phase. FINGER mode: GREETING ONLY (numbers stripped) — the numbers are
             // spoken per-digit, each bound to its gesture (SUPP-7). VOICE-ONLY mode skips the
             // digit phase, so the user must speak the FULL phrase (incl numbers) here (codex).
@@ -2124,35 +2129,43 @@ function beginRecording() {
                 var h = document.getElementById('vacSayHint'); if (h) h.textContent = hint || '';
             }
         }
+        // F-563 UX: a BIG number during the show-fingers step so the target digit is unmissable.
+        function setBigNumber(on, n) {
+            var ne = document.getElementById('vacGuidedNumber');
+            if (!ne) return;
+            ne.style.display = on ? 'block' : 'none';
+            if (on) ne.textContent = n;
+        }
         if (opts.done) {
             if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
-            setSayView(false);
+            setSayView(false); setBigNumber(false);
             return;
         }
         if (opts.beat) {
             if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
-            setSayView(false);
+            setSayView(false); setBigNumber(false);
             return;
         }
         var N = opts.digit;
         if (!opts.gestureDone) {
-            // Sub-gate 1: show the fingers (camera visible).
+            // Sub-gate 1: show the fingers (camera visible) — BIG number so the target is unmissable.
             if (promptEl) { promptEl.textContent = 'Show ' + N + ' finger' + (N === 1 ? '' : 's'); promptEl.style.color = 'var(--text-primary)'; }
             if (subEl) subEl.textContent = opts.gesturePct >= 100 ? 'Hold it…' : 'Hold steady';
             setLamp(gLamp, gWrap, 'active', '✋');
             setLamp(vLamp, vWrap, 'pending', '🗣️');
-            setSayView(false);
+            setSayView(false); setBigNumber(true, N);
         } else if (opts.voiceOn && !opts.voiceDone) {
-            // Sub-gate 2: gesture ✓ (latched) — switch to the camera-free "Say N" screen.
+            // Sub-gate 2: gesture ✓ (latched) — switch to the camera-free "Say N" screen (the cover
+            // shows the number, so the panel's big number hides here).
             if (promptEl) { promptEl.textContent = 'Now say “' + N + '”'; promptEl.style.color = '#fbbf24'; }
             if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — say it a bit louder' : 'Out loud';
             setLamp(gLamp, gWrap, 'done', '✋');
             setLamp(vLamp, vWrap, 'active', '🗣️');
-            setSayView(true, N, opts.voiceHelp ? 'A bit louder…' : '');
+            setSayView(true, N, opts.voiceHelp ? 'A bit louder…' : ''); setBigNumber(false);
         } else if (!opts.voiceOn && opts.rearmed === false) {
             // Speech-off + gesture confirmed but NOT re-armed: the advance gate is BLOCKED (same held
             // pose carried from the last accept). Don't claim "Got it" — prompt the re-show (codex).
@@ -2160,14 +2173,14 @@ function beginRecording() {
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'active', '✋');
             setLamp(vLamp, vWrap, 'pending', '🗣️');
-            setSayView(false);
+            setSayView(false); setBigNumber(true, N);
         } else {
             // Both satisfied (or speech-off + re-armed) — advancing on the next frame.
             if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋');
             setLamp(vLamp, vWrap, opts.voiceOn ? 'done' : 'pending', '🗣️');
-            setSayView(false);
+            setSayView(false); setBigNumber(false);
         }
     }
 
@@ -2875,6 +2888,8 @@ function beginRecording() {
             })();
             function renderGrace() {
                 // S111 #3: numbers are in #digitStrip above; this panel shows the countdown only.
+                var _st2 = document.getElementById('step2Title');   // F-563 UX: header moves from the greeting to the numbers phase
+                if (_st2) { _st2.textContent = 'Show the numbers'; _st2.style.color = ''; }
                 challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
             }
             renderGrace();
