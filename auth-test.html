@@ -1405,6 +1405,20 @@ let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 
 function startAVChecks() {
+    // F-563 (3): RESET every pre-flight pill to the un-ticked "checking" state on EVERY entry.
+    // On re-auth the Light/Mic/Hand pills kept the prior session's ✓ (same stale-state-on-re-entry
+    // family as resetModalities/overlay), so the user saw green ticks while "Start" stayed disabled
+    // and didn't realise they had to act. setAVStatus('checking',…) strips good/warn/bad + restores
+    // the spinner, so the checks visibly re-run and the path to Start is obvious. Reset the GATE
+    // STATE too (not just the pills) — else an entry reaching startAVChecks without resetBiometricUI
+    // (e.g. the blank-challenge retry re-calling requestCamera) would leave avChecks latched true and
+    // updateAVReady could enable Start / auto-proceed without the pre-flight actually re-running
+    // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
+    // forces a genuine re-check.
+    avChecks = { face: false, light: false, mic: false, hand: false };
+    setAVStatus('light', 'checking', 'Light');
+    setAVStatus('mic', 'checking', 'Mic');
+    setAVStatus('hand', 'checking', 'Hand');
     // Initialize pill icons with spinners
     ['avLightIcon', 'avMicIcon'].forEach(id => {
         const el = document.getElementById(id);
