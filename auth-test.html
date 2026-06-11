@@ -502,6 +502,29 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     </div>
 </div>
 
+<!-- F-563 (1): UPFRONT EXPLAINER — big-text screen shown before the challenge starts, so the
+     guided per-digit gates feel expected. Previews the full sequence ONCE (familiarity); the
+     challenge itself still reveals one digit at a time. Overlay on top of step 2 (camera already
+     warming behind it). Auto-proceed (service auto-retry) skips this. -->
+<div id="challengeIntro" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg,#0A0F1A);padding:24px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:clamp(16px,3vh,28px);">
+    <div>
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--teal);text-transform:uppercase;margin-bottom:10px;">Before we start</div>
+      <div style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary);">You'll be shown three numbers,<br>one at a time.</div>
+    </div>
+    <div style="font-size:clamp(15px,4vw,18px);line-height:1.5;color:var(--text-secondary);">
+      For each one: <strong style="color:var(--text-primary);">show that many fingers</strong>, then <strong style="color:var(--text-primary);">say the number out loud</strong>.<br>
+      We'll guide you through each step with a <span style="color:#22c55e;font-weight:700;">✓</span> as you go.
+    </div>
+    <div id="challengeIntroPreview" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(14px,3vh,20px);">
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">Your numbers, in order</div>
+      <div id="challengeIntroDigits" style="display:flex;justify-content:center;gap:clamp(10px,3vw,16px);flex-wrap:wrap;"></div>
+      <div style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">You'll see them one at a time during the challenge — no need to memorise.</div>
+    </div>
+    <button id="challengeIntroBtn" onclick="dismissChallengeIntro()" class="btn-primary" style="font-size:clamp(15px,4vw,17px);padding:16px 24px;width:100%;max-width:340px;margin:0 auto;">I'm ready — start</button>
+  </div>
+</div>
+
 <!-- STEP 3: Processing — REAL verification -->
 <div class="step-section" id="step3">
     <div class="header">
@@ -1143,6 +1166,9 @@ const userData = () => ({
 
 // Step navigation
 function goToStep(n) {
+    // F-563 (1): the upfront-explainer overlay is fixed/full-screen — hide it on any step change
+    // so a back-navigation while it's up can't leave it blocking the UI.
+    try { var _ci = document.getElementById('challengeIntro'); if (_ci) _ci.style.display = 'none'; } catch(_) {}
     document.querySelectorAll('.step-section').forEach(s => s.classList.remove('active'));
     document.getElementById(`step${n}`).classList.add('active');
     for (let i = 0; i <= 3; i++) {
@@ -1645,6 +1671,7 @@ function updateAVReady() {
     // every AV frame, so it fires the moment both the checks pass AND the challenge has arrived.
     if (allGood && window.__vacAutoProceedChallenge && !challengeIncomplete()) {
         window.__vacAutoProceedChallenge = false;   // fire once
+        window.__vacSkipExplainer = true;            // F-563: silent service-error re-run skips the upfront explainer
         try { vacDebug('autoretry_preflight_passed'); } catch(_) {}
         // DEFER out of this runAVFrame callback: calling goToChallenge() inline lets the current
         // frame re-schedule the AV loop (the requestAnimationFrame at the end of runAVFrame) AFTER
@@ -1792,8 +1819,40 @@ function goToChallenge() {
         }
     } catch (e) { console.warn('[WARMUP] setup error (non-fatal):', e); }
     goToStep(2);
-    // Auto-start countdown after brief delay (no button press needed)
-    setTimeout(() => startCountdown(), 800);
+    // F-563 (1): show the upfront explainer (big text + one-time sequence preview), THEN start the
+    // countdown on "I'm ready". Skip it for the service-error AUTO-PROCEED (silent re-run — the user
+    // has already seen it). The skip flag is used instead of a positional param because goToChallenge
+    // is also wired as btnCamera.onclick (which would pass a truthy MouseEvent as the first arg).
+    if (window.__vacSkipExplainer) {
+        window.__vacSkipExplainer = false;
+        setTimeout(() => startCountdown(), 800);
+    } else {
+        showChallengeIntro();
+    }
+}
+
+// F-563 (1): populate the intro with a ONE-TIME preview of the full digit sequence (familiarity),
+// then reveal one digit at a time during the challenge. Voice-only mode has no finger phase, so the
+// intro is finger-mode only; voice-only goes straight to the countdown.
+function showChallengeIntro() {
+    var overlay = document.getElementById('challengeIntro');
+    var digits = (fingerFallback === 'voice') ? [] : (challengeData && challengeData.digits || []);
+    if (!overlay || digits.length === 0) { setTimeout(() => startCountdown(), 800); return; }
+    var row = document.getElementById('challengeIntroDigits');
+    if (row) {
+        row.innerHTML = digits.map(function(d) {
+            return '<span style="display:inline-flex;width:clamp(48px,13vw,60px);height:clamp(48px,13vw,60px);border-radius:50%;border:2px solid var(--purple);background:rgba(124,92,252,0.18);color:var(--text-primary);align-items:center;justify-content:center;font-size:clamp(26px,7vw,34px);font-weight:800;">' + d + '</span>';
+        }).join('');
+    }
+    overlay.style.display = 'block';
+    try { vacDebug('challenge_intro_shown', null, { digits_count: digits.length }); } catch(_) {}
+}
+
+function dismissChallengeIntro() {
+    var overlay = document.getElementById('challengeIntro');
+    if (overlay) overlay.style.display = 'none';
+    try { vacDebug('challenge_intro_dismissed'); } catch(_) {}
+    startCountdown();
 }
 
 function setFingerFallback() {
