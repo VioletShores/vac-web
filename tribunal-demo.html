@@ -186,14 +186,33 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .cta{margin-top:18px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:clamp(16px,4.5vw,22px) clamp(16px,5vw,24px);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
 .cta-h{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
 .cta-d{font-size:13.5px;color:var(--text-secondary);max-width:520px;}
-.cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;}
+.cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;border:none;cursor:pointer;}
 .cta-btn:hover{background:var(--purple-dim);}
-@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}}
+
+/* live VAC identity gate + verify overlay (F-577) — embeds the single auth-test verify flow; no verify JS duplicated here */
+.id-gate{position:relative;background:var(--surface);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:12px;padding:clamp(18px,4.5vw,26px);margin-bottom:22px;}
+.id-gate.done{border-left-color:var(--success);}
+.id-h{font-size:clamp(18px,4.5vw,22px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;margin-bottom:8px;}
+.id-p{font-size:14px;color:var(--text-secondary);max-width:560px;margin-bottom:16px;}
+.id-actions{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.id-skip{font-size:13px;color:var(--text-tertiary);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.id-skip:hover{color:var(--text-secondary);}
+.id-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);line-height:1.6;margin-top:14px;max-width:560px;}
+.id-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:5px;padding:4px 9px;margin-bottom:12px;}
+.id-badge[hidden]{display:none;}
+.vo{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);}
+.vo[hidden]{display:none;}
+.vo-card{display:flex;flex-direction:column;width:min(680px,100%);height:min(900px,96vh);background:var(--surface);border:1px solid var(--border-light);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.vo-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--teal);}
+.vo-close{background:transparent;border:none;color:var(--text-tertiary);font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}
+.vo-close:hover{color:var(--text-primary);}
+.vo-frame{flex:1 1 auto;width:100%;border:none;background:var(--bg);}
+@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}.id-actions{flex-direction:column;align-items:flex-start;gap:12px;}.vo{padding:0;}.vo-card{width:100%;height:100%;border-radius:0;border:none;}}
 </style>
 </head>
 <body>
 <div class="page-shell">
-  <div class="preview-banner">Preview — illustrative walkthrough. Identity steps are simulated in this build; live biometric verification connects in the next phase.</div>
+  <div class="preview-banner">Preview — the identity step runs live VAC biometric verification; the matter administration that follows is an illustrative walkthrough.</div>
 
   <header class="top"><div class="wrap"><div class="top-row">
     <div class="brand">
@@ -224,6 +243,19 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     </div>
 
     <div id="tab-walk">
+    <section class="id-gate" id="idGate">
+      <div class="id-badge" id="idVerified" hidden>Identity verified · live VAC<span class="idv-name"></span></div>
+      <div class="eyebrow" style="margin-bottom:10px;">Step one · the live part of this build</div>
+      <h2 class="id-h">Prove a real, present human — live, with VAC.</h2>
+      <p class="id-p">The identity step runs the real VAC verification: face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge, checked against the VAC production backend. Complete it to open the matters — or preview them without verifying.</p>
+      <div class="id-actions">
+        <button class="cta-btn" id="idVerifyBtn" type="button">Begin verification</button>
+        <a class="id-skip" id="idSkip" role="button" tabindex="0">Preview the matters without verifying</a>
+      </div>
+      <div class="id-note">Your camera and microphone are used only for this verification step. The recording is sent to VAC's backend to run the liveness and deepfake checks.</div>
+    </section>
+
+    <div id="walkBody" hidden>
     <p class="section-label">Choose a matter type</p>
     <div class="matters" id="matters"></div>
 
@@ -250,6 +282,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <div class="audit" id="auditLog"></div>
       </div>
     </section>
+    </div><!-- /walkBody -->
 
     </div><!-- /tab-walk -->
 
@@ -271,7 +304,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         </div>
       </div>
       <div class="arch-note">
-        <strong>What's real today vs. what's next.</strong> The cryptographic signing, the authority chain, and the verification are <strong>live and in production now</strong> — the token in the walkthrough is genuinely signed and you can verify it. The trust/tribunal <em>workflow skin</em> over these primitives is what we'd build with the Law Society. Live biometric capture is wired and connects to the walkthrough in the next phase (this preview simulates that one step so it can be shared as a link).
+        <strong>What's real today vs. what's next.</strong> The cryptographic signing, the authority chain, and the verification are <strong>live and in production now</strong> — the token in the walkthrough is genuinely signed and you can verify it. The trust/tribunal <em>workflow skin</em> over these primitives is what we'd build with the Law Society. Live biometric capture is now wired: the identity step runs the real VAC verification — face liveness, deepfake scan, gesture and voice — against the production backend. The matter workflow over those primitives is the illustrative part, and you can still preview the matters without verifying.
       </div>
     </div><!-- /tab-arch -->
 
@@ -296,11 +329,20 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
   </div>
 </div>
 
+<div class="vo" id="verifyOverlay" hidden>
+  <div class="vo-card">
+    <div class="vo-head"><span>Live VAC identity verification</span><button class="vo-close" id="voClose" type="button" aria-label="Close verification">&times;</button></div>
+    <iframe class="vo-frame" id="voFrame" title="VAC live identity verification" allow="camera; microphone; fullscreen"></iframe>
+  </div>
+</div>
+
 <script>
 // F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
 const fbKey=id=>'vac-fb-'+id;
 const storageOK=(()=>{try{localStorage.setItem(fbKey('probe'),'1');localStorage.removeItem(fbKey('probe'));return true;}catch(e){return false;}})();
 const fb=(id,q)=>`<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" data-fb="${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><span class="fb-status" id="fbs-${id}" role="status">Notes stay in this browser — nothing is sent anywhere yet.</span></div></div>`;
+// escape untrusted text (e.g. the verified name from auth-test's postMessage) before it enters an innerHTML template
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 const MATTERS = [
   {
@@ -635,7 +677,7 @@ function showReceipt(){
     <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
     <dt>Trust score</dt><dd>${REAL_TOKEN.trust}</dd>
     <dt>Lodged</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
-    <dt>Authorised by</dt><dd class="hl">Verified human · in the loop</dd>
+    <dt>Authorised by</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · verified live (VAC)':'Verified human · in the loop'}</dd>
     <dt>Status</dt><dd class="hl" style="color:var(--success)">SEALED · LODGED · AUDITABLE</dd>`;
   const GENERIC_VAC_AUDIT=[
     ['00:00','matter opened · policy-carrying packet attached'],
@@ -660,6 +702,45 @@ function showReceipt(){
        :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.'}</div>`;
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
 }
+
+// ---- Live VAC identity step (F-577) ----
+// Embed the single auth-test verify flow in an iframe and listen for its existing
+// success postMessage; on success, reveal the walkthrough. No verify logic is
+// duplicated here, so ongoing auth-test / F-577 fixes propagate automatically.
+(function(){
+  const gate=document.getElementById('idGate');
+  const walkBody=document.getElementById('walkBody');
+  const overlay=document.getElementById('verifyOverlay');
+  const frame=document.getElementById('voFrame');
+  const VERIFY_SRC='/auth-test.html';
+  let revealed=false;
+  function reveal(verified,name){
+    if(!revealed){revealed=true;walkBody.hidden=false;}
+    if(verified){
+      window.__vacVerified={name:(name||'').trim()};
+      const badge=document.getElementById('idVerified');
+      badge.querySelector('.idv-name').textContent=window.__vacVerified.name?(' · '+window.__vacVerified.name):'';
+      badge.hidden=false;gate.classList.add('done');
+    }
+  }
+  function openVerify(){frame.src=VERIFY_SRC;overlay.hidden=false;document.body.style.overflow='hidden';}
+  function closeVerify(){overlay.hidden=true;frame.src='about:blank';document.body.style.overflow='';}
+  document.getElementById('idVerifyBtn').addEventListener('click',openVerify);
+  const skip=document.getElementById('idSkip');
+  skip.addEventListener('click',e=>{e.preventDefault();reveal(false);});
+  skip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();reveal(false);}});
+  document.getElementById('voClose').addEventListener('click',closeVerify);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeVerify();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!overlay.hidden)closeVerify();});
+  // auth-test (same origin) posts these on biometric success when iframed
+  window.addEventListener('message',ev=>{
+    if(ev.origin!==window.location.origin)return;
+    const d=ev.data||{};
+    if(d.type==='vac-auth-success'||d.type==='vac-verified'){closeVerify();reveal(true,d.name);}
+  });
+  // redirect path: auth-test ?mode=copilot&callback=/tribunal?step=verified returns here
+  if(new URLSearchParams(location.search).get('step')==='verified')reveal(true);
+})();
 </script>
 </body>
 </html>
