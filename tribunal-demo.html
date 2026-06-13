@@ -191,15 +191,35 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
 /* live VAC identity gate + verify overlay (F-577) — embeds the single auth-test verify flow; no verify JS duplicated here */
 .id-gate{position:relative;background:var(--surface);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:12px;padding:clamp(18px,4.5vw,26px);margin-bottom:22px;}
-.id-gate.done{border-left-color:var(--success);}
+.id-gate.done{border-left-color:var(--success);padding:14px clamp(16px,4vw,20px);}
+.id-gate.done .id-pre{display:none;}              /* collapse pre-verification CTA, leaving only the badge */
+.id-gate.done .id-badge{margin-bottom:0;}
 .id-h{font-size:clamp(18px,4.5vw,22px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;margin-bottom:8px;}
 .id-p{font-size:14px;color:var(--text-secondary);max-width:560px;margin-bottom:16px;}
 .id-actions{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
-.id-skip{font-size:13px;color:var(--text-tertiary);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.id-skip{display:inline-block;margin-top:12px;font-size:12.5px;color:var(--text-tertiary);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
 .id-skip:hover{color:var(--text-secondary);}
 .id-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);line-height:1.6;margin-top:14px;max-width:560px;}
 .id-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:5px;padding:4px 9px;margin-bottom:12px;}
 .id-badge[hidden]{display:none;}
+/* post-verification credential beat (concept only; self-contained, no live links — ecosystem door is F-588) */
+.cred{background:var(--surface);border:1px solid var(--border);border-left:2px solid var(--success);border-radius:12px;padding:clamp(16px,4vw,24px);margin-bottom:22px;}
+.cred[hidden]{display:none;}
+.cred-eyebrow{font-family:var(--mono);font-size:11px;color:var(--success);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;}
+.cred-h{font-size:clamp(17px,4.2vw,21px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;margin-bottom:8px;}
+.cred-p{font-size:14px;color:var(--text-secondary);max-width:600px;margin-bottom:16px;}
+.cred-p strong,.cred-foot strong{color:var(--text-primary);font-weight:600;}
+.cred-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.cred-tile{background:var(--surface-raised);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.cred-tile[hidden]{display:none;}
+.cred-tile-label{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.cred-score{font-size:26px;font-weight:700;color:var(--teal);font-family:var(--mono);letter-spacing:-0.5px;line-height:1;}
+.cred-tile-sub{font-size:12px;color:var(--text-tertiary);line-height:1.5;margin-top:8px;}
+.cred-graph{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.cred-node{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:6px;}
+.cred-node-you{color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);}
+.cred-node-empty{color:var(--text-quaternary);background:transparent;border:1px dashed var(--border-light);}
+.cred-foot{font-size:13.5px;color:var(--text-secondary);max-width:600px;}
 .vo{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);}
 .vo[hidden]{display:none;}
 .vo-card{display:flex;flex-direction:column;width:min(680px,100%);height:min(900px,96vh);background:var(--surface);border:1px solid var(--border-light);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);}
@@ -207,7 +227,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .vo-close{background:transparent;border:none;color:var(--text-tertiary);font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}
 .vo-close:hover{color:var(--text-primary);}
 .vo-frame{flex:1 1 auto;width:100%;border:none;background:var(--bg);}
-@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}.id-actions{flex-direction:column;align-items:flex-start;gap:12px;}.vo{padding:0;}.vo-card{width:100%;height:100%;border-radius:0;border:none;}}
+@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}.id-actions{flex-direction:column;align-items:flex-start;gap:12px;}.vo{padding:0;}.vo-card{width:100%;height:100%;border-radius:0;border:none;}.cred-grid{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
@@ -245,17 +265,39 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     <div id="tab-walk">
     <section class="id-gate" id="idGate">
       <div class="id-badge" id="idVerified" hidden>Identity verified · live VAC<span class="idv-name"></span></div>
-      <div class="eyebrow" style="margin-bottom:10px;">Step one · the live part of this build</div>
-      <h2 class="id-h">Prove a real, present human — live, with VAC.</h2>
-      <p class="id-p">The identity step runs the real VAC verification: face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge, checked against the VAC production backend. Complete it to open the matters — or preview them without verifying.</p>
-      <div class="id-actions">
-        <button class="cta-btn" id="idVerifyBtn" type="button">Begin verification</button>
+      <div class="id-pre" id="idPre">
+        <div class="eyebrow" style="margin-bottom:10px;">Step one · the live part of this build</div>
+        <h2 class="id-h">Prove a real, present human — live, with VAC.</h2>
+        <p class="id-p">The identity step runs the real VAC verification: face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge, checked against the VAC production backend. Complete it to open the matters — or preview them without verifying.</p>
+        <div class="id-actions">
+          <button class="cta-btn" id="idVerifyBtn" type="button">Begin verification</button>
+        </div>
         <a class="id-skip" id="idSkip" role="button" tabindex="0">Preview the matters without verifying</a>
+        <div class="id-note">Your camera and microphone are used only for this verification step. The recording is sent to VAC's backend to run the liveness and deepfake checks.</div>
       </div>
-      <div class="id-note">Your camera and microphone are used only for this verification step. The recording is sent to VAC's backend to run the liveness and deepfake checks.</div>
     </section>
 
     <div id="walkBody" hidden>
+
+    <section class="cred" id="credBeat" hidden>
+      <div class="cred-eyebrow">What you just created</div>
+      <h2 class="cred-h">A verifiable credential — your verified human root.</h2>
+      <p class="cred-p">That biometric check minted a credential that is <strong>yours and reusable</strong>: strong, tamper-evident evidence that a specific, living person — not a bot, not a recording — passed this verification in real time. Every matter below builds on this root.</p>
+      <div class="cred-grid">
+        <div class="cred-tile" id="credScoreTile" hidden>
+          <div class="cred-tile-label">Trust score · this verification</div>
+          <div class="cred-score" id="credScore">—</div>
+          <div class="cred-tile-sub">The real score from your check just now. It grows as other verified humans vouch for you.</div>
+        </div>
+        <div class="cred-tile">
+          <div class="cred-tile-label">Your trust graph</div>
+          <div class="cred-graph"><span class="cred-node cred-node-you">You · verified</span><span class="cred-node cred-node-empty">No vouchers yet</span></div>
+          <div class="cred-tile-sub">Brand new — no vouches yet. Each vouch from another verified human strengthens it and makes future verifications faster.</div>
+        </div>
+      </div>
+      <p class="cred-foot">This credential can also be <strong>delegated with constraints</strong> — bounded to a purpose, an amount, a counterparty, a time. That is exactly what the matters below demonstrate, each producing a sealed, independently-checkable receipt.</p>
+    </section>
+
     <p class="section-label">Choose a matter type</p>
     <div class="matters" id="matters"></div>
 
@@ -714,14 +756,28 @@ function showReceipt(){
   const frame=document.getElementById('voFrame');
   const VERIFY_SRC='/auth-test.html';
   let revealed=false;
-  function reveal(verified,name){
+  function reveal(verified,name,score){
     if(!revealed){revealed=true;walkBody.hidden=false;}
     if(verified){
       window.__vacVerified={name:(name||'').trim()};
       const badge=document.getElementById('idVerified');
       badge.querySelector('.idv-name').textContent=window.__vacVerified.name?(' · '+window.__vacVerified.name):'';
-      badge.hidden=false;gate.classList.add('done');
+      badge.hidden=false;gate.classList.add('done');   // CSS collapses #idPre, leaving only the badge
+      showCredBeat(score);
     }
+  }
+  // Post-verification credential beat. Show the REAL trust score if auth-test sent one; otherwise omit the number entirely (no-mock rule).
+  function showCredBeat(score){
+    const beat=document.getElementById('credBeat');
+    if(!beat)return;
+    const tile=document.getElementById('credScoreTile');
+    if(typeof score==='number'&&isFinite(score)){   // real numeric score only — never coerce non-numbers into a displayed value
+      document.getElementById('credScore').textContent=(score<=1?score.toFixed(2):String(score));
+      tile.hidden=false;
+    }else{
+      tile.hidden=true;
+    }
+    beat.hidden=false;
   }
   function openVerify(){frame.src=VERIFY_SRC;overlay.hidden=false;document.body.style.overflow='hidden';}
   function closeVerify(){overlay.hidden=true;frame.src='about:blank';document.body.style.overflow='';}
@@ -736,7 +792,7 @@ function showReceipt(){
   window.addEventListener('message',ev=>{
     if(ev.origin!==window.location.origin)return;
     const d=ev.data||{};
-    if(d.type==='vac-auth-success'||d.type==='vac-verified'){closeVerify();reveal(true,d.name);}
+    if(d.type==='vac-auth-success'||d.type==='vac-verified'){closeVerify();reveal(true,d.name,d.overall_score);}
   });
   // redirect path: auth-test ?mode=copilot&callback=/tribunal?step=verified returns here
   if(new URLSearchParams(location.search).get('step')==='verified')reveal(true);

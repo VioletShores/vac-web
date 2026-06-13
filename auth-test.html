@@ -2690,7 +2690,7 @@ function showSuccess() {
     const nav = document.getElementById('navStatus');
     if (nav) { nav.textContent = 'AUTHENTICATED'; nav.style.color = '#2DD4BF'; nav.style.background = 'rgba(45,212,191,0.1)'; nav.style.borderColor = '#2DD4BF'; }
     // Notify parent frame (SPA shell) of auth success
-    try { if (window.parent !== window) { window.parent.postMessage({ type: 'vac-auth-success', email: d.email, name: d.name }, '*'); } } catch(e) {}
+    try { if (window.parent !== window) { window.parent.postMessage({ type: 'vac-auth-success', email: d.email, name: d.name, overall_score: (authResult && authResult.biometric_verification ? authResult.biometric_verification.overall_score : undefined) }, '*'); } } catch(e) {}
     // Start polling for vouches to unlock messaging
     startVouchPolling();
     // Dashboard hidden until vouch flow exists
