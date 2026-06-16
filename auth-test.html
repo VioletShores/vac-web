@@ -6,6 +6,11 @@
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- F-563 (5): match the mobile browser chrome to the dark app bg (S96 page-shell pattern).
+     NOT using viewport-fit=cover — the page has edge-aligned chrome (sticky nav, fixed scroll
+     hint) with no env(safe-area-inset) compensation, so cover would render under the notch on
+     iOS (codex). Default viewport keeps the browser's automatic safe-area insets. -->
+<meta name="theme-color" content="#0D1117">
 <title>VAC Verify — Authenticate</title>
 <meta name="description" content="Verify your identity with VAC Verify — cryptographic human provenance powered by VAC Protocol.">
 <meta property="og:title" content="VAC Verify — Authenticate">
@@ -126,6 +131,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 /* Audio level indicator */
 .audio-level { position: absolute; top: 8px; right: 8px; display: flex; align-items: flex-end; gap: 2px; height: 20px; background: rgba(0,0,0,0.7); padding: 3px 5px; border-radius: 4px; }
 .audio-bar { width: 3px; background: var(--success); border-radius: 1px; transition: height 0.08s ease-out; min-height: 2px; }
+/* F-563 (2): live audio equaliser bars (display-only; driven off the mic level the gate analyses) */
+.vac-eq > span { display: inline-block; width: 6px; height: 4px; border-radius: 3px; background: var(--text-quaternary, #6E7681); transition: height 0.1s ease, background 0.1s ease; }
 .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
 .camera-corners { position: absolute; inset: 8px; }
 .camera-corners::before, .camera-corners::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: var(--purple); border-style: solid; }
@@ -140,8 +147,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); animation: pulse-rec 1s ease-in-out infinite; }
 @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124,92,252,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 20px 4px rgba(124,92,252,0.3); } }
-.camera-challenge { position: absolute; bottom: 8px; left: 8px; right: 8px; text-align: center; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(108,92,231,0.3); transition: opacity 0.3s; }
-.camera-container.hand-visible .camera-challenge { opacity: 0.25; }
+/* S111 #3: instruction text is now a readable panel BELOW the feed (was an absolutely-
+   positioned overlay inside the video, behind the z-index:4 skeleton canvas → unreadable). */
+.challenge-panel { margin: 10px 0 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; text-align: center; }
 .camera-challenge-text { font-size: clamp(13px, 3.5vw, 16px); font-weight: 600; color: var(--text-primary); line-height: 1.3; }
 .camera-challenge-sub { font-size: clamp(10px, 2.5vw, 12px); color: var(--text-tertiary); margin-top: 2px; }
 
@@ -445,13 +453,32 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             Back
         </button>
         <div class="header-eyebrow">Step 3 of 4</div>
-        <div class="header-title">Complete the Challenge</div>
+        <div class="header-title" id="step2Title">Complete the Challenge</div>
     </div>
     <!-- S110: persistent target-digit strip ABOVE the video so the numbers are always
          clear and never fade behind the hand/skeleton overlay -->
     <div id="digitStrip" style="display:none;margin:0 0 12px;text-align:center;">
-        <div style="font-size:11px;color:var(--teal);font-family:var(--mono);letter-spacing:1.5px;font-weight:600;margin-bottom:8px;">SHOW THESE NUMBERS WITH YOUR FINGERS</div>
+        <div style="font-size:11px;color:var(--teal);font-family:var(--mono);letter-spacing:1.5px;font-weight:600;margin-bottom:8px;">YOUR PROGRESS</div>
         <div id="digitStripRow" style="display:flex;justify-content:center;gap:10px;"></div>
+    </div>
+    <!-- F-563 (2): BIG guided one-digit-at-a-time panel. Driven each frame off the EXISTING gate
+         flags (gesture done = _qaGestureLatched; voice done = speechReady[i]) — NO gate change.
+         The big current-digit prompt + the two ✓ lamps carry the flow; the small status below is
+         now secondary. Hidden until the finger phase begins. -->
+    <div id="vacGuided" style="display:none;margin:0 0 12px;text-align:center;">
+        <div id="vacGuidedNumber" style="display:none;font-size:clamp(56px,18vw,96px);font-weight:800;color:var(--purple,#7c5cfc);line-height:1;margin-bottom:2px;"></div>
+        <div id="vacGuidedPrompt" style="font-size:clamp(20px,5.5vw,28px);font-weight:800;color:var(--text-primary);line-height:1.2;min-height:1.2em;"></div>
+        <div id="vacGuidedSub" style="font-size:clamp(12px,3.2vw,14px);color:var(--text-secondary);margin-top:6px;min-height:1.2em;"></div>
+        <div style="display:flex;justify-content:center;gap:clamp(14px,5vw,28px);margin-top:12px;">
+            <div id="vacGuidedGesture" style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.4;transition:opacity 0.2s;">
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(40px,11vw,52px);height:clamp(40px,11vw,52px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(20px,5.5vw,26px);">✋</span>
+                <span style="font-size:11px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">GESTURE</span>
+            </div>
+            <div id="vacGuidedVoice" style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.4;transition:opacity 0.2s;">
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(40px,11vw,52px);height:clamp(40px,11vw,52px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(20px,5.5vw,26px);">🗣️</span>
+                <span style="font-size:11px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">VOICE</span>
+            </div>
+        </div>
     </div>
     <div class="camera-container recording" id="cameraBoxRec">
         <video id="videoPreviewRec" autoplay playsinline muted></video>
@@ -475,11 +502,30 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 <div class="audio-bar" id="ab3" style="height:2px;"></div>
                 <div class="audio-bar" id="ab4" style="height:2px;"></div>
             </div>
-            <div class="camera-challenge">
-                <div class="camera-challenge-text" id="challengeText">Loading challenge…</div>
-                <div class="camera-challenge-sub">Look at the camera the whole time</div>
-            </div>
         </div>
+        <!-- F-563 (2/latch): camera-free "Say N" view. An OPAQUE cover over the feed during the
+             voice step — one thing per screen (show-fingers → say-word). The camera + recorder keep
+             running underneath (Gemini needs the continuous video; detection is harmless — the
+             gesture is latched), but the user sees only the big "Say N" text. z-index above the
+             skeleton canvas (z4). Toggled from the per-frame block. -->
+        <div id="vacSayView" style="display:none;position:absolute;inset:0;z-index:7;background:var(--bg,#0A0F1A);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;gap:10px;">
+            <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-tertiary);font-family:var(--mono);letter-spacing:1.5px;">SAY IT OUT LOUD</div>
+            <div id="vacSayWord" style="font-size:clamp(40px,14vw,72px);font-weight:800;color:#fbbf24;line-height:1;"></div>
+            <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening 🎙️</div>
+            <div id="vacSayEq" class="vac-eq" style="display:flex;justify-content:center;align-items:flex-end;gap:5px;height:36px;margin-top:6px;"><span></span><span></span><span></span><span></span><span></span></div>
+            <div id="vacSayHint" style="font-size:12px;color:var(--text-tertiary);min-height:1.2em;"></div>
+        </div>
+    </div>
+    <!-- S111 finding #3: instruction text moved OUT of the camera overlay — it was behind the
+         z-index:4 hand-skeleton canvas (unreadable at the moment it's needed). Now a readable
+         panel BELOW the feed; the numbers live in #digitStrip ABOVE (single source, de-duped). -->
+    <div id="challengePanel" class="challenge-panel">
+        <div class="camera-challenge-text" id="challengeText">Loading challenge…</div>
+        <!-- F-563 (2): live audio equaliser — STABLE element (not rewritten by renderGreeting's
+             per-tick innerHTML), driven each frame off the mic level the system is already analysing.
+             DISPLAY-ONLY: proves "we hear you / mic working", never feeds the gate. -->
+        <div id="vacEqGreeting" class="vac-eq" style="display:none;justify-content:center;align-items:flex-end;gap:4px;height:30px;margin-top:8px;"><span></span><span></span><span></span><span></span><span></span></div>
+        <div class="camera-challenge-sub">Look at the camera the whole time</div>
     </div>
     <div class="timer-label" id="timerLabel">Recording in</div>
     <div class="countdown-ring-wrap" id="countdownRingWrap">
@@ -496,6 +542,29 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             Say the phrase, then show each finger count one at a time. Wait for the ✓ before moving to the next number. One recording, 6 signals verified by AI.
         </div>
     </div>
+</div>
+
+<!-- F-563 (1): UPFRONT EXPLAINER — big-text screen shown before the challenge starts, so the
+     guided per-digit gates feel expected. Previews the full sequence ONCE (familiarity); the
+     challenge itself still reveals one digit at a time. Overlay on top of step 2 (camera already
+     warming behind it). Auto-proceed (service auto-retry) skips this. -->
+<div id="challengeIntro" style="display:none;position:fixed;inset:0;z-index:200;background:var(--bg,#0A0F1A);padding:24px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:clamp(16px,3vh,28px);">
+    <div>
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--teal);text-transform:uppercase;margin-bottom:10px;">Before we start</div>
+      <div style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary);">You'll be shown three numbers,<br>one at a time.</div>
+    </div>
+    <div style="font-size:clamp(15px,4vw,18px);line-height:1.5;color:var(--text-secondary);">
+      For each one: <strong style="color:var(--text-primary);">show that many fingers</strong>, then <strong style="color:var(--text-primary);">say the number out loud</strong>.<br>
+      We'll guide you through each step with a <span style="color:#22c55e;font-weight:700;">✓</span> as you go.
+    </div>
+    <div id="challengeIntroPreview" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(14px,3vh,20px);">
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">Your numbers, in order</div>
+      <div id="challengeIntroDigits" style="display:flex;justify-content:center;gap:clamp(10px,3vw,16px);flex-wrap:wrap;"></div>
+      <div style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">You'll see them one at a time during the challenge — no need to memorise.</div>
+    </div>
+    <button id="challengeIntroBtn" onclick="dismissChallengeIntro()" class="btn-primary" style="font-size:clamp(15px,4vw,17px);padding:16px 24px;width:100%;max-width:340px;margin:0 auto;">I'm ready — start</button>
+  </div>
 </div>
 
 <!-- STEP 3: Processing — REAL verification -->
@@ -584,6 +653,26 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div style="font-size: 20px; font-weight: 700; color: var(--text-primary);" id="successName"></div>
         <div style="font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); margin-top: 2px;" id="successOrg"></div>
         <div style="font-family: var(--mono); font-size: 13px; color: var(--teal); margin-top: 4px;" id="successScore"></div>
+    </div>
+
+    <!-- F-563 (4): POST-VERIFICATION "what it means" — bookends the upfront explainer. TWO depths:
+         (A) plain-English, ALWAYS visible, for every user; (B) expandable, COLLAPSED by default. -->
+    <div id="whatItMeans" style="margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(16px,4vw,22px);">
+        <div style="font-size:clamp(16px,4.5vw,20px);font-weight:800;color:var(--text-primary);line-height:1.3;text-align:center;">You're now a <span style="color:var(--teal);">verified human</span> on the record.</div>
+        <div style="font-size:clamp(13px,3.6vw,15px);line-height:1.6;color:var(--text-secondary);margin-top:12px;">
+            Your certificate is live. From here you can put AI agents to work in your name — and each one inherits its authority <strong style="color:var(--text-primary);">from you</strong>, stays bounded by it, and traces back to you. You get the leverage of agents <strong style="color:var(--text-primary);">without</strong> losing accountability: everything done under your authority has a proven human standing behind it.
+        </div>
+        <!-- (B) Expandable deeper context, collapsed by default -->
+        <button id="whatItMeansToggle" onclick="toggleWhatItEnables()" style="margin-top:14px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:transparent;border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;color:var(--text-secondary);font-size:clamp(13px,3.6vw,14px);font-weight:600;-webkit-tap-highlight-color:transparent;">
+            <span>Learn what this enables</span>
+            <span id="whatItMeansArrow" style="font-size:11px;transition:transform 0.2s;">▸</span>
+        </button>
+        <div id="whatItMeansMore" style="display:none;font-size:clamp(12px,3.4vw,14px);line-height:1.65;color:var(--text-secondary);margin-top:12px;padding-top:4px;">
+            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">Policies travel with the work, not on a server.</strong> Your verified authority is carried inside each unit of work (an L0 policy-carrying packet) — the rules ride along with the task itself, so they hold wherever the work goes, even off-platform.</p>
+            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">A clear human ↔ agent authority line.</strong> AI agents can act for you, but their authority is derived from — and bounded by — your verified human identity. Nothing acts in your name without tracing back to this credential.</p>
+            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">Audit trails by construction.</strong> Because every action is attributable to a verified human, the whole chain of who-did-what is reconstructable after the fact.</p>
+            <p style="margin:0;">Together these are the building blocks of an <strong style="color:var(--text-primary);">operating system for trusted intelligence</strong> — where humans and the agents working for them are accountable by design.</p>
+        </div>
     </div>
     <!-- Trust Status — live updates from vouch polling -->
     <div id="trustStatusSection" style="margin-top:16px;display:none;">
@@ -687,6 +776,178 @@ const API_BASE = 'https://vac-system-production.up.railway.app';
 // Goal: see what actually happens on user phones when auth fails, instead of
 // guessing from desktop. Fire-and-forget — must never block or fail the auth flow.
 const VAC_DEBUG_SESSION = 'sess_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now();
+// ── F-560: ?qa=1 multi-modal advance-gate debug overlay ─────────────────────
+// A live on-screen instrument: per-digit gesture-confirmed-at / speech-confirmed-at
+// / advance-fired-at, the dwell timer, detector state each frame, recorder
+// start/stop, and final pass/fail + which modality failed. This is the substrate
+// that makes the F-561 gesture-AND-speech advance gate verifiable by WATCHING it,
+// not by grep. The speech column reads "—" until F-561 wires it via
+// vacDebug('speech_confirm', null, { digit_index }). Zero cost when ?qa!=1 —
+// every hook is guarded on QA.on.
+//
+//   discrete events ──vacDebug()──▶ QA.onEvent()  (server trail + panel, in sync)
+//   per-frame state ──QA.frame()──▶ cache(every frame) + paint(~10Hz, no POST)
+//
+const QA = (function () {
+    const params = new URLSearchParams(window.location.search);
+    const on = params.get('qa') === '1';
+    const demo = on && params.get('qaDemo') === '1';
+
+    let t0 = 0;              // recorder-start anchor (performance.now())
+    let recStop = null;     // ms since t0 when the recorder stopped
+    let recStarted = false;
+    let expected = [];      // S111: EXPECTED challenge digits, to show exp:N vs detected cnt: per row (malformed-challenge vs misdetection)
+    const rows = [];        // [{ gestureAt, speechAt, advanceAt, count }]
+    let result = null;      // { pass:bool, failed:[name] }
+    let live = null;        // latest per-frame state, cached EVERY frame
+    let lastPaint = 0;
+    let panel = null, liveEl = null;
+
+    function relNow() { return t0 ? (performance.now() - t0) : null; }
+    function ms(v) { return v == null ? '—' : ('+' + Math.round(v) + 'ms'); }
+    function row(i) {
+        while (rows.length <= i) rows.push({ gestureAt: null, speechAt: null, advanceAt: null, count: null, winOpenAt: null, speechRms: null, onsetAt: null });
+        return rows[i];
+    }
+
+    function ensurePanel() {
+        if (panel || !on || !document.body) return;
+        panel = document.createElement('div');
+        panel.id = 'qaOverlay';
+        panel.style.cssText = [
+            'position:fixed', 'top:0', 'right:0', 'z-index:99999',
+            // cap to the viewport so the panel can never exceed the screen width...
+            'max-width:min(360px,94vw)', 'box-sizing:border-box', 'padding:8px 10px',
+            'background:rgba(8,10,16,0.92)', 'border:1px solid #2DD4BF',
+            'border-radius:0 0 0 8px', 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
+            'font-size:11px', 'line-height:1.45', 'color:#C9D1D9',
+            // ...and pre-wrap so the long `live:` line WRAPS (keeping sOk visible)
+            // instead of running off the right edge; overflow-wrap breaks long tokens.
+            'white-space:pre-wrap', 'overflow-wrap:anywhere',
+            'pointer-events:none', 'box-shadow:0 4px 20px rgba(0,0,0,0.5)'
+        ].join(';');
+        document.body.appendChild(panel);
+    }
+
+    function paintLine() {
+        if (!liveEl || !live) return;
+        const s = live;
+        liveEl.textContent =
+            'live: det=' + s.detected + ' stable=' + s.stableFrames + '/' + s.need +
+            ' dwell=' + s.dwellMs + 'ms beat=' + s.beatMs +
+            ' gOk=' + (s.gestureOk ? 'Y' : 'N') +
+            ' sOk=' + (s.speechOk == null ? '—' : (s.speechOk ? 'Y' : 'N')) +
+            // F-561: live VAD RMS vs threshold so the gate is calibratable by eye —
+            // silent reads the noise floor, speaking spikes, set thr in the gap.
+            ' rms=' + (s.rms == null ? '—' : Number(s.rms).toFixed(3)) +
+            ' thr=' + (s.thr == null ? '—' : Number(s.thr).toFixed(3));
+    }
+
+    function render() {
+        ensurePanel();
+        if (!panel) return;
+        let html = '';
+        if (demo) {
+            html += '<div style="background:#D6336C;color:#fff;font-weight:700;padding:3px 6px;margin:-8px -10px 6px;letter-spacing:0.5px;">DEMO — SYNTHETIC DATA, NOT A LIVE RUN</div>';
+        }
+        html += '<b style="color:#2DD4BF">VAC QA · advance-gate</b>\n';
+        html += '<span style="color:#6E7681">per-digit: g=gesture  s=speech  adv=advance</span>\n';
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const heldNoAdv = (r.gestureAt != null && r.advanceAt == null);
+            html += 'D' + i +
+                (expected[i] != null ? '  exp:' + expected[i] : '') +
+                '  win:' + ms(r.winOpenAt) +
+                '  g:' + ms(r.gestureAt) +
+                (r.onsetAt != null ? '  on:' + ms(r.onsetAt) : '') +
+                '  s:' + ms(r.speechAt) + (r.speechRms != null ? '(rms ' + Number(r.speechRms).toFixed(3) + ')' : '') +
+                '  adv:' + (r.advanceAt == null ? (heldNoAdv ? '— (held, no advance)' : '—') : ms(r.advanceAt)) +
+                (r.count != null ? '  cnt:' + r.count + (expected[i] != null && r.count !== expected[i] ? '≠exp' : '') : '') + '\n';
+        }
+        if (rows.length === 0) html += '<span style="color:#6E7681">(no digits yet)</span>\n';
+        html += '<span id="qaLive" style="color:#fbbf24">live: —</span>\n';
+        html += 'rec: ' + (recStarted ? 'start+0ms' : '—') + (recStop != null ? '  stop' + ms(recStop) : '') + '\n';
+        if (result) {
+            html += '<b style="color:' + (result.pass ? '#3FB950' : '#F85149') + '">RESULT: ' +
+                (result.pass ? 'PASS' : 'FAIL') + '</b>  fail:' + (result.failed.length ? result.failed.join(',') : 'none') + '\n';
+        }
+        html += '<span style="color:#6E7681">VAD: win=window-open · on=silence→voice ONSET (fresh per-digit binding; must be after win) · (rms ..)=value that fired s · blank s = no voice yet · live line shows thr</span>';
+        panel.innerHTML = html;
+        liveEl = panel.querySelector('#qaLive');
+        paintLine();
+    }
+
+    // Discrete-event bus — vacDebug fans every event here when QA.on (D1: hybrid).
+    function onEvent(event, ctx) {
+        if (!on || demo) return;   // demo panel is static synthetic data, never overwritten
+        if (event === 'recorder_started') {
+            // FRESH overlay per recording: rows/result/recStop/expected are module-level and
+            // survive re-entry. Without this reset, a re-auth keeps the PRIOR run's rows — and
+            // since t0 is re-anchored here, guarded fields (gestureAt/speechAt/onsetAt, set only
+            // if==null) display the old run's timestamps against the NEW clock → impossible
+            // orderings (the phantom "re-auth race"). Reset alongside the t0 re-anchor so every
+            // recording reads TRUE. (expected is repopulated by the challenge_digits event.)
+            rows.length = 0; result = null; recStop = null; expected = [];
+            t0 = performance.now(); recStarted = true; render();
+        } else if (event === 'challenge_digits' && ctx && Array.isArray(ctx.digits)) {
+            // S111: the EXPECTED challenge sequence — show exp:N per row so a stuck digit
+            // reveals malformed-challenge (exp == a repeat) vs misdetection (cnt != exp).
+            expected = ctx.digits.slice(); render();
+        } else if (event === 'recorder_stopped') {
+            recStop = relNow(); render();
+        } else if (event === 'gesture_confirm' && ctx && typeof ctx.digit_index === 'number') {
+            const r = row(ctx.digit_index); if (r.gestureAt == null) { r.gestureAt = relNow(); render(); }
+        } else if (event === 'speech_confirm' && ctx && typeof ctx.digit_index === 'number') {
+            // F-561 #2 diag: record WHEN speech fired and the RMS that triggered it,
+            // so a false-fire (rms barely over thr / loud transient) is distinguishable
+            // from a real spoken number on the next live pass.
+            const r = row(ctx.digit_index);
+            if (r.speechAt == null) { r.speechAt = relNow(); r.speechRms = (typeof ctx.rms === 'number' ? ctx.rms : null); r.onsetAt = (t0 && typeof ctx.onset_perf === 'number') ? (ctx.onset_perf - t0) : null; render(); }
+        } else if (event === 'speech_window_open' && ctx && typeof ctx.digit_index === 'number') {
+            // F-561 #2 diag: when each digit's speech window opened (relative to t0).
+            // A speechAt at/just-after this == possible bleed; mid-window == false-fire.
+            const r = row(ctx.digit_index);
+            r.winOpenAt = (t0 && typeof ctx.at_perf === 'number') ? (ctx.at_perf - t0) : relNow();
+            render();
+        } else if (event === 'detect_digit_advance' && ctx && typeof ctx.digit_index === 'number') {
+            const r = row(ctx.digit_index); r.advanceAt = relNow(); r.count = ctx.fingers_shown; render();
+        } else if (event === 'qa_final_result' && ctx) {
+            result = { pass: !!ctx.pass, failed: ctx.failed || [] }; render();
+        }
+    }
+
+    function frame(s) {
+        if (!on || demo) return;
+        live = s;                              // cache EVERY frame so discrete reads see true-latest
+        const now = performance.now();
+        if (now - lastPaint < 100) return;     // D2: throttle paint to ~10Hz, textContent only
+        lastPaint = now;
+        paintLine();
+    }
+
+    function runDemo() {
+        // Synthetic data ONLY — the persistent banner makes that unmistakable (D3).
+        // Mid-run snapshot of the F-561 AND-gate: D0/D1 advanced only after BOTH gesture
+        // and speech; D2 is gesture-confirmed but HELD, waiting on voice (sOk=N, rms<thr).
+        t0 = 1; recStarted = true; recStop = null;
+        rows.push({ gestureAt: 812,  speechAt: 980,  speechRms: 0.187, onsetAt: 930,  advanceAt: 1010, winOpenAt: 0,    count: 2 });
+        rows.push({ gestureAt: 2210, speechAt: 2360, speechRms: 0.203, onsetAt: 2300, advanceAt: 2410, winOpenAt: 1910, count: 3 });
+        rows.push({ gestureAt: 3900, speechAt: null, speechRms: null,  advanceAt: null, winOpenAt: 3310, count: null }); // held, waiting on voice
+        expected = [2, 3, 5];  // synthetic expected sequence → shows exp:N per row (D2 exp:5, held)
+        result = null;  // run not complete in this snapshot
+        live = { detected: 5, stableFrames: 12, need: 12, dwellMs: 740, beatMs: 0, gestureOk: true, speechOk: false, rms: 0.041, thr: 0.120 };
+        render();
+    }
+
+    if (on) {
+        const boot = demo ? runDemo : render;   // demo: synthetic panel; live: empty panel proves ?qa=1 took effect
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+        else boot();
+    }
+
+    return { on, demo, onEvent, frame };
+})();
+
 function vacDebug(event, reason, context) {
     try {
         const body = { session_id: VAC_DEBUG_SESSION, event: String(event) };
@@ -701,6 +962,9 @@ function vacDebug(event, reason, context) {
             body: JSON.stringify(body),
             keepalive: true,  // survives page unload
         }).catch(function() {});
+        // F-560: fan discrete events out to the ?qa=1 on-screen overlay — single
+        // event bus, so the panel and the server telemetry read the same calls.
+        try { if (QA.on) QA.onEvent(event, context); } catch(_) {}
         // Also mirror to console so local debugging still works
         console.log('[VAC-DBG]', event, reason || '', context || '');
     } catch(_) { /* never block auth for telemetry */ }
@@ -964,6 +1228,9 @@ const userData = () => ({
 
 // Step navigation
 function goToStep(n) {
+    // F-563 (1): the upfront-explainer overlay is fixed/full-screen — hide it on any step change
+    // so a back-navigation while it's up can't leave it blocking the UI.
+    try { var _ci = document.getElementById('challengeIntro'); if (_ci) _ci.style.display = 'none'; } catch(_) {}
     document.querySelectorAll('.step-section').forEach(s => s.classList.remove('active'));
     document.getElementById(`step${n}`).classList.add('active');
     for (let i = 0; i <= 3; i++) {
@@ -1125,6 +1392,7 @@ async function requestCamera() {
         btn.textContent = 'Loading challenge…';
         btn.disabled = true;
         const d = userData();
+        challengeData = null;  // clear stale challenge first so a FAILED fetch leaves it null and the blank-phrase guard fires (codex)
         try {
             const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
                 method: 'POST',
@@ -1132,8 +1400,13 @@ async function requestCamera() {
                 body: JSON.stringify({ name: d.name, risk_level: 'medium' }),
             });
             challengeData = await resp.json();
+            // S111 diag: confirm whether the (re-)fetched challenge actually carries a
+            // phrase. The re-auth blank-phrase bug renders "SAY THE PHRASE" with no value,
+            // so this pins empty-fetch vs response-missing-phrase on the next live pass.
+            try { vacDebug('challenge_fetched', null, { has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
         } catch (fetchErr) {
             console.error('[CHALLENGE FETCH]', fetchErr);
+            try { vacDebug('challenge_fetch_failed', String(fetchErr && fetchErr.message || fetchErr)); } catch(_) {}
             // Show error but keep AV checks running
             err.innerHTML = `<div style="color: var(--warning); margin-bottom: 4px;">Could not load challenge — check your connection and try again.</div>`;
             err.style.display = 'block';
@@ -1220,6 +1493,20 @@ let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 
 function startAVChecks() {
+    // F-563 (3): RESET every pre-flight pill to the un-ticked "checking" state on EVERY entry.
+    // On re-auth the Light/Mic/Hand pills kept the prior session's ✓ (same stale-state-on-re-entry
+    // family as resetModalities/overlay), so the user saw green ticks while "Start" stayed disabled
+    // and didn't realise they had to act. setAVStatus('checking',…) strips good/warn/bad + restores
+    // the spinner, so the checks visibly re-run and the path to Start is obvious. Reset the GATE
+    // STATE too (not just the pills) — else an entry reaching startAVChecks without resetBiometricUI
+    // (e.g. the blank-challenge retry re-calling requestCamera) would leave avChecks latched true and
+    // updateAVReady could enable Start / auto-proceed without the pre-flight actually re-running
+    // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
+    // forces a genuine re-check.
+    avChecks = { face: false, light: false, mic: false, hand: false };
+    setAVStatus('light', 'checking', 'Light');
+    setAVStatus('mic', 'checking', 'Mic');
+    setAVStatus('hand', 'checking', 'Hand');
     // Initialize pill icons with spinners
     ['avLightIcon', 'avMicIcon'].forEach(id => {
         const el = document.getElementById(id);
@@ -1438,6 +1725,23 @@ function updateAVReady() {
         btn.disabled = !allGood;
         btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
     }
+    // Service-error AUTO-retry: once the (warmed) pre-flight passes, advance to the challenge
+    // automatically — preserves the "retrying automatically" flow without the cold-entry race.
+    // Auto-proceed only when the challenge is ALSO loaded — requestCamera() clears challengeData
+    // before awaiting the fetch, so firing on allGood alone could hit goToChallenge() with a null
+    // challenge and trip its blank guard (spurious auto-retry failure on slow networks). This runs
+    // every AV frame, so it fires the moment both the checks pass AND the challenge has arrived.
+    if (allGood && window.__vacAutoProceedChallenge && !challengeIncomplete()) {
+        window.__vacAutoProceedChallenge = false;   // fire once
+        window.__vacSkipExplainer = true;            // F-563: silent service-error re-run skips the upfront explainer
+        try { vacDebug('autoretry_preflight_passed'); } catch(_) {}
+        // DEFER out of this runAVFrame callback: calling goToChallenge() inline lets the current
+        // frame re-schedule the AV loop (the requestAnimationFrame at the end of runAVFrame) AFTER
+        // goToChallenge's stopAVChecks() runs, leaving the pre-flight loop (incl FingerDetector.detect)
+        // running during recording. A 0ms defer runs after this frame, so stopAVChecks cancels the
+        // next scheduled frame before it fires (codex).
+        setTimeout(function(){ try { goToChallenge(); } catch(_) {} }, 0);
+    }
 }
 
 function stopAVChecks() {
@@ -1482,15 +1786,53 @@ function retryAVSetup() {
         });
 }
 
+// S111: a challenge is recordable only with a phrase AND — in finger mode — non-empty
+// digits. A digit-less challenge in finger mode would skip the finger phase and the
+// F-561 AND-gate entirely (bypass #1: gate advances without waiting for voice because
+// there are no digits to gate), so block it. Voice-only mode (fingerFallback==='voice')
+// legitimately carries no client digits, so don't require them there.
+function challengeIncomplete() {
+    if (!challengeData || !challengeData.phrase) return true;
+    if (fingerFallback !== 'voice' && !(challengeData.digits && challengeData.digits.length)) return true;
+    return false;
+}
+
 // STEP 1 → 2: Challenge
 function goToChallenge() {
+    // S111: never start recording against an incomplete challenge — missing phrase
+    // guarantees a Challenge-Response failure, and a digit-less challenge in finger
+    // mode skips the AND-gate (bypass #1). Block + offer a retry that re-fetches,
+    // instead of silently recording against it.
+    if (challengeIncomplete()) {
+        try { vacDebug('challenge_blank_blocked', null, { has_challengeData: !!challengeData, has_phrase: !!(challengeData && challengeData.phrase), has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), finger_fallback: fingerFallback, keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
+        // Tear down the live AV session before offering a retry — otherwise the retry's
+        // requestCamera() opens a SECOND mediaStream + AV loop and the first one leaks
+        // (stopAVChecks only cancels the most recent global frame/audio context) (codex P2).
+        try { stopAVChecks(); } catch(_) {}
+        try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
+        var _cerr = document.getElementById('cameraError');
+        if (_cerr) { _cerr.innerHTML = '<div style="color:var(--warning)">Couldn’t load your challenge. Tap “Enable Camera &amp; Microphone” to try again.</div>'; _cerr.style.display = 'block'; }
+        var _b = document.getElementById('btnCamera');
+        if (_b) { _b.disabled = false; _b.textContent = 'Enable Camera & Microphone'; _b.onclick = requestCamera; }
+        return;  // do NOT goToStep(2)/startCountdown with a blank phrase
+    }
     stopAVChecks(); // Clean up audio context and animation frame
     const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
     const digits = (fingerFallback === 'voice') ? [] : (challengeData?.digits || []);
     const digitStr = digits.join(', ');
     var greetPart = phrase.replace(/,\s*\d[\d\s,]*$/, '');
     var digitWords = digits.map(function(d) { return d; }).join(' then ');
-    document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers for each number (hold, change, hold):<br><strong>' + digitWords + '</strong></span>';
+    // Voice-aware: in voice-only fallback there is NO finger phase, so the user must speak the
+    // FULL phrase (incl numbers) — show it directly (mirrors setFingerFallback). Finger mode
+    // shows the greeting + the finger instructions. Without this, a voice-only RETRY (routed
+    // through goToChallenge) would prompt only the greeting and fail challenge-response (codex).
+    if (fingerFallback === 'voice') {
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:12px;color:var(--warning);margin-top:8px;display:inline-block">Voice-only mode (reduced trust score)</span>';
+    } else {
+        // F-563 (#4): full phrase INCLUDING the digits (say all up front — the backend matches the
+        // whole transcript). (This text is the pre-countdown lead-in; renderGreeting owns the live prompt.)
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers for each number (hold, change, hold):<br><strong>' + digitWords + '</strong></span>';
+    }
     // Accessibility fallback link
     if (!document.getElementById('fingerFallback')) {
         const fb = document.createElement('div');
@@ -1541,8 +1883,40 @@ function goToChallenge() {
         }
     } catch (e) { console.warn('[WARMUP] setup error (non-fatal):', e); }
     goToStep(2);
-    // Auto-start countdown after brief delay (no button press needed)
-    setTimeout(() => startCountdown(), 800);
+    // F-563 (1): show the upfront explainer (big text + one-time sequence preview), THEN start the
+    // countdown on "I'm ready". Skip it for the service-error AUTO-PROCEED (silent re-run — the user
+    // has already seen it). The skip flag is used instead of a positional param because goToChallenge
+    // is also wired as btnCamera.onclick (which would pass a truthy MouseEvent as the first arg).
+    if (window.__vacSkipExplainer) {
+        window.__vacSkipExplainer = false;
+        setTimeout(() => startCountdown(), 800);
+    } else {
+        showChallengeIntro();
+    }
+}
+
+// F-563 (1): populate the intro with a ONE-TIME preview of the full digit sequence (familiarity),
+// then reveal one digit at a time during the challenge. Voice-only mode has no finger phase, so the
+// intro is finger-mode only; voice-only goes straight to the countdown.
+function showChallengeIntro() {
+    var overlay = document.getElementById('challengeIntro');
+    var digits = (fingerFallback === 'voice') ? [] : (challengeData && challengeData.digits || []);
+    if (!overlay || digits.length === 0) { setTimeout(() => startCountdown(), 800); return; }
+    var row = document.getElementById('challengeIntroDigits');
+    if (row) {
+        row.innerHTML = digits.map(function(d) {
+            return '<span style="display:inline-flex;width:clamp(48px,13vw,60px);height:clamp(48px,13vw,60px);border-radius:50%;border:2px solid var(--purple);background:rgba(124,92,252,0.18);color:var(--text-primary);align-items:center;justify-content:center;font-size:clamp(26px,7vw,34px);font-weight:800;">' + d + '</span>';
+        }).join('');
+    }
+    overlay.style.display = 'block';
+    try { vacDebug('challenge_intro_shown', null, { digits_count: digits.length }); } catch(_) {}
+}
+
+function dismissChallengeIntro() {
+    var overlay = document.getElementById('challengeIntro');
+    if (overlay) overlay.style.display = 'none';
+    try { vacDebug('challenge_intro_dismissed'); } catch(_) {}
+    startCountdown();
 }
 
 function setFingerFallback() {
@@ -1570,6 +1944,16 @@ function startCountdown() {
     let count = SPEED_CONFIG[challengeSpeed].countdown;
     timerEl.textContent = count;
     ringFill.style.strokeDashoffset = 0;
+    // F-563 (Finding 1): during the lead-in countdown the system is NOT yet listening/recording.
+    // goToChallenge() left the greeting ("Say: …") in #challengeText, which tempted the user to
+    // start speaking before beginRecording. Show a neutral "Get ready…" — the greeting prompt
+    // appears ONLY when we're actually listening (renderGreeting, at beginRecording).
+    try {
+        var _ct = document.getElementById('challengeText');
+        if (_ct) _ct.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-secondary);">Get ready…</div>';
+        var _t2 = document.getElementById('step2Title');
+        if (_t2) { _t2.textContent = 'Get ready'; _t2.style.color = ''; }
+    } catch(_) {}
 
     const interval = setInterval(() => {
         count--;
@@ -1588,6 +1972,7 @@ function startCountdown() {
 
 function beginRecording() {
     try { vacDebug('begin_recording_called'); } catch(_) {}
+    try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
     try { FingerDetector.reset(); } catch(_) {}  // S110: clear slow-frame latch so retry re-engages detection
     document.getElementById('recIndicator').style.display = 'flex';
     // Speed toggle was removed — guard against null (it may or may not be present)
@@ -1628,8 +2013,9 @@ function beginRecording() {
         : { videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 };
     mediaRecorder = new MediaRecorder(mediaStream, options);
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = () => { onRecordingComplete(); };
+    mediaRecorder.onstop = () => { try { vacDebug('recorder_stopped'); } catch(_) {} onRecordingComplete(); };
     mediaRecorder.start();
+    try { vacDebug('recorder_started'); } catch(_) {}  // F-560: anchor the QA overlay clock (t0) at the real recorder start
 
     // Show combined capture info
     document.getElementById('combinedCaptureInfo').style.display = 'block';
@@ -1655,9 +2041,20 @@ function beginRecording() {
     // Phase prompt updater (uses seconds with decimal precision)
     function updatePhasePrompt(sec) {
         if (sec < PHRASE_DURATION) {
-            // Speaking phase
-            const phrase = challengeData?.phrase || '';
-            challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + phrase + '"';
+            // F-563 UX: the active instruction takes over the header in YELLOW so it can't get lost
+            // among the other text (Rob — "Say the greeting" was getting lost).
+            var _st = document.getElementById('step2Title');
+            if (_st) { _st.textContent = (fingerFallback === 'voice') ? 'Say the phrase' : 'Say the greeting'; _st.style.color = '#fbbf24'; }
+            // Speaking phase. FINGER mode: GREETING ONLY (numbers stripped) — the numbers are
+            // spoken per-digit, each bound to its gesture (SUPP-7). VOICE-ONLY mode skips the
+            // digit phase, so the user must speak the FULL phrase (incl numbers) here (codex).
+            const _full = challengeData?.phrase || '';
+            if (fingerFallback === 'voice') {
+                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"';
+            } else {
+                // F-563 (#4): full phrase INCLUDING the digits (say all up front) — matches the backend.
+                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number with your fingers</span>';
+            }
         } else {
             // Finger phase
             const fingerElapsed = sec - PHRASE_DURATION;
@@ -1678,9 +2075,12 @@ function beginRecording() {
             challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
         }
     }
-    updatePhasePrompt(0);
+    try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
 
     // S110: render the persistent above-video digit strip (current digit highlighted).
+    // F-563 (2): PROGRESS DOTS only — NO numbers. The current digit's number lives in the big
+    // #vacGuided panel (single focus), so the strip never shows the upcoming sequence and the user
+    // can't race ahead. done = green ✓, current = filled purple dot, upcoming = empty dot.
     function renderDigitStrip(currentIdx) {
         const strip = document.getElementById('digitStrip');
         const row = document.getElementById('digitStripRow');
@@ -1689,17 +2089,125 @@ function beginRecording() {
         var html = '';
         for (var i = 0; i < digits.length; i++) {
             if (i < currentIdx) {
-                html += '<span style="display:inline-flex;width:46px;height:46px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:22px;font-weight:700;box-shadow:0 0 14px rgba(34,197,94,0.45);">&#10003;</span>';
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 0 10px rgba(34,197,94,0.45);">&#10003;</span>';
             } else if (i === currentIdx) {
-                html += '<span style="display:inline-flex;width:58px;height:58px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.25);color:#fff;align-items:center;justify-content:center;font-size:34px;font-weight:800;animation:pulse 1s ease infinite;">' + digits[i] + '</span>';
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.45);animation:pulse 1s ease infinite;"></span>';
             } else {
-                html += '<span style="display:inline-flex;width:46px;height:46px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);align-items:center;justify-content:center;font-size:20px;font-weight:700;">' + digits[i] + '</span>';
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:var(--surface);border:1px solid var(--border);"></span>';
             }
         }
         row.innerHTML = html;
     }
 
+    // F-563 (2): big guided one-digit panel. Reads the SAME per-digit gate flags the status block
+    // uses (gesture done = _qaGestureLatched; voice done = speechReady[i]) — NO gate logic here, pure
+    // presentation. The gesture ✓ lights on ANY stable deliberate gesture (content-blind — Gemini
+    // validates the count server-side; gating the tick on correctness would re-introduce the
+    // misdetection deadlock). Then the voice sub-gate is revealed; its ✓ lights on the spoken number.
+    function renderGuided(opts) {
+        var wrap = document.getElementById('vacGuided');
+        if (!wrap) return;
+        wrap.style.display = 'block';
+        var promptEl = document.getElementById('vacGuidedPrompt');
+        var subEl = document.getElementById('vacGuidedSub');
+        var gWrap = document.getElementById('vacGuidedGesture');
+        var vWrap = document.getElementById('vacGuidedVoice');
+        var gLamp = gWrap && gWrap.querySelector('.vac-lamp');
+        var vLamp = vWrap && vWrap.querySelector('.vac-lamp');
+        function setLamp(lamp, box, state, restIcon) {
+            if (!lamp || !box) return;
+            if (state === 'done') {
+                box.style.opacity = '1';
+                lamp.textContent = '✓';
+                lamp.style.color = '#fff'; lamp.style.background = '#22c55e';
+                lamp.style.borderColor = '#22c55e'; lamp.style.boxShadow = '0 0 14px rgba(34,197,94,0.45)';
+                lamp.style.animation = 'none';
+            } else if (state === 'active') {
+                box.style.opacity = '1';
+                lamp.textContent = restIcon;
+                lamp.style.color = ''; lamp.style.background = 'rgba(124,92,252,0.18)';
+                lamp.style.borderColor = 'var(--purple)'; lamp.style.boxShadow = '0 0 14px rgba(124,92,252,0.35)';
+                lamp.style.animation = 'pulse 1s ease infinite';
+            } else { // pending/dim
+                box.style.opacity = '0.4';
+                lamp.textContent = restIcon;
+                lamp.style.color = ''; lamp.style.background = '';
+                lamp.style.borderColor = 'var(--border)'; lamp.style.boxShadow = 'none';
+                lamp.style.animation = 'none';
+            }
+        }
+        // F-563 (latch): the camera-free "Say N" cover. ON only during sub-gate 2 (gesture latched,
+        // voice not yet given) → one thing per screen. OFF everywhere else (show phase / beat / done)
+        // so the camera is back for the next digit's gesture.
+        function setSayView(on, word, hint) {
+            var sv = document.getElementById('vacSayView');
+            if (!sv) return;
+            sv.style.display = on ? 'flex' : 'none';
+            if (on) {
+                var w = document.getElementById('vacSayWord'); if (w) w.textContent = '“' + word + '”';
+                var h = document.getElementById('vacSayHint'); if (h) h.textContent = hint || '';
+            }
+        }
+        // F-563 UX: a BIG number during the show-fingers step so the target digit is unmissable.
+        function setBigNumber(on, n) {
+            var ne = document.getElementById('vacGuidedNumber');
+            if (!ne) return;
+            ne.style.display = on ? 'block' : 'none';
+            if (on) ne.textContent = n;
+        }
+        if (opts.done) {
+            if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setSayView(false); setBigNumber(false);
+            return;
+        }
+        if (opts.beat) {
+            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setSayView(false); setBigNumber(false);
+            return;
+        }
+        var N = opts.digit;
+        if (!opts.gestureDone) {
+            // Sub-gate 1: show the fingers (camera visible) — BIG number so the target is unmissable.
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' finger' + (N === 1 ? '' : 's'); promptEl.style.color = 'var(--text-primary)'; }
+            if (subEl) subEl.textContent = opts.gesturePct >= 100 ? 'Hold it…' : 'Hold steady';
+            setLamp(gLamp, gWrap, 'active', '✋');
+            setLamp(vLamp, vWrap, 'pending', '🗣️');
+            setSayView(false); setBigNumber(true, N);
+        } else if (opts.voiceOn && !opts.voiceDone) {
+            // Sub-gate 2: gesture ✓ (latched) — switch to the camera-free "Say N" screen (the cover
+            // shows the number, so the panel's big number hides here).
+            if (promptEl) { promptEl.textContent = 'Now say “' + N + '”'; promptEl.style.color = '#fbbf24'; }
+            if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — say it a bit louder' : 'Out loud';
+            setLamp(gLamp, gWrap, 'done', '✋');
+            setLamp(vLamp, vWrap, 'active', '🗣️');
+            setSayView(true, N, opts.voiceHelp ? 'A bit louder…' : ''); setBigNumber(false);
+        } else if (!opts.voiceOn && opts.rearmed === false) {
+            // Speech-off + gesture confirmed but NOT re-armed: the advance gate is BLOCKED (same held
+            // pose carried from the last accept). Don't claim "Got it" — prompt the re-show (codex).
+            if (promptEl) { promptEl.textContent = 'Lower your hand, then show ' + N + ' again'; promptEl.style.color = '#fbbf24'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'active', '✋');
+            setLamp(vLamp, vWrap, 'pending', '🗣️');
+            setSayView(false); setBigNumber(true, N);
+        } else {
+            // Both satisfied (or speech-off + re-armed) — advancing on the next frame.
+            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋');
+            setLamp(vLamp, vWrap, opts.voiceOn ? 'done' : 'pending', '🗣️');
+            setSayView(false); setBigNumber(false);
+        }
+    }
+
     // ── Finger-phase shared state ──────────────────────────────────────────
+    // S111: log the EXPECTED challenge digits at record start so the QA overlay can show
+    // exp:N next to detected cnt: — a stuck digit then reveals malformed-challenge (exp is a
+    // repeat the backend can't produce) vs misdetection (cnt != exp). Pacing/diagnostic only.
+    try { vacDebug('challenge_digits', null, { digits: digits }); } catch(_) {}
     let detectedDigits = new Array(digits.length).fill(false);
     // W3.5: lift detectedCounts to window scope so the upload step can attach
     // it as a client-detected-sequence hint for server-side cross-validation.
@@ -1711,7 +2219,9 @@ function beginRecording() {
     // transient frame of any finger (which raced through all 3 digits in ~2s).
     let stableCount = 0;          // the count currently being "held" and counted toward stability
     let stableFrames = 0;         // consecutive frames that count has been steady
-    let lastAcceptedCount = 0;    // W4.1: last count we accepted — require a CHANGE before next accept (hand stays up)
+    let _acceptArmed = true;      // Option 2 (S111): speech-off re-arm — a continuous hold can't double-accept. Re-armed by a SUSTAINED release OR a stably-held DIFFERENT count (debounced, robust to transient miscounts; codex P2). The VAD path ignores this and uses the per-digit speech window as the new-digit signal, which makes repeated digits ([2,4,4]) solvable.
+    let _lastAcceptedCount = 0;   // speech-off re-arm: a stably-held count != this == a deliberate change
+    let _releaseFrames = 0;       // consecutive detected===0 frames; a SUSTAINED release (>=3) re-arms (1-frame dropouts don't)
     const STABLE_FRAMES_NEEDED = 12;  // ~0.6s at ~20fps — a deliberate hold, not a flicker
     const MIN_DIGIT_DWELL_MS = 700;   // S110: each digit must be held ~0.7s wall-clock before advancing, so the recorded video captures every pose for Gemini (frame-rate independent)
     let _confirmUntil = 0;            // S110: during a confirmation beat after an accept, pause new accepts + delay next-number reveal
@@ -1723,20 +2233,51 @@ function beginRecording() {
     let digitStartTime = 0;
     let hintShown = false;
     const HINT_TIMEOUT_MS = 8000;
+    let _qaGestureLatched = false;  // F-560: gesture-confirmed fires once per digit, reset on advance
+    let _gestureReadyAt = 0;        // F-561: when gesture first went ready for this digit (drives the stuck-user escape timer)
+    let _latchedCount = 0;          // F-563: the finger count SHOWN at the moment the gesture latched — recorded as the client-detected count at advance (the hand may be DOWN by advance time during the camera-free say step, so we can't read `detected` then)
+    let _latchedFrames = 0;         // F-563: stableFrames at latch, for the advance log
+    let _escapeAdvancePending = false;  // F-563: the mic-escape was tapped on the say step (gesture already latched, hand down) — let THIS digit through via the latch even though escape switches to speech-off (which otherwise requires a live hand-up gesture)
+
+    // ── F-561: per-digit ON-DEVICE voice-pacing gate (energy-VAD) ──────────────
+    // The advance gate becomes gesture AND speech: a digit advances only once the
+    // user has BOTH held the gesture AND spoken during this digit's window, so the
+    // flow is user-paced instead of racing ahead. THIS IS A UX PACING SIGNAL ONLY,
+    // NOT the security check — it runs on-device (VAD energy, no network, words
+    // never leave the device); server-side Gemini stays the content authority.
+    let speechReady = new Array(digits.length).fill(false);  // per-digit: did we hear voice in its window
+    let speechWindowStart = Infinity;  // speech only counts at/after this; Infinity = CLOSED until a digit's window explicitly opens (fail-closed; codex P2)
+    let _speechMode = 'pending';     // 'vad' (on-device gate active) | 'off' (gesture-only + visible note)
+    let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
+    let _speechGateStarted = false;
+    let _lastVadRms = 0;             // latest VAD RMS, surfaced to the QA overlay for live calibration
+    // VAD threshold — client-side energy-RMS (0..1), NOT FolioAI's Deepgram word-confidence
+    // (different units entirely). Tuned live (S111, Rob): measured silent floor ~0.074,
+    // speaking ~0.175–0.242. 0.14 sits in that gap (clears the floor by ~0.066, ~0.035 below
+    // quietest speech). The gap is tight, so FRAMES is raised to require sustained voicing —
+    // a brief transient (breath/tap/movement) can't hold above thr for ~100ms and false-fire
+    // (the silent-advance bug). Re-tune live on ?qa=1 by watching rms (silent) vs rms (speaking).
+    const VAD_SPEECH_RMS = 0.14;     // voiced threshold (rms above this = voice)
+    const VAD_SILENCE_RMS = 0.085;   // SILENCE threshold (rms below this = silence). Hysteresis gap 0.085–0.14 = "neither", so a fresh utterance must cross from real silence UP through voice — greeting-tail / continuous talk (no preceding in-window silence) can't pre-satisfy a digit. Live-tune above the ~0.074 floor.
+    const VAD_SPEECH_FRAMES = 6;     // ~100ms sustained above threshold (raised 3->6 so transients can't fire)
+    // F-563 (#1): the digit say-step got the SAME tap/beep weakness the greeting had — the old
+    // ~100ms (VAD_SPEECH_FRAMES) bar let a tap/beep satisfy a digit. A SPOKEN number is ~300-500ms
+    // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
+    // duration AND modulation. Shorter than the greeting's 1.4s (a single digit < a multi-word
+    // greeting). PACING ONLY — Gemini server-side stays the authoritative voice check. LIVE-TUNE.
+    const DIGIT_VOICE_MIN_MS = 350;  // a real spoken digit lasts ~this long; a ~100ms tap can't reach it
+    const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
+    const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
+    // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
+    // silence→voice ONSET inside digit i's window, so the spoken number genuinely binds to
+    // that gesture (no pre-satisfaction). Reusable per-digit unit for F-562 quick re-auth.
+    let _sawSilence = false;         // observed real silence since THIS digit's window opened?
+    let _voiceOnsetAt = 0;           // performance.now() when the current fresh voiced run began
 
     // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
     function renderFingerPhase(hint) {
         if (digits.length === 0) { challengeEl.textContent = 'Processing\u2026'; return; }
-        var circles = '';
-        for (var di = 0; di < digits.length; di++) {
-            if (detectedDigits[di]) {
-                circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:#22c55e;color:white;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 6px;box-shadow:0 0 12px rgba(34,197,94,0.4);">&#10003;</span>';
-            } else if (di === currentDigitIndex) {
-                circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + digits[di] + '</span>';
-            } else {
-                circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + digits[di] + '</span>';
-            }
-        }
+        // S111 #3: per-digit number circles live in #digitStrip ABOVE the video (single source).
         // W3.5 refactor: generic per-step prompt.
         // The detection loop already advances on ANY finger > 0 (line below);
         // server validates the full sequence at the end. Showing the expected
@@ -1745,13 +2286,22 @@ function beginRecording() {
         const hintHtml = hint ? '<div style="color:#fbbf24;font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
         const remaining = digits.length - currentDigitIndex;
         const stepLabel = remaining > 1 ? (remaining + ' gestures to go') : (remaining === 1 ? 'last gesture' : 'done');
-        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
+        // F-563 (2): the strip is now numberless progress DOTS, so this prompt must NAME the current
+        // digit itself — otherwise the detector-fallback path (which relies on this text) leaves the
+        // user with no per-step number after the one-time intro (codex).
+        var _cd = digits[currentDigitIndex];
+        var _showNum = (currentDigitIndex < digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' and say “' + _cd + '”') : 'Show the next number';
+        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     }
 
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
+        try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
+        try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): hide the say-cover when capture ends
+        try { var _eg=document.getElementById('vacEqGreeting'); if(_eg) _eg.style.display='none'; } catch(_) {}  // F-563 (2): hide the greeting eq when capture ends
+        try { _hideNoMicRecovery(); } catch(_) {}  // F-563: clear the no-mic recovery panel when capture ends
         try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
@@ -1760,7 +2310,145 @@ function beginRecording() {
         // recorder running a tail buffer AFTER the last digit so the video
         // actually contains footage of every digit pose before we stop + send
         // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
+        try { _stopSpeechGate(); } catch(_){}
+        try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
         setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
+    }
+
+    // ── F-561 voice-pacing gate (VAD-only, on-device) ──────────────────────────
+    // D1 (S111): VAD-only — webkitSpeechRecognition is NOT used because in Chrome it
+    // streams mic audio to Google, contradicting the on-device / zero-network promise
+    // and the page's privacy copy. We only need "did they speak this digit", not the
+    // words, so on-device energy detection is sufficient. Reuses the existing
+    // audioAnalyser (startAudioMonitor) — no second AudioContext, no new getUserMedia,
+    // no permission prompt.
+    function _markSpeech(src, rms, onsetAt) {
+        if (recordingStopped) return;
+        if (currentDigitIndex >= digits.length) return;
+        if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
+        if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
+        speechReady[currentDigitIndex] = true;
+        // S111 unification: a FRESH per-digit speech onset is ALSO a deliberate "new digit"
+        // signal, so it satisfies the gesture re-arm — the user doesn't have to lower their
+        // hand even when MediaPipe misread the count (cnt≠exp). The held gesture + the spoken
+        // number advance; Gemini validates the actual gesture↔number match server-side (SUPP-7).
+        // Hand-lower stays only as the speech-off / genuinely-stuck fallback.
+        _acceptArmed = true;
+        // F-561: carry the triggering rms AND the silence→voice onset moment, so the overlay
+        // shows the FRESH binding per digit (onset after a real in-window silence — no pre-satisfaction).
+        try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null), onset_perf: (typeof onsetAt === 'number' ? onsetAt : null) }); } catch(_) {}
+    }
+    function _startSpeechGate() {
+        if (_speechGateStarted) return;
+        _speechGateStarted = true;
+        if (!audioAnalyser) { console.error('[VAC][VOICE] digit voice gate OFF — no audioAnalyser at speech-gate start (pacing only; Gemini still validates voice server-side)'); _speechGateOff('no_audio_analyser'); return; }  // W4.1: degrade to gesture-only + note
+        if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); return; }  // user picked "Continue — skip voice" on the recovery → digits go gesture-only too
+        _speechMode = 'vad';
+        try { vacDebug('speech_gate_mode', null, { mode: 'vad' }); } catch(_) {}
+        const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+        let voiced = 0;
+        let voiceMin = 1, voiceMax = 0;   // F-563 (#1): rms range over the current voiced run (the modulation check)
+        // The reusable per-digit unit: fire speechReady ONLY on a silence→voice ONSET inside
+        // the current window. A voiced run that did NOT follow an in-window silence (greeting
+        // tail, continuous talk, room drone) is IGNORED — so it can't pre-satisfy the digit and
+        // the spoken number genuinely binds to the gesture (SUPP-7 cross-modal claim, on-device).
+        (function tick() {
+            if (recordingStopped || _speechMode !== 'vad') { _vadRAF = null; return; }
+            // If the user picked "Continue — skip voice" AFTER the digit VAD already started (they
+            // entered the digit phase before clicking it), turn the gate off now so digits don't keep
+            // waiting on voice (codex). _startSpeechGate's initial check can't catch this later choice.
+            if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); _vadRAF = null; return; }
+            try {
+                audioAnalyser.getByteFrequencyData(buf);
+                let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+                rms = Math.sqrt(rms / buf.length) / 255;
+                _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
+                const _now = performance.now();
+                if (rms < VAD_SILENCE_RMS) {
+                    // Track silence ALWAYS — even while the window is closed (during the confirm
+                    // beat / grace). A real pause there arms the next digit, so a fresh utterance
+                    // that OVERLAPS the window-open still counts (codex), while continuous
+                    // carry-over (no pause since the last accept) stays rejected.
+                    _sawSilence = true;
+                    voiced = 0; voiceMin = 1; voiceMax = 0;
+                } else if (rms > VAD_SPEECH_RMS) {
+                    // Accumulate the voiced run from its TRUE onset — even if it starts during the
+                    // grace/beat BEFORE the window opens — so a digit begun slightly early still reaches
+                    // the duration bar (codex: don't clamp the onset to window-open). The run only STARTS
+                    // after a real silence (_sawSilence = fresh onset, rejects carry-over/greeting-tail).
+                    if (voiced === 0) {
+                        if (_sawSilence) { _voiceOnsetAt = _now; voiceMin = rms; voiceMax = rms; voiced = 1; }
+                        // else: voice with no preceding in-window silence (carry-over) → ignore
+                    } else {
+                        voiced++;
+                        if (rms < voiceMin) voiceMin = rms;
+                        if (rms > voiceMax) voiceMax = rms;
+                    }
+                    // FIRE only once the window is open AND the run is SUSTAINED (>=DIGIT_VOICE_MIN_MS) and
+                    // MODULATED — so a ~100ms tap (too short) or a flat beep/tone (no modulation) can't
+                    // satisfy a digit, while a real spoken number (any reasonable start time) clears both.
+                    if (voiced > 0 && _now >= speechWindowStart
+                        && voiced >= VAD_SPEECH_FRAMES
+                        && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
+                        && (voiceMax - voiceMin) >= DIGIT_MOD_DELTA) {
+                        _markSpeech('vad', rms, _voiceOnsetAt);
+                        voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
+                    }
+                }
+                // 0.085–0.14 band (neither): hold counters, don't change _sawSilence
+            } catch(_) {}
+            _vadRAF = requestAnimationFrame(tick);
+        })();
+    }
+    function _speechGateOff(reason) {
+        _speechMode = 'off';           // _speechOk becomes true → gesture-only advance, with a visible note
+        _acceptArmed = true;           // Option 2: let the currently-held gesture advance now (escape/degrade), not after a re-show
+        if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
+        try { vacDebug('speech_gate_mode', null, { mode: 'off', reason: reason || null }); } catch(_) {}
+        // F-563 recoverability: a GENUINE no-mic (null analyser) surfaces the recovery panel; a
+        // deliberate user-escape ('user_escape') does NOT (the user already chose gesture-only).
+        if (reason === 'no_audio_analyser') { try { _showNoMicRecovery(); } catch(_) {} }
+    }
+    function _stopSpeechGate() {
+        if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
+    }
+    // Stuck-user escape (D2): gesture held ready but VAD never fires (muted/quiet mic).
+    // Explicit tap, never silent auto-advance; turns the voice gate off for THIS digit
+    // and the rest of the sequence. Voice gate is pacing only, so this doesn't weaken
+    // security (Gemini authoritative).
+    function _ensureVoiceEscape() {
+        if (document.getElementById('vacVoiceEscape')) return;
+        var btn = document.createElement('button');
+        btn.id = 'vacVoiceEscape';
+        btn.style.cssText = 'display:block;margin:8px auto 0;padding:9px 18px;background:var(--warning,#D29922);color:#0D1117;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer';
+        btn.textContent = 'Mic not working? Tap to continue with gestures only';
+        if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(btn);
+        btn.addEventListener('click', function() {
+            // F-563: the escape only appears once the gesture is latched (waiting on voice). The user
+            // is on the camera-free say step with the hand DOWN — so let THIS digit advance via the
+            // latch, then speech-off (live-gesture) governs the remaining digits. Without this, the
+            // new speech-off live-gesture rule would strand them (hand down) right after escaping.
+            _escapeAdvancePending = _qaGestureLatched;
+            _speechGateOff('user_escape');
+            try { vacDebug('voice_gate_escape', null, { digit_index: currentDigitIndex }); } catch(_) {}
+            _removeVoiceEscape();
+        });
+    }
+    function _removeVoiceEscape() {
+        var btn = document.getElementById('vacVoiceEscape');
+        if (btn) btn.remove();
+    }
+    function _renderVoiceOffNote() {
+        var note = document.getElementById('vacVoiceOff');
+        if (_speechMode === 'off') {
+            if (!note) {
+                note = document.createElement('div');
+                note.id = 'vacVoiceOff';
+                note.style.cssText = 'text-align:center;margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:0.5px';
+                note.textContent = '(voice gate off)';
+                if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(note);
+            }
+        } else if (note) { note.remove(); }
     }
 
     // Timer fallback — used if HandLandmarker unavailable or too slow. Respects SPEED_CONFIG.digit.
@@ -1772,6 +2460,9 @@ function beginRecording() {
     // camera detector isn't running, and we hold the current step. The timer is
     // a per-step TIMEOUT hint, never an auto-advance.
     function runTimerFallback() {
+        try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): the guided detection panel doesn't apply to the manual fallback — hide it
+        try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): no camera-free say-step in the manual fallback
+        try { _stopSpeechGate(); } catch(_) {}  // F-561: no gesture detection here → voice gate doesn't apply (manual advance only)
         try { vacDebug('phase2_timer_fallback_no_autoadvance', null, { digit_duration_s: DIGIT_DURATION, digits_count: digits.length }); } catch(_) {}
         console.log('[VAC] Finger phase: detector unavailable — holding for user, NOT auto-advancing (W4.1)');
         // W4.1 fix: remove the detection-path status element so the two UIs don't
@@ -1787,7 +2478,7 @@ function beginRecording() {
             if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(statusEl);
         }
         statusEl.style.color = '#fbbf24';
-        statusEl.textContent = 'Camera detector unavailable — hold each gesture, then tap to advance';
+        statusEl.textContent = 'Camera detector unavailable — show AND SAY each number out loud, then tap to advance (your spoken numbers are still recorded for verification)';
         renderFingerPhase(false);
 
         // Per-step MANUAL advance (no auto-advance). User taps to confirm each
@@ -1799,7 +2490,7 @@ function beginRecording() {
                 btn = document.createElement('button');
                 btn.id = 'vacManualAdvance';
                 btn.style.cssText = 'display:block;margin:10px auto 0;padding:10px 22px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer';
-                btn.textContent = 'Holding it ✓ — next';
+                btn.textContent = 'Shown + said it ✓ — next';
                 if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(btn);
                 btn.addEventListener('click', function() {
                     if (recordingStopped) return;
@@ -1814,11 +2505,15 @@ function beginRecording() {
                         renderFingerPhase(false);
                         finishFingerPhase();
                     } else {
+                        // S111 #3: the per-step numbers now live ONLY in #digitStrip (the in-frame
+                        // circles were removed), so the manual fallback must advance the strip too —
+                        // else it sticks on the first digit and the user shows the wrong sequence (codex).
+                        try { renderDigitStrip(currentDigitIndex); } catch(_) {}
                         renderFingerPhase(false);
                     }
                 });
             }
-            btn.textContent = (currentDigitIndex >= digits.length - 1) ? 'Holding it ✓ — finish' : 'Holding it ✓ — next';
+            btn.textContent = (currentDigitIndex >= digits.length - 1) ? 'Shown + said it ✓ — finish' : 'Shown + said it ✓ — next';
         }
         ensureAdvanceButton();
 
@@ -1909,72 +2604,138 @@ function beginRecording() {
         // Note: we only need to detect that a DISTINCT stable gesture was held; the
         // ACTUAL finger count is validated later server-side by Gemini (Rob's point).
         if (detected > 0) {
+            _releaseFrames = 0;   // hand present — reset the sustained-release counter
             if (detected === stableCount) {
                 stableFrames++;
             } else {
-                stableCount = detected;   // count changed — restart the hold timer
+                // Count changed — restart the hold timer. digitStartTime resets on ANY change
+                // so the dwell always measures the CURRENT continuous hold (S110 racing fix,
+                // now change-agnostic so repeated digits re-time cleanly too).
+                stableCount = detected;
                 stableFrames = 1;
-                // S110 RACING FIX: also restart the DWELL clock when the count changes
-                // to a new value we haven't accepted. The bug: digitStartTime only reset
-                // on ADVANCE, so it measured time-since-last-advance — meaning after the
-                // first digit, the dwell was already satisfied by the time the user formed
-                // the next digit, and later digits advanced after only ~0.2s of holding
-                // (the frame gate), racing through. Resetting here makes the dwell measure
-                // how long THIS digit has actually been held.
-                if (detected !== lastAcceptedCount) { digitStartTime = performance.now(); }
+                digitStartTime = performance.now();
             }
-            // Accept when held steady long enough AND it's a change from the last
-            // accepted count (lastAcceptedCount starts at 0, so the first hold counts).
-            // S110 sync fix: ALSO require a wall-clock minimum dwell (MIN_DIGIT_DWELL_MS)
-            // since at 60fps STABLE_FRAMES_NEEDED=12 is only ~0.2s — too fast for the
-            // recorded video to capture each pose, so Gemini saw only the first digit.
+            // Speech-off re-arm: a count DIFFERENT from the last accepted, held STABLY, is a
+            // deliberate new gesture — robust to transient miscounts (a 1-frame flicker never
+            // reaches STABLE_FRAMES_NEEDED). A repeated digit (same count) re-arms via a
+            // sustained release instead (codex P2).
+            if (!_acceptArmed && detected !== _lastAcceptedCount && stableFrames >= STABLE_FRAMES_NEEDED) { _acceptArmed = true; }
+            // Accept when held steady long enough (+ the AND-gate's speech / re-arm below).
+            // S110 sync fix: require a wall-clock minimum dwell (MIN_DIGIT_DWELL_MS) since at
+            // 60fps STABLE_FRAMES_NEEDED=12 is only ~0.2s — too fast for the recorded video to
+            // capture each pose, so Gemini saw only the first digit.
             const _nowMs = performance.now();
             if (digitStartTime === 0) digitStartTime = _nowMs;  // first digit: start the dwell clock on first stable detection
             const _dwellOk = (_nowMs - digitStartTime) >= MIN_DIGIT_DWELL_MS;
-            if (stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk && detected !== lastAcceptedCount && _nowMs >= _confirmUntil) {
-                if (currentDigitIndex === 0) {
-                    try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: detected, held_frames: stableFrames }); } catch(_) {}
-                }
-                // S110: per-digit advance log so the 1->2 and 2->3 dwell gaps are
-                // directly measurable (observer flagged the logs only emitted the FIRST
-                // advance). dwell_ms = how long since the dwell clock started for this digit.
-                try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: detected, held_frames: stableFrames, dwell_ms: Math.round(_nowMs - digitStartTime) }); } catch(_) {}
-                detectedDigits[currentDigitIndex] = true;
-                detectedCounts[currentDigitIndex] = detected;
-                lastAcceptedCount = detected;   // require a CHANGE before the next accept
-                stableFrames = 0;               // reset hold timer; keep stableCount as-is
-                currentDigitIndex++;
-                digitStartTime = performance.now();
-                hintShown = false;
-                // S110 CONFIRMATION BEAT (Rob): instead of instantly highlighting the next
-                // number (which made the user feel they were chasing it), hold a clear
-                // "Got it ✓" moment. During _confirmUntil we (a) pause accepting new digits,
-                // (b) delay advancing the digit-strip highlight, so the user registers success
-                // and can reposition before the next number is revealed.
-                _confirmUntil = performance.now() + CONFIRM_BEAT_MS;
-                _confirmStripPending = currentDigitIndex;   // reveal this next-number highlight when the beat ends
-                // NOTE: digit-strip highlight is advanced AFTER the beat (see below), not here.
-                // S110 timer reconciliation: in the FINGER phase, detection drives
-                // the pace, so the ring shows PROGRESS (digits done) — not a shrinking
-                // countdown that races the user. Removes the false deadline pressure.
-                const completedFrac = currentDigitIndex / digits.length;
-                ringFill.classList.remove('recording');
-                ringFill.style.stroke = 'var(--teal)';
-                ringFill.style.strokeDashoffset = circumference * (1 - completedFrac);
-                timerEl.style.fontSize = '14px';
-                timerEl.textContent = currentDigitIndex + '/' + digits.length;
-                if (currentDigitIndex >= digits.length) {
-                    try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
-                    renderFingerPhase(false);
-                    finishFingerPhase();
-                    return;
-                }
+            // F-561 Option 2 (S111): _gestureOk is just "held steady long enough" — the
+            // count-change guard (detected !== lastAcceptedCount) is GONE, so a repeated
+            // digit ([2,4,4]) is solvable. The per-digit SPEECH window is the new-digit signal.
+            const _gestureOk = stableFrames >= STABLE_FRAMES_NEEDED && _dwellOk;
+            // F-563: the actual ADVANCE (gesture-latched || live) AND speech AND re-arm is now
+            // evaluated at FRAME level after this if/else, so it also fires with the hand DOWN
+            // (camera-free "Say N" step). Here we only DETECT + LATCH the gesture for this digit.
+            const _speechOk = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];  // for the QA live line
+            // F-560: record gesture-confirmed-at once per digit, independent of advance,
+            // so the overlay shows the gesture→speech→advance gap. Also starts the
+            // stuck-user escape timer (gesture ready, waiting on voice).
+            // F-563: the latch must reflect a FRESH gesture for THIS digit, because the say-view
+            // treats _qaGestureLatched as "gesture done" and hides the camera. Gate it on BOTH:
+            //  - after the confirm beat (_nowMs >= _confirmUntil), and
+            //  - _acceptArmed — the re-arm signal (a stably-held DISTINCT count, or a sustained
+            //    release + re-show). A previous pose merely HELD through the beat keeps _acceptArmed
+            //    false (same count, no release), so it can't latch the next digit and pre-hide the
+            //    camera / record the stale count (codex P1). This makes the latch genuinely per-digit.
+            if (_gestureOk && !_qaGestureLatched && _nowMs >= _confirmUntil && _acceptArmed) {
+                _qaGestureLatched = true;
+                if (!_gestureReadyAt) _gestureReadyAt = _nowMs;   // don't reset the voice-wait timer if it already started at held-ready (below)
+                _latchedCount = detected;     // capture the SHOWN count now — the hand may be down by advance time (camera-free say step)
+                _latchedFrames = stableFrames;
+                // F-563 note: we deliberately do NOT reset speechReady here. If the user said the
+                // number WHILE showing (the old natural way), that is a real fresh onset in THIS
+                // digit's window (binding intact — not pre-satisfaction), so the digit just completes
+                // and the say-screen is skipped (an experienced-user fast path). Resetting it to force
+                // strict show→say sequencing would discard the utterance that re-arms a held repeated
+                // digit ([2,4,4]) via _markSpeech, breaking that flow (codex). The say-screen still
+                // appears for everyone who shows the gesture before speaking — the common case.
+                try { vacDebug('gesture_confirm', null, { digit_index: currentDigitIndex, count: detected }); } catch(_) {}
             }
+            if (QA.on) { try { QA.frame({ detected: detected, stableFrames: stableFrames, need: STABLE_FRAMES_NEEDED, dwellMs: Math.round(_nowMs - digitStartTime), beatMs: Math.max(0, Math.round(_confirmUntil - _nowMs)), gestureOk: _gestureOk, speechOk: _speechOk, rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
+            // F-563: advance is evaluated at FRAME level (after this if/else), NOT here — because
+            // the camera-free "Say N" step has the hand DOWN (detected===0), and an advance gated
+            // inside `if (detected>0)` would deadlock once the gesture is latched + voice given
+            // (codex P1). The latch (_qaGestureLatched) already captures "gesture confirmed".
         } else {
-            // Hand fully dropped / out of frame — reset the hold (but NOT
-            // lastAcceptedCount; dropping the hand isn't required, just allowed).
+            // Hand fully dropped — reset the hold. A SUSTAINED release (>=3 frames, robust to
+            // 1-frame detection dropouts) re-arms the speech-off path so a repeated digit can
+            // be shown again (Option 2 / codex P2). Harmless in VAD mode (ignores _acceptArmed).
+            _releaseFrames++;
+            if (_releaseFrames >= 3) _acceptArmed = true;
             stableCount = 0;
             stableFrames = 0;
+            if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false, speechOk: (_speechMode === 'off') ? true : speechReady[currentDigitIndex], rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: VAD_SPEECH_RMS }); } catch(_) {} }
+        }
+
+        // F-563: FRAME-LEVEL advance — fires whether the hand is UP or DOWN, so the camera-free
+        // "Say N" step (hand down) can complete the digit (codex P1: gating advance inside
+        // `if (detected>0)` deadlocked it). The cross-modal binding is fully preserved:
+        //   - _qaGestureLatched = gesture confirmed for THIS digit (set the same frame the live
+        //     gesture first went ready; RESET on advance below → digit N+1 needs a FRESH gesture).
+        //   - speechReady[i] = a FRESH per-digit silence→voice onset (untouched by the latch).
+        //   - _acceptArmed still guards a stale carried-over pose / double-accept.
+        // The count RECORDED is _latchedCount (captured when the gesture latched) — not `detected`,
+        // which is 0 once the hand is down for the say step.
+        var _spOkFrame = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
+        // Speech-off has NO camera-free say step, so it must keep the ORIGINAL live-gesture rule
+        // (hand held now) — else, with _spOkFrame always true, simply lowering the hand (which sets
+        // _acceptArmed) would advance a stale latch without a fresh re-show (codex). VAD mode uses the
+        // latch so the hand can be down for the say step; voice (speechReady[i]) is the completion signal.
+        var _liveGestureOk = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED && digitStartTime > 0 && (performance.now() - digitStartTime) >= MIN_DIGIT_DWELL_MS);
+        var _gateGestureOk = (_speechMode === 'off') ? _liveGestureOk : _qaGestureLatched;
+        // One-shot: a mic-escape on the say step lets the already-latched current digit through.
+        var _advanceNow = (_gateGestureOk && _spOkFrame) || (_escapeAdvancePending && _qaGestureLatched);
+        if (currentDigitIndex < digits.length && _advanceNow && _acceptArmed && performance.now() >= _confirmUntil) {
+            _escapeAdvancePending = false;
+            var _adNow = performance.now();
+            // Count to record: the LATCHED count when latched (VAD say-step / normal — hand may be
+            // down). On the speech-off LIVE path the latch may not have set this frame (its beat-guard
+            // used the earlier _nowMs while this advance's fresh now crossed the beat boundary — codex),
+            // so fall back to the live `detected` (that path requires detected>0, so it's valid; never 0).
+            var _recordCount = _qaGestureLatched ? _latchedCount : detected;
+            var _recordFrames = _qaGestureLatched ? _latchedFrames : stableFrames;
+            if (currentDigitIndex === 0) {
+                try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: _recordCount, held_frames: _recordFrames }); } catch(_) {}
+            }
+            try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: _recordCount, held_frames: _recordFrames, dwell_ms: Math.round(_adNow - digitStartTime) }); } catch(_) {}
+            detectedDigits[currentDigitIndex] = true;
+            detectedCounts[currentDigitIndex] = _recordCount;   // latched count, or live count on the speech-off path — never the hand-down 0
+            _acceptArmed = false;
+            _lastAcceptedCount = _recordCount;
+            stableFrames = 0;
+            currentDigitIndex++;
+            digitStartTime = _adNow;
+            hintShown = false;
+            _qaGestureLatched = false;   // RESET — digit N+1's gesture latch starts FRESH (no bleed)
+            _gestureReadyAt = 0;
+            _latchedCount = 0; _latchedFrames = 0;
+            if (currentDigitIndex < digits.length) {
+                speechWindowStart = performance.now() + CONFIRM_BEAT_MS;
+                _sawSilence = false;   // fresh in-window silence→voice onset required for the new digit
+                try { vacDebug('speech_window_open', null, { digit_index: currentDigitIndex, at_perf: speechWindowStart }); } catch(_) {}
+            }
+            _confirmUntil = performance.now() + CONFIRM_BEAT_MS;
+            _confirmStripPending = currentDigitIndex;
+            var _completedFrac = currentDigitIndex / digits.length;
+            ringFill.classList.remove('recording');
+            ringFill.style.stroke = 'var(--teal)';
+            ringFill.style.strokeDashoffset = circumference * (1 - _completedFrac);
+            timerEl.style.fontSize = '14px';
+            timerEl.textContent = currentDigitIndex + '/' + digits.length;
+            if (currentDigitIndex >= digits.length) {
+                try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
+                renderFingerPhase(false);
+                finishFingerPhase();
+                return;
+            }
         }
 
         if (!hintShown && digitStartTime > 0 && (performance.now() - digitStartTime) > HINT_TIMEOUT_MS) {
@@ -1995,7 +2756,8 @@ function beginRecording() {
             liveEl.style.cssText = 'text-align:center;margin-top:10px;font-family:var(--mono);font-size:17px;font-weight:700;letter-spacing:0.5px;min-height:26px;transition:color 0.15s';
             if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(liveEl);
         }
-        var stepNum = currentDigitIndex + 1;            // 1-based for display
+        var stepNum = currentDigitIndex + 1;            // 1-based step for progress display
+        var _curDigit = digits[currentDigitIndex];      // the ACTUAL digit to show + SAY (NOT the step number) — codex: numbers are out of the phrase now, so the per-digit prompt must name the real digit
         var totalSteps = digits.length;
         var _now = performance.now();
         var inConfirmBeat = _now < _confirmUntil;       // S110: the "Got it ✓" hold between digits
@@ -2012,35 +2774,229 @@ function beginRecording() {
             liveEl.style.color = '#22c55e';
             liveEl.style.fontSize = '22px';
             liveEl.textContent = '\u2713  Got it';
-        } else if (detected > 0 && detected !== lastAcceptedCount) {
+        } else if (detected > 0) {
+            // Option 2: no more "now change" copy \u2014 a repeated digit is held, not changed.
             liveEl.style.fontSize = '17px';
             const pct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
-            liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
-            liveEl.textContent = pct >= 100
-                ? ('Got it \u2713')
-                : ('Number ' + stepNum + ' of ' + totalSteps + ' \u2014 hold steady ' + pct + '%');
-        } else if (detected > 0 && detected === lastAcceptedCount) {
-            liveEl.style.fontSize = '17px';
-            liveEl.style.color = '#fbbf24';
-            liveEl.textContent = 'Now change to number ' + stepNum + ' of ' + totalSteps;
+            const _needSpeech = (_speechMode !== 'off') && !speechReady[currentDigitIndex];
+            if (pct >= 100 && !_acceptArmed && !_needSpeech) {
+                // S111 unification: LAST-RESORT re-show — only when NOT waiting on voice, i.e.
+                // speech-off mode (no VAD re-arm) or genuinely stuck. In VAD mode the spoken
+                // number re-arms the gesture (even on a misdetected count), so this rarely fires.
+                liveEl.style.color = '#fbbf24';
+                liveEl.textContent = 'Lower your hand, then show ' + _curDigit + ' again';
+            } else if (pct >= 100 && _needSpeech) {
+                // F-561: gesture is held + confirmed \u2014 now SAY the bound number (SUPP-7 cross-modal).
+                // Pacing prompt only (on-device VAD), NOT presented as the security check.
+                liveEl.style.color = '#fbbf24';
+                liveEl.textContent = (_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
+                    ? ('We can\u2019t hear you \u2014 say \u201c' + _curDigit + '\u201d, or tap below')
+                    : ('Now say \u201c' + _curDigit + '\u201d');
+            } else {
+                liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
+                liveEl.textContent = pct >= 100
+                    ? ('Got it \u2713')
+                    : ('Hold steady ' + pct + '%  (' + stepNum + '/' + totalSteps + ')');
+            }
         } else {
             liveEl.style.color = 'var(--text-secondary)';
-            liveEl.textContent = 'Show number ' + stepNum + ' of ' + totalSteps;
+            liveEl.textContent = 'Show ' + _curDigit + ' finger' + (_curDigit === 1 ? '' : 's') + ' and say \u201c' + _curDigit + '\u201d';
         }
 
-        renderFingerPhase(hintShown);
+        // F-563 (2): drive the BIG guided panel off the SAME per-digit flags (no gate change).
+        // gesture done = _qaGestureLatched (set once a stable deliberate gesture is confirmed for
+        // this digit, content-blind); voice done = speechReady[currentDigitIndex].
+        try {
+            var _gPct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
+            renderGuided({
+                done: currentDigitIndex >= totalSteps,
+                beat: inConfirmBeat,
+                digit: _curDigit,
+                gestureDone: _qaGestureLatched,
+                gesturePct: _gPct,
+                voiceOn: (_speechMode !== 'off'),
+                voiceDone: !!speechReady[currentDigitIndex],
+                rearmed: _acceptArmed,   // speech-off: a held pose can be gesture-confirmed but NOT re-armed (blocked) — don't show "Got it"
+                voiceHelp: !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
+            });
+        } catch(_) {}
+
+        // F-561/F-563: stuck-user escape + persistent "(voice gate off)" note.
+        // "Waiting on voice" must cover BOTH:
+        //   - latched + hand DOWN (the camera-free say step), and
+        //   - gesture HELD-ready but not yet latched (e.g. an adjacent repeated digit held while a
+        //     broken mic never re-arms it) — else the mic-escape would never appear (codex).
+        var _gestureHeldReady = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED);
+        if (_gestureHeldReady && !_gestureReadyAt) _gestureReadyAt = _now;   // start the voice-wait timer the moment the gesture is first ready (before the latch)
+        var _waitingVoice = (_qaGestureLatched || _gestureHeldReady) && (_speechMode !== 'off') && !speechReady[currentDigitIndex] && currentDigitIndex < totalSteps;
+        if (_waitingVoice && _gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS) { _ensureVoiceEscape(); }
+        else { _removeVoiceEscape(); }
+        _renderVoiceOffNote();
+        // D2: once the gesture is confirmed and we're only waiting on voice, the 8s
+        // "hold hand closer" hint is wrong here — suppress it.
+        renderFingerPhase(hintShown && !_waitingVoice);
         rafId = requestAnimationFrame(runDetectionLoop);
     }
 
-    // ── Phase 1: phrase timer (user speaks the challenge phrase) ───────────
+    // ── F-561 (S111): gate the phrase→digits transition on SPEECH, not just the timer.
+    // Same class as the per-digit AND-gate but for the phrase phase: don't leave the phrase
+    // until we've actually heard the user speak it (pacing only — Gemini validates content).
+    // Reuses the audioAnalyser from startAudioMonitor. W4.1 fallbacks (never hang): VAD
+    // unavailable → timer; a hard safety cap so a silent/broken mic can't hold forever.
+    let _phraseVoicedTicks = 0;
+    let _phraseSilenceTicks = 0;
+    let _phraseHeardVoice = false;
+    let phraseSpoke = false;
+    let _phraseHeardAt = 0;                            // F-563: when the greeting was HEARD — drives the "✓ Heard it" beat before advancing (digit parity)
+    const GREET_HEARD_BEAT_MS = 800;                  // hold the greeting ✓ this long so the user KNOWS it registered, like a digit's ✓
+    // F-563 (Finding 2): the on-device VAD is a PACING gate, NOT the security check — Gemini
+    // server-side is the authoritative word verifier. The old ~400ms threshold (2 ticks) fired on a
+    // single cough/scrape/hum burst. Real speech is SUSTAINED + MODULATED over the word duration, so
+    // require ~1.4s of voiced energy AND that it actually varies (a flat hum has near-constant rms).
+    // The greeting is always "[word], I am [name]" (>=~1.5s), so this won't stall it. LIVE-TUNE.
+    const PHRASE_VOICED_TICKS_NEEDED = 7;             // ~1.4s of voiced energy (TICK_MS=200) — a real multi-word greeting, not a transient
+    const PHRASE_MOD_DELTA = 0.045;                  // modulation floor: the voiced run's rms range must exceed this (speech varies; a flat tone/hum doesn't). Best-effort — Gemini is authoritative.
+    const PHRASE_SILENCE_TICKS_NEEDED = 2;            // ~400ms end-pause = the greeting utterance is COMPLETE (not a mid-word dip)
+    const SILENT_RECOVERY_TICKS = 28;                // ~5.6s of genuine near-silence (rms < VAD_SILENCE_RMS) with NO voiced energy → surface the "we can't hear you" recovery (connected-but-silent mic), instead of silently holding to the hard cap. LIVE-TUNE.
+    const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer — a final backstop so it can never hang
+    let _phraseVoicedMin = 1, _phraseVoicedMax = 0;   // rms range during the current voiced run (the modulation check)
+    let _phraseSilentRun = 0;                         // consecutive near-silent ticks (the connected-but-silent-mic detector)
+    // F-561 (S111): phraseSpoke = a COMPLETED greeting utterance — a sustained voiced run THEN
+    // a real end-pause — not "any 600ms of voice". The greeting is greeting-only now; the NUMBERS
+    // are spoken per-digit (each bound to its gesture), never in the phrase phase.
+    function _phraseVadTick() {
+        if (!audioAnalyser || phraseSpoke) return;
+        try {
+            const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+            audioAnalyser.getByteFrequencyData(_buf);
+            let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
+            _rms = Math.sqrt(_rms / _buf.length) / 255;
+            // (a) CONNECTED-BUT-SILENT mic detector: sustained genuine near-silence with NO voiced
+            // energy → the mic is present but too quiet to ever satisfy the gate. Surface the "we
+            // can't hear you" recovery rather than silently holding to the hard cap (Finding/silent-mic).
+            if (_rms < VAD_SILENCE_RMS) {
+                // NOT in voice-only mode — there the user has no gesture phase to fall back on, so
+                // "skip voice" would leave nothing to verify; let voice-only hard-cap → fail → retry
+                // instead (codex). Finger mode can degrade to gesture-only, so the recovery applies.
+                if (++_phraseSilentRun >= SILENT_RECOVERY_TICKS && fingerFallback !== 'voice') { try { _showNoMicRecovery('quiet'); } catch(_) {} }
+            } else {
+                _phraseSilentRun = 0;
+            }
+            if (_rms > VAD_SPEECH_RMS) {
+                _phraseSilenceTicks = 0;
+                _phraseVoicedTicks++;
+                if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
+                if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
+                // Finding 2: require SUSTAINED voiced energy (~1.4s) AND modulation — so a single ~400ms
+                // transient (cough/scrape) OR a flat continuous hum can't satisfy "greeting heard".
+                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA) {
+                    _phraseHeardVoice = true;
+                }
+            } else if (_rms < VAD_SILENCE_RMS) {
+                if (!_phraseHeardVoice) {
+                    // Not a sustained greeting yet — DECAY the voiced run so intermittent noise can't
+                    // accumulate across silences; reset the modulation window when it fully decays.
+                    _phraseVoicedTicks = Math.max(0, _phraseVoicedTicks - 1);
+                    if (_phraseVoicedTicks === 0) { _phraseVoicedMin = 1; _phraseVoicedMax = 0; }
+                } else if (++_phraseSilenceTicks >= PHRASE_SILENCE_TICKS_NEEDED) {
+                    // sustained, modulated voiced run THEN a real end-pause → utterance complete
+                    phraseSpoke = true;
+                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                }
+            }
+            // 0.085–0.14 band (neither): hold counters
+        } catch(_) {}
+    }
+
+    // F-563 (greeting = first-class gate): the greeting now gets the SAME show→listen→✓ treatment
+    // as a digit (it's the FIRST thing the user hits, so its clarity sets the tone). Shows the
+    // ACTUAL greeting text BIG + readable, a clear listening state, and a "✓ Heard it" confirmation
+    // before advancing — so the user KNOWS it registered. #vacEqHost is where the live equaliser
+    // mounts (F-563 piece 2). Pacing only — the phrase gate (phraseSpoke) is unchanged.
+    function renderGreeting() {
+        var _full = challengeData?.phrase || '';
+        var _vo = (fingerFallback === 'voice');
+        // F-563 (#4): show the FULL phrase INCLUDING the digits (say them all up front), not the
+        // greeting-only strip. The backend matches the whole transcript (set-overlap), so the digits
+        // must be spoken here to reach it; finger mode ALSO re-says each digit per-gesture (on-device
+        // pacing). Reconciles the screen with what the backend expects. (Server-side cross-modal
+        // binding is a separate vac-system fix — see the backend ticket; not over-claimed here.)
+        var _say = _full;
+        var _st = document.getElementById('step2Title');
+        // ✓ Heard it beat — FINGER mode only, AND only AFTER the read window (PHRASE_DURATION). The
+        // phrase now includes the digits, so phraseSpoke can fire on a pause after the greeting clause
+        // — keep the FULL phrase visible through the read window so the user actually says the digits
+        // up front; only confirm once the window has elapsed (codex).
+        if (phraseSpoke && !_vo && (elapsedMs / 1000) >= PHRASE_DURATION) {
+            if (_st) { _st.textContent = 'Greeting heard'; _st.style.color = '#22c55e'; }
+            // Don't instruct "now the numbers" yet — the digit phase doesn't start until the timer
+            // floor + the "GET READY — SHOW FINGERS IN" grace countdown, which is what actually cues it
+            // (codex: avoid telling the user to start while input is still ignored).
+            challengeEl.innerHTML = '<div style="font-size:clamp(24px,7vw,34px);font-weight:800;color:#22c55e;line-height:1.2;">✓ Heard it</div>'
+                + '<div style="font-size:clamp(12px,3.4vw,14px);color:var(--text-secondary);margin-top:6px;">One moment…</div>';
+            var _eqH = document.getElementById('vacEqGreeting'); if (_eqH) _eqH.style.display = 'none';   // ✓ → hide the listening eq
+            return;
+        }
+        if (_st) { _st.textContent = 'Say the phrase'; _st.style.color = '#fbbf24'; }
+        var _listening = (elapsedMs / 1000) >= PHRASE_DURATION;   // past the read window → emphasise "we're listening"
+        challengeEl.innerHTML =
+            '<div style="font-size:clamp(11px,3vw,12px);font-family:var(--mono);letter-spacing:1.5px;color:#fbbf24;margin-bottom:6px;">' + (_listening ? '🎙️ LISTENING — SAY IT OUT LOUD' : 'READ THIS OUT LOUD — INCLUDING THE NUMBERS') + '</div>'
+            + '<div style="font-size:clamp(22px,6.5vw,32px);font-weight:800;color:#fbbf24;line-height:1.3;">“' + _say + '”</div>'
+            + (_vo ? '' : '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">then you’ll show each number with your fingers</div>');
+        // Show the live eq (STABLE element in #challengePanel, updated every frame by startAudioMonitor)
+        // — proof the mic is hearing the greeting. Hidden if there's no mic (eq can't move anyway).
+        var _eq = document.getElementById('vacEqGreeting'); if (_eq) _eq.style.display = audioAnalyser ? 'flex' : 'none';
+    }
+
+    // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
     const phraseInterval = setInterval(() => {
         if (recordingStopped) { clearInterval(phraseInterval); return; }
         elapsedMs += TICK_MS;
         const elapsedSec = elapsedMs / 1000;
         timerEl.textContent = Math.max(Math.ceil(totalDuration - elapsedSec), 0);
         ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
+        // F-563 recoverability: if there's genuinely no mic, surface the recovery NOW (during the
+        // greeting) instead of letting the user speak into a dead mic and hit the silent dead-end.
+        if (!audioAnalyser && fingerFallback !== 'voice') { try { _showNoMicRecovery(); } catch(_) {} }
+        _phraseVadTick();   // F-561 (S111): listen for the spoken phrase
 
-        if (elapsedSec >= PHRASE_DURATION) {
+        // F-561: gate phrase→digits on SPEECH, not just the timer. Don't advance until we've
+        // heard the phrase — or VAD is unavailable (timer fallback, W4.1), or the hard cap is
+        // hit so a silent/broken mic can't hang forever.
+        const _phraseTimerDone = elapsedSec >= PHRASE_DURATION;
+        // window.__vacVoiceSkipped = the user picked "Continue — skip voice" on the recovery panel.
+        const _phraseGateOk = phraseSpoke || !audioAnalyser || window.__vacVoiceSkipped || (elapsedSec >= PHRASE_PHASE_MAX_S);
+        // F-563: KEEP the original PHRASE_DURATION timer floor (don't early-advance — a natural pause
+        // mid-greeting can trip phraseSpoke on a PARTIAL greeting, and cutting off the rest would fail
+        // server-side phrase verification; codex). The UX win is the "✓ Heard it" BEAT: once the
+        // greeting is heard, show ✓, then advance after the beat. The ✓ itself appears immediately on
+        // phraseSpoke (in renderGreeting) for instant feedback; the timer floor still governs advance.
+        const _voiceOnly = (fingerFallback === 'voice');
+        // Start the "✓ Heard it" beat only once the read window has ALSO elapsed (the phrase now
+        // includes the digits, so phraseSpoke can fire early on a greeting-clause pause). Aligning the
+        // beat start with the floor keeps the ✓ visible for its full beat instead of being skipped
+        // because the timer already lapsed (codex). The `_phraseHeardAt &&` guard avoids treating an
+        // unset (0) timestamp as "beat already done".
+        if (phraseSpoke && _phraseTimerDone && !_phraseHeardAt) _phraseHeardAt = performance.now();
+        const _heardBeatDone = !phraseSpoke || (_phraseHeardAt && (performance.now() - _phraseHeardAt >= GREET_HEARD_BEAT_MS));
+        // Voice-only speaks the full phrase here (no digit phase) → no "heard it" beat, just the timer gate.
+        const _advanceGreeting = _phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone);
+        if (_advanceGreeting) {
+            // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
+            // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
+            // doesn't run on a timeout/fail-open exit; codex).
+            try { var _egE = document.getElementById('vacEqGreeting'); if (_egE) _egE.style.display = 'none'; } catch(_) {}
+            // SHIP-BLOCKER LOUD LOG: the phrase advanced WITHOUT a confirmed voice. The on-device VAD
+            // is UX pacing (Gemini server-side is the authoritative voice check), so this isn't a
+            // security bypass — but a !audioAnalyser fail-open means the user was NOT paced to speak,
+            // which silently degrades the flow. Log it loudly so it's never invisible (the audio
+            // hardening + the re-auth reload should keep this from firing on re-entry).
+            if (!audioAnalyser) {
+                console.error('[VAC][VOICE] phrase gate FAIL-OPEN — advanced with NO audioAnalyser (voice pacing OFF). Not a security bypass (Gemini validates voice server-side) but the user was not prompted to speak.');
+                try { vacDebug('phrase_gate_fail_open', 'no_audioAnalyser', { elapsed_s: Math.round(elapsedSec) }); } catch(_) {}
+            } else if (!phraseSpoke) {
+                try { vacDebug('phrase_speech_timeout', null, { waited_s: Math.round(elapsedSec) }); } catch(_) {}
+            }
             clearInterval(phraseInterval);
             // Voice-only mode or no digits → skip straight to completion
             if (fingerFallback === 'voice' || digits.length === 0) {
@@ -2057,6 +3013,11 @@ function beginRecording() {
             // and (b) DRAW THE SKELETON during grace so the user sees their hand tracked
             // immediately — advancement is still held until grace ends.
             digitStartTime = performance.now();
+            // F-561: start the on-device VAD gate now (finger phase start) so it's warm,
+            // but keep digit-0's voice window CLOSED through the grace — otherwise the
+            // spoken-PHRASE tail can cross the VAD threshold and pre-satisfy digit 0
+            // without the user saying that digit (codex P2). Window opens at grace-end.
+            _startSpeechGate();
             const GRACE_MS = 300;
             let graceRemaining = Math.ceil(GRACE_MS / 1000);
             // skeleton-during-grace: visual feedback only, no advancement
@@ -2068,11 +3029,10 @@ function beginRecording() {
                 _graceDrawRAF = requestAnimationFrame(graceDraw);
             })();
             function renderGrace() {
-                var circles = '';
-                for (var di = 0; di < digits.length; di++) {
-                    circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px;opacity:0.5">' + digits[di] + '</span>';
-                }
-                challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
+                // S111 #3: numbers are in #digitStrip above; this panel shows the countdown only.
+                var _st2 = document.getElementById('step2Title');   // F-563 UX: header moves from the greeting to the numbers phase
+                if (_st2) { _st2.textContent = 'Show the numbers'; _st2.style.color = ''; }
+                challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
             }
             renderGrace();
             try { renderDigitStrip(0); } catch(_) {}
@@ -2097,6 +3057,14 @@ function beginRecording() {
                 if (_graceDrawRAF) cancelAnimationFrame(_graceDrawRAF);  // stop grace-draw before the real loop owns the camera
                 // Reset digitStartTime so HINT_TIMEOUT counts from the real start
                 digitStartTime = performance.now();
+                // F-561: NOW open digit-0's voice window — grace is done and the phrase
+                // is finished, so speech from here is the digit, not the phrase tail (codex P2).
+                speechWindowStart = performance.now();
+                // NOTE: do NOT reset _sawSilence here — silence during grace must arm digit 0
+                // so a number spoken across the grace→window boundary still counts (codex). It
+                // starts false (init) and only a real grace silence sets it true; greeting-tail
+                // bleed (continuous voice, no pause) leaves it false → rejected.
+                try { vacDebug('speech_window_open', null, { digit_index: 0, at_perf: speechWindowStart }); } catch(_) {}
                 // W4.1 hand-stays-up model: no drop-hand gate. A hand already in
                 // frame at grace-end won't instant-advance because the stability
                 // gate requires the count to be HELD ~0.6s before it's accepted.
@@ -2150,7 +3118,9 @@ function beginRecording() {
                 }
             }, GRACE_MS);
         } else {
-            updatePhasePrompt(elapsedSec);
+            // F-563: single greeting renderer for both the reading window AND the listening state
+            // (and the "✓ Heard it" beat) — replaces the old second-class text block.
+            renderGreeting();
         }
     }, TICK_MS);
 }
@@ -2180,6 +3150,11 @@ async function runRealVerification(videoBlob) {
     const stepEl = document.getElementById('progressStep');
     const detailEl = document.getElementById('progressDetail');
     const circumference = 2 * Math.PI * 36;
+
+    // INTEGRITY (re-auth stale-7/7): clear the PRIOR run's modality tiles BEFORE this run's
+    // spinner/fetch, so the panel can never show a pass while THIS verification is still
+    // computing. Every verify path funnels through here, so this covers initial + re-auth.
+    try { resetModalities(); } catch(_) {}
 
     // Progress animation while we wait for backend
     stepEl.textContent = 'Uploading recording…';
@@ -2283,6 +3258,15 @@ async function runRealVerification(videoBlob) {
         // Final state
         ring.style.strokeDashoffset = 0;
         const passed = authResult.authenticated;
+        // F-560: surface final pass/fail + which modality failed on the QA overlay.
+        // authResult.authenticated stays the source of truth (RESULT line); failed[] is a hint.
+        try {
+            const _qaFailed = (mods || []).filter(function (m) {
+                if (m.name === 'duress') return m.status && m.status !== 'clear';
+                return m.status && m.status !== 'passed' && m.status !== 'verified';
+            }).map(function (m) { return m.name; });
+            vacDebug('qa_final_result', null, { pass: !!passed, failed: _qaFailed });
+        } catch(_) {}
         // Populate Under the Hood with engine data
         try{populateUnderHood(authResult);}catch(uhErr){console.error("Under hood error:",uhErr);}
 
@@ -2407,6 +3391,17 @@ function toggleModalities() {
     list.classList.toggle('open');
 }
 
+// F-563 (4): expand/collapse the deeper "what this enables" context on the success screen.
+// Collapsed by default so the plain-English payoff isn't buried for a first-time user.
+function toggleWhatItEnables() {
+    var more = document.getElementById('whatItMeansMore');
+    var arrow = document.getElementById('whatItMeansArrow');
+    if (!more) return;
+    var open = more.style.display !== 'none';
+    more.style.display = open ? 'none' : 'block';
+    if (arrow) arrow.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+}
+
 function updateModalitySummary() {
     const mods = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger', 'modDuress'];
     let passed = 0, failed = 0, pending = 0;
@@ -2430,6 +3425,42 @@ function updateModalitySummary() {
         summary.textContent = `${passed}/${passed+failed} passed`;
         summary.className = 'toggle-summary';
     }
+}
+
+// INTEGRITY: reset every modality tile to PENDING + clear the prior run's detail, so a
+// re-auth can never display a stale pass while the new verification is still computing.
+// Mirrors updateModality's pending branch; updateModalitySummary then recomputes to "Checking…".
+function resetModalities() {
+    var ids = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger', 'modDuress'];
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var statusEl = el.querySelector('.mod-status');
+        var scoreEl = el.querySelector('.mod-score');
+        if (statusEl) { statusEl.textContent = '⏳'; statusEl.style.color = ''; }
+        if (scoreEl) { scoreEl.textContent = '—'; scoreEl.className = 'mod-score pending'; }
+        var dd = el.querySelector('.mod-detail-expand');
+        if (dd) dd.innerHTML = '';   // drop the prior run's Heard/Expected/etc. detail lines
+    });
+    try { updateModalitySummary(); } catch(_) {}   // all pending → "Checking…"
+}
+
+// F-563 belt-and-suspenders: hide + CLEAR the guided-flow DOM (panel, say-cover, progress dots)
+// so stale prompts/numbers from a prior run can't leak into a new session's phrase phase. The
+// re-auth reload moots this for re-auth, but it protects the first run + any non-reload re-entry.
+function resetGuidedUI() {
+    ['vacGuided', 'vacSayView', 'digitStrip', 'vacEqGreeting'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    var p = document.getElementById('vacGuidedPrompt'); if (p) p.textContent = '';
+    var s = document.getElementById('vacGuidedSub'); if (s) s.textContent = '';
+    var w = document.getElementById('vacSayWord'); if (w) w.textContent = '';
+    var h = document.getElementById('vacSayHint'); if (h) h.textContent = '';
+    var r = document.getElementById('digitStripRow'); if (r) r.innerHTML = '';
+    try { _hideNoMicRecovery(); } catch(_) {}   // clear any stale no-mic recovery panel from a prior run
+    window.__vacNoMicDismissed = false;          // fresh per session — re-offer recovery if the mic is still out
+    window.__vacVoiceSkipped = false;            // fresh per session — don't carry a prior "skip voice" choice
 }
 
 function toggleUnderHood() {
@@ -2564,7 +3595,7 @@ function showRetry(result) {
         document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
         if (retryAttempts < MAX_RETRIES) {
             if (window.__vacAutoRetry) clearTimeout(window.__vacAutoRetry);
-            window.__vacAutoRetry = setTimeout(function(){ try { retryVerification(); } catch(_){} }, 2500);
+            window.__vacAutoRetry = setTimeout(function(){ try { retryVerification(true); } catch(_){} }, 2500);  // true = AUTO: auto-proceed through the warmed pre-flight
         }
         return; // do NOT fall through to the red failure panel
     }
@@ -2623,79 +3654,114 @@ function showRetry(result) {
 }
 
 // Retry: go back to camera step with fresh challenge
-async function retryVerification() {
+// F-563/STRUCTURAL: re-auth = a LITERAL fresh start via page reload — correct BY CONSTRUCTION.
+// Every prior re-auth bug this session (modality tiles, overlay rows, pre-flight ticks, warm-up
+// skip, audio analyser, guided DOM) was the same root: re-entry didn't fully reset to fresh-load
+// state, and each new feature leaked new state into the in-memory reset. A reload GCs every
+// AudioContext (kills the ~6-limit), resets every module var + DOM node, and re-runs the warm-up —
+// so the whole stale-state bug class dies at once and can't recur with future features. Identity
+// re-hydrates from localStorage on boot (no re-OTP); maybeResumeReauth() lands on the camera
+// pre-flight. See maybeResumeReauth() at the boot IIFE.
+function reauthReload(opts) {
+    opts = opts || {};
+    var d = userData();
+    try {
+        localStorage.setItem('vac_reauth', JSON.stringify({
+            ts: Date.now(),
+            auto: !!opts.auto,
+            // Manual refresh resets the retry budget (fresh start); a retry-after-failure keeps it.
+            retryAttempts: opts.keepRetryBudget ? retryAttempts : 0,
+            name: d.name, email: d.email, org: d.org, role: d.role
+        }));
+    } catch(e) {}
+    try { vacDebug('reauth_reload', null, { auto: !!opts.auto, keep_budget: !!opts.keepRetryBudget }); } catch(_) {}
+    location.reload();
+}
+
+// F-563 recoverability: a verification flow must NEVER have an unescapable state. When the mic is
+// genuinely unavailable mid-flow (audioAnalyser null → the phrase fail-open advances past the
+// greeting, gesture-only), SURFACE it honestly + offer reachable exits — reusing what we already
+// have (the pre-flight mic test, reached via the reload primitive) rather than rebuilding recovery UI.
+function _showNoMicRecovery(reason) {
+    if (window.__vacNoMicDismissed) return;             // user chose "Continue — skip voice" → don't nag again this session
+    if (document.getElementById('vacNoMic')) return;    // idempotent — show once, persist until acted on
+    var host = document.getElementById('challengePanel');
+    if (!host || !host.parentElement) return;
+    // 'quiet' = a CONNECTED-but-near-silent mic (Finding/silent-mic) → "we can't hear you";
+    // default ('no_mic' / null analyser) → "No microphone detected". Same actions either way.
+    var _quiet = (reason === 'quiet');
+    var _title = _quiet ? 'We can’t hear you — check your mic' : 'No microphone detected — voice check skipped';
+    var panel = document.createElement('div');
+    panel.id = 'vacNoMic';
+    panel.style.cssText = 'margin:10px 0 0;padding:12px 14px;background:rgba(210,153,34,0.08);border:1px solid var(--warning,#D29922);border-radius:10px;text-align:center;';
+    panel.innerHTML =
+        '<div style="font-size:13px;font-weight:700;color:var(--warning,#D29922);margin-bottom:4px;">' + _title + '</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">' + (_quiet ? 'Your mic is connected but very quiet. Speak up, move closer, or pick a different mic — or continue (your gestures are still verified, and our servers re-check voice from the recording).' : 'Your gestures are still verified, and our servers re-check voice from the recording. Choose how to continue:') + '</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">' +
+          '<button onclick="reauthReload({auto:false,keepRetryBudget:false})" style="flex:1;min-width:150px;padding:9px 12px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄 Reconnect mic &amp; retry</button>' +
+          '<button onclick="_dismissNoMic()" style="flex:1;min-width:150px;padding:9px 12px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Continue — skip voice</button>' +
+        '</div>' +
+        '<div style="margin-top:8px;"><a href="#" onclick="reauthReload({auto:false,keepRetryBudget:false});return false;" style="font-size:11px;color:var(--text-tertiary);text-decoration:underline;">Start over</a></div>';
+    host.parentElement.insertBefore(panel, host.nextSibling);
+    try { vacDebug('no_mic_recovery_shown'); } catch(_) {}
+}
+function _hideNoMicRecovery() {   // generic cleanup hide (finish / reset) — does NOT mark the user's choice
+    var p = document.getElementById('vacNoMic');
+    if (p) p.remove();
+}
+// User explicitly chose "Continue — skip voice": dismiss AND don't re-show this session (the
+// phrase tick would otherwise recreate it every 200ms). Reset per session in resetGuidedUI.
+function _dismissNoMic() {
+    window.__vacNoMicDismissed = true;
+    window.__vacVoiceSkipped = true;   // F-563: "Continue — skip voice" → the gates degrade to gesture-only (greeting advances, digits don't wait on voice). Honest: voice pacing is skipped; Gemini still validates voice server-side.
+    _hideNoMicRecovery();
+    try { vacDebug('no_mic_recovery_dismissed'); } catch(_) {}
+}
+
+async function retryVerification(auto) {
     if (retryAttempts >= MAX_RETRIES) return;
-
-    // Reset modality displays
-    ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger', 'modDuress'].forEach(id => {
-        updateModality(id, 'pending', null);
-    });
-
-    // Hide retry section
-    document.getElementById('retrySection').style.display = 'none';
-
-    // Re-request camera
-    try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
-            audio: true,
-        });
-    } catch (e) {
-        // Camera may still be available from before
-    }
-
-    // Fetch fresh challenge
-    const d = userData();
-    try {
-        const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: d.name, risk_level: 'medium' }),
-        });
-        challengeData = await resp.json();
-    } catch (e) {
-        console.error('Failed to fetch new challenge:', e);
-    }
-
-    // Set up recording preview
-    const phrase = challengeData?.phrase || `I am ${d.name}, authorising VAC Protocol`;
-    document.getElementById('challengeText').textContent = `"${phrase}"`;
-    const recVid = document.getElementById('videoPreviewRec');
-    recVid.srcObject = mediaStream;
-    recVid.muted = true;
-    recVid.setAttribute('playsinline', '');
-    recVid.play().catch(() => {});
-
-    // Reset countdown ring
-    const ringFill = document.getElementById('countdownRingFill');
-    ringFill.classList.remove('recording');
-    ringFill.style.strokeDashoffset = 0;
-
-    // Go to recording step
-    goToStep(2);
-    startCountdown();
+    // Reload to a guaranteed fresh start. Keeps the retry budget; auto-retry (service errors)
+    // re-proceeds through the warmed pre-flight after boot (the auto flag rides in the blob).
+    reauthReload({ auto: !!auto, keepRetryBudget: true });
 }
 
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
-    // Save verified state to localStorage for persistence
-    try {
-        localStorage.setItem('vac_verified', JSON.stringify({
-            email: d.email, name: d.name, org: d.org, role: d.role,
-            authResult: authResult, timestamp: Date.now()
-        }));
-    } catch(e) {}
-    // Update nav badge to show current state
-    const nav = document.getElementById('navStatus');
-    if (nav) { nav.textContent = 'AUTHENTICATED'; nav.style.color = '#2DD4BF'; nav.style.background = 'rgba(45,212,191,0.1)'; nav.style.borderColor = '#2DD4BF'; }
-    // Notify parent frame (SPA shell) of auth success
-    try { if (window.parent !== window) { window.parent.postMessage({ type: 'vac-auth-success', email: d.email, name: d.name, overall_score: (authResult && authResult.biometric_verification ? authResult.biometric_verification.overall_score : undefined) }, '*'); } } catch(e) {}
-    // Start polling for vouches to unlock messaging
-    startVouchPolling();
-    // Dashboard hidden until vouch flow exists
     const r = authResult;
     const bio = r.biometric_verification;
+    // SEVERANCE / INTEGRITY (addendum-13 #3; dispatch point 6): VERIFIED is display-only and
+    // strictly follows the SERVER verdict (authResult.authenticated, computed in the vac-protocol
+    // lane). NEVER show, persist, or emit VERIFIED unless it's true. "Continue Anyway" routes a
+    // real failure into showSuccess(), so showSuccess() is the chokepoint: on an unauthenticated
+    // result we render the partial screen but emit NONE of the verified side-effects (no vac_verified
+    // persist, no vac-auth-success postMessage to the tribunal credBeat, no vouch promotion, no
+    // ?verified URL, no AUTHENTICATED chrome). The client dual-✓ pacing gate never reaches here.
+    const ok = !!(r && r.authenticated);
+    if (ok) {
+        // Save verified state to localStorage for persistence
+        try {
+            localStorage.setItem('vac_verified', JSON.stringify({
+                email: d.email, name: d.name, org: d.org, role: d.role,
+                authResult: authResult, timestamp: Date.now()
+            }));
+        } catch(e) {}
+        // Update nav badge to show current state
+        const nav = document.getElementById('navStatus');
+        if (nav) { nav.textContent = 'AUTHENTICATED'; nav.style.color = '#2DD4BF'; nav.style.background = 'rgba(45,212,191,0.1)'; nav.style.borderColor = '#2DD4BF'; }
+        // Notify parent frame (SPA shell) of auth success — overall_score feeds the tribunal credBeat
+        try { if (window.parent !== window) { window.parent.postMessage({ type: 'vac-auth-success', email: d.email, name: d.name, overall_score: (authResult && authResult.biometric_verification ? authResult.biometric_verification.overall_score : undefined) }, '*'); } } catch(e) {}
+        // Start polling for vouches to unlock messaging
+        startVouchPolling();
+    } else {
+        // Unauthenticated (partial / "Continue Anyway"): keep the nav badge OUT of the verified state.
+        const nav = document.getElementById('navStatus');
+        if (nav) { nav.textContent = 'NOT VERIFIED'; nav.style.color = 'var(--warning)'; nav.style.background = 'rgba(210,153,34,0.1)'; nav.style.borderColor = 'var(--warning)'; }
+        // The teal "AUTHENTICATED" trust badge is static markup — correct it so it can't read verified.
+        var _tbt = document.getElementById('trustBadgeText'); if (_tbt) { _tbt.textContent = 'NOT VERIFIED'; _tbt.style.color = 'var(--warning)'; }
+        var _tb = document.getElementById('trustBadge'); if (_tb) { _tb.style.borderColor = 'var(--warning)'; _tb.style.background = 'rgba(210,153,34,0.06)'; }
+    }
+    // Dashboard hidden until vouch flow exists
 
     document.getElementById('successName').textContent = d.name;
     document.getElementById('successOrg').textContent = [d.role, d.org].filter(Boolean).join(' · ') || 'Authenticated Human';
@@ -2704,10 +3770,17 @@ function showSuccess() {
     document.getElementById('successScore').textContent = `Trust Score: ${bio.overall_score} · ${trustLabel}`;
 
     // Update header based on pass/fail
+    var _wim = document.getElementById('whatItMeans');
     if (!r.authenticated) {
         document.getElementById('successEyebrow').textContent = 'PARTIAL AUTHENTICATION';
         document.getElementById('successEyebrow').style.color = 'var(--warning)';
         document.getElementById('successTitle').textContent = 'Partially Authenticated';
+        // F-563 (4) / integrity: a certificate was NOT minted on a partial/"Continue Anyway" path,
+        // so DON'T show the "digital certificate of you, a real human, has been minted" claim — it
+        // would overstate the trust state (addendum-13 #3 family). Hide the whole block.
+        if (_wim) _wim.style.display = 'none';
+    } else if (_wim) {
+        _wim.style.display = 'block';   // real success — show the minted-certificate explainer
     }
 
     // Verification method badge
@@ -2831,10 +3904,11 @@ function showSuccess() {
     ).join('');
 
     goToStep(4);
-    
-    // Persist verified state in URL so refresh doesn't lose it
+
+    // Persist verified state in URL so refresh doesn't lose it — ONLY on a real pass (integrity:
+    // a partial/"Continue Anyway" run must not survive a refresh as ?verified=true).
     const verifiedEmail = userData().email;
-    if (verifiedEmail) {
+    if (ok && verifiedEmail) {
         const url = new URL(window.location);
         url.searchParams.set('verified', 'true');
         url.searchParams.set('email', verifiedEmail);
@@ -2843,11 +3917,55 @@ function showSuccess() {
 }
 
 // Share actions
+// S111 #1+#4: shared reset for a biometric RE-ENTRY. The old refreshVerification()
+// only did goToStep(1), which flips the section but resets nothing — so a second
+// attempt kept the prior run's AUTHENTICATED badge (set by showSuccess) and its
+// hand-skeleton canvas on screen (#1), AND skipped requestCamera()->startAVChecks(),
+// the F-559 preflight that warms MediaPipe before recording, so the detector
+// cold-started on the first real digit (#4, the "hang"). This puts the page back to
+// a clean first-run-equivalent state.
+function resetBiometricUI(preserveRetryBudget) {
+    // 1. Nav badge: back to the un-authenticated state. showSuccess() set text
+    //    'AUTHENTICATED' + inline teal styling; clear the inline so the .nav-mode
+    //    class styling (purple "AUTHENTICATE") applies again.
+    var nav = document.getElementById('navStatus');
+    if (nav) { nav.textContent = 'AUTHENTICATE'; nav.style.color = ''; nav.style.background = ''; nav.style.borderColor = ''; }
+    window.__vacAutoProceedChallenge = false;   // clear any stale auto-proceed (retry re-sets it right after; refresh leaves it off)
+    // 2. Clear both hand-skeleton canvases so the prior run's overlay doesn't linger
+    //    (their clearRect only runs inside the live draw loops, which aren't running yet).
+    ['handOverlay', 'avHandOverlay'].forEach(function(id) {
+        var cv = document.getElementById(id);
+        if (cv && cv.getContext) { try { cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); } catch(_) {} }
+    });
+    // 3. Reset the AV preflight gate so light/mic/hand must re-pass — this is what
+    //    re-runs the hand preflight that warms the detector.
+    avChecks = { face: false, light: false, mic: false, hand: false };
+    // 4. Restore the camera button to its first-run entry point. Run 1 rewired
+    //    btnCamera.onclick to goToChallenge (requestCamera resets it again at its end).
+    var btnCam = document.getElementById('btnCamera');
+    if (btnCam) { btnCam.onclick = requestCamera; btnCam.disabled = false; btnCam.textContent = 'Enable Camera & Microphone'; }
+    // 5. Stop any still-live tracks from the previous attempt before requestCamera
+    //    acquires a fresh stream (avoids a leaked camera/mic).
+    try { if (mediaStream) { mediaStream.getTracks().forEach(function(t) { t.stop(); }); } } catch(_) {}
+    // 6. Reset the retry budget + hide stale failure UI so the new run is truly
+    //    first-run-equivalent (codex P2). Without this, a refresh after earlier failed
+    //    attempts inherits the old MAX_RETRIES budget and the prior retry section /
+    //    "Continue Anyway" button can resurface. NOTE: this only RESETS state for the
+    //    new run — it does NOT change the addendum-13 #3 "Continue Anyway" integrity
+    //    logic (showSuccess-after-failure), which is a separate, still-pending fix.
+    if (!preserveRetryBudget) retryAttempts = 0;   // a RETRY must keep counting attempts; a fresh refresh resets
+    var retrySec = document.getElementById('retrySection');
+    if (retrySec) retrySec.style.display = 'none';
+    var contBtn = document.getElementById('btnContinueAnyway');
+    if (contBtn) contBtn.style.display = 'none';
+}
+
 function refreshVerification() {
-    // Keep email/OTP confirmed, just redo biometrics
+    // Structural re-auth: a LITERAL fresh start via reload (correct by construction — see
+    // reauthReload). Manual refresh from the success screen → fresh retry budget. Identity
+    // re-hydrates from localStorage on boot; lands on the camera pre-flight, no re-OTP.
     try { localStorage.removeItem('vac_verified'); } catch(e) {}
-    authResult = null;
-    goToStep(1); // Skip to camera step (email already confirmed)
+    reauthReload({ auto: false, keepRetryBudget: false });
 }
 
 function clearAndRestart() {
@@ -2972,14 +4090,43 @@ async function fetchModalityRequirements() {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// F-563 (2): LIVE EQUALISER — visualises the mic level the system is already analysing, so the
+// user always has proof "we hear you" (and a mic-dead indicator: speak, bars don't move = no mic,
+// complementing the no-mic recovery). DISPLAY-ONLY — it reads the audio level and writes only bar
+// heights/colours; it does NOT touch the voice gate (silence→onset binding) in any way.
+function _renderEqualiser(rms) {
+    var mult = [0.5, 0.85, 1, 0.85, 0.5];
+    var voiced = rms > 0.12;   // ~mirrors VAD_SPEECH_RMS — a colour cue only (display-only)
+    ['vacEqGreeting', 'vacSayEq'].forEach(function(id) {
+        var host = document.getElementById(id);
+        if (!host) return;
+        var bars = host.children;
+        for (var i = 0; i < bars.length; i++) {
+            var h = Math.max(3, Math.min(28, rms * 130 * (mult[i] || 1)));
+            bars[i].style.height = h + 'px';
+            bars[i].style.background = voiced ? 'var(--teal,#2dd4bf)' : 'var(--text-quaternary,#6E7681)';
+        }
+    });
+}
+
 // Audio level monitoring
 function startAudioMonitor() {
     try {
+        // Belt-and-suspenders (the reload already guarantees a fresh context for re-auth, but this
+        // protects the FIRST run and any non-reload path): close any prior context so repeated
+        // entries can't accumulate AudioContexts and hit the browser's ~6-limit (which made
+        // `new AudioContext()` throw → audioAnalyser stayed null → the phrase fail-open bypass).
+        if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        if (!mediaStream) { console.error('[VAC][AUDIO] startAudioMonitor: no mediaStream — voice gate will be OFF'); return; }
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const monitorStream = mediaStream.clone();
-        const source = audioContext.createMediaStreamSource(monitorStream);
+        if (audioContext.state === 'suspended') { audioContext.resume().catch(function(){}); }  // some browsers start suspended → no audio frames until resumed
+        // Assign the analyser BEFORE the (throwable) stream clone/connect, so a failure here leaves a
+        // live (if briefly disconnected) analyser → the phrase gate HOLDS for voice instead of
+        // fail-opening on a null analyser.
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
+        const monitorStream = mediaStream.clone();
+        const source = audioContext.createMediaStreamSource(monitorStream);
         source.connect(audioAnalyser);
 
         const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
@@ -2992,6 +4139,7 @@ function startAudioMonitor() {
             for (let i = 0; i < dataArray.length; i++) rms += dataArray[i] * dataArray[i];
             rms = Math.sqrt(rms / dataArray.length) / 255;
             const gated = rms > 0.05 ? rms : 0; // Noise gate: ignore below 5% RMS
+            try { _renderEqualiser(rms); } catch(_) {}   // F-563 (2): live eq off the same mic level (display-only)
 
             const step = Math.floor(dataArray.length / 5);
             for (let i = 0; i < 5; i++) {
@@ -3004,7 +4152,15 @@ function startAudioMonitor() {
         }
         updateLevels();
     } catch (e) {
-        console.warn('Audio monitor unavailable:', e);
+        // CLEAR the analyser on any partial-setup failure (clone/createMediaStreamSource/connect
+        // can throw after it was assigned). A truthy-but-DISCONNECTED analyser would make the gates
+        // hold to the phrase hard cap then wait on a dead VAD; null is correct — it triggers the
+        // intended W4.1 graceful degradation (gesture-only + "(voice gate off)" note) + the loud log
+        // (codex). The accumulation root is fixed by close-prior-context above + the re-auth reload.
+        audioAnalyser = null;
+        if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        console.error('[VAC][AUDIO] startAudioMonitor FAILED — voice gate degrades to off:', e);
+        try { vacDebug('audio_monitor_failed', String(e && e.message || e), { has_stream: !!mediaStream }); } catch(_) {}
     }
 }
 
@@ -3172,149 +4328,63 @@ const _origGoToStep = goToStep;
 goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
 
 // ============================================================
-// COPILOT MODE — when auth.html is opened from vac-auth.js SDK
-// Skips identity/OTP, does full biometrics, upgrades copilot session
+// STRUCTURAL RE-AUTH RESUME — consumes the vac_reauth blob left by reauthReload() before the
+// page reloaded. Re-hydrates identity from localStorage (NO re-OTP) and lands on the camera
+// pre-flight, so re-auth is a literal fresh start. Runs once on boot.
 // ============================================================
-(function() {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('mode') !== 'copilot') return;
-    
-    const callback = params.get('callback') || '/hub';
-    console.log('[VAC/COPILOT] Copilot mode activated. Callback:', callback);
-    
-    // Read identity from SDK's localStorage
-    let user = null;
-    try { user = JSON.parse(localStorage.getItem('vac_user')); } catch(e) {}
-    const email = (user && user.email) || params.get('email') || '';
-    const name = (user && user.name) || params.get('name') || email.split('@')[0];
-    
-    if (!email) {
-        console.error('[VAC/COPILOT] No email found — cannot proceed');
-        return;
-    }
-    
-    console.log('[VAC/COPILOT] Identity from SDK:', name, email);
-    
-    // Pre-fill identity fields
-    const nameInput = document.getElementById('inputName');
-    const emailInput = document.getElementById('inputEmail');
-    if (nameInput) nameInput.value = name;
-    if (emailInput) emailInput.value = email;
-    
-    // Mark OTP as confirmed (SDK already verified email via OTP)
+function maybeResumeReauth() {
+    // F-563 restore: mode=copilot boot path removed — normal + iframe (tribunal embed) now run the
+    // single guided flow, so there's no copilot path to defer to here.
+    var raw;
+    try { raw = localStorage.getItem('vac_reauth'); } catch(e) { return false; }
+    if (!raw) return false;
+    try { localStorage.removeItem('vac_reauth'); } catch(e) {}   // one-shot
+    var blob;
+    try { blob = JSON.parse(raw); } catch(e) { return false; }
+    if (!blob || (Date.now() - (blob.ts || 0)) > 60000) return false;   // stale/expired → ignore
+    // Re-hydrate identity into the form (userData() reads these inputs) — no re-OTP.
     try {
-        const confirmed = JSON.parse(localStorage.getItem('vac_otp_confirmed') || '{}');
-        confirmed[email.toLowerCase()] = Date.now();
-        localStorage.setItem('vac_otp_confirmed', JSON.stringify(confirmed));
+        if (blob.name)  document.getElementById('inputName').value  = blob.name;
+        if (blob.email) document.getElementById('inputEmail').value = blob.email;
+        if (blob.org)   document.getElementById('inputOrg').value   = blob.org;
+        if (blob.role)  document.getElementById('inputRole').value  = blob.role;
     } catch(e) {}
-    
-    // Skip identity + OTP, go straight to AV check (step 1)
-    setTimeout(function() {
-        goToStep(1);
-    }, 200);
-    
-    // Watch for verification success (step 4) and upgrade copilot session
-    const successObserver = new MutationObserver(function() {
-        const step4 = document.getElementById('step4');
-        if (step4 && step4.classList.contains('active') && typeof authResult !== 'undefined' && authResult) {
-            successObserver.disconnect();
-            console.log('[VAC/COPILOT] Biometric verification complete. Upgrading session...');
-            
-            const score = authResult.biometric_verification
-                ? authResult.biometric_verification.overall_score
-                : 0.75;
-            const method = authResult.biometric_verification
-                ? authResult.biometric_verification.method
-                : 'multi_modal_simulated';
-            const challengeId = authResult._challenge_id || '';
-            const sessionToken = localStorage.getItem('vac_session') || '';
-            
-            // Call biometric-upgrade endpoint
-            fetch(API_BASE + '/v1/auth/biometric-upgrade', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    session_token: sessionToken,
-                    challenge_id: challengeId,
-                    overall_score: score,
-                    verification_method: method,
-                }),
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.session_token) {
-                    // Store upgraded session
-                    localStorage.setItem('vac_session', data.session_token);
-                    try {
-                        const u = JSON.parse(localStorage.getItem('vac_user') || '{}');
-                        u.auth_level = data.auth_level;
-                        u.is_verified = data.is_verified;
-                        u.last_biometric = Math.floor(Date.now() / 1000);
-                        localStorage.setItem('vac_user', JSON.stringify(u));
-                    } catch(e) {}
-                    console.log('[VAC/COPILOT] Session upgraded. Redirecting to', callback);
-                    setTimeout(function() {
-                        window.location.href = callback;
-                    }, 1500); // Brief pause so user sees success screen
-                } else {
-                    console.error('[VAC/COPILOT] Upgrade failed:', data);
-                    // Still redirect — they have OTP session at minimum
-                    setTimeout(function() { window.location.href = callback; }, 2000);
-                }
-            })
-            .catch(function(e) {
-                console.error('[VAC/COPILOT] Upgrade error:', e);
-                setTimeout(function() { window.location.href = callback; }, 2000);
-            });
-        }
-    });
-    
-    // Observe step4 for class changes
-    const step4El = document.getElementById('step4');
-    if (step4El) {
-        successObserver.observe(step4El, { attributes: true, attributeFilter: ['class'] });
+    retryAttempts = (typeof blob.retryAttempts === 'number') ? blob.retryAttempts : 0;
+    if (blob.auto) {
+        // Service-error auto-retry: auto-proceed through the (now warmed) pre-flight + skip the
+        // upfront explainer, as before — but from a guaranteed fresh page state.
+        window.__vacAutoProceedChallenge = true;
+        window.__vacSkipExplainer = true;
     }
+    try { vacDebug('reauth_resumed', null, { auto: !!blob.auto, retry_attempts: retryAttempts }); } catch(_) {}
+    goToStep(1);        // camera pre-flight (identity confirmed, OTP skipped)
+    requestCamera();    // fresh camera + pre-flight warm/flush + fetch challenge
+    return true;
+}
+(function() {
+    function _run() { try { maybeResumeReauth(); } catch(e) { console.warn('[VAC] reauth resume failed:', e); } }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _run);
+    else _run();
 })();
 
-// Restore verified state from localStorage
+// F-563 (c): pre-fill identity from a prior verified session, but do NOT resurrect the verified
+// SCREEN on a plain page load. The old IIFE auto-routed to showSuccess()+goToStep(4) whenever
+// vac_verified existed (<24h), so a RAW URL refresh landed back on the verified page instead of
+// the email/name start — localStorage was too sticky. Now a plain refresh lands on START (step 0,
+// identity pre-filled); only the reauth flag (maybeResumeReauth) routes to the camera pre-flight.
 (function() {
     try {
         const saved = localStorage.getItem('vac_verified');
         if (!saved) return;
         const data = JSON.parse(saved);
-        // Check if less than 24 hours old
-        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) {
-            localStorage.removeItem('vac_verified');
-            return;
-        }
-        if (!data.email || !data.authResult) return;
-        console.log('[VAC] Restoring verified state for', data.email);
-        // Restore form fields
-        const nameInput = document.getElementById('inputName');
-        const emailInput = document.getElementById('inputEmail');
-        const orgInput = document.getElementById('inputOrg');
-        const roleInput = document.getElementById('inputRole');
-        if (nameInput) nameInput.value = data.name || '';
-        if (emailInput) emailInput.value = data.email || '';
-        if (orgInput) orgInput.value = data.org || '';
-        if (roleInput) roleInput.value = data.role || '';
-        // Restore auth result and skip to success
-        authResult = data.authResult;
-        // Use setTimeout to ensure DOM is fully ready
-        setTimeout(() => {
-            try {
-                showSuccess();
-                goToStep(4);
-                console.log('[VAC] Restored to success screen');
-            } catch(e2) {
-                console.error('[VAC] Restore showSuccess failed:', e2);
-                // Fallback: just show step 4 with basic info
-                goToStep(4);
-                document.getElementById('successName').textContent = data.name || '';
-                document.getElementById('successScore').textContent = 'Trust Score: ' + (data.authResult?.biometric_verification?.overall_score || '0.90');
-            }
-        }, 100);
-    } catch(e) { console.log('[VAC] Restore failed:', e); }
+        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) { localStorage.removeItem('vac_verified'); return; }
+        if (!data.email) return;
+        // Convenience pre-fill only (so the user doesn't re-type) — NO auto-route to the success screen.
+        var _n = document.getElementById('inputName');  if (_n) _n.value = data.name || '';
+        var _e = document.getElementById('inputEmail'); if (_e) _e.value = data.email || '';
+        var _o = document.getElementById('inputOrg');   if (_o) _o.value = data.org || '';
+        var _r = document.getElementById('inputRole');  if (_r) _r.value = data.role || '';
+    } catch(e) { console.log('[VAC] verified pre-fill failed:', e); }
 })();
 </script>
 
