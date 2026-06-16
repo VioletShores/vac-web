@@ -268,11 +268,11 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <div class="id-pre" id="idPre">
         <div class="eyebrow" style="margin-bottom:10px;">Step one · the live part of this build</div>
         <h2 class="id-h">Prove a real, present human — live, with VAC.</h2>
-        <p class="id-p">The identity step runs the real VAC verification: face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge, checked against the VAC production backend. Complete it to open the matters — or preview them without verifying.</p>
+        <p class="id-p">The identity step runs the real VAC verification — face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge — live against the VAC production backend. The cross-modal binding is being hardened, so the biometric is shown here as a live capability rather than the gate that mints the credential; either try it, or continue straight to the matters.</p>
         <div class="id-actions">
-          <button class="cta-btn" id="idVerifyBtn" type="button">Begin verification</button>
+          <button class="cta-btn" id="idVerifyBtn" type="button">Try the live biometric</button>
+          <button class="cta-btn" id="idSkip" type="button" style="background:transparent;border:1px solid var(--amber-border);">Continue to the matters</button>
         </div>
-        <a class="id-skip" id="idSkip" role="button" tabindex="0">Preview the matters without verifying</a>
         <div class="id-note">Your camera and microphone are used only for this verification step. The recording is sent to VAC's backend to run the liveness and deepfake checks.</div>
       </div>
     </section>
@@ -282,7 +282,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     <section class="cred" id="credBeat" hidden>
       <div class="cred-eyebrow">What you just created</div>
       <h2 class="cred-h">A verifiable credential — your verified human root.</h2>
-      <p class="cred-p">That biometric check minted a credential that is <strong>yours and reusable</strong>: strong, tamper-evident evidence that a specific, living person — not a bot, not a recording — passed this verification in real time. Every matter below builds on this root.</p>
+      <p class="cred-p">The VAC identity model mints a credential that is <strong>yours and reusable</strong>: evidence that a specific, living person — not a bot, not a recording — was present and verified. The cryptographic signing, authority chain and liveness are live in production; the cross-modal gesture binding is being hardened (we don't yet stake the credential on it). Every matter below builds on this verified-human root.</p>
       <div class="cred-grid">
         <div class="cred-tile" id="credScoreTile" hidden>
           <div class="cred-tile-label">Trust score · this verification</div>
