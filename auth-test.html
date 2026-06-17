@@ -555,7 +555,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
       <div style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary);">First a greeting,<br>then your numbers.</div>
     </div>
     <div style="font-size:clamp(15px,4vw,18px);line-height:1.5;color:var(--text-secondary);">
-      Say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it's you. Then <strong style="color:var(--text-primary);"><span id="challengeIntroCount">3 numbers</span></strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers as you say it out loud</strong>, all in one continuous take.<br>
+      Say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it's you. Then <strong style="color:var(--text-primary);"><span id="challengeIntroCount">3 numbers</span></strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it at the same time</strong>, all in one continuous take.<br>
       We'll guide you through each step with a <span style="color:#22c55e;font-weight:700;">✓</span> as you go.
     </div>
     <div id="challengeIntroPreview" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(14px,3vh,20px);">
@@ -564,7 +564,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
            name the greeting screen shows. -->
       <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:8px;">You'll say</div>
       <div id="challengeIntroGreeting" style="font-size:clamp(16px,4.4vw,20px);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:16px;">&ldquo;&rdquo;</div>
-      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">then show each, as you say it</div>
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">then show each AND say it — at the same time</div>
       <div id="challengeIntroDigits" style="display:flex;justify-content:center;gap:clamp(10px,3vw,16px);flex-wrap:wrap;"></div>
       <div style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">No need to memorise — we'll guide you through each one.</div>
     </div>
@@ -2155,6 +2155,16 @@ function beginRecording() {
     // presentation. The gesture ✓ lights on ANY stable deliberate gesture (content-blind — Gemini
     // validates the count server-side; gating the tick on correctness would re-introduce the
     // misdetection deadlock). Then the voice sub-gate is revealed; its ✓ lights on the spoken number.
+    // F-599: adaptive co-occurrence coaching copy. ONE simultaneity phrase ("at the same time")
+    // only on the near-miss — the case where timing IS the failure (both said + shown, just too far
+    // apart). The voice-only / gesture-only hints name the MISSING action instead of repeating the
+    // mantra, so the coaching tells the user what they actually forgot (Q4 = option B).
+    function _coachHintMsg(key, N) {
+        if (key === 'nearmiss')    return 'Almost — show your fingers and say it at the same time';
+        if (key === 'voiceonly')   return 'Now show your ' + N + ' finger' + (N === 1 ? '' : 's') + ' as you say “' + N + '”';
+        if (key === 'gestureonly') return 'Say “' + N + '” out loud while you hold up your fingers';
+        return '';
+    }
     function renderGuided(opts) {
         var wrap = document.getElementById('vacGuided');
         if (!wrap) return;
@@ -2237,8 +2247,11 @@ function beginRecording() {
             // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
             // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
             // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
-            if (promptEl) { promptEl.textContent = 'Show ' + N + ' and say “' + N + '”'; promptEl.style.color = 'var(--text-primary)'; }
-            if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : 'together, in one go';
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” — at the same time'; promptEl.style.color = 'var(--text-primary)'; }
+            // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
+            // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
+            var _coachSub = opts.voiceHelp ? '' : _coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
+            if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
             setLamp(gLamp, gWrap, opts.gestureLive ? 'active' : 'pending', '✋');
             setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
             setBigNumber(true, N);
@@ -2289,6 +2302,13 @@ function beginRecording() {
     // never leave the device); server-side Gemini stays the content authority.
     let speechReady = new Array(digits.length).fill(false);  // per-digit: did we hear voice in its window
     let _voiceFiredAt = 0;        // SHOW-AS-YOU-SAY: perf.now() when sustained voice last fired — must CO-OCCUR with a live gesture within DIGIT_COOCCUR_MS to advance
+    // F-599 adaptive co-occurrence coaching state. The gate already distinguishes the per-digit
+    // near-miss states (voice fired + gesture seen but co-occur EXPIRED); these surface them as a
+    // coaching subtitle so the silent expiry no longer catches users out. Debounced so the hint
+    // reads as POST-attempt coaching, not a frame-by-frame flicker.
+    let _coachKeyShown = 'none';   // the coaching key currently DISPLAYED (after debounce): 'none'|'nearmiss'|'voiceonly'|'gestureonly'
+    let _coachCandidate = 'none';  // the candidate computed THIS frame, pending the debounce
+    let _coachCandidateAt = 0;     // perf.now() when the current candidate first appeared
     let speechWindowStart = Infinity;  // speech only counts at/after this; Infinity = CLOSED until a digit's window explicitly opens (fail-closed; codex P2)
     let _speechMode = 'pending';     // 'vad' (on-device gate active) | 'off' (gesture-only + visible note)
     let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
@@ -2342,6 +2362,7 @@ function beginRecording() {
     const DIGIT_COOCCUR_MS = 700;    // SHOW-AS-YOU-SAY: after a sustained-voice fire, the FINGERS must come up within this window (fingers-up at the spoken timestamp → strong Gemini temporal binding). Covers both orders (gesture-held-then-voice = instant; voice-led-then-fingers = up to this long to appear). PACING only — Gemini does the authoritative fingers-at-timestamp check server-side. LIVE-TUNE.
     const DIGIT_COOCCUR_MAX_MS = 2000; // absolute cap from the voice fire to advance, EVEN while a hand stays in frame — so a number said over an unstable/wrong hand held past the window can't advance on the stale utterance after a late silent settle (adversarial-review/Codex). Generous enough to cover the ~700ms stable-dwell + finger-count flicker (no livelock), tight enough to bound the intra-digit window. LIVE-TUNE.
     const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
+    const COACH_DEBOUNCE_MS = 600;   // F-599: a coaching candidate must persist this long continuously before it shows — so the hint appears AFTER a genuine failed attempt, not mid-gesture. 'none' clears instantly (no lag on advance/correction).
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
     // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
     // silence→voice ONSET inside digit i's window, so the spoken number genuinely binds to
@@ -2365,7 +2386,7 @@ function beginRecording() {
         // digit itself — otherwise the detector-fallback path (which relies on this text) leaves the
         // user with no per-step number after the one-time intro (codex).
         var _cd = digits[currentDigitIndex];
-        var _showNum = (currentDigitIndex < digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' and say “' + _cd + '”') : 'Show the next number';
+        var _showNum = (currentDigitIndex < digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
         challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     }
 
@@ -2792,7 +2813,7 @@ function beginRecording() {
         if (_speechMode !== 'off' && speechReady[currentDigitIndex]
             && ((detected === 0 && (_nowCo - _voiceFiredAt) > DIGIT_COOCCUR_MS)   // hand DOWN, fingers never came up promptly → re-say
                 || (_nowCo - _voiceFiredAt) > DIGIT_COOCCUR_MAX_MS)) {            // absolute cap regardless of hand → bounds the intra-digit window
-            speechReady[currentDigitIndex] = false;
+            speechReady[currentDigitIndex] = false;   // F-599: do NOT also clear _voiceFiredAt here — the coaching classifier reads _voiceFiredAt>0 (survives expiry, cleared only on advance @ the _voiceFiredAt=0 line) to know voice fired this digit. Clearing it here would silently kill the near-miss/voice-only hints.
             try { vacDebug('speech_cooccur_expired', null, { digit_index: currentDigitIndex, since_ms: Math.round(_nowCo - _voiceFiredAt) }); } catch(_) {}
         }
         // Co-occurrence: a live (stable, held) gesture AND voice still armed (hand came up within the
@@ -2911,8 +2932,37 @@ function beginRecording() {
             }
         } else {
             liveEl.style.color = 'var(--text-secondary)';
-            liveEl.textContent = 'Show ' + _curDigit + ' finger' + (_curDigit === 1 ? '' : 's') + ' and say \u201c' + _curDigit + '\u201d';
+            liveEl.textContent = 'Show ' + _curDigit + ' finger' + (_curDigit === 1 ? '' : 's') + ' AND say \u201c' + _curDigit + '\u201d \u2014 at the same time';
         }
+
+        // F-599: classify the per-digit co-occurrence near-miss from the REAL gate vars (traced, not
+        // invented), then debounce so the hint reads as post-attempt coaching.
+        //   voice fired THIS digit = _voiceFiredAt > 0 (set in _markSpeech, cleared on advance, NOT on
+        //     expiry — so it survives the silent expiry and stays a reliable per-digit signal).
+        //   voice still live        = speechReady[currentDigitIndex] (set false the moment co-occur expires).
+        //   gesture seen THIS digit = _qaGestureLatched (latched) OR _liveGestureOk (stable+held now).
+        // near-miss = said it AND showed it but co-occur EXPIRED (the silent-expiry catch — THE key one).
+        // Guarded OFF in speech-off / no-mic mode (no voice gate → never coach about voice). voiceHelp
+        // (genuinely-silent mic, handled in renderGuided) still takes priority over these.
+        var _coVoiceFired = (_voiceFiredAt > 0);
+        var _coGestureSeen = (_qaGestureLatched || _liveGestureOk);
+        var _coachKey = 'none';
+        // nearmiss + voiceonly both require the co-occur window to have EXPIRED (!speechReady) so the
+        // coaching reads as POST-attempt — never a flash of "show your fingers" while the voice window
+        // is still live and the take could still succeed (codex F1). The live window is already guided
+        // by the resting liveEl prompt above. gestureonly has no voice window to expire, so the stable
+        // gesture + 600ms debounce IS its "attempt".
+        if (_speechMode !== 'off' && currentDigitIndex < totalSteps && !inConfirmBeat) {
+            if (_coVoiceFired && !speechReady[currentDigitIndex] && _coGestureSeen)       _coachKey = 'nearmiss';
+            else if (_coVoiceFired && !speechReady[currentDigitIndex] && !_coGestureSeen) _coachKey = 'voiceonly';
+            else if (_coGestureSeen && !_coVoiceFired)                                    _coachKey = 'gestureonly';
+        }
+        // Debounce: a candidate must persist COACH_DEBOUNCE_MS continuously before it shows (so a fast
+        // synced user — gone in <600ms — never sees it); 'none' clears the shown hint INSTANTLY so it
+        // vanishes the moment the digit advances or the user corrects.
+        if (_coachKey !== _coachCandidate) { _coachCandidate = _coachKey; _coachCandidateAt = _now; }
+        if (_coachKey === 'none') { _coachKeyShown = 'none'; }
+        else if ((_now - _coachCandidateAt) >= COACH_DEBOUNCE_MS) { _coachKeyShown = _coachKey; }
 
         // F-563 (2): drive the BIG guided panel off the SAME per-digit flags (no gate change).
         // gesture done = _qaGestureLatched (set once a stable deliberate gesture is confirmed for
@@ -2920,6 +2970,7 @@ function beginRecording() {
         try {
             var _gPct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
             renderGuided({
+                coachKey: _coachKeyShown,   // F-599: debounced adaptive co-occurrence coaching key
                 done: currentDigitIndex >= totalSteps,
                 beat: inConfirmBeat,
                 digit: _curDigit,
