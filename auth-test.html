@@ -375,7 +375,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Mic</div>
-        <div class="header-sub">Say a greeting, then show each number one at a time. Wait for the ✓ before the next.</div>
+        <div class="header-sub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
@@ -539,7 +539,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <div id="combinedCaptureInfo" style="margin-top: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
         <div style="font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;">How it works</div>
         <div style="font-size: clamp(11px, 3vw, 13px); color: var(--text-secondary); line-height: 1.5;">
-            Say the greeting, then show each number one at a time. Wait for the ✓ before moving to the next. One continuous take, 6 signals verified by AI.
+            Say the greeting, then show each number as you say it. Wait for the ✓ before moving to the next. One continuous take, 6 signals verified by AI.
         </div>
     </div>
 </div>
@@ -555,7 +555,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
       <div style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary);">First a greeting,<br>then your numbers.</div>
     </div>
     <div style="font-size:clamp(15px,4vw,18px);line-height:1.5;color:var(--text-secondary);">
-      Say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it's you. Then <strong style="color:var(--text-primary);"><span id="challengeIntroCount">3 numbers</span></strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers</strong> and <strong style="color:var(--text-primary);">say it out loud</strong>, all in one continuous take.<br>
+      Say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it's you. Then <strong style="color:var(--text-primary);"><span id="challengeIntroCount">3 numbers</span></strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers as you say it out loud</strong>, all in one continuous take.<br>
       We'll guide you through each step with a <span style="color:#22c55e;font-weight:700;">✓</span> as you go.
     </div>
     <div id="challengeIntroPreview" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(14px,3vh,20px);">
@@ -564,7 +564,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
            name the greeting screen shows. -->
       <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:8px;">You'll say</div>
       <div id="challengeIntroGreeting" style="font-size:clamp(16px,4.4vw,20px);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:16px;">&ldquo;&rdquo;</div>
-      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">then show, one at a time</div>
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">then show each, as you say it</div>
       <div id="challengeIntroDigits" style="display:flex;justify-content:center;gap:clamp(10px,3vw,16px);flex-wrap:wrap;"></div>
       <div style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">No need to memorise — we'll guide you through each one.</div>
     </div>
@@ -1871,7 +1871,7 @@ function goToChallenge() {
         // (overwritten by "Get ready…" in startCountdown); renderGreeting owns the live prompt. The
         // numbers are previewed once on the intro screen and spoken per-gesture in the digit phase —
         // not shown here, so the user isn't tempted to say them during the greeting.
-        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">then show each number on your fingers, all in one take</span>';
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">then show each number as you say it, one take</span>';
     }
     // Accessibility fallback link
     if (!document.getElementById('fingerFallback')) {
@@ -1980,7 +1980,7 @@ function setFingerFallback() {
         const phrase = challengeData?.phrase || '';
         // R2 (S114): back in finger mode → single-source rotating greeting (real name); numbers come per-gesture.
         const greetPart = vacGreetingText() || phrase.replace(/,\s*\d[\d\s,]*$/, '');
-        document.getElementById('challengeText').innerHTML = '"' + greetPart + '"<br><span style="font-size:12px;opacity:0.5;margin-top:6px;display:inline-block">then show each number on your fingers, all in one take</span>';
+        document.getElementById('challengeText').innerHTML = '"' + greetPart + '"<br><span style="font-size:12px;opacity:0.5;margin-top:6px;display:inline-block">then show each number as you say it, one take</span>';
     }
 }
 
@@ -2104,7 +2104,7 @@ function beginRecording() {
                 // per-gesture in the digit phase; one recording → backend still gets them). This
                 // is the fallback prompt; renderGreeting owns the primary live greeting screen.
                 var _greet = vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, '');   // S114: single-source greeting
-                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greet + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number on your fingers, all in one take</span>';
+                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greet + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number as you say it, one take</span>';
             }
         } else {
             // Finger phase
@@ -2221,36 +2221,27 @@ function beginRecording() {
             return;
         }
         var N = opts.digit;
-        if (!opts.gestureDone) {
-            // Sub-gate 1: show the fingers (camera visible) — BIG number so the target is unmissable.
-            if (promptEl) { promptEl.textContent = 'Show ' + N + ' finger' + (N === 1 ? '' : 's'); promptEl.style.color = 'var(--text-primary)'; }
-            if (subEl) subEl.textContent = opts.gesturePct >= 100 ? 'Hold it…' : 'Hold steady';
-            setLamp(gLamp, gWrap, 'active', '✋');
-            setLamp(vLamp, vWrap, 'pending', '🗣️');
-            setSayView(false); setBigNumber(true, N);
-        } else if (opts.voiceOn && !opts.voiceDone) {
-            // Sub-gate 2: gesture ✓ (latched) — switch to the camera-free "Say N" screen (the cover
-            // shows the number, so the panel's big number hides here).
-            if (promptEl) { promptEl.textContent = 'Now say “' + N + '”'; promptEl.style.color = '#fbbf24'; }
-            if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — say it a bit louder' : 'Out loud';
-            setLamp(gLamp, gWrap, 'done', '✋');
-            setLamp(vLamp, vWrap, 'active', '🗣️');
-            setSayView(true, N, opts.voiceHelp ? 'A bit louder…' : ''); setBigNumber(false);
-        } else if (!opts.voiceOn && opts.rearmed === false) {
-            // Speech-off + gesture confirmed but NOT re-armed: the advance gate is BLOCKED (same held
-            // pose carried from the last accept). Don't claim "Got it" — prompt the re-show (codex).
+        // SHOW-AS-YOU-SAY: the camera-free hand-down "Say N" cover is GONE — you keep fingers up
+        // while you say it. So there is ONE simultaneous step (not two sub-gates); the lamps are LIVE
+        // sensing indicators, and the single combined ✓ is the only accept (handled by opts.beat above).
+        setSayView(false);
+        if (!opts.voiceOn && opts.rearmed === false) {
+            // Speech-off (degraded, no mic) + gesture confirmed but NOT re-armed: advance is BLOCKED
+            // (same held pose carried from the last accept). Prompt the re-show (codex). Unchanged.
             if (promptEl) { promptEl.textContent = 'Lower your hand, then show ' + N + ' again'; promptEl.style.color = '#fbbf24'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'active', '✋');
             setLamp(vLamp, vWrap, 'pending', '🗣️');
-            setSayView(false); setBigNumber(true, N);
+            setBigNumber(true, N);
         } else {
-            // Both satisfied (or speech-off + re-armed) — advancing on the next frame.
-            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
-            if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'done', '✋');
-            setLamp(vLamp, vWrap, opts.voiceOn ? 'done' : 'pending', '🗣️');
-            setSayView(false); setBigNumber(false);
+            // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
+            // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
+            // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' and say “' + N + '”'; promptEl.style.color = 'var(--text-primary)'; }
+            if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : 'together, in one go';
+            setLamp(gLamp, gWrap, opts.gestureLive ? 'active' : 'pending', '✋');
+            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
+            setBigNumber(true, N);
         }
     }
 
@@ -2297,6 +2288,7 @@ function beginRecording() {
     // NOT the security check — it runs on-device (VAD energy, no network, words
     // never leave the device); server-side Gemini stays the content authority.
     let speechReady = new Array(digits.length).fill(false);  // per-digit: did we hear voice in its window
+    let _voiceFiredAt = 0;        // SHOW-AS-YOU-SAY: perf.now() when sustained voice last fired — must CO-OCCUR with a live gesture within DIGIT_COOCCUR_MS to advance
     let speechWindowStart = Infinity;  // speech only counts at/after this; Infinity = CLOSED until a digit's window explicitly opens (fail-closed; codex P2)
     let _speechMode = 'pending';     // 'vad' (on-device gate active) | 'off' (gesture-only + visible note)
     let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
@@ -2347,6 +2339,8 @@ function beginRecording() {
     // greeting). PACING ONLY — Gemini server-side stays the authoritative voice check. LIVE-TUNE.
     const DIGIT_VOICE_MIN_MS = 350;  // CONTINUOUS voiced duration a real spoken digit clears (~300-500ms); a ~100ms tap can't. Proven live (Rob's clean one-take PASSED at 350ms).
     const DIGIT_VOICE_GAP_MS = 200;  // R1: max sustained OBSERVED dip (neither-band frames) within one voiced run. A real intra-word dip is brief; spaced taps leave a long neither-band gap between them. Gated on OBSERVED dip frames (not a bare inter-frame time delta) so rAF jank — a skipped frame — can't fake a gap and false-reject a real digit (adversarial-review F1).
+    const DIGIT_COOCCUR_MS = 700;    // SHOW-AS-YOU-SAY: after a sustained-voice fire, the FINGERS must come up within this window (fingers-up at the spoken timestamp → strong Gemini temporal binding). Covers both orders (gesture-held-then-voice = instant; voice-led-then-fingers = up to this long to appear). PACING only — Gemini does the authoritative fingers-at-timestamp check server-side. LIVE-TUNE.
+    const DIGIT_COOCCUR_MAX_MS = 2000; // absolute cap from the voice fire to advance, EVEN while a hand stays in frame — so a number said over an unstable/wrong hand held past the window can't advance on the stale utterance after a late silent settle (adversarial-review/Codex). Generous enough to cover the ~700ms stable-dwell + finger-count flicker (no livelock), tight enough to bound the intra-digit window. LIVE-TUNE.
     const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
     // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
@@ -2409,6 +2403,7 @@ function beginRecording() {
         if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
         if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
         speechReady[currentDigitIndex] = true;
+        _voiceFiredAt = performance.now();   // SHOW-AS-YOU-SAY: stamp the spoken-digit moment for the co-occurrence window
         // S111 unification: a FRESH per-digit speech onset is ALSO a deliberate "new digit"
         // signal, so it satisfies the gesture re-arm — the user doesn't have to lower their
         // hand even when MediaPipe misread the count (cnt≠exp). The held gesture + the spoken
@@ -2782,15 +2777,30 @@ function beginRecording() {
         //   - _acceptArmed still guards a stale carried-over pose / double-accept.
         // The count RECORDED is _latchedCount (captured when the gesture latched) — not `detected`,
         // which is 0 once the hand is down for the say step.
-        var _spOkFrame = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
-        // Speech-off has NO camera-free say step, so it must keep the ORIGINAL live-gesture rule
-        // (hand held now) — else, with _spOkFrame always true, simply lowering the hand (which sets
-        // _acceptArmed) would advance a stale latch without a fresh re-show (codex). VAD mode uses the
-        // latch so the hand can be down for the say step; voice (speechReady[i]) is the completion signal.
+        // SHOW-AS-YOU-SAY: a digit advances only when a LIVE gesture (fingers up & stable NOW) and a
+        // sustained-voice fire CO-OCCUR — fingers are up AT the spoken timestamp (one continuous take →
+        // stronger Gemini temporal binding). No more camera-free hand-down "say" step.
         var _liveGestureOk = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED && digitStartTime > 0 && (performance.now() - digitStartTime) >= MIN_DIGIT_DWELL_MS);
-        var _gateGestureOk = (_speechMode === 'off') ? _liveGestureOk : _qaGestureLatched;
-        // One-shot: a mic-escape on the say step lets the already-latched current digit through.
-        var _advanceNow = (_gateGestureOk && _spOkFrame) || (_escapeAdvancePending && _qaGestureLatched);
+        var _nowCo = performance.now();
+        // EXPIRE stale voice — but the co-occurrence proxy is "fingers came UP within the window of the
+        // voice", NOT "fingers fully STABILISED within it". So expire ONLY while the hand is genuinely
+        // DOWN (detected===0): a number said with no fingers shown can't satisfy the digit later (must
+        // re-say). While the hand IS up and merely settling (detected>0, count flickering), the voice
+        // stays alive — otherwise a voice-led user (say, then raise) would livelock, since the 700ms
+        // stable-dwell can outlast a 700ms window anchored at the voice (adversarial-review F1). R1 is
+        // untouched — speechReady is set ONLY by _markSpeech after DIGIT_VOICE_MIN_MS of voicing.
+        if (_speechMode !== 'off' && speechReady[currentDigitIndex]
+            && ((detected === 0 && (_nowCo - _voiceFiredAt) > DIGIT_COOCCUR_MS)   // hand DOWN, fingers never came up promptly → re-say
+                || (_nowCo - _voiceFiredAt) > DIGIT_COOCCUR_MAX_MS)) {            // absolute cap regardless of hand → bounds the intra-digit window
+            speechReady[currentDigitIndex] = false;
+            try { vacDebug('speech_cooccur_expired', null, { digit_index: currentDigitIndex, since_ms: Math.round(_nowCo - _voiceFiredAt) }); } catch(_) {}
+        }
+        // Co-occurrence: a live (stable, held) gesture AND voice still armed (hand came up within the
+        // window of the voice and hasn't dropped). The window is enforced by the hand-down expiry above,
+        // so the stable-dwell can take as long as it needs while the hand is held — no livelock. speech-off
+        // (degraded, no mic) stays gesture-only + _acceptArmed re-arm, as before.
+        var _voiceCo = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
+        var _advanceNow = (_liveGestureOk && _voiceCo) || (_escapeAdvancePending && _liveGestureOk);
         if (currentDigitIndex < digits.length && _advanceNow && _acceptArmed && performance.now() >= _confirmUntil) {
             _escapeAdvancePending = false;
             var _adNow = performance.now();
@@ -2798,8 +2808,10 @@ function beginRecording() {
             // down). On the speech-off LIVE path the latch may not have set this frame (its beat-guard
             // used the earlier _nowMs while this advance's fresh now crossed the beat boundary — codex),
             // so fall back to the live `detected` (that path requires detected>0, so it's valid; never 0).
-            var _recordCount = _qaGestureLatched ? _latchedCount : detected;
-            var _recordFrames = _qaGestureLatched ? _latchedFrames : stableFrames;
+            // SHOW-AS-YOU-SAY: fingers are UP at co-occurrence, so record the LIVE detected count
+            // (the count on camera at the spoken timestamp), not a possibly-stale latched count.
+            var _recordCount = detected || _latchedCount;
+            var _recordFrames = stableFrames || _latchedFrames;
             if (currentDigitIndex === 0) {
                 try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: _recordCount, held_frames: _recordFrames }); } catch(_) {}
             }
@@ -2815,6 +2827,7 @@ function beginRecording() {
             _qaGestureLatched = false;   // RESET — digit N+1's gesture latch starts FRESH (no bleed)
             _gestureReadyAt = 0;
             _latchedCount = 0; _latchedFrames = 0;
+            _voiceFiredAt = 0;   // SHOW-AS-YOU-SAY (adversarial-review F2): clear the co-occur stamp so digit N+1 can't read a stale value (defensive — speechReady[N+1] already guards, but no stale timestamp should linger)
             if (currentDigitIndex < digits.length) {
                 speechWindowStart = performance.now() + CONFIRM_BEAT_MS;
                 _sawSilence = false;   // fresh in-window silence→voice onset required for the new digit
@@ -2883,13 +2896,13 @@ function beginRecording() {
                 // number re-arms the gesture (even on a misdetected count), so this rarely fires.
                 liveEl.style.color = '#fbbf24';
                 liveEl.textContent = 'Lower your hand, then show ' + _curDigit + ' again';
-            } else if (pct >= 100 && _needSpeech) {
-                // F-561: gesture is held + confirmed \u2014 now SAY the bound number (SUPP-7 cross-modal).
-                // Pacing prompt only (on-device VAD), NOT presented as the security check.
+            } else if (_needSpeech) {
+                // SHOW-AS-YOU-SAY: fingers are up \u2014 say the number NOW, together (no separate step).
+                // The voice must CO-OCCUR with the held gesture, so keep BOTH actions prompted.
                 liveEl.style.color = '#fbbf24';
                 liveEl.textContent = (_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
                     ? ('We can\u2019t hear you \u2014 say \u201c' + _curDigit + '\u201d, or tap below')
-                    : ('Now say \u201c' + _curDigit + '\u201d');
+                    : ('Keep showing ' + _curDigit + ' \u2014 say \u201c' + _curDigit + '\u201d');
             } else {
                 liveEl.style.color = pct >= 100 ? '#22c55e' : '#fbbf24';
                 liveEl.textContent = pct >= 100
@@ -2911,6 +2924,7 @@ function beginRecording() {
                 beat: inConfirmBeat,
                 digit: _curDigit,
                 gestureDone: _qaGestureLatched,
+                gestureLive: (detected > 0),   // SHOW-AS-YOU-SAY: fingers visible NOW (drives the live ✋ lamp)
                 gesturePct: _gPct,
                 voiceOn: (_speechMode !== 'off'),
                 voiceDone: !!speechReady[currentDigitIndex],
@@ -3084,7 +3098,7 @@ function beginRecording() {
         challengeEl.innerHTML =
             '<div style="font-size:clamp(11px,3vw,12px);font-family:var(--mono);letter-spacing:1.5px;color:#fbbf24;margin-bottom:6px;">' + (_listening ? '🎙️ LISTENING — SAY IT OUT LOUD' : (_vo ? 'READ THIS OUT LOUD — INCLUDING THE NUMBERS' : 'SAY THIS OUT LOUD')) + '</div>'
             + '<div style="font-size:clamp(22px,6.5vw,32px);font-weight:800;color:#fbbf24;line-height:1.3;">“' + _say + '”</div>'
-            + (_vo ? '' : '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">then show each number on your fingers, all in one take</div>');
+            + (_vo ? '' : '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">then show each number as you say it, one take</div>');
         // Show the live eq (STABLE element in #challengePanel, updated every frame by startAudioMonitor)
         // — proof the mic is hearing the greeting. Hidden if there's no mic (eq can't move anyway).
         var _eq = document.getElementById('vacEqGreeting'); if (_eq) _eq.style.display = audioAnalyser ? 'flex' : 'none';
