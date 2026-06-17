@@ -559,9 +559,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
       We'll guide you through each step with a <span style="color:#22c55e;font-weight:700;">✓</span> as you go.
     </div>
     <div id="challengeIntroPreview" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(14px,3vh,20px);">
-      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">After the greeting, your numbers</div>
+      <!-- D-INTRO-GREETING-NUMBERS-ASYMMETRY (S114): preview the GREETING too, not just the numbers.
+           Sourced from vacGreetingText() in showChallengeIntro — the SAME rotating greeting + real
+           name the greeting screen shows. -->
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:8px;">You'll say</div>
+      <div id="challengeIntroGreeting" style="font-size:clamp(16px,4.4vw,20px);font-weight:700;color:var(--text-primary);line-height:1.3;margin-bottom:16px;">&ldquo;&rdquo;</div>
+      <div style="font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:12px;">then show, one at a time</div>
       <div id="challengeIntroDigits" style="display:flex;justify-content:center;gap:clamp(10px,3vw,16px);flex-wrap:wrap;"></div>
-      <div style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">You'll see them one at a time during the challenge — no need to memorise.</div>
+      <div style="font-size:13px;color:var(--text-tertiary);margin-top:12px;">No need to memorise — we'll guide you through each one.</div>
     </div>
     <button id="challengeIntroBtn" onclick="dismissChallengeIntro()" class="btn-primary" style="font-size:clamp(15px,4vw,17px);padding:16px 24px;width:100%;max-width:340px;margin:0 auto;">I'm ready — start</button>
   </div>
@@ -1808,6 +1813,20 @@ function retryAVSetup() {
         });
 }
 
+// D-GREETING-STATIC-WRONG-NAME / D-INTRO-GREETING-NUMBERS-ASYMMETRY (S114): the SINGLE source
+// of truth for the greeting text shown anywhere (intro preview, lead-in, and the live greeting
+// screen). It is the greeting clause of the backend challenge — `challengeData.phrase` with the
+// trailing OTP digits stripped. The backend rotates the greeting per challenge (Kia ora / Hello /
+// Hey there / Good morning / Hi there) and embeds the VERIFIED user's name (the name the frontend
+// sent at /challenge = userData().name, the OTP-verified identity). So routing every surface
+// through this one function guarantees: same rotating greeting + same real name on the intro and
+// the greeting screen, NEVER a hardcoded/static literal. Empty string if there is no challenge yet
+// (callers guard: challengeIncomplete blocks recording on a blank phrase).
+function vacGreetingText() {
+    var p = (challengeData && challengeData.phrase) || '';
+    return p.replace(/,\s*\d[\d\s,]*$/, '');   // strip ", <digits>" tail → the rotating greeting + real name
+}
+
 // S111: a challenge is recordable only with a phrase AND — in finger mode — non-empty
 // digits. A digit-less challenge in finger mode would skip the finger phase and the
 // F-561 AND-gate entirely (bypass #1: gate advances without waiting for voice because
@@ -1840,7 +1859,7 @@ function goToChallenge() {
     }
     stopAVChecks(); // Clean up audio context and animation frame
     const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
-    var greetPart = phrase.replace(/,\s*\d[\d\s,]*$/, '');   // R2: greeting only (trailing digits stripped) — the lead-in shows the greeting, never the numbers
+    var greetPart = vacGreetingText() || phrase.replace(/,\s*\d[\d\s,]*$/, '');   // R2 + S114: single-source rotating greeting (real name); fallback to the local phrase only if no challenge
     // Voice-aware: in voice-only fallback there is NO finger phase, so the user must speak the
     // FULL phrase (incl numbers) — show it directly (mirrors setFingerFallback). Finger mode
     // shows the greeting + the finger instructions. Without this, a voice-only RETRY (routed
@@ -1932,8 +1951,12 @@ function showChallengeIntro() {
     // R3 (S114): dynamic count in the intro body (not hardcoded "three"), singular/plural-aware.
     var _cnt = document.getElementById('challengeIntroCount');
     if (_cnt) _cnt.textContent = digits.length + (digits.length === 1 ? ' number' : ' numbers');
+    // D-INTRO-GREETING-NUMBERS-ASYMMETRY (S114): preview the ACTUAL greeting from the SAME source the
+    // greeting screen uses (rotating greeting + verified name). textContent = no markup-injection risk.
+    var _greetEl = document.getElementById('challengeIntroGreeting');
+    if (_greetEl) { var _g = vacGreetingText(); _greetEl.textContent = _g ? ('“' + _g + '”') : ''; }
     overlay.style.display = 'block';
-    try { vacDebug('challenge_intro_shown', null, { digits_count: digits.length }); } catch(_) {}
+    try { vacDebug('challenge_intro_shown', null, { digits_count: digits.length, has_greeting: !!vacGreetingText() }); } catch(_) {}
 }
 
 function dismissChallengeIntro() {
@@ -1955,8 +1978,8 @@ function setFingerFallback() {
         const fb = document.getElementById('fingerFallback');
         if (fb) fb.querySelector('button').textContent = "Cannot show fingers? Voice-only mode";
         const phrase = challengeData?.phrase || '';
-        // R2 (S114): back in finger mode → greeting only (strip trailing digits); numbers come per-gesture.
-        const greetPart = phrase.replace(/,\s*\d[\d\s,]*$/, '');
+        // R2 (S114): back in finger mode → single-source rotating greeting (real name); numbers come per-gesture.
+        const greetPart = vacGreetingText() || phrase.replace(/,\s*\d[\d\s,]*$/, '');
         document.getElementById('challengeText').innerHTML = '"' + greetPart + '"<br><span style="font-size:12px;opacity:0.5;margin-top:6px;display:inline-block">then show each number on your fingers, all in one take</span>';
     }
 }
@@ -2080,7 +2103,7 @@ function beginRecording() {
                 // R2 (S114): greeting ONLY — strip the trailing digits (the numbers are spoken
                 // per-gesture in the digit phase; one recording → backend still gets them). This
                 // is the fallback prompt; renderGreeting owns the primary live greeting screen.
-                var _greet = _full.replace(/,\s*\d[\d\s,]*$/, '');
+                var _greet = vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, '');   // S114: single-source greeting
                 challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greet + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number on your fingers, all in one take</span>';
             }
         } else {
@@ -3038,7 +3061,9 @@ function beginRecording() {
         // try to say/show them during the greeting (wrong order). They're spoken per-gesture in the
         // digit phase; it's ONE recording, so the backend whole-transcript match still gets them.
         // VOICE-ONLY keeps the full phrase (it has no digit phase, so it must say the numbers here).
-        var _say = _vo ? _full : _full.replace(/,\s*\d[\d\s,]*$/, '');
+        // S114: finger-mode greeting comes from the SINGLE source (vacGreetingText) — same rotating
+        // greeting + real name the intro previews — so the two screens can never diverge.
+        var _say = _vo ? _full : (vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, ''));
         var _st = document.getElementById('step2Title');
         // ✓ Heard it beat — FINGER mode only, AND only AFTER the read window (PHRASE_DURATION). The
         // phrase now includes the digits, so phraseSpoke can fire on a pause after the greeting clause
