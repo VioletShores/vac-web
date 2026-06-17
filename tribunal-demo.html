@@ -89,6 +89,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .vt-btn:hover{color:var(--text-secondary);border-color:var(--text-tertiary);}
 .vt-btn.sel{border-color:var(--purple);color:var(--purple);background:var(--purple-bg);}
 .vt-btn[data-view="vac"].sel{border-color:var(--amber);color:var(--amber);background:var(--amber-bg);}
+.vt-btn[data-view="cfree"].sel{border-color:var(--teal);color:var(--teal);background:var(--teal-bg);}
 
 /* thesis panel — the differentiator argument, visible copy */
 .thesis{background:linear-gradient(135deg,var(--amber-bg),var(--surface-raised));border:1px solid var(--amber-border);border-radius:10px;padding:clamp(16px,4vw,22px);margin:0 0 14px;}
@@ -227,7 +228,35 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .vo-close{background:transparent;border:none;color:var(--text-tertiary);font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}
 .vo-close:hover{color:var(--text-primary);}
 .vo-frame{flex:1 1 auto;width:100%;border:none;background:var(--bg);}
-@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}.id-actions{flex-direction:column;align-items:flex-start;gap:12px;}.vo{padding:0;}.vo-card{width:100%;height:100%;border-radius:0;border:none;}.cred-grid{grid-template-columns:1fr;}}
+/* custodian-free honest-wall panel (matter 03 cfree — static, no stepper/receipt) */
+.wall{display:flex;flex-direction:column;gap:14px;}
+.wall-banner{font-family:var(--mono);font-size:clamp(12.5px,3.5vw,14.5px);font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:8px;padding:12px 14px;letter-spacing:.2px;line-height:1.5;}
+.wall-point{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--text-quaternary);border-radius:8px;padding:14px 16px;overflow-wrap:break-word;}
+.wall-point.removes{border-left-color:var(--teal);}
+.wall-point.caroline{border-left-color:var(--amber);}
+.wall-point .wall-h{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:6px;}
+.wall-point p,.wall-point .wall-body{font-size:13.5px;color:var(--text-secondary);}
+/* attributed-stat source line — visually distinct so it never reads as a VS claim */
+.src-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);line-height:1.55;margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
+.caroline-open{color:var(--amber);font-weight:600;}
+
+/* send-to-Rob modal (reuses .vo backdrop) */
+.send-card{width:min(440px,100%);max-height:94vh;overflow:auto;background:var(--surface);border:1px solid var(--border-light);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.send-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--teal);}
+.send-body{padding:16px 18px 18px;}
+.send-intro{font-size:13.5px;color:var(--text-secondary);line-height:1.6;margin-bottom:6px;}
+.send-l{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-tertiary);margin:12px 0 5px;}
+.send-i{width:100%;background:var(--bg);border:1px solid var(--border-light);border-radius:7px;color:var(--text-primary);font-family:var(--font);font-size:14px;line-height:1.5;padding:10px 12px;}
+.send-i:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg);}
+@media(pointer:coarse){.send-i{font-size:16px;}}
+.send-err{color:#F85149;font-size:12.5px;margin-top:10px;}
+.send-err[hidden]{display:none;}
+.send-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+.send-status{font-family:var(--mono);font-size:12px;margin-top:12px;min-height:16px;color:var(--text-tertiary);}
+.fb-send{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .15s;}
+.fb-send:hover{border-color:var(--teal);}
+
+@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}.id-actions{flex-direction:column;align-items:flex-start;gap:12px;}.vo{padding:0;}.vo-card{width:100%;height:100%;border-radius:0;border:none;}.cred-grid{grid-template-columns:1fr;}.send-card{border-radius:0;height:100%;max-height:100%;}}
 </style>
 </head>
 <body>
@@ -303,11 +332,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
     <section class="stage" id="stage">
       <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
-      <!-- labels are set per-matter in renderStage (cur.todayLabel / cur.vacLabel); static text is the matter-01 default -->
-      <div class="view-toggle" id="viewToggle" role="group" aria-label="Choose workflow view">
-        <button class="vt-btn" data-view="today" aria-pressed="false">Today — order on agent</button>
-        <button class="vt-btn" data-view="vac" aria-pressed="false">With VAC/VAT — programmable escrow</button>
-      </div>
+      <!-- buttons are built per-matter in renderStage (today / vac / cfree, with the right labels) -->
+      <div class="view-toggle" id="viewToggle" role="group" aria-label="Choose workflow view"></div>
       <p class="stage-sub" id="stageSub"></p>
       <div id="vacIntro" style="display:none;"></div>
       <div class="steps" id="steps"></div>
@@ -378,11 +404,35 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
   </div>
 </div>
 
+<!-- Send-to-Rob: Caroline's notes genuinely email to Rob (unlike F-570's localStorage-only fb). -->
+<div class="vo" id="sendModal" hidden>
+  <div class="send-card" role="dialog" aria-modal="true" aria-labelledby="sendTitle">
+    <div class="send-head"><span id="sendTitle">Send your notes to Rob</span><button class="vo-close" id="sendClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="send-body">
+      <p class="send-intro" id="sendIntro"></p>
+      <label class="send-l" for="sendName">Your name</label>
+      <input class="send-i" id="sendName" type="text" autocomplete="name" maxlength="120">
+      <label class="send-l" for="sendEmail">Your email</label>
+      <input class="send-i" id="sendEmail" type="email" inputmode="email" autocomplete="email" maxlength="200">
+      <div class="send-err" id="sendErr" hidden></div>
+      <div class="send-actions">
+        <button class="btn btn-primary" id="sendGo" type="button">Send to Rob</button>
+        <button class="btn btn-ghost" id="sendCancel" type="button">Cancel</button>
+      </div>
+      <div class="send-status" id="sendStatus" role="status"></div>
+    </div>
+  </div>
+</div>
+
 <script>
 // F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
 const fbKey=id=>'vac-fb-'+id;
 const storageOK=(()=>{try{localStorage.setItem(fbKey('probe'),'1');localStorage.removeItem(fbKey('probe'));return true;}catch(e){return false;}})();
-const fb=(id,q)=>`<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" data-fb="${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><span class="fb-status" id="fbs-${id}" role="status">Notes stay in this browser — nothing is sent anywhere yet.</span></div></div>`;
+// Registry of every Caroline question, keyed by id. fb() runs for every question when
+// MATTERS is built (the template literals call it eagerly), so this is complete at load —
+// letting the Send action gather answers across every matter/view, not just the one on screen.
+const FB_QUESTIONS={};
+const fb=(id,q)=>{FB_QUESTIONS[id]=q;return `<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" data-fb="${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><button class="fb-send" data-send="${id}" type="button">Send to Rob</button><span class="fb-status" id="fbs-${id}" role="status">Kept in this browser — press Send to share with Rob.</span></div></div>`;};
 // escape untrusted text (e.g. the verified name from auth-test's postMessage) before it enters an innerHTML template
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -449,6 +499,18 @@ const MATTERS = [
     todayLabel:"Today — RBO claim & 14-day race",
     vacLabel:"With VAC — verified mutual agreement",
     heroBadge:"what a smart contract can&#39;t prove",
+    cfTitle:"Custodian-free settlement — the one thing VAC will not claim for a residential bond",
+    cfSub:"The residential wall. The honest answer to “why not skip Fair Trading entirely?” — for a residential bond you can't, and VAC doesn't pretend to. Here is the legal wall, and the real problem VAC does remove: the identity-driven delay and disputes that sit on top of the custodian.",
+    cfPanel:`<div class="wall">
+      <div class="wall-banner">⚖ The honest answer for a residential bond: no. VAC does not — and legally could not — remove the custodian here.</div>
+      <div class="fwd-note"><strong>The wall is statutory, and VAC respects it.</strong> A residential bond in NSW must be lodged with NSW Fair Trading through Rental Bonds Online and held in trust by the NSW Rental Bond Board (Residential Tenancies Act 2010). A landlord or agent may not hold the money, and no private escrow — programmable or otherwise — may stand in for the Board. Custodian-free settlement is a commercial/trust idea, where the deposit is private contract money and lawful to hold in private escrow. A residential bond is none of those. <span class="hil">See the small-business lease matter for the flow where custodian-free is actually lawful.</span></div>
+      <div class="wall-point"><div class="wall-h">1 · The custodian is the law, not a design choice</div><p>The bond sits with the Rental Bond Board from the start of the tenancy, and release happens only by agreement of all parties or by NCAT order (Residential Tenancies Act 2010). There is no lawful “custodian-free” version of a residential bond — removing the Board would take a change in statute, not a change in software. VAC does not ask for that. <span class="policy-chip">held_by = Rental_Bond_Board</span><span class="policy-chip">custodian = mandatory</span></p></div>
+      <div class="wall-point"><div class="wall-h">2 · Where custodian-free is lawful — and where it isn't</div><p>Custodian-free applies where the deposit is private contract money — a commercial lease security, a trust deposit — and private escrow is lawful. A residential bond is held by a government agency under statute, so the full Option C flow lives on the commercial-lease matter, not here. For residential, the custodian stays.</p></div>
+      <div class="wall-point removes"><div class="wall-h">3 · What VAC removes instead — the identity-driven delay</div><div class="wall-body">The real residential pain isn't the custodian; it's the wait, and the naming errors that gum it up. VAC's verified-identity root removes exactly that failure mode: the parties are verified humans matched to the tenancy, so a refund isn't held up by a mismatched or incomplete name. <span class="policy-chip">verified_identity</span><span class="policy-chip">name_match = resolved_upfront</span><div class="src-note">Per LegalVision's analysis of NSW Fair Trading data, incorrect or incomplete names on bonds delayed <strong>42% of NSW bond refunds by more than 30 days</strong> in 2024–25. Cited as the source's published finding — not a VAC or Violet Shores claim.</div></div></div>
+      <div class="wall-point removes"><div class="wall-h">4 · And the identity-driven disputes</div><div class="wall-body">The same verified-identity root attacks the dispute volume — and a verified, mutual “by agreement” release means fewer one-sided s.163 claims reach NCAT at all. <span class="policy-chip">fewer_identity_disputes</span><div class="src-note">LegalVision's analysis attributes <strong>31% of residential tenancy disputes (2023–25)</strong> to naming errors on bonds — a verified-identity problem, which is VAC's wedge. Cited as the source's published finding — not a VAC or Violet Shores claim.</div></div></div>
+      <div class="wall-point caroline"><div class="wall-h"><span class="caroline-open">⚖ OPEN — Caroline (Q2)</span> · the override lever</div><div class="wall-body">For VAC's verified “by agreement” step to map onto a real legal lever, the override path needs nailing down.${fb('bond-cf-override',"What is the NCAT / court override mechanism for a forced bond release, so the verified VAC mutual-agreement step maps cleanly onto a real legal lever — and could a VAC-sealed agreement be recognised as a valid ‘by agreement’ release under the Residential Tenancies Act 2010?")}</div></div>
+      <div class="wall-point"><div class="wall-h">So: custodian retained, friction removed</div><p>For a residential bond, VAC's contribution is the <span class="hil">“With VAC — verified mutual agreement”</span> view, not a custodian-free one: it makes the statutory “by agreement” release instant and verifiable, and removes the identity errors that delay refunds and drive disputes. The Rental Bond Board stays exactly where the law puts it. <span class="hil">That is the whole claim — no more.</span></p></div>
+    </div>`,
     sub:"How a NSW rental bond actually works today: the bond is lodged with NSW Fair Trading through Rental Bonds Online (RBO) — not held by the landlord or agent — and released only by agreement of all parties or by order of NCAT. But the claim process is one-sided by design, and that is where the disputes come from.",
     steps:[
       {h:"The bond is held by NSW Fair Trading — not the landlord",m:"Rental Bonds Online · Residential Tenancies Act 2010",d:"From the start of the tenancy the bond sits with NSW Fair Trading, lodged through Rental Bonds Online (RBO) — mandatory for new residential bonds since January 2017 (Residential Tenancies Act 2010). The landlord or agent never holds the money. <span class='hil'>Release happens only one of two ways: by agreement of all parties, or by order of NCAT.</span> <span class='policy-chip'>held_by = Fair_Trading</span><span class='policy-chip'>release = agreement OR NCAT_order</span>"},
@@ -548,6 +610,57 @@ const MATTERS = [
       {h:"The advised tenant signs off",m:"human-in-the-loop · solicitor review",d:"<span class='hil'>The tenant's solicitor reviews the lease against the disclosure statement and signs off, and the tenant commits knowing what they are agreeing to.</span> The law doesn't mandate this review — prudent tenants do it anyway. This matter encodes it as a gate: execution waits until the advised sign-off is recorded."},
       {h:"Registered with NSW Land Registry Services",m:"leases over 3 years",d:"A lease running beyond three years is registered with NSW LRS, protecting the tenant's interest on the title against an incoming owner. <span class='policy-chip'>registered_LRS == true</span>"},
       {h:"Lease sealed &amp; lodged",m:"VAC authority token",d:"Disclosure given, advice taken, terms checked, registration done — and who signed off at each gate — sealed into one tamper-evident, independently verifiable record."}
+    ],
+    todayLabel:"Today — disclosure & advised sign-off",
+    vacLabel:"With VAC — verified return, custodian kept",
+    heroBadge:"where custodian-free is lawful",
+    vacTitle:"Commercial lease security — verified return, custodian kept",
+    vacSub:"The same lease — now following its security deposit. A commercial lease security (a cash bond or a bank guarantee) is private contract money: unlike a residential bond there is no Rental Bond Board and no statutory custodian. This view keeps the deposit where it sits today — landlord, the agent's trust account, or the issuing bank — and adds VAC: verified parties, release conditions sealed to the lease, and a verified human authorising the return at end of term.",
+    vacThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">Why this matter is different from a bond</div>
+      <p>A residential bond has a mandatory government custodian. A commercial lease deposit does not. Security under a retail or commercial lease is whatever the parties contract for — a cash security held by the landlord or in an agent's trust account, or a bank guarantee — and the law leaves the holding arrangement to the contract.</p>
+      <span class="pullq">No Rental Bond Board here — the holder of a commercial deposit is a contract term, not a law.</span>
+      <p>This view keeps the existing holder and adds verified authority: both parties verified, the return conditions sealed to the lease, and the release authorised by a verified human rather than chased on paper. The lighter ask — before the custodian-free version on the next view.</p>
+    </div>`,
+    vacNote:`<div class="fwd-note"><strong>What's real vs. what's proposed.</strong> The identity, signing and sealing technology on this view — VAC verification, the VAT token, the sealed chain — is live in production, and the token at the end is genuinely signed and independently verifiable (the identity step is simulated in this shareable preview; see the banner). The commercial-lease application is a forward path. On this view the deposit stays exactly where it sits today — with the landlord, in an agent's trust account, or as a bank guarantee with the issuing bank — and VAC adds the verified parties, the sealed release conditions and the verified human authorisation. VAC supplies the authority; it does not hold or move the money.</div>`,
+    vacAudit:[
+      ['00:00','lease deposit matter opened · return policy attached'],
+      ['00:01','landlord + tenant verified · authority chain nodes issued'],
+      ['00:02','return conditions sealed to the lease (F-495)'],
+      ['00:03','end of term · conditions checked · verified human authorises return'],
+      ['00:04','return authorised on existing custodian · sealed (Ed25519)']
+    ],
+    vacSteps:[
+      {h:"Both parties verify — landlord and small-business tenant",m:"VAC identity · liveness · both parties",d:"Landlord and tenant authenticate through VAC — <span class='policy-chip'>face liveness</span><span class='policy-chip'>entity-matched</span> — each a verified node on the authority chain before any deposit is held or returned."},
+      {h:"Return conditions sealed to the lease",m:"F-495 · policy-carrying packet",d:"The conditions for returning the security travel with the lease and check themselves: <span class='policy-chip'>make_good_complete</span><span class='policy-chip'>no_rent_arrears</span><span class='policy-chip'>fixtures_returned</span><span class='policy-chip'>return_to = tenant</span> What is today a landlord and a managing agent reconciling the file becomes a condition check, logged."},
+      {h:"End of term — a verified human authorises the return",m:"human-in-the-loop · custodian retained",d:"At end of term the conditions are checked and <span class='hil'>a verified human authorises the return of the cash security, or the release of the bank guarantee.</span> The deposit stays where it sits today — landlord, the agent's trust account, or the issuing bank — so <span class='hil'>the custodian is retained</span>; VAC supplies the verified authority that gates the release, not the money movement. <span class='policy-chip'>custodian = retained</span><span class='policy-chip'>authority = verified_human</span>"},
+      {h:"Disputed deductions take the contractual path — with a sealed record",m:"private contract dispute · court / arbitration",d:"Where the parties disagree on a deduction — make-good, cleaning, damage — the dispute follows the lease's own mechanism (negotiation, then court or arbitration as the lease provides). VAC does not decide it, but the matter arrives with <span class='hil'>a sealed record of what each verified party agreed and when</span>, instead of intent reconstructed from emails."},
+      {h:"Sealed to the same auditable chain",m:"VAC authority token · provable forever",d:"The conditions checked and the verified human authorisation are sealed to the same chain as the lease — a tamper-evident record of who authorised the return, under which conditions, provable forever."}
+    ],
+    cfTitle:"Commercial lease security — custodian-free settlement (concept)",
+    cfSub:"The forward concept — and the one place on this page where removing the custodian is lawful. Because a commercial deposit is private contract money, it can sit in private escrow and release on verified authority: VAC as the release oracle, not the money custodian. The settlement rail is shown illustratively; this is a concept, not a live integration, and no money moves here.",
+    cfThesis:`<div class="thesis">
+      <div class="thesis-eyebrow">The one matter where custodian-free is lawful</div>
+      <p>Everywhere else on this page the custodian is fixed by statute. Here it isn't. With no Rental Bond Board and no statutory depositholder, a commercial lease security can be held in private escrow — and the only thing ever missing was the same thing smart-contract escrow never solved: proof that a verified, attributable human authorised the release.</p>
+      <span class="pullq">VAC issues the authority proof. It is not the money custodian.</span>
+      <p>Verified mutual consent of both parties — or a verified override mapped to a real legal lever — becomes the release condition on the escrow. Settlement executes on a real-time payment rail or a regulated tokenised-AUD escrow. VAC never holds or moves the funds.</p>
+    </div>`,
+    cfNote:`<div class="fwd-note"><strong>Concept — not a live integration, and no money moves here.</strong> The release shown is simulated. Production options for the settlement itself are: VAC authority-proof plus a real-time payment rail (PayTo / NPP), or VAC acting as the release oracle on a regulated tokenised-AUD escrow. <span class='hil'>VAC issues the authority proof; it is not, and would not be, a money custodian</span> — it never holds or moves the deposit. The verified-identity and signing technology is live in production; the custodian-free settlement flow over it is a forward concept that would need a regulated escrow or payment-rail partner. The open legal questions are flagged inline for Caroline.</div>`,
+    cfAudit:[
+      ['00:00','deposit matter opened · private escrow · release policy attached'],
+      ['00:01','landlord + tenant verified · liveness · authority nodes issued'],
+      ['00:02','release conditions sealed to the lease (F-495)'],
+      ['00:03','verified mutual consent (2-of-2) OR verified override captured'],
+      ['00:04','authority proof issued (VAT) · bound to the release condition'],
+      ['00:05','settlement simulated · PayTo/NPP or tokenised-AUD escrow · concept — no funds moved']
+    ],
+    cfSteps:[
+      {h:"Both parties verify — landlord and tenant, as real humans",m:"VAC identity · liveness · both parties",d:"Landlord and tenant authenticate through VAC — <span class='hil'>face liveness, deepfake scan, cross-modal gesture and voice</span> — each a verified node on the authority chain. <span class='policy-chip'>face_liveness</span><span class='policy-chip'>both_parties_verified</span>"},
+      {h:"The deposit sits in private escrow — lawful, because it's private money",m:"no statutory custodian · concept",d:"A commercial lease security is private contract money — no Rental Bond Board, no statutory custodian — so the deposit can be held in a private escrow rather than the landlord's hands or an agent's trust account. <span class='hil'>This is exactly where custodian-free is lawful, and the residential bond is not.</span> The escrow is operated by a regulated third party; <span class='hil'>VAC never takes custody</span> — it supplies the verified human authority that gates release. <span class='policy-chip'>deposit = private_contract_money</span><span class='policy-chip'>no_statutory_custodian</span>"+fb('lease-cf-trigger',"On a private commercial deposit held in escrow, who is legally permitted to trigger release today, and what evidence do they currently require — so VAC's verified authority can stand in the right place in that chain?")},
+      {h:"Release conditions travel with the lease — checked automatically",m:"F-495 · policy-carrying packet",d:"The release conditions are sealed to the lease and evaluate themselves: <span class='policy-chip'>make_good_complete</span><span class='policy-chip'>no_arrears</span><span class='policy-chip'>term_ended</span><span class='policy-chip'>release_to = tenant_or_landlord</span> Nothing about the escrow is discretionary — it can act only on these sealed conditions and the verified human authority that follows."},
+      {h:"A verified human authorises release — or a verified override stands in",m:"VAC · verified mutual consent / verified override",hero:true,d:"Release fires not on a key or a script but on <span class='hil'>verified mutual consent of both parties</span> — landlord and tenant each a liveness-checked human, sealed as a 2-of-2 agreement. Where they disagree, release can act on a <span class='hil'>verified override</span> — a court or arbitral order, captured as a verified authority rather than a faxed PDF.<div class='ctx-note'>Only verified human authority can do this. A private key is not a person; a court-order PDF is not verified provenance. A VAC authorisation is attributable to <em>a person, at a time, in context</em> — or to a verified override that maps to a real legal lever. (The override mechanism is the open question flagged on the bond matter, Q2.)</div>"},
+      {h:"Settlement would execute on a real-time rail — illustrative only",m:"concept · PayTo / NPP or tokenised-AUD escrow · simulated",d:"On authorised release the deposit would settle back to the right party. <span class='hil'>Shown here as a simulated release — no money moves in this preview, and none would move through VAC.</span> Production options: VAC authority-proof plus a real-time payment rail (PayTo / NPP), or VAC as the release oracle on a regulated tokenised-AUD escrow. <span class='hil'>VAC issues the authority proof; it never holds or moves the funds.</span> <span class='policy-chip'>settlement = illustrative</span><span class='policy-chip'>rail = PayTo/NPP · concept</span>"+fb('lease-cf-liability',"If release acts on a VAC proof and is later disputed, where does liability sit — the escrow operator, the parties, the protocol, an insurer — and does that allocation change who will actually be willing to act on the proof?")},
+      {h:"The same oracle covers trust distributions",m:"trust deposits · verified authority · concept",d:"The pattern generalises beyond a lease deposit: any private trust distribution — where there is no statutory custodian — can release on verified authority or verified consent, with a sealed record of who authorised it. <span class='policy-chip'>trust_distribution</span><span class='policy-chip'>verified_authority</span>"+fb('lease-cf-trust',"For trust distributions, what authority or consent is legally sufficient to release funds, and would a verified-vouching record (VAC) be admissible or acceptable as evidence of that authority?")}
     ]
   },
   {
@@ -619,8 +732,15 @@ const REAL_TOKEN = {
 };
 
 let cur=null, stepIdx=-1, stageView='today';
-const isVac=()=>!!(cur&&cur.vacSteps&&stageView==='vac');
-const activeSteps=()=>isVac()?cur.vacSteps:cur.steps;
+const isVac=()=>stageView==='vac';
+const isCfree=()=>stageView==='cfree';
+const availViews=m=>['today'].concat(m.vacSteps?['vac']:[]).concat((m.cfSteps||m.cfPanel)?['cfree']:[]);
+// 3-view matters use short mode names (three long labels wrap badly at 375px); the qualifier
+// rides in stageSub. 2-view matters keep their existing custom labels.
+const viewLabel=(m,key)=>(m.cfSteps||m.cfPanel)
+  ? (key==='today'?'Today':key==='vac'?'With VAC':'Custodian-free')
+  : (key==='vac'?(m.vacLabel||'With VAC'):(m.todayLabel||'Today'));
+const activeSteps=()=>isCfree()?(cur.cfSteps||[]):isVac()?cur.vacSteps:cur.steps;
 const mEl=document.getElementById('matters');
 MATTERS.forEach(m=>{
   const b=document.createElement('button');b.className='matter';b.dataset.id=m.id;
@@ -639,39 +759,53 @@ function selectMatter(id){
 // re-rendering always restarts the walkthrough — intentional: the view toggle and reset share this path
 function renderStage(){
   stepIdx=-1;
-  const vac=isVac();
+  const vac=isVac(), cf=isCfree();
+  const panelMode = cf && !!cur.cfPanel;   // static honesty panel (bond cfree) — no stepper, no receipt
+  // toggle buttons, built per matter (3-view matters get short mode-name labels)
   const vt=document.getElementById('viewToggle');
-  vt.style.display=cur.vacSteps?'flex':'none';
-  if(cur.vacSteps)vt.querySelectorAll('.vt-btn').forEach(b=>{const on=b.dataset.view===stageView;b.classList.toggle('sel',on);b.setAttribute('aria-pressed',on);b.textContent=b.dataset.view==='vac'?(cur.vacLabel||'With VAC'):(cur.todayLabel||'Today');});
-  document.getElementById('stageTitle').textContent=vac?(cur.vacTitle||cur.title):cur.title;
-  document.getElementById('stageMatter').textContent=cur.matter;
-  document.getElementById('stageSub').textContent=vac?(cur.vacSub||cur.sub):cur.sub;
-  const intro=document.getElementById('vacIntro');
-  intro.innerHTML=vac?(cur.vacThesis||'')+(cur.vacNote||''):'';
-  intro.style.display=vac?'block':'none';
-  const steps=activeSteps();
-  const heroBadge=cur.heroBadge||'the step smart contracts can&#39;t do';
-  const s=document.getElementById('steps');s.innerHTML='';
-  steps.forEach((st,i)=>{
-    const row=document.createElement('div');row.className='step'+(st.hero?' hero-step':'');row.dataset.i=i;
-    row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
-      <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">'+heroBadge+'</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
-    s.appendChild(row);
+  const views=availViews(cur);
+  vt.style.display=views.length>1?'flex':'none';
+  vt.innerHTML='';
+  views.forEach(key=>{
+    const b=document.createElement('button');
+    b.className='vt-btn'+(key===stageView?' sel':'');b.dataset.view=key;
+    b.setAttribute('aria-pressed',key===stageView?'true':'false');
+    b.textContent=viewLabel(cur,key);
+    b.onclick=()=>{if(stageView===key)return;stageView=key;renderStage();vt.scrollIntoView({block:'nearest'});};
+    vt.appendChild(b);
   });
+  document.getElementById('stageTitle').textContent=cf?(cur.cfTitle||cur.title):vac?(cur.vacTitle||cur.title):cur.title;
+  document.getElementById('stageMatter').textContent=cur.matter;
+  document.getElementById('stageSub').textContent=cf?(cur.cfSub||cur.sub):vac?(cur.vacSub||cur.sub):cur.sub;
+  const intro=document.getElementById('vacIntro');
+  intro.innerHTML=cf?((cur.cfThesis||'')+(cur.cfNote||'')):vac?((cur.vacThesis||'')+(cur.vacNote||'')):'';
+  intro.style.display=intro.innerHTML?'block':'none';
+  const s=document.getElementById('steps');s.innerHTML='';
+  const controls=document.querySelector('.controls');
+  if(panelMode){
+    s.innerHTML=cur.cfPanel;                 // honest wall: explanatory panel, no Begin/Seal, no receipt
+    controls.style.display='none';
+  }else{
+    controls.style.display='flex';
+    const steps=activeSteps();
+    const heroBadge=cur.heroBadge||'the step smart contracts can&#39;t do';
+    steps.forEach((st,i)=>{
+      const row=document.createElement('div');row.className='step'+(st.hero?' hero-step':'');row.dataset.i=i;
+      row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
+        <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">'+heroBadge+'</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
+      s.appendChild(row);
+    });
+  }
   let savedCount=0;
   s.querySelectorAll('.fb-input').forEach(t=>{
     try{const v=localStorage.getItem(fbKey(t.dataset.fb));if(v){t.value=v;savedCount++;}}catch(e){}
-    if(!storageOK){const st=document.getElementById('fbs-'+t.dataset.fb);st.textContent="Notes can't be kept in this browser (storage is blocked) — copy your note before leaving.";}
+    if(!storageOK){const st=document.getElementById('fbs-'+t.dataset.fb);if(st)st.textContent="Notes can't be kept in this browser (storage is blocked) — copy your note before leaving.";}
   });
-  if(vac&&savedCount)intro.innerHTML+=`<div class="saved-hint">${savedCount} saved note${savedCount>1?'s':''} on this view — inside the step boxes below.</div>`;
+  if((vac||cf)&&!panelMode&&savedCount&&intro.innerHTML){intro.innerHTML+=`<div class="saved-hint">${savedCount} saved note${savedCount>1?'s':''} on this view — inside the step boxes below.</div>`;}
   document.getElementById('stage').classList.add('show');
   document.getElementById('receipt').classList.remove('show');
   const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
 }
-
-document.querySelectorAll('.vt-btn').forEach(b=>{
-  b.onclick=()=>{if(!cur||stageView===b.dataset.view)return;stageView=b.dataset.view;renderStage();b.closest('.view-toggle').scrollIntoView({block:'nearest'});};
-});
 
 // F-570 — keep Caroline's notes locally (honest scope: no backend yet, and the status line says so).
 // Drafts autosave on input so a view toggle / reset / matter switch can't destroy typed text.
@@ -679,13 +813,16 @@ document.getElementById('steps').addEventListener('input',e=>{
   const t=e.target.closest('.fb-input');if(!t||!storageOK)return;
   try{localStorage.setItem(fbKey(t.dataset.fb),t.value);}catch(err){return;}
   const st=document.getElementById('fbs-'+t.dataset.fb);
-  st.textContent='Draft kept in this browser — nothing is sent anywhere yet.';
+  st.textContent='Draft kept in this browser — press Send to share with Rob.';
+  st.style.color='var(--amber)';
 });
 document.getElementById('steps').addEventListener('click',e=>{
+  const sendBtn=e.target.closest('.fb-send');
+  if(sendBtn){openSendModal();return;}
   const btn=e.target.closest('.fb-save');if(!btn)return;
   const id=btn.dataset.fb, t=document.getElementById('fb-'+id), st=document.getElementById('fbs-'+id);
   let ok=true;try{localStorage.setItem(fbKey(id),t.value);}catch(err){ok=false;}
-  st.textContent=ok?'Saved — kept in this browser only; nothing is sent anywhere yet.':'Could not save in this browser — please copy your note before leaving.';
+  st.textContent=ok?'Saved in this browser — press “Send to Rob” to share.':'Could not save in this browser — please copy your note before leaving.';
   st.style.color=ok?'var(--amber)':'var(--text-secondary)';
 });
 
@@ -711,16 +848,110 @@ document.getElementById('advance').onclick=()=>{
 };
 document.getElementById('reset').onclick=()=>{if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
+// ---- Send-to-Rob (F-597 addendum) ----
+// Caroline's notes genuinely email to Rob via the thin /v1/tribunal/expert-notes endpoint.
+// Gathers EVERY answered question across all matters/views (FB_QUESTIONS is complete at load),
+// keeps the localStorage draft, and reports real send/error states.
+const API_BASE='https://vac-system-production.up.railway.app';
+const SENDER_KEY='vac-fb-sender';
+let sendInFlight=false, sendOpener=null;   // guard double-submit; restore focus on close
+function gatherNotes(){
+  const out=[];
+  Object.keys(FB_QUESTIONS).forEach(id=>{
+    const el=document.getElementById('fb-'+id);
+    let v=el?el.value:'';
+    if(!v){try{v=localStorage.getItem(fbKey(id))||'';}catch(e){}}
+    v=(v||'').trim();
+    if(v)out.push({id,question:FB_QUESTIONS[id],answer:v});
+  });
+  return out;
+}
+function openSendModal(){
+  sendOpener=document.activeElement;   // restore focus here on close (a11y)
+  const notes=gatherNotes();
+  const intro=document.getElementById('sendIntro');
+  const go=document.getElementById('sendGo');
+  document.getElementById('sendErr').hidden=true;
+  const status=document.getElementById('sendStatus');status.textContent='';status.style.color='var(--text-tertiary)';
+  go.disabled=!notes.length;go.textContent='Send to Rob';
+  try{const s=JSON.parse(localStorage.getItem(SENDER_KEY)||'{}');document.getElementById('sendName').value=s.name||'';document.getElementById('sendEmail').value=s.email||'';}catch(e){}
+  intro.textContent=notes.length
+    ? `This emails your ${notes.length} note${notes.length>1?'s':''} (each with its question) straight to Rob. Your notes also stay saved in this browser.`
+    : 'No answers yet — type a note in any “For Caroline” box first, then send.';
+  document.getElementById('sendModal').hidden=false;document.body.style.overflow='hidden';
+  setTimeout(()=>document.getElementById('sendName').focus(),30);
+}
+function closeSendModal(){
+  document.getElementById('sendModal').hidden=true;document.body.style.overflow='';
+  if(sendOpener&&sendOpener.focus){try{sendOpener.focus();}catch(e){}}
+}
+async function doSend(){
+  if(sendInFlight)return;   // guard double-submit (could double-email Rob / mark stale notes sent)
+  const name=document.getElementById('sendName').value.trim();
+  const email=document.getElementById('sendEmail').value.trim();
+  const err=document.getElementById('sendErr');
+  const emailOK=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+  if(!name){err.textContent='Please add your name.';err.hidden=false;document.getElementById('sendName').focus();return;}
+  if(!emailOK){err.textContent='Please enter a valid email so Rob can reply.';err.hidden=false;document.getElementById('sendEmail').focus();return;}
+  err.hidden=true;
+  const notes=gatherNotes();
+  if(!notes.length)return;
+  const go=document.getElementById('sendGo'),status=document.getElementById('sendStatus');
+  sendInFlight=true;go.disabled=true;go.textContent='Sending…';status.style.color='var(--text-tertiary)';status.textContent='';
+  try{localStorage.setItem(SENDER_KEY,JSON.stringify({name,email}));}catch(e){}
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),15000);   // don't hang on 'Sending…' if Railway stalls
+  try{
+    const matter=(cur&&cur.title)?cur.title:'VAC tribunal — expert notes';
+    const resp=await fetch(API_BASE+'/v1/tribunal/expert-notes',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({from_name:name,from_email:email,matter,answers:notes}),signal:ctrl.signal});
+    if(!resp.ok)throw new Error('status '+resp.status);
+    status.style.color='var(--success)';status.textContent='Sent to Rob ✓';
+    go.textContent='Sent ✓';
+    notes.forEach(n=>{const s=document.getElementById('fbs-'+n.id);if(s){s.textContent='Sent to Rob ✓';s.style.color='var(--success)';}});
+    setTimeout(closeSendModal,1500);
+  }catch(e){
+    status.style.color='var(--text-secondary)';
+    status.textContent='Couldn’t send — your notes are still saved here. Try again in a moment.';
+    go.disabled=false;go.textContent='Send to Rob';
+  }finally{
+    clearTimeout(timer);sendInFlight=false;
+  }
+}
+(function(){
+  const modal=document.getElementById('sendModal');
+  document.getElementById('sendClose').addEventListener('click',closeSendModal);
+  document.getElementById('sendCancel').addEventListener('click',closeSendModal);
+  document.getElementById('sendGo').addEventListener('click',doSend);
+  modal.addEventListener('click',e=>{if(e.target===modal)closeSendModal();});
+  // Escape + simple focus trap while the modal is open
+  document.addEventListener('keydown',e=>{
+    if(modal.hidden)return;
+    if(e.key==='Escape'){closeSendModal();return;}
+    if(e.key==='Tab'){
+      const f=modal.querySelectorAll('button,input');if(!f.length)return;
+      const first=f[0],last=f[f.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+    }
+  });
+})();
+
 function showReceipt(){
   const now=new Date();
+  const cf=isCfree();   // custodian-free Option C (lease): real authority proof, but settlement is a simulated concept
+  const headEl=document.querySelector('.receipt-head h3');
+  if(headEl)headEl.textContent=cf?'Authority proof sealed — settlement simulated':'Decision sealed & lodged';
+  const statusTxt=cf?'AUTHORITY SEALED · SETTLEMENT SIMULATED (CONCEPT)':'SEALED · LODGED · AUDITABLE';
   document.getElementById('receiptKv').innerHTML=`
     <dt>Matter</dt><dd class="hl">${cur.matter}</dd>
     <dt>Authority token</dt><dd class="hl">${REAL_TOKEN.jti} <span class="real-badge">REAL · LIVE</span></dd>
     <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
     <dt>Trust score</dt><dd>${REAL_TOKEN.trust}</dd>
-    <dt>Lodged</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
+    <dt>${cf?'Authority sealed':'Lodged'}</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
     <dt>Authorised by</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · verified live (VAC)':'Verified human · in the loop'}</dd>
-    <dt>Status</dt><dd class="hl" style="color:var(--success)">SEALED · LODGED · AUDITABLE</dd>`;
+    ${cf?'<dt>Settlement</dt><dd class="hl" style="color:var(--amber)">SIMULATED · NO FUNDS MOVED</dd>':''}
+    <dt>Status</dt><dd class="hl" style="color:${cf?'var(--amber)':'var(--success)'}">${statusTxt}</dd>`;
   const GENERIC_VAC_AUDIT=[
     ['00:00','matter opened · policy-carrying packet attached'],
     ['00:01','parties verified · authority chain nodes issued'],
@@ -735,13 +966,16 @@ function showReceipt(){
     ['00:03','human authorisation recorded'],
     ['00:03','decision signed (Ed25519) · lodged to audit chain']
   ];
-  const log=isVac()?(cur.vacAudit||GENERIC_VAC_AUDIT):(cur.todayAudit||GENERIC_TODAY_AUDIT);
+  const log=cf?(cur.cfAudit||GENERIC_VAC_AUDIT):isVac()?(cur.vacAudit||GENERIC_VAC_AUDIT):(cur.todayAudit||GENERIC_TODAY_AUDIT);
+  const footer=cf
+    ?'This token is a genuine, signed VAC authority proof, minted from the production backend and independently verifiable. The settlement in this concept flow is simulated — no funds moved — and the matter events are illustrative (see the concept note above the steps). Production settlement would run on a real-time rail (PayTo/NPP) or a regulated tokenised-AUD escrow; VAC issues the authority proof and is never the money custodian.'
+    :isVac()
+       ?'This token was minted from the VAC production backend and is genuinely signed and verifiable. The matter events in this audit trail are simulated — the reimagined flow is a proposed forward path (see the note above the steps).'
+       :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.';
   document.getElementById('auditLog').innerHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;">AUDIT TRAIL</div>'+
     log.map(l=>`<div class="audit-line"><span class="t">${l[0]}</span><span>${l[1]}</span></div>`).join('')+
     `<a class="verify-link" href="${REAL_TOKEN.verify}" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
-     <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${isVac()
-       ?'This token was minted from the VAC production backend and is genuinely signed and verifiable. The matter events in this audit trail are simulated — the reimagined flow is a proposed forward path (see the note above the steps).'
-       :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.'}</div>`;
+     <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${footer}</div>`;
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
 }
 
