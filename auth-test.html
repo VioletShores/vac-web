@@ -109,6 +109,16 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .face-oval-ring { fill: none; stroke: var(--purple); stroke-width: 2; stroke-dasharray: 8 4; opacity: 0.6; transition: all 0.3s; }
 .camera-container.face-detected .face-oval-ring { stroke: var(--success); stroke-dasharray: none; opacity: 0.8; }
 .face-oval-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; }
+/* Hand-capture guide — mirrors the face oval, shows WHERE to hold the hand during the
+   gesture step (in front of the face, the server-side hand_near_face anti-spoof zone).
+   Sized as a % of the camera frame so it visually IS the normalized zone the JS checks.
+   Dashed teal until the hand's centroid enters the zone, then solid-green (like the oval). */
+.hand-zone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68%; height: 84%; pointer-events: none; display: none; z-index: 5; }
+.camera-container.show-hand-zone .hand-zone { display: block; }
+.hand-zone-ring { fill: none; stroke: var(--teal, #00cec9); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
+.camera-container.hand-in-zone .hand-zone-ring { stroke: var(--success); stroke-dasharray: none; opacity: 0.9; }
+.hand-zone-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; transition: color 0.3s; }
+.camera-container.hand-in-zone .hand-zone-label { color: var(--success); }
 
 /* Countdown ring */
 .countdown-ring-wrap { width: clamp(72px, 18vw, 100px); height: clamp(72px, 18vw, 100px); margin: 4px auto; position: relative; }
@@ -491,6 +501,15 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 <svg viewBox="0 0 180 240" width="100%" height="100%">
                     <ellipse class="face-oval-ring" cx="90" cy="120" rx="75" ry="105"/>
                 </svg>
+            </div>
+            <!-- Hand-capture guide: shown only during the gesture step. Tells the user
+                 WHERE to hold the hand (in front of the face) — the same near-face zone
+                 the server enforces for the hand_near_face anti-spoof property. -->
+            <div class="hand-zone" id="handZone">
+                <svg viewBox="0 0 180 240" width="100%" height="100%">
+                    <ellipse class="hand-zone-ring" cx="90" cy="120" rx="88" ry="116"/>
+                </svg>
+                <div class="hand-zone-label" id="handZoneLabel">✋ Hold hand in front of face</div>
             </div>
             <div class="rec-indicator" id="recIndicator" style="display:none;">
                 <span class="rec-dot"></span>REC
@@ -2189,6 +2208,15 @@ function beginRecording() {
                 lamp.style.color = ''; lamp.style.background = 'rgba(124,92,252,0.18)';
                 lamp.style.borderColor = 'var(--purple)'; lamp.style.boxShadow = '0 0 14px rgba(124,92,252,0.35)';
                 lamp.style.animation = 'pulse 1s ease infinite';
+            } else if (state === 'ready') {
+                // Green "in position" — mirrors the face oval flipping solid-green: the hand is in
+                // the near-face zone but a stable finger count isn't registering yet (keep the ✋
+                // glyph, not the ✓), so it reads as "good spot, hold it" not "complete".
+                box.style.opacity = '1';
+                lamp.textContent = restIcon;
+                lamp.style.color = '#22c55e'; lamp.style.background = 'rgba(34,197,94,0.18)';
+                lamp.style.borderColor = '#22c55e'; lamp.style.boxShadow = '0 0 14px rgba(34,197,94,0.45)';
+                lamp.style.animation = 'none';
             } else { // pending/dim
                 box.style.opacity = '0.4';
                 lamp.textContent = restIcon;
@@ -2248,13 +2276,28 @@ function beginRecording() {
             // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
             // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
             if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” — at the same time'; promptEl.style.color = 'var(--text-primary)'; }
-            // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
-            // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
-            var _coachSub = opts.voiceHelp ? '' : _coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
-            if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
-            setLamp(gLamp, gWrap, opts.gestureLive ? 'active' : 'pending', '✋');
-            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
             setBigNumber(true, N);
+            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
+            if (!opts.handNear) {
+                // No hand, or hand outside the in-front-of-face capture zone. THIS is the silent-failure
+                // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
+                // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
+                // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
+                if (subEl) subEl.textContent = '✋ Hold your hand up in front of your face';
+                setLamp(gLamp, gWrap, 'pending', '✋');
+            } else if (!opts.gestureLive) {
+                // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
+                // ("good spot") + hold-steady guidance, so the user knows the position is right.
+                if (subEl) subEl.textContent = 'Hand detected — hold steady.';
+                setLamp(gLamp, gWrap, 'ready', '✋');
+            } else {
+                // Fingers live in-zone — main's existing live-sensing lamp + adaptive co-occurrence coach.
+                // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
+                // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
+                var _coachSub = opts.voiceHelp ? '' : _coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
+                if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
+                setLamp(gLamp, gWrap, 'active', '✋');
+            }
         }
     }
 
@@ -2674,6 +2717,23 @@ function beginRecording() {
         }
     }
 
+    // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to
+    // give the user live feedback (the server still recomputes hand_near_face — this
+    // never gates auth and does NOT relax the constraint). The face sits in the central
+    // oval guide, so "hand in front of face" == the hand's landmark centroid falls inside
+    // the central capture ellipse. Centered + centroid-based, so it's mirror-invariant
+    // (the preview is scaleX(-1)). Kept generous on purpose: a frontend stricter than the
+    // backend would frustrate; the goal is just to stop the SILENT out-of-zone failures.
+    // RX/RY match the .hand-zone visual guide (68% x 84% of frame => radii 0.34 x 0.42).
+    function _handNearFaceZone(lm) {
+        if (!lm || !lm.length) return false;
+        let cx = 0, cy = 0;
+        for (const p of lm) { cx += p.x; cy += p.y; }
+        cx /= lm.length; cy /= lm.length;
+        const dx = (cx - 0.5) / 0.34, dy = (cy - 0.5) / 0.42;
+        return (dx * dx + dy * dy) <= 1;
+    }
+
     function _drawHandSkeleton(videoEl, lm){
         const cv=document.getElementById('handOverlay');
         if(!cv||!videoEl) return;
@@ -2694,7 +2754,16 @@ function beginRecording() {
         const videoEl = document.getElementById('videoPreviewRec');
         const detected = FingerDetector.detect(videoEl);
         _drawHandSkeleton(videoEl, FingerDetector.landmarks);
-        try { document.getElementById('cameraBoxRec').classList.toggle('hand-visible', !!FingerDetector.landmarks); } catch(_){}
+        // Hand presence + near-face zone (advisory feedback only; server still gates).
+        // detected === -1 means no hand in frame; landmarks null otherwise.
+        var _handPresent = !!FingerDetector.landmarks;
+        var _handNear = _handPresent && _handNearFaceZone(FingerDetector.landmarks);
+        try {
+            var _camBox = document.getElementById('cameraBoxRec');
+            _camBox.classList.toggle('hand-visible', _handPresent);
+            _camBox.classList.add('show-hand-zone');                 // reveal the hand guide during the gesture step
+            _camBox.classList.toggle('hand-in-zone', _handNear);     // green when the hand reaches the near-face zone
+        } catch(_){}
         // S110: hand-too-close / partially-out-of-frame guard (Rob — last digit
         // failed until he pulled his hand back so the whole hand was in frame).
         // MediaPipe needs all 21 landmarks visible to count reliably; if the hand
@@ -2976,6 +3045,8 @@ function beginRecording() {
                 digit: _curDigit,
                 gestureDone: _qaGestureLatched,
                 gestureLive: (detected > 0),   // SHOW-AS-YOU-SAY: fingers visible NOW (drives the live ✋ lamp)
+                handPresent: _handPresent,     // hand visible in frame at all
+                handNear: _handNear,           // hand inside the near-face capture zone
                 gesturePct: _gPct,
                 voiceOn: (_speechMode !== 'off'),
                 voiceDone: !!speechReady[currentDigitIndex],
@@ -3335,7 +3406,7 @@ function beginRecording() {
 // Recording complete → upload to backend for real verification
 async function onRecordingComplete() {
     document.getElementById('recIndicator').style.display = 'none';
-    document.getElementById('cameraBoxRec').classList.remove('recording');
+    document.getElementById('cameraBoxRec').classList.remove('recording', 'show-hand-zone', 'hand-in-zone', 'hand-visible');
     stopAudioMonitor();
 
     // Stop camera
@@ -3665,6 +3736,7 @@ function resetGuidedUI() {
     var w = document.getElementById('vacSayWord'); if (w) w.textContent = '';
     var h = document.getElementById('vacSayHint'); if (h) h.textContent = '';
     var r = document.getElementById('digitStripRow'); if (r) r.innerHTML = '';
+    try { document.getElementById('cameraBoxRec').classList.remove('show-hand-zone', 'hand-in-zone', 'hand-visible'); } catch(_) {}  // clear the hand-capture guide between sessions
     try { _hideNoMicRecovery(); } catch(_) {}   // clear any stale no-mic recovery panel from a prior run
     window.__vacNoMicDismissed = false;          // fresh per session — re-offer recovery if the mic is still out
     window.__vacVoiceSkipped = false;            // fresh per session — don't carry a prior "skip voice" choice
