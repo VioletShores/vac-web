@@ -405,6 +405,15 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 </svg>
                 <div class="face-oval-label" id="faceOvalLabel">Position face in oval</div>
             </div>
+            <!-- Hand-capture guide for the PRE-FLIGHT hand test — identical to the one in the
+                 recording container, so the practice screen prepares the user for the same
+                 in-front-of-face constraint. Shown via show-hand-zone on #cameraBox. -->
+            <div class="hand-zone" id="handZonePreflight">
+                <svg viewBox="0 0 180 240" width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;">
+                    <ellipse class="hand-zone-ring" cx="90" cy="120" rx="90" ry="120"/>
+                </svg>
+                <div class="hand-zone-label">✋ Hold hand in front of face</div>
+            </div>
             <div class="camera-label" id="cameraLabel">AWAITING CAMERA</div>
         </div>
     </div>
@@ -1543,6 +1552,33 @@ let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 
+// Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
+// user live feedback (the server still recomputes hand_near_face — this never gates auth and
+// does NOT relax the constraint, and is NOT in any advance gate). Shared by BOTH the pre-flight
+// hand test (runAVFrame) and the real gesture step (runDetectionLoop) so the user practises the
+// SAME constraint they'll be held to — one source of truth, no drift.
+// ZONE: a central ellipse centered at (0.5,0.5) with normalized radii RX x RY that EXACTLY
+// match the drawn .hand-zone guide (div 64% x 80% of frame => radii 0.32 x 0.40, svg
+// preserveAspectRatio="none" so the ring maps 1:1). Mirror-invariant (centered), so the
+// scaleX(-1) preview is fine.
+// TEST: the old centroid-of-21-landmarks average let a hand visibly OUTSIDE the oval still read
+// inside (the average sat near center even with the hand off to the side). Now require the hand
+// to be GENUINELY inside: the wrist AND a majority of fingertips must each fall inside the
+// ellipse, so a hand outside the drawn oval reliably yields false and the prompt fires.
+const _HAND_ZONE_RX = 0.32, _HAND_ZONE_RY = 0.40;   // === the .hand-zone div (64% x 80%)
+function _ptInHandZone(p) {
+    const dx = (p.x - 0.5) / _HAND_ZONE_RX, dy = (p.y - 0.5) / _HAND_ZONE_RY;
+    return (dx * dx + dy * dy) <= 1;
+}
+function _handNearFaceZone(lm) {
+    if (!lm || lm.length < 21) return false;
+    if (!_ptInHandZone(lm[0])) return false;        // wrist must be inside
+    const tips = [4, 8, 12, 16, 20];                // thumb..pinky fingertips
+    let inside = 0;
+    for (const t of tips) { if (_ptInHandZone(lm[t])) inside++; }
+    return inside >= 3;                             // majority of fingertips inside
+}
+
 function startAVChecks() {
     // F-563 (3): RESET every pre-flight pill to the un-ticked "checking" state on EVERY entry.
     // On re-auth the Light/Mic/Hand pills kept the prior session's ✓ (same stale-state-on-re-entry
@@ -1654,6 +1690,12 @@ function startAVChecks() {
                 const n = FingerDetector.detect(pv);          // warms the model + gives landmarks
                 const lm = FingerDetector.landmarks;
                 _avDrawHand(pv, lm);
+                // Show the SAME wider dotted oval the real gesture step uses (hides #faceOval),
+                // so the practice screen trains the in-front-of-face constraint.
+                const _camBox = document.getElementById('cameraBox');
+                _camBox.classList.add('show-hand-zone');
+                const _near = !!lm && _handNearFaceZone(lm);   // SHARED check — same as the real screen
+                _camBox.classList.toggle('hand-in-zone', _near);
                 if (avChecks.hand) {
                     // Already passed — LATCHED. Keep the skeleton drawing for feedback,
                     // but don't nag the user to re-show their hand once they've proven it.
@@ -1664,9 +1706,14 @@ function startAVChecks() {
                     for (const p of lm){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
                     const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
                     const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
-                    if (clipped || tooBig) { setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
+                    if (!_near) {
+                        // Hand visible but OUTSIDE the in-front-of-face zone — the real constraint.
+                        // Prompt + keep the Hand pill un-ticked so Start stays gated until it's in.
+                        setAVStatus('hand','warn','Hand: in front of face'); document.getElementById('avHandHint').textContent='✋ Hold your hand up in front of your face'; document.getElementById('avHandHint').style.display='block';
+                    } else if (clipped || tooBig) { setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
                     else { setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none'; }
                 } else {
+                    _camBox.classList.remove('hand-in-zone');
                     document.getElementById('avHandHint').style.display='block';
                     document.getElementById('avHandHint').textContent='Hold your hand up — we\u2019ll show you it being tracked';
                 }
@@ -1763,7 +1810,7 @@ function updateAVReady() {
         } else if (!avChecks.mic) {
             guide.textContent = 'Step 2 of 3 — say a few words to test your microphone';
         } else if (!avChecks.hand) {
-            guide.textContent = 'Step 3 of 3 — hold your whole hand up in view (you\u2019ll see it tracked)';
+            guide.textContent = 'Step 3 of 3 — hold your hand up in front of your face, inside the oval (you\u2019ll see it tracked)';
         } else {
             guide.textContent = 'All set \u2713  You\u2019re ready to verify';
             guide.style.color = 'var(--success)';
@@ -1800,6 +1847,9 @@ function stopAVChecks() {
     if (avAudioCtx) { avAudioCtx.close().catch(() => {}); avAudioCtx = null; }
     avAnalyser = null;
     avPrevOval = null;
+    // Clear the pre-flight hand-zone guide so #faceOval returns and the green ring
+    // doesn't linger when the pre-flight stops (leaving step 1 / re-auth).
+    try { document.getElementById('cameraBox').classList.remove('show-hand-zone', 'hand-in-zone'); } catch(_) {}
 }
 
 function retryAVSetup() {
@@ -2720,32 +2770,6 @@ function beginRecording() {
                 banner.style.display = 'none';
             }
         }
-    }
-
-    // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to
-    // give the user live feedback (the server still recomputes hand_near_face — this
-    // never gates auth and does NOT relax the constraint, and is NOT in any advance gate).
-    // ZONE: a central ellipse centered at (0.5,0.5) with normalized radii RX x RY that
-    // EXACTLY match the drawn .hand-zone guide (div 64% x 80% of frame => radii 0.32 x 0.40,
-    // svg preserveAspectRatio="none" so the ring maps 1:1). Mirror-invariant (centered),
-    // so the scaleX(-1) preview is fine.
-    // TEST: the old centroid-of-21-landmarks average let a hand visibly OUTSIDE the oval
-    // still read inside (the average sat near center even when the hand was off to the side).
-    // Now require the hand to be GENUINELY inside: the wrist AND a majority of fingertips
-    // must each fall inside the ellipse. A hand outside the drawn oval reliably yields false,
-    // so the "hold your hand up in front of your face" prompt actually fires.
-    const _HAND_ZONE_RX = 0.32, _HAND_ZONE_RY = 0.40;   // === the .hand-zone div (64% x 80%)
-    function _ptInHandZone(p) {
-        const dx = (p.x - 0.5) / _HAND_ZONE_RX, dy = (p.y - 0.5) / _HAND_ZONE_RY;
-        return (dx * dx + dy * dy) <= 1;
-    }
-    function _handNearFaceZone(lm) {
-        if (!lm || lm.length < 21) return false;
-        if (!_ptInHandZone(lm[0])) return false;        // wrist must be inside
-        const tips = [4, 8, 12, 16, 20];                // thumb..pinky fingertips
-        let inside = 0;
-        for (const t of tips) { if (_ptInHandZone(lm[t])) inside++; }
-        return inside >= 3;                             // majority of fingertips inside
     }
 
     function _drawHandSkeleton(videoEl, lm){
