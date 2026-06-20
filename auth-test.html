@@ -109,12 +109,17 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .face-oval-ring { fill: none; stroke: var(--purple); stroke-width: 2; stroke-dasharray: 8 4; opacity: 0.6; transition: all 0.3s; }
 .camera-container.face-detected .face-oval-ring { stroke: var(--success); stroke-dasharray: none; opacity: 0.8; }
 .face-oval-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; }
-/* Hand-capture guide — mirrors the face oval, shows WHERE to hold the hand during the
-   gesture step (in front of the face, the server-side hand_near_face anti-spoof zone).
-   Sized as a % of the camera frame so it visually IS the normalized zone the JS checks.
-   Dashed teal until the hand's centroid enters the zone, then solid-green (like the oval). */
-.hand-zone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 68%; height: 84%; pointer-events: none; display: none; z-index: 5; }
+/* Hand-capture guide — shows WHERE to hold the hand during the gesture step (in front
+   of the face, the server-side hand_near_face anti-spoof zone). The div is EXACTLY the
+   zone box: width 64% = 2*RX, height 80% = 2*RY of the frame, so its inscribed ellipse
+   has normalized radii 0.32 x 0.40 — identical to the _handNearFaceZone() check. The
+   SVG uses preserveAspectRatio="none" + overflow:visible so the drawn ring maps 1:1 to
+   that box (no letterboxing). Dashed teal until the hand is inside, then solid-green. */
+.hand-zone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64%; height: 80%; pointer-events: none; display: none; z-index: 5; }
 .camera-container.show-hand-zone .hand-zone { display: block; }
+/* One guide at a time: hide the face oval while the hand guide is active so the user
+   isn't looking at two concentric dotted ellipses during the gesture step. */
+.camera-container.show-hand-zone .face-oval { display: none; }
 .hand-zone-ring { fill: none; stroke: var(--teal, #00cec9); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
 .camera-container.hand-in-zone .hand-zone-ring { stroke: var(--success); stroke-dasharray: none; opacity: 0.9; }
 .hand-zone-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; transition: color 0.3s; }
@@ -506,8 +511,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                  WHERE to hold the hand (in front of the face) — the same near-face zone
                  the server enforces for the hand_near_face anti-spoof property. -->
             <div class="hand-zone" id="handZone">
-                <svg viewBox="0 0 180 240" width="100%" height="100%">
-                    <ellipse class="hand-zone-ring" cx="90" cy="120" rx="88" ry="116"/>
+                <svg viewBox="0 0 180 240" width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;">
+                    <ellipse class="hand-zone-ring" cx="90" cy="120" rx="90" ry="120"/>
                 </svg>
                 <div class="hand-zone-label" id="handZoneLabel">✋ Hold hand in front of face</div>
             </div>
@@ -2719,19 +2724,28 @@ function beginRecording() {
 
     // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to
     // give the user live feedback (the server still recomputes hand_near_face — this
-    // never gates auth and does NOT relax the constraint). The face sits in the central
-    // oval guide, so "hand in front of face" == the hand's landmark centroid falls inside
-    // the central capture ellipse. Centered + centroid-based, so it's mirror-invariant
-    // (the preview is scaleX(-1)). Kept generous on purpose: a frontend stricter than the
-    // backend would frustrate; the goal is just to stop the SILENT out-of-zone failures.
-    // RX/RY match the .hand-zone visual guide (68% x 84% of frame => radii 0.34 x 0.42).
-    function _handNearFaceZone(lm) {
-        if (!lm || !lm.length) return false;
-        let cx = 0, cy = 0;
-        for (const p of lm) { cx += p.x; cy += p.y; }
-        cx /= lm.length; cy /= lm.length;
-        const dx = (cx - 0.5) / 0.34, dy = (cy - 0.5) / 0.42;
+    // never gates auth and does NOT relax the constraint, and is NOT in any advance gate).
+    // ZONE: a central ellipse centered at (0.5,0.5) with normalized radii RX x RY that
+    // EXACTLY match the drawn .hand-zone guide (div 64% x 80% of frame => radii 0.32 x 0.40,
+    // svg preserveAspectRatio="none" so the ring maps 1:1). Mirror-invariant (centered),
+    // so the scaleX(-1) preview is fine.
+    // TEST: the old centroid-of-21-landmarks average let a hand visibly OUTSIDE the oval
+    // still read inside (the average sat near center even when the hand was off to the side).
+    // Now require the hand to be GENUINELY inside: the wrist AND a majority of fingertips
+    // must each fall inside the ellipse. A hand outside the drawn oval reliably yields false,
+    // so the "hold your hand up in front of your face" prompt actually fires.
+    const _HAND_ZONE_RX = 0.32, _HAND_ZONE_RY = 0.40;   // === the .hand-zone div (64% x 80%)
+    function _ptInHandZone(p) {
+        const dx = (p.x - 0.5) / _HAND_ZONE_RX, dy = (p.y - 0.5) / _HAND_ZONE_RY;
         return (dx * dx + dy * dy) <= 1;
+    }
+    function _handNearFaceZone(lm) {
+        if (!lm || lm.length < 21) return false;
+        if (!_ptInHandZone(lm[0])) return false;        // wrist must be inside
+        const tips = [4, 8, 12, 16, 20];                // thumb..pinky fingertips
+        let inside = 0;
+        for (const t of tips) { if (_ptInHandZone(lm[t])) inside++; }
+        return inside >= 3;                             // majority of fingertips inside
     }
 
     function _drawHandSkeleton(videoEl, lm){
