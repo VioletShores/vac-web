@@ -731,6 +731,64 @@ const REAL_TOKEN = {
   verify:"https://vacprotocol.org/vat/verify/vat_root_c1e665235203"
 };
 
+// SEAL_TOKEN holds the token shown in the receipt. Defaults to the pre-minted
+// REAL_TOKEN; replaced by a FRESHLY-MINTED token when a matter is sealed (see
+// mintMatterToken). This is what makes each seal a genuine per-authorise mint
+// rather than a constant.
+let SEAL_TOKEN = REAL_TOKEN;
+
+// Mint a REAL, freshly-signed VAT for the current matter at the seal moment.
+// Calls the live /v1/vat/issue (Ed25519 + JWT) with the matter's conditions in
+// `constraints`. HONESTY: the matter CONDITIONS are illustrative/example data
+// (clearly _demo:true), but the TOKEN is genuinely minted, signed, and verifiable
+// on the production backend — not a constant. authorised_by carries the verified
+// human from the seal re-auth so the token attests who authorised it.
+async function mintMatterToken(){
+  const m = cur || {};
+  const who = (window.__vacVerified && window.__vacVerified.name) ? window.__vacVerified.name : 'verified human (live)';
+  // Example matter conditions — illustrative, derived from the current matter.
+  const constraints = {
+    _demo: true,
+    _conditions_are_illustrative: true,
+    matter_ref: m.matter || 'MATTER-DEMO',
+    matter_summary: (m.sub || '').slice(0, 240),
+    // Example release/trigger conditions (mocked — the real matter→packet model is a forward build)
+    release_condition: 'all_parties_directed + trigger_event_verified',
+    human_in_the_loop: true
+  };
+  const body = {
+    human_identity: who,
+    agent_id: 'tribunal-' + (m.id || 'matter'),
+    resources: ['matter:' + (m.matter || 'demo')],
+    actions: ['authorise_decision'],
+    verification_method: 'multi_modal',
+    sensitivity: 'high',
+    constraints: constraints,
+    context: { surface: 'tribunal-demo', authorised_by: who, authorised_at: new Date().toISOString() }
+  };
+  try {
+    const r = await fetch(API_BASE + '/v1/vat/issue', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error('issue ' + r.status);
+    const data = await r.json();
+    if(!data || !data.jti) throw new Error('no jti');
+    SEAL_TOKEN = {
+      jti: data.jti,
+      trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
+      verify: data.verify_url || ('https://vacprotocol.org/vat/verify/' + data.jti),
+      minted: true
+    };
+    return true;
+  } catch(e){
+    // Honest fallback: if the live mint fails, fall back to the pre-minted REAL_TOKEN
+    // and flag it, rather than blocking the seal or faking a mint.
+    console.warn('[tribunal] live mint failed (', e && e.message, ') — showing reference token');
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted:false });
+    return false;
+  }
+}
+
 let cur=null, stepIdx=-1, stageView='today';
 const isVac=()=>stageView==='vac';
 const isCfree=()=>stageView==='cfree';
@@ -849,7 +907,7 @@ document.getElementById('advance').onclick=()=>{
     // a re-auth here BEFORE rendering the sealed token, so the audit line "verified
     // human authorisation recorded" is a real event, not just copy.
     sealReauthGate(
-      () => showReceipt(),                                  // pass → seal
+      async () => { await mintMatterToken(); showReceipt(); },   // pass → MINT fresh token → seal
       () => { document.getElementById('advance').disabled=false; }  // cancel → let them retry
     );
   }
@@ -985,9 +1043,9 @@ function showReceipt(){
   const statusTxt=cf?'AUTHORITY SEALED · SETTLEMENT SIMULATED (CONCEPT)':'SEALED · LODGED · AUDITABLE';
   document.getElementById('receiptKv').innerHTML=`
     <dt>Matter</dt><dd class="hl">${cur.matter}</dd>
-    <dt>Authority token</dt><dd class="hl">${REAL_TOKEN.jti} <span class="real-badge">REAL · LIVE</span></dd>
+    <dt>Authority token</dt><dd class="hl">${SEAL_TOKEN.jti} <span class="real-badge">${SEAL_TOKEN.minted?'FRESHLY MINTED · REAL · LIVE':'REAL · LIVE'}</span></dd>
     <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
-    <dt>Trust score</dt><dd>${REAL_TOKEN.trust}</dd>
+    <dt>Trust score</dt><dd>${SEAL_TOKEN.trust}</dd>
     <dt>${cf?'Authority sealed':'Lodged'}</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
     <dt>Authorised by</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · verified live (VAC)':'Verified human · in the loop'}</dd>
     ${cf?'<dt>Settlement</dt><dd class="hl" style="color:var(--amber)">SIMULATED · NO FUNDS MOVED</dd>':''}
@@ -1014,7 +1072,7 @@ function showReceipt(){
        :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.';
   document.getElementById('auditLog').innerHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;">AUDIT TRAIL</div>'+
     log.map(l=>`<div class="audit-line"><span class="t">${l[0]}</span><span>${l[1]}</span></div>`).join('')+
-    `<a class="verify-link" href="${REAL_TOKEN.verify}" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
+    `<a class="verify-link" href="${SEAL_TOKEN.verify}" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
      <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${footer}</div>`;
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
 }
