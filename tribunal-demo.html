@@ -843,9 +843,49 @@ document.getElementById('advance').onclick=()=>{
     adv.textContent = stepIdx===steps.length-1 ? 'Seal & lodge decision' : 'Next step';
   } else {
     document.getElementById('advance').disabled=true;
-    showReceipt();
+    // SEAL GATE (F-TRIBUNAL-SEAL-REAUTH-GATE): a sealed authority decision must be
+    // bound to a FRESH live human authorisation at the moment of sealing — that is
+    // the literal tribunal thesis ("did the right person authorise this"). We require
+    // a re-auth here BEFORE rendering the sealed token, so the audit line "verified
+    // human authorisation recorded" is a real event, not just copy.
+    sealReauthGate(
+      () => showReceipt(),                                  // pass → seal
+      () => { document.getElementById('advance').disabled=false; }  // cancel → let them retry
+    );
   }
 };
+
+// Re-auth gate for the seal moment. Reuses the existing live /auth verify overlay
+// (the same flow already embedded for the upfront identity step), invoked HERE at the
+// seal so the authorisation is fresh. On a verified postMessage → onPass(); on close
+// without verifying → onCancel(). NOTE: this currently triggers the full /auth verify;
+// the one-digit BOUND quick-reauth (vat-verify's flow + the freshness-controller tier
+// selection, branch s116-reauth-freshness-signal) is the planned upgrade once that
+// capture UI is factored into a shared module — tracked in F-TRIBUNAL-SEAL-REAUTH-GATE.
+function sealReauthGate(onPass, onCancel){
+  let settled=false;
+  const overlay=document.getElementById('verifyOverlay');
+  const frame=document.getElementById('voFrame');
+  function cleanup(){ window.removeEventListener('message', onMsg); }
+  function onMsg(ev){
+    if(ev.origin!==window.location.origin) return;
+    const d=ev.data||{};
+    if(d.type==='vac-auth-success'||d.type==='vac-verified'){
+      if(settled) return; settled=true;
+      window.__vacVerified={name:(d.name||'').trim()};
+      cleanup();
+      try{ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }catch(e){}
+      onPass();
+    }
+  }
+  // If the user closes the overlay without verifying, treat as cancel (don't seal).
+  const closeBtn=document.getElementById('voClose');
+  function onClose(){ if(settled) return; settled=true; cleanup(); if(closeBtn) closeBtn.removeEventListener('click', onClose); onCancel(); }
+  if(closeBtn) closeBtn.addEventListener('click', onClose);
+  window.addEventListener('message', onMsg);
+  // Open the live verify overlay at the seal moment.
+  frame.src=VERIFY_SRC; overlay.hidden=false; document.body.style.overflow='hidden';
+}
 document.getElementById('reset').onclick=()=>{if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
 // ---- Send-to-Rob (F-597 addendum) ----
