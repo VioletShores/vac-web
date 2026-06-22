@@ -1580,9 +1580,9 @@ init();
         face_embedding: p.embedding || undefined,
         face_embedding_model: (window.VACFaceEmbed && window.VACFaceEmbed.MODEL_ID) || undefined,
         face_still_b64: p.stillB64,
-        face_still_ts_ms: p.stillTs,
-        audio_b64: p.clipB64 || undefined,
-        audio_mime: p.clipMime || undefined,
+        still_ts_ms: p.stillTs,
+        spoken_audio_b64: p.clipB64 || undefined,
+        audio_mimetype: p.clipMime || undefined,
         cooccur_ms: p.cooccurMs
       });
       if (!qr.notDeployed) return { pass: !!(qr.ok && qr.data && qr.data.authenticated), resp: qr };
