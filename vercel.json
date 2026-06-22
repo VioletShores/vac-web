@@ -173,12 +173,20 @@
       "destination": "/finger-test.html"
     },
     {
-      "source": "/auth-test",
-      "destination": "/auth-test.html"
-    },
-    {
       "source": "/face-embed-test",
       "destination": "/face-embed-test.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/auth-test",
+      "destination": "/auth",
+      "permanent": true
+    },
+    {
+      "source": "/auth-test.html",
+      "destination": "/auth",
+      "permanent": true
     }
   ],
   "headers": [

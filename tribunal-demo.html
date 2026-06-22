@@ -980,15 +980,16 @@ function showReceipt(){
 }
 
 // ---- Live VAC identity step (F-577) ----
-// Embed the single auth-test verify flow in an iframe and listen for its existing
+// Embed the single canonical /auth verify flow in an iframe and listen for its existing
 // success postMessage; on success, reveal the walkthrough. No verify logic is
-// duplicated here, so ongoing auth-test / F-577 fixes propagate automatically.
+// duplicated here, so ongoing /auth / F-577 fixes propagate automatically.
+// (S116: /auth-test was consolidated into /auth — this points at the canonical page now.)
 (function(){
   const gate=document.getElementById('idGate');
   const walkBody=document.getElementById('walkBody');
   const overlay=document.getElementById('verifyOverlay');
   const frame=document.getElementById('voFrame');
-  const VERIFY_SRC='/auth-test.html';
+  const VERIFY_SRC='/auth.html';
   let revealed=false;
   function reveal(verified,name,score){
     if(!revealed){revealed=true;walkBody.hidden=false;}

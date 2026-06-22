@@ -3,8 +3,8 @@
  * =====================================================================
  * Computes a real 128-D face-recognition embedding (face-api.js
  * `faceRecognitionNet`, FaceNet-style) from a video/canvas/image frame, with
- * SINGLE-FACE enforcement. Shared by the enrollment pages (auth-test.html,
- * auth.html) AND the re-auth SDK (vac-auth.js) so enrollment and re-auth
+ * SINGLE-FACE enforcement. Shared by the enrollment page (auth.html) AND the
+ * re-auth SDK (vac-auth.js) so enrollment and re-auth
  * descriptors come from the IDENTICAL model + preprocessing — distances are only
  * comparable that way.
  *
