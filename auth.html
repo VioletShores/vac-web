@@ -198,11 +198,23 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .mod-score.fail { color: var(--error); }
 .mod-score.pending { color: var(--text-quaternary); }
 .mod-result { flex-wrap: wrap; }
-.mod-info { font-size: 16px; color: var(--text-tertiary); cursor: pointer; padding: 6px 8px; min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: color 0.2s; -webkit-tap-highlight-color: transparent; }
-.mod-info:hover, .mod-info:active { color: var(--accent); }
+/* F-AUTH-UX-POLISH (1): disclosure caret — the whole .mod-result row is the hit area
+   (cursor:pointer below), the caret is the visual "click to expand" cue. ▸ → ▾ via a
+   90° rotation on the row's `.open` class — same caret glyph + rotate style as the
+   "Learn what this enables ▸" / "How we authenticated you" disclosures elsewhere on
+   the page, so the affordance reads consistently. The 32×32 min box preserves the old
+   .mod-info tap target (keeps the row >= 32px tall). */
+.mod-result { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.mod-caret { font-size: 11px; color: var(--text-tertiary); min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center; transition: transform 0.2s, color 0.2s; flex-shrink: 0; }
+.mod-result:hover .mod-caret, .mod-result:active .mod-caret { color: var(--accent); }
 .mod-desc { display: none; width: 100%; font-size: clamp(9px, 1.1vw, 11px); color: var(--text-quaternary); padding: 2px 0 4px 28px; line-height: 1.4; }
-.mod-result.show-desc .mod-desc { display: block; }
-.mod-result.show-desc .mod-info { color: var(--accent); }
+.mod-detail-expand { display: none; }
+/* A single `.open` class on the row drives ALL of it in sync — caret rotation, the static
+   .mod-desc, and the dynamic engine .mod-detail-expand — so whichever detail exists shows
+   together and the caret always reflects the row's true open/closed state. */
+.mod-result.open .mod-desc { display: block; }
+.mod-result.open .mod-detail-expand { display: block; }
+.mod-result.open .mod-caret { transform: rotate(90deg); color: var(--accent); }
 
 /* Back button */
 .btn-back { position: relative; display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-secondary); font-family: var(--mono); font-size: 12px; cursor: pointer; padding: 8px 4px; transition: color 0.2s; margin-bottom: 4px; }
@@ -635,14 +647,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <span class="toggle-arrow">▼</span>
         </div>
         <div class="modality-list" id="modalityList">
-        <div class="mod-result" id="modFace"><span class="mod-status">⏳</span><span class="mod-name">Face Liveness</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms a real person is present, not a photo or mask</span></div>
-        <div class="mod-result" id="modDidit"><span class="mod-status">⏳</span><span class="mod-name">Face Liveness (Didit)</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Independent passive-liveness check (Didit provider) on a bound still frame from the recording.</span></div>
-        <div class="mod-result" id="modDeepfake"><span class="mod-status">⏳</span><span class="mod-name">Deepfake Detection</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for AI-generated or manipulated video artifacts</span></div>
-        <div class="mod-result" id="modVoice"><span class="mod-status">⏳</span><span class="mod-name">Voiceprint</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies speech is from a live human voice, not synthesized</span></div>
-        <div class="mod-result" id="modLipSync"><span class="mod-status">⏳</span><span class="mod-name">Lip-Sync</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms lip movements match spoken audio in real time</span></div>
-        <div class="mod-result" id="modChallenge"><span class="mod-status">⏳</span><span class="mod-name">Challenge Response</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Matches spoken words against a unique server-generated phrase</span></div>
-        <div class="mod-result" id="modFinger"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies correct finger count sequence shown near the face</span></div>
-        <div class="mod-result" id="modDuress"><span class="mod-status">⏳</span><span class="mod-name">Duress Detection</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for signs of coercion — unusual eye movement, forced expression, visible tension. Silent alarm if detected.</span></div>
+        <div class="mod-result" id="modFace" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Face Liveness</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms a real person is present, not a photo or mask</span></div>
+        <div class="mod-result" id="modDidit" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Face Liveness (Didit)</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Independent passive-liveness check (Didit provider) on a bound still frame from the recording.</span></div>
+        <div class="mod-result" id="modDeepfake" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Deepfake Detection</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for AI-generated or manipulated video artifacts</span></div>
+        <div class="mod-result" id="modVoice" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Voiceprint</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies speech is from a live human voice, not synthesized</span></div>
+        <div class="mod-result" id="modLipSync" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Lip-Sync</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms lip movements match spoken audio in real time</span></div>
+        <div class="mod-result" id="modChallenge" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Challenge Response</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Matches spoken words against a unique server-generated phrase</span></div>
+        <div class="mod-result" id="modFinger" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies correct finger count sequence shown near the face</span></div>
+        <div class="mod-result" id="modDuress" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Duress Detection</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for signs of coercion — unusual eye movement, forced expression, visible tension. Silent alarm if detected.</span></div>
         </div>
     </div>
     <!-- Under the Hood — engine analysis details -->
@@ -2345,8 +2357,14 @@ function beginRecording() {
         function setBigNumber(on, n) {
             var ne = document.getElementById('vacGuidedNumber');
             if (!ne) return;
-            ne.style.display = on ? 'block' : 'none';
-            if (on) ne.textContent = n;
+            // F-AUTH-UX-POLISH (2): never substitute a default. If the digit isn't a real bound
+            // value yet (undefined/NaN/empty — e.g. digits[currentDigitIndex] not resolved), hide
+            // the big number this frame rather than paint a stray "1". The real digit appears only
+            // once it's actually bound.
+            var _valid = (typeof n === 'number' && !isNaN(n)) || (typeof n === 'string' && n !== '');
+            if (!on || !_valid) { ne.style.display = 'none'; return; }
+            ne.style.display = 'block';
+            ne.textContent = n;
         }
         if (opts.done) {
             if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
@@ -3397,7 +3415,17 @@ function beginRecording() {
                 // S111 #3: numbers are in #digitStrip above; this panel shows the countdown only.
                 var _st2 = document.getElementById('step2Title');   // F-563 UX: header moves from the greeting to the numbers phase
                 if (_st2) { _st2.textContent = 'Show the numbers'; _st2.style.color = ''; }
-                challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS IN</span><span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>';
+                // F-AUTH-UX-POLISH (2): NO bare numeric countdown here. GRACE_MS is sub-second
+                // (300ms), so Math.ceil(GRACE_MS/1000) is ALWAYS "1" and never decrements — and a
+                // big "1" rendered right under "SHOW FINGERS" reads as "show 1 finger", flashing a
+                // wrong first-digit cue for the grace frame before renderGuided paints the real
+                // digits[0]. Show a non-numeric "get ready" beat; only render the numeral if the
+                // grace is ever long enough for a real, decrementing countdown (>= 1s).
+                var _showCount = (GRACE_MS >= 1000);
+                challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">GET READY — SHOW FINGERS</span>'
+                    + (_showCount
+                        ? '<span style="font-size:32px;color:#fbbf24;font-weight:700;font-family:var(--mono);">' + graceRemaining + '</span>'
+                        : '<span style="font-size:18px;color:#fbbf24;font-weight:700;">Starting…</span>');
             }
             renderGrace();
             try { renderDigitStrip(0); } catch(_) {}
@@ -3733,10 +3761,11 @@ function updateModality(elId, status, score, modName, detail) {
         if (!existing) {
             var detDiv = document.createElement('div');
             detDiv.className = 'mod-detail-expand';
-            detDiv.style.cssText = 'width:100%;font-size:11px;color:var(--text-quaternary);padding:4px 0 6px 24px;line-height:1.5;font-family:var(--mono);display:none';
+            // F-AUTH-UX-POLISH (1): NO inline display + NO separate row onclick here. Visibility is
+            // CSS-driven off the row's `.open` class (set by toggleModRow on the row's onclick), so the
+            // engine detail expands/collapses in lockstep with the caret + the static .mod-desc.
+            detDiv.style.cssText = 'width:100%;font-size:11px;color:var(--text-quaternary);padding:4px 0 6px 24px;line-height:1.5;font-family:var(--mono)';
             el.appendChild(detDiv);
-            el.style.cursor = 'pointer';
-            el.onclick = function(){var d=this.querySelector('.mod-detail-expand');if(d)d.style.display=d.style.display==='none'?'block':'none';};
         }
         var dd = el.querySelector('.mod-detail-expand');
         if (dd) {
@@ -3841,6 +3870,7 @@ function resetModalities() {
         var scoreEl = el.querySelector('.mod-score');
         if (statusEl) { statusEl.textContent = '⏳'; statusEl.style.color = ''; }
         if (scoreEl) { scoreEl.textContent = '—'; scoreEl.className = 'mod-score pending'; }
+        el.classList.remove('open');   // F-AUTH-UX-POLISH (1): collapse rows (caret back to ▸) on re-auth
         var dd = el.querySelector('.mod-detail-expand');
         if (dd) dd.innerHTML = '';   // drop the prior run's Heard/Expected/etc. detail lines
     });
@@ -3874,8 +3904,12 @@ function toggleUnderHood() {
     arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
 }
 
-function toggleModDesc(el) {
-    el.classList.toggle('show-desc');
+// F-AUTH-UX-POLISH (1): one toggle path for the whole modality row. A single `.open` class
+// on the .mod-result drives the caret rotation AND reveals whatever detail exists (the static
+// .mod-desc and/or the dynamic engine .mod-detail-expand added by updateModality) — so the
+// caret's ▸/▾ state always matches whether the row is open, regardless of which detail is shown.
+function toggleModRow(el) {
+    if (el) el.classList.toggle('open');
 }
 
 function populateUnderHood(authData) {
