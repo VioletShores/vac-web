@@ -888,6 +888,33 @@
   // QUICK RE-AUTH — Returning users with expired sessions
   // ============================================================
 
+  // Lazy-load the shared face-EMBEDDING module (face-api.js) used to compute the
+  // 128-D identity descriptor for re-auth. Injected once; safe to call repeatedly.
+  // Warmed when the re-auth screen renders so the descriptor is ready by capture
+  // time. Fail-closed: if it never loads, VACFaceEmbed is absent and capture sends
+  // NO embedding — the server then decides (legacy users pass via Gemini fallback,
+  // enrolled users are rejected). The client never makes the identity decision.
+  var _faceEmbedInjected = false;
+  function _ensureFaceEmbed() {
+    try {
+      if (global.VACFaceEmbed) return global.VACFaceEmbed.ready();
+      if (!_faceEmbedInjected) {
+        _faceEmbedInjected = true;
+        var s = document.createElement('script');
+        s.src = '/vac-face-embed.js';
+        s.async = true;
+        document.head.appendChild(s);
+      }
+      return new Promise(function (resolve) {
+        var waited = 0;
+        var iv = setInterval(function () {
+          if (global.VACFaceEmbed) { clearInterval(iv); global.VACFaceEmbed.ready().then(resolve, function () { resolve(false); }); }
+          else if ((waited += 100) > 15000) { clearInterval(iv); resolve(false); }
+        }, 100);
+      });
+    } catch (e) { return Promise.resolve(false); }
+  }
+
   function _renderQuickReauthScreen(email) {
     _state = 'quick_reauth';
     var screen = document.getElementById('vac-screen');
@@ -927,6 +954,7 @@
         '<div class="vac-error-msg" id="vac-error"></div>';
 
       _startCamera();
+      _ensureFaceEmbed();  // warm the face-api models while the user positions their face
       document.getElementById('vac-quick-btn').addEventListener('click', function() {
         _handleReauthCapture(email);
       });
@@ -984,13 +1012,37 @@
       canvas.getContext('2d').drawImage(video, 0, 0);
       var singleFrame = canvas.toDataURL('image/jpeg', 0.8);
 
-      console.log('[VAC] Single-frame re-auth capture for:', email);
+      // Compute the face IDENTITY embedding from the SAME captured frame (face-api.js
+      // 128-D descriptor) with single-face enforcement. The server makes the identity
+      // decision (distance vs threshold) — the client only sends the vector.
+      // Await the embedder load first: on a cold/slow load the user may tap Verify before
+      // the injected /vac-face-embed.js ran. Without this, an enrolled account would post
+      // with no vector and get fail-closed (burning a retry) even though it loads moments
+      // later. (It was warmed at screen render; this just closes the race.)
+      await _ensureFaceEmbed();
+      var faceEmbedding = null;
+      if (global.VACFaceEmbed) {
+        var emb = await global.VACFaceEmbed.compute(canvas);
+        if (emb.ok) {
+          faceEmbedding = emb.embedding;
+        } else if (emb.reason === 'multiple_faces' || emb.reason === 'no_face') {
+          // Client-side single-face gate (UX). Hard stop — do not POST.
+          err.textContent = global.VACFaceEmbed.reasonMessage(emb.reason);
+          btn.disabled = false;
+          btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Try again';
+          return;
+        }
+        // emb.reason === 'embedder_error' → faceEmbedding stays null; the server
+        // arbitrates (legacy users pass via Gemini fallback; enrolled users reject).
+      }
 
-      // Send ONE frame — backend Gemini checks face match + finger count together
-      var data = await _api('POST', '/v1/auth/face-reauth', {
-        email: email,
-        face_frame: singleFrame,
-      });
+      console.log('[VAC] Single-frame re-auth capture for:', email, '| embedding:', faceEmbedding ? 'computed' : 'none');
+
+      // Send the frame (+ embedding when available). Backend: identity = embedding
+      // distance (server-side); liveness + single-face cross-check = Gemini.
+      var reauthBody = { email: email, face_frame: singleFrame };
+      if (faceEmbedding) reauthBody.face_embedding = faceEmbedding;
+      var data = await _api('POST', '/v1/auth/face-reauth', reauthBody);
 
       console.log('[VAC] Face re-auth SUCCESS. Confidence:', data.face_match.confidence);
       _setToken(data.session_token);

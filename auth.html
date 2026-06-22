@@ -276,6 +276,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     window.dispatchEvent(new CustomEvent('vac-mediapipe-error', { detail: { error: window.__VAC_MediaPipe_error } }));
   }
 </script>
+<!-- VAC face-EMBEDDING module (face-api.js 128-D identity descriptor for re-auth). Self-loads face-api on first use. -->
+<script src="/vac-face-embed.js"></script>
 </head>
 <body>
 <div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#2DD4BF'" onmouseout="this.style.color='#6B7280'">← Back to VAC Protocol</a></div><script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
@@ -1075,6 +1077,9 @@ async function requestCamera() {
         vid.muted = true;
         vid.setAttribute('playsinline', '');
         await vid.play().catch(() => {});
+        // Warm the face-EMBEDDING models now so the enrollment descriptor is ready by
+        // the time recording completes (face-api.js loads ~12MB on first use, cached after).
+        try { if (window.VACFaceEmbed) window.VACFaceEmbed.ready(); } catch(_) {}
         document.getElementById('cameraLabel').textContent = 'CAMERA ACTIVE';
 
         // Show AV checks immediately — don't wait for challenge fetch
@@ -1868,6 +1873,23 @@ async function onRecordingComplete() {
     document.getElementById('cameraBoxRec').classList.remove('recording');
     stopAudioMonitor();
 
+    // Capture the face IDENTITY embedding from the LIVE recording frame BEFORE the camera
+    // stops (face-api.js 128-D descriptor, single-face enforced). Stored on a passing
+    // verify as the re-auth template. Best-effort: a miss enrolls the user in legacy/
+    // description mode — the server-side multi-modal verify still guards the enrollment.
+    window.__vacEnrollEmbedding = null;
+    try {
+        const ev = document.getElementById('videoPreviewRec');
+        if (ev && ev.videoWidth && window.VACFaceEmbed) {
+            const ec = document.createElement('canvas');
+            ec.width = ev.videoWidth; ec.height = ev.videoHeight;
+            ec.getContext('2d').drawImage(ev, 0, 0);
+            const r = await window.VACFaceEmbed.compute(ec);
+            if (r.ok) { window.__vacEnrollEmbedding = r.embedding; console.log('[VAC] Enroll embedding computed (dim ' + r.embedding.length + ')'); }
+            else { console.warn('[VAC] Enroll embedding skipped:', r.reason, '— legacy/description enrollment'); }
+        }
+    } catch (e) { console.warn('[VAC] Enroll embedding error (non-fatal):', (e && e.message) || e); }
+
     // Stop camera
     if (mediaStream) {
         mediaStream.getTracks().forEach(t => t.stop());
@@ -1910,6 +1932,11 @@ async function runRealVerification(videoBlob) {
         // failed or voice-only fallback; server falls back to Gemini-only then.
         const clientSeq = (window.__vacDetectedCounts || []).filter(function(n) { return n > 0; });
         formData.append('client_detected_counts', JSON.stringify(clientSeq));
+        // Face IDENTITY embedding (face-api.js 128-D). Stored on pass as the re-auth
+        // template. Omitted when single-face/embedder failed → legacy description enrollment.
+        if (window.__vacEnrollEmbedding) {
+            formData.append('face_embedding', JSON.stringify(window.__vacEnrollEmbedding));
+        }
 
         stepEl.textContent = 'Analysing biometrics…';
         detailEl.textContent = 'Gemini (face) + Deepgram (voice)';

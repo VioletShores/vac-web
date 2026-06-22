@@ -175,6 +175,10 @@
     {
       "source": "/auth-test",
       "destination": "/auth-test.html"
+    },
+    {
+      "source": "/face-embed-test",
+      "destination": "/face-embed-test.html"
     }
   ],
   "headers": [
@@ -260,6 +264,15 @@
     },
     {
       "source": "/vac-auth.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/vac-face-embed.js",
       "headers": [
         {
           "key": "Cache-Control",

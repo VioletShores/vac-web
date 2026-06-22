@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>VAC Face-Embedding Test Harness</title>
+<style>
+  :root { --bg:#0D0F17; --panel:#141824; --border:#1E2230; --fg:#E5E7EB; --muted:#6B7280; --green:#22c55e; --red:#ef4444; --teal:#2DD4BF; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; line-height:1.5; }
+  .wrap { max-width:980px; margin:0 auto; padding:24px 16px 80px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin:0 0 20px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:760px){ .grid { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .panel h2 { font-size:14px; margin:0 0 12px; letter-spacing:.3px; }
+  video, canvas.preview { width:100%; aspect-ratio:4/3; object-fit:cover; background:#000; border-radius:8px; transform:scaleX(-1); }
+  .badge { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; }
+  .b-ok { background:rgba(34,197,94,.15); color:var(--green); }
+  .b-bad { background:rgba(239,68,68,.15); color:var(--red); }
+  .b-muted { background:rgba(107,114,128,.18); color:var(--muted); }
+  button { background:var(--teal); color:#06231f; border:0; border-radius:8px; padding:9px 14px; font-size:13px; font-weight:700; cursor:pointer; }
+  button.secondary { background:#222838; color:var(--fg); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  label.file { display:inline-block; background:#222838; color:var(--fg); border-radius:8px; padding:9px 14px; font-size:13px; font-weight:700; cursor:pointer; }
+  input[type=file]{ display:none; }
+  .stat { font-family:ui-monospace,Menlo,monospace; font-size:13px; }
+  .big { font-size:34px; font-weight:800; font-family:ui-monospace,Menlo,monospace; }
+  .verdict { font-size:22px; font-weight:800; margin-top:6px; }
+  .thr { display:flex; align-items:center; gap:10px; margin-top:12px; font-size:13px; }
+  input[type=range]{ flex:1; }
+  #log { margin-top:16px; font-family:ui-monospace,Menlo,monospace; font-size:12px; color:#9aa3b2; max-height:200px; overflow:auto; background:#0a0c12; border:1px solid var(--border); border-radius:8px; padding:10px; white-space:pre-wrap; }
+  .note { font-size:12px; color:var(--muted); margin-top:14px; border-top:1px solid var(--border); padding-top:12px; }
+  code { color:var(--teal); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>VAC Face-Embedding Test Harness</h1>
+  <p class="sub">Client-side validation of the re-auth identity match (face-api.js 128-D descriptor + euclidean distance). Pure browser — no backend. Use it to run the VERIFY matrix on a real face: enroll, then re-auth as the same person (PASS), a different person (REJECT), with two faces (REJECT), and from a photo.</p>
+
+  <div class="row" style="margin-bottom:16px;">
+    <span id="modStatus" class="badge b-muted">loading face-api…</span>
+    <span id="liveCount" class="badge b-muted">camera off</span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Camera</h2>
+      <video id="video" autoplay playsinline muted></video>
+      <div class="row">
+        <button id="startCam">Start camera</button>
+        <button id="stopCam" class="secondary">Stop</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>1 · Enroll reference</h2>
+      <canvas id="enrollPrev" class="preview"></canvas>
+      <div class="row">
+        <button id="enrollCam">Enroll from camera</button>
+        <label class="file">Enroll from image<input type="file" id="enrollFile" accept="image/*"></label>
+      </div>
+      <div class="row stat" id="enrollStat">No reference enrolled.</div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <h2>2 · Re-auth test</h2>
+    <div class="grid">
+      <div>
+        <canvas id="testPrev" class="preview"></canvas>
+        <div class="row">
+          <button id="testCam" disabled>Re-auth from camera</button>
+          <label class="file">Re-auth from image<input type="file" id="testFile" accept="image/*" disabled></label>
+        </div>
+      </div>
+      <div>
+        <div class="stat">faces detected: <span id="testFaces" class="badge b-muted">—</span></div>
+        <div style="margin-top:10px;" class="stat">euclidean distance</div>
+        <div class="big" id="dist">—</div>
+        <div class="stat">cosine distance: <span id="cos">—</span></div>
+        <div class="verdict" id="verdict">—</div>
+        <div class="thr">
+          threshold <input type="range" id="thr" min="0.30" max="0.80" step="0.01" value="0.50">
+          <span class="stat" id="thrVal">0.50</span>
+        </div>
+        <div class="stat" style="margin-top:6px;color:var(--muted);">face-api default 0.6 · VAC starts strict at 0.5</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="log"></div>
+
+  <div class="note">
+    <strong>VERIFY matrix:</strong><br>
+    • <b>Same person, different session/lighting</b> → distance below threshold → <span style="color:var(--green)">PASS</span>.<br>
+    • <b>Different person</b> (live or photo) → distance above threshold → <span style="color:var(--red)">REJECT</span> (look-alike test).<br>
+    • <b>Two faces in frame</b> → <code>faces detected: 2</code> → <span style="color:var(--red)">REJECT</span> (single-face enforcement).<br>
+    • <b>No face</b> → <code>faces detected: 0</code> → <span style="color:var(--red)">REJECT</span>.<br>
+    Photo-of-photo spoofing is caught server-side by the retained Gemini liveness check (not exercised here — this page tests identity matching only).<br>
+    Model: <code id="modelId">—</code>
+  </div>
+</div>
+
+<script src="/vac-face-embed.js"></script>
+<script>
+  var V = {
+    video: document.getElementById('video'),
+    enrollPrev: document.getElementById('enrollPrev'),
+    testPrev: document.getElementById('testPrev'),
+  };
+  var stream = null, ref = null, liveTimer = null;
+  function log(m){ var el=document.getElementById('log'); el.textContent += m+'\n'; el.scrollTop=el.scrollHeight; }
+  function setBadge(id, txt, cls){ var e=document.getElementById(id); e.textContent=txt; e.className='badge '+cls; }
+
+  // Init module
+  (async function(){
+    var ok = await window.VACFaceEmbed.ready();
+    setBadge('modStatus', ok ? 'face-api ready' : 'face-api FAILED (fail-closed)', ok?'b-ok':'b-bad');
+    document.getElementById('modelId').textContent = window.VACFaceEmbed.MODEL_ID;
+    log('[init] face-api ready='+ok+' model='+window.VACFaceEmbed.MODEL_ID);
+  })();
+
+  document.getElementById('startCam').onclick = async function(){
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:1280}, height:{ideal:960} }, audio:false });
+      V.video.srcObject = stream; await V.video.play().catch(()=>{});
+      document.getElementById('testCam').disabled = false;
+      document.getElementById('testFile').disabled = false;
+      log('[cam] started');
+      // live single-face indicator (1 Hz)
+      if (liveTimer) clearInterval(liveTimer);
+      liveTimer = setInterval(async function(){
+        if (!V.video.videoWidth) return;
+        var r = await window.VACFaceEmbed.compute(V.video);
+        if (r.ok) setBadge('liveCount','1 face',' b-ok');
+        else if (r.reason==='multiple_faces') setBadge('liveCount', r.faceCount+' faces','b-bad');
+        else if (r.reason==='no_face') setBadge('liveCount','no face','b-bad');
+        else setBadge('liveCount','embedder error','b-bad');
+      }, 1200);
+    } catch(e){ log('[cam] error '+e.message); }
+  };
+  document.getElementById('stopCam').onclick = function(){
+    if (liveTimer) { clearInterval(liveTimer); liveTimer=null; }
+    if (stream){ stream.getTracks().forEach(function(t){t.stop();}); stream=null; }
+    setBadge('liveCount','camera off','b-muted');
+    log('[cam] stopped');
+  };
+
+  function snap(srcEl, canvas){
+    var w = srcEl.videoWidth||srcEl.naturalWidth||640, h = srcEl.videoHeight||srcEl.naturalHeight||480;
+    canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(srcEl,0,0,w,h);
+  }
+  function loadImageFile(file){
+    return new Promise(function(res,rej){ var img=new Image(); img.onload=function(){res(img);}; img.onerror=rej; img.src=URL.createObjectURL(file); });
+  }
+
+  async function doEnroll(srcEl){
+    snap(srcEl, V.enrollPrev);
+    var r = await window.VACFaceEmbed.compute(V.enrollPrev);
+    if (!r.ok){ ref=null; document.getElementById('enrollStat').textContent='Enroll FAILED: '+r.reason+(r.faceCount>1?(' ('+r.faceCount+' faces)'):''); log('[enroll] FAIL '+r.reason); return; }
+    ref = r.embedding;
+    document.getElementById('enrollStat').textContent='Reference enrolled ✓ (128-D descriptor stored in memory).';
+    log('[enroll] OK — 128-D descriptor stored');
+  }
+  async function doTest(srcEl){
+    snap(srcEl, V.testPrev);
+    var r = await window.VACFaceEmbed.compute(V.testPrev);
+    setBadge('testFaces', r.ok?'1':(r.faceCount<0?'err':String(r.faceCount)), r.ok?'b-ok':'b-bad');
+    if (!r.ok){
+      document.getElementById('dist').textContent='—'; document.getElementById('cos').textContent='—';
+      document.getElementById('verdict').innerHTML='<span style="color:var(--red)">REJECT — '+r.reason+'</span>';
+      log('[test] REJECT (single-face/embedder): '+r.reason); return;
+    }
+    if (!ref){ document.getElementById('verdict').textContent='Enroll a reference first.'; return; }
+    var d = window.VACFaceEmbed.euclidean(ref, r.embedding);
+    // cosine distance
+    var dot=0,na=0,nb=0; for(var i=0;i<ref.length;i++){ dot+=ref[i]*r.embedding[i]; na+=ref[i]*ref[i]; nb+=r.embedding[i]*r.embedding[i]; }
+    var cosd = 1 - dot/(Math.sqrt(na)*Math.sqrt(nb));
+    var thr = parseFloat(document.getElementById('thr').value);
+    document.getElementById('dist').textContent = d.toFixed(4);
+    document.getElementById('cos').textContent = cosd.toFixed(4);
+    var pass = d <= thr;
+    document.getElementById('verdict').innerHTML = pass
+      ? '<span style="color:var(--green)">PASS — same identity (dist '+d.toFixed(3)+' ≤ '+thr.toFixed(2)+')</span>'
+      : '<span style="color:var(--red)">REJECT — different identity (dist '+d.toFixed(3)+' &gt; '+thr.toFixed(2)+')</span>';
+    log('[test] dist='+d.toFixed(4)+' cos='+cosd.toFixed(4)+' thr='+thr.toFixed(2)+' → '+(pass?'PASS':'REJECT'));
+  }
+
+  document.getElementById('enrollCam').onclick = function(){ if(!V.video.videoWidth){log('[enroll] start camera first');return;} doEnroll(V.video); };
+  document.getElementById('testCam').onclick = function(){ if(!V.video.videoWidth){log('[test] start camera first');return;} doTest(V.video); };
+  document.getElementById('enrollFile').onchange = async function(e){ if(e.target.files[0]){ doEnroll(await loadImageFile(e.target.files[0])); } };
+  document.getElementById('testFile').onchange = async function(e){ if(e.target.files[0]){ doTest(await loadImageFile(e.target.files[0])); } };
+  document.getElementById('thr').oninput = function(){ document.getElementById('thrVal').textContent = parseFloat(this.value).toFixed(2); };
+</script>
+</body>
+</html>
