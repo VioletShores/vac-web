@@ -368,7 +368,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
           <div class="arch-node hil-node"><div class="an-n">4</div><div class="an-t">Human authorises</div><div class="an-d">A person — conveyancer, executor, tribunal officer — reviews the complete, condition-checked matter and authorises the outcome. The protocol never decides; it prepares.</div><div class="an-tech">Human-in-the-loop · always</div></div>
         </div>
         <div class="arch-row single">
-          <div class="arch-node wide"><div class="an-n">5</div><div class="an-t">Sealed &amp; lodged decision — real cryptography</div><div class="an-d">The authorised decision is signed with an <strong>Ed25519 key</strong> as a compact <strong>JWT</strong>, given a unique token id, and lodged to the authority chain. Anyone can verify it against VAC's public key — tamper-evident, timestamped, independently checkable. <span style="color:var(--text-primary)">This is live technology, not a mock.</span></div><div class="an-tech">Live · Ed25519 + JWT · verifiable on vacprotocol.org · 285 patent claims</div></div>
+          <div class="arch-node wide"><div class="an-n">5</div><div class="an-t">Sealed &amp; lodged decision — real cryptography</div><div class="an-d">The authorised decision is signed with an <strong>Ed25519 key</strong> as a compact <strong>JWT</strong>, given a unique token id, and lodged to the authority chain. Anyone can verify it against VAC's public key — tamper-evident, timestamped, independently checkable. <span style="color:var(--text-primary)">This is live technology, not a mock.</span></div><div class="an-tech">Live · Ed25519 + JWT · verifiable on vacprotocol.org · 1028+ patent claims</div></div>
         </div>
       </div>
       <div class="arch-note">
@@ -726,9 +726,9 @@ document.querySelectorAll('.tab').forEach(t=>{
 // A REAL Ed25519+JWT token minted from the live VAC production backend for this demo.
 // Verifiable by anyone at the URL below — this is the live tech, not a mock.
 const REAL_TOKEN = {
-  jti:"vat_root_462bce15d63e",
+  jti:"vat_root_c1e665235203",
   trust:0.95,
-  verify:"https://vacprotocol.org/vat/verify/vat_root_462bce15d63e"
+  verify:"https://vacprotocol.org/vat/verify/vat_root_c1e665235203"
 };
 
 let cur=null, stepIdx=-1, stageView='today';
