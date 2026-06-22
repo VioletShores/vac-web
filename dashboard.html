@@ -292,7 +292,7 @@ function buildScoreBreakdown(user, vouches) {
     var recency = verifications > 5 ? 0.05 : 0;
     
     var components = [
-        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + voiceprint + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
+        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + speech match + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
         { label: 'Vouch Network', value: vouchBoost.toFixed(2), color: 'var(--emerald)', desc: vouchCount + ' vouch' + (vouchCount !== 1 ? 'es' : '') + ' from verified humans', pct: Math.round(vouchBoost * 100) },
         { label: 'Verification Recency', value: recency.toFixed(2), color: 'var(--purple)', desc: verifications + ' total verifications — freshness bonus', pct: Math.round(recency * 100) }
     ];
@@ -375,7 +375,7 @@ function buildScoreBreakdown(user, vouches) {
     var recency = verifications > 5 ? 0.05 : 0;
     
     var components = [
-        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + voiceprint + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
+        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + speech match + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
         { label: 'Vouch Network', value: vouchBoost.toFixed(2), color: 'var(--emerald)', desc: vouchCount + ' vouch' + (vouchCount !== 1 ? 'es' : '') + ' from verified humans', pct: Math.round(vouchBoost * 100) },
         { label: 'Verification Recency', value: recency.toFixed(2), color: 'var(--purple)', desc: verifications + ' total verifications — freshness bonus', pct: Math.round(recency * 100) }
     ];
@@ -517,7 +517,7 @@ function buildScoreBreakdown(user, vouches) {
     var recency = verifications > 5 ? 0.05 : 0;
     
     var components = [
-        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + voiceprint + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
+        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + speech match + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
         { label: 'Vouch Network', value: vouchBoost.toFixed(2), color: 'var(--emerald)', desc: vouchCount + ' vouch' + (vouchCount !== 1 ? 'es' : '') + ' from verified humans', pct: Math.round(vouchBoost * 100) },
         { label: 'Verification Recency', value: recency.toFixed(2), color: 'var(--purple)', desc: verifications + ' total verifications — freshness bonus', pct: Math.round(recency * 100) }
     ];
@@ -680,7 +680,7 @@ function buildScoreBreakdown(user, vouches) {
     var recency = verifications > 5 ? 0.05 : 0;
     
     var components = [
-        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + voiceprint + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
+        { label: 'Biometric Verification', value: bioScore.toFixed(2), color: 'var(--teal)', desc: 'Face liveness + deepfake + speech match + lip-sync + challenge + finger gesture + duress', pct: Math.round(bioScore * 100) },
         { label: 'Vouch Network', value: vouchBoost.toFixed(2), color: 'var(--emerald)', desc: vouchCount + ' vouch' + (vouchCount !== 1 ? 'es' : '') + ' from verified humans', pct: Math.round(vouchBoost * 100) },
         { label: 'Verification Recency', value: recency.toFixed(2), color: 'var(--purple)', desc: verifications + ' total verifications — freshness bonus', pct: Math.round(recency * 100) }
     ];

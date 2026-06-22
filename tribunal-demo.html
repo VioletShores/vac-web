@@ -358,7 +358,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <p class="section-label">End-to-end architecture</p>
       <div class="arch">
         <div class="arch-row">
-          <div class="arch-node"><div class="an-n">1</div><div class="an-t">Verified parties</div><div class="an-d">Each party authenticates via VAC identity — face liveness, voiceprint, gesture, OTP, weighted to a trust score. A verified human becomes the <em>root</em> of an authority chain.</div><div class="an-tech">Live · Gemini liveness + Deepgram voiceprint + multi-factor</div></div>
+          <div class="arch-node"><div class="an-n">1</div><div class="an-t">Verified parties</div><div class="an-d">Each party authenticates via VAC identity — face liveness, speech match, gesture, OTP, weighted to a trust score. A verified human becomes the <em>root</em> of an authority chain.</div><div class="an-tech">Live · Gemini liveness + Deepgram speech match + multi-factor</div></div>
           <div class="arch-arrow">→</div>
           <div class="arch-node"><div class="an-n">2</div><div class="an-t">Policy-carrying packet</div><div class="an-d">The trust deed's rules — release conditions, beneficiaries, trigger events — are encoded into the matter itself. The policy travels <em>with</em> the work, not on a central server.</div><div class="an-tech">VAC packet · rules sealed to the matter</div></div>
         </div>
@@ -1029,7 +1029,7 @@ function showReceipt(){
     const d=ev.data||{};
     if(d.type==='vac-auth-success'||d.type==='vac-verified'){
       // Option B: keep auth-test's own verified + modality-detail screen visible so
-      // Caroline sees HOW she was verified (face liveness, deepfake, voiceprint).
+      // Caroline sees HOW she was verified (face liveness, deepfake, speech match).
       // Don't close here — surface a Continue button that closes + shows the credential beat.
       window.__vacPendingReveal={name:d.name,score:d.overall_score};
       const cont=document.getElementById('voContinue');

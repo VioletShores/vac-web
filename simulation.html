@@ -422,7 +422,7 @@ const SCENARIOS = {
       intro: "Sarah is preparing for a career transition. She's been using FolioAI — a video reflection coaching app — to practice her interview responses, record coaching sessions, and track her progress over 3 months. She has 47 recordings: raw practice takes (some terrible), private reflections about her anxiety, and a few polished highlights she's proud of. A recruiter at a company she loves asks for a 'video introduction.' Sarah wants to share her best 90-second clip — verified as authentically her, not AI-generated — without exposing her raw footage or her private coaching journey.",
       whyVAC: "Today, sharing a video means losing control of it. You send a file or a link — the recipient can download it, forward it, screen-record it. You have no way to prove the video is authentically you (not a deepfake). And you definitely can't share a curated clip while cryptographically preventing access to the raw footage it came from. VAC solves all three: biometric proof of identity, scoped sharing (curated only, no raw access), and time-bound access that auto-revokes.",
       beats: [
-        { at: 0, text: "Sarah opens FolioAI and records her 90-second highlight. The VAC SDK captures her 5-modal biometric signature — face liveness, deepfake detection, voice biometric, challenge-response, and geolocation. This isn't just a video. It's a cryptographically verified human artifact." },
+        { at: 0, text: "Sarah opens FolioAI and records her 90-second highlight. The VAC SDK captures her 5-modal biometric signature — face liveness, deepfake detection, speech match, challenge-response, and geolocation. This isn't just a video. It's a cryptographically verified human artifact." },
         { at: 1, text: "Sarah's VAT (Verified Authority Token) is issued as the root of a delegation chain. Her scope is set: she controls what gets shared and with whom. 47 recordings exist in her FolioAI account. Only the ones she explicitly delegates for sharing will be accessible." },
         { at: 2, text: "Sarah selects her best 90-second clip and creates a sharing scope: 'Share this clip with [recruiter email]. Access type: view only. Duration: 14 days. Raw footage: BLOCKED. Private reflections: BLOCKED. Session history: BLOCKED.' The scope constraints are locked into a derived VAT token." },
         { at: 3, text: "The recruiter receives a VAC verification link. They click it and see: Sarah's verified identity (biometric proof across 5 modalities), the curated clip she chose to share, and a trust score showing this is genuinely her — not AI-generated, not a deepfake, not someone else." },
@@ -1230,8 +1230,8 @@ function VACSimulation() {
                   <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Live facial recognition with liveness detection. Not a photo — a proof you're present, right now. Deepfake-resistant.</div>
                 </div>
                 <div style={{ padding: "12px 14px", background: "#111", borderRadius: 6, borderLeft: "3px solid #5DADE2" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#5DADE2" }}>🎙 Voice — Your Voiceprint</div>
-                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Unique voiceprint matching. Cross-checked against your face — lip movements must match your voice. Clone-resistant.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#5DADE2" }}>🎙 Voice — Your Spoken Phrase</div>
+                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Your spoken challenge phrase, captured and checked. Cross-checked against your face — lip movements must match your voice.</div>
                 </div>
                 <div style={{ padding: "12px 14px", background: "#111", borderRadius: 6, borderLeft: "3px solid #FFB74D" }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>⌨️ Behavioural — How You Act</div>
@@ -1250,7 +1250,7 @@ function VACSimulation() {
               <div style={{ marginTop: 16, padding: "14px 16px", background: "#0d1a0d", borderRadius: 6, border: "1px solid #2D5A27" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#4CAF50", marginBottom: 6 }}>Why This Is Unique — And Patented</div>
                 <div style={{ fontSize: 12, color: "#bbb", lineHeight: 1.7 }}>
-                  Every existing identity system uses one or two of these. Auth0 uses passwords. iProov uses face only. Nuance uses voice only. <strong style={{ color: "#fff" }}>Nobody combines all five into a single composite trust score where trust continuously decays and must be re-earned.</strong> A deepfake might fool a camera. It won't fool a camera + voiceprint + behavioural pattern + location + temporal consistency check simultaneously. And even if it could — in 60 seconds the trust score drops and re-verification is required.
+                  Every existing identity system uses one or two of these. Auth0 uses passwords. iProov uses face only. Nuance uses voice only. <strong style={{ color: "#fff" }}>Nobody combines all five into a single composite trust score where trust continuously decays and must be re-earned.</strong> A deepfake might fool a camera. It won't fool a camera + speech match + behavioural pattern + location + temporal consistency check simultaneously. And even if it could — in 60 seconds the trust score drops and re-verification is required.
                 </div>
               </div>
 

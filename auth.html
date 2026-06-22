@@ -12,7 +12,7 @@
      iOS (codex). Default viewport keeps the browser's automatic safe-area insets. -->
 <meta name="theme-color" content="#0D1117">
 <title>VAC Verify — Authenticate</title>
-<meta name="description" content="Verify your identity with VAC Verify — cryptographic human provenance powered by VAC Protocol.">
+<meta name="description" content="Verify you're a real human with VAC Verify — cryptographic human provenance powered by VAC Protocol.">
 <meta property="og:title" content="VAC Verify — Authenticate">
 <meta property="og:description" content="Biometric verification → cryptographic authority chain. 1028+ patent claims. Math so neither party has to rely on trust alone.">
 <meta property="og:type" content="website">
@@ -350,7 +350,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <div class="step-section active" id="step0">
     <div class="header">
         <div class="header-eyebrow">Step 1 of 4</div>
-        <div class="header-title">Verify Your Identity</div>
+        <div class="header-title">Verify You're a Real Human</div>
         <div class="header-sub">Prove you're a real human. Your verified identity becomes a cryptographic credential that agents, services, and people can trust.</div>
     </div>
     <div class="form-group">
@@ -475,7 +475,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="modalities-mini" style="justify-content: center; display: none;" id="modalityChips">
             <div class="mod-chip" data-mod="video_liveness"><span class="dot"></span>Face Liveness</div>
             <div class="mod-chip" data-mod="deepfake_detection"><span class="dot"></span>Deepfake Detection</div>
-            <div class="mod-chip" data-mod="voice_biometric"><span class="dot"></span>Voiceprint</div>
+            <div class="mod-chip" data-mod="voice_biometric"><span class="dot"></span>Speech Match</div>
             <div class="mod-chip" data-mod="lip_sync"><span class="dot"></span>Lip-Sync</div>
             <div class="mod-chip" data-mod="otp_verification"><span class="dot"></span>Challenge Response</div>
             <div class="mod-chip" data-mod="finger_gesture"><span class="dot"></span>Finger Gesture</div>
@@ -627,7 +627,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             Start over
         </button>
         <div class="header-eyebrow">Step 4 of 4</div>
-        <div class="header-title">Verifying Identity</div>
+        <div class="header-title">Verifying You're Human</div>
         <div class="header-sub" id="verifySubtitle">Sending biometric data to verification engines…</div>
     </div>
     <div class="progress-container">
@@ -650,7 +650,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="mod-result" id="modFace" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Face Liveness</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms a real person is present, not a photo or mask</span></div>
         <div class="mod-result" id="modDidit" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Face Liveness (Didit)</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Independent passive-liveness check (Didit provider) on a bound still frame from the recording.</span></div>
         <div class="mod-result" id="modDeepfake" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Deepfake Detection</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for AI-generated or manipulated video artifacts</span></div>
-        <div class="mod-result" id="modVoice" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Voiceprint</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies speech is from a live human voice, not synthesized</span></div>
+        <div class="mod-result" id="modVoice" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Speech Match</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms the challenge phrase was spoken clearly</span></div>
         <div class="mod-result" id="modLipSync" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Lip-Sync</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms lip movements match spoken audio in real time</span></div>
         <div class="mod-result" id="modChallenge" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Challenge Response</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Matches spoken words against a unique server-generated phrase</span></div>
         <div class="mod-result" id="modFinger" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies correct finger count sequence shown near the face</span></div>
@@ -763,7 +763,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:8px;">Messages · Agents · Governance</div>
         <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
             <a href="#" onclick="refreshVerification()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Refresh verification</a>
-            <a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-quaternary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--coral)';this.style.color='var(--coral)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-quaternary)'">Re-verify identity</a>
+            <a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-quaternary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--coral)';this.style.color='var(--coral)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-quaternary)'">Re-verify</a>
         </div>
     </div>
 
@@ -3725,7 +3725,7 @@ async function runRealVerification(videoBlob) {
         try{populateUnderHood(authResult);}catch(uhErr){console.error("Under hood error:",uhErr);}
 
         if (passed) {
-            stepEl.textContent = 'Identity verified ✓';
+            stepEl.textContent = 'Human verified ✓';
             ring.style.stroke = 'var(--success)';
             detailEl.textContent = `Trust score: ${authResult.biometric_verification.overall_score}`;
             await sleep(400);
@@ -4259,7 +4259,7 @@ function showSuccess() {
     var modDescs = {
         'face_liveness': 'Gemini analysed video frames for natural micro-expressions, eye movement, and 3D depth consistency to confirm a live human face.',
         'deepfake_detection': 'Checked for synthetic artifacts, GAN fingerprints, and inconsistent lighting or skin texture that indicate AI-generated faces.',
-        'voiceprint': 'Deepgram captured a unique voiceprint from your speech patterns, pitch, and cadence for biometric matching.',
+        'voiceprint': 'Deepgram transcribed your spoken words and scored how clearly the challenge phrase was captured.',
         'lip_sync': 'Cross-referenced lip movements with audio waveform to verify the voice belongs to the face on screen.',
         'challenge_response': 'Matched your spoken words against the server-generated random challenge phrase to prove real-time presence.',
         'finger_gesture': 'Gemini counted fingers shown in each pose and verified the sequence matched the spoken digits at corresponding timestamps.',
@@ -4268,7 +4268,7 @@ function showSuccess() {
     var modNames = {
         'face_liveness': 'Face Liveness',
         'deepfake_detection': 'Deepfake Scan',
-        'voiceprint': 'Voiceprint',
+        'voiceprint': 'Speech Match',
         'lip_sync': 'Lip Sync',
         'challenge_response': 'Challenge Match',
         'finger_gesture': 'Finger Gesture',
