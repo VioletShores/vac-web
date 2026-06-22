@@ -2433,6 +2433,14 @@ function beginRecording() {
     // it as a client-detected-sequence hint for server-side cross-validation.
     window.__vacDetectedCounts = new Array(digits.length).fill(0);
     let detectedCounts = window.__vacDetectedCounts;  // actual finger count seen per position
+    // F-GESTURE-ZONE-QUALIFIES-POSE: per-pose "was the hand in-zone" signal, APPENDED once per
+    // accepted pose (same per-pose event that writes detectedCounts, below) so it stays index-
+    // aligned 1:1 with the non-zero count sequence the backend reconstructs. Built independent of
+    // the n>0 zero-filter (we only ever push a REAL detected pose, never a placeholder 0), so the
+    // backend gets a zone for every pose — including an out-of-zone retry it must drop. Reset here
+    // (not just created) so a re-auth can't inherit the prior attempt's zones (F-563 stale-state
+    // family). true=in-zone, false=positively out-of-zone, null=zone undeterminable (sensor gap).
+    window.__vacPoseZones = [];
     let digitJustSeen = false;  // debounce: require fingers-down between gestures
     // W4.1 stability gate: require a count to be HELD STABLE for ~0.6s before
     // accepting it, so the loop advances on a deliberate hold — not on the first
@@ -3013,6 +3021,20 @@ function beginRecording() {
             try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: _recordCount, held_frames: _recordFrames, dwell_ms: Math.round(_adNow - digitStartTime) }); } catch(_) {}
             detectedDigits[currentDigitIndex] = true;
             detectedCounts[currentDigitIndex] = _recordCount;   // latched count, or live count on the speech-off path — never the hand-down 0
+            // F-GESTURE-ZONE-QUALIFIES-POSE: capture whether THIS accepted pose was in-zone, using
+            // the SAME hand-near-face/dotted-guide geometry as the live framing guard (_handNear /
+            // _handNearFaceZone). Tri-state, computed fresh from the advance frame's landmarks:
+            //   landmarks present       → true/false from _handNearFaceZone (the existing zone def)
+            //   landmarks missing/short → null (sensor gap) — NEVER false, so a sensor hiccup can't
+            //                             drop a legit pose (the backend treats null as "keep").
+            // detected>0 is required to reach this advance, so a hand IS present here in practice;
+            // the null branch is the defensive fail-safe. Pushed (not indexed) → 1:1 with the
+            // poses that feed detectedCounts, in order, surviving the n>0 filter on the counts.
+            (function(){
+                var _zlm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
+                var _zone = (!_zlm || _zlm.length < 21) ? null : _handNearFaceZone(_zlm);
+                window.__vacPoseZones.push(_zone);
+            })();
             _acceptArmed = false;
             _lastAcceptedCount = _recordCount;
             stableFrames = 0;
@@ -3588,6 +3610,14 @@ async function runRealVerification(videoBlob) {
         // failed or voice-only fallback; server falls back to Gemini-only then.
         const clientSeq = (window.__vacDetectedCounts || []).filter(function(n) { return n > 0; });
         formData.append('client_detected_counts', JSON.stringify(clientSeq));
+        // F-GESTURE-ZONE-QUALIFIES-POSE: deterministic per-pose in-zone signal, index-aligned 1:1
+        // with the poses above (built by append at each accepted pose, so it covers every real
+        // detected pose — including an out-of-zone retry the backend must drop — without the n>0
+        // filter). Each entry: true=in-zone, false=out-of-zone, null=undeterminable (keep). The
+        // backend (vac-protocol lane) consumes this to drop out-of-zone retry poses deterministically
+        // instead of leaving it to Gemini's discretion. Empty when detection didn't run (manual
+        // fallback / voice-only) — same as client_detected_counts.
+        formData.append('client_pose_zones', JSON.stringify(window.__vacPoseZones || []));
         // Face IDENTITY embedding (face-api.js 128-D). Stored on pass as the re-auth
         // template. Omitted when single-face/embedder failed → legacy description enrollment.
         if (window.__vacEnrollEmbedding) {
