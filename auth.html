@@ -1489,6 +1489,49 @@ function beginRecording() {
     mediaRecorder.onstop = () => { onRecordingComplete(); };
     mediaRecorder.start();
 
+    // S-116 Track-2 (Didit passive liveness): grab ONE still frame from the LIVE
+    // capture buffer at a known offset into the recording. It rides the EXISTING
+    // verify request (see runRealVerification) — no second camera open, no extra
+    // HTTP call. We sample ~800ms in: the speak phase (the phrase timer below) is
+    // live for every speed (phrase >= 2s), the camera has long since settled (the
+    // preview has been streaming since before the countdown), and the user is
+    // face-forward reading the phrase prompt — a clean, stable frame for liveness.
+    // Best-effort: any failure leaves
+    // face_still_b64 empty so the backend fail-closes Didit (Gemini still runs).
+    const __recStartMs = performance.now();
+    window.__vacFaceStillB64 = '';
+    window.__vacFaceStillTsMs = 0;
+    const FACE_STILL_DELAY_MS = 800;
+    setTimeout(function captureBoundStill() {
+        try {
+            // Only sample while genuinely recording (user may have aborted).
+            if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+            const v = document.getElementById('videoPreviewRec');
+            if (!v || !v.videoWidth || !v.videoHeight) return; // frame not ready → leave empty
+            // Downscale to <=640px longest edge to stay well under the request budget.
+            const longest = Math.max(v.videoWidth, v.videoHeight);
+            const scale = longest > 640 ? 640 / longest : 1;
+            const cw = Math.max(1, Math.round(v.videoWidth * scale));
+            const ch = Math.max(1, Math.round(v.videoHeight * scale));
+            // drawImage captures the RAW (un-mirrored) frame, same orientation as the
+            // face_embedding capture — the CSS scaleX(-1) is display-only.
+            const c = document.createElement('canvas');
+            c.width = cw; c.height = ch;
+            c.getContext('2d').drawImage(v, 0, 0, cw, ch);
+            const dataUrl = c.toDataURL('image/jpeg', 0.9);
+            const comma = dataUrl.indexOf(',');
+            if (comma === -1) return; // malformed → leave empty
+            window.__vacFaceStillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
+            window.__vacFaceStillTsMs = Math.round(performance.now() - __recStartMs);
+            console.log('[VAC] Bound still captured @' + window.__vacFaceStillTsMs + 'ms (' + cw + 'x' + ch + ', ~' + Math.round(window.__vacFaceStillB64.length / 1024) + 'KB b64)');
+        } catch (e) {
+            // Never fabricate — empty still tells the backend to fail-close Didit.
+            window.__vacFaceStillB64 = '';
+            window.__vacFaceStillTsMs = 0;
+            console.warn('[VAC] Bound still capture failed (non-fatal):', (e && e.message) || e);
+        }
+    }, FACE_STILL_DELAY_MS);
+
     // Show combined capture info
     document.getElementById('combinedCaptureInfo').style.display = 'block';
 
@@ -1937,6 +1980,14 @@ async function runRealVerification(videoBlob) {
         if (window.__vacEnrollEmbedding) {
             formData.append('face_embedding', JSON.stringify(window.__vacEnrollEmbedding));
         }
+        // S-116 Track-2: bound-moment still for Didit passive liveness. Captured from
+        // the LIVE buffer during the speak phase (see beginRecording) and appended to
+        // THIS SAME request — no extra round-trip. Empty when frame capture failed →
+        // backend fail-closes Didit; Gemini path is unaffected. ts is the ms offset of
+        // the frame within the recording. Mirrors the face_embedding precedent:
+        // client-computed, backend tolerates-or-drops.
+        formData.append('face_still_b64', window.__vacFaceStillB64 || '');
+        formData.append('face_still_ts_ms', String(Number.isFinite(window.__vacFaceStillTsMs) ? window.__vacFaceStillTsMs : 0));
 
         stepEl.textContent = 'Analysing biometrics…';
         detailEl.textContent = 'Gemini (face) + Deepgram (voice)';
