@@ -736,6 +736,11 @@ const REAL_TOKEN = {
 // mintMatterToken). This is what makes each seal a genuine per-authorise mint
 // rather than a constant.
 let SEAL_TOKEN = REAL_TOKEN;
+// VERIFY_SRC must be TOP-LEVEL: sealReauthGate (top-level fn) references it, but it
+// was previously only declared as a const INSIDE the later idGate IIFE — block-scoped
+// and invisible to sealReauthGate → live "VERIFY_SRC is not defined" ReferenceError on
+// the seal click (caught by /browse, S116). Declared here once as the single source.
+const VERIFY_SRC = '/auth.html';
 
 // Mint a REAL, freshly-signed VAT for the current matter at the seal moment.
 // Calls the live /v1/vat/issue (Ed25519 + JWT) with the matter's conditions in
@@ -1098,7 +1103,7 @@ function showReceipt(){
   const walkBody=document.getElementById('walkBody');
   const overlay=document.getElementById('verifyOverlay');
   const frame=document.getElementById('voFrame');
-  const VERIFY_SRC='/auth.html';
+  // VERIFY_SRC is now declared top-level (see note near SEAL_TOKEN) — used here via that scope.
   let revealed=false;
   function reveal(verified,name,score){
     if(!revealed){revealed=true;walkBody.hidden=false;}
