@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D0F17">
+<title>VAC Protocol — How It Fits Together</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px}
+.nav img{width:24px;height:24px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-back{font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:4px}
+.nav-back:hover{color:var(--teal);border-color:var(--teal)}
+.page{max-width:840px;margin:0 auto;padding:48px 24px 80px}
+.hero{text-align:center;margin-bottom:14px}
+.hero-kicker{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:3px;margin-bottom:14px}
+.hero-title{font-size:34px;font-weight:800;margin-bottom:14px;line-height:1.15}
+.hero-sub{font-size:15px;color:var(--gray);max-width:620px;margin:0 auto;line-height:1.65}
+.one-liner{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:8px;padding:18px 22px;margin:32px 0;font-size:15px;line-height:1.6}
+.one-liner b{color:var(--teal);font-weight:700}
+.legend{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:24px 0 8px}
+.badge{font-family:var(--mono);font-size:9px;font-weight:700;padding:4px 10px;border-radius:4px;letter-spacing:1px}
+.badge.live{color:var(--emerald);background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25)}
+.badge.prog{color:var(--teal);background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.25)}
+.badge.planned{color:var(--purple);background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.25)}
+.section-title{font-family:var(--mono);font-size:12px;color:var(--teal);letter-spacing:3px;margin:48px 0 18px}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:22px;margin-bottom:14px;display:flex;gap:18px;align-items:flex-start}
+.step-num{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--bg);background:var(--teal);min-width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-body{flex:1}
+.step-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.step-name{font-size:16px;font-weight:700}
+.step-desc{font-size:13px;color:var(--gray);line-height:1.6}
+.step-desc b{color:var(--white);font-weight:600}
+.step-note{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5}
+.diagram-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin:18px 0}
+.diagram-cap{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;margin-top:12px;letter-spacing:1px}
+.honesty{background:rgba(45,212,191,0.04);border:1px solid rgba(45,212,191,0.2);border-radius:10px;padding:22px;margin:40px 0}
+.honesty-title{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;margin-bottom:12px}
+.honesty p{font-size:13px;color:var(--gray);line-height:1.7;margin-bottom:10px}
+.honesty p:last-child{margin-bottom:0}
+.honesty b{color:var(--white);font-weight:600}
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:40px}
+.cta a{flex:1;min-width:200px;text-align:center;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:1px;padding:16px;border-radius:8px;text-decoration:none;border:1px solid var(--border)}
+.cta a.primary{background:var(--teal);color:var(--bg)}
+.cta a.secondary{color:var(--teal);border-color:rgba(45,212,191,0.3)}
+.foot{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;margin-top:48px;line-height:1.6}
+svg text{font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="nav">
+  <span class="nav-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></span>
+  <a href="/" class="nav-back">← Home</a>
+</div>
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-kicker">HOW IT FITS TOGETHER · END TO END</div>
+    <h1 class="hero-title">Verified human authority,<br>governed and audited.</h1>
+    <p class="hero-sub">Most systems check <i>who</i> you are. VAC governs <i>what</i> a verified human — or an agent acting under their authority — is allowed to <i>do</i>, decides how much proof each action needs, gates it, and writes a signed, independently-verifiable record of every decision.</p>
+  </div>
+
+  <div class="one-liner">
+    Verified live human <b>→</b> the system decides the assurance each action needs <b>→</b> the action is gated <b>→</b> a signed, auditable record is written — for the action <i>and</i> for every refusal.
+  </div>
+
+  <div class="legend">
+    <span class="badge live">BUILT · LIVE</span>
+    <span class="badge prog">BUILT · MERGING</span>
+    <span class="badge planned">PLANNED</span>
+  </div>
+  <p style="font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;margin-top:6px">Every capability below carries an honest status. We'd rather be defensible than impressive.</p>
+
+  <div class="section-title">THE FLOW, IN ORDER</div>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <div class="step-head"><span class="step-name">Verified human root</span><span class="badge live">BUILT · LIVE</span></div>
+      <div class="step-desc">A live, consistent human is proven by several signals <b>bound together in a single act</b> — face liveness, certified passive liveness, a spoken-and-shown challenge, and gesture. Binding the signals in one act is what resists deepfakes and injected media, which a single-detector check doesn't cover.</div>
+      <div class="step-note">Live: face liveness · certified passive liveness · face-embedding re-auth · consolidated verify.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <div class="step-head"><span class="step-name">A real human — not (yet) a legal identity</span><span class="badge live">BUILT · LIVE</span></div>
+      <div class="step-desc">Be precise: the biometric proves a <b>real, same, live human</b>. It does not, by itself, prove a <i>legal</i> identity. Legal-identity binding is a <b>pluggable higher tier</b>: biometric → SSO / OIDC → government ID (PIV/CAC, RealMe, myGovID) → KYC provider. You bind identity as strongly as the use-case demands.</div>
+      <div class="step-note">Live: biometric tier. Planned: government-ID / KYC tiers (pluggable envelope).</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-body">
+      <div class="step-head"><span class="step-name">Assurance proportional to the action — decided, not hardcoded</span><span class="badge live">BUILT · LIVE</span></div>
+      <div class="step-desc">This is the differentiator. The system reads the action and its context, <b>assesses the risk</b>, and decides how much proof to require — continuously. Viewing a credential might need a fast one-digit bound re-auth (seconds). Releasing money or minting authority requires the full check. The level is an <b>output of a risk controller</b>, not a fixed if-then rule.</div>
+      <div class="step-note">Live: risk engine (assess → risk level → required modalities), quick re-auth endpoint.</div>
+    </div>
+  </div>
+
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 760 230" xmlns="http://www.w3.org/2000/svg" width="100%">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2DD4BF"/></marker>
+      </defs>
+      <!-- action in -->
+      <rect x="14" y="92" width="120" height="46" rx="8" fill="#151821" stroke="#1E2230"/>
+      <text x="74" y="112" fill="#FFF" font-size="11" font-weight="700" text-anchor="middle">ACTION +</text>
+      <text x="74" y="126" fill="#9CA3AF" font-size="10" text-anchor="middle">CONTEXT</text>
+      <line x1="134" y1="115" x2="178" y2="115" stroke="#2DD4BF" stroke-width="1.5" marker-end="url(#arr)"/>
+      <!-- risk controller -->
+      <rect x="182" y="62" width="190" height="106" rx="10" fill="#151821" stroke="#2DD4BF" stroke-width="1.5"/>
+      <text x="277" y="84" fill="#2DD4BF" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1">RISK CONTROLLER</text>
+      <text x="277" y="104" fill="#FFF" font-size="10" text-anchor="middle">assess risk</text>
+      <text x="277" y="120" fill="#FFF" font-size="10" text-anchor="middle">+ recency / trust</text>
+      <text x="277" y="136" fill="#FFF" font-size="10" text-anchor="middle">→ required level</text>
+      <text x="277" y="156" fill="#6B7280" font-size="9" text-anchor="middle">cops / PID + SignalRank</text>
+      <line x1="372" y1="115" x2="416" y2="115" stroke="#2DD4BF" stroke-width="1.5" marker-end="url(#arr)"/>
+      <!-- tiers -->
+      <rect x="420" y="40" width="160" height="40" rx="8" fill="#151821" stroke="#10B981"/>
+      <text x="500" y="58" fill="#10B981" font-size="10" font-weight="700" text-anchor="middle">FAST RE-AUTH</text>
+      <text x="500" y="71" fill="#9CA3AF" font-size="9" text-anchor="middle">low value · one bound digit</text>
+      <rect x="420" y="92" width="160" height="40" rx="8" fill="#151821" stroke="#F59E0B"/>
+      <text x="500" y="110" fill="#F59E0B" font-size="10" font-weight="700" text-anchor="middle">STEP-UP</text>
+      <text x="500" y="123" fill="#9CA3AF" font-size="9" text-anchor="middle">medium · quick re-auth</text>
+      <rect x="420" y="144" width="160" height="40" rx="8" fill="#151821" stroke="#F96167"/>
+      <text x="500" y="162" fill="#F96167" font-size="10" font-weight="700" text-anchor="middle">FULL TRI-MODAL</text>
+      <text x="500" y="175" fill="#9CA3AF" font-size="9" text-anchor="middle">high value · full proof</text>
+      <!-- gate+audit out -->
+      <line x1="580" y1="115" x2="620" y2="115" stroke="#2DD4BF" stroke-width="1.5" marker-end="url(#arr)"/>
+      <rect x="624" y="80" width="122" height="70" rx="8" fill="#151821" stroke="#1E2230"/>
+      <text x="685" y="104" fill="#FFF" font-size="10" font-weight="700" text-anchor="middle">GATE</text>
+      <text x="685" y="120" fill="#9CA3AF" font-size="9" text-anchor="middle">allow / refuse</text>
+      <text x="685" y="136" fill="#2DD4BF" font-size="9" text-anchor="middle">+ audit record</text>
+      <!-- feedback loop -->
+      <path d="M685,150 L685,205 L277,205 L277,168" fill="none" stroke="#6B7280" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arr)"/>
+      <text x="480" y="222" fill="#6B7280" font-size="9" text-anchor="middle">outcome feeds back — the controller calibrates over time</text>
+    </svg>
+    <div class="diagram-cap">THE CONTROLLER LOOP — assurance is decided per action, then the outcome trains the next decision</div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-body">
+      <div class="step-head"><span class="step-name">The action is gated — and the decision is audited</span><span class="badge prog">BUILT · MERGING</span></div>
+      <div class="step-desc">A sensitive action is <b>refused</b> unless a fresh, sufficiently-strong, owner-bound re-auth is proven. And every action <i>and every refusal</i> is written to an immutable <b>Action Attestation Record</b>: what was attempted, by whose authority, at what assurance level, with what result. Auditing the <i>denials</i> — not just the successes — is what an auditor or a court actually needs.</div>
+      <div class="step-note">Built and adversarially reviewed (independent code-gate passed); merging to production now. This is the gate+audit layer.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-body">
+      <div class="step-head"><span class="step-name">Bounded agent delegation</span><span class="badge prog">BUILT · MERGING</span></div>
+      <div class="step-desc">An agent can act <i>for</i> a human, but its authority is <b>derived from and bounded by</b> that verified human — scope, expiry, and revocation are signed into the chain. Nothing acts in someone's name without tracing back to them. Revoke the human, and every downstream agent stops.</div>
+      <div class="step-note">Authority-chain primitives live; the per-action attestation that binds an agent action to a fresh human authorisation is in the merging gate+audit layer.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">6</div>
+    <div class="step-body">
+      <div class="step-head"><span class="step-name">Signed, independently-verifiable receipts</span><span class="badge live">BUILT · LIVE</span></div>
+      <div class="step-desc">Each authority decision is a <b>genuinely signed token</b> (Ed25519) that anyone can verify against the backend — no trust in us required. The chain of who-authorised-what is auditable end to end.</div>
+      <div class="step-note">Live: per-authorise token mint and independent verification.</div>
+    </div>
+  </div>
+
+  <div class="honesty">
+    <div class="honesty-title">WHAT'S REAL TODAY VS. THE FORWARD BUILD</div>
+    <p>The cryptographic authority primitive — verified live human, proportional re-auth, signed and verifiable tokens — is <b>live today</b>. You can walk it.</p>
+    <p>The action gate-and-audit layer is <b>built and independently code-reviewed, merging to production now.</b></p>
+    <p>What's a forward build is <b>encoding a specific industry's rules</b> — for legal matters, the release conditions, statutory triggers, prescribed-witness requirements and trust-money handling. That work is scoped and built <i>with</i> the relevant authority (for legal, the Law Society and Fair Trading), not asserted in a demo. The platform is general; the domain rules are the partnership.</p>
+  </div>
+
+  <div class="cta">
+    <a href="/tribunal-demo" class="primary">Walk the worked example →</a>
+    <a href="/vat-verify" class="secondary">Verify a real token →</a>
+  </div>
+
+  <div class="foot">
+    VAC PROTOCOL · VIOLET SHORES · 1,028+ PATENT CLAIMS ACROSS 16 FILINGS<br>
+    Built on the Athena trust-and-decision substrate.
+  </div>
+
+</div>
+</body>
+</html>
