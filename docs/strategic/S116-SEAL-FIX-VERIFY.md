@@ -53,3 +53,21 @@ Clicked **Seal & lodge decision**:
 **overlay opens: y** · **gate holds: y** · no uncaught exceptions. Seal is fixed
 on live main. The security invariant (token never leaks before re-auth) was held
 throughout.
+
+## Independent re-verification (2026-06-23, second pass)
+
+Re-checked the live deploy to confirm the fix is still holding.
+
+- Code state on `main`: exactly **1** `const VERIFY_SRC` (top-level, line 743);
+  inner IIFE duplicate gone (comment at line 1106); both usages resolve
+  (`sealReauthGate` line 960, `openVerify` line 1131). Local `main` == `origin/main`
+  at `7a60560` — fix `137cc8b` already pushed, nothing to re-push.
+- Balance: `{}` 449/449, `()` 891/891, backticks 46 (even).
+- `/browse` live walk: matter 01 → VAC/VAT workflow → advanced to
+  **Seal & lodge decision** → clicked. `window.__errs` = `[]`,
+  `#verifyOverlay` `hidden=false` / `is visible` = true,
+  `#voFrame` src = `https://vacprotocol.org/auth.html`. No
+  `VERIFY_SRC`/`ReferenceError`/`not defined` in console (only unrelated
+  MediaPipe WebGL warnings).
+
+**Re-verdict: still fixed and live. Seal opens the re-auth overlay, no ReferenceError.**
