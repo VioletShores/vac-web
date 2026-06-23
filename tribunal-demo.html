@@ -831,7 +831,11 @@ async function mintMatterToken(){
     human_identity: email,   // BIND to the verified email so human_ref matches the seal re-auth
     agent_id: 'tribunal-' + (m.id || 'matter'),
     resources: ['matter:' + (m.matter || 'demo')],
-    actions: ['authorise_decision'],
+    // Scope the token for the SAME action authorizeSeal authorises (seal_decision). If the
+    // token were scoped for a different action, /v1/vat/authorize would reject the seal as
+    // action-not-in-scope even with the identity now matching. Keep this in lock-step with
+    // authorizeSeal's action:'seal_decision'.
+    actions: ['seal_decision'],
     verification_method: 'multi_modal',
     sensitivity: 'high',
     constraints: constraints,
