@@ -791,7 +791,22 @@ const VERIFY_SRC = '/auth.html';
 // human from the seal re-auth so the token attests who authorised it.
 async function mintMatterToken(){
   const m = cur || {};
+  // DISPLAY name for the receipt + token context (UX only — may be absent).
   const who = (window.__vacVerified && window.__vacVerified.name) ? window.__vacVerified.name : 'verified human (live)';
+  // BINDING identity: the verified EMAIL. seal_decision is critical → /v1/vat/authorize
+  // re-auths against an EMAIL-derived human_ref, so the token's human_identity MUST be the
+  // email. A NAME derives a different hash → reauth_identity_mismatch (main.py name-collision
+  // fix: a name can't bind a high-value action). Email rides on the vac-auth-success message.
+  const email = (window.__vacVerified && window.__vacVerified.email) ? String(window.__vacVerified.email).trim() : '';
+  // FAIL-CLOSED: never mint a NAME-only token for a critical seal. Without the verified
+  // email we cannot bind the token to the identity the gate will re-auth, so we do NOT mint —
+  // fall back to the reference token (minted:false) and let the action gate record the honest
+  // un-authorised state rather than fake a binding the gate would (correctly) refuse.
+  if(!email){
+    console.warn('[tribunal] seal mint refused: no verified email to bind a critical token');
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted:false });
+    return false;
+  }
   // Example matter conditions — illustrative, derived from the current matter.
   const constraints = {
     _demo: true,
@@ -813,7 +828,7 @@ async function mintMatterToken(){
     human_in_the_loop: true
   };
   const body = {
-    human_identity: who,
+    human_identity: email,   // BIND to the verified email so human_ref matches the seal re-auth
     agent_id: 'tribunal-' + (m.id || 'matter'),
     resources: ['matter:' + (m.matter || 'demo')],
     actions: ['authorise_decision'],
@@ -989,7 +1004,9 @@ function sealReauthGate(onPass, onCancel){
       // Capture the full-auth session token (seal-fires-gate) so the seal can authorise
       // the action server-side. Only present on vac-auth-success from our own origin
       // (origin already checked above). May be absent on vac-verified (older path).
-      window.__vacVerified={ name:(d.name||'').trim(), session_token:(d.session_token||null), auth_level:(d.auth_level||null) };
+      // email: the seal_decision gate re-auths against an EMAIL-derived human_ref, so we
+      // MUST carry the verified email here to bind the minted token to it (mintMatterToken).
+      window.__vacVerified={ name:(d.name||'').trim(), email:(d.email||null), session_token:(d.session_token||null), auth_level:(d.auth_level||null) };
       cleanup();
       try{ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }catch(e){}
       onPass();
