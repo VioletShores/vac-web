@@ -70,8 +70,8 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 </div>
 
 <div class="section">
-<div class="section-title">THREE ENGINES, ONE API</div>
-<div class="cards">
+<div class="section-title">FOUR ENGINES, ONE API</div>
+<div class="cards" style="grid-template-columns:repeat(2,1fr)">
 <div class="card card-accent">
 <div class="card-title">Verification Engine</div>
 <div class="card-body">Multi-modal biometric verification. Pluggable — use our built-in engine or integrate iProov, Veriff, Sumsub, or your own provider. VAC handles the delegation chain regardless of who does the verification.</div>
@@ -83,6 +83,10 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 <div class="card card-emerald">
 <div class="card-title">Trust Graph</div>
 <div class="card-body">Build vouch networks where verification gets cheaper over time. Query trust scores, check vouch relationships, and let the graph drive your verification economics.</div>
+</div>
+<div class="card" style="border-color:rgba(201,168,76,0.5)">
+<div class="card-title" style="color:#C9A84C">Decision &amp; Assurance Engine</div>
+<div class="card-body">The first three answer <em>who can do what, provably</em>. This one answers <em>how much assurance should this action require — and is it working</em>. A risk-aware control loop sets the proof an action demands proportional to its stakes (a routine read passes light; a high-stakes authorisation demands full re-auth), then learns from real outcomes and human feedback so trust converges over time. <a href="/demo" style="color:var(--teal)">Watch it live →</a></div>
 </div>
 </div>
 </div>
