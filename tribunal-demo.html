@@ -1102,9 +1102,9 @@ function showReceipt(){
   const statusTxt=cf?'AUTHORITY SEALED · SETTLEMENT SIMULATED (CONCEPT)':'SEALED · LODGED · AUDITABLE';
   document.getElementById('receiptKv').innerHTML=`
     <dt>Matter</dt><dd class="hl">${cur.matter}</dd>
-    <dt>Authority token</dt><dd class="hl">${SEAL_TOKEN.jti} <span class="real-badge">${SEAL_TOKEN.minted?'FRESHLY MINTED · REAL · LIVE':'REAL · LIVE'}</span></dd>
+    <dt>Authority token</dt><dd class="hl">${esc(String(SEAL_TOKEN.jti))} <span class="real-badge">${SEAL_TOKEN.minted?'FRESHLY MINTED · REAL · LIVE':'REAL · LIVE'}</span></dd>
     <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
-    <dt>Trust score</dt><dd>${SEAL_TOKEN.trust}</dd>
+    <dt>Trust score</dt><dd>${esc(String(SEAL_TOKEN.trust))}</dd>
     <dt>${cf?'Authority sealed':'Lodged'}</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
     <dt>Authorised by</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · verified live (VAC)':'Verified human · in the loop'}</dd>
     ${(SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&SEAL_AUTHZ.authorized)
