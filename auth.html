@@ -4216,8 +4216,23 @@ function showSuccess() {
         // Update nav badge to show current state
         const nav = document.getElementById('navStatus');
         if (nav) { nav.textContent = 'AUTHENTICATED'; nav.style.color = '#2DD4BF'; nav.style.background = 'rgba(45,212,191,0.1)'; nav.style.borderColor = '#2DD4BF'; }
-        // Notify parent frame (SPA shell) of auth success — overall_score feeds the tribunal credBeat
-        try { if (window.parent !== window) { window.parent.postMessage({ type: 'vac-auth-success', email: d.email, name: d.name, overall_score: (authResult && authResult.biometric_verification ? authResult.biometric_verification.overall_score : undefined) }, '*'); } } catch(e) {}
+        // Notify parent frame (SPA shell) of auth success — overall_score feeds the tribunal credBeat.
+        // SECURITY (S116 seal-fires-gate): we now also pass the full-auth session_token so the parent
+        // (the tribunal seal) can authorise the sealing ACTION server-side (/v1/vat/authorize). A
+        // session token is a CREDENTIAL — it MUST NOT go to a wildcard target. Send only to the
+        // SAME-ORIGIN parent (auth.html and the tribunal are both on this origin). If the parent is
+        // cross-origin (unexpected embed), omit the token and send only the non-sensitive fields.
+        try {
+            if (window.parent !== window) {
+                var _msg = { type: 'vac-auth-success', email: d.email, name: d.name,
+                    overall_score: (authResult && authResult.biometric_verification ? authResult.biometric_verification.overall_score : undefined) };
+                var _sess = (authResult && authResult.session_token) ? authResult.session_token : null;
+                var _level = (authResult && authResult.auth_level) ? authResult.auth_level : null;
+                // Only attach the credential when posting to our OWN origin.
+                if (_sess) { _msg.session_token = _sess; _msg.auth_level = _level; }
+                window.parent.postMessage(_msg, window.location.origin);
+            }
+        } catch(e) {}
         // Start polling for vouches to unlock messaging
         startVouchPolling();
     } else {

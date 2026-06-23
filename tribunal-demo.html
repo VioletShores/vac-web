@@ -731,7 +731,48 @@ const REAL_TOKEN = {
   verify:"https://vacprotocol.org/vat/verify/vat_root_c1e665235203"
 };
 
-// SEAL_TOKEN holds the token shown in the receipt. Defaults to the pre-minted
+// Authorise the SEALING ACTION server-side (F-TRIBUNAL-SEAL-FIRES-GATE). After the
+// fresh re-auth + mint, call /v1/vat/authorize action=seal_decision so the HARD GATE
+// (seal_decision is 'critical' → requires FULL re-auth) AND the AAR (action attestation)
+// actually fire — making the seal a gated, AUDITED action, not just a token reveal.
+// Honesty: if no full-auth session token reached us, we do NOT fake authorisation — we
+// record that the action was not server-authorised (the receipt reflects it). The
+// consumer-contract rule (D-ATTESTATION-CONSUMER-CONTRACT): trust is gated on the
+// server's authorized=true + assurance, NEVER on a client claim.
+let SEAL_AUTHZ = null;
+async function authorizeSeal(){
+  const tok = (window.__vacVerified && window.__vacVerified.session_token) ? window.__vacVerified.session_token : null;
+  const jti = (SEAL_TOKEN && SEAL_TOKEN.jti) ? SEAL_TOKEN.jti : null;
+  if(!tok || !jti){
+    // No server-verifiable authorisation available — record honestly, do not fake.
+    SEAL_AUTHZ = { authorized:false, reason: !tok ? 'no_session_token' : 'no_jti', server_attested:false };
+    return;
+  }
+  try {
+    const r = await fetch(API_BASE + '/v1/vat/authorize', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        vat_jti: jti,
+        action: 'seal_decision',
+        resource: 'matter:' + ((cur && cur.matter) || 'demo'),
+        authorising_session_token: tok,
+        metadata: { surface:'tribunal-demo', _demo:true }
+      })
+    });
+    const data = await r.json().catch(()=>({}));
+    // The hard gate returns authorized:true/false. Record the SERVER verdict verbatim.
+    SEAL_AUTHZ = {
+      authorized: !!data.authorized,
+      reason: data.reason || null,
+      reauth: data.reauth_authorisation || data.reauth || null,
+      aar_id: data.aar_id || null,
+      server_attested: true
+    };
+  } catch(e){
+    SEAL_AUTHZ = { authorized:false, reason:'authorize_call_failed', server_attested:false };
+  }
+}
+
 // REAL_TOKEN; replaced by a FRESHLY-MINTED token when a matter is sealed (see
 // mintMatterToken). This is what makes each seal a genuine per-authorise mint
 // rather than a constant.
@@ -922,7 +963,7 @@ document.getElementById('advance').onclick=()=>{
     // a re-auth here BEFORE rendering the sealed token, so the audit line "verified
     // human authorisation recorded" is a real event, not just copy.
     sealReauthGate(
-      async () => { await mintMatterToken(); showReceipt(); },   // pass → MINT fresh token → seal
+      async () => { await mintMatterToken(); await authorizeSeal(); showReceipt(); },   // pass → MINT → AUTHORISE action (hardgate+AAR) → seal
       () => { document.getElementById('advance').disabled=false; }  // cancel → let them retry
     );
   }
@@ -945,7 +986,10 @@ function sealReauthGate(onPass, onCancel){
     const d=ev.data||{};
     if(d.type==='vac-auth-success'||d.type==='vac-verified'){
       if(settled) return; settled=true;
-      window.__vacVerified={name:(d.name||'').trim()};
+      // Capture the full-auth session token (seal-fires-gate) so the seal can authorise
+      // the action server-side. Only present on vac-auth-success from our own origin
+      // (origin already checked above). May be absent on vac-verified (older path).
+      window.__vacVerified={ name:(d.name||'').trim(), session_token:(d.session_token||null), auth_level:(d.auth_level||null) };
       cleanup();
       try{ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }catch(e){}
       onPass();
@@ -1063,6 +1107,11 @@ function showReceipt(){
     <dt>Trust score</dt><dd>${SEAL_TOKEN.trust}</dd>
     <dt>${cf?'Authority sealed':'Lodged'}</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
     <dt>Authorised by</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · verified live (VAC)':'Verified human · in the loop'}</dd>
+    ${(SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&SEAL_AUTHZ.authorized)
+        ? `<dt>Action gate + audit</dt><dd class="hl" style="color:var(--success)">GATED (full re-auth) &amp; AUDITED${SEAL_AUTHZ.aar_id?' · AAR '+esc(String(SEAL_AUTHZ.aar_id)):''} <span class="real-badge">LIVE</span></dd>`
+        : (SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&!SEAL_AUTHZ.authorized)
+          ? `<dt>Action gate + audit</dt><dd style="color:var(--amber)">server refused: ${esc(String(SEAL_AUTHZ.reason||'reauth_required'))}</dd>`
+          : `<dt>Action gate + audit</dt><dd style="color:var(--text-tertiary)">not server-authorised in this preview (no live session token)</dd>`}
     ${cf?'<dt>Settlement</dt><dd class="hl" style="color:var(--amber)">SIMULATED · NO FUNDS MOVED</dd>':''}
     <dt>Status</dt><dd class="hl" style="color:${cf?'var(--amber)':'var(--success)'}">${statusTxt}</dd>`;
   const GENERIC_VAC_AUDIT=[
