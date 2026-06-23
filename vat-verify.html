@@ -383,7 +383,7 @@ body {
 .ra-count { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.5px; padding: 5px 12px; border-radius: 20px; background: rgba(8,11,18,0.75); color: var(--text-tertiary); border: 1px solid var(--border); white-space: nowrap; }
 .ra-rec { position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 1px; color: var(--error); }
 .ra-rec .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--error); animation: modPulse 1.4s ease-in-out infinite; }
-.ra-digit { font-family: var(--mono); font-size: 64px; font-weight: 700; color: var(--accent-light); line-height: 1; text-align: center; margin-top: 16px; letter-spacing: -2px; }
+.ra-digit { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: clamp(56px, 18vw, 96px); font-weight: 800; color: var(--purple, #7c5cfc); line-height: 1; text-align: center; margin-top: 16px; }  /* S110: match auth.html #vacGuidedNumber (was monospace .ra-digit — the forked font) */
 .ra-prompt { font-size: 18px; font-weight: 700; color: var(--text-primary); text-align: center; margin-top: 6px; line-height: 1.3; min-height: 1.3em; }
 .ra-coach { font-size: 13px; color: var(--text-secondary); text-align: center; margin-top: 6px; min-height: 1.4em; line-height: 1.4; }
 .ra-lamps { display: flex; justify-content: center; gap: 36px; margin-top: 16px; }
@@ -1046,8 +1046,8 @@ init();
   var DIGIT_MOD_DELTA      = 0.030; // voiced run must modulate at least this much (rejects flat tones)
   var VAD_SPEECH_FALLBACK  = 0.14;  // voiced threshold (rms) before calibration
   var VAD_SILENCE_FALLBACK = 0.085; // silence threshold (rms); the gap is the "neither" hysteresis band
-  var GESTURE_STABLE_FRAMES = 8;    // frames the finger count must hold == N
-  var MIN_DWELL_MS         = 450;   // min dwell on the right count before it can advance
+  var GESTURE_STABLE_FRAMES = 12;   // S110: frames the HELD count must be steady (matches auth.html debounce)
+  var MIN_DWELL_MS         = 700;   // S110: wall-clock dwell on the held count before advance (matches auth.html)
   var CONFIRM_HOLD_MS      = 250;   // both lamps green this long → capture (lets the user SEE the ✓)
   var CALIB_MS             = 800;   // noise-floor calibration / camera-settle pre-roll
   var VOICE_HELP_MS        = 9000;  // gesture held this long w/o voice → offer the escape
@@ -1140,6 +1140,7 @@ init();
   var voiceFiredAt = 0, lastVoiceMs = 0, voiceMode = 'vad';
   // gesture state
   var stableCount = 0, gestureFirstAt = 0, cooccurSince = 0, lastCoach = '';
+  var heldCount = 0, heldFrames = 0, digitStartAt = 0;  // auth.html-style debounce: heldCount = the value currently being held (settles flicker)
   // bound still (set at capture)
   var stillB64 = '', stillTs = 0, recStartMs = 0;
 
@@ -1357,7 +1358,7 @@ init();
     // reset gate state
     capturing = false; calibrated = false; floorSamples = []; calibUntil = performance.now() + CALIB_MS;
     sawSilence = false; voiced = 0; voiceOnsetAt = 0; voiceMin = 1; voiceMax = 0; voiceDipStart = 0;
-    voiceFiredAt = 0; lastVoiceMs = 0; voiceMode = 'vad'; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; lastCoach = '';
+    voiceFiredAt = 0; lastVoiceMs = 0; voiceMode = 'vad'; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; lastCoach = ''; heldCount = 0; heldFrames = 0; digitStartAt = 0;
     vadSpeech = VAD_SPEECH_FALLBACK; vadSilence = VAD_SILENCE_FALLBACK;
     gateStartAt = performance.now();
     running = true;
@@ -1441,20 +1442,31 @@ init();
     var video = document.getElementById('raVideo');
     var detected = (video && FingerDetector.ready) ? FingerDetector.detect(video) : null;
 
-    // gesture stability on the target count
-    if (detected === N) { stableCount++; if (stableCount === 1) gestureFirstAt = now; }
-    else { stableCount = 0; gestureFirstAt = 0; }
-    var gestureLive = (detected === N && stableCount >= GESTURE_STABLE_FRAMES && gestureFirstAt > 0 && (now - gestureFirstAt) >= MIN_DWELL_MS);
+    // gesture stability — auth.html debounce model: track the HELD count, not raw frames.
+    // A transient miscount (e.g. a 1-frame flicker to 4 while holding 1) does NOT reset to
+    // zero or show on-screen; the held value only changes after it SUSTAINS. This is exactly
+    // what makes auth.html's count reliable, ported verbatim (S110 / L-2122).
+    if (detected !== null && detected > 0) {
+      if (detected === heldCount) { heldFrames++; }
+      else { heldCount = detected; heldFrames = 1; digitStartAt = now; }   // count changed → restart the hold timer
+    } else if (detected === 0 || detected === -1) {
+      heldCount = 0; heldFrames = 0; digitStartAt = 0;                     // hand down / no hand → release
+    }
+    // gestureLive only when the HELD value equals the target AND it's been steady long enough
+    // (frames) AND held the wall-clock dwell — a flicker can never reach both thresholds.
+    var _dwellOk = digitStartAt > 0 && (now - digitStartAt) >= MIN_DWELL_MS;
+    var gestureLive = (heldCount === N && heldFrames >= GESTURE_STABLE_FRAMES && _dwellOk);
 
     // expire a stale spoken-digit stamp (must co-occur with fingers up)
     if (voiceFiredAt > 0 && ((detected !== N && (now - voiceFiredAt) > DIGIT_COOCCUR_MS) || (now - voiceFiredAt) > DIGIT_COOCCUR_MAX_MS)) voiceFiredAt = 0;
     var voiceCo = (voiceMode === 'off') ? true : (voiceFiredAt > 0);
 
-    // live count readout
+    // live count readout — show the SETTLED held value, not raw per-frame detection.
+    // (Reading `detected` directly is what made the readout flicker 1→4→1; heldCount settles.)
     if (detected === null) setCount(FingerDetector.failed ? 'Hold ' + N + ' near your face' : 'Starting camera…');
-    else if (detected === -1) setCount('Show your hand near your face');
-    else if (detected === N) setCount(N + ' ✓ — ' + (voiceCo ? 'great' : 'now say “' + N + '”'));
-    else setCount('Showing ' + detected + ' — need ' + N);
+    else if (heldCount === 0) setCount('Show your hand near your face');
+    else if (heldCount === N) setCount(N + ' ✓ — ' + (voiceCo ? 'great' : 'now say “' + N + '”'));
+    else setCount('Showing ' + heldCount + ' — need ' + N);
 
     // lamps
     setLamp('raGestureLamp', 'raGestureIcon', gestureLive ? 'done' : (detected > 0 ? 'live' : 'rest'), SVG_HAND);
@@ -1471,7 +1483,7 @@ init();
     var mb = document.getElementById('raManualBtn');
     if (mb && mb.style.display === 'none') {
       if (FingerDetector.failed) { mb.textContent = 'Show ' + N + ' near your face + say it, then capture'; mb.style.display = 'block'; }
-      else if (gestureLive && !voiceCo && (now - gestureFirstAt) > VOICE_HELP_MS) { mb.textContent = 'Mic not working? Continue with gesture only'; mb.style.display = 'block'; }
+      else if (gestureLive && !voiceCo && digitStartAt > 0 && (now - digitStartAt) > VOICE_HELP_MS) { mb.textContent = 'Mic not working? Continue with gesture only'; mb.style.display = 'block'; }
       else if ((now - gateStartAt) > MEDIAPIPE_GRACE_MS && !FingerDetector.ready) { mb.textContent = 'Show ' + N + ' near your face + say it, then capture'; mb.style.display = 'block'; }
     }
 
@@ -1561,7 +1573,7 @@ init();
   // spending an attempt — the user simply re-does the bound act.
   function resumeGate() {
     capturing = false;
-    voiceFiredAt = 0; voiced = 0; sawSilence = false; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0;
+    voiceFiredAt = 0; voiced = 0; sawSilence = false; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; heldCount = 0; heldFrames = 0; digitStartAt = 0;
     if (!running) { running = true; raf = requestAnimationFrame(loop); }
   }
 
