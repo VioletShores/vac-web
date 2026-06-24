@@ -208,8 +208,8 @@ body {
             <div class="card-subtitle">Sent to <span id="otp-email-display"></span></div>
             <div id="otp-error" class="status-msg status-error hidden"></div>
             <div class="input-group">
-                <input type="text" id="otp-code" class="input-field otp-input" maxlength="6"
-                    placeholder="000000" inputmode="numeric" autocomplete="one-time-code">
+                <input type="text" id="otp-code" class="input-field otp-input" maxlength="7"
+                    placeholder="000-000" inputmode="numeric" autocomplete="one-time-code">
             </div>
             <button class="btn btn-primary" id="btn-verify-otp" onclick="verifyOTP()">
                 Verify
@@ -478,7 +478,8 @@ async function sendOTP() {
 }
 
 async function verifyOTP() {
-    const code = document.getElementById('otp-code').value.trim();
+    // Strip the display dash so the backend receives 6 raw digits.
+    const code = document.getElementById('otp-code').value.replace(/\D/g, '');
     if (code.length !== 6) {
         showEl('otp-error', 'Enter the 6-digit code.');
         return;
@@ -721,8 +722,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const otpInput = document.getElementById('otp-code');
     if (otpInput) {
         otpInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
-            if (e.target.value.length === 6) verifyOTP();
+            // Mirror the emailed 000-000 layout: cap 6 digits, dash after the third.
+            const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+            e.target.value = digits.length > 3 ? digits.slice(0, 3) + '-' + digits.slice(3) : digits;
+            if (digits.length === 6) verifyOTP();
         });
     }
     route();
