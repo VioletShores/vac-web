@@ -65,6 +65,8 @@ h1{font-size:22px;color:var(--text-primary);font-weight:700;margin-bottom:6px;}
 .tune{margin-top:14px;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12px;color:var(--text-tertiary);}
 .tune input{flex:1;}
 </style>
+<!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
+<script src="/vac-finger-detect.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -126,44 +128,14 @@ const db=document.getElementById('digitBtns');
 [0,1,2,3,4,5].forEach(n=>{const b=document.createElement('button');b.className='digit-btn';b.textContent=n;b.onclick=()=>{target=n;document.querySelectorAll('.digit-btn').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');};db.appendChild(b);});
 document.getElementById('thresh').oninput=e=>{threshold=+e.target.value;document.getElementById('thVal').textContent=threshold;};
 
-// vector helpers — orientation-invariant: angle between (a→b) and (b→c)
-function angle(a,b,c){
-  const v1={x:b.x-a.x,y:b.y-a.y}, v2={x:c.x-b.x,y:c.y-b.y};
-  const dot=v1.x*v2.x+v1.y*v2.y;
-  const m1=Math.hypot(v1.x,v1.y), m2=Math.hypot(v2.x,v2.y);
-  if(m1===0||m2===0) return 180;
-  let cos=dot/(m1*m2); cos=Math.max(-1,Math.min(1,cos));
-  return Math.acos(cos)*180/Math.PI; // 0 = perfectly straight, larger = more bent
-}
-// thumb: orientation-invariant joint-angle (CMC→MCP vs MCP→TIP) is the primary signal —
-// a straight/extended thumb keeps those segments aligned (small angle); a tucked thumb bends.
-// Combined with a spread check (tip far from the index-finger base) to reject false-positives
-// when the thumb is folded across the palm but still roughly straight.
-function thumbState(lm){
-  const bend = angle(lm[1], lm[2], lm[4]);      // CMC→MCP vs MCP→TIP, orientation-free
-  const wrist=lm[0];
-  const scale=Math.hypot(lm[9].x-wrist.x, lm[9].y-wrist.y)||1;
-  const spread=Math.hypot(lm[4].x-lm[5].x, lm[4].y-lm[5].y)/scale; // tip vs index-MCP
-  // extended only if BOTH reasonably straight AND spread away from the hand
-  const up = bend < 40 && spread > 0.62;
-  return {up, bend, spread};
-}
-
+// Finger counting is the SHARED module's math (window.FingerDetector, from
+// /vac-finger-detect.js — the same source of truth as auth.html / vat-verify.html).
+// This bench only adds a tunable four-finger threshold (the slider) and a live
+// per-finger readout; FingerDetector.countDetailed(lm, threshold) returns both the
+// raw count and the {up, metric, spread, isThumb} states this UI renders. The
+// thumb test stays the fixed canonical 40°/0.62 (the bench never tuned the thumb).
 function countFingers(lm){
-  let count=0; const states=[];
-  // thumb (index 0 in FINGERS) — angle + spread combined
-  const t=thumbState(lm);
-  states.push({up:t.up, metric:t.bend, spread:t.spread, isThumb:true});
-  if(t.up) count++;
-  // four fingers: small bend-angle = straight = extended
-  for(let i=1;i<5;i++){
-    const [_,mcp,pip,dip,tip]=FINGERS[i];
-    const a=angle(lm[mcp],lm[pip],lm[tip]); // base→pip vs pip→tip
-    const up=a<threshold;
-    states.push({up,metric:a,isThumb:false});
-    if(up) count++;
-  }
-  return {count,states};
+  return FingerDetector.countDetailed(lm, threshold);
 }
 
 function drawLandmarks(lm){
