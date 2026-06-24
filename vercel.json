@@ -179,6 +179,14 @@
     {
       "source": "/face-embed-test",
       "destination": "/face-embed-test.html"
+    },
+    {
+      "source": "/tribunal-demo",
+      "destination": "/tribunal-demo.html"
+    },
+    {
+      "source": "/vat-verify",
+      "destination": "/vat-verify.html"
     }
   ],
   "redirects": [
