@@ -219,6 +219,16 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .mod-result.open .mod-detail-expand { display: block; }
 .mod-result.open .mod-caret { transform: rotate(90deg); color: var(--accent); }
 
+/* UI HONESTY (S117 / D-F577-D3-FALSE-ACCEPT): ADVISORY modalities (Finger Gesture, Duress) are
+   NEVER consulted in compute_honest_verdict — finger has a known false-accept and can't gate yet;
+   duress is a deny-signal, not a pass/fail gate. They must NOT look like the mandatory pass/fail
+   rows. The subheading + muted dot + chip make clear they're informational and didn't gate the
+   verdict. Presentation only — no score, verdict, or modality-requirement change. */
+.mod-subhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; width: 100%; font-size: clamp(9px, 1.1vw, 11px); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--text-tertiary); padding: clamp(8px, 1.2vh, 12px) 0 4px; margin-top: clamp(4px, 0.8vh, 8px); border-top: 1px solid var(--border); }
+.mod-subhead-note { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-quaternary); }
+.mod-advisory-tag { display: inline-block; font-family: var(--mono); font-size: clamp(8px, 1vw, 10px); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
+.mod-score.advisory { color: var(--text-tertiary); font-weight: 500; }
+
 /* Back button */
 .btn-back { position: relative; display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-secondary); font-family: var(--mono); font-size: 12px; cursor: pointer; padding: 8px 4px; transition: color 0.2s; margin-bottom: 4px; }
 .btn-back:hover { color: var(--text-primary); }
@@ -662,8 +672,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="mod-result" id="modVoice" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Speech Match</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms the challenge phrase was spoken clearly</span></div>
         <div class="mod-result" id="modLipSync" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Lip-Sync</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms lip movements match spoken audio in real time</span></div>
         <div class="mod-result" id="modChallenge" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Challenge Response</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Matches spoken words against a unique server-generated phrase</span></div>
-        <div class="mod-result" id="modFinger" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies correct finger count sequence shown near the face</span></div>
-        <div class="mod-result" id="modDuress" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Duress Detection</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for signs of coercion — unusual eye movement, forced expression, visible tension. Silent alarm if detected.</span></div>
+        <div class="mod-subhead">Advisory signals <span class="mod-subhead-note">— informational, did not affect the verdict</span></div>
+        <div class="mod-result advisory" id="modFinger" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture <span class="mod-advisory-tag">Advisory · not required</span></span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies correct finger count sequence shown near the face. Advisory only — not yet gating the verdict, so its score is informational.</span></div>
+        <div class="mod-result advisory" id="modDuress" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Duress Detection <span class="mod-advisory-tag">Advisory · deny-signal</span></span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for signs of coercion — unusual eye movement, forced expression, visible tension. A deny-signal (silent alarm if detected), not a pass/fail gate.</span></div>
         </div>
     </div>
     <!-- Under the Hood — engine analysis details -->
@@ -3678,6 +3689,19 @@ function updateModality(elId, status, score, modName, detail) {
         }
     }
 
+    // UI HONESTY (S117): ADVISORY rows (Finger Gesture, Duress) are never consulted in the verdict,
+    // so they must NOT render a green/red pass/fail dot that mimics the mandatory modalities. Show a
+    // neutral muted dot + muted score — the number stays visible (informational), the gate framing
+    // does not. The real per-row status (pass/fail, clear/alert) still lives in the expand detail.
+    if (el.classList.contains('advisory')) {
+        statusEl.textContent = '•';
+        statusEl.style.color = 'var(--text-tertiary)';
+        scoreEl.textContent = typeof score === 'number' ? score.toFixed(2) : '—';
+        scoreEl.className = 'mod-score advisory';
+        updateModalitySummary();
+        return;
+    }
+
     if (status === 'verified') {
         statusEl.textContent = '✓';
         statusEl.style.color = 'var(--success)';
@@ -3730,7 +3754,11 @@ function updateModalitySummary() {
     // all, so its tile can legitimately stay ⏳. Counting a perpetually-pending tile would
     // freeze this header at "Checking…" forever. The Didit row still renders + expands on
     // its own; it just doesn't gate the headline pass count. (Don't "fix" this.)
-    const mods = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger', 'modDuress'];
+    // 'modFinger' + 'modDuress' are intentionally OMITTED — they are ADVISORY (never gate the
+    // verdict; see updateModality). Their neutral '•' dot isn't a pass/fail, so counting them in
+    // the "X/Y passed" headline would both misrepresent the gate AND freeze it at "Checking…"
+    // (a '•' counts as neither ✓ nor ✗). 'modDidit' is omitted for the fail-closes reason above.
+    const mods = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge'];
     let passed = 0, failed = 0, pending = 0;
     mods.forEach(id => {
         const el = document.getElementById(id);
