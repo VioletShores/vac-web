@@ -1417,7 +1417,9 @@ async function startFastCeremony(email){
   if(!out) return reauthDegrade('no_session');
   cerTeardown();
   const N=1+Math.floor(Math.random()*5);   // ONE bound digit (1–5) — the fast tier, NOT the multi-digit full challenge
-  CER={N:N,stream:null,recorder:null,recChunks:[],recMime:'',recStart:0,raf:null,timer:null,t1:null,captured:false,lastDetected:null,faceRetries:0};
+  // S117 finger-stability state (stableCount/stableFrames/dwellStart) — ported from auth.html's detect
+  // loop so the DISPLAYED count only changes after a deliberate hold, never a 1-frame flicker. See cerAdvisoryTick.
+  CER={N:N,stream:null,recorder:null,recChunks:[],recMime:'',recStart:0,raf:null,timer:null,t1:null,captured:false,lastDetected:null,faceRetries:0,stableCount:0,stableFrames:0,dwellStart:0};
 
   // Pre-flight fail-safe: don't open the camera if there is no enrolled face to match against.
   try{
@@ -1461,13 +1463,36 @@ async function startFastCeremony(email){
   cerArmCountdown(email);
 }
 
+// S117 finger-stability — the EXACT smoothing auth.html's full vac-auth flow uses (its detect-loop
+// stableFrames / _liveGestureOk mechanism: auth.html lines 2338-2339, 2787-2814, 2871). MediaPipe
+// flickers per-frame (a steady "2" hand reads 2,2,3,2,2…); the old code committed the RAW detect()
+// value EVERY frame, so the readout jumped and showed the wrong count (held 2 → showed 3). Now the
+// DISPLAYED count only changes once the SAME raw value has held steady for 12 consecutive frames
+// (~0.6s) AND ~700ms wall-clock — a deliberate hold, not a flicker. A single bad frame can never
+// register because it must hold for 12 frames first. This is what makes show-2-read-2 reliable.
+const CER_STABLE_FRAMES_NEEDED=12;  // auth.html:2338 STABLE_FRAMES_NEEDED — ~0.6s at ~20fps, a deliberate hold not a flicker
+const CER_MIN_DWELL_MS=700;         // auth.html:2339 MIN_DIGIT_DWELL_MS — ~0.7s wall-clock, frame-rate independent
+
 // Per-frame ADVISORY finger readout. Reads the shared FingerDetector when ready; NEVER blocks capture.
 function cerAdvisoryTick(){
   if(!CER||CER.captured) return;
   const v=document.getElementById('cerVideo');
   let det=null;
   try{ if(v&&window.FingerDetector&&FingerDetector.ready) det=FingerDetector.detect(v); }catch(e){}
-  if(typeof det==='number'&&det>=0) CER.lastDetected=det;
+  // Frame-stability gate, mirroring auth.html's detect loop (auth.html:2787-2798, 2848-2855):
+  // a hand with fingers (det>0) accumulates consecutive frames of the SAME raw count; a CHANGED
+  // count restarts the hold timer; a dropped/empty hand (det===0/-1/null) resets it. The count is
+  // COMMITTED to the on-screen display ONLY once held steady long enough — both the 12-frame hold
+  // AND the ~700ms dwell, exactly auth.html's _gestureOk / _liveGestureOk (auth.html:2814, 2871).
+  // So a 1-frame miscount (the 3 in 2,2,3,2,2…) never reaches 12 frames and is silently dropped.
+  if(typeof det==='number'&&det>0){
+    if(det===CER.stableCount){ CER.stableFrames++; }
+    else { CER.stableCount=det; CER.stableFrames=1; CER.dwellStart=performance.now(); }
+    const heldOk=(CER.stableFrames>=CER_STABLE_FRAMES_NEEDED && CER.dwellStart>0 && (performance.now()-CER.dwellStart)>=CER_MIN_DWELL_MS);
+    if(heldOk) CER.lastDetected=CER.stableCount;   // commit ONLY a steadily-held count to the DISPLAY
+  } else {
+    CER.stableCount=0; CER.stableFrames=0;   // hand dropped — reset the hold; the last committed count stays shown
+  }
   const fl=document.getElementById('cerFinger');
   if(fl){
     if(window.FingerDetector&&FingerDetector.failed) fl.textContent='Finger check unavailable — it’s advisory only, not required. Show '+CER.N+', say “'+CER.N+'”, capture.';
