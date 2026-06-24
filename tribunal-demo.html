@@ -152,6 +152,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .reauth-demo .rd-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;}
 .reauth-demo .rd-intro{font-size:12.5px;color:var(--text-tertiary);line-height:1.5;margin-bottom:12px;max-width:620px;}
 .reauth-demo .btn{font-size:13px;padding:9px 16px;}
+.reauth-demo .rd-cta{font-size:13.5px;padding:11px 20px;}
+.reauth-demo .rd-cta:disabled{opacity:.55;cursor:default;}
 .reauth-demo .rd-result{margin-top:14px;border:1px solid var(--border);border-radius:8px;padding:14px 16px;background:var(--bg);display:none;}
 .reauth-demo .rd-result.show{display:block;animation:fade .3s ease;}
 .rd-tiers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
@@ -1243,10 +1245,18 @@ function renderReauthDemo(){
   host.innerHTML=
     '<div class="rd-label">PROPORTIONAL RE-AUTH — TRY IT</div>'+
     '<div class="rd-intro">Sealing this decision was <strong>critical</strong> and non-repudiable, so it required a <strong>full</strong> re-auth a moment ago. Opening the sealed credential is <strong>low-stakes</strong>. Authorise that low-stakes action against the same token and watch the backend choose a lighter, proportional tier — light when low-stakes, full when critical.</div>'+
-    '<button class="btn btn-ghost" id="rdBtn" type="button">View the sealed credential</button>'+
+    '<button class="cta-btn rd-cta" id="rdBtn" type="button">View the sealed credential</button>'+
     '<div class="rd-result" id="rdResult"></div>';
-  const btn=document.getElementById('rdBtn');
-  if(btn)btn.addEventListener('click',viewCredentialReauth);
+  // Event delegation on the STABLE host (#reauthDemo never gets replaced — only its innerHTML).
+  // The click handler therefore survives every result re-render and can never be orphaned, so
+  // "Re-authorise again" re-fires viewCredentialReauth on each click. Bind once.
+  if(!host.__rdBound){
+    host.__rdBound=true;
+    host.addEventListener('click',function(e){
+      const t=e.target&&e.target.closest?e.target.closest('#rdBtn'):null;
+      if(t)viewCredentialReauth();
+    });
+  }
 }
 
 // Fire the low-stakes action server-side and surface the REAL tier the backend selects.
