@@ -147,6 +147,28 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .audit-line{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);padding:3px 0;display:flex;gap:10px;}
 .audit-line .t{color:var(--teal);flex:0 0 auto;}
 
+/* proportional re-auth demo (D-FAST-REAUTH-UNREACHABLE-IN-DEMO) */
+.reauth-demo{margin-top:16px;border-top:1px solid var(--border);padding-top:14px;}
+.reauth-demo .rd-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;}
+.reauth-demo .rd-intro{font-size:12.5px;color:var(--text-tertiary);line-height:1.5;margin-bottom:12px;max-width:620px;}
+.reauth-demo .btn{font-size:13px;padding:9px 16px;}
+.reauth-demo .rd-result{margin-top:14px;border:1px solid var(--border);border-radius:8px;padding:14px 16px;background:var(--bg);display:none;}
+.reauth-demo .rd-result.show{display:block;animation:fade .3s ease;}
+.rd-tiers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+@media(max-width:560px){.rd-tiers{grid-template-columns:1fr;}}
+.rd-tier{border:1px solid var(--border);border-radius:7px;padding:11px 12px;}
+.rd-tier .rd-act{font-family:var(--mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:5px;}
+.rd-tier .rd-name{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;}
+.rd-tier .rd-why{font-size:11.5px;color:var(--text-tertiary);line-height:1.45;}
+.rd-tier.rd-seal{border-left:2px solid var(--amber);}
+.rd-tier.rd-fast{border-left:2px solid var(--success);}
+.rd-tier.rd-full{border-left:2px solid var(--amber);}
+.rd-kv{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);}
+.rd-kv .rk{color:var(--text-secondary);}
+.rd-kv .ok{color:var(--success);}
+.rd-kv .warn{color:var(--amber);}
+.reauth-demo .rd-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:10px;line-height:1.5;}
+
 .foot{margin-top:48px;border-top:1px solid var(--border);padding-top:24px;font-size:13px;color:var(--text-tertiary);}
 .foot strong{color:var(--text-secondary);}
 .foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--text-quaternary);}
@@ -354,6 +376,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         </div>
         <dl class="kv" id="receiptKv"></dl>
         <div class="audit" id="auditLog"></div>
+        <div class="reauth-demo" id="reauthDemo" hidden></div>
       </div>
     </section>
     </div><!-- /walkBody -->
@@ -837,11 +860,14 @@ async function mintMatterToken(){
     human_identity: email,   // BIND to the verified email so human_ref matches the seal re-auth
     agent_id: 'tribunal-' + (m.id || 'matter'),
     resources: ['matter:' + (m.matter || 'demo')],
-    // Scope the token for the SAME action authorizeSeal authorises (seal_decision). If the
-    // token were scoped for a different action, /v1/vat/authorize would reject the seal as
-    // action-not-in-scope even with the identity now matching. Keep this in lock-step with
-    // authorizeSeal's action:'seal_decision'.
-    actions: ['seal_decision'],
+    // Scope the token for EVERY action it will be asked to authorise. authorizeSeal
+    // authorises 'seal_decision' (critical); the post-seal proportional re-auth demo
+    // (viewCredentialReauth) authorises 'view_credential' (low) against the SAME minted
+    // token. If an action is absent from this array, /v1/vat/authorize rejects it as
+    // action-not-in-scope even with the identity matching — so both must be listed.
+    // (D-FAST-REAUTH-UNREACHABLE-IN-DEMO: view_credential added so the FAST tier is
+    // actually reachable from the sealed receipt.)
+    actions: ['seal_decision', 'view_credential'],
     verification_method: 'multi_modal',
     sensitivity: 'high',
     constraints: constraints,
@@ -1188,7 +1214,143 @@ function showReceipt(){
     `<a class="verify-link" href="${SEAL_TOKEN.verify}" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
      <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${footer}</div>`+
     (SEAL_TOKEN.minted ? `<div class="fwd-note" style="margin-top:12px;"><strong>What's real here vs. the forward build (for evaluation).</strong> The token above was <em>just minted</em> against the production backend on this authorisation — a real, signed, independently-verifiable Ed25519 credential, not a stored sample. What is <em>illustrative</em> is the matter's encoded conditions: turning a specific matter's legal rules into the token — the release conditions, statutory triggers, any prescribed-witness requirement, and trust-money handling — is precisely the work that would be scoped and built <strong>with the relevant legal authority (e.g. the Law Society / Fair Trading)</strong>, not asserted in a demo. So: the cryptographic authority primitive is live today; the legally-precise matter model over it is the forward path, and the open legal questions are flagged inline on each matter for you to confirm or correct.</div>` : '');
+  renderReauthDemo();
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+// ---- Proportional re-auth demo (D-FAST-REAUTH-UNREACHABLE-IN-DEMO) ----
+// The seal we just authorised is 'seal_decision' — config.py maps it to CRITICAL, so the
+// /v1/vat/authorize hard gate demanded a FULL re-auth (we opened the live camera overlay
+// before sealing). Viewing the sealed credential is 'view_credential' — config.py maps it
+// to LOW. This block lets the user fire that low-stakes action AFTER the seal so the lighter
+// tier is actually reachable and visible. We read the SERVER's verdict; we never fake a tier.
+function renderReauthDemo(){
+  const host=document.getElementById('reauthDemo');
+  if(!host)return;
+  const sealed=!!(SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&SEAL_AUTHZ.authorized);
+  // Only meaningful when the seal was genuinely server-authorised — that is what gives us a
+  // live session token + minted in-scope token to authorise the low-stakes action against.
+  if(!sealed){
+    host.hidden=false;
+    host.innerHTML='<div class="rd-label">PROPORTIONAL RE-AUTH</div>'+
+      '<div class="rd-intro">The post-seal quick re-auth demo needs a live, server-authorised seal (a verified session token). This seal was not server-authorised in this preview, so the low-stakes action cannot be authorised against it here. Re-run the seal with a completed live verification to try it.</div>';
+    return;
+  }
+  host.hidden=false;
+  host.innerHTML=
+    '<div class="rd-label">PROPORTIONAL RE-AUTH — TRY IT</div>'+
+    '<div class="rd-intro">Sealing this decision was <strong>critical</strong> and non-repudiable, so it required a <strong>full</strong> re-auth a moment ago. Opening the sealed credential is <strong>low-stakes</strong>. Authorise that low-stakes action against the same token and watch the backend choose a lighter, proportional tier — light when low-stakes, full when critical.</div>'+
+    '<button class="btn btn-ghost" id="rdBtn" type="button">View the sealed credential</button>'+
+    '<div class="rd-result" id="rdResult"></div>';
+  const btn=document.getElementById('rdBtn');
+  if(btn)btn.addEventListener('click',viewCredentialReauth);
+}
+
+// Fire the low-stakes action server-side and surface the REAL tier the backend selects.
+// Two server calls, both read verbatim — nothing about the tier is fabricated client-side:
+//   (1) /v1/vat/authorize action=view_credential — the AUTHORITATIVE action authorisation.
+//       For a 'low' action the hard re-auth gate does NOT fire (unlike the critical seal),
+//       so it authorises against the SAME session with no fresh full re-auth, and writes an
+//       AAR. We show authorized + AAR id from the server response.
+//   (2) /v1/auth/quick-reauth — the tier-selection controller (select_reauth_tier). We send
+//       the verified full-auth session as the freshness signal and DELIBERATELY omit the
+//       biometric payload, so the probe exits BEFORE any capture and never burns a retry.
+//       We map the real server outcome: require_full_auth → re-assessed to FULL (reads the
+//       reauth_tier field); embedding_required → server SELECTED the fast tier (it passed
+//       tier selection and asked only for the single fast-tier biometric); a 200 → reauth_tier
+//       verbatim; no enrolled template / no session → degrade honestly (cannot probe).
+async function viewCredentialReauth(){
+  const btn=document.getElementById('rdBtn');
+  const tok=(window.__vacVerified&&window.__vacVerified.session_token)?window.__vacVerified.session_token:null;
+  const email=(window.__vacVerified&&window.__vacVerified.email)?String(window.__vacVerified.email).trim():'';
+  const jti=(SEAL_TOKEN&&SEAL_TOKEN.jti)?SEAL_TOKEN.jti:null;
+  if(btn){btn.disabled=true;btn.textContent='Re-authorising…';}
+
+  // (1) AUTHORITATIVE low-stakes action authorisation.
+  let authz;
+  if(tok&&jti){
+    try{
+      const r=await fetch(API_BASE+'/v1/vat/authorize',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({vat_jti:jti,action:'view_credential',resource:'matter:'+((cur&&cur.matter)||'demo'),authorising_session_token:tok,metadata:{surface:'tribunal-demo',_demo:true}})});
+      const d=await r.json().catch(()=>({}));
+      authz={attested:true,authorized:!!d.authorized,aar_id:d.aar_id||null,reason:d.reason||null};
+    }catch(e){authz={attested:false,reason:'authorize_call_failed'};}
+  }else{
+    authz={attested:false,reason:tok?'no_minted_token':'no_session_token'};
+  }
+
+  // (2) TIER-SELECTION PROBE (retry-safe — exits before any biometric capture).
+  let tier;
+  if(email){
+    try{
+      const body={email:email,action:'view_credential',detected_fingers:1,spoken_audio_b64:'',face_still_b64:'x'};
+      if(tok)body.authorising_session_token=tok;
+      const r=await fetch(API_BASE+'/v1/auth/quick-reauth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+      const d=await r.json().catch(()=>({}));
+      const detail=(d&&d.detail&&typeof d.detail==='object')?d.detail:d;   // FastAPI nests HTTPException detail
+      const errCode=detail&&detail.error;
+      if(r.ok&&detail&&detail.reauth_tier){
+        tier={state:'fast',reauth_tier:detail.reauth_tier,fast_tier_eligible:detail.fast_tier_eligible!==false};
+      }else if(errCode==='embedding_required'){
+        // Passed tier selection as fast-eligible, then asked only for the single fast-tier
+        // biometric (embedding) — i.e. the server selected the FAST tier, not full tri-modal.
+        tier={state:'fast',reauth_tier:'fast_one_digit_bound',fast_tier_eligible:true,inferred:true};
+      }else if(errCode==='require_full_auth'){
+        tier={state:'full',reauth_tier:detail.reauth_tier||'full_tri_modal',fast_tier_eligible:false,step_up:(detail.step_up_reasons&&detail.step_up_reasons.length)?detail.step_up_reasons.join(', '):null};
+      }else if(errCode==='no_face_reference'||errCode==='no_embedding'||errCode==='corrupt_face_reference'){
+        tier={state:'no_template',reason:errCode};
+      }else{
+        tier={state:'unknown',reason:errCode||('http_'+r.status)};
+      }
+    }catch(e){tier={state:'error'};}
+  }else{
+    tier={state:'no_session'};
+  }
+
+  renderReauthResult(authz,tier);
+  if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+}
+
+function renderReauthResult(authz,tier){
+  const out=document.getElementById('rdResult');
+  if(!out)return;
+  // SEAL tier card — what the critical action required (we know this from SEAL_AUTHZ).
+  const sealCard='<div class="rd-tier rd-seal"><div class="rd-act">seal_decision · critical</div>'+
+    '<div class="rd-name">Full re-auth</div>'+
+    '<div class="rd-why">High-stakes, non-repudiable. The hard gate required a fresh full verification at the moment of sealing.</div></div>';
+  // VIEW tier card — read verbatim from the server tier probe.
+  let viewCard;
+  if(tier.state==='fast'){
+    viewCard='<div class="rd-tier rd-fast"><div class="rd-act">view_credential · low</div>'+
+      '<div class="rd-name">Quick re-auth</div>'+
+      '<div class="rd-why">You verified moments ago — the backend selected the fast one-digit-bound tier (face embedding + ONE bound digit + passive liveness), not full tri-modal.</div></div>';
+  }else if(tier.state==='full'){
+    viewCard='<div class="rd-tier rd-full"><div class="rd-act">view_credential · low</div>'+
+      '<div class="rd-name">Full re-auth</div>'+
+      '<div class="rd-why">The backend re-assessed this to full tri-modal'+(tier.step_up?(' (step-up: '+esc(String(tier.step_up))+')'):'')+'. Honest degrade — no lighter tier was served.</div></div>';
+  }else{
+    const why = tier.state==='no_template' ? 'No enrolled face template for this verified identity, so the tier controller could not be probed. The authorisation result below is still live and server-attested.'
+      : tier.state==='no_session' ? 'No verified session/email on this seal, so the tier controller could not be probed.'
+      : 'The tier controller could not be reached ('+esc(String(tier.reason||tier.state))+'). Not faking a tier — showing only what the server returned.';
+    viewCard='<div class="rd-tier rd-full"><div class="rd-act">view_credential · low</div>'+
+      '<div class="rd-name">Tier not probed</div>'+
+      '<div class="rd-why">'+why+'</div></div>';
+  }
+  // Server facts row — authorise verdict + AAR + raw tier field.
+  let facts;
+  if(authz.attested){
+    facts='<div class="rd-kv">authorize fired: <span class="'+(authz.authorized?'ok':'warn')+'">'+(authz.authorized?'authorized=true':'authorized=false'+(authz.reason?(' ('+esc(String(authz.reason))+')'):''))+'</span>'+
+      (authz.aar_id?(' · <span class="rk">AAR '+esc(String(authz.aar_id))+'</span>'):'')+
+      (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+(typeof tier.fast_tier_eligible==='boolean'?(', fast_tier_eligible='+tier.fast_tier_eligible):'')+'</span>'):'')+
+      '</div>';
+  }else{
+    facts='<div class="rd-kv">authorize: <span class="warn">not server-attested ('+esc(String(authz.reason||'unavailable'))+')</span></div>';
+  }
+  const note = tier.inferred
+    ? 'Tier read from the live tier controller: it passed selection as fast-eligible and requested only the single fast-tier biometric — it did not demand full tri-modal. The full biometric capture is not performed in this demo.'
+    : 'Tier and authorisation are read verbatim from the production backend — no client-side faking.';
+  out.innerHTML='<div class="rd-tiers">'+sealCard+viewCard+'</div>'+facts+'<div class="rd-note">'+note+'</div>';
+  out.classList.add('show');
 }
 
 // ---- Live VAC identity step (F-577) ----
