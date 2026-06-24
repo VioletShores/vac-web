@@ -99,7 +99,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .btn-secondary:hover { border-color: var(--purple); background: var(--purple-bg); }
 
 /* Camera */
-.camera-container { position: relative; width: 100%; aspect-ratio: 4/3; max-height: clamp(200px, 40vh, 320px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
+/* D-VERIFY-CHECKS-BELOW-FOLD: cap the feed so the live status row + active-step
+   instruction stay in view on a ~800px laptop viewport (was 40vh/320px, which
+   dominated the fold and pushed the checks off-screen). */
+.camera-container { position: relative; width: 100%; aspect-ratio: 4/3; max-height: clamp(180px, 36vh, 300px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
 .camera-container.recording { border-color: var(--error); box-shadow: 0 0 20px rgba(248,81,73,0.15); }
 .camera-container.verified { border-color: var(--success); box-shadow: 0 0 20px rgba(63,185,80,0.15); }
 #videoPreview, #videoPreviewRec { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; background: #000; }
@@ -433,14 +436,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
             <div class="camera-label" id="cameraLabel">AWAITING CAMERA</div>
         </div>
     </div>
-    <div class="privacy-statement">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.6 6.8 6 7.5 3.4-.7 6-4 6-7.5V4L8 1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>We store a text description of your appearance — <strong style="color:var(--text-secondary);">no photos or video are retained.</strong> Recording is analysed in real-time and discarded.</span>
-    </div>
-    <button class="btn-primary" id="btnCamera" onclick="requestCamera()">
-        Enable Camera & Microphone
-    </button>
-    <div id="cameraError" class="error-msg" style="display:none;"></div>
+    <!-- D-VERIFY-CHECKS-BELOW-FOLD: the live checklist (mic meter + guided step
+         instruction + Light/Mic/Hand pills) now sits DIRECTLY under the camera, ABOVE
+         the button — so it's in view without scrolling and the button's "Complete the
+         checks above" copy is literally true (was rendered below the button before). -->
     <div id="preRecordChecklist" style="display:none; margin-top: clamp(6px, 1vh, 10px);">
         <!-- Mic test — prominent call to action -->
         <div id="avAudioBar" style="display:none; margin-bottom: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
@@ -472,6 +471,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         </div>
         <div id="avHandHint" style="display:none;text-align:center;font-size:12px;color:var(--teal);margin-top:8px;font-weight:500;">Hold your hand up — we'll show you it being tracked</div>
     </div>
+    <div class="privacy-statement">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.6 6.8 6 7.5 3.4-.7 6-4 6-7.5V4L8 1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>We store a text description of your appearance — <strong style="color:var(--text-secondary);">no photos or video are retained.</strong> Recording is analysed in real-time and discarded.</span>
+    </div>
+    <button class="btn-primary" id="btnCamera" onclick="requestCamera()">
+        Enable Camera & Microphone
+    </button>
+    <div id="cameraError" class="error-msg" style="display:none;"></div>
     <div style="text-align: center; margin-top: 4px;">
         <div id="adaptiveAuthBar" class="adaptive-auth-bar standard" style="display:none;"></div>
         <div class="modalities-mini" style="justify-content: center; display: none;" id="modalityChips">
