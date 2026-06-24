@@ -170,6 +170,25 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .rd-kv .ok{color:var(--success);}
 .rd-kv .warn{color:var(--amber);}
 .reauth-demo .rd-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:10px;line-height:1.5;}
+/* S117: live fast one-digit re-auth ceremony — deliberately lighter than the full seal overlay */
+.reauth-demo .cer-instr{font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin:2px 0 12px;max-width:620px;}
+.reauth-demo .cer-stage{display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:16px;align-items:start;}
+@media(max-width:540px){.reauth-demo .cer-stage{grid-template-columns:1fr;}}
+.reauth-demo .cer-cam{position:relative;border:1px solid var(--border-light);border-radius:8px;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:190px;}
+.reauth-demo .cer-cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block;}
+.reauth-demo .cer-rec{position:absolute;top:7px;left:7px;font-family:var(--mono);font-size:9.5px;letter-spacing:1px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:2px 6px;display:flex;align-items:center;gap:5px;}
+.reauth-demo .cer-dot{width:7px;height:7px;border-radius:50%;background:#FF5C5C;animation:cerblink 1s steps(2,start) infinite;}
+@keyframes cerblink{50%{opacity:.25;}}
+.reauth-demo .cer-cd{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:64px;font-weight:700;color:rgba(255,255,255,.92);text-shadow:0 2px 18px rgba(0,0,0,.65);pointer-events:none;}
+.reauth-demo .cer-side{display:flex;flex-direction:column;gap:10px;min-width:0;}
+.reauth-demo .cer-digit{font-family:var(--mono);font-size:52px;font-weight:700;line-height:1;color:var(--purple);text-align:center;border:1px solid var(--purple-border);border-radius:10px;background:var(--purple-bg);padding:10px 0;}
+.reauth-demo .cer-prompt{font-size:13px;color:var(--text-secondary);line-height:1.5;text-align:center;}
+.reauth-demo .cer-finger{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);text-align:center;line-height:1.45;}
+.reauth-demo .cer-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:2px;}
+.reauth-demo .cer-cap{font-size:13px;padding:10px 18px;}
+.reauth-demo .cer-full{font-size:12px;color:var(--text-tertiary);text-align:center;text-decoration:underline;}
+.reauth-demo .cer-full:hover{color:var(--text-secondary);}
+.reauth-demo .cer-status{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-top:12px;line-height:1.5;}
 
 .foot{margin-top:48px;border-top:1px solid var(--border);padding-top:24px;font-size:13px;color:var(--text-tertiary);}
 .foot strong{color:var(--text-secondary);}
@@ -457,6 +476,25 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     </div>
   </div>
 </div>
+
+<!-- S117: shared client modules for the LIVE fast one-digit re-auth ceremony (same loaders as
+     auth.html / vat-verify, so the capture path is reused, not reinvented). All three have vercel
+     rewrites and self-load on first use; the ceremony fails open if any is unavailable. -->
+<script type="module">
+  // MediaPipe HandLandmarker — powers the ADVISORY finger readout only (it NEVER gates capture).
+  try {
+    const t0 = performance.now();
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+    window.__VAC_MediaPipe = { HandLandmarker: mod.HandLandmarker, FilesetResolver: mod.FilesetResolver };
+    window.__VAC_MediaPipe_load_ms = Math.round(performance.now() - t0);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-ready', { detail: { ms: window.__VAC_MediaPipe_load_ms } }));
+  } catch (e) {
+    window.__VAC_MediaPipe_error = String(e && e.message || e);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-error', { detail: { error: window.__VAC_MediaPipe_error } }));
+  }
+</script>
+<script src="/vac-face-embed.js"></script>
+<script src="/vac-finger-detect.js"></script>
 
 <script>
 // F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
@@ -1083,7 +1121,7 @@ function sealReauthGate(onPass, onCancel){
   // Open the live verify overlay at the seal moment.
   frame.src=VERIFY_SRC; overlay.hidden=false; document.body.style.overflow='hidden';
 }
-document.getElementById('reset').onclick=()=>{if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
+document.getElementById('reset').onclick=()=>{cerTeardown();if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
 // ---- Send-to-Rob (F-597 addendum) ----
 // Caroline's notes genuinely email to Rob via the thin /v1/tribunal/expert-notes endpoint.
@@ -1247,6 +1285,10 @@ function renderReauthDemo(){
     '<div class="rd-intro">Sealing this decision was <strong>critical</strong> and non-repudiable, so it required a <strong>full</strong> re-auth a moment ago. Opening the sealed credential is <strong>low-stakes</strong>. Authorise that low-stakes action against the same token and watch the backend choose a lighter, proportional tier — light when low-stakes, full when critical.</div>'+
     '<button class="cta-btn rd-cta" id="rdBtn" type="button">View the sealed credential</button>'+
     '<div class="rd-result" id="rdResult"></div>';
+  // S117: warm the shared capture models now (fail-open) so the LIVE quick ceremony feels instant when
+  // the user taps through — the seal a moment ago already used them, so they are usually warm/cached.
+  try{ if(window.VACFaceEmbed) window.VACFaceEmbed.ready(); }catch(e){}
+  try{ if(window.FingerDetector && !FingerDetector.ready && !FingerDetector.failed) FingerDetector.init(); }catch(e){}
   // Event delegation on the STABLE host (#reauthDemo never gets replaced — only its innerHTML).
   // The click handler therefore survives every result re-render and can never be orphaned, so
   // "Re-authorise again" re-fires viewCredentialReauth on each click. Bind once.
@@ -1259,109 +1301,392 @@ function renderReauthDemo(){
   }
 }
 
-// Fire the low-stakes action server-side and surface the REAL tier the backend selects.
-// Two server calls, both read verbatim — nothing about the tier is fabricated client-side:
-//   (1) /v1/vat/authorize action=view_credential — the AUTHORITATIVE action authorisation.
-//       For a 'low' action the hard re-auth gate does NOT fire (unlike the critical seal),
-//       so it authorises against the SAME session with no fresh full re-auth, and writes an
-//       AAR. We show authorized + AAR id from the server response.
-//   (2) /v1/auth/quick-reauth — the tier-selection controller (select_reauth_tier). We send
-//       the verified full-auth session as the freshness signal and DELIBERATELY omit the
-//       biometric payload, so the probe exits BEFORE any capture and never burns a retry.
-//       We map the real server outcome: require_full_auth → re-assessed to FULL (reads the
-//       reauth_tier field); embedding_required → server SELECTED the fast tier (it passed
-//       tier selection and asked only for the single fast-tier biometric); a 200 → reauth_tier
-//       verbatim; no enrolled template / no session → degrade honestly (cannot probe).
-async function viewCredentialReauth(){
-  const btn=document.getElementById('rdBtn');
-  const tok=(window.__vacVerified&&window.__vacVerified.session_token)?window.__vacVerified.session_token:null;
-  const email=(window.__vacVerified&&window.__vacVerified.email)?String(window.__vacVerified.email).trim():'';
-  const jti=(SEAL_TOKEN&&SEAL_TOKEN.jti)?SEAL_TOKEN.jti:null;
-  if(btn){btn.disabled=true;btn.textContent='Re-authorising…';}
+// ---- Proportional re-auth: REAL fast one-digit-bound ceremony (S117) ----
+// BEFORE (probe-only): "View the sealed credential" fired /v1/auth/quick-reauth with the biometric
+//   DELIBERATELY omitted (face_still_b64:'x', spoken_audio_b64:''), so it read back the tier the server
+//   WOULD select and proved the fast tier was eligible — but never opened the camera or asked for the
+//   bound digit. The user saw a REPORT that fast was selected, not the EXPERIENCE of doing it.
+// AFTER (this block): the button runs the ACTUAL lightweight ceremony — opens the camera, shows ONE
+//   random digit to show (fingers) AND say, captures a face still + the spoken audio, and POSTs the REAL
+//   biometric payload to /v1/auth/quick-reauth (action='view_credential'). The two-card result then
+//   reflects the live response. This makes the proportional-security contrast tangible: full tri-modal
+//   at the seal (~30s) vs a ~few-second one-digit re-auth to view the credential.
+//
+// Capture is REUSED from the production one-digit ceremony in vat-verify.html (same getUserMedia options,
+// the same <=640 still downscale + canvas.toDataURL, the same VACFaceEmbed 128-D descriptor, the same
+// MediaRecorder mime chain, the same shared FingerDetector) — not reinvented. It is kept LIGHTER than
+// vat-verify's full bound say+show gate: ONE digit, a short hold, no hard co-occurrence timing. The
+// SERVER's face-embedding match is the real gate.
+//
+// FINGER IS ADVISORY — CAPTURE IS NEVER BLOCKED (mirrors auth.html's advisory finger). MediaPipe finger
+// counting is unreliable (it can read 2 as 3), so it NEVER gates: the readout is advisory only, capture
+// is reachable at all times (an always-enabled "Capture now" + an auto-capture countdown + a "Use full
+// verification instead" escape), and we submit whatever count was detected (else the asked digit) as an
+// advisory value for the server to weigh. A flaky finger count can never strand the user.
+const QR_EP='/v1/auth/quick-reauth';
+let CER=null;          // live ceremony state (stream/recorder/timers/raf) so it can always be torn down
+let cerAttempts=0;     // server no-match retries, persisted ACROSS internal re-runs (reset per user start)
 
-  // (1) AUTHORITATIVE low-stakes action authorisation.
-  let authz;
+function cerEmail(){ return (window.__vacVerified&&window.__vacVerified.email)?String(window.__vacVerified.email).trim():''; }
+function cerSessionTok(){ return (window.__vacVerified&&window.__vacVerified.session_token)?window.__vacVerified.session_token:null; }
+function cerCamSupported(){ return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.isSecureContext!==false); }
+
+// (call 1) AUTHORITATIVE low-stakes action authorisation — unchanged contract. Authorises
+// 'view_credential' against the SAME minted token/session (no fresh full re-auth for a low action) and
+// writes an AAR. Returns the server verdict verbatim.
+async function authorizeViewCredential(){
+  const tok=cerSessionTok();
+  const jti=(SEAL_TOKEN&&SEAL_TOKEN.jti)?SEAL_TOKEN.jti:null;
   if(tok&&jti){
     try{
       const r=await fetch(API_BASE+'/v1/vat/authorize',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({vat_jti:jti,action:'view_credential',resource:'matter:'+((cur&&cur.matter)||'demo'),authorising_session_token:tok,metadata:{surface:'tribunal-demo',_demo:true}})});
       const d=await r.json().catch(()=>({}));
-      authz={attested:true,authorized:!!d.authorized,aar_id:d.aar_id||null,reason:d.reason||null};
-    }catch(e){authz={attested:false,reason:'authorize_call_failed'};}
-  }else{
-    authz={attested:false,reason:tok?'no_minted_token':'no_session_token'};
+      return {attested:true,authorized:!!d.authorized,aar_id:d.aar_id||null,reason:d.reason||null};
+    }catch(e){return {attested:false,reason:'authorize_call_failed'};}
   }
+  return {attested:false,reason:tok?'no_minted_token':'no_session_token'};
+}
 
-  // (2) TIER-SELECTION PROBE (retry-safe — exits before any biometric capture).
-  let tier;
-  if(email){
-    try{
-      const body={email:email,action:'view_credential',detected_fingers:1,spoken_audio_b64:'',face_still_b64:'x'};
-      if(tok)body.authorising_session_token=tok;
-      const r=await fetch(API_BASE+'/v1/auth/quick-reauth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      const d=await r.json().catch(()=>({}));
-      const detail=(d&&d.detail&&typeof d.detail==='object')?d.detail:d;   // FastAPI nests HTTPException detail
-      const errCode=detail&&detail.error;
-      if(r.ok&&detail&&detail.reauth_tier){
-        tier={state:'fast',reauth_tier:detail.reauth_tier,fast_tier_eligible:detail.fast_tier_eligible!==false};
-      }else if(errCode==='embedding_required'){
-        // Passed tier selection as fast-eligible, then asked only for the single fast-tier
-        // biometric (embedding) — i.e. the server selected the FAST tier, not full tri-modal.
-        tier={state:'fast',reauth_tier:'fast_one_digit_bound',fast_tier_eligible:true,inferred:true};
-      }else if(errCode==='require_full_auth'){
-        tier={state:'full',reauth_tier:detail.reauth_tier||'full_tri_modal',fast_tier_eligible:false,step_up:(detail.step_up_reasons&&detail.step_up_reasons.length)?detail.step_up_reasons.join(', '):null};
-      }else if(errCode==='no_face_reference'||errCode==='no_embedding'||errCode==='corrupt_face_reference'){
-        tier={state:'no_template',reason:errCode};
-      }else{
-        tier={state:'unknown',reason:errCode||('http_'+r.status)};
-      }
-    }catch(e){tier={state:'error'};}
-  }else{
-    tier={state:'no_session'};
-  }
+// (call 2 — DEGRADE ONLY) retry-safe TIER PROBE. Sends the freshness signal but DELIBERATELY omits the
+// biometric, so it exits before any capture and never burns a retry. Used ONLY when the live ceremony
+// cannot run (no camera / no enrolled face / no session). Returns the tier the server maps, verbatim.
+async function probeReauthTier(){
+  const tok=cerSessionTok();
+  const email=cerEmail();
+  if(!email) return {state:'no_session'};
+  try{
+    const body={email:email,action:'view_credential',detected_fingers:1,spoken_audio_b64:'',face_still_b64:'x'};
+    if(tok)body.authorising_session_token=tok;
+    const r=await fetch(API_BASE+QR_EP,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    const detail=(d&&d.detail&&typeof d.detail==='object')?d.detail:d;   // FastAPI nests HTTPException detail
+    const errCode=detail&&detail.error;
+    if(r.ok&&detail&&detail.reauth_tier) return {state:'fast',reauth_tier:detail.reauth_tier,fast_tier_eligible:detail.fast_tier_eligible!==false};
+    if(errCode==='embedding_required') return {state:'fast',reauth_tier:'fast_one_digit_bound',fast_tier_eligible:true,inferred:true};
+    if(errCode==='require_full_auth') return {state:'full',reauth_tier:detail.reauth_tier||'full_tri_modal',fast_tier_eligible:false,step_up:(detail.step_up_reasons&&detail.step_up_reasons.length)?detail.step_up_reasons.join(', '):null};
+    if(errCode==='no_face_reference'||errCode==='no_embedding'||errCode==='corrupt_face_reference') return {state:'no_template',reason:errCode};
+    return {state:'unknown',reason:errCode||('http_'+r.status)};
+  }catch(e){return {state:'error'};}
+}
 
+// Degrade: probe + authorise, render the two cards with an honest label of WHY the live ceremony didn't
+// run. Always reachable — this is what the camera/face/email gates fall back to. Never a dead end.
+async function reauthDegrade(why){
+  cerTeardown();
+  const authz=await authorizeViewCredential();
+  const tier=await probeReauthTier();
+  tier.degraded=why;
   renderReauthResult(authz,tier);
-  if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+  const btn=document.getElementById('rdBtn'); if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+}
+
+// Orchestrator wired to "View the sealed credential" / "Re-authorise again".
+async function viewCredentialReauth(){
+  const btn=document.getElementById('rdBtn');
+  if(btn){btn.disabled=true;btn.textContent='Starting quick check…';}
+  if(!cerEmail()) return reauthDegrade('no_session');
+  if(!cerCamSupported()) return reauthDegrade('camera_unavailable');
+  cerAttempts=0;                       // fresh user-initiated run
+  startFastCeremony(cerEmail());
+}
+
+// blob → bare base64 (no data: prefix). Lifted from vat-verify.html.
+function cerBlobToB64(blob){
+  return new Promise(function(resolve){
+    try{var r=new FileReader();r.onloadend=function(){var s=String(r.result||'');var c=s.indexOf(',');resolve(c===-1?'':s.slice(c+1));};r.onerror=function(){resolve('');};r.readAsDataURL(blob);}
+    catch(e){resolve('');}
+  });
+}
+
+// Stop every live resource. Safe to call repeatedly and from anywhere (reset, pagehide, errors, retries).
+function cerTeardown(){
+  if(!CER)return;
+  try{ if(CER.raf) cancelAnimationFrame(CER.raf); }catch(e){}
+  try{ if(CER.timer) clearInterval(CER.timer); }catch(e){}
+  try{ if(CER.t1) clearTimeout(CER.t1); }catch(e){}
+  try{ if(CER.recorder&&CER.recorder.state==='recording') CER.recorder.stop(); }catch(e){}
+  try{ if(CER.stream) CER.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}
+  CER=null;
+}
+window.addEventListener('pagehide',function(){try{cerTeardown();}catch(e){}});
+
+// The REAL lightweight ceremony. Renders into #rdResult (the stable result container).
+async function startFastCeremony(email){
+  const out=document.getElementById('rdResult');
+  if(!out) return reauthDegrade('no_session');
+  cerTeardown();
+  const N=1+Math.floor(Math.random()*5);   // ONE bound digit (1–5) — the fast tier, NOT the multi-digit full challenge
+  CER={N:N,stream:null,recorder:null,recChunks:[],recMime:'',recStart:0,raf:null,timer:null,t1:null,captured:false,lastDetected:null,faceRetries:0};
+
+  // Pre-flight fail-safe: don't open the camera if there is no enrolled face to match against.
+  try{
+    const rs=await fetch(API_BASE+'/v1/auth/face-ref-status?email='+encodeURIComponent(email));
+    const rd=await rs.json().catch(()=>({}));
+    if(rs.ok&&rd&&rd.has_face_reference===false){ return reauthDegrade('no_template'); }
+  }catch(e){ /* status check flaky → proceed; the server still arbitrates on the POST */ }
+  if(!CER) return;   // torn down while awaiting
+
+  // Warm the shared models (fail-open). VACFaceEmbed is the REAL identity signal; FingerDetector is advisory.
+  if(window.VACFaceEmbed){ try{ window.VACFaceEmbed.ready(); }catch(e){} }
+  if(window.FingerDetector&&!FingerDetector.ready&&!FingerDetector.failed){ try{ FingerDetector.init(); }catch(e){} }
+
+  // Open camera + mic (same options as the production ceremony).
+  let stream;
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:true});
+  }catch(e){ return reauthDegrade('camera_unavailable'); }
+  if(!CER){ try{stream.getTracks().forEach(function(t){t.stop();});}catch(_){} return; }   // torn down while awaiting
+  CER.stream=stream;
+
+  cerRenderStage(out);
+  const video=document.getElementById('cerVideo');
+  if(video){ video.srcObject=stream; try{ await video.play(); }catch(e){} }
+
+  // Audio+video recorder for the spoken digit (mime fallback chain from vat-verify). Records the WHOLE
+  // window, so the spoken digit is captured whenever in the few-second hold the user says it.
+  try{
+    const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
+    for(let i=0;i<types.length;i++){ if(window.MediaRecorder&&MediaRecorder.isTypeSupported(types[i])){CER.recMime=types[i];break;} }
+    const opts=CER.recMime?{mimeType:CER.recMime,videoBitsPerSecond:1500000,audioBitsPerSecond:64000}:{videoBitsPerSecond:1500000,audioBitsPerSecond:64000};
+    CER.recorder=new MediaRecorder(stream,opts);
+    CER.recorder.ondataavailable=function(e){ if(e.data&&e.data.size>0) CER.recChunks.push(e.data); };
+    CER.recorder.start();
+    CER.recStart=performance.now();
+  }catch(e){ CER.recorder=null; }
+
+  // Advisory finger readout (NEVER gates). Manual capture (always enabled) + auto-capture countdown.
+  CER.raf=requestAnimationFrame(cerAdvisoryTick);
+  const cap=document.getElementById('cerCapBtn'); if(cap) cap.onclick=function(){ cerCapture(email); };
+  cerArmCountdown(email);
+}
+
+// Per-frame ADVISORY finger readout. Reads the shared FingerDetector when ready; NEVER blocks capture.
+function cerAdvisoryTick(){
+  if(!CER||CER.captured) return;
+  const v=document.getElementById('cerVideo');
+  let det=null;
+  try{ if(v&&window.FingerDetector&&FingerDetector.ready) det=FingerDetector.detect(v); }catch(e){}
+  if(typeof det==='number'&&det>=0) CER.lastDetected=det;
+  const fl=document.getElementById('cerFinger');
+  if(fl){
+    if(window.FingerDetector&&FingerDetector.failed) fl.textContent='Finger check unavailable — it’s advisory only, not required. Show '+CER.N+', say “'+CER.N+'”, capture.';
+    else if(typeof CER.lastDetected==='number') fl.textContent='Fingers seen: '+CER.lastDetected+' · advisory'+(CER.lastDetected===CER.N?' — matches':' — exact count isn’t required, capture anyway');
+    else fl.textContent='Show '+CER.N+' finger'+(CER.N===1?'':'s')+' near your face · advisory';
+  }
+  CER.raf=requestAnimationFrame(cerAdvisoryTick);
+}
+
+// Brief get-ready, then a visible 3-2-1 auto-capture. The user can capture earlier (button) or switch to
+// full verification at any time. NOTHING here is gated on the finger count.
+function cerArmCountdown(email){
+  CER.t1=setTimeout(function(){
+    if(!CER||CER.captured) return;
+    cerSetStatus('Show '+CER.N+' and say “'+CER.N+'” now — capturing in a moment. Capture when ready.');
+    let secs=3; const cd=document.getElementById('cerCountdown');
+    CER.timer=setInterval(function(){
+      if(!CER||CER.captured){ if(CER&&CER.timer){clearInterval(CER.timer);CER.timer=null;} return; }
+      if(cd) cd.textContent=secs>0?secs:'';
+      if(secs<=0){ clearInterval(CER.timer); CER.timer=null; cerCapture(email); return; }
+      secs--;
+    },800);
+  },1500);
+}
+
+function cerSetStatus(msg){ const s=document.getElementById('cerStatus'); if(s) s.textContent=msg; }
+
+function cerRenderStage(out){
+  const N=CER.N;
+  out.classList.add('show');
+  out.innerHTML=
+    '<div class="rd-label">QUICK RE-AUTH — LIVE</div>'+
+    '<div class="cer-instr">Quick check: <strong>show and say this one number</strong>. The seal a moment ago took full tri-modal (~30s); this takes one number.</div>'+
+    '<div class="cer-stage">'+
+      '<div class="cer-cam">'+
+        '<video id="cerVideo" autoplay playsinline muted></video>'+
+        '<div class="cer-rec"><span class="cer-dot"></span>REC</div>'+
+        '<div class="cer-cd" id="cerCountdown"></div>'+
+      '</div>'+
+      '<div class="cer-side">'+
+        '<div class="cer-digit" id="cerDigit">'+N+'</div>'+
+        '<div class="cer-prompt">Show <strong>'+N+'</strong> finger'+(N===1?'':'s')+' near your face AND say &ldquo;'+N+'&rdquo; — together.</div>'+
+        '<div class="cer-finger" id="cerFinger">Show '+N+' finger'+(N===1?'':'s')+' near your face · advisory</div>'+
+        '<div class="cer-row">'+
+          '<button class="cta-btn cer-cap" id="cerCapBtn" type="button">Capture now</button>'+
+        '</div>'+
+        '<a class="cer-full" id="cerFullLink" href="/auth.html" target="_blank" rel="noopener">Use full verification instead</a>'+
+      '</div>'+
+    '</div>'+
+    '<div class="cer-status" id="cerStatus">Opening the secure quick check… one number, a few seconds. The finger count is advisory — your face match is the real check.</div>';
+}
+
+async function cerCapture(email){
+  if(!CER||CER.captured) return;
+  // Stop the countdown/advisory loop the instant a capture begins (manual or auto) — nothing waits on fingers.
+  if(CER.timer){clearInterval(CER.timer);CER.timer=null;}
+  if(CER.t1){clearTimeout(CER.t1);CER.t1=null;}
+  if(CER.raf){cancelAnimationFrame(CER.raf);CER.raf=null;}
+  CER.captured=true;
+  const N=CER.N;
+  const detFingers=(typeof CER.lastDetected==='number')?CER.lastDetected:N;   // ADVISORY value submitted to the server
+  const rec=CER.recorder, chunks=CER.recChunks||[], recMimeRef=CER.recMime;   // grab now — survive a mid-capture teardown
+  cerSetStatus('Got it — hold still…');
+  const video=document.getElementById('cerVideo');
+  if(!video||!video.videoWidth){ CER.captured=false; CER.raf=requestAnimationFrame(cerAdvisoryTick); cerSetStatus('Camera not ready yet — press “Capture now” in a second.'); return; }
+
+  // Bound still — un-mirrored frame, downscaled <=640 (same as vat-verify).
+  const longest=Math.max(video.videoWidth,video.videoHeight);
+  const scale=longest>640?640/longest:1;
+  const cw=Math.max(1,Math.round(video.videoWidth*scale)), ch=Math.max(1,Math.round(video.videoHeight*scale));
+  const canvas=document.createElement('canvas'); canvas.width=cw; canvas.height=ch;
+  canvas.getContext('2d').drawImage(video,0,0,cw,ch);
+  const dataUrl=canvas.toDataURL('image/jpeg',0.9);
+  const comma=dataUrl.indexOf(',');
+  const stillB64=comma===-1?'':dataUrl.slice(comma+1);
+  const stillTs=CER.recStart?Math.round(performance.now()-CER.recStart):0;
+
+  // Face IDENTITY embedding from the SAME frame (the REAL gate signal; single-face UX check). A no/multi
+  // face is a FACE problem, not a finger one — let them re-capture (camera stays live) up to twice, then
+  // send the still anyway so the server arbitrates. The full-verification escape is always present.
+  let embedding=null;
+  if(window.VACFaceEmbed){
+    try{
+      await window.VACFaceEmbed.ready();
+      const emb=await window.VACFaceEmbed.compute(canvas);
+      if(emb&&emb.ok) embedding=emb.embedding;
+      else if(emb&&(emb.reason==='no_face'||emb.reason==='multiple_faces')&&CER&&CER.faceRetries<2){
+        CER.faceRetries++; CER.captured=false; CER.raf=requestAnimationFrame(cerAdvisoryTick);
+        cerSetStatus(window.VACFaceEmbed.reasonMessage(emb.reason)+' Line up one face and press “Capture now”.');
+        return;   // re-capture, do NOT post — never a dead end (escape link still available)
+      }
+    }catch(e){ /* embedder error → null; the server arbitrates from the still */ }
+  }
+
+  // Stop the recorder (a beat of tail audio after the digit) → bare base64.
+  let clipB64='', clipMime=recMimeRef||'video/webm';
+  try{
+    if(rec&&rec.state==='recording'){
+      await new Promise(function(resolve){ rec.onstop=resolve; setTimeout(function(){ try{rec.stop();}catch(e){resolve();} },250); });
+    }
+    if(chunks.length) clipB64=await cerBlobToB64(new Blob(chunks,{type:clipMime}));
+  }catch(e){}
+
+  cerSetStatus('Matching your face + number against your verified identity…');
+  try{ if(CER&&CER.stream) CER.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}   // capture done — release the camera (stays light)
+
+  // (4) POST the REAL biometric payload. detected_fingers is ADVISORY (whatever MediaPipe saw, else the asked digit).
+  let tier;
+  try{
+    const body={
+      email:email,
+      action:'view_credential',
+      challenge_fingers:N,
+      detected_fingers:detFingers,
+      face_embedding:embedding||undefined,
+      face_embedding_model:(window.VACFaceEmbed&&window.VACFaceEmbed.MODEL_ID)||undefined,
+      face_still_b64:stillB64,
+      still_ts_ms:stillTs,
+      spoken_audio_b64:clipB64||undefined,
+      audio_mimetype:clipMime||undefined,
+      cooccur_ms:700
+    };
+    const tok=cerSessionTok(); if(tok) body.authorising_session_token=tok;
+    const r=await fetch(API_BASE+QR_EP,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    const detail=(d&&d.detail&&typeof d.detail==='object')?d.detail:d;
+    const errCode=detail&&detail.error;
+    const ok=r.ok&&(d.authenticated===true||d.authorized===true||(detail&&detail.authenticated===true));
+    if(ok){
+      tier={state:'fast',ceremony:true,digit:N,detected:detFingers,authenticated:true,
+        reauth_tier:(d.reauth_tier||detail.reauth_tier||'fast_one_digit_bound'),
+        fast_tier_eligible:(d.fast_tier_eligible!==false&&detail.fast_tier_eligible!==false),
+        qr_aar_id:(d.aar_id||detail.aar_id||null)};
+    }else if(errCode==='require_full_auth'){
+      tier={state:'full',ceremony:true,reauth_tier:detail.reauth_tier||'full_tri_modal',fast_tier_eligible:false,step_up:(detail.step_up_reasons&&detail.step_up_reasons.length)?detail.step_up_reasons.join(', '):null};
+    }else if(errCode==='no_face_reference'||errCode==='no_embedding'||errCode==='corrupt_face_reference'){
+      tier={state:'no_template',ceremony:true,reason:errCode};
+    }else{
+      // genuine no-match / failed check — offer a couple of honest retries, then degrade (never stranded).
+      if(cerAttempts<2){
+        cerAttempts++;
+        cerTeardown();
+        const why=esc(String(errCode||('http_'+r.status)));
+        const o=document.getElementById('rdResult'); if(o){ o.classList.add('show'); o.innerHTML='<div class="rd-label">QUICK RE-AUTH</div><div class="cer-status">Couldn’t confirm it’s you ('+why+'). Let’s try once more.</div>'; }
+        return startFastCeremony(email);
+      }
+      tier={state:'failed',ceremony:true,reason:errCode||('http_'+r.status)};
+    }
+  }catch(e){ tier={state:'error',ceremony:true}; }
+
+  cerTeardown();
+  const authz=await authorizeViewCredential();
+  renderReauthResult(authz,tier);
+  const btn=document.getElementById('rdBtn'); if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
 }
 
 function renderReauthResult(authz,tier){
   const out=document.getElementById('rdResult');
   if(!out)return;
-  // SEAL tier card — what the critical action required (we know this from SEAL_AUTHZ).
+  const ceremony=!!(tier&&tier.ceremony);
+  // SEAL tier card — what the critical action required (known from SEAL_AUTHZ).
   const sealCard='<div class="rd-tier rd-seal"><div class="rd-act">seal_decision · critical</div>'+
     '<div class="rd-name">Full re-auth</div>'+
-    '<div class="rd-why">High-stakes, non-repudiable. The hard gate required a fresh full verification at the moment of sealing.</div></div>';
-  // VIEW tier card — read verbatim from the server tier probe.
+    '<div class="rd-why">High-stakes, non-repudiable. The hard gate required a fresh full tri-modal verification at the moment of sealing (~30s).</div></div>';
+  // VIEW tier card — read verbatim from the live ceremony / probe.
   let viewCard;
   if(tier.state==='fast'){
+    const why = ceremony
+      ? 'You just did it — one bound number ('+esc(String(tier.digit))+'): shown and spoken, matched against your verified face. The backend ran the fast one-digit-bound tier (face-embedding match + ONE bound digit + passive liveness), not full tri-modal.'
+      : 'You verified moments ago — the backend selected the fast one-digit-bound tier (face embedding + ONE bound digit + passive liveness), not full tri-modal.';
     viewCard='<div class="rd-tier rd-fast"><div class="rd-act">view_credential · low</div>'+
-      '<div class="rd-name">Quick re-auth</div>'+
-      '<div class="rd-why">You verified moments ago — the backend selected the fast one-digit-bound tier (face embedding + ONE bound digit + passive liveness), not full tri-modal.</div></div>';
+      '<div class="rd-name">Quick re-auth'+(ceremony?' · done':(tier.degraded?' · eligible (probe)':''))+'</div>'+
+      '<div class="rd-why">'+why+'</div></div>';
   }else if(tier.state==='full'){
     viewCard='<div class="rd-tier rd-full"><div class="rd-act">view_credential · low</div>'+
       '<div class="rd-name">Full re-auth</div>'+
       '<div class="rd-why">The backend re-assessed this to full tri-modal'+(tier.step_up?(' (step-up: '+esc(String(tier.step_up))+')'):'')+'. Honest degrade — no lighter tier was served.</div></div>';
   }else{
-    const why = tier.state==='no_template' ? 'No enrolled face template for this verified identity, so the tier controller could not be probed. The authorisation result below is still live and server-attested.'
-      : tier.state==='no_session' ? 'No verified session/email on this seal, so the tier controller could not be probed.'
-      : 'The tier controller could not be reached ('+esc(String(tier.reason||tier.state))+'). Not faking a tier — showing only what the server returned.';
+    const why = tier.state==='failed' ? 'The quick check ran live, but the server did not confirm a match ('+esc(String(tier.reason||'no_match'))+'). Not faking a pass — showing only what the server returned. Try “Re-authorise again”, or use full verification.'
+      : tier.state==='no_template' ? 'No enrolled face template for this verified identity, so the quick face check can’t run. The authorisation result below is still live and server-attested.'
+      : tier.degraded==='camera_unavailable' ? 'No camera/microphone available here, so the live quick check couldn’t run — showing the server tier probe instead (biometric omitted, retry-safe). On a device with a camera, this button runs the real one-number ceremony.'
+      : (tier.degraded==='no_session'||tier.state==='no_session') ? 'No verified session/email on this seal, so the quick check could not run.'
+      : 'The tier could not be resolved ('+esc(String(tier.reason||tier.state))+'). Not faking a tier — showing only what the server returned.';
+    const nm = tier.state==='failed' ? 'Not confirmed'
+      : tier.degraded==='camera_unavailable' ? 'Tier probed (no camera)'
+      : 'Quick check unavailable';
     viewCard='<div class="rd-tier rd-full"><div class="rd-act">view_credential · low</div>'+
-      '<div class="rd-name">Tier not probed</div>'+
+      '<div class="rd-name">'+nm+'</div>'+
       '<div class="rd-why">'+why+'</div></div>';
   }
-  // Server facts row — authorise verdict + AAR + raw tier field.
+  // Server facts row — authorise verdict + AAR + raw tier field (+ live ceremony result when present).
+  const aar=(tier&&tier.qr_aar_id)||(authz&&authz.aar_id)||null;
+  const cerOK=(ceremony&&tier.state==='fast');
   let facts;
   if(authz.attested){
     facts='<div class="rd-kv">authorize fired: <span class="'+(authz.authorized?'ok':'warn')+'">'+(authz.authorized?'authorized=true':'authorized=false'+(authz.reason?(' ('+esc(String(authz.reason))+')'):''))+'</span>'+
-      (authz.aar_id?(' · <span class="rk">AAR '+esc(String(authz.aar_id))+'</span>'):'')+
+      (cerOK?' · <span class="ok">quick-reauth authenticated=true</span>':'')+
+      (cerOK&&typeof tier.detected!=='undefined'?' · <span class="rk">finger '+esc(String(tier.detected))+' (advisory)</span>':'')+
+      (aar?(' · <span class="rk">AAR '+esc(String(aar))+'</span>'):'')+
       (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+(typeof tier.fast_tier_eligible==='boolean'?(', fast_tier_eligible='+tier.fast_tier_eligible):'')+'</span>'):'')+
       '</div>';
   }else{
-    facts='<div class="rd-kv">authorize: <span class="warn">not server-attested ('+esc(String(authz.reason||'unavailable'))+')</span></div>';
+    facts='<div class="rd-kv">authorize: <span class="warn">not server-attested ('+esc(String(authz.reason||'unavailable'))+')</span>'+
+      (cerOK?' · <span class="ok">quick-reauth authenticated=true</span>':'')+
+      (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+'</span>'):'')+
+      '</div>';
   }
-  const note = tier.inferred
-    ? 'Tier read from the live tier controller: it passed selection as fast-eligible and requested only the single fast-tier biometric — it did not demand full tri-modal. The full biometric capture is not performed in this demo.'
-    : 'Tier and authorisation are read verbatim from the production backend — no client-side faking.';
+  let note;
+  if(cerOK){
+    note='The quick re-auth ran live against the production backend just now: camera opened, ONE number shown + spoken, a face still + the audio POSTed to '+QR_EP+', and the tier read verbatim from the response. Full tri-modal at the seal (~30s) vs one number here (a few seconds) — the proportional tier doing exactly the work the stakes call for. The finger count is advisory; your face-embedding match is the gate.';
+  }else if(ceremony){
+    note='The quick re-auth was attempted live; the server did not return a fast-tier pass, so only its verbatim outcome is shown above — no client-side faking.';
+  }else if(tier.degraded==='camera_unavailable'){
+    note='No camera/microphone here, so the live one-number ceremony couldn’t run. Showing the server’s tier-selection probe instead (biometric omitted, retry-safe) — it reports what the backend WOULD require. On a device with a camera, this button runs the real one-number ceremony.';
+  }else if(tier.inferred){
+    note='Tier read from the live tier controller: it passed selection as fast-eligible and requested only the single fast-tier biometric. The live capture did not run on this device — showing the probe.';
+  }else{
+    note='Tier and authorisation are read verbatim from the production backend — no client-side faking.';
+  }
   out.innerHTML='<div class="rd-tiers">'+sealCard+viewCard+'</div>'+facts+'<div class="rd-note">'+note+'</div>';
   out.classList.add('show');
 }
