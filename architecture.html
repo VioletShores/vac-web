@@ -149,9 +149,9 @@ svg text{font-family:var(--mono)}
   <div class="step">
     <div class="step-num">4</div>
     <div class="step-body">
-      <div class="step-head"><span class="step-name">The action is gated — and the decision is audited</span><span class="badge prog">BUILT · MERGING</span></div>
+      <div class="step-head"><span class="step-name">The action is gated — and the decision is audited</span><span class="badge live">BUILT · LIVE</span></div>
       <div class="step-desc">A sensitive action is <b>refused</b> unless a fresh, sufficiently-strong, owner-bound re-auth is proven. And every action <i>and every refusal</i> is written to an immutable <b>Action Attestation Record</b>: what was attempted, by whose authority, at what assurance level, with what result. Auditing the <i>denials</i> — not just the successes — is what an auditor or a court actually needs.</div>
-      <div class="step-note">Built and adversarially reviewed (independent code-gate passed); merging to production now. This is the gate+audit layer.</div>
+      <div class="step-note">Live in production and adversarially reviewed (independent code-gate passed). A critical action with no fresh re-auth is refused at the gate, and the refusal is written as an auditable record. This is the gate+audit layer.</div>
     </div>
   </div>
 
