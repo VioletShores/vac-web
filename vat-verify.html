@@ -427,6 +427,8 @@ body {
      IDENTICAL model + preprocessing as auth.html's enrollment, so distances are
      comparable. Self-loads face-api on first use. -->
 <script src="/vac-face-embed.js"></script>
+<!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
+<script src="/vac-finger-detect.js"></script>
 </head>
 <body>
 
@@ -1054,69 +1056,13 @@ init();
   var MEDIAPIPE_GRACE_MS   = 6000;  // no finger detector by now → manual capture path
 
   // ─────────────────────────────────────────────────────────────────────────
-  // MediaPipe HandLandmarker finger counter — lifted from auth.html (FingerDetector),
-  // vacDebug() calls stripped. Orientation-invariant joint-angle count, validated live.
+  // MediaPipe HandLandmarker finger counter — now the SHARED module
+  // /vac-finger-detect.js (loaded in <head>, defines window.FingerDetector).
+  // Same live-tested auth.html math (thumb angle<40 & spread>0.62; four-finger
+  // bend<35; warm-up + consecutive-slow-frame fallback + reset). The N=1
+  // re-auth challenge below stays server-driven and target-agnostic — the
+  // detector just returns the raw 0-5 count.
   // ─────────────────────────────────────────────────────────────────────────
-  var FingerDetector = (function () {
-    var _detector = null, _isReady = false, _hasFailed = false;
-    var _framesProcessed = 0, _consecutiveSlowFrames = 0, _lastLandmarks = null;
-    var WARMUP_FRAMES = 5, SLOW_FRAME_MS = 1500, CONSECUTIVE_SLOW_LIMIT = 6;
-
-    async function init() {
-      if (_isReady || _hasFailed) return _isReady;
-      try {
-        var waited = 0;
-        while (!window.__VAC_MediaPipe && waited < 15000) { await new Promise(function (r) { setTimeout(r, 100); }); waited += 100; }
-        var mp = window.__VAC_MediaPipe;
-        if (!mp) { _hasFailed = true; console.warn('[VAC reauth] MediaPipe module did not load'); return false; }
-        var vision = await mp.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-        _detector = await mp.HandLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate: "GPU" },
-          numHands: 1, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5, runningMode: "VIDEO"
-        });
-        _isReady = true;
-        console.log('[VAC reauth] HandLandmarker ready');
-        return true;
-      } catch (e) { _hasFailed = true; console.warn('[VAC reauth] HandLandmarker unavailable:', e && e.message); return false; }
-    }
-    function _angle(a, b, c) {
-      var v1 = { x: b.x - a.x, y: b.y - a.y }, v2 = { x: c.x - b.x, y: c.y - b.y };
-      var dot = v1.x * v2.x + v1.y * v2.y, m1 = Math.hypot(v1.x, v1.y), m2 = Math.hypot(v2.x, v2.y);
-      if (m1 === 0 || m2 === 0) return 180;
-      var cos = dot / (m1 * m2); cos = Math.max(-1, Math.min(1, cos));
-      return Math.acos(cos) * 180 / Math.PI;
-    }
-    function _countFingers(lm) {
-      var count = 0;
-      var tBend = _angle(lm[1], lm[2], lm[4]);
-      var wrist = lm[0], scale = Math.hypot(lm[9].x - wrist.x, lm[9].y - wrist.y) || 1;
-      var tSpread = Math.hypot(lm[4].x - lm[5].x, lm[4].y - lm[5].y) / scale;
-      if (tBend < 40 && tSpread > 0.62) count++;
-      var F = [[5, 6, 8], [9, 10, 12], [13, 14, 16], [17, 18, 20]];
-      for (var i = 0; i < F.length; i++) { if (_angle(lm[F[i][0]], lm[F[i][1]], lm[F[i][2]]) < 35) count++; }
-      return count;
-    }
-    function detect(videoEl) {
-      if (!_isReady || _hasFailed || !_detector) return null;
-      var t0 = performance.now(), results;
-      try { results = _detector.detectForVideo(videoEl, performance.now()); }
-      catch (e) { _hasFailed = true; return null; }
-      var ms = performance.now() - t0; _framesProcessed++;
-      if (_framesProcessed > WARMUP_FRAMES) {
-        if (ms > SLOW_FRAME_MS) { if (++_consecutiveSlowFrames >= CONSECUTIVE_SLOW_LIMIT) { _hasFailed = true; return null; } }
-        else _consecutiveSlowFrames = 0;
-      }
-      if (!results.landmarks || results.landmarks.length === 0) { _lastLandmarks = null; return -1; }
-      _lastLandmarks = results.landmarks[0];
-      return _countFingers(results.landmarks[0]);
-    }
-    return {
-      init: init, detect: detect,
-      get ready() { return _isReady; },
-      get failed() { return _hasFailed; },
-      reset: function () { _hasFailed = false; _consecutiveSlowFrames = 0; _framesProcessed = 0; _lastLandmarks = null; }
-    };
-  })();
   // Warm MediaPipe on idle so it's ready by the time the user taps reveal.
   setTimeout(function () { FingerDetector.init(); }, 1200);
 
