@@ -96,7 +96,7 @@ h2{font-size:28px;margin-bottom:16px}
     <a href="/api">API</a>
     <a href="#pricing">Pricing</a>
     <a href="#api">API Reference</a>
-    <a href="#signup">Get API Key</a>
+    <a href="#signup">Request access</a>
   </div>
 </nav>
 
@@ -111,7 +111,7 @@ h2{font-size:28px;margin-bottom:16px}
     <div class="hero-stat"><div class="hero-stat-val">1028+</div><div class="hero-stat-label">patent claims</div></div>
   </div>
   <div class="cta-row">
-    <a href="#signup" class="btn btn-primary">Get Free API Key</a>
+    <a href="#signup" class="btn btn-primary">Request access</a>
     <a href="#quickstart" class="btn btn-secondary">View Docs</a>
   </div>
 </div>
@@ -236,38 +236,10 @@ rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/rep
 <!-- PRICING -->
 <div class="section" id="pricing">
   <div class="section-title">Pricing</div>
-  <h2>Free while we build</h2>
-  <p style="color:var(--gray);margin-bottom:24px">The SDK is free during the development phase. Early adopters will be grandfathered when paid tiers launch.</p>
-  <div class="pricing">
-    <div class="price-card featured">
-      <div class="price-badge">CURRENT</div>
-      <div class="price-name">EARLY ACCESS</div>
-      <div class="price-amount">$0</div>
-      <div class="price-period">during development</div>
-      <ul class="price-features">
-        <li>All endpoints available</li>
-        <li>L1, L2, L3 assurance levels</li>
-        <li>Delegation chains</li>
-        <li>Action recording + feedback</li>
-        <li>Agent reputation</li>
-        <li>Execution graph queries</li>
-        <li>Ed25519 signed tokens</li>
-      </ul>
-      <div class="price-cta"><a href="#signup" class="btn btn-primary" style="width:100%;text-align:center">Get Started</a></div>
-    </div>
-    <div class="price-card">
-      <div class="price-name">ENTERPRISE</div>
-      <div class="price-amount">Custom</div>
-      <div class="price-period">when you need SLAs</div>
-      <ul class="price-features">
-        <li>Dedicated infrastructure</li>
-        <li>SLA guarantee</li>
-        <li>On-premise option</li>
-        <li>Custom policy assertions</li>
-        <li>Priority support</li>
-      </ul>
-      <div class="price-cta"><a href="mailto:hello@vacprotocol.org" class="btn btn-secondary" style="width:100%;text-align:center">Contact</a></div>
-    </div>
+  <div class="signup-form" style="text-align:center">
+    <h2 style="margin-bottom:12px">Pricing is set per engagement during early access.</h2>
+    <p style="color:var(--gray);font-size:14px;line-height:1.7;margin-bottom:28px">VAC is being deployed with a small number of partners across legal, finance, and critical infrastructure. Pricing and plans will open as we expand — for now, let's talk about your use case.</p>
+    <a href="mailto:hello@vacprotocol.org" class="btn btn-primary">Start a conversation</a>
   </div>
 </div>
 
@@ -388,20 +360,10 @@ rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/rep
 <!-- SIGNUP -->
 <div class="section" id="signup">
   <div class="section-title">Get Started</div>
-  <div class="signup-form">
-    <h2 style="text-align:center;margin-bottom:8px">Get Your API Key</h2>
-    <p style="text-align:center;color:var(--gray);font-size:13px;margin-bottom:24px">Free during development. All endpoints available immediately.</p>
-    <div class="form-group">
-      <label>EMAIL</label>
-      <input type="email" id="dev-email" placeholder="you@company.com">
-    </div>
-    <div class="form-group">
-      <label>COMPANY (optional)</label>
-      <input type="text" id="dev-company" placeholder="Your company name">
-    </div>
-    <button class="btn btn-primary" style="width:100%" onclick="signup()">Create Account & Get Key</button>
-    <div id="key-display" class="key-display"></div>
-    <div id="result-msg"></div>
+  <div class="signup-form" style="text-align:center">
+    <h2 style="margin-bottom:12px">VAC is in early access.</h2>
+    <p style="color:var(--gray);font-size:14px;line-height:1.7;margin-bottom:28px">We're working directly with our first design partners to integrate verifiable human authority. Tell us what you're building and we'll get you set up.</p>
+    <a href="mailto:developers@vacprotocol.org" class="btn btn-primary">Request access</a>
   </div>
 </div>
 
