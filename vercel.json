@@ -13,6 +13,10 @@
       "destination": "/standards.html"
     },
     {
+      "source": "/architecture",
+      "destination": "/architecture.html"
+    },
+    {
       "source": "/trust",
       "destination": "/trust.html"
     },
