@@ -25,10 +25,6 @@
       "destination": "/tribunal-demo.html"
     },
     {
-      "source": "/architecture",
-      "destination": "/architecture.html"
-    },
-    {
       "source": "/keyvault",
       "destination": "/keyvault.html"
     },
