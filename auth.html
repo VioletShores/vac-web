@@ -318,6 +318,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 </script>
 <!-- VAC face-EMBEDDING module (face-api.js 128-D identity descriptor for re-auth). Self-loads face-api on first use. -->
 <script src="/vac-face-embed.js"></script>
+<!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
+<script src="/vac-finger-detect.js"></script>
 </head>
 <body>
 <div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#2DD4BF'" onmouseout="this.style.color='#6B7280'">← Back to VAC Protocol</a></div><script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
@@ -1082,156 +1084,13 @@ const SPEED_CONFIG = {
 };
 
 // ── Real-time finger detection (MediaPipe HandLandmarker) ────────────────────
-// Loaded async from CDN in <head>. Falls back to timer mode if CDN fails or
-// device is too slow. Counts extended fingers per frame; server-side Gemini
-// remains the trust gate — this is purely for UX responsiveness.
-const FingerDetector = (function() {
-    let _detector = null;
-    let _isReady = false;
-    let _hasFailed = false;
-    let _framesProcessed = 0;
-    let _consecutiveSlowFrames = 0;
-    let _lastLandmarks = null;
-    // Mobile first-frame cost (GPU shader compile, WASM JIT warmup) can spike
-    // to 800-1500ms. Give it a warm-up grace period and require *sustained*
-    // slowness before giving up — not a single bad frame.
-    const WARMUP_FRAMES = 5;                      // ignore timing for first 5 frames
-    const SLOW_FRAME_MS = 1500;                   // what counts as "too slow"
-    const CONSECUTIVE_SLOW_LIMIT = 6;             // how many in a row before we bail (raised from 3 — fallback is permanent, so don't trip on transient hiccups)
-
-    async function init() {
-        if (_isReady || _hasFailed) return _isReady;
-        const _initStart = performance.now();
-        try { vacDebug('fd_init_start'); } catch(_) {}
-        try {
-            // Wait for the ES-module import at top of <head> to finish.
-            // That import sets window.__VAC_MediaPipe. Module loads are async
-            // and can take 500-3000ms on 4G — don't race it, wait for it.
-            const MODULE_POLL_MS = 100;
-            const MODULE_MAX_WAIT_MS = 15000;  // 15s budget for CDN download
-            let waited = 0;
-            while (!window.__VAC_MediaPipe && waited < MODULE_MAX_WAIT_MS) {
-                await new Promise(r => setTimeout(r, MODULE_POLL_MS));
-                waited += MODULE_POLL_MS;
-            }
-            const mp = window.__VAC_MediaPipe;
-            if (!mp) {
-                _hasFailed = true;
-                try { vacDebug('fd_init_no_module', 'Waited ' + MODULE_MAX_WAIT_MS + 'ms, window.__VAC_MediaPipe never set', { module_error: window.__VAC_MediaPipe_error || null, waited_ms: waited }); } catch(_) {}
-                console.warn('[VAC] HandLandmarker init: MediaPipe module did not load within ' + MODULE_MAX_WAIT_MS + 'ms (check network/CSP for cdn.jsdelivr.net)');
-                return false;
-            }
-            try { vacDebug('fd_init_module_ready', null, { module_wait_ms: waited, module_load_ms: window.__VAC_MediaPipe_load_ms || null }); } catch(_) {}
-            if (waited > 0) {
-                console.log('[VAC] HandLandmarker init: waited ' + waited + 'ms for MediaPipe module to load');
-            }
-            const visionStart = performance.now();
-            const vision = await mp.FilesetResolver.forVisionTasks(
-                "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-            );
-            try { vacDebug('fd_init_wasm_loaded', null, { ms: Math.round(performance.now() - visionStart) }); } catch(_) {}
-            const modelStart = performance.now();
-            _detector = await mp.HandLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-                    delegate: "GPU"
-                },
-                numHands: 1,
-                minHandDetectionConfidence: 0.5,
-                minHandPresenceConfidence: 0.5,
-                minTrackingConfidence: 0.5,
-                runningMode: "VIDEO"
-            });
-            _isReady = true;
-            try { vacDebug('fd_init_ready', null, { model_ms: Math.round(performance.now() - modelStart), total_ms: Math.round(performance.now() - _initStart) }); } catch(_) {}
-            console.log('[VAC] HandLandmarker ready — real-time finger detection active');
-            return true;
-        } catch(e) {
-            _hasFailed = true;
-            try { vacDebug('fd_init_exception', e && e.message || String(e), { name: e && e.name || null, total_ms: Math.round(performance.now() - _initStart) }); } catch(_) {}
-            console.warn('[VAC] HandLandmarker unavailable, will use timer fallback:', e.message);
-            return false;
-        }
-    }
-
-    // Orientation-invariant finger count (S110, validated live at /finger-test).
-    // Replaces the old tip.y<pip.y check which only worked with the hand upright.
-    // A finger is "extended" when its two segments (base->mid, mid->tip) stay roughly
-    // aligned (small bend angle) regardless of hand orientation in the image plane.
-    function _angle(a,b,c){
-        const v1={x:b.x-a.x,y:b.y-a.y}, v2={x:c.x-b.x,y:c.y-b.y};
-        const dot=v1.x*v2.x+v1.y*v2.y, m1=Math.hypot(v1.x,v1.y), m2=Math.hypot(v2.x,v2.y);
-        if(m1===0||m2===0) return 180;
-        let cos=dot/(m1*m2); cos=Math.max(-1,Math.min(1,cos));
-        return Math.acos(cos)*180/Math.PI; // 0 = straight, larger = bent
-    }
-    function _countFingers(lm) {
-        let count = 0;
-        // thumb: joint-angle + spread (validated: 25 deg / 0.67 spread reads "up")
-        const tBend=_angle(lm[1],lm[2],lm[4]);
-        const wrist=lm[0], scale=Math.hypot(lm[9].x-wrist.x, lm[9].y-wrist.y)||1;
-        const tSpread=Math.hypot(lm[4].x-lm[5].x, lm[4].y-lm[5].y)/scale;
-        if (tBend < 40 && tSpread > 0.62) count++;
-        // four fingers: bend angle of base->pip vs pip->tip, < 35 deg = extended
-        const F=[[5,6,8],[9,10,12],[13,14,16],[17,18,20]];
-        for(const [mcp,pip,tip] of F){ if(_angle(lm[mcp],lm[pip],lm[tip]) < 35) count++; }
-        return count;
-    }
-
-    function detect(videoEl) {
-        if (!_isReady || _hasFailed || !_detector) return null;
-        const t0 = performance.now();
-        let results;
-        try {
-            results = _detector.detectForVideo(videoEl, performance.now());
-        } catch(e) {
-            console.warn('[VAC] HandLandmarker detect error, switching to timer fallback:', e.message);
-            _hasFailed = true;
-            return null;
-        }
-        const ms = performance.now() - t0;
-        _framesProcessed++;
-        if (_framesProcessed > WARMUP_FRAMES) {
-            if (ms > SLOW_FRAME_MS) {
-                _consecutiveSlowFrames++;
-                if (_consecutiveSlowFrames >= CONSECUTIVE_SLOW_LIMIT) {
-                    console.warn('[VAC] HandLandmarker too slow (' + CONSECUTIVE_SLOW_LIMIT + ' consecutive frames > ' + SLOW_FRAME_MS + 'ms, last=' + ms.toFixed(0) + 'ms), switching to timer fallback');
-                    _hasFailed = true;
-                    return null;
-                }
-            } else {
-                _consecutiveSlowFrames = 0;
-            }
-        }
-        if (!results.landmarks || results.landmarks.length === 0) { _lastLandmarks = null; return -1; } // no hand in frame
-        _lastLandmarks = results.landmarks[0];
-        return _countFingers(results.landmarks[0]);
-    }
-
-    return {
-        init: init,
-        detect: detect,
-        get landmarks() { return _lastLandmarks; },
-        get ready() { return _isReady; },
-        get failed() { return _hasFailed; },
-        // S110 fix: clear the slow-frame latch so a 2nd auth attempt re-engages
-        // detection instead of staying stuck in timer fallback. _detector + the
-        // loaded model are preserved; only the per-run failure flags reset.
-        reset() {
-            if (_detector && !_hasFailed) { /* already healthy, nothing to do */ }
-            _hasFailed = false;
-            _consecutiveSlowFrames = 0;
-            _framesProcessed = 0;
-            _lastLandmarks = null;
-        },
-        // Guarded one-shot warm-up (toggle-gated, S110). Swallows all errors so it
-        // can NEVER trip the failure latch or affect the real loop's state.
-        warmOnce(videoEl, ts) {
-            if (!_isReady || !_detector || !videoEl || videoEl.readyState < 2) return;
-            try { _detector.detectForVideo(videoEl, ts); } catch(_) { /* warm-up must never fail the detector */ }
-        }
-    };
-})();
+// MOVED to the shared module /vac-finger-detect.js (single source of truth;
+// also used by vat-verify.html quick re-auth and the finger-test bench). It is
+// loaded as a plain <script> in <head> and defines window.FingerDetector with
+// the identical API (init/detect/landmarks/ready/failed/reset/warmOnce) and the
+// identical live-tested math (thumb angle<40 & spread>0.62; four-finger bend<35;
+// warm-up grace + consecutive-slow-frame fallback). Server-side Gemini remains
+// the trust gate — this is purely for UX responsiveness.
 
 // Kick off HandLandmarker init as soon as the page loads so it's ready by
 // the time the user reaches the recording step (takes ~1-2s to download model).
