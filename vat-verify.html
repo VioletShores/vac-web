@@ -1048,8 +1048,8 @@ init();
   var DIGIT_MOD_DELTA      = 0.030; // voiced run must modulate at least this much (rejects flat tones)
   var VAD_SPEECH_FALLBACK  = 0.14;  // voiced threshold (rms) before calibration
   var VAD_SILENCE_FALLBACK = 0.085; // silence threshold (rms); the gap is the "neither" hysteresis band
-  var GESTURE_STABLE_FRAMES = 8;    // frames the finger count must hold == N
-  var MIN_DWELL_MS         = 450;   // min dwell on the right count before it can advance
+  var GESTURE_STABLE_FRAMES = 12;   // S117: match auth.html STABLE_FRAMES_NEEDED (auth.html:2338) — ~0.6s hold, a deliberate hold not a flicker (was 8: too weak, MediaPipe flicker showed wrong counts)
+  var MIN_DWELL_MS         = 700;   // S117: match auth.html MIN_DIGIT_DWELL_MS (auth.html:2339) — ~0.7s wall-clock dwell (was 450)
   var CONFIRM_HOLD_MS      = 250;   // both lamps green this long → capture (lets the user SEE the ✓)
   var CALIB_MS             = 800;   // noise-floor calibration / camera-settle pre-roll
   var VOICE_HELP_MS        = 9000;  // gesture held this long w/o voice → offer the escape
