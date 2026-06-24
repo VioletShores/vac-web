@@ -239,6 +239,12 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 /* attributed-stat source line — visually distinct so it never reads as a VS claim */
 .src-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);line-height:1.55;margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
 .caroline-open{color:var(--amber);font-weight:600;}
+/* forward affordance out of the static honesty wall (D-TRIBUNAL-CFREE-PANEL-DEADEND) — the panel
+   has no stepper by design, so these buttons are the only way forward off the wall. */
+.wall-nav{margin-top:4px;border-top:1px solid var(--border);padding-top:18px;display:flex;flex-direction:column;gap:12px;}
+.wall-nav-label{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--text-quaternary);}
+.wall-nav-btns{display:flex;flex-wrap:wrap;gap:10px;}
+.wall-nav-btns .btn{flex:1 1 auto;}
 
 /* send-to-Rob modal (reuses .vo backdrop) */
 .send-card{width:min(440px,100%);max-height:94vh;overflow:auto;background:var(--surface);border:1px solid var(--border-light);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
@@ -918,6 +924,23 @@ function renderStage(){
   if(panelMode){
     s.innerHTML=cur.cfPanel;                 // honest wall: explanatory panel, no Begin/Seal, no receipt
     controls.style.display='none';
+    // D-TRIBUNAL-CFREE-PANEL-DEADEND — the wall is intentionally static (no stepper, so VAC never
+    // implies a custodian-free residential flow exists). But a reader who lands here still needs a
+    // way forward. Add navigation only — NOT a fake bond cfree flow: primary path is this matter's
+    // own verified "With VAC" view; secondary is the commercial-lease matter where custodian-free
+    // is actually lawful. The pointers already named inline (lines ~506,512) become clickable here.
+    const nav=document.createElement('div');
+    nav.className='wall-nav';
+    const haveVac=!!cur.vacSteps, haveLease=cur.id!=='lease'&&MATTERS.some(x=>x.id==='lease');
+    nav.innerHTML=`<div class="wall-nav-label">Where to go from here</div><div class="wall-nav-btns">`
+      +(haveVac?`<button class="btn btn-primary" data-nav="vac">View the “With VAC” flow for this bond &rarr;</button>`:'')
+      +(haveLease?`<button class="btn btn-ghost" data-nav="lease">See the commercial-lease matter — where custodian-free is lawful &rarr;</button>`:'')
+      +`</div>`;
+    s.appendChild(nav);
+    const vb=nav.querySelector('[data-nav="vac"]');
+    if(vb)vb.onclick=()=>{stageView='vac';renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});};
+    const lb=nav.querySelector('[data-nav="lease"]');
+    if(lb)lb.onclick=()=>{selectMatter('lease');stageView='cfree';renderStage();};
   }else{
     controls.style.display='flex';
     const steps=activeSteps();
