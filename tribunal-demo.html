@@ -1419,7 +1419,7 @@ async function startFastCeremony(email){
   const N=1+Math.floor(Math.random()*5);   // ONE bound digit (1–5) — the fast tier, NOT the multi-digit full challenge
   // S117 finger-stability state (stableCount/stableFrames/dwellStart) — ported from auth.html's detect
   // loop so the DISPLAYED count only changes after a deliberate hold, never a 1-frame flicker. See cerAdvisoryTick.
-  CER={N:N,stream:null,recorder:null,recChunks:[],recMime:'',recStart:0,raf:null,timer:null,t1:null,captured:false,lastDetected:null,faceRetries:0,stableCount:0,stableFrames:0,dwellStart:0};
+  CER={N:N,stream:null,recorder:null,recChunks:[],recMime:'',recStart:0,raf:null,timer:null,t1:null,captured:false,lastDetected:null,faceRetries:0,stableCount:0,stableFrames:0,dwellStart:0}; try{ FingerDetector.resetHysteresis(); }catch(_){} // F-613: clear smoothing for a fresh ceremony
 
   // Pre-flight fail-safe: don't open the camera if there is no enrolled face to match against.
   try{
@@ -1479,15 +1479,20 @@ function cerAdvisoryTick(){
   const v=document.getElementById('cerVideo');
   let det=null;
   try{ if(v&&window.FingerDetector&&FingerDetector.ready) det=FingerDetector.detect(v); }catch(e){}
-  // Frame-stability gate, mirroring auth.html's detect loop (auth.html:2787-2798, 2848-2855):
-  // a hand with fingers (det>0) accumulates consecutive frames of the SAME raw count; a CHANGED
-  // count restarts the hold timer; a dropped/empty hand (det===0/-1/null) resets it. The count is
-  // COMMITTED to the on-screen display ONLY once held steady long enough — both the 12-frame hold
-  // AND the ~700ms dwell, exactly auth.html's _gestureOk / _liveGestureOk (auth.html:2814, 2871).
-  // So a 1-frame miscount (the 3 in 2,2,3,2,2…) never reaches 12 frames and is silently dropped.
-  if(typeof det==='number'&&det>0){
-    if(det===CER.stableCount){ CER.stableFrames++; }
-    else { CER.stableCount=det; CER.stableFrames=1; CER.dwellStart=performance.now(); }
+  // F-613: feed the raw MediaPipe count through the shared detector's hysteresis so a stray
+  // flicker frame no longer resets the hold (the jitter fix proven in the ceremony). The smoothed
+  // value drives the DISPLAY-stability gate below. Finger is ADVISORY here (server gates on
+  // face-embedding + Gemini), so the committed display value is what's submitted. feedStable reuses
+  // the raw value (no second MediaPipe run); null/pre-settle → fall back to raw.
+  var _det = (typeof det==='number') ? FingerDetector.feedStable(det) : det;
+  if(_det===null||_det===undefined) _det=det;
+  // Frame-stability gate on the SMOOTHED count: a hand with fingers accumulates frames of the same
+  // (smoothed) count; a sustained change restarts the hold; a dropped hand resets it. Committed to
+  // the display ONLY once held steady (12-frame + ~700ms dwell). Hysteresis already absorbed the
+  // 1-frame flicker, so this gate now climbs smoothly instead of starving.
+  if(typeof _det==='number'&&_det>0){
+    if(_det===CER.stableCount){ CER.stableFrames++; }
+    else { CER.stableCount=_det; CER.stableFrames=1; CER.dwellStart=performance.now(); }
     const heldOk=(CER.stableFrames>=CER_STABLE_FRAMES_NEEDED && CER.dwellStart>0 && (performance.now()-CER.dwellStart)>=CER_MIN_DWELL_MS);
     if(heldOk) CER.lastDetected=CER.stableCount;   // commit ONLY a steadily-held count to the DISPLAY
   } else {

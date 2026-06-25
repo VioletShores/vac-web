@@ -1303,7 +1303,7 @@ init();
     // reset gate state
     capturing = false; calibrated = false; floorSamples = []; calibUntil = performance.now() + CALIB_MS;
     sawSilence = false; voiced = 0; voiceOnsetAt = 0; voiceMin = 1; voiceMax = 0; voiceDipStart = 0;
-    voiceFiredAt = 0; lastVoiceMs = 0; voiceMode = 'vad'; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; lastCoach = '';
+    voiceFiredAt = 0; lastVoiceMs = 0; voiceMode = 'vad'; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; lastCoach = ''; try{ FingerDetector.resetHysteresis(); }catch(_){} // F-613: clear smoothing between attempts
     vadSpeech = VAD_SPEECH_FALLBACK; vadSilence = VAD_SILENCE_FALLBACK;
     gateStartAt = performance.now();
     running = true;
@@ -1386,14 +1386,20 @@ init();
     // Finger detection
     var video = document.getElementById('raVideo');
     var detected = (video && FingerDetector.ready) ? FingerDetector.detect(video) : null;
+    // F-613: smoothed count for the STABILITY gate only (absorbs MediaPipe flicker so a
+    // steady hold isn't reset by a stray frame — the jitter fix). Raw `detected` stays the
+    // value-of-record (sent to the server as detected_fingers; the server is the real gate).
+    // feedStable reuses the raw value (no second MediaPipe run); null/pre-settle → fall back to raw.
+    var _stable = (detected === null) ? null : FingerDetector.feedStable(detected);
+    if (_stable === null || _stable === undefined) _stable = detected;
 
-    // gesture stability on the target count
-    if (detected === N) { stableCount++; if (stableCount === 1) gestureFirstAt = now; }
+    // gesture stability on the target count (SMOOTHED — flicker no longer resets it)
+    if (_stable === N) { stableCount++; if (stableCount === 1) gestureFirstAt = now; }
     else { stableCount = 0; gestureFirstAt = 0; }
-    var gestureLive = (detected === N && stableCount >= GESTURE_STABLE_FRAMES && gestureFirstAt > 0 && (now - gestureFirstAt) >= MIN_DWELL_MS);
+    var gestureLive = (_stable === N && stableCount >= GESTURE_STABLE_FRAMES && gestureFirstAt > 0 && (now - gestureFirstAt) >= MIN_DWELL_MS);
 
     // expire a stale spoken-digit stamp (must co-occur with fingers up)
-    if (voiceFiredAt > 0 && ((detected !== N && (now - voiceFiredAt) > DIGIT_COOCCUR_MS) || (now - voiceFiredAt) > DIGIT_COOCCUR_MAX_MS)) voiceFiredAt = 0;
+    if (voiceFiredAt > 0 && ((_stable !== N && (now - voiceFiredAt) > DIGIT_COOCCUR_MS) || (now - voiceFiredAt) > DIGIT_COOCCUR_MAX_MS)) voiceFiredAt = 0;
     var voiceCo = (voiceMode === 'off') ? true : (voiceFiredAt > 0);
 
     // live count readout
@@ -1507,7 +1513,7 @@ init();
   // spending an attempt — the user simply re-does the bound act.
   function resumeGate() {
     capturing = false;
-    voiceFiredAt = 0; voiced = 0; sawSilence = false; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0;
+    voiceFiredAt = 0; voiced = 0; sawSilence = false; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; try{ FingerDetector.resetHysteresis(); }catch(_){} // F-613: clear smoothing between attempts
     if (!running) { running = true; raf = requestAnimationFrame(loop); }
   }
 
