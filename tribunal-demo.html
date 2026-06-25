@@ -214,6 +214,15 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .an-tech{font-family:var(--mono);font-size:10.5px;color:var(--text-tertiary);letter-spacing:.3px;border-top:1px solid var(--border);padding-top:8px;}
 .arch-arrow{display:flex;align-items:center;color:var(--text-quaternary);font-size:20px;flex:0 0 auto;}
 .arch-note{margin-top:20px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;font-size:13.5px;color:var(--text-secondary);}
+.release-rail{margin:8px 0 22px;}
+.release-card{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:10px;padding:18px 20px;}
+.release-lede{font-size:clamp(14px,3.7vw,15px);color:var(--text-secondary);margin:0 0 12px;line-height:1.5;}
+.release-lede .pull{color:var(--text-primary);font-weight:600;}
+.release-chips{margin:0 0 14px;}
+.release-diff{font-size:13.5px;color:var(--text-secondary);margin:0 0 12px;line-height:1.5;padding-top:12px;border-top:1px solid var(--border);}
+.release-diff strong{color:var(--text-primary);}
+.release-honest{font-size:13px;color:var(--text-tertiary);margin:0;line-height:1.5;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:7px;padding:12px 14px;}
+.release-honest strong{color:var(--amber);}
 .arch-note strong{color:var(--text-primary);}
 .arch-summary{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(16px,4vw,22px);}
 .arch-summary-lede{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px;}
@@ -386,6 +395,22 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
     <p class="section-label">Choose a matter type</p>
     <div class="matters" id="matters"></div>
+
+    <!-- F-621: identity-bound data release — the RAIL, not a seventh matter. Positioned with
+         the matters, clearly labelled as a cross-cutting capability + honest integration gap
+         (cross-LLM gated: never present the unwired flow as demo-ready to a legal audience). -->
+    <section class="release-rail" id="releaseRail" aria-labelledby="releaseRailLabel">
+      <p class="section-label" id="releaseRailLabel">The rail beneath every matter · identity-bound data release</p>
+      <div class="release-card">
+        <p class="release-lede">Every matter above ends in a <span class="hil">sealed receipt</span> — but the same rail does something the matters only hint at: it can govern <span class="pull">who may open a document, and under what conditions</span>. Not "share a file with a password." A file or message that opens only for a <span class="hil">verified, living recipient</span> — confirmed by face, voice and liveness at the moment of viewing — optionally bound to a <span class="hil">location</span> and to the recipient <span class="hil">actually attending the screen</span>, with every open recorded.</p>
+        <div class="release-chips">
+          <span class="policy-chip">verified human at view-time</span><span class="policy-chip">geo-conditioned</span><span class="policy-chip">attention-gated</span><span class="policy-chip">ephemeral</span><span class="policy-chip">audited open</span>
+        </div>
+        <p class="release-diff"><strong>Why this isn't document DRM.</strong> Existing tools (secure data rooms, PDF DRM) bind access to a <em>device, an account, or an email link</em> — anyone holding that device opens the file. VAC binds to a <em>verified living person</em>, checked biometrically at the instant of opening. That is the one thing a DRM vendor cannot copy without a liveness-and-anti-deepfake pipeline — and it is the same rail that signs the receipts in the matters above.</p>
+        <p class="release-honest"><strong>Honest status.</strong> The data-release capability — biometric, geo and attention gates — runs today as a working two-party prototype. It is <span class="hil">not yet session-continuous</span> with this walkthrough, so it is shown here as a capability of the rail rather than a wired step in the demo; the location and attention gates are <span class="hil">best-effort and tamper-evident</span> (every open is logged and any circumvention is detectable), not a cryptographic guarantee — which is the honest, and we think the right, claim for legal release conditions. Full integration is the next build with the Law Society.</p>
+      </div>
+    </section>
+
 
     <section class="stage" id="stage">
       <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
