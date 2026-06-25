@@ -133,6 +133,20 @@
 
 </div>
 
+<script type="module">
+  try {
+    const t0 = performance.now();
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+    window.__VAC_MediaPipe = { HandLandmarker: mod.HandLandmarker, FilesetResolver: mod.FilesetResolver };
+    window.__VAC_MediaPipe_load_ms = Math.round(performance.now() - t0);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-ready', { detail: { ms: window.__VAC_MediaPipe_load_ms } }));
+  } catch (e) {
+    window.__VAC_MediaPipe_error = String(e && e.message || e);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-error', { detail: { error: window.__VAC_MediaPipe_error } }));
+  }
+</script>
+<script src="/vac-face-embed.js"></script>
+<script src="/vac-finger-detect.js"></script>
 <script src="/vac-reauth-ceremony.js"></script>
 <script>
 (function(){
