@@ -3,8 +3,9 @@
 // flow, extracted VERBATIM from auth.html (S117 reauth-unify, STEP 1). Behaviour is identical to
 // auth.html's inline ceremony; only the seams (identity, risk level, success/retry handoff) are
 // parameterised. Exposes window.VACReauth.run({email,name,riskLevel,mount,context,onComplete,
-// onFallback,onReauthReload,onBack,onStep,auto}). auth.html is the first/only caller; vat-verify
-// + tribunal-demo adopt it in STEP 2/3.
+// onFallback,onReauthReload,onBack,onStep,auto,profile}). auth.html is the first/only caller;
+// vat-verify + tribunal-demo adopt it in STEP 2/3. `profile` is the COPS/PID policy actuator
+// (num_digits live today; required_modalities + thresholds reserved for the policy engine).
 (function(){
 'use strict';
 
@@ -175,17 +176,25 @@ async function requestCamera() {
         btn.disabled = true;
         const d = userData();
         challengeData = null;  // clear stale challenge first so a FAILED fetch leaves it null and the blank-phrase guard fires (codex)
+        // Profile actuator (COPS/PID): when the host supplies profile.num_digits, request that
+        // many OTP digits. Omitted → field is absent → server decides the count (prod behaviour
+        // intact). required_modalities + thresholds are future profile fields the policy engine
+        // will set later; only num_digits is wired through today.
+        const challengeBody = { name: d.name, risk_level: CTX.riskLevel };
+        if (CTX.profile && typeof CTX.profile.num_digits === 'number') {
+            challengeBody.num_digits = CTX.profile.num_digits;
+        }
         try {
             const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: d.name, risk_level: CTX.riskLevel }),
+                body: JSON.stringify(challengeBody),
             });
             challengeData = await resp.json();
             // S111 diag: confirm whether the (re-)fetched challenge actually carries a
             // phrase. The re-auth blank-phrase bug renders "SAY THE PHRASE" with no value,
             // so this pins empty-fetch vs response-missing-phrase on the next live pass.
-            try { vacDebug('challenge_fetched', null, { has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
+            try { vacDebug('challenge_fetched', null, { requested_num_digits: (challengeBody.num_digits != null ? challengeBody.num_digits : null), returned_digit_count: (challengeData && challengeData.digits) ? challengeData.digits.length : 0, has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
         } catch (fetchErr) {
             console.error('[CHALLENGE FETCH]', fetchErr);
             try { vacDebug('challenge_fetch_failed', String(fetchErr && fetchErr.message || fetchErr)); } catch(_) {}
@@ -3685,7 +3694,9 @@ function renderDOM(){
 
 // ===================== public API =====================
 const VACReauth = {
-    // run({email,name,riskLevel,mount,context,onComplete,onFallback,onReauthReload,onBack,onStep,auto,org,role})
+    // run({email,name,riskLevel,mount,context,onComplete,onFallback,onReauthReload,onBack,onStep,auto,org,role,profile})
+    //   profile: optional COPS/PID actuator { num_digits?, required_modalities?, thresholds? }.
+    //   Only num_digits is live (→ challenge POST); omit profile entirely for prod-default behaviour.
     run: function(opts){
         opts = opts || {};
         CTX = {
@@ -3699,6 +3710,10 @@ const VACReauth = {
             onBack: opts.onBack || null,
             onStep: opts.onStep || null,
             auto: !!opts.auto,
+            // COPS/PID policy actuator. Today only num_digits is read (→ challenge POST); the
+            // object is stored whole so required_modalities + thresholds can be wired later
+            // without changing run()'s signature. Omitted → null → server decides everything.
+            profile: opts.profile || null,
         };
         if (!CTX.mount) { console.error('[VACReauth] run() called with no mount element'); return; }
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
