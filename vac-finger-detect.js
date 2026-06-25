@@ -31,6 +31,31 @@ window.FingerDetector = (function() {
     const SLOW_FRAME_MS = 1500;                   // what counts as "too slow"
     const CONSECUTIVE_SLOW_LIMIT = 6;             // how many in a row before we bail (raised from 3 — fallback is permanent, so don't trip on transient hiccups)
 
+    // ── F-613: asymmetric finger-count HYSTERESIS (cross-LLM gated, S118) ────────
+    // Problem: MediaPipe finger count flickers (a steady "1" reads 1,3,1,1,3…),
+    // so the old "12 consecutive identical frames" rule starved on flicker and
+    // forced unnatural stillness (the #1 adoption complaint). Fix: hold an
+    // established count THROUGH brief flicker; only change on a SUSTAINED new
+    // reading. Cheap to hold, expensive to change.
+    //
+    // CHANGE_FRAMES is tuned ABOVE MediaPipe's typical 4-7 frame error burst
+    // (cross-LLM finding) so a burst can't false-commit. Hand-loss (-1) clears
+    // FASTER than a count change (asymmetric the other way) so a stale count
+    // can't be held alive by brief occlusion. SETTLE_FRAMES gates the FIRST
+    // commit so continuous flicker can't commit an early-wrong value.
+    //
+    // CRITICAL (gated): detectStable() smooths the DISPLAY/timing count. It does
+    // NOT replace raw detect(). Callers MUST read the RAW count at the capture
+    // instant and send THAT to the server — the server (Gemini/sequence) is the
+    // real gate. Never let the smoothed value drive what is sent as truth, or a
+    // 2→3 change reported as stale 2 would capture the wrong gesture.
+    const HYST_CHANGE_FRAMES = 5;   // sustained frames a NEW count must hold to win (> burst length)
+    const HYST_CLEAR_FRAMES  = 3;   // sustained -1 frames before we report "no hand" (faster than a change)
+    const HYST_SETTLE_FRAMES = 4;   // min frames before the FIRST commit (init-race guard)
+    let _hystCommitted = null;      // currently reported count (null = not yet settled)
+    let _hystCandidate = null;      // a different value trying to take over
+    let _hystStreak = 0;            // consecutive frames the candidate has persisted
+
     async function init() {
         if (_isReady || _hasFailed) return _isReady;
         const _initStart = performance.now();
@@ -163,9 +188,53 @@ window.FingerDetector = (function() {
         return _countFingers(results.landmarks[0]);
     }
 
+    // ── F-613: feed a raw reading through the hysteresis filter ──────────────
+    // Returns the SMOOTHED count for display/timing. raw is the per-frame value
+    // from detect(): 0-5 = fingers, -1 = no hand, null = detector unavailable.
+    // null is passed through untouched (caller decides). Asymmetric: a matching
+    // reading confirms instantly; a different reading must persist CHANGE_FRAMES
+    // to win; -1 (no hand) clears after the shorter CLEAR_FRAMES.
+    function _feedHysteresis(raw) {
+        if (raw === null) return _hystCommitted;      // detector down — report last known, don't churn state
+
+        // Pre-settle: require the candidate to PERSIST (a real streak), not just
+        // elapsed frames, before the FIRST commit — so continuous flicker
+        // (1,3,1,3…) can't lock in an early-wrong value (cross-LLM init-race).
+        if (_hystCommitted === null) {
+            if (raw < 0) { _hystCandidate = null; _hystStreak = 0; return null; } // no hand yet
+            if (_hystCandidate === raw) { _hystStreak++; } else { _hystCandidate = raw; _hystStreak = 1; }
+            if (_hystStreak >= HYST_SETTLE_FRAMES) {
+                _hystCommitted = raw; _hystCandidate = null; _hystStreak = 0;
+            }
+            return _hystCommitted; // null until a value holds steady for SETTLE_FRAMES
+        }
+
+        // No-hand: clears FASTER than a count change (occlusion can't hold a stale value).
+        if (raw < 0) {
+            if (_hystCandidate === -1) { _hystStreak++; } else { _hystCandidate = -1; _hystStreak = 1; }
+            if (_hystStreak >= HYST_CLEAR_FRAMES) { _hystCommitted = -1; _hystCandidate = null; _hystStreak = 0; }
+            return _hystCommitted;
+        }
+
+        // Matches committed → confirm instantly, reset any pending candidate (steadiness is free).
+        if (raw === _hystCommitted) { _hystCandidate = null; _hystStreak = 0; return _hystCommitted; }
+
+        // Differs → candidate must persist CHANGE_FRAMES (above MediaPipe burst) to win; else absorb the flicker.
+        if (_hystCandidate === raw) { _hystStreak++; } else { _hystCandidate = raw; _hystStreak = 1; }
+        if (_hystStreak >= HYST_CHANGE_FRAMES) { _hystCommitted = raw; _hystCandidate = null; _hystStreak = 0; }
+        return _hystCommitted; // old committed until the change is sustained
+    }
+
     return {
         init: init,
         detect: detect,
+        // F-613: smoothed count for DISPLAY/timing. Internally calls raw detect()
+        // then filters. Callers needing the value-of-record at capture MUST still
+        // read detect() (raw) at the capture instant and send that to the server.
+        detectStable(videoEl) { return _feedHysteresis(detect(videoEl)); },
+        // F-613: reset the hysteresis filter between attempts/digits (so a new
+        // run/digit starts clean — no stale committed count bleeding across).
+        resetHysteresis() { _hystCommitted = null; _hystCandidate = null; _hystStreak = 0; },
         get landmarks() { return _lastLandmarks; },
         get ready() { return _isReady; },
         get failed() { return _hasFailed; },
@@ -178,6 +247,8 @@ window.FingerDetector = (function() {
             _consecutiveSlowFrames = 0;
             _framesProcessed = 0;
             _lastLandmarks = null;
+            // F-613: also clear the hysteresis filter so a new attempt starts clean.
+            _hystCommitted = null; _hystCandidate = null; _hystStreak = 0;
         },
         // Guarded one-shot warm-up (toggle-gated, S110). Swallows all errors so it
         // can NEVER trip the failure latch or affect the real loop's state.
