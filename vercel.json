@@ -181,6 +181,10 @@
       "destination": "/face-embed-test.html"
     },
     {
+      "source": "/reauth-count-test",
+      "destination": "/reauth-count-test.html"
+    },
+    {
       "source": "/tribunal-demo",
       "destination": "/tribunal-demo.html"
     },
