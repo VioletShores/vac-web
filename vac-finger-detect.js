@@ -232,6 +232,10 @@ window.FingerDetector = (function() {
         // then filters. Callers needing the value-of-record at capture MUST still
         // read detect() (raw) at the capture instant and send that to the server.
         detectStable(videoEl) { return _feedHysteresis(detect(videoEl)); },
+        // F-613: for callers that ALREADY called detect() this frame — feed the raw
+        // value through the same hysteresis filter WITHOUT running MediaPipe again
+        // (detectStable would double-detect). Pass the raw count from detect().
+        feedStable(raw) { return _feedHysteresis(raw); },
         // F-613: reset the hysteresis filter between attempts/digits (so a new
         // run/digit starts clean — no stale committed count bleeding across).
         resetHysteresis() { _hystCommitted = null; _hystCandidate = null; _hystStreak = 0; },

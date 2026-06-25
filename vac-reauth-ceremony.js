@@ -1570,6 +1570,13 @@ function beginRecording() {
         if (recordingStopped) return;
         const videoEl = document.getElementById('videoPreviewRec');
         const detected = FingerDetector.detect(videoEl);
+        // F-613: smoothed count for STABILITY/TIMING only (absorbs MediaPipe flicker
+        // so a steady hold isn't broken by a stray frame — fixes "had to hold still").
+        // The RAW `detected` is still what we RECORD + send to the server (capture-on-
+        // stale guard: never let the smoothed value become the value-of-record; Gemini
+        // is the real gate). feedStable reuses the raw value — no second MediaPipe run.
+        var _stableDetected = FingerDetector.feedStable(detected);
+        if (_stableDetected === null || _stableDetected === undefined) _stableDetected = detected;
         _drawHandSkeleton(videoEl, FingerDetector.landmarks);
         // Hand presence + near-face zone (advisory feedback only; server still gates).
         // detected === -1 means no hand in frame; landmarks null otherwise.
@@ -1605,13 +1612,16 @@ function beginRecording() {
         // ACTUAL finger count is validated later server-side by Gemini (Rob's point).
         if (detected > 0) {
             _releaseFrames = 0;   // hand present — reset the sustained-release counter
-            if (detected === stableCount) {
+            // F-613: track stability on the SMOOTHED count (_stableDetected), so a stray
+            // flicker frame no longer resets the hold timer. The user can hold a count
+            // naturally; a 1-frame miscount is absorbed by the detector's hysteresis.
+            if (_stableDetected === stableCount) {
                 stableFrames++;
             } else {
-                // Count changed — restart the hold timer. digitStartTime resets on ANY change
-                // so the dwell always measures the CURRENT continuous hold (S110 racing fix,
-                // now change-agnostic so repeated digits re-time cleanly too).
-                stableCount = detected;
+                // Smoothed count changed — restart the hold timer. digitStartTime resets on
+                // ANY change so the dwell always measures the CURRENT continuous hold (S110
+                // racing fix, change-agnostic so repeated digits re-time cleanly too).
+                stableCount = _stableDetected;
                 stableFrames = 1;
                 digitStartTime = performance.now();
             }
@@ -1619,7 +1629,7 @@ function beginRecording() {
             // deliberate new gesture — robust to transient miscounts (a 1-frame flicker never
             // reaches STABLE_FRAMES_NEEDED). A repeated digit (same count) re-arms via a
             // sustained release instead (codex P2).
-            if (!_acceptArmed && detected !== _lastAcceptedCount && stableFrames >= STABLE_FRAMES_NEEDED) { _acceptArmed = true; }
+            if (!_acceptArmed && _stableDetected !== _lastAcceptedCount && stableFrames >= STABLE_FRAMES_NEEDED) { _acceptArmed = true; }
             // Accept when held steady long enough (+ the AND-gate's speech / re-arm below).
             // S110 sync fix: require a wall-clock minimum dwell (MIN_DIGIT_DWELL_MS) since at
             // 60fps STABLE_FRAMES_NEEDED=12 is only ~0.2s — too fast for the recorded video to
