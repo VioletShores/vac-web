@@ -310,6 +310,15 @@
       ]
     },
     {
+      "source": "/vac-reauth-ceremony.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/(.*)\\.html",
       "headers": [
         {
