@@ -17,6 +17,10 @@
       "destination": "/architecture.html"
     },
     {
+      "source": "/scoring",
+      "destination": "/scoring.html"
+    },
+    {
       "source": "/trust",
       "destination": "/trust.html"
     },

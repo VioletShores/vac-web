@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D0F17">
+<title>VAC Protocol — Scoring, Weights &amp; Thresholds</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#0D0F17 !important}
+body{color:var(--white);font-family:var(--sans);min-height:100vh}
+.page-shell{background:#0D0F17 !important;min-height:100vh}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:12px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-back{font-family:var(--mono);font-size:11px;color:var(--muted);text-decoration:none;margin-left:auto;padding:6px 12px;border:1px solid var(--border);border-radius:4px}
+.nav-back:hover{color:var(--teal);border-color:var(--teal)}
+.page{max-width:840px;margin:0 auto;padding:48px 24px 80px}
+.hero{text-align:center;margin-bottom:14px}
+.hero-kicker{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:3px;margin-bottom:14px}
+.hero-title{font-size:34px;font-weight:800;margin-bottom:14px;line-height:1.15}
+.hero-sub{font-size:15px;color:var(--gray);max-width:640px;margin:0 auto;line-height:1.65}
+.stamp{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:18px;letter-spacing:1px}
+
+.legend{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:30px 0 8px}
+.badge{font-family:var(--mono);font-size:9px;font-weight:700;padding:4px 10px;border-radius:4px;letter-spacing:1px}
+.badge.tenant{color:var(--teal);background:rgba(45,212,191,0.1);border:1px solid rgba(45,212,191,0.25)}
+.badge.op{color:var(--amber);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.25)}
+.badge.floor{color:var(--coral);background:rgba(249,97,103,0.1);border:1px solid rgba(249,97,103,0.25)}
+
+.section-title{font-family:var(--mono);font-size:12px;color:var(--teal);letter-spacing:3px;margin:48px 0 8px}
+.section-lead{font-size:14px;color:var(--gray);line-height:1.65;margin-bottom:20px;max-width:660px}
+.section-lead b{color:var(--white);font-weight:600}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600;padding:12px 16px;border-bottom:1px solid var(--border)}
+td{padding:13px 16px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.nm{font-weight:600;color:var(--white)}
+.dim{color:var(--muted);font-weight:400}
+.val{font-family:var(--mono);color:var(--teal);font-weight:600;font-size:13px;white-space:nowrap}
+.barcol{width:150px}
+.bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden;position:relative}
+.bar span{position:absolute;left:0;top:0;bottom:0;background:var(--teal);border-radius:3px}
+.bar.purple span{background:var(--purple)}.bar.amber span{background:var(--amber)}
+.src{font-family:var(--mono);font-size:10px;color:var(--muted);margin:2px 2px 0;letter-spacing:.5px}
+
+.thr{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0}
+.thrcell{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center}
+.thrcell .t{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.thrcell .n{font-size:30px;font-weight:800;color:var(--teal);margin:6px 0 2px}
+.thrcell .s{font-size:11px;color:var(--gray)}
+
+.maps{background:rgba(45,212,191,0.04);border:1px solid rgba(45,212,191,0.2);border-radius:8px;padding:14px 16px;margin:12px 0;display:flex;gap:12px;align-items:flex-start}
+.maps .k{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--teal);border:1px solid rgba(45,212,191,0.3);border-radius:4px;padding:3px 8px;white-space:nowrap;flex-shrink:0;margin-top:1px}
+.maps p{font-size:12.5px;color:var(--gray);line-height:1.6}
+.maps p b{color:var(--white);font-weight:600}
+
+.note{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--amber);border-radius:8px;padding:16px 18px;margin:14px 0;font-size:13px;color:var(--gray);line-height:1.65}
+.note b{color:var(--white);font-weight:600}
+
+.honesty{background:rgba(45,212,191,0.04);border:1px solid rgba(45,212,191,0.2);border-radius:10px;padding:22px;margin:44px 0 0}
+.honesty-title{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;margin-bottom:12px}
+.honesty p{font-size:13px;color:var(--gray);line-height:1.7;margin-bottom:10px}
+.honesty p:last-child{margin-bottom:0}
+.honesty b{color:var(--white);font-weight:600}
+
+.cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:40px}
+.cta a{flex:1;min-width:200px;text-align:center;font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:1px;padding:16px;border-radius:8px;text-decoration:none;border:1px solid var(--border)}
+.cta a.primary{background:var(--teal);color:var(--bg)}
+.cta a.secondary{color:var(--teal);border-color:rgba(45,212,191,0.3)}
+.foot{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;margin-top:48px;line-height:1.7}
+@media(max-width:640px){.thr{grid-template-columns:repeat(2,1fr)}.barcol{display:none}}
+</style>
+</head>
+<body>
+<div class="page-shell">
+
+<div class="nav">
+  <span class="nav-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></span>
+  <a href="/architecture" class="nav-back">← Architecture</a>
+</div>
+
+<div class="page">
+
+  <div class="hero">
+    <div class="hero-kicker">SCORING · WEIGHTS · THRESHOLDS</div>
+    <h1 class="hero-title">The variables behind<br>every decision</h1>
+    <p class="hero-sub">Every score that gates an authentication, and every weight that routes a model, is a number you can read. This is the full set — what each one means, what it's set to, and whether you can change it in your tenant.</p>
+    <div class="stamp">SNAPSHOT 2026-06-26 · SOURCE: LIVE ENGINE CONFIG · GET /v1/engine/config</div>
+  </div>
+
+  <div class="legend">
+    <span class="badge tenant">TENANT-TUNABLE</span>
+    <span class="badge op">OPERATOR DEFAULT</span>
+    <span class="badge floor">HARD FLOOR — LOCKED</span>
+  </div>
+
+  <!-- AUTH COMPOSITE -->
+  <div class="section-title">ENGINE 1 · VAC BIOMETRIC — HOW A VERIFICATION PASSES</div>
+  <p class="section-lead">Each modality produces a 0–1 score. The composite is a weighted sum, and it must clear the threshold for the action's risk level. Higher-risk actions demand a higher composite.</p>
+  <div class="card"><table>
+    <thead><tr><th>Modality</th><th>Weight</th><th class="barcol"></th><th>Configurable</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">Video liveness <span class="dim">— live human on camera</span></td><td class="val">0.35</td><td class="barcol"><div class="bar"><span style="width:100%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Voice <span class="dim">— spoken-digit match</span></td><td class="val">0.25</td><td class="barcol"><div class="bar"><span style="width:71%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">OTP <span class="dim">— possession factor</span></td><td class="val">0.20</td><td class="barcol"><div class="bar"><span style="width:57%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Geolocation <span class="dim">— corroborating signal</span></td><td class="val">0.20</td><td class="barcol"><div class="bar"><span style="width:57%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="src">composite = Σ (modality_score × weight) · main.py · weights sum to 1.00</div>
+
+  <div class="note"><b>Geolocation is a corroborating signal, not a standalone gate.</b> Today it scores 0.8 when coordinates are present and 0.3 when absent — "present" currently means non-zero coordinates, not an allow-region check. An enforced geo-fence (allowed jurisdiction passes; out-of-policy steps up or denies) is the build that turns this rail into a first-class assurance input. The haversine distance primitive is already proven in group-presence voting; wiring it into the auth decision is on the roadmap.</div>
+
+  <div class="maps"><span class="k">aligns with</span><p><b>NIST SP 800-63-4 risk-based controls.</b> The standard contemplates exactly this: authentication from an unexpected geolocation may prompt additional risk-based controls — while being explicit that such fraud indicators do not by themselves change the assurance level or substitute for a factor. VAC treats geo the same way: a signal that can trigger step-up, never a standalone factor.</p></div>
+
+  <div class="section-title">PASS THRESHOLDS BY RISK LEVEL</div>
+  <p class="section-lead">The composite must reach this bar. The action's risk level is set server-side, so a client cannot understate it.</p>
+  <div class="thr">
+    <div class="thrcell"><div class="t">Low</div><div class="n">0.30</div><div class="s">view / open credential</div></div>
+    <div class="thrcell"><div class="t">Medium</div><div class="n">0.50</div><div class="s">default</div></div>
+    <div class="thrcell"><div class="t">High</div><div class="n">0.70</div><div class="s">elevated actions</div></div>
+    <div class="thrcell"><div class="t">Critical</div><div class="n">0.85</div><div class="s">mint / spend / seal</div></div>
+  </div>
+  <div class="src">thresholds = {low:0.3, medium:0.5, high:0.7, critical:0.85} · main.py</div>
+
+  <div class="maps"><span class="k">maps to</span><p><b>NIST SP 800-63-4 (July 2025) assurance model.</b> These graduated tiers are structured to map onto the standard's risk-based assurance levels (IAL / AAL / FAL). Under 800-63, an assurance level is a property of the whole authentication ceremony and deployment, determined formally with your auditor — not a value any vendor self-declares. The structure here is designed to support that determination, not assert it.</p></div>
+  <div class="maps"><span class="k">note</span><p>In NIST's strict vocabulary, biometrics are a strongly-bound activation factor rather than a standalone authenticator. VAC binds the live-human check to the session and token accordingly — the binding the standard calls for.</p></div>
+
+  <!-- IDENTITY FLOORS -->
+  <div class="section-title">ENGINE 1 · IDENTITY FLOORS — THE BARS THAT NEVER MOVE</div>
+  <p class="section-lead">Some values are deliberately not tenant-tunable. These are the identity floors: loosening them would let a look-alike through, so they're pinned in code even if an environment knob is widened.</p>
+  <div class="card"><table>
+    <thead><tr><th>Floor</th><th>Value</th><th>Meaning</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">Face-embedding match</td><td class="val">≤ 0.50</td><td class="dim">Euclidean distance vs enrolled 128-D template. Genuine clusters ~0.30; look-alikes near ~0.60.</td><td><span class="badge floor">FLOOR</span></td></tr>
+      <tr><td class="nm">Fast-tier face cap</td><td class="val">0.50</td><td class="dim">The light re-auth path drops the full video sweep, so its identity bar is pinned — never looser than full.</td><td><span class="badge floor">FLOOR</span></td></tr>
+      <tr><td class="nm">Liveness / voice / lip-sync floor</td><td class="val">0.50</td><td class="dim">Reject near-zero scores on each primitive; a real match scores above, a mismatch at or below.</td><td><span class="badge op">OPERATOR</span></td></tr>
+      <tr><td class="nm">Deepfake deny likelihood</td><td class="val">0.50</td><td class="dim">Above this assessed likelihood, the verdict denies regardless of other scores.</td><td><span class="badge op">OPERATOR</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="src">FACE_EMBED_MATCH_THRESHOLD · FAST_REAUTH_MAX_FACE_DISTANCE · config.py · 0.50 also pinned literally at the decision site</div>
+  <div class="maps"><span class="k">certified</span><p><b>Liveness detection: ISO/IEC 30107-3.</b> The presentation-attack-detection component is independently certified — iBeta Level 1 PAD, 0% attack-success across 360 attempts, NIST/NVLAP-accredited lab. Level 1 covers presentation attacks (print, screen, replay); injection resistance is defence-in-depth via cross-modal binding, with VAC's own 30107 certification planned for Q4 2026.</p></div>
+
+  <!-- FRESHNESS -->
+  <div class="section-title">ENGINE 1 · FRESHNESS — WHEN A RE-VERIFICATION IS REQUIRED</div>
+  <p class="section-lead">A verification has a shelf life. Inside the window a recent pass still counts; outside it, the action forces a re-auth. The <b>level</b> of that re-auth — fast single-digit vs full tri-modal — is chosen by the risk engine, not by this clock.</p>
+  <div class="card"><table>
+    <thead><tr><th>Setting</th><th>Value</th><th>Governs</th><th>Configurable</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">Action re-auth freshness</td><td class="val">300 s</td><td class="dim">A biometric pass counts as fresh for an action for 5 minutes.</td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Full-baseline max age</td><td class="val">600 s</td><td class="dim">A quick re-auth may stand in for a full one on a non-repudiable action only if minted off a recent full auth — never quick-from-nothing.</td><td><span class="badge floor">FLOOR</span></td></tr>
+      <tr><td class="nm">Co-occurrence tolerance</td><td class="val">1200 ms</td><td class="dim">Shown finger-pose and spoken digit must fall within this window — same human said and showed the digit in one clip.</td><td><span class="badge op">OPERATOR</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="maps"><span class="k">maps to</span><p><b>NIST SP 800-63-4 reauthentication.</b> The standard sets reauthentication-time requirements that tighten at higher assurance levels. This freshness window is that kind of control — tenant-tunable down to the interval your auditor or policy requires for each tier.</p></div>
+
+  <div class="section-title">TRUST-DECAY TIERS</div>
+  <p class="section-lead">Confidence in a past verification decays with time. These tiers set the bands.</p>
+  <div class="card"><table>
+    <thead><tr><th>Tier</th><th>Age</th><th class="barcol">Relative freshness</th><th>Configurable</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">Full</td><td class="val">≤ 1 hour</td><td class="barcol"><div class="bar"><span style="width:100%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">High</td><td class="val">≤ 24 hours</td><td class="barcol"><div class="bar"><span style="width:72%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Moderate</td><td class="val">≤ 7 days</td><td class="barcol"><div class="bar"><span style="width:46%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Aging</td><td class="val">≤ 30 days</td><td class="barcol"><div class="bar"><span style="width:24%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="src">FRESHNESS_TIER_* · config.py</div>
+
+  <!-- ACTION SENSITIVITY -->
+  <div class="section-title">ENGINE 1 · ACTION SENSITIVITY — WHAT EACH ACTION IS WORTH</div>
+  <p class="section-lead">Each action carries an inherent sensitivity, declared server-side — one input to the risk engine. Context (repeated failures, unknown device, low trust, location) can still escalate a low-sensitivity action. An unrecognised action fails closed at critical.</p>
+  <div class="card"><table>
+    <thead><tr><th>Action</th><th>Sensitivity</th><th>Typical re-auth tier</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">View / open credential</td><td><span class="val" style="color:var(--teal)">low</span></td><td class="dim">Fast — single-digit, no video sweep, ~2s</td></tr>
+      <tr><td class="nm">Approve spend</td><td><span class="val" style="color:var(--coral)">critical</span></td><td class="dim">Full tri-modal</td></tr>
+      <tr><td class="nm">Revoke delegation · export keys</td><td><span class="val" style="color:var(--coral)">critical</span></td><td class="dim">Full tri-modal</td></tr>
+      <tr><td class="nm">Delete account · change governance</td><td><span class="val" style="color:var(--coral)">critical</span></td><td class="dim">Full tri-modal</td></tr>
+      <tr><td class="nm">Mint · delegate</td><td><span class="val" style="color:var(--coral)">critical</span></td><td class="dim">Full tri-modal</td></tr>
+      <tr><td class="nm">Seal decision <span class="dim">— binding, non-repudiable</span></td><td><span class="val" style="color:var(--coral)">critical</span></td><td class="dim">Full — explicitly declared, Law Society reviewable</td></tr>
+      <tr><td class="nm">Unknown action</td><td><span class="val" style="color:var(--coral)">critical</span></td><td class="dim">Fail-closed by two independent mechanisms</td></tr>
+    </tbody>
+  </table></div>
+  <div class="src">ACTION_SENSITIVITY · DEFAULT="critical" (literal, not env-configurable) · config.py</div>
+
+  <!-- SIGNALRANK -->
+  <div class="section-title">ENGINE 2 · SIGNALRANK — HOW A MODEL EARNS TRUST</div>
+  <p class="section-lead">SignalRank scores each model's trustworthiness from five measured components, combined into a composite. Hallucination is inverted — lower is better.</p>
+  <div class="card"><table>
+    <thead><tr><th>Component</th><th>Weight</th><th class="barcol"></th><th>Configurable</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">Reliability <span class="dim">— consistency of correct answers</span></td><td class="val">0.25</td><td class="barcol"><div class="bar purple"><span style="width:100%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Low hallucination <span class="dim">— inverted (1 − rate)</span></td><td class="val">0.25</td><td class="barcol"><div class="bar purple"><span style="width:100%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Honesty <span class="dim">— calibrated confidence</span></td><td class="val">0.20</td><td class="barcol"><div class="bar purple"><span style="width:80%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Restriction transparency</td><td class="val">0.15</td><td class="barcol"><div class="bar purple"><span style="width:60%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+      <tr><td class="nm">Independence</td><td class="val">0.15</td><td class="barcol"><div class="bar purple"><span style="width:60%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="src">composite = r·0.25 + h·0.20 + rt·0.15 + (1−hr)·0.25 + ind·0.15 · trust_graph.py · weights sum to 1.00</div>
+
+  <div class="section-title">ROUTING PRIORITY PROFILES</div>
+  <p class="section-lead">When choosing a model, the router blends trust, SignalRank, cost, and rail (restriction-fit). Each profile shifts the emphasis — premium leans on trust, speed leans on cost.</p>
+  <div class="card"><table>
+    <thead><tr><th>Profile</th><th>Trust</th><th>SignalRank</th><th>Cost</th><th>Rail</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">Premium</td><td class="val">5.0</td><td class="val">3.0</td><td class="val">0.0</td><td class="val">1.5</td></tr>
+      <tr><td class="nm">Quality</td><td class="val">5.0</td><td class="val">3.0</td><td class="val">0.1</td><td class="val">1.5</td></tr>
+      <tr><td class="nm">Balanced <span class="dim">— default</span></td><td class="val">4.0</td><td class="val">3.0</td><td class="val">0.3</td><td class="val">1.0</td></tr>
+      <tr><td class="nm">Cost</td><td class="val">1.0</td><td class="val">1.0</td><td class="val">3.0</td><td class="val">1.0</td></tr>
+      <tr><td class="nm">Speed</td><td class="val">0.5</td><td class="val">0.5</td><td class="val">5.0</td><td class="val">0.5</td></tr>
+      <tr><td class="nm">Unrestricted</td><td class="val">1.5</td><td class="val">1.0</td><td class="val">0.5</td><td class="val">4.0</td></tr>
+    </tbody>
+  </table></div>
+  <div class="src">get_priority_weights() · engine_config.py · stored in engine_room_config, editable via the Engine Room</div>
+
+  <div class="section-title">CLASSIFICATION CONSENSUS &amp; DRIFT</div>
+  <p class="section-lead">Routing a request to a domain: keyword pattern-match and LLM judgement both vote, weighted so no single signal gatekeeps.</p>
+  <div class="card"><table>
+    <thead><tr><th>Parameter</th><th>Value</th><th>Governs</th></tr></thead>
+    <tbody>
+      <tr><td class="nm">LLM vote weight</td><td class="val">0.85</td><td class="dim">Semantic understanding — the primary signal</td></tr>
+      <tr><td class="nm">Keyword vote weight</td><td class="val">0.15</td><td class="dim">Pattern-match — supporting signal, never gatekeeps</td></tr>
+      <tr><td class="nm">Beta-blend coefficient (F-093)</td><td class="val">0.6</td><td class="dim">trust = decay × (0.6 × beta_mean + 0.4 × EWMA)</td></tr>
+      <tr><td class="nm">Model-drift threshold</td><td class="val">0.15</td><td class="dim">Absolute rating drift that flags a model underperforming</td></tr>
+      <tr><td class="nm">Challenge min datapoints</td><td class="val">30</td><td class="dim">Minimum data points before a challenge cycle runs</td></tr>
+    </tbody>
+  </table></div>
+  <div class="src">classify_wa.py · engine_room_config · main.py</div>
+
+  <!-- TENANCY -->
+  <div class="honesty">
+    <div class="honesty-title">CONFIGURED TO YOUR REQUIREMENTS</div>
+    <p>Every tenant-tunable value above can be set for your purpose, applying to <b>your tenant only</b>. A regulated workforce might tighten freshness to 60 seconds and require an enforced geo-fence; a low-friction consumer flow might widen it. What you cannot do — by design — is move a hard floor, because that's the line that protects everyone on the platform, including you.</p>
+    <p><b>The config meets the requirement you declare.</b> You state your own rule — "every privileged action re-verifies within 5 minutes," "this jurisdiction only," "critical actions demand full tri-modal" — and the live config is set to satisfy it. Your own compliance officer reads the numbers and confirms they meet your standard. That's the match that matters most: not our claim, your requirement.</p>
+    <p><b>Structured around NIST SP 800-63-4.</b> The assurance tiers, reauthentication timing, and risk-based controls are designed to map onto the framework most high-assurance organisations already benchmark against. Formal assurance-level determination is made with your auditor, against your deployment — the structure here is built to support that, in the standard's own terms.</p>
+    <p><b>You're in control of how it scores.</b> The scoring isn't a sealed box you trust on faith — it's a config you read, question, and request changes to. The floors stay locked; everything above them is yours to shape. That's what makes the decision defensible when a regulator, a court, or your own board asks how it was made.</p>
+  </div>
+
+  <div class="cta">
+    <a href="/architecture" class="primary">← Back to architecture</a>
+    <a href="/standards" class="secondary">See the standards it maps to →</a>
+  </div>
+
+  <div class="foot">
+    SNAPSHOT OF LIVE ENGINE CONFIGURATION · 2026-06-26 · SESSION 119<br>
+    Authoritative source is the running config (GET /v1/engine/config); values here are a dated read and may lag a live change.<br>
+    Standards verified against current revisions (NIST SP 800-63-4, Jul 2025; ISO/IEC 30107-3). eIDAS / PSD2 SCA mapped on request.<br>
+    VAC PROTOCOL · VIOLET SHORES · Built on the Athena trust-and-decision substrate.
+  </div>
+
+</div>
+</div>
+</body>
+</html>
