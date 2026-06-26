@@ -705,6 +705,13 @@ function vacGreetingText() {
 // there are no digits to gate), so block it. Voice-only mode (fingerFallback==='voice')
 // legitimately carries no client digits, so don't require them there.
 function challengeIncomplete() {
+    // F-624 Rung 2 (codex P2): the FAST one-digit challenge endpoint returns {fingers:N},
+    // NOT the full ceremony's {phrase, digits}. Validate the fast shape (a numeric finger
+    // target) so a valid fast challenge isn't mis-flagged blank and bounced to camera retry.
+    // FULL mode (capture kind 'clip') falls through to the unchanged phrase/digits guard below.
+    if (modeConfig().capture.kind === 'still') {
+        return !(challengeData && (typeof challengeData.fingers === 'number' || (challengeData.digits && challengeData.digits.length)));
+    }
     if (!challengeData || !challengeData.phrase) return true;
     if (fingerFallback !== 'voice' && !(challengeData.digits && challengeData.digits.length)) return true;
     return false;
@@ -2391,8 +2398,19 @@ async function runFastVerification(parts) {
             throw new Error('Server error ' + resp.status + ': ' + errText.substring(0, 300));
         }
         authResult = await resp.json();
-        try { vacDebug('fast_reauth_verified', null, { ok: !!(authResult && (authResult.verified || authResult.success)) }); } catch(_) {}
-        _finish();
+        // FAIL-CLOSED (codex P1): a 2xx from /v1/auth/quick-reauth can still carry a NEGATIVE
+        // verdict (authenticated:false / authorized:false), exactly as the existing quick-reauth
+        // callers (vat-verify) treat it. Only an EXPLICIT positive verdict may run the host
+        // SUCCESS path (_finish → onComplete); a negative OR unrecognised shape routes to the
+        // host fallback, so a failed fast re-auth can never reveal gated content by default.
+        const _ok = !!(authResult && (
+            authResult.verified === true || authResult.authenticated === true ||
+            authResult.authorized === true || authResult.success === true ||
+            authResult.pass === true || authResult.ok === true));
+        try { vacDebug('fast_reauth_result', null, { ok: _ok, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
+        if (_ok) { _finish(); return; }
+        try { vacDebug('fast_reauth_denied'); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied')); } catch(_) {} }
     } catch (e) {
         console.error('[VACReauth] fast verify error', e);
         try { vacDebug('fast_reauth_failed', String((e && e.message) || e)); } catch(_) {}
