@@ -258,6 +258,14 @@ async function requestCamera() {
             }
             const resp = await fetch(_chCfg.url(d), _chOpts);
             challengeData = await resp.json();
+            // F-624 Rung 2 (codex P2): the FAST endpoint (/v1/auth/face-reauth-challenge) returns
+            // {fingers:N} only — no phrase/digits. Normalize it into the {digits:[N]} shape the
+            // SHARED intro renders, so the fast user SEES the finger target N (one circle in
+            // showChallengeIntro) before beginStillCapture fires, instead of capturing blind.
+            // Fast-only (capture kind 'still'); full mode is never touched here.
+            if (modeConfig().capture.kind === 'still' && challengeData && typeof challengeData.fingers === 'number' && !(challengeData.digits && challengeData.digits.length)) {
+                challengeData.digits = [challengeData.fingers];
+            }
             // S111 diag: confirm whether the (re-)fetched challenge actually carries a
             // phrase. The re-auth blank-phrase bug renders "SAY THE PHRASE" with no value,
             // so this pins empty-fetch vs response-missing-phrase on the next live pass.
@@ -2403,10 +2411,10 @@ async function runFastVerification(parts) {
         // callers (vat-verify) treat it. Only an EXPLICIT positive verdict may run the host
         // SUCCESS path (_finish → onComplete); a negative OR unrecognised shape routes to the
         // host fallback, so a failed fast re-auth can never reveal gated content by default.
-        const _ok = !!(authResult && (
-            authResult.verified === true || authResult.authenticated === true ||
-            authResult.authorized === true || authResult.success === true ||
-            authResult.pass === true || authResult.ok === true));
+        // Gate ONLY on an explicit auth verdict, exactly as the existing quick-reauth caller
+        // (vat-verify) does — never a generic "request processed" flag (ok/success/pass), which
+        // can co-exist with authenticated:false. Unknown / missing verdict → denied (fail-closed).
+        const _ok = !!(authResult && (authResult.authenticated === true || authResult.authorized === true));
         try { vacDebug('fast_reauth_result', null, { ok: _ok, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
         if (_ok) { _finish(); return; }
         try { vacDebug('fast_reauth_denied'); } catch(_) {}
