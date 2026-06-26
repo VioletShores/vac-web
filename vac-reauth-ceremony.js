@@ -23,6 +23,73 @@ let QA = _QA_SHIM;
 // Identity for the moved ceremony code (was auth.html's form-reading userData()).
 function userData(){ return (CTX && CTX.identity) || { name:'', email:'', org:'', role:'' }; }
 
+// ── F-624 Rung 2: declarative fast/full MODE actuator ────────────────────────
+// VACReauth.run drives ONE ceremony; the active MODE selects the endpoints and the
+// capture kind at each of the THREE call sites (challenge / capture / verify). It is
+// a config MAP, not an if/else fork — Rung-3 (per-tenant policy) slots in as another
+// key without re-touching the call sites (per F-624). FULL is today's behaviour
+// byte-for-byte (auth.html, the only current caller); FAST is the lightweight
+// still+digit quick re-auth that vat-verify / tribunal adopt in later lanes.
+//   challenge: { method, url(d), buildBody(d) }  buildBody → object = JSON body; null = no body (GET)
+//   capture:   { kind: 'clip' | 'still' }
+//   verify:    { method, url(), buildBody(parts) }  buildBody → FormData = multipart; object = JSON
+const MODE_CONFIG = {
+    full: {
+        challenge: {
+            method: 'POST',
+            url: function(){ return API_BASE + '/v1/vat/auth/challenge'; },
+            // Identical to the pre-Rung-2 inline body: name + risk_level, plus the
+            // optional num_digits profile actuator (S117 reauth-count). Omitted field
+            // → server decides the digit count (prod behaviour intact).
+            buildBody: function(d){
+                const body = { name: d.name, risk_level: CTX.riskLevel };
+                if (CTX.profile && typeof CTX.profile.num_digits === 'number') {
+                    body.num_digits = CTX.profile.num_digits;
+                }
+                return body;
+            },
+        },
+        capture: { kind: 'clip' },
+        verify: {
+            method: 'POST',
+            url: function(){ return API_BASE + '/v1/vat/auth/verify'; },
+            // FULL verify sends the multipart A/V clip built at the call site; the
+            // FormData is handed back verbatim so the request is byte-identical to today.
+            buildBody: function(parts){ return parts.formData; },
+        },
+    },
+    fast: {
+        challenge: {
+            method: 'GET',
+            url: function(d){ return API_BASE + '/v1/auth/face-reauth-challenge?email=' + encodeURIComponent((d && d.email) || ''); },
+            buildBody: function(){ return null; },   // GET — no request body
+        },
+        capture: { kind: 'still' },
+        verify: {
+            method: 'POST',
+            url: function(){ return API_BASE + '/v1/auth/quick-reauth'; },
+            // FAST verify is a small JSON envelope: the bound still + the single
+            // detected finger count, keyed by email. No video, no multipart.
+            buildBody: function(parts){
+                return {
+                    email: (parts && parts.email) || userData().email,
+                    detected_fingers: (parts && parts.detected_fingers != null) ? parts.detected_fingers : null,
+                    face_still_b64: (parts && parts.face_still_b64 != null) ? parts.face_still_b64 : (window.__vacFaceStillB64 || ''),
+                };
+            },
+        },
+    },
+};
+
+// Resolve the active mode's config for THIS run. This IS the `MODE_CONFIG[CTX.profile.mode
+// || "full"]` lookup the task specifies, with an unknown-key fallback to full. The default
+// is the REGRESSION GUARD: any caller that omits profile.mode (auth.html) gets today's full
+// ceremony unchanged — fast is opt-in, never reached unless a host explicitly sets it.
+function modeConfig(){
+    const m = (CTX && CTX.profile && CTX.profile.mode) || 'full';
+    return MODE_CONFIG[m] || MODE_CONFIG.full;
+}
+
 // Self-contained telemetry (was auth.html's vacDebug): POSTs to /v1/auth/debug + fans to the
 // ?qa=1 overlay if the host exposed one. Best-effort; never blocks the ceremony.
 const VAC_DEBUG_SESSION = 'sess_' + Math.random().toString(36).slice(2, 10) + '_reauth';
@@ -176,25 +243,25 @@ async function requestCamera() {
         btn.disabled = true;
         const d = userData();
         challengeData = null;  // clear stale challenge first so a FAILED fetch leaves it null and the blank-phrase guard fires (codex)
-        // Profile actuator (COPS/PID): when the host supplies profile.num_digits, request that
-        // many OTP digits. Omitted → field is absent → server decides the count (prod behaviour
-        // intact). required_modalities + thresholds are future profile fields the policy engine
-        // will set later; only num_digits is wired through today.
-        const challengeBody = { name: d.name, risk_level: CTX.riskLevel };
-        if (CTX.profile && typeof CTX.profile.num_digits === 'number') {
-            challengeBody.num_digits = CTX.profile.num_digits;
-        }
+        // F-624 Rung 2: the active MODE picks the challenge endpoint + body shape (declarative,
+        // see MODE_CONFIG). FULL (default) = POST /v1/vat/auth/challenge with the name/risk_level
+        // body, carrying the optional num_digits profile actuator (COPS/PID; omitted → server
+        // decides the count, prod behaviour intact). FAST = GET /v1/auth/face-reauth-challenge?email=
+        // with no body. required_modalities + thresholds remain future profile fields.
+        const _chCfg = modeConfig().challenge;
+        const challengeBody = _chCfg.buildBody(d);   // object → JSON body; null → no body (GET)
         try {
-            const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(challengeBody),
-            });
+            const _chOpts = { method: _chCfg.method };
+            if (challengeBody != null) {
+                _chOpts.headers = { 'Content-Type': 'application/json' };
+                _chOpts.body = JSON.stringify(challengeBody);
+            }
+            const resp = await fetch(_chCfg.url(d), _chOpts);
             challengeData = await resp.json();
             // S111 diag: confirm whether the (re-)fetched challenge actually carries a
             // phrase. The re-auth blank-phrase bug renders "SAY THE PHRASE" with no value,
             // so this pins empty-fetch vs response-missing-phrase on the next live pass.
-            try { vacDebug('challenge_fetched', null, { requested_num_digits: (challengeBody.num_digits != null ? challengeBody.num_digits : null), returned_digit_count: (challengeData && challengeData.digits) ? challengeData.digits.length : 0, has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
+            try { vacDebug('challenge_fetched', null, { requested_num_digits: (challengeBody && challengeBody.num_digits != null ? challengeBody.num_digits : null), returned_digit_count: (challengeData && challengeData.digits) ? challengeData.digits.length : 0, has_phrase: !!(challengeData && challengeData.phrase), phrase_len: (challengeData && challengeData.phrase) ? String(challengeData.phrase).length : 0, has_digits: !!(challengeData && challengeData.digits && challengeData.digits.length), keys: challengeData ? Object.keys(challengeData).join(',') : null }); } catch(_) {}
         } catch (fetchErr) {
             console.error('[CHALLENGE FETCH]', fetchErr);
             try { vacDebug('challenge_fetch_failed', String(fetchErr && fetchErr.message || fetchErr)); } catch(_) {}
@@ -818,7 +885,10 @@ function startCountdown() {
             timerEl.textContent = '●';
             ringFill.classList.add('recording');
             ringFill.style.strokeDashoffset = 0;
-            beginRecording();
+            // F-624 Rung 2: capture kind is mode-driven. FULL (default) records a full A/V
+            // clip (beginRecording); FAST grabs a single still + finger count (beginStillCapture).
+            if (modeConfig().capture.kind === 'still') { beginStillCapture(); }
+            else { beginRecording(); }
         }
     }, 1000);
 }
@@ -2264,6 +2334,72 @@ function beginRecording() {
 }
 
 // Recording complete → upload to backend for real verification
+// F-624 Rung 2 (FAST capture): the lightweight counterpart to beginRecording — no
+// MediaRecorder, no A/V clip. Grab ONE still from the live preview plus a single
+// finger reading, then hand straight to runFastVerification. Reuses the EXACT
+// still-canvas + FingerDetector machinery the full clip path uses, so the captured
+// artefacts match what /v1/auth/quick-reauth expects. UNEXERCISED by auth.html (full
+// only); the fast hosts (vat-verify / tribunal) flip it on via profile.mode='fast'
+// in a later lane, where it gets live-tested with a real camera.
+async function beginStillCapture() {
+    try { vacDebug('begin_still_capture_called'); } catch(_) {}
+    let detectedFingers = null;
+    let stillB64 = '';
+    try {
+        const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
+        if (v && v.videoWidth && v.videoHeight) {
+            // Single live finger reading. 0-5 = count, -1 = no hand, null = detector down.
+            try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
+            // Bound still — same <=640px downscale + RAW (un-mirrored) capture as the clip path.
+            const longest = Math.max(v.videoWidth, v.videoHeight);
+            const scale = longest > 640 ? 640 / longest : 1;
+            const cw = Math.max(1, Math.round(v.videoWidth * scale));
+            const ch = Math.max(1, Math.round(v.videoHeight * scale));
+            const c = document.createElement('canvas');
+            c.width = cw; c.height = ch;
+            c.getContext('2d').drawImage(v, 0, 0, cw, ch);
+            const dataUrl = c.toDataURL('image/jpeg', 0.9);
+            const comma = dataUrl.indexOf(',');
+            if (comma !== -1) stillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
+        }
+    } catch (e) {
+        // Never fabricate — an empty still tells the backend to fail-close (same contract as the clip still).
+        console.warn('[VAC] Fast still capture failed (non-fatal):', (e && e.message) || e);
+    }
+    window.__vacFaceStillB64 = stillB64;
+    // Stop the camera — the still is captured, nothing more to record.
+    try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
+    goToStep(3);
+    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64 });
+}
+
+// F-624 Rung 2 (FAST verify): POST the small JSON envelope to /v1/auth/quick-reauth
+// (endpoint + body shape from MODE_CONFIG[fast].verify) and hand the result back
+// through the SAME authResult → _finish/onComplete contract the full clip uses, so
+// the host sees an identical success path regardless of mode. Failures route to the
+// host's onFallback, mirroring the clip path's error handoff.
+async function runFastVerification(parts) {
+    const vCfg = modeConfig().verify;
+    try {
+        const _body = vCfg.buildBody(parts);   // fast → JSON object; full → FormData
+        const _opts = { method: vCfg.method };
+        if (_body instanceof FormData) { _opts.body = _body; }
+        else if (_body != null) { _opts.headers = { 'Content-Type': 'application/json' }; _opts.body = JSON.stringify(_body); }
+        const resp = await fetch(vCfg.url(), _opts);
+        if (!resp.ok) {
+            var errText = await resp.text();
+            throw new Error('Server error ' + resp.status + ': ' + errText.substring(0, 300));
+        }
+        authResult = await resp.json();
+        try { vacDebug('fast_reauth_verified', null, { ok: !!(authResult && (authResult.verified || authResult.success)) }); } catch(_) {}
+        _finish();
+    } catch (e) {
+        console.error('[VACReauth] fast verify error', e);
+        try { vacDebug('fast_reauth_failed', String((e && e.message) || e)); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(e); } catch(_) {} }
+    }
+}
+
 async function onRecordingComplete() {
     document.getElementById('recIndicator').style.display = 'none';
     document.getElementById('cameraBoxRec').classList.remove('recording', 'show-hand-zone', 'hand-in-zone', 'hand-visible');
@@ -2382,11 +2518,16 @@ async function runRealVerification(videoBlob) {
             }
         }, 250);
 
-        // Send to backend
-        const resp = await fetch(`${API_BASE}/v1/vat/auth/verify`, {
-            method: 'POST',
-            body: formData,
-        });
+        // Send to backend — F-624 Rung 2: endpoint/method/body come from the active MODE's
+        // verify config (declarative, single source). This clip path is always FULL, so
+        // buildBody hands the FormData straight back → POST multipart to /v1/vat/auth/verify,
+        // byte-identical to before. (FAST verify goes through runFastVerification instead.)
+        const _vCfg = modeConfig().verify;
+        const _vBody = _vCfg.buildBody({ formData: formData });
+        const _vOpts = { method: _vCfg.method };
+        if (_vBody instanceof FormData) { _vOpts.body = _vBody; }
+        else if (_vBody != null) { _vOpts.headers = { 'Content-Type': 'application/json' }; _vOpts.body = JSON.stringify(_vBody); }
+        const resp = await fetch(_vCfg.url(), _vOpts);
 
         if (!resp.ok) {
             var errText = await resp.text();
