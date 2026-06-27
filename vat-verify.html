@@ -429,6 +429,8 @@ body {
 <script src="/vac-face-embed.js"></script>
 <!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
 <script src="/vac-finger-detect.js"></script>
+<!-- S120 unify (F-624 Rung 2): shared VACReauth ceremony — fast mode for the credential re-verify. -->
+<script src="/vac-reauth-ceremony.js"></script>
 </head>
 <body>
 
@@ -719,6 +721,8 @@ function render(data, verif, budgetData) {
         </div>`;
         // Reveal wrapper (hidden until pass)
         h += `<div id="credRevealWrap" style="display:none;"><div class="collapse-trigger open" onclick="togSection(this,'insp')"><span>Token Inspector \u00b7 Re-verified</span><span class="collapse-chevron">\u25BC</span></div><div class="collapse-body open" id="insp">${insp}</div></div>`;
+        // S120 unify: shared VACReauth fast ceremony renders here when "Quick re-verify" is tapped.
+        h += `<div id="vacReauthMount" style="display:none;"></div>`;
         h += '</div>';
     }
 
@@ -1024,550 +1028,15 @@ init();
 <script>
 (function () {
   'use strict';
+  // S120 unify (F-624 Rung 2 / L-2152 split): the credential "Quick re-verify"
+  // now rides the SHARED VACReauth ceremony in FAST mode, replacing the former
+  // ~557-line inline reauth engine (preserved in git history on this branch's
+  // parent). Same live endpoints (face-reauth-challenge + quick-reauth, verified
+  // deployed S120 — L-2160), one hardened component across auth.html /
+  // vat-verify / tribunal. onComplete reveals the credential; onFallback routes
+  // to full verification.
 
-  var APIB = window.VAC_API_BASE || 'https://vac-system-production.up.railway.app';
-
-  // ── Endpoints (deployed today via the vac-auth.js SDK) ──────────────────────
-  var EP_REF_STATUS  = '/v1/auth/face-ref-status';        // GET ?email= → { has_face_reference }
-  var EP_CHALLENGE   = '/v1/auth/face-reauth-challenge';  // GET ?email= → { fingers: N }
-  var EP_FACE_REAUTH = '/v1/auth/face-reauth';            // POST { email, face_frame, face_embedding }
-  var EP_QUICK_REAUTH = '/v1/auth/quick-reauth';          // POST bound clip+still+embedding (not deployed yet)
-  // The BOUND fast lane (audio for Deepgram + frame for finger count) isn't live
-  // yet — default to the deployed face-reauth (still + embedding). The client still
-  // runs the full bound say+show gate and records the clip/binds the still to the
-  // co-occurrence moment, so the data is ready. Flip to true when quick-reauth ships
-  // (it auto-falls-back to face-reauth on a 404).
-  var USE_QUICK_REAUTH = true;
-  var MAX_CLIENT_ATTEMPTS = 3;
-
-  // ── Bound-gate constants (lifted verbatim from auth.html's per-digit gate) ──
-  var DIGIT_VOICE_MIN_MS   = 350;   // continuous voiced duration a real spoken digit clears
-  var DIGIT_VOICE_GAP_MS   = 200;   // max observed within-run dip before the run resets
-  var DIGIT_COOCCUR_MS     = 700;   // after voice fires, fingers must be up within this window
-  var DIGIT_COOCCUR_MAX_MS = 2000;  // absolute cap from voice fire → advance
-  var DIGIT_MOD_DELTA      = 0.030; // voiced run must modulate at least this much (rejects flat tones)
-  var VAD_SPEECH_FALLBACK  = 0.14;  // voiced threshold (rms) before calibration
-  var VAD_SILENCE_FALLBACK = 0.085; // silence threshold (rms); the gap is the "neither" hysteresis band
-  var GESTURE_STABLE_FRAMES = 12;   // S117: match auth.html STABLE_FRAMES_NEEDED (auth.html:2338) — ~0.6s hold, a deliberate hold not a flicker (was 8: too weak, MediaPipe flicker showed wrong counts)
-  var MIN_DWELL_MS         = 700;   // S117: match auth.html MIN_DIGIT_DWELL_MS (auth.html:2339) — ~0.7s wall-clock dwell (was 450)
-  var CONFIRM_HOLD_MS      = 250;   // both lamps green this long → capture (lets the user SEE the ✓)
-  var CALIB_MS             = 800;   // noise-floor calibration / camera-settle pre-roll
-  var VOICE_HELP_MS        = 9000;  // gesture held this long w/o voice → offer the escape
-  var MEDIAPIPE_GRACE_MS   = 6000;  // no finger detector by now → manual capture path
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // MediaPipe HandLandmarker finger counter — now the SHARED module
-  // /vac-finger-detect.js (loaded in <head>, defines window.FingerDetector).
-  // Same live-tested auth.html math (thumb angle<40 & spread>0.62; four-finger
-  // bend<35; warm-up + consecutive-slow-frame fallback + reset). The N=1
-  // re-auth challenge below stays server-driven and target-agnostic — the
-  // detector just returns the raw 0-5 count.
-  // ─────────────────────────────────────────────────────────────────────────
-  // Warm MediaPipe on idle so it's ready by the time the user taps reveal.
-  setTimeout(function () { FingerDetector.init(); }, 1200);
-
-  // ── SVG icon strings (custom SVG — vat-verify uses no emoji/system icons) ──
-  var SVG_HAND  = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>';
-  var SVG_MIC   = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
-  var SVG_CHECK = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  var SVG_CHECK_BIG = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  var SVG_X     = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
-
-  // ── State ────────────────────────────────────────────────────────────────
-  var overlay = null, cardEl = null;
-  var stream = null, recorder = null, recChunks = [], recMime = '';
-  var audioCtx = null, analyser = null, audioBuf = null;
-  var raf = null, running = false, capturing = false, revealed = false;
-  var email = '', N = 0, attempts = 0;
-  var gateStartAt = 0, calibrated = false, calibUntil = 0, floorSamples = [];
-  var vadSpeech = VAD_SPEECH_FALLBACK, vadSilence = VAD_SILENCE_FALLBACK;
-  // VAD run state
-  var sawSilence = false, voiced = 0, voiceOnsetAt = 0, voiceMin = 1, voiceMax = 0, voiceDipStart = 0;
-  var voiceFiredAt = 0, lastVoiceMs = 0, voiceMode = 'vad';
-  // gesture state
-  var stableCount = 0, gestureFirstAt = 0, cooccurSince = 0, lastCoach = '';
-  // bound still (set at capture)
-  var stillB64 = '', stillTs = 0, recStartMs = 0;
-
-  // ── tiny fetch helpers (never throw — return a structured result) ──────────
-  async function apiGet(path) {
-    try {
-      var token = null; try { token = localStorage.getItem('vac_session'); } catch (e) {}
-      var headers = {}; if (token) headers['Authorization'] = 'Bearer ' + token;
-      var res = await fetch(APIB + path, { headers: headers });
-      var data = null; try { data = await res.json(); } catch (e) {}
-      return { ok: res.ok, status: res.status, data: data };
-    } catch (e) { return { ok: false, status: 0, data: null, netErr: true }; }
-  }
-  async function apiPost(path, body) {
-    try {
-      var token = null; try { token = localStorage.getItem('vac_session'); } catch (e) {}
-      var headers = { 'Content-Type': 'application/json' }; if (token) headers['Authorization'] = 'Bearer ' + token;
-      var res = await fetch(APIB + path, { method: 'POST', headers: headers, body: JSON.stringify(body) });
-      var data = null; try { data = await res.json(); } catch (e) {}
-      var detail = data && (data.detail || data.error || data.message);
-      var detailStr = detail ? (typeof detail === 'object' ? JSON.stringify(detail) : String(detail)) : '';
-      var notDeployed = (res.status === 404 || res.status === 405 || res.status === 501);
-      return { ok: res.ok, status: res.status, data: data, detailStr: detailStr, notDeployed: notDeployed };
-    } catch (e) { return { ok: false, status: 0, data: null, detailStr: String(e && e.message || e), netErr: true }; }
-  }
-
-  function getReauthEmail() {
-    var e = (window.__vacCredEmail || '').trim();
-    if (e) return e;
-    try { var s = localStorage.getItem('vac_email'); if (s) return s; } catch (x) {}
-    try { var p = new URLSearchParams(window.location.search).get('email'); if (p) return p; } catch (x) {}
-    return '';
-  }
-
-  // ── overlay scaffolding ────────────────────────────────────────────────────
-  function ensureOverlay() {
-    if (overlay) return;
-    overlay = document.createElement('div');
-    overlay.className = 'ra-overlay';
-    overlay.id = 'vacReauthOverlay';
-    overlay.innerHTML = '<div class="ra-card" id="raCard"></div>';
-    document.body.appendChild(overlay);
-    cardEl = document.getElementById('raCard');
-    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
-  }
-  function closeBtnHTML() {
-    return '<button class="ra-close" id="raCloseBtn" aria-label="Close">' + SVG_X + '</button>';
-  }
-  function setCard(inner) { cardEl.innerHTML = closeBtnHTML() + inner; wireClose(); }
-  function wireClose() { var b = document.getElementById('raCloseBtn'); if (b) b.onclick = close; }
-
-  function show() { ensureOverlay(); overlay.classList.add('show'); document.documentElement.style.overflow = 'hidden'; }
-  function close() {
-    teardown();
-    if (overlay) overlay.classList.remove('show');
-    document.documentElement.style.overflow = '';
-  }
-  function teardown() {
-    running = false;
-    if (raf) { cancelAnimationFrame(raf); raf = null; }
-    try { if (recorder && recorder.state === 'recording') recorder.stop(); } catch (e) {}
-    recorder = null;
-    try { if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
-    stream = null;
-    try { if (audioCtx && audioCtx.state !== 'closed') audioCtx.close(); } catch (e) {}
-    audioCtx = null; analyser = null; audioBuf = null;
-  }
-
-  // ── screens ─────────────────────────────────────────────────────────────────
-  function screenChecking(msg) {
-    setCard(
-      '<div class="ra-eyebrow">Quick re-verify</div>' +
-      '<div class="ra-title">Confirming it’s you</div>' +
-      '<div class="ra-lede">' + (msg || 'Preparing the secure re-verify…') + '</div>' +
-      '<div style="text-align:center;margin:28px 0 8px;"><div class="spinner"></div></div>'
-    );
-  }
-
-  function screenEmail(prefill) {
-    setCard(
-      '<div class="ra-eyebrow">Quick re-verify</div>' +
-      '<div class="ra-title">Open your credential</div>' +
-      '<div class="ra-lede">Enter the email on this credential. We’ll match a quick face + number check against your verified identity.</div>' +
-      '<input id="raEmail" type="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="you@example.com" value="' + (prefill || '') + '" style="width:100%;margin-top:16px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:13px 16px;font-family:var(--font);font-size:15px;color:var(--text-primary);outline:none;">' +
-      '<button class="ra-btn" id="raEmailBtn">Continue</button>'
-    );
-    var inp = document.getElementById('raEmail');
-    setTimeout(function () { if (inp) inp.focus(); }, 60);
-    function go() { var v = (inp.value || '').trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { inp.style.borderColor = 'var(--error)'; inp.focus(); return; } email = v; window.__vacCredEmail = v; begin(); }
-    document.getElementById('raEmailBtn').onclick = go;
-    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-  }
-
-  function screenFullAuth(reason) {
-    teardown();
-    var authUrl = (window.location.origin || 'https://vacprotocol.org') + '/auth' + (email ? ('?email=' + encodeURIComponent(email)) : '');
-    setCard(
-      '<div style="text-align:center;margin-top:6px;"><div style="width:56px;height:56px;margin:0 auto 14px;border-radius:50%;background:var(--error-bg);border:1px solid var(--error-border);display:flex;align-items:center;justify-content:center;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div></div>' +
-      '<div class="ra-title">Full verification required</div>' +
-      '<div class="ra-lede">' + (reason || 'We couldn’t confirm it’s you with the quick check.') + ' Continue with the full verification to open the credential.</div>' +
-      '<a class="ra-btn" href="' + authUrl + '" style="text-decoration:none;text-align:center;line-height:20px;">Continue with full verification</a>' +
-      '<button class="ra-link" id="raDismiss">Not now</button>'
-    );
-    var d = document.getElementById('raDismiss'); if (d) d.onclick = close;
-  }
-
-  function screenVerifying() {
-    setCard(
-      '<div class="ra-eyebrow">Quick re-verify</div>' +
-      '<div class="ra-title">Verifying…</div>' +
-      '<div class="ra-lede">Matching your face + number against your verified identity.</div>' +
-      '<div style="text-align:center;margin:28px 0 8px;"><div class="spinner"></div></div>'
-    );
-  }
-
-  function screenPass() {
-    setCard(
-      '<div class="ra-success-ring">' + SVG_CHECK_BIG + '</div>' +
-      '<div class="ra-title">Verified — it’s you</div>' +
-      '<div class="ra-lede">Opening the credential…</div>'
-    );
-  }
-
-  // The live bound gate (built once; updated each frame)
-  function screenGate() {
-    setCard(
-      '<div class="ra-eyebrow">Quick re-verify</div>' +
-      '<div class="ra-title">Show ' + N + ' and say “' + N + '”</div>' +
-      '<div class="ra-lede">At the same time — the same bound check as full verification, just one number.</div>' +
-      '<div class="ra-stage">' +
-        '<div class="ra-camera">' +
-          '<video id="raVideo" autoplay playsinline muted></video>' +
-          '<svg class="ra-reticle" viewBox="0 0 180 240" preserveAspectRatio="none"><ellipse class="hand-ring" cx="90" cy="120" rx="86" ry="116"/><ellipse class="face-ring" cx="90" cy="100" rx="58" ry="78"/></svg>' +
-          '<div class="ra-count" id="raCount">Hold ' + N + ' finger' + (N === 1 ? '' : 's') + ' near your face</div>' +
-          '<div class="ra-rec"><span class="dot"></span>REC</div>' +
-        '</div>' +
-        '<div class="ra-digit" id="raDigit">' + N + '</div>' +
-        '<div class="ra-prompt" id="raPrompt">Show ' + N + ' AND say “' + N + '”</div>' +
-        '<div class="ra-coach" id="raCoach">…at the same time, in one go</div>' +
-        '<div class="ra-lamps">' +
-          '<div class="ra-lamp" id="raGestureLamp"><div class="ra-lamp-ring" id="raGestureIcon">' + SVG_HAND + '</div><div class="ra-lamp-label">SHOW</div></div>' +
-          '<div class="ra-lamp" id="raVoiceLamp"><div class="ra-lamp-ring" id="raVoiceIcon">' + SVG_MIC + '</div><div class="ra-lamp-label">SAY</div></div>' +
-        '</div>' +
-        '<div class="ra-error" id="raError"></div>' +
-        '<button class="ra-btn" id="raManualBtn" style="display:none;"></button>' +
-        '<button class="ra-link" id="raFullLink">Use full verification instead</button>' +
-      '</div>'
-    );
-    document.getElementById('raFullLink').onclick = function () { screenFullAuth('No problem.'); };
-    var mb = document.getElementById('raManualBtn');
-    mb.onclick = function () { voiceMode = 'off'; captureNow(); };
-  }
-
-  // ── lamp rendering ───────────────────────────────────────────────────────
-  function setLamp(lampId, iconId, state, restIcon) {
-    var lamp = document.getElementById(lampId), icon = document.getElementById(iconId);
-    if (!lamp || !icon) return;
-    lamp.classList.remove('live', 'done');
-    if (state === 'done') { lamp.classList.add('done'); icon.innerHTML = SVG_CHECK; }
-    else if (state === 'live') { lamp.classList.add('live'); icon.innerHTML = restIcon; }
-    else { icon.innerHTML = restIcon; }
-  }
-
-  function setCoach(txt) { if (txt !== lastCoach) { var el = document.getElementById('raCoach'); if (el) el.textContent = txt; lastCoach = txt; } }
-  function setError(txt) { var el = document.getElementById('raError'); if (el) el.textContent = txt || ''; }
-  function setCount(txt) { var el = document.getElementById('raCount'); if (el) el.textContent = txt; }
-
-  // ── orchestration ──────────────────────────────────────────────────────────
-  async function openReauth() {
-    show();
-    screenChecking();
-    email = getReauthEmail();
-    if (!email) { screenEmail(''); return; }
-    begin();
-  }
-
-  async function begin() {
-    screenChecking('Checking your verified identity…');
-    // 1) Fail-safe: no enrolled face reference → full auth.
-    var ref = await apiGet(EP_REF_STATUS + '?email=' + encodeURIComponent(email));
-    if (ref.netErr) { return retryConnection(); }
-    if (ref.data && ref.data.has_face_reference === false) {
-      screenFullAuth('No face on file for ' + email + '.');
-      return;
-    }
-    // 2) Fetch the one-digit challenge.
-    var ch = await apiGet(EP_CHALLENGE + '?email=' + encodeURIComponent(email));
-    if (ch.netErr) { return retryConnection(); }
-    var fingers = ch.data && (ch.data.fingers || ch.data.num_fingers);
-    if (!fingers || fingers < 1 || fingers > 5) {
-      // Some deployments may not expose the challenge route — pick locally; the
-      // server validates the count it issued / sees in the still regardless.
-      fingers = 1 + Math.floor((performance.now() % 5));
-      console.warn('[VAC reauth] no challenge fingers from server; using client digit', fingers);
-    }
-    N = fingers;
-    // 3) Camera + mic.
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: true });
-    } catch (e) {
-      setCard('<div class="ra-eyebrow">Quick re-verify</div><div class="ra-title">Camera needed</div><div class="ra-lede">Allow camera + microphone access to open the credential, then try again.</div><button class="ra-btn" id="raRetryCam">Try again</button><button class="ra-link" id="raFull2">Use full verification instead</button>');
-      document.getElementById('raRetryCam').onclick = function () { begin(); };
-      document.getElementById('raFull2').onclick = function () { screenFullAuth('No problem.'); };
-      return;
-    }
-    // 4) Build the gate, wire the stream, warm models, start.
-    screenGate();
-    var video = document.getElementById('raVideo');
-    video.srcObject = stream;
-    try { await video.play(); } catch (e) {}
-    startRecorder();
-    startAudio();
-    if (window.VACFaceEmbed) { try { window.VACFaceEmbed.ready(); } catch (e) {} }
-    if (!FingerDetector.ready && !FingerDetector.failed) FingerDetector.init();
-    // reset gate state
-    capturing = false; calibrated = false; floorSamples = []; calibUntil = performance.now() + CALIB_MS;
-    sawSilence = false; voiced = 0; voiceOnsetAt = 0; voiceMin = 1; voiceMax = 0; voiceDipStart = 0;
-    voiceFiredAt = 0; lastVoiceMs = 0; voiceMode = 'vad'; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; lastCoach = ''; try{ FingerDetector.resetHysteresis(); }catch(_){} // F-613: clear smoothing between attempts
-    vadSpeech = VAD_SPEECH_FALLBACK; vadSilence = VAD_SILENCE_FALLBACK;
-    gateStartAt = performance.now();
-    running = true;
-    raf = requestAnimationFrame(loop);
-  }
-
-  function retryConnection() {
-    setCard('<div class="ra-eyebrow">Quick re-verify</div><div class="ra-title">Connection error</div><div class="ra-lede">Couldn’t reach the verifier. Check your connection and try again.</div><button class="ra-btn" id="raRetryNet">Retry</button><button class="ra-link" id="raFull3">Use full verification instead</button>');
-    document.getElementById('raRetryNet').onclick = function () { begin(); };
-    document.getElementById('raFull3').onclick = function () { screenFullAuth('No problem.'); };
-  }
-
-  function startRecorder() {
-    recChunks = []; recMime = '';
-    var types = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
-    for (var i = 0; i < types.length; i++) { if (window.MediaRecorder && MediaRecorder.isTypeSupported(types[i])) { recMime = types[i]; break; } }
-    try {
-      var opts = recMime ? { mimeType: recMime, videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 } : { videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 };
-      recorder = new MediaRecorder(stream, opts);
-      recorder.ondataavailable = function (e) { if (e.data && e.data.size > 0) recChunks.push(e.data); };
-      recorder.start();
-      recStartMs = performance.now();
-    } catch (e) { recorder = null; console.warn('[VAC reauth] MediaRecorder unavailable (non-fatal):', e && e.message); }
-  }
-
-  function startAudio() {
-    try {
-      var AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      audioCtx = new AC();
-      var src = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      src.connect(analyser);
-      audioBuf = new Uint8Array(analyser.frequencyBinCount);
-    } catch (e) { analyser = null; console.warn('[VAC reauth] audio analyser unavailable; voice gate degraded:', e && e.message); }
-  }
-
-  // VAD step — faithful port of auth.html's per-digit energy gate (fresh
-  // silence→voice onset, sustained >= DIGIT_VOICE_MIN_MS, modulated, dip-tolerant).
-  function vadStep(now) {
-    if (!analyser || voiceMode === 'off') return;
-    analyser.getByteFrequencyData(audioBuf);
-    var rms = 0; for (var i = 0; i < audioBuf.length; i++) rms += audioBuf[i] * audioBuf[i];
-    rms = Math.sqrt(rms / audioBuf.length) / 255;
-    // Noise-floor calibration during the pre-roll.
-    if (!calibrated) {
-      floorSamples.push(rms);
-      if (now >= calibUntil) {
-        var s = floorSamples.slice().sort(function (a, b) { return a - b; });
-        var floor = s.length ? s[s.length >> 1] : 0;
-        vadSpeech = Math.max(VAD_SPEECH_FALLBACK, Math.min(0.42, floor * 1.9 + 0.03));
-        vadSilence = Math.max(VAD_SILENCE_FALLBACK, Math.min(vadSpeech - 0.03, floor * 1.35));
-        calibrated = true;
-      }
-      return; // don't fire voice during calibration
-    }
-    if (rms < vadSilence) {
-      sawSilence = true; voiced = 0; voiceMin = 1; voiceMax = 0; voiceDipStart = 0;
-    } else if (rms > vadSpeech) {
-      if (voiced === 0) { if (sawSilence) { voiceOnsetAt = now; voiceMin = rms; voiceMax = rms; voiced = 1; } }
-      else { voiced++; if (rms < voiceMin) voiceMin = rms; if (rms > voiceMax) voiceMax = rms; }
-      voiceDipStart = 0;
-      if (voiced > 0 && (now - voiceOnsetAt) >= DIGIT_VOICE_MIN_MS && (voiceMax - voiceMin) >= DIGIT_MOD_DELTA && !voiceFiredAt) {
-        voiceFiredAt = now;       // SHOW-AS-YOU-SAY: stamp the spoken moment
-        voiced = 0; voiceMin = 1; voiceMax = 0; sawSilence = false;
-      }
-    } else if (voiced > 0) {
-      if (!voiceDipStart) voiceDipStart = now;
-      else if (now - voiceDipStart > DIGIT_VOICE_GAP_MS) { voiced = 0; voiceMin = 1; voiceMax = 0; voiceDipStart = 0; }
-    }
-    lastVoiceMs = (voiced > 0) ? Math.round(now - voiceOnsetAt) : 0;
-  }
-
-  function loop() {
-    if (!running) return;
-    var now = performance.now();
-    vadStep(now);
-
-    // Finger detection
-    var video = document.getElementById('raVideo');
-    var detected = (video && FingerDetector.ready) ? FingerDetector.detect(video) : null;
-    // F-613: smoothed count for the STABILITY gate only (absorbs MediaPipe flicker so a
-    // steady hold isn't reset by a stray frame — the jitter fix). Raw `detected` stays the
-    // value-of-record (sent to the server as detected_fingers; the server is the real gate).
-    // feedStable reuses the raw value (no second MediaPipe run); null/pre-settle → fall back to raw.
-    var _stable = (detected === null) ? null : FingerDetector.feedStable(detected);
-    if (_stable === null || _stable === undefined) _stable = detected;
-
-    // gesture stability on the target count (SMOOTHED — flicker no longer resets it)
-    if (_stable === N) { stableCount++; if (stableCount === 1) gestureFirstAt = now; }
-    else { stableCount = 0; gestureFirstAt = 0; }
-    var gestureLive = (_stable === N && stableCount >= GESTURE_STABLE_FRAMES && gestureFirstAt > 0 && (now - gestureFirstAt) >= MIN_DWELL_MS);
-
-    // expire a stale spoken-digit stamp (must co-occur with fingers up)
-    if (voiceFiredAt > 0 && ((_stable !== N && (now - voiceFiredAt) > DIGIT_COOCCUR_MS) || (now - voiceFiredAt) > DIGIT_COOCCUR_MAX_MS)) voiceFiredAt = 0;
-    var voiceCo = (voiceMode === 'off') ? true : (voiceFiredAt > 0);
-
-    // live count readout
-    if (detected === null) setCount(FingerDetector.failed ? 'Hold ' + N + ' near your face' : 'Starting camera…');
-    else if (detected === -1) setCount('Show your hand near your face');
-    else if (detected === N) setCount(N + ' ✓ — ' + (voiceCo ? 'great' : 'now say “' + N + '”'));
-    else setCount('Showing ' + detected + ' — need ' + N);
-
-    // lamps
-    setLamp('raGestureLamp', 'raGestureIcon', gestureLive ? 'done' : (detected > 0 ? 'live' : 'rest'), SVG_HAND);
-    setLamp('raVoiceLamp', 'raVoiceIcon', voiceCo ? 'done' : (lastVoiceMs > 0 ? 'live' : 'rest'), SVG_MIC);
-
-    // coaching (co-occurrence-aware, mirrors auth.html copy)
-    if (voiceMode === 'off') setCoach('Show ' + N + ' near your face, then capture');
-    else if (gestureLive && voiceCo) setCoach('Got it — hold still');
-    else if (gestureLive && !voiceCo) setCoach('Now say “' + N + '” out loud while you hold it up');
-    else if (voiceCo && !gestureLive) setCoach('Now show ' + N + ' finger' + (N === 1 ? '' : 's') + ' near your face');
-    else setCoach('Show ' + N + ' AND say “' + N + '” — at the same time');
-
-    // escapes (honest, explicit — never a silent auto-pass)
-    var mb = document.getElementById('raManualBtn');
-    if (mb && mb.style.display === 'none') {
-      if (FingerDetector.failed) { mb.textContent = 'Show ' + N + ' near your face + say it, then capture'; mb.style.display = 'block'; }
-      else if (gestureLive && !voiceCo && (now - gestureFirstAt) > VOICE_HELP_MS) { mb.textContent = 'Mic not working? Continue with gesture only'; mb.style.display = 'block'; }
-      else if ((now - gateStartAt) > MEDIAPIPE_GRACE_MS && !FingerDetector.ready) { mb.textContent = 'Show ' + N + ' near your face + say it, then capture'; mb.style.display = 'block'; }
-    }
-
-    // co-occurrence advance — both satisfied, held briefly → capture
-    if (gestureLive && voiceCo && !capturing) {
-      if (!cooccurSince) cooccurSince = now;
-      if (now - cooccurSince >= CONFIRM_HOLD_MS) { captureNow(); return; }
-    } else { cooccurSince = 0; }
-
-    raf = requestAnimationFrame(loop);
-  }
-
-  function blobToB64(blob) {
-    return new Promise(function (resolve) {
-      try { var r = new FileReader(); r.onloadend = function () { var s = String(r.result || ''); var c = s.indexOf(','); resolve(c === -1 ? '' : s.slice(c + 1)); }; r.onerror = function () { resolve(''); }; r.readAsDataURL(blob); }
-      catch (e) { resolve(''); }
-    });
-  }
-
-  async function captureNow() {
-    if (capturing) return;
-    capturing = true; running = false;
-    if (raf) { cancelAnimationFrame(raf); raf = null; }
-    setCoach('Got it — hold still'); setError('');
-
-    var video = document.getElementById('raVideo');
-    if (!video || !video.videoWidth) { setError('Camera not ready — try again.'); resumeGate(); return; }
-
-    // Bound still — un-mirrored frame at the co-occurrence moment, downscaled <=640.
-    var longest = Math.max(video.videoWidth, video.videoHeight);
-    var scale = longest > 640 ? 640 / longest : 1;
-    var cw = Math.max(1, Math.round(video.videoWidth * scale)), ch = Math.max(1, Math.round(video.videoHeight * scale));
-    var canvas = document.createElement('canvas'); canvas.width = cw; canvas.height = ch;
-    canvas.getContext('2d').drawImage(video, 0, 0, cw, ch);
-    var dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    var comma = dataUrl.indexOf(',');
-    stillB64 = comma === -1 ? '' : dataUrl.slice(comma + 1);
-    stillTs = recStartMs ? Math.round(performance.now() - recStartMs) : 0;
-
-    // Face IDENTITY embedding from the SAME frame (single-face enforced client-side).
-    var embedding = null;
-    if (window.VACFaceEmbed) {
-      try {
-        await window.VACFaceEmbed.ready();
-        var emb = await window.VACFaceEmbed.compute(canvas);
-        if (emb && emb.ok) embedding = emb.embedding;
-        else if (emb && (emb.reason === 'no_face' || emb.reason === 'multiple_faces')) {
-          // Client-side single-face gate (UX). Hard stop — do NOT POST.
-          setError(window.VACFaceEmbed.reasonMessage(emb.reason));
-          resumeGate(); return;
-        }
-        // embedder_error → embedding stays null; the server arbitrates.
-      } catch (e) { /* embedding stays null */ }
-    }
-
-    // Stop the recorder and (when the bound lane is on) gather the clip.
-    var clipB64 = '', clipMime = recMime || 'video/webm';
-    try {
-      if (recorder && recorder.state === 'recording') {
-        await new Promise(function (resolve) {
-          recorder.onstop = resolve;
-          // give Deepgram a beat of the spoken digit AFTER the co-occurrence
-          setTimeout(function () { try { recorder.stop(); } catch (e) { resolve(); } }, 250);
-        });
-        if (USE_QUICK_REAUTH && recChunks.length) {
-          clipB64 = await blobToB64(new Blob(recChunks, { type: clipMime }));
-        }
-      }
-    } catch (e) {}
-
-    screenVerifying();
-    var result = await submit({ email: email, fingers: N, detected: (typeof N === 'number' ? N : null), embedding: embedding, stillB64: stillB64, stillTs: stillTs, clipB64: clipB64, clipMime: clipMime, cooccurMs: DIGIT_COOCCUR_MS });
-
-    if (result.pass) { onPass(result); return; }
-    // Classify the failure → route to full auth vs honest retry.
-    var s = (result.resp && (result.resp.detailStr || '')).toLowerCase();
-    if (result.resp && result.resp.netErr) { retryConnection(); return; }
-    if (/require_full_auth|no_face_reference|max_retries/.test(s)) { screenFullAuth('Face didn’t match the verified identity.'); return; }
-    attempts++;
-    if (attempts >= MAX_CLIENT_ATTEMPTS) { screenFullAuth('That didn’t match after a few tries.'); return; }
-    // honest retry — re-run the gate
-    var remain = MAX_CLIENT_ATTEMPTS - attempts;
-    failAndRetry('Couldn’t verify — try again. ' + remain + ' attempt' + (remain === 1 ? '' : 's') + ' left.');
-  }
-
-  // Re-show the live gate after a non-fatal miss (single-face/camera) WITHOUT
-  // spending an attempt — the user simply re-does the bound act.
-  function resumeGate() {
-    capturing = false;
-    voiceFiredAt = 0; voiced = 0; sawSilence = false; stableCount = 0; gestureFirstAt = 0; cooccurSince = 0; try{ FingerDetector.resetHysteresis(); }catch(_){} // F-613: clear smoothing between attempts
-    if (!running) { running = true; raf = requestAnimationFrame(loop); }
-  }
-
-  // Spent an attempt — rebuild the gate fresh (new camera/recorder/audio).
-  function failAndRetry(msg) {
-    teardown();
-    begin().then(function () { setError(msg); });
-  }
-
-  async function submit(p) {
-    if (USE_QUICK_REAUTH) {
-      var qr = await apiPost(EP_QUICK_REAUTH, {
-        email: p.email,
-        challenge_fingers: p.fingers,
-        detected_fingers: p.detected,
-        face_embedding: p.embedding || undefined,
-        face_embedding_model: (window.VACFaceEmbed && window.VACFaceEmbed.MODEL_ID) || undefined,
-        face_still_b64: p.stillB64,
-        still_ts_ms: p.stillTs,
-        spoken_audio_b64: p.clipB64 || undefined,
-        audio_mimetype: p.clipMime || undefined,
-        cooccur_ms: p.cooccurMs
-      });
-      if (!qr.notDeployed) return { pass: !!(qr.ok && qr.data && qr.data.authenticated), resp: qr };
-      console.warn('[VAC reauth] quick-reauth not deployed (', qr.status, ') — falling back to face-reauth');
-      // fall through to face-reauth
-    }
-    // Deployed lane: identity = face_embedding distance (server), liveness +
-    // finger-count cross-check from the bound still (Gemini), challenge tracked
-    // server-side per email. Success = a resolved (HTTP-ok) response.
-    var fr = await apiPost(EP_FACE_REAUTH, {
-      email: p.email,
-      face_frame: 'data:image/jpeg;base64,' + p.stillB64,
-      face_embedding: p.embedding || undefined
-    });
-    return { pass: !!fr.ok, resp: fr };
-  }
-
-  function onPass(result) {
-    // Persist the freshened session/biometric exactly like the SDK does.
-    try {
-      var d = result.resp && result.resp.data;
-      if (d && d.session_token) localStorage.setItem('vac_session', d.session_token);
-      if (email) localStorage.setItem('vac_email', email);
-      var u = JSON.parse(localStorage.getItem('vac_user') || 'null') || {};
-      u.email = u.email || email; u.last_biometric = Math.floor(Date.now() / 1000);
-      if (d && d.auth_level) u.auth_level = d.auth_level;
-      localStorage.setItem('vac_user', JSON.stringify(u));
-    } catch (e) {}
-    teardown();
-    screenPass();
-    revealCredential();
-    setTimeout(close, 1100);
-  }
+  var revealed = false;
 
   function revealCredential() {
     if (revealed) return; revealed = true;
@@ -1575,6 +1044,57 @@ init();
     var wrap = document.getElementById('credRevealWrap');
     if (locked) locked.style.display = 'none';
     if (wrap) { wrap.style.display = 'block'; wrap.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }
+
+  function currentIdentity() {
+    var email = '';
+    var name = '';
+    try {
+      email = localStorage.getItem('vac_email') || '';
+      var u = JSON.parse(localStorage.getItem('vac_user') || 'null') || {};
+      email = email || u.email || '';
+      name = u.name || '';
+    } catch (e) {}
+    return { email: email, name: name };
+  }
+
+  // Full-verification fallback: send the user to the canonical /auth page (the
+  // single working full ceremony) carrying their email, returning here on pass.
+  function goFullVerification() {
+    var id = currentIdentity();
+    var ret = encodeURIComponent(location.pathname + location.search);
+    var q = '?return=' + ret + (id.email ? ('&email=' + encodeURIComponent(id.email)) : '');
+    location.href = '/auth' + q;
+  }
+
+  // Entry point for the locked-card "Quick re-verify to reveal" button.
+  function openReauth() {
+    var mount = document.getElementById('vacReauthMount');
+    if (!mount || typeof VACReauth === 'undefined' || !VACReauth.run) {
+      console.error('[VAC vat-verify] VACReauth ceremony module not available — falling back to full verification');
+      goFullVerification();
+      return;
+    }
+    var id = currentIdentity();
+    mount.style.display = 'block';
+    try { mount.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+    VACReauth.run({
+      name: id.name,
+      email: id.email,
+      riskLevel: 'low',                       // credential-reveal = low-value action → fast tier
+      mount: mount,
+      context: 'vat-verify-reveal',
+      profile: { mode: 'fast' },              // FAST mode: single-digit, face-reauth-challenge + quick-reauth, no Gemini
+      onComplete: function (result) {
+        try { mount.style.display = 'none'; } catch (_) {}
+        revealCredential();
+      },
+      onFallback: function (err) {
+        console.warn('[VAC vat-verify] fast reauth fell back to full:', err && err.message);
+        goFullVerification();
+      },
+      onBack: function () { try { mount.style.display = 'none'; } catch (_) {} },
+    });
   }
 
   // Expose the entry point for the locked-card button.
