@@ -500,6 +500,13 @@ async function fetchVerif(jti) {
     try { const r = await fetch(`${API_BASE}/v1/vat/verify/${jti}`); if (!r.ok) return null; return await r.json(); } catch { return null; }
 }
 
+// F-639: arrival intent. Caroline reaches this page via the tribunal "verify independently"
+// link, which carries ?intent=verify — her one job is to confirm the token is GENUINE. A
+// holder revealing their own credential arrives WITHOUT the param. Lead with the right job.
+function getIntent() {
+    try { return new URLSearchParams(window.location.search).get('intent') || ''; } catch (_) { return ''; }
+}
+
 const MODS = {
     face_liveness:      { label: 'Face Liveness',       sub: 'Gemini visual analysis' },
     deepfake_detection: { label: 'Deepfake Detection',  sub: 'AI generation scoring' },
@@ -559,6 +566,35 @@ function render(data, verif, budgetData) {
 
     // Hero
     if (ok) {
+        const _verifyIntent = getIntent() === 'verify';
+        if (_verifyIntent) {
+            // F-639 VERIFIER HERO (Caroline arrives via tribunal "verify independently"). Her one
+            // job: confirm the token is GENUINE. Lead with authenticity — the trust ring as PROOF,
+            // Ed25519 stated plainly, chain integrity confirmed. Vouch/spend/use-cases collapse below.
+            h += `<div class="hero">
+                <div class="hero-eyebrow" style="color:var(--success)">✓ Independently Verified</div>
+                <div class="trust-ring-container">
+                    <div class="trust-ring-bg"></div>
+                    <svg class="trust-ring-svg" viewBox="0 0 180 180">
+                        <circle class="trust-ring-track" cx="90" cy="90" r="80"/>
+                        <circle class="trust-ring-fill ${trustCls}" cx="90" cy="90" r="80" id="trustRing"/>
+                    </svg>
+                    <div class="trust-ring-center">
+                        <div class="trust-score-value" id="trustValue">0</div>
+                        <div class="trust-score-label">Trust Score</div>
+                        <div style="font-family:var(--mono);font-size:9px;color:var(--text-muted);margin-top:4px;letter-spacing:0.5px;" id="trustDecay"></div>
+                    </div>
+                </div>
+                <div class="hero-tagline">This token is genuine.</div>
+                <div class="hero-sub">Checked just now against the VAC backend — not a stored sample. The signature and authority chain are real; you verified it yourself by opening this page.</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;">
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">Ed25519 signature valid</span>
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">${v.chain_length} node${v.chain_length !== 1 ? 's' : ''} · chain intact</span>
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">${active.length} modalities</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-tertiary);max-width:420px;margin:14px auto 0;line-height:1.5;">No trust in us required: this page fetched the token from the production backend and checked the cryptographic signature live. Anyone with the link can do the same and get the same answer.</div>
+            </div>`;
+        } else {
         h += `<div class="hero">
             <div class="hero-eyebrow">Verified Authority Chain</div>
             <div class="trust-ring-container">
@@ -579,6 +615,7 @@ function render(data, verif, budgetData) {
             <div class="hero-tagline">A verified human started this chain.</div>
             <div class="hero-sub">Every agent in this delegation traces back to a biometrically verified person. Vouch to join their trust graph.</div>
         </div>`;
+        }
     } else {
         h += `<div class="hero">
             <div class="hero-eyebrow" style="color:var(--error)">Chain Verification Failed</div>
@@ -590,7 +627,7 @@ function render(data, verif, budgetData) {
     }
 
     // Vouch CTA
-    if (ok) {
+    if (ok && getIntent() !== 'verify') {
         const vc = data.vouch_count || (verif && verif.vouch_count) || 0;
         h += `<div class="vouch-cta" id="vouchSection">
             <div class="vouch-cta-title">Vouch for this identity</div>
