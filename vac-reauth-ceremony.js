@@ -3310,7 +3310,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Mic</div>
-        <div class="header-sub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
+        <div class="header-sub" id="step2HeaderSub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
@@ -3495,7 +3495,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
     <!-- Combined capture explanation (visible during recording) -->
     <div id="combinedCaptureInfo" style="margin-top: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
         <div style="font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;">How it works</div>
-        <div style="font-size: clamp(11px, 3vw, 13px); color: var(--text-secondary); line-height: 1.5;">
+        <div id="combinedCaptureText" style="font-size: clamp(11px, 3vw, 13px); color: var(--text-secondary); line-height: 1.5;">
             Say the greeting, then show each number as you say it. Wait for the ✓ before moving to the next. One continuous take, 6 signals verified by AI.
         </div>
     </div>
@@ -3938,6 +3938,19 @@ const VACReauth = {
         // Backend-coherent: the full verify gates on the OTP digit match + face embedding + liveness,
         // NOT on the greeting words (greeting is the voice-anchor, not the challenge-response gate).
         skipGreeting = !!(CTX.profile && CTX.profile.greeting === 'skip');
+        // F-635 + fast mode: BOTH are greeting-less (fast = the fast-direct-path still capture;
+        // greeting:skip = a full ceremony minus the greeting). Either way the static step-2 copy
+        // must not tell the user to "say a greeting" — update the header subtitle + how-it-works
+        // explainer so the on-screen guidance matches what the flow actually does.
+        var _greetingless = skipGreeting || (modeConfig().capture.kind === 'still');
+        if (_greetingless) {
+            try {
+                var _hs = document.getElementById('step2HeaderSub');
+                if (_hs) _hs.textContent = 'Show the number and say it, in front of your face. Wait for the ✓.';
+                var _cct = document.getElementById('combinedCaptureText');
+                if (_cct) _cct.textContent = 'Show the number as you say it, in front of your face — a quick face + number check. You verified moments ago, so no greeting is needed.';
+            } catch(_) {}
+        }
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
         renderDOM();

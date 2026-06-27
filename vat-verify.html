@@ -1058,13 +1058,37 @@ init();
     return { email: email, name: name };
   }
 
-  // Full-verification fallback: send the user to the canonical /auth page (the
-  // single working full ceremony) carrying their email, returning here on pass.
-  function goFullVerification() {
+  // Full-verification fallback: instead of a SILENT yank to /auth (which dumped the user at an
+  // unexplained email form), BRING THE USER IN — show a clear transition card explaining why the
+  // quick check needs to step up, then let them continue. reason lets us tailor the copy.
+  function goFullVerification(reason) {
     var id = currentIdentity();
     var ret = encodeURIComponent(location.pathname + location.search);
     var q = '?return=' + ret + (id.email ? ('&email=' + encodeURIComponent(id.email)) : '');
-    location.href = '/auth' + q;
+    var dest = '/auth' + q;
+    var mount = document.getElementById('vacReauthMount');
+    // Reason-aware explanation (no jargon — this is a credential holder, not an engineer).
+    var why = (reason === 'no_identity')
+        ? 'We need to confirm your email to run the verification — this credential opens only for its verified holder.'
+      : (reason === 'denied')
+        ? 'The quick check didn’t confirm a match, so we’ll do the full verification to open the credential.'
+        : 'We’ll do the full verification to open this credential.';
+    if (mount) {
+      mount.style.display = 'block';
+      mount.innerHTML =
+        '<div style="max-width:440px;margin:0 auto;text-align:center;padding:28px 20px;background:var(--surface,#0f1626);border:1px solid var(--border,#243049);border-radius:14px;">'
+        + '<div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:1.5px;color:var(--teal,#2dd4bf);text-transform:uppercase;margin-bottom:10px;">Full verification</div>'
+        + '<div style="font-size:18px;font-weight:700;color:var(--text-primary,#fff);margin-bottom:8px;">Let’s confirm it’s you</div>'
+        + '<div style="font-size:14px;color:var(--text-secondary,#9fb0c7);line-height:1.5;margin-bottom:20px;">' + why + '</div>'
+        + '<button id="vvGoFullBtn" style="background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:10px;padding:13px 22px;font-size:15px;font-weight:600;cursor:pointer;width:100%;max-width:300px;">Continue to full verification</button>'
+        + '</div>';
+      try { mount.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+      var b = document.getElementById('vvGoFullBtn');
+      if (b) b.onclick = function () { location.href = dest; };
+      return;
+    }
+    // No mount (shouldn't happen) → fall back to the original direct redirect.
+    location.href = dest;
   }
 
   // Entry point for the locked-card "Quick re-verify to reveal" button.
@@ -1076,6 +1100,14 @@ init();
       return;
     }
     var id = currentIdentity();
+    // If we have no stored identity email (e.g. arrived via a ?jti= link without logging in), the
+    // fast face+number check can't run keyed to an identity — explain that and route to full
+    // verification (which collects the email), instead of silently launching a ceremony that
+    // immediately falls back to an unexplained email form.
+    if (!id.email) {
+      goFullVerification('no_identity');
+      return;
+    }
     mount.style.display = 'block';
     try { mount.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
     VACReauth.run({
@@ -1091,7 +1123,7 @@ init();
       },
       onFallback: function (err) {
         console.warn('[VAC vat-verify] fast reauth fell back to full:', err && err.message);
-        goFullVerification();
+        goFullVerification('denied');
       },
       onBack: function () { try { mount.style.display = 'none'; } catch (_) {} },
     });
