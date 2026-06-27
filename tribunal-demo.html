@@ -1451,24 +1451,26 @@ async function viewCredentialReauth(){
     // (never burns a biometric retry, never strands the user).
     return reauthDegrade('ceremony_unavailable');
   }
-  // PRE-GATE (S120, Bug A fix / L-2164): fast re-auth structurally cannot pass
-  // without an enrolled face reference — the backend returns no_face_reference /
-  // embedding_required. Probe the tier FIRST (retry-safe, no biometric burned). If
-  // the identity has no enrolled face, do NOT send the user through a camera
-  // ceremony that is guaranteed to deny; degrade honestly straight to the result
-  // (whose copy now says "no enrolled face yet → use full verification"). Only
-  // launch the live camera ceremony when fast can actually succeed.
+  // PRE-GATE (S120, Bug A fix / L-2164, CORRECTED L-2166): fast re-auth structurally cannot
+  // pass without an enrolled face embedding. The ORIGINAL pre-gate used probeReauthTier() — a
+  // quick-reauth POST with a DUMMY still ('x') — to infer enrolment, but that ALWAYS returns
+  // embedding_required (the backend can't extract a face from a dummy image), so it wrongly
+  // skipped the camera for EVERYONE, enrolled or not. The CORRECT enrolment signal is
+  // GET /v1/auth/face-ref-status → has_embedding (truthful, independent of any capture). Only
+  // skip the doomed ceremony when the identity genuinely has NO enrolled embedding.
   try{
-    const _pre=await probeReauthTier();
-    if(_pre && (_pre.state==='no_template' || _pre.inferred || _pre.state==='full')){
+    const _email=cerEmail();
+    const _statusR=await fetch(API_BASE+'/v1/auth/face-ref-status?email='+encodeURIComponent(_email));
+    const _status=await _statusR.json().catch(()=>({}));
+    if(_statusR.ok && _status && _status.has_embedding===false){
+      // Genuinely not enrolled → skip the camera ceremony that cannot pass; degrade honestly.
       const authz=await authorizeViewCredential();
-      // Carry the probe's own state so renderReauthResult shows the right honest note
-      // (inferred → "no enrolled face yet"; full/step_up → "full verification required").
-      renderReauthResult(authz, Object.assign({}, _pre, { degraded:'pre_gate' }));
+      renderReauthResult(authz, { state:'no_template', reason:'no_embedding', degraded:'pre_gate' });
       if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
       return;
     }
-  }catch(_){ /* probe failure → fall through to the live ceremony (fail-open to the real attempt, not to a reveal) */ }
+    // has_embedding===true (or status unavailable) → enrolled (or unknown) → RUN the live ceremony.
+  }catch(_){ /* status check failed → fall through to the live ceremony (the real attempt, not a skip) */ }
   const host=document.getElementById('rdResult');
   mount.style.display='block';
   try{ mount.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
