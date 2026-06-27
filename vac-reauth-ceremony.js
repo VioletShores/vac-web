@@ -3975,7 +3975,12 @@ const VACReauth = {
         // F-635 + fast mode: BOTH are greeting-less (fast = the fast-direct-path still capture;
         // greeting:skip = a full ceremony minus the greeting). Either way the static step-2 copy
         // must not tell the user to "say a greeting" — update the header subtitle + how-it-works
-        // explainer so the on-screen guidance matches what the flow actually does.
+        if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
+        try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
+        renderDOM();
+        // F-635-LIGHTER (ordering fix): rewrite the greeting-less copy AFTER renderDOM() — the prior
+        // build ran this BEFORE renderDOM, so step2HeaderSub/combinedCaptureText didn't exist yet
+        // (getElementById → null) and the static "Say a greeting" default rendered unchanged.
         var _greetingless = skipGreeting || (modeConfig().capture.kind === 'still');
         if (_greetingless) {
             try {
@@ -3993,9 +3998,6 @@ const VACReauth = {
                 }
             } catch(_) {}
         }
-        if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
-        try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
-        renderDOM();
         CTX.mount.style.display = 'block';
         try { if (window.FingerDetector && !window.FingerDetector.ready) setTimeout(window.FingerDetector.init, 0); } catch(_) {}
         goToStep(1);                                  // show the camera pre-flight (step 1)
