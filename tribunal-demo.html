@@ -830,7 +830,7 @@ document.querySelectorAll('.tab').forEach(t=>{
 const REAL_TOKEN = {
   jti:"vat_root_c1e665235203",
   trust:0.95,
-  verify:"https://vacprotocol.org/vat/verify/vat_root_c1e665235203"
+  verify:"/vat/verify/vat_root_c1e665235203"
 };
 
 // Authorise the SEALING ACTION server-side (F-TRIBUNAL-SEAL-FIRES-GATE). After the
@@ -956,7 +956,7 @@ async function mintMatterToken(){
     SEAL_TOKEN = {
       jti: data.jti,
       trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
-      verify: data.verify_url || ('https://vacprotocol.org/vat/verify/' + data.jti),
+      verify: data.verify_url || ('/vat/verify/' + data.jti),  // relative fallback follows host (preview→preview, prod→prod); a real minted token's data.verify_url stays absolute
       minted: true
     };
     return true;
