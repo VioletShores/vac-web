@@ -1594,10 +1594,12 @@ function renderReauthResult(authz,tier){
   const frame=document.getElementById('voFrame');
   // VERIFY_SRC is now declared top-level (see note near SEAL_TOKEN) — used here via that scope.
   let revealed=false;
-  function reveal(verified,name,score){
+  function reveal(verified,name,score,email){
     if(!revealed){revealed=true;walkBody.hidden=false;}
     if(verified){
-      window.__vacVerified={name:(name||'').trim()};
+      // L-2172: capture EMAIL too (not just name) — the seal-gate re-auth needs both to
+      // prefill + skip the identity form. The first auth's vac-auth-success carries d.email.
+      window.__vacVerified={name:(name||'').trim(),email:(email||null)};
       const badge=document.getElementById('idVerified');
       badge.querySelector('.idv-name').textContent=window.__vacVerified.name?(' · '+window.__vacVerified.name):'';
       badge.hidden=false;gate.classList.add('done');   // CSS collapses #idPre, leaving only the badge
@@ -1634,9 +1636,9 @@ function renderReauthResult(authz,tier){
       // Option B: keep auth-test's own verified + modality-detail screen visible so
       // Caroline sees HOW she was verified (face liveness, deepfake, speech match).
       // Don't close here — surface a Continue button that closes + shows the credential beat.
-      window.__vacPendingReveal={name:d.name,score:d.overall_score};
+      window.__vacPendingReveal={name:d.name,email:d.email,score:d.overall_score};
       const cont=document.getElementById('voContinue');
-      if(cont){cont.hidden=false;cont.onclick=()=>{closeVerify();reveal(true,window.__vacPendingReveal.name,window.__vacPendingReveal.score);};}
+      if(cont){cont.hidden=false;cont.onclick=()=>{closeVerify();reveal(true,window.__vacPendingReveal.name,window.__vacPendingReveal.score,window.__vacPendingReveal.email);};}
     }
   });
   // redirect path: auth-test ?mode=copilot&callback=/tribunal?step=verified returns here
