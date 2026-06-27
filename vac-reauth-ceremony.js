@@ -134,6 +134,7 @@ let authResult = null;
 let challengeData = null;
 let fingerFallback = 'none';
 let challengeSpeed = 'relaxed'; // 'relaxed', 'normal', 'fast'
+let skipGreeting = false; // F-635: when profile.greeting==='skip', a FULL ceremony drops the greeting/voice-anchor phase (same-session lighter re-auth). Set per-run in run().
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
@@ -787,6 +788,10 @@ function goToChallenge() {
     // through goToChallenge) would prompt only the greeting and fail challenge-response (codex).
     if (fingerFallback === 'voice') {
         document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:12px;color:var(--warning);margin-top:8px;display:inline-block">Voice-only mode (reduced trust score)</span>';
+    } else if (skipGreeting) {
+        // F-635 greeting:skip — same-session lighter re-auth: no greeting/voice-anchor phase,
+        // straight to the show-and-say digit phase. The user already greeted earlier this session.
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px;color:var(--text-primary);font-weight:600">Quick re-confirm — show each number as you say it</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">one take · you verified moments ago, so no greeting needed</span>';
     } else {
         // R2 (S114): greeting ONLY (greetPart strips the trailing digits). Pre-countdown lead-in
         // (overwritten by "Get ready…" in startCountdown); renderGreeting owns the live prompt. The
@@ -875,7 +880,7 @@ function showChallengeIntro() {
     // D-INTRO-GREETING-NUMBERS-ASYMMETRY (S114): preview the ACTUAL greeting from the SAME source the
     // greeting screen uses (rotating greeting + verified name). textContent = no markup-injection risk.
     var _greetEl = document.getElementById('challengeIntroGreeting');
-    if (_greetEl) { var _g = vacGreetingText(); _greetEl.textContent = _g ? ('“' + _g + '”') : ''; }
+    if (_greetEl) { var _g = (!skipGreeting && vacGreetingText()) ? vacGreetingText() : ''; _greetEl.textContent = _g ? ('“' + _g + '”') : ''; }   // F-635: no greeting preview when greeting:skip
     overlay.style.display = 'block';
     try { vacDebug('challenge_intro_shown', null, { digits_count: digits.length, has_greeting: !!vacGreetingText() }); } catch(_) {}
 }
@@ -1093,7 +1098,13 @@ function beginRecording() {
             challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
         }
     }
-    try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
+    if (skipGreeting) {
+        // F-635: no greeting phase — show a neutral lead-in; the phrase loop will advance to
+        // the digit phase on the first tick (no greeting screen flash).
+        try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = 'Quick re-confirm'; _stG.style.color = ''; } challengeEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-secondary);">One moment…</div>'; } catch(_) {}
+    } else {
+        try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
+    }
 
     // S110: render the persistent above-video digit strip (current digit highlighted).
     // F-563 (2): PROGRESS DOTS only — NO numbers. The current digit's number lives in the big
@@ -2227,7 +2238,7 @@ function beginRecording() {
         if (phraseSpoke && _phraseTimerDone && !_phraseHeardAt) _phraseHeardAt = performance.now();
         const _heardBeatDone = !phraseSpoke || (_phraseHeardAt && (performance.now() - _phraseHeardAt >= GREET_HEARD_BEAT_MS));
         // Voice-only speaks the full phrase here (no digit phase) → no "heard it" beat, just the timer gate.
-        const _advanceGreeting = _phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone);
+        const _advanceGreeting = skipGreeting || (_phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone));
         if (_advanceGreeting) {
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
             // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
@@ -3920,6 +3931,13 @@ const VACReauth = {
         // S120 live-test fix: fast mode → fast countdown timing (1s) so the still-capture
         // quick check isn't paced like the full relaxed ceremony. Full/omitted → unchanged.
         if (CTX.profile && CTX.profile.mode === 'fast') { challengeSpeed = 'fast'; }
+        // F-635 (greeting as a composable COPS/PID axis): profile.greeting === 'skip' drops the
+        // greeting/voice-anchor phase from a FULL ceremony — for a same-session re-auth where the
+        // greeting was already collected, the second auth is visibly lighter (digits + face only).
+        // Omitted → 'required' (regression guard: auth.html and the FIRST full auth are unchanged).
+        // Backend-coherent: the full verify gates on the OTP digit match + face embedding + liveness,
+        // NOT on the greeting words (greeting is the voice-anchor, not the challenge-response gate).
+        skipGreeting = !!(CTX.profile && CTX.profile.greeting === 'skip');
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
         renderDOM();

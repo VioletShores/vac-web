@@ -857,11 +857,19 @@ function startReauthCeremony(opts) {
         console.error('[VAC] VACReauth ceremony module not available');
         return;
     }
+    // F-635: when embedded as the SEAL-GATE re-auth, tribunal opens this page as /auth.html?greeting=skip
+    // — a same-session second full auth that drops the greeting/voice-anchor phase (lighter, proportional).
+    // The first identity auth opens this page WITHOUT the param → profile omitted → greeting required
+    // (regression guard: the standalone /auth experience and the first auth are unchanged).
+    var _greetingParam = null;
+    try { _greetingParam = new URLSearchParams(window.location.search).get('greeting'); } catch(_) {}
+    var _sealGateProfile = (_greetingParam === 'skip') ? { greeting: 'skip' } : null;
     VACReauth.run({
         name: d.name, email: d.email, org: d.org, role: d.role,
         riskLevel: 'medium',                 // auth.html runs the full ceremony (unchanged from before)
         mount: mount, context: 'register',
         auto: !!opts.auto,
+        profile: _sealGateProfile,           // F-635: {greeting:'skip'} only when ?greeting=skip (seal-gate); else null → greeting required
         retryAttempts: (typeof opts.retryAttempts === 'number') ? opts.retryAttempts : 0,
         onStep: function(n) { try { goToStep(n); } catch(_) {} },        // mirror progress on this page's step dots
         onComplete: function(result) { authResult = result; try { showSuccess(); } catch(e) { console.error('[VAC] showSuccess failed:', e); } },
