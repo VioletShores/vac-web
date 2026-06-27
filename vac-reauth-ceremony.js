@@ -745,6 +745,40 @@ function goToChallenge() {
         return;  // do NOT goToStep(2)/startCountdown with a blank phrase
     }
     stopAVChecks(); // Clean up audio context and animation frame
+
+    // ── FAST-MODE DIRECT PATH (S120 live-test fix, L-2162) ───────────────────────
+    // Fast/still re-auth ("show one finger + say the digit") must NOT run the full
+    // ceremony's greeting + voice-phrase + warmup + multi-digit explainer choreography.
+    // Before this branch, fast fell through into goToChallenge's greeting render and the
+    // showChallengeIntro/explainer handoff, which (a) showed the greeting screen fast
+    // should skip, and (b) stalled the advance to still-capture so it bounced back to the
+    // Re-authorise button ("live capture did not run on this device"). Here fast renders
+    // the single bound instruction (fingers + spoken_digit from /face-reauth-challenge) and
+    // goes straight to goToStep(2) -> startCountdown(), whose tail already routes
+    // capture.kind==='still' to beginStillCapture(). FULL mode is untouched below.
+    if (modeConfig().capture.kind === 'still') {
+        var _fc = challengeData || {};
+        var _digit = (_fc.spoken_digit != null) ? _fc.spoken_digit
+                   : (_fc.digits && _fc.digits.length ? _fc.digits[0]
+                   : (typeof _fc.fingers === 'number' ? _fc.fingers : null));
+        var _instr = _fc.bound_instruction
+                   || (_digit != null ? ('Hold up ' + _digit + ' and say “' + _digit + '” at the same time') : 'Show the number and say it');
+        var _ctEl = document.getElementById('challengeText');
+        if (_ctEl) {
+            _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
+                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> and say “<span style="color:var(--purple)">' + _digit + '</span>”')
+                                  : _instr)
+                + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">in front of your face — one quick check</div>';
+        }
+        var _recVidF = document.getElementById('videoPreviewRec');
+        if (_recVidF) { _recVidF.srcObject = mediaStream; _recVidF.muted = true; _recVidF.setAttribute('playsinline',''); _recVidF.play().catch(function(){}); }
+        try { vacDebug('fast_direct_path', null, { has_digit: _digit != null, digit: _digit, has_bound_instruction: !!_fc.bound_instruction }); } catch(_) {}
+        goToStep(2);
+        setTimeout(function(){ startCountdown(); }, 400);  // brief beat so the user reads the instruction; no greeting, no explainer
+        return;  // do NOT run the full greeting/voice/warmup/explainer path below
+    }
+    // ─────────────────────────────────────────────────────────────────────────────
+
     const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
     var greetPart = vacGreetingText() || phrase.replace(/,\s*\d[\d\s,]*$/, '');   // R2 + S114: single-source rotating greeting (real name); fallback to the local phrase only if no challenge
     // Voice-aware: in voice-only fallback there is NO finger phase, so the user must speak the
@@ -3883,6 +3917,9 @@ const VACReauth = {
             profile: opts.profile || null,
         };
         if (!CTX.mount) { console.error('[VACReauth] run() called with no mount element'); return; }
+        // S120 live-test fix: fast mode → fast countdown timing (1s) so the still-capture
+        // quick check isn't paced like the full relaxed ceremony. Full/omitted → unchanged.
+        if (CTX.profile && CTX.profile.mode === 'fast') { challengeSpeed = 'fast'; }
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
         renderDOM();
