@@ -830,7 +830,7 @@ document.querySelectorAll('.tab').forEach(t=>{
 const REAL_TOKEN = {
   jti:"vat_root_c1e665235203",
   trust:0.95,
-  verify:"/vat/verify/vat_root_c1e665235203"
+  verify:"/vat/verify/vat_root_c1e665235203?intent=verify"
 };
 
 // Authorise the SEALING ACTION server-side (F-TRIBUNAL-SEAL-FIRES-GATE). After the
@@ -956,7 +956,7 @@ async function mintMatterToken(){
     SEAL_TOKEN = {
       jti: data.jti,
       trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
-      verify: data.verify_url || ('/vat/verify/' + data.jti),  // relative fallback follows host (preview→preview, prod→prod); a real minted token's data.verify_url stays absolute
+      verify: (function(u){ u = data.verify_url || ('/vat/verify/' + data.jti); return u + (u.indexOf('?')>=0 ? '&' : '?') + 'intent=verify'; })(),  // relative fallback follows host; intent=verify → vat-verify leads with the verifier hero (Caroline's job: confirm authenticity)
       minted: true
     };
     return true;

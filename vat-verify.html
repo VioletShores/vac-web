@@ -706,8 +706,8 @@ function render(data, verif, budgetData) {
     </div>`;
     h += '</div></div>';
 
-    // Budget / Spend Controls (patent claims 242-271)
-    if (budgetData && budgetData.budgets && budgetData.budgets.length > 0) {
+    // Budget / Spend Controls (patent claims 242-271). F-639: noise for Caroline-the-verifier — suppress for verify-intent.
+    if (budgetData && budgetData.budgets && budgetData.budgets.length > 0 && getIntent() !== 'verify') {
         h += '<div class="section"><div class="section-label">Spend Controls</div><div class="card" style="padding:20px;">';
         h += '<div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">Patent Claims 242–271 · Monotonic Budget Narrowing</div>';
         budgetData.budgets.forEach(b => {
@@ -748,23 +748,34 @@ function render(data, verif, budgetData) {
         });
         insp += '</div>';
         h += '<div class="section">';
-        // Locked card (shown until a passing quick re-verify)
-        h += `<div class="cred-locked" id="credLockedCard">
-            <div class="cred-locked-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-            <div class="cred-locked-title">Sensitive credential details</div>
-            <div class="cred-locked-sub">The raw verified credential \u2014 token IDs, chain hashes, issue &amp; expiry \u2014 is protected. A quick re-verify confirms it's you before it opens.</div>
-            <button class="cred-reveal-btn" onclick="openReauth()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Quick re-verify to reveal</button>
-            <div class="cred-locked-note">Same bound check as full verification \u2014 one number, ~2 seconds.</div>
-        </div>`;
-        // Reveal wrapper (hidden until pass)
-        h += `<div id="credRevealWrap" style="display:none;"><div class="collapse-trigger open" onclick="togSection(this,'insp')"><span>Token Inspector \u00b7 Re-verified</span><span class="collapse-chevron">\u25BC</span></div><div class="collapse-body open" id="insp">${insp}</div></div>`;
-        // S120 unify: shared VACReauth fast ceremony renders here when "Quick re-verify" is tapped.
-        h += `<div id="vacReauthMount" style="display:none;"></div>`;
+        if (getIntent() === 'verify') {
+            // F-639 VERIFIER PATH (Caroline): the token inspector IS the proof she came to check —
+            // jti, chain_hash, signature, issue/expiry. It's a public-verifiable token, NOT a held
+            // secret, so there is NO "prove it's you" gate here (that re-verify is a HOLDER action and
+            // is conceptually wrong for someone verifying SOMEONE ELSE's token). Show it openly, framed
+            // as "here is the signed token — check it yourself."
+            h += '<div class="section-label">The signed token — inspect it yourself</div>';
+            h += `<div class="card" style="padding:20px;"><div style="font-size:12.5px;color:var(--text-tertiary);line-height:1.5;margin-bottom:14px;">This is the raw credential as the production backend returned it. The jti, chain hash, and Ed25519 signature are what make it independently checkable — nothing here depends on trusting us.</div>${insp}</div>`;
+        } else {
+            // HOLDER PATH (revealing their OWN sensitive credential): keep the locked re-verify gate.
+            // Locked card (shown until a passing quick re-verify)
+            h += `<div class="cred-locked" id="credLockedCard">
+                <div class="cred-locked-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+                <div class="cred-locked-title">Sensitive credential details</div>
+                <div class="cred-locked-sub">The raw verified credential \u2014 token IDs, chain hashes, issue &amp; expiry \u2014 is protected. A quick re-verify confirms it's you before it opens.</div>
+                <button class="cred-reveal-btn" onclick="openReauth()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg> Quick re-verify to reveal</button>
+                <div class="cred-locked-note">Same bound check as full verification \u2014 one number, ~2 seconds.</div>
+            </div>`;
+            // Reveal wrapper (hidden until pass)
+            h += `<div id="credRevealWrap" style="display:none;"><div class="collapse-trigger open" onclick="togSection(this,'insp')"><span>Token Inspector \u00b7 Re-verified</span><span class="collapse-chevron">\u25BC</span></div><div class="collapse-body open" id="insp">${insp}</div></div>`;
+            // S120 unify: shared VACReauth fast ceremony renders here when "Quick re-verify" is tapped.
+            h += `<div id="vacReauthMount" style="display:none;"></div>`;
+        }
         h += '</div>';
     }
 
-    // Patent Portfolio — dropdown, clean by default
-    if (cm && cm.length) {
+    // Patent Portfolio — dropdown, clean by default. F-639: noise for Caroline-the-verifier — suppress for verify-intent.
+    if (cm && cm.length && getIntent() !== 'verify') {
         const dc = cm.filter(c => c.status === 'demonstrated').length;
         const rc = cm.length - dc;
         h += `<div class="section"><div class="patent-trigger" onclick="togSection(this,'patentGrid')"><span>Patent Portfolio \u00b7 1028+ Claims \u00b7 16 Filings</span><div class="patent-stats"><span class="live-dot"></span><span style="color:var(--success)">${dc} live</span><span class="ref-dot"></span><span style="color:var(--text-muted)">${rc} coming</span><span class="collapse-chevron">\u25bc</span></div></div><div class="patent-body" id="patentGrid"><div class="patent-grid">`;
@@ -786,9 +797,12 @@ function render(data, verif, budgetData) {
         { id:'indigenous', title:'Indigenous Data Sovereignty', body:'A w\u0101nanga records rangatahi practicing kapa haka. The kaum\u0101tua sets a VAC scope: cultural content stays within the wh\u0101nau. Government funders see aggregate stats but no names, no videos. Not because someone remembered to say no \u2014 because the authority is cryptographically binding.', link:'https://vacprotocol.org/simulation.html', linkText:'Run the w\u0101nanga simulation' },
         { id:'thispage', title:'What You\u2019re Looking At Right Now', body:'The person who sent you this link was biometrically verified through 5 modalities. This page is the credential. By vouching, you confirm you received it and become a node in their trust graph \u2014 the network effect that makes VAC harder to replicate than the code itself.', link: null },
     ];
-    h += '<div class="section"><div class="section-label">VAC Use Cases</div><div class="usecase-select-wrap"><select class="usecase-select" id="usecaseSelect" onchange="showUseCase()">';
-    useCases.forEach((uc, i) => { h += `<option value="${i}">${uc.title}</option>`; });
-    h += '</select><div class="usecase-chevron">\u25BC</div></div><div id="usecaseBody"></div></div>';
+    // VAC Use Cases. F-639: noise for Caroline-the-verifier — suppress for verify-intent.
+    if (getIntent() !== 'verify') {
+        h += '<div class="section"><div class="section-label">VAC Use Cases</div><div class="usecase-select-wrap"><select class="usecase-select" id="usecaseSelect" onchange="showUseCase()">';
+        useCases.forEach((uc, i) => { h += `<option value="${i}">${uc.title}</option>`; });
+        h += '</select><div class="usecase-chevron">\u25BC</div></div><div id="usecaseBody"></div></div>';
+    }
 
     // Warnings
     if (v.warnings && v.warnings.length) {
