@@ -1149,14 +1149,12 @@ function sealReauthGate(onPass, onCancel){
   if(closeBtn) closeBtn.addEventListener('click', onClose);
   window.addEventListener('message', onMsg);
   // Open the live verify overlay at the seal moment.
-  // F-635 greeting:skip REVERTED on the seal-gate (S120 UX session): the full-verify backend
-  // builds the challenge phrase as "{greeting}, I am {name}, {digits}" and scores the WHOLE
-  // transcript (vac-protocol main.py:4808/4866) — so skipping the greeting frontend-side makes
-  // the user say only the digits while the backend still expects the greeting → challenge-response
-  // FAILS (Rob live-test: heard "5 523" vs expected "Kia ora, I am Robert Zagarella, 5 2 3").
-  // greeting:skip on a FULL verify needs a BACKEND change (a greeting-less full challenge mode) that
-  // does not exist yet — tracked as F-635-BACKEND. The critical seal keeps the greeting (it WORKS).
-  frame.src=VERIFY_SRC; overlay.hidden=false; document.body.style.overflow='hidden';
+  // F-635-LIGHTER (L-2171): the seal-gate re-auth is a same-session SECOND full auth — now made
+  // LIGHTER by dropping the GREETING (which the backend skip-lists, so it's never scored) while
+  // KEEPING the name+digits the scorer requires (anti-replay 0.80). auth.html reads ?greeting=skip
+  // → profile.greeting='skip' → the ceremony prompts "I am {name}" + digits, no greeting. The FIRST
+  // identity auth opens VERIFY_SRC WITHOUT the param (full greeting). Backend-coherent (proven L-2171).
+  frame.src=VERIFY_SRC + '?greeting=skip'; overlay.hidden=false; document.body.style.overflow='hidden';
 }
 document.getElementById('reset').onclick=()=>{cerTeardown();if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
