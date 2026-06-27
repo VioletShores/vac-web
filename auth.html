@@ -1478,6 +1478,24 @@ if (typeof VACTheme !== 'undefined') {
         });
     }
 }
+
+// F-635-LIGHTER re-auth UX (L-2168): a same-session re-auth (the seal-gate) opens this page with
+// ?reauth=1&name=&email= — the identity is ALREADY verified, so DON'T make the user re-type it.
+// Prefill the inputs and auto-advance past the identity form straight into the ceremony. Only fires
+// with reauth=1 AND both fields present; the standalone /auth first-time flow is unchanged.
+try {
+    const _rp = new URLSearchParams(window.location.search);
+    const _rName = _rp.get('name');
+    const _rEmail = _rp.get('email');
+    if (_rName) { var _ni = document.getElementById('inputName'); if (_ni) _ni.value = _rName; }
+    if (_rEmail) { var _ei = document.getElementById('inputEmail'); if (_ei) _ei.value = _rEmail; }
+    if (_rp.get('reauth') === '1' && _rName && _rEmail) {
+        // Auto-skip the identity form into the ceremony (same-session re-auth — no re-typing).
+        // goToCamera() validates name+email (now prefilled) and, since the same-session email is
+        // OTP-confirmed, goes straight to the camera ceremony.
+        setTimeout(function(){ try { goToCamera(); } catch(_) {} }, 0);
+    }
+} catch(_) {}
 </script>
 <script>
 // Scroll indicator — hide when near bottom or not scrollable

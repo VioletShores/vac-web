@@ -1149,12 +1149,16 @@ function sealReauthGate(onPass, onCancel){
   if(closeBtn) closeBtn.addEventListener('click', onClose);
   window.addEventListener('message', onMsg);
   // Open the live verify overlay at the seal moment.
-  // F-635-LIGHTER (L-2171): the seal-gate re-auth is a same-session SECOND full auth — now made
-  // LIGHTER by dropping the GREETING (which the backend skip-lists, so it's never scored) while
-  // KEEPING the name+digits the scorer requires (anti-replay 0.80). auth.html reads ?greeting=skip
-  // → profile.greeting='skip' → the ceremony prompts "I am {name}" + digits, no greeting. The FIRST
-  // identity auth opens VERIFY_SRC WITHOUT the param (full greeting). Backend-coherent (proven L-2171).
-  frame.src=VERIFY_SRC + '?greeting=skip'; overlay.hidden=false; document.body.style.overflow='hidden';
+  // F-635-LIGHTER + re-auth UX (L-2168): the seal-gate is a SAME-SESSION re-auth — the identity
+  // is ALREADY known (from the first auth, on window.__vacVerified). Pass name+email so auth.html
+  // PREFILLS and SKIPS the identity form (no re-typing name/email for a re-auth — Rob). greeting=skip
+  // makes it the lighter version (drop greeting, keep name). reauth=1 tells auth.html to auto-advance.
+  var _vName = (window.__vacVerified && window.__vacVerified.name) ? window.__vacVerified.name : '';
+  var _vEmail = (window.__vacVerified && window.__vacVerified.email) ? window.__vacVerified.email : '';
+  var _reauthQS = '?greeting=skip&reauth=1'
+      + (_vName ? '&name=' + encodeURIComponent(_vName) : '')
+      + (_vEmail ? '&email=' + encodeURIComponent(_vEmail) : '');
+  frame.src=VERIFY_SRC + _reauthQS; overlay.hidden=false; document.body.style.overflow='hidden';
 }
 document.getElementById('reset').onclick=()=>{cerTeardown();if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
