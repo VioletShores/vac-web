@@ -1150,11 +1150,20 @@ function sealReauthGate(onPass, onCancel){
   window.addEventListener('message', onMsg);
   // Open the live verify overlay at the seal moment.
   // F-635-LIGHTER + re-auth UX (L-2168): the seal-gate is a SAME-SESSION re-auth — the identity
-  // is ALREADY known (from the first auth, on window.__vacVerified). Pass name+email so auth.html
-  // PREFILLS and SKIPS the identity form (no re-typing name/email for a re-auth — Rob). greeting=skip
-  // makes it the lighter version (drop greeting, keep name). reauth=1 tells auth.html to auto-advance.
+  // is ALREADY known. Pass name+email so auth.html PREFILLS and SKIPS the identity form (no re-typing).
+  // L-2173 ROOT CAUSE: window.__vacVerified is a memory var that does NOT survive the separate auth
+  // iframe loads — so at seal time it was empty → no name/email in the URL → no auto-skip. auth.html
+  // ALSO persists the verified identity to localStorage('vac_verified') (same origin = shared), which
+  // DOES survive. So fall back to it. greeting=skip = lighter (drop greeting, keep name); reauth=1 = auto-skip.
   var _vName = (window.__vacVerified && window.__vacVerified.name) ? window.__vacVerified.name : '';
   var _vEmail = (window.__vacVerified && window.__vacVerified.email) ? window.__vacVerified.email : '';
+  if (!_vName || !_vEmail) {
+    try {
+      var _vv = JSON.parse(localStorage.getItem('vac_verified') || '{}');
+      if (!_vName && _vv.name) _vName = _vv.name;
+      if (!_vEmail && _vv.email) _vEmail = _vv.email;
+    } catch(_) {}
+  }
   var _reauthQS = '?greeting=skip&reauth=1'
       + (_vName ? '&name=' + encodeURIComponent(_vName) : '')
       + (_vEmail ? '&email=' + encodeURIComponent(_vEmail) : '');
