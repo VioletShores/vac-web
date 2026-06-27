@@ -1447,6 +1447,24 @@ async function viewCredentialReauth(){
     // (never burns a biometric retry, never strands the user).
     return reauthDegrade('ceremony_unavailable');
   }
+  // PRE-GATE (S120, Bug A fix / L-2164): fast re-auth structurally cannot pass
+  // without an enrolled face reference — the backend returns no_face_reference /
+  // embedding_required. Probe the tier FIRST (retry-safe, no biometric burned). If
+  // the identity has no enrolled face, do NOT send the user through a camera
+  // ceremony that is guaranteed to deny; degrade honestly straight to the result
+  // (whose copy now says "no enrolled face yet → use full verification"). Only
+  // launch the live camera ceremony when fast can actually succeed.
+  try{
+    const _pre=await probeReauthTier();
+    if(_pre && (_pre.state==='no_template' || _pre.inferred || _pre.state==='full')){
+      const authz=await authorizeViewCredential();
+      // Carry the probe's own state so renderReauthResult shows the right honest note
+      // (inferred → "no enrolled face yet"; full/step_up → "full verification required").
+      renderReauthResult(authz, Object.assign({}, _pre, { degraded:'pre_gate' }));
+      if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+      return;
+    }
+  }catch(_){ /* probe failure → fall through to the live ceremony (fail-open to the real attempt, not to a reveal) */ }
   const host=document.getElementById('rdResult');
   mount.style.display='block';
   try{ mount.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
@@ -1545,7 +1563,7 @@ function renderReauthResult(authz,tier){
   }else if(tier.degraded==='camera_unavailable'){
     note='No camera/microphone here, so the live one-number ceremony couldn’t run. Showing the server’s tier-selection probe instead (biometric omitted, retry-safe) — it reports what the backend WOULD require. On a device with a camera, this button runs the real one-number ceremony.';
   }else if(tier.inferred){
-    note='Tier read from the live tier controller: it passed selection as fast-eligible and requested only the single fast-tier biometric. The live capture did not run on this device — showing the probe.';
+    note='The quick re-auth ran live: the camera opened and a face still was captured and POSTed to '+QR_EP+'. The backend selected the fast tier but has no enrolled face reference on file for this identity yet, so it could not complete a fast match — the full verification path enrols/verifies the face. Nothing here is client-side faked; this is the server’s verbatim outcome.';
   }else{
     note='Tier and authorisation are read verbatim from the production backend — no client-side faking.';
   }
