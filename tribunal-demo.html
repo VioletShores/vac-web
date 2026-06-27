@@ -431,6 +431,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <dl class="kv" id="receiptKv"></dl>
         <div class="audit" id="auditLog"></div>
         <div class="reauth-demo" id="reauthDemo" hidden></div>
+        <!-- S120 unify Lane 3: shared VACReauth fast ceremony renders here on "View the sealed credential". -->
+        <div id="vacReauthMount" style="display:none;"></div>
       </div>
     </section>
     </div><!-- /walkBody -->
@@ -520,6 +522,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 </script>
 <script src="/vac-face-embed.js"></script>
 <script src="/vac-finger-detect.js"></script>
+<!-- S120 unify Lane 3 (F-634): shared VACReauth ceremony — fast mode for view-credential re-auth. -->
+<script src="/vac-reauth-ceremony.js"></script>
 
 <script>
 // F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
@@ -1352,6 +1356,23 @@ const QR_EP='/v1/auth/quick-reauth';
 let CER=null;          // live ceremony state (stream/recorder/timers/raf) so it can always be torn down
 let cerAttempts=0;     // server no-match retries, persisted ACROSS internal re-runs (reset per user start)
 
+// S120 unify Lane 3 (F-634): the bespoke biometric engine moved to VACReauth.run
+// (which owns its OWN camera/recorder teardown). This stub keeps the remaining
+// external callers (the page reset button + reauthDegrade) safe — it clears any
+// residual ceremony state without throwing now that the old engine is gone.
+function cerTeardown(){
+  try{
+    if(CER){
+      try{ if(CER.raf) cancelAnimationFrame(CER.raf); }catch(_){}
+      try{ if(CER.timer) clearInterval(CER.timer); }catch(_){}
+      try{ if(CER.recorder&&CER.recorder.state==='recording') CER.recorder.stop(); }catch(_){}
+      try{ if(CER.stream) CER.stream.getTracks().forEach(function(t){t.stop();}); }catch(_){}
+    }
+  }catch(_){}
+  CER=null;
+}
+window.addEventListener('pagehide',function(){try{cerTeardown();}catch(e){}});
+
 function cerEmail(){ return (window.__vacVerified&&window.__vacVerified.email)?String(window.__vacVerified.email).trim():''; }
 function cerSessionTok(){ return (window.__vacVerified&&window.__vacVerified.session_token)?window.__vacVerified.session_token:null; }
 function cerCamSupported(){ return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.isSecureContext!==false); }
@@ -1407,276 +1428,61 @@ async function reauthDegrade(why){
 }
 
 // Orchestrator wired to "View the sealed credential" / "Re-authorise again".
+// Orchestrator wired to "View the sealed credential" / "Re-authorise again".
+// S120 unify Lane 3 (F-634, Option B): the biometric now rides the SHARED
+// VACReauth ceremony in FAST mode, replacing the ~270-line bespoke engine
+// (startFastCeremony/cerRenderStage/cerAdvisoryTick/cerTeardown — preserved in
+// git history). CRITICAL: the seal→authorize→AAR audit chain is PRESERVED —
+// authorizeViewCredential() still fires in onComplete BEFORE the result render,
+// so /v1/vat/authorize writes the AAR exactly as before. authorizeViewCredential,
+// probeReauthTier, reauthDegrade, renderReauthResult are UNCHANGED.
 async function viewCredentialReauth(){
   const btn=document.getElementById('rdBtn');
   if(btn){btn.disabled=true;btn.textContent='Starting quick check…';}
   if(!cerEmail()) return reauthDegrade('no_session');
-  if(!cerCamSupported()) return reauthDegrade('camera_unavailable');
-  cerAttempts=0;                       // fresh user-initiated run
-  startFastCeremony(cerEmail());
-}
+  const mount=document.getElementById('vacReauthMount');
+  if(!mount || typeof VACReauth==='undefined' || !VACReauth.run){
+    // No shared component available → degrade to the retry-safe tier probe
+    // (never burns a biometric retry, never strands the user).
+    return reauthDegrade('ceremony_unavailable');
+  }
+  const host=document.getElementById('rdResult');
+  mount.style.display='block';
+  try{ mount.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
 
-// blob → bare base64 (no data: prefix). Lifted from vat-verify.html.
-function cerBlobToB64(blob){
-  return new Promise(function(resolve){
-    try{var r=new FileReader();r.onloadend=function(){var s=String(r.result||'');var c=s.indexOf(',');resolve(c===-1?'':s.slice(c+1));};r.onerror=function(){resolve('');};r.readAsDataURL(blob);}
-    catch(e){resolve('');}
+  VACReauth.run({
+    name: '',
+    email: cerEmail(),
+    riskLevel: 'low',                      // view_credential = low-value → fast tier
+    mount: mount,
+    context: 'tribunal-view-credential',
+    profile: { mode: 'fast' },             // single-digit face-reauth-challenge + quick-reauth, no Gemini
+    onComplete: async function(result){
+      try{ mount.style.display='none'; }catch(_){}
+      // Map the shared component's authResult into tribunal's `tier` shape so
+      // renderReauthResult's two-card display is unchanged.
+      const authed = !!(result && (result.authenticated===true || result.authorized===true));
+      const tier = authed
+        ? { state:'fast', ceremony:true,
+            reauth_tier:(result && result.reauth_tier) || 'fast_one_digit_bound',
+            fast_tier_eligible:(!result || result.fast_tier_eligible!==false),
+            qr_aar_id:(result && result.aar_id) || null }
+        : { state:'failed', ceremony:true, reason:(result && result.reason) || 'not_authenticated' };
+      // PRESERVE THE AUDIT CHAIN — authorize against the seal token, write the AAR,
+      // THEN render the server verdict (exactly as the old success path did).
+      const authz = await authorizeViewCredential();
+      renderReauthResult(authz, tier);
+      if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+    },
+    onFallback: async function(err){
+      // Denied / fast-not-eligible → still record the authorize attempt + render
+      // the honest verdict via the existing degrade path (no silent success).
+      try{ mount.style.display='none'; }catch(_){}
+      console.warn('[VAC tribunal] fast reauth fell back:', err && err.message);
+      return reauthDegrade('fast_denied');
+    },
+    onBack: function(){ try{ mount.style.display='none'; }catch(_){ } if(btn){btn.disabled=false;btn.textContent='View the sealed credential';} },
   });
-}
-
-// Stop every live resource. Safe to call repeatedly and from anywhere (reset, pagehide, errors, retries).
-function cerTeardown(){
-  if(!CER)return;
-  try{ if(CER.raf) cancelAnimationFrame(CER.raf); }catch(e){}
-  try{ if(CER.timer) clearInterval(CER.timer); }catch(e){}
-  try{ if(CER.t1) clearTimeout(CER.t1); }catch(e){}
-  try{ if(CER.recorder&&CER.recorder.state==='recording') CER.recorder.stop(); }catch(e){}
-  try{ if(CER.stream) CER.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}
-  CER=null;
-}
-window.addEventListener('pagehide',function(){try{cerTeardown();}catch(e){}});
-
-// The REAL lightweight ceremony. Renders into #rdResult (the stable result container).
-async function startFastCeremony(email){
-  const out=document.getElementById('rdResult');
-  if(!out) return reauthDegrade('no_session');
-  cerTeardown();
-  const N=1+Math.floor(Math.random()*5);   // ONE bound digit (1–5) — the fast tier, NOT the multi-digit full challenge
-  // S117 finger-stability state (stableCount/stableFrames/dwellStart) — ported from auth.html's detect
-  // loop so the DISPLAYED count only changes after a deliberate hold, never a 1-frame flicker. See cerAdvisoryTick.
-  CER={N:N,stream:null,recorder:null,recChunks:[],recMime:'',recStart:0,raf:null,timer:null,t1:null,captured:false,lastDetected:null,faceRetries:0,stableCount:0,stableFrames:0,dwellStart:0}; try{ FingerDetector.resetHysteresis(); }catch(_){} // F-613: clear smoothing for a fresh ceremony
-
-  // Pre-flight fail-safe: don't open the camera if there is no enrolled face to match against.
-  try{
-    const rs=await fetch(API_BASE+'/v1/auth/face-ref-status?email='+encodeURIComponent(email));
-    const rd=await rs.json().catch(()=>({}));
-    if(rs.ok&&rd&&rd.has_face_reference===false){ return reauthDegrade('no_template'); }
-  }catch(e){ /* status check flaky → proceed; the server still arbitrates on the POST */ }
-  if(!CER) return;   // torn down while awaiting
-
-  // Warm the shared models (fail-open). VACFaceEmbed is the REAL identity signal; FingerDetector is advisory.
-  if(window.VACFaceEmbed){ try{ window.VACFaceEmbed.ready(); }catch(e){} }
-  if(window.FingerDetector&&!FingerDetector.ready&&!FingerDetector.failed){ try{ FingerDetector.init(); }catch(e){} }
-
-  // Open camera + mic (same options as the production ceremony).
-  let stream;
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:true});
-  }catch(e){ return reauthDegrade('camera_unavailable'); }
-  if(!CER){ try{stream.getTracks().forEach(function(t){t.stop();});}catch(_){} return; }   // torn down while awaiting
-  CER.stream=stream;
-
-  cerRenderStage(out);
-  const video=document.getElementById('cerVideo');
-  if(video){ video.srcObject=stream; try{ await video.play(); }catch(e){} }
-
-  // Audio+video recorder for the spoken digit (mime fallback chain from vat-verify). Records the WHOLE
-  // window, so the spoken digit is captured whenever in the few-second hold the user says it.
-  try{
-    const types=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4'];
-    for(let i=0;i<types.length;i++){ if(window.MediaRecorder&&MediaRecorder.isTypeSupported(types[i])){CER.recMime=types[i];break;} }
-    const opts=CER.recMime?{mimeType:CER.recMime,videoBitsPerSecond:1500000,audioBitsPerSecond:64000}:{videoBitsPerSecond:1500000,audioBitsPerSecond:64000};
-    CER.recorder=new MediaRecorder(stream,opts);
-    CER.recorder.ondataavailable=function(e){ if(e.data&&e.data.size>0) CER.recChunks.push(e.data); };
-    CER.recorder.start();
-    CER.recStart=performance.now();
-  }catch(e){ CER.recorder=null; }
-
-  // Advisory finger readout (NEVER gates). Manual capture (always enabled) + auto-capture countdown.
-  CER.raf=requestAnimationFrame(cerAdvisoryTick);
-  const cap=document.getElementById('cerCapBtn'); if(cap) cap.onclick=function(){ cerCapture(email); };
-  cerArmCountdown(email);
-}
-
-// S117 finger-stability — the EXACT smoothing auth.html's full vac-auth flow uses (its detect-loop
-// stableFrames / _liveGestureOk mechanism: auth.html lines 2338-2339, 2787-2814, 2871). MediaPipe
-// flickers per-frame (a steady "2" hand reads 2,2,3,2,2…); the old code committed the RAW detect()
-// value EVERY frame, so the readout jumped and showed the wrong count (held 2 → showed 3). Now the
-// DISPLAYED count only changes once the SAME raw value has held steady for 12 consecutive frames
-// (~0.6s) AND ~700ms wall-clock — a deliberate hold, not a flicker. A single bad frame can never
-// register because it must hold for 12 frames first. This is what makes show-2-read-2 reliable.
-const CER_STABLE_FRAMES_NEEDED=12;  // auth.html:2338 STABLE_FRAMES_NEEDED — ~0.6s at ~20fps, a deliberate hold not a flicker
-const CER_MIN_DWELL_MS=700;         // auth.html:2339 MIN_DIGIT_DWELL_MS — ~0.7s wall-clock, frame-rate independent
-
-// Per-frame ADVISORY finger readout. Reads the shared FingerDetector when ready; NEVER blocks capture.
-function cerAdvisoryTick(){
-  if(!CER||CER.captured) return;
-  const v=document.getElementById('cerVideo');
-  let det=null;
-  try{ if(v&&window.FingerDetector&&FingerDetector.ready) det=FingerDetector.detect(v); }catch(e){}
-  // F-613: feed the raw MediaPipe count through the shared detector's hysteresis so a stray
-  // flicker frame no longer resets the hold (the jitter fix proven in the ceremony). The smoothed
-  // value drives the DISPLAY-stability gate below. Finger is ADVISORY here (server gates on
-  // face-embedding + Gemini), so the committed display value is what's submitted. feedStable reuses
-  // the raw value (no second MediaPipe run); null/pre-settle → fall back to raw.
-  var _det = (typeof det==='number') ? FingerDetector.feedStable(det) : det;
-  if(_det===null||_det===undefined) _det=det;
-  // Frame-stability gate on the SMOOTHED count: a hand with fingers accumulates frames of the same
-  // (smoothed) count; a sustained change restarts the hold; a dropped hand resets it. Committed to
-  // the display ONLY once held steady (12-frame + ~700ms dwell). Hysteresis already absorbed the
-  // 1-frame flicker, so this gate now climbs smoothly instead of starving.
-  if(typeof _det==='number'&&_det>0){
-    if(_det===CER.stableCount){ CER.stableFrames++; }
-    else { CER.stableCount=_det; CER.stableFrames=1; CER.dwellStart=performance.now(); }
-    const heldOk=(CER.stableFrames>=CER_STABLE_FRAMES_NEEDED && CER.dwellStart>0 && (performance.now()-CER.dwellStart)>=CER_MIN_DWELL_MS);
-    if(heldOk) CER.lastDetected=CER.stableCount;   // commit ONLY a steadily-held count to the DISPLAY
-  } else {
-    CER.stableCount=0; CER.stableFrames=0;   // hand dropped — reset the hold; the last committed count stays shown
-  }
-  const fl=document.getElementById('cerFinger');
-  if(fl){
-    if(window.FingerDetector&&FingerDetector.failed) fl.textContent='Finger check unavailable — it’s advisory only, not required. Show '+CER.N+', say “'+CER.N+'”, capture.';
-    else if(typeof CER.lastDetected==='number') fl.textContent='Fingers seen: '+CER.lastDetected+' · advisory'+(CER.lastDetected===CER.N?' — matches':' — exact count isn’t required, capture anyway');
-    else fl.textContent='Show '+CER.N+' finger'+(CER.N===1?'':'s')+' near your face · advisory';
-  }
-  CER.raf=requestAnimationFrame(cerAdvisoryTick);
-}
-
-// Brief get-ready, then a visible 3-2-1 auto-capture. The user can capture earlier (button) or switch to
-// full verification at any time. NOTHING here is gated on the finger count.
-function cerArmCountdown(email){
-  CER.t1=setTimeout(function(){
-    if(!CER||CER.captured) return;
-    cerSetStatus('Show '+CER.N+' and say “'+CER.N+'” now — capturing in a moment. Capture when ready.');
-    let secs=3; const cd=document.getElementById('cerCountdown');
-    CER.timer=setInterval(function(){
-      if(!CER||CER.captured){ if(CER&&CER.timer){clearInterval(CER.timer);CER.timer=null;} return; }
-      if(cd) cd.textContent=secs>0?secs:'';
-      if(secs<=0){ clearInterval(CER.timer); CER.timer=null; cerCapture(email); return; }
-      secs--;
-    },800);
-  },1500);
-}
-
-function cerSetStatus(msg){ const s=document.getElementById('cerStatus'); if(s) s.textContent=msg; }
-
-function cerRenderStage(out){
-  const N=CER.N;
-  out.classList.add('show');
-  out.innerHTML=
-    '<div class="rd-label">QUICK RE-AUTH — LIVE</div>'+
-    '<div class="cer-instr">Quick check: <strong>show and say this one number</strong>. The seal a moment ago took full tri-modal (~30s); this takes one number.</div>'+
-    '<div class="cer-stage">'+
-      '<div class="cer-cam">'+
-        '<video id="cerVideo" autoplay playsinline muted></video>'+
-        '<div class="cer-rec"><span class="cer-dot"></span>REC</div>'+
-        '<div class="cer-cd" id="cerCountdown"></div>'+
-      '</div>'+
-      '<div class="cer-side">'+
-        '<div class="cer-digit" id="cerDigit">'+N+'</div>'+
-        '<div class="cer-prompt">Show <strong>'+N+'</strong> finger'+(N===1?'':'s')+' near your face AND say &ldquo;'+N+'&rdquo; — together.</div>'+
-        '<div class="cer-finger" id="cerFinger">Show '+N+' finger'+(N===1?'':'s')+' near your face · advisory</div>'+
-        '<div class="cer-row">'+
-          '<button class="cta-btn cer-cap" id="cerCapBtn" type="button">Capture now</button>'+
-        '</div>'+
-        '<a class="cer-full" id="cerFullLink" href="/auth.html" target="_blank" rel="noopener">Use full verification instead</a>'+
-      '</div>'+
-    '</div>'+
-    '<div class="cer-status" id="cerStatus">Opening the secure quick check… one number, a few seconds. The finger count is advisory — your face match is the real check.</div>';
-}
-
-async function cerCapture(email){
-  if(!CER||CER.captured) return;
-  // Stop the countdown/advisory loop the instant a capture begins (manual or auto) — nothing waits on fingers.
-  if(CER.timer){clearInterval(CER.timer);CER.timer=null;}
-  if(CER.t1){clearTimeout(CER.t1);CER.t1=null;}
-  if(CER.raf){cancelAnimationFrame(CER.raf);CER.raf=null;}
-  CER.captured=true;
-  const N=CER.N;
-  const detFingers=(typeof CER.lastDetected==='number')?CER.lastDetected:N;   // ADVISORY value submitted to the server
-  const rec=CER.recorder, chunks=CER.recChunks||[], recMimeRef=CER.recMime;   // grab now — survive a mid-capture teardown
-  cerSetStatus('Got it — hold still…');
-  const video=document.getElementById('cerVideo');
-  if(!video||!video.videoWidth){ CER.captured=false; CER.raf=requestAnimationFrame(cerAdvisoryTick); cerSetStatus('Camera not ready yet — press “Capture now” in a second.'); return; }
-
-  // Bound still — un-mirrored frame, downscaled <=640 (same as vat-verify).
-  const longest=Math.max(video.videoWidth,video.videoHeight);
-  const scale=longest>640?640/longest:1;
-  const cw=Math.max(1,Math.round(video.videoWidth*scale)), ch=Math.max(1,Math.round(video.videoHeight*scale));
-  const canvas=document.createElement('canvas'); canvas.width=cw; canvas.height=ch;
-  canvas.getContext('2d').drawImage(video,0,0,cw,ch);
-  const dataUrl=canvas.toDataURL('image/jpeg',0.9);
-  const comma=dataUrl.indexOf(',');
-  const stillB64=comma===-1?'':dataUrl.slice(comma+1);
-  const stillTs=CER.recStart?Math.round(performance.now()-CER.recStart):0;
-
-  // Face IDENTITY embedding from the SAME frame (the REAL gate signal; single-face UX check). A no/multi
-  // face is a FACE problem, not a finger one — let them re-capture (camera stays live) up to twice, then
-  // send the still anyway so the server arbitrates. The full-verification escape is always present.
-  let embedding=null;
-  if(window.VACFaceEmbed){
-    try{
-      await window.VACFaceEmbed.ready();
-      const emb=await window.VACFaceEmbed.compute(canvas);
-      if(emb&&emb.ok) embedding=emb.embedding;
-      else if(emb&&(emb.reason==='no_face'||emb.reason==='multiple_faces')&&CER&&CER.faceRetries<2){
-        CER.faceRetries++; CER.captured=false; CER.raf=requestAnimationFrame(cerAdvisoryTick);
-        cerSetStatus(window.VACFaceEmbed.reasonMessage(emb.reason)+' Line up one face and press “Capture now”.');
-        return;   // re-capture, do NOT post — never a dead end (escape link still available)
-      }
-    }catch(e){ /* embedder error → null; the server arbitrates from the still */ }
-  }
-
-  // Stop the recorder (a beat of tail audio after the digit) → bare base64.
-  let clipB64='', clipMime=recMimeRef||'video/webm';
-  try{
-    if(rec&&rec.state==='recording'){
-      await new Promise(function(resolve){ rec.onstop=resolve; setTimeout(function(){ try{rec.stop();}catch(e){resolve();} },250); });
-    }
-    if(chunks.length) clipB64=await cerBlobToB64(new Blob(chunks,{type:clipMime}));
-  }catch(e){}
-
-  cerSetStatus('Matching your face + number against your verified identity…');
-  try{ if(CER&&CER.stream) CER.stream.getTracks().forEach(function(t){t.stop();}); }catch(e){}   // capture done — release the camera (stays light)
-
-  // (4) POST the REAL biometric payload. detected_fingers is ADVISORY (whatever MediaPipe saw, else the asked digit).
-  let tier;
-  try{
-    const body={
-      email:email,
-      action:'view_credential',
-      challenge_fingers:N,
-      detected_fingers:detFingers,
-      face_embedding:embedding||undefined,
-      face_embedding_model:(window.VACFaceEmbed&&window.VACFaceEmbed.MODEL_ID)||undefined,
-      face_still_b64:stillB64,
-      still_ts_ms:stillTs,
-      spoken_audio_b64:clipB64||undefined,
-      audio_mimetype:clipMime||undefined,
-      cooccur_ms:700
-    };
-    const tok=cerSessionTok(); if(tok) body.authorising_session_token=tok;
-    const r=await fetch(API_BASE+QR_EP,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    const d=await r.json().catch(()=>({}));
-    const detail=(d&&d.detail&&typeof d.detail==='object')?d.detail:d;
-    const errCode=detail&&detail.error;
-    const ok=r.ok&&(d.authenticated===true||d.authorized===true||(detail&&detail.authenticated===true));
-    if(ok){
-      tier={state:'fast',ceremony:true,digit:N,detected:detFingers,authenticated:true,
-        reauth_tier:(d.reauth_tier||detail.reauth_tier||'fast_one_digit_bound'),
-        fast_tier_eligible:(d.fast_tier_eligible!==false&&detail.fast_tier_eligible!==false),
-        qr_aar_id:(d.aar_id||detail.aar_id||null)};
-    }else if(errCode==='require_full_auth'){
-      tier={state:'full',ceremony:true,reauth_tier:detail.reauth_tier||'full_tri_modal',fast_tier_eligible:false,step_up:(detail.step_up_reasons&&detail.step_up_reasons.length)?detail.step_up_reasons.join(', '):null};
-    }else if(errCode==='no_face_reference'||errCode==='no_embedding'||errCode==='corrupt_face_reference'){
-      tier={state:'no_template',ceremony:true,reason:errCode};
-    }else{
-      // genuine no-match / failed check — offer a couple of honest retries, then degrade (never stranded).
-      if(cerAttempts<2){
-        cerAttempts++;
-        cerTeardown();
-        const why=esc(String(errCode||('http_'+r.status)));
-        const o=document.getElementById('rdResult'); if(o){ o.classList.add('show'); o.innerHTML='<div class="rd-label">QUICK RE-AUTH</div><div class="cer-status">Couldn’t confirm it’s you ('+why+'). Let’s try once more.</div>'; }
-        return startFastCeremony(email);
-      }
-      tier={state:'failed',ceremony:true,reason:errCode||('http_'+r.status)};
-    }
-  }catch(e){ tier={state:'error',ceremony:true}; }
-
-  cerTeardown();
-  const authz=await authorizeViewCredential();
-  renderReauthResult(authz,tier);
-  const btn=document.getElementById('rdBtn'); if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
 }
 
 function renderReauthResult(authz,tier){
