@@ -1447,13 +1447,18 @@ async function reauthDegrade(why){
   // biometric); a biometric DENIAL ('fast_denied', or any reason containing 'denied'/'not_authent')
   // must DENY — the ceremony ran and rejected the user.
   var _isDenial = typeof why === 'string' && /denied|not_authent|mismatch|face_mismatch|finger/i.test(why);
-  var authz;
   if (_isDenial) {
-    authz = { attested:false, authorized:false, reason:why };
+    // A biometric DENIAL: do NOT re-probe (the probe POST reads back a tier and renders as a
+    // legitimate-looking outcome). Render an EXPLICIT refusal so it's unmistakable the access was
+    // DENIED — the backend rejected the live ceremony (wrong finger / different face → 401/409).
+    var _authz = { attested:false, authorized:false, reason:why };
+    var _tier = { state:'failed', ceremony:true, reason:'biometric_not_confirmed' };
     try{ if (typeof vacDebug === 'function') vacDebug('tribunal_degrade_denied', why); }catch(_){}
-  } else {
-    authz = await authorizeViewCredential();
+    renderReauthResult(_authz, _tier);
+    const _b = document.getElementById('rdBtn'); if(_b){_b.disabled=false;_b.textContent='Re-authorise again';}
+    return;
   }
+  const authz = await authorizeViewCredential();
   const tier=await probeReauthTier();
   tier.degraded=why;
   renderReauthResult(authz,tier);
