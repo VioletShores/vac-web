@@ -97,6 +97,10 @@ const MODE_CONFIG = {
                     // beginStillCapture + is re-checked in runFastVerification, so verify is never
                     // reached with a null embedding. The `: null` is a defensive floor, not a route.
                     face_embedding: (parts && parts.face_embedding != null) ? parts.face_embedding : null,
+                    // F-654: the SAID half of the bound digit (Deepgram) + the still's offset into the
+                    // clip (co-occurrence proof). Empty audio → server bound-digit gate fails closed.
+                    spoken_audio_b64: (parts && parts.spoken_audio_b64 != null) ? parts.spoken_audio_b64 : '',
+                    still_ts_ms: (parts && parts.still_ts_ms != null) ? parts.still_ts_ms : null,
                 };
             },
         },
@@ -2618,25 +2622,44 @@ async function beginStillCapture() {
     let detectedFingers = null;
     let stillB64 = '';
     let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
+    let spokenAudioB64 = '';    // F-654: the SPOKEN digit clip (Deepgram) — the 'said' half of the bound digit
+    let stillTsMs = 0;          // offset of the bound still into the spoken clip (co-occurrence proof)
 
-    // F-654: the quick-reauth must actually PROMPT the bound-digit gesture (the policy requires
-    // bound_digit), not snap one frozen frame. Same look/feel as the full path's finger phase —
-    // FingerDetector + skeleton — but GESTURE-ONLY, NO sound (Rob: configurable modalities; this
-    // run = {voice:false, gesture:true}). We prompt "show {N} fingers", poll the detector until it
-    // STABLY sees the expected count (or a short grace window elapses as a fail-open so a slow/absent
-    // detector can never strand the user — face+liveness still gate server-side), THEN capture. This
-    // replaces the silent one-frame read that completed before the user could raise a hand.
+    // F-654 (COPS/PID-driven): the capture composition is read from the POLICY, never hardcoded.
+    // The FAST tier's policy lists bound_digit = "spoken AND shown" — so this path captures BOTH a
+    // finger count (MediaPipe) AND a short spoken-digit clip (Deepgram), co-occurring with the still.
+    // If COPS/PID instead emits a gesture-only policy, _captureVoice goes false and no audio is
+    // recorded — same code, different policy, NO fork. This stays the lightweight tier: still +
+    // 128-D face-embedding euclidean match + Deepgram digit + Didit liveness, NO Gemini video sweep.
+    const _policyReq = reauthPolicyRequired() || [];
+    const _captureVoice = _policyReq.some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
     const _expectFingers = (challengeData && (typeof challengeData.fingers === 'number' ? challengeData.fingers
                             : (challengeData.digits && challengeData.digits.length ? challengeData.digits[0] : null)));
+    // Start recording the spoken-digit audio ONLY when the policy's bound digit requires the spoken
+    // half (COPS/PID decides — not this function). Same live mic track, no new getUserMedia.
+    let _audioRec = null, _audioChunks = [], _audioStartMs = 0;
+    if (_captureVoice) {
+        try {
+            const _atracks = mediaStream ? mediaStream.getAudioTracks() : [];
+            if (_atracks && _atracks.length) {
+                const _astream = new MediaStream([_atracks[0]]);
+                _audioRec = new MediaRecorder(_astream);
+                _audioRec.ondataavailable = function(e){ if (e.data && e.data.size) _audioChunks.push(e.data); };
+                _audioRec.start();
+                _audioStartMs = performance.now();
+            }
+        } catch(ae) { console.warn('[VAC] quick-reauth audio record start failed (non-fatal):', (ae && ae.message) || ae); }
+    }
     try {
         const _gv = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
         if (_gv && _expectFingers != null) {
-            // Prompt copy — gesture-only, no "say it" (no voice modality on this policy).
+            // Prompt copy — derived from the policy: say+show when the bound digit requires the
+            // spoken half (COPS/PID), show-only when it doesn't.
             try {
                 var _ct = document.getElementById('challengeText');
-                if (_ct) _ct.innerHTML = '<div style="font-size:clamp(18px,5vw,24px);font-weight:800;color:#fbbf24;line-height:1.3;">Show ' + _expectFingers + ' finger' + (_expectFingers === 1 ? '' : 's') + '</div>'
-                    + '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">hold steady — no need to say anything</div>';
-                var _t2 = document.getElementById('step2Title'); if (_t2) { _t2.textContent = 'Show the number'; _t2.style.color = '#fbbf24'; }
+                if (_ct) _ct.innerHTML = '<div style="font-size:clamp(18px,5vw,24px);font-weight:800;color:#fbbf24;line-height:1.3;">Show ' + _expectFingers + ' finger' + (_expectFingers === 1 ? '' : 's') + (_captureVoice ? (' and say &ldquo;' + _expectFingers + '&rdquo;') : '') + '</div>'
+                    + '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">' + (_captureVoice ? 'show it and say it together — hold steady' : 'hold steady — no need to say anything') + '</div>';
+                var _t2 = document.getElementById('step2Title'); if (_t2) { _t2.textContent = _captureVoice ? 'Show and say the number' : 'Show the number'; _t2.style.color = '#fbbf24'; }
             } catch(_) {}
             // Poll for a STABLE matching finger count. Reuse FingerDetector (same as the full phase)
             // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
@@ -2678,6 +2701,9 @@ async function beginStillCapture() {
             const c = document.createElement('canvas');
             c.width = cw; c.height = ch;
             c.getContext('2d').drawImage(v, 0, 0, cw, ch);
+            // F-654: offset of THIS still into the spoken-audio clip — proves the said digit and the
+            // shown fingers co-occur (the server's cooccur_ok gate). 0 when no audio was recorded.
+            if (_captureVoice && _audioStartMs) { stillTsMs = Math.round(performance.now() - _audioStartMs); }
             const dataUrl = c.toDataURL('image/jpeg', 0.9);
             const comma = dataUrl.indexOf(',');
             if (comma !== -1) stillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
@@ -2710,6 +2736,29 @@ async function beginStillCapture() {
         console.warn('[VAC] Fast still capture failed (non-fatal):', (e && e.message) || e);
     }
     window.__vacFaceStillB64 = stillB64;
+    // F-654: finalize the spoken-digit clip (if the policy required voice). Stop the recorder, wait
+    // for the final chunk, base64-encode. Best-effort: a miss leaves spokenAudioB64 empty and the
+    // server's bound-digit gate fails closed (never a fabricated pass).
+    if (_captureVoice && _audioRec) {
+        try {
+            await new Promise(function(resolve){
+                var _done = false; var _fin = function(){ if (_done) return; _done = true; resolve(); };
+                _audioRec.onstop = _fin;
+                try { _audioRec.stop(); } catch(_) { _fin(); }
+                setTimeout(_fin, 1500); // backstop so a stuck recorder can't hang the flow
+            });
+            if (_audioChunks.length) {
+                var _blob = new Blob(_audioChunks, { type: (_audioRec.mimeType || 'audio/webm') });
+                var _b64 = await new Promise(function(resolve){
+                    var fr = new FileReader();
+                    fr.onloadend = function(){ var s = String(fr.result || ''); var ci = s.indexOf(','); resolve(ci !== -1 ? s.slice(ci + 1) : ''); };
+                    fr.onerror = function(){ resolve(''); };
+                    fr.readAsDataURL(_blob);
+                });
+                spokenAudioB64 = _b64 || '';
+            }
+        } catch(se) { console.warn('[VAC] quick-reauth audio finalize failed (non-fatal):', (se && se.message) || se); }
+    }
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
     goToStep(3);
@@ -2723,7 +2772,7 @@ async function beginStillCapture() {
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: no live face embedding')); } catch(_) {} }
         return;
     }
-    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64, face_embedding: faceEmbedding });
+    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64, face_embedding: faceEmbedding, spoken_audio_b64: spokenAudioB64, still_ts_ms: stillTsMs });
 }
 
 // F-624 Rung 2 (FAST verify): POST the small JSON envelope to /v1/auth/quick-reauth

@@ -1514,9 +1514,19 @@ async function viewCredentialReauth(){
             detected:(result && result.detected_fingers!=null) ? result.detected_fingers : null,  // advisory finger count
             qr_aar_id:(result && result.aar_id) || null }
         : { state:'failed', ceremony:true, reason:(result && result.reason) || 'not_authenticated' };
-      // PRESERVE THE AUDIT CHAIN — authorize against the seal token, write the AAR,
-      // THEN render the server verdict (exactly as the old success path did).
-      const authz = await authorizeViewCredential();
+      // F-654 (Rob S122): GATE the authorization on the ceremony verdict. Previously this
+      // ALWAYS called authorizeViewCredential() — which grants off the SEAL TOKEN regardless
+      // of whether the biometric ceremony passed — so a wrong finger / different face still
+      // viewed the credential (the ceremony was cosmetic). Now: authorize ONLY when the
+      // ceremony AUTHENTICATED. A failed verdict renders the denial and does NOT grant access.
+      let authz;
+      if (authed) {
+        // PRESERVE THE AUDIT CHAIN — authorize against the seal token, write the AAR.
+        authz = await authorizeViewCredential();
+      } else {
+        authz = { attested:false, authorized:false, reason:(result && result.reason) || 'reauth_not_authenticated' };
+        try{ if (typeof vacDebug === 'function') vacDebug('tribunal_reauth_denied_not_authorized'); }catch(_){}
+      }
       renderReauthResult(authz, tier);
       if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
     },
