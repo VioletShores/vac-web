@@ -3272,7 +3272,7 @@ function updateModalitySummary() {
     // verdict; see updateModality). Their neutral '•' dot isn't a pass/fail, so counting them in
     // the "X/Y passed" headline would both misrepresent the gate AND freeze it at "Checking…"
     // (a '•' counts as neither ✓ nor ✗). 'modDidit' is omitted for the fail-closes reason above.
-    const mods = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge'];
+    const mods = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger'];
     let passed = 0, failed = 0, pending = 0;
     mods.forEach(id => {
         const el = document.getElementById(id);
@@ -4025,8 +4025,8 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div class="mod-result" id="modVoice" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Speech Match</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms the challenge phrase was spoken clearly</span></div>
         <div class="mod-result" id="modLipSync" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Lip-Sync</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms lip movements match spoken audio in real time</span></div>
         <div class="mod-result" id="modChallenge" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Challenge Response</span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Matches spoken words against a unique server-generated phrase</span></div>
+        <div class="mod-result" id="modFinger" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture <span class="mod-gating-tag">Required · deny on mismatch</span></span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies the correct finger count is shown near the face. A wrong count DENIES the verdict (deny-only — it can fail you but never passes you on its own; the other modalities do the accepting).</span></div>
         <div class="mod-subhead">Advisory signals <span class="mod-subhead-note">— informational, did not affect the verdict</span></div>
-        <div class="mod-result advisory" id="modFinger" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture <span class="mod-advisory-tag">Advisory · not required</span></span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies correct finger count sequence shown near the face. Advisory only — not yet gating the verdict, so its score is informational.</span></div>
         <div class="mod-result advisory" id="modDuress" onclick="toggleModRow(this)"><span class="mod-status">⏳</span><span class="mod-name">Duress Detection <span class="mod-advisory-tag">Advisory · deny-signal</span></span><span class="mod-caret" aria-hidden="true">▸</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for signs of coercion — unusual eye movement, forced expression, visible tension. A deny-signal (silent alarm if detected), not a pass/fail gate.</span></div>
         </div>
     </div>
@@ -4265,6 +4265,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .mod-subhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; width: 100%; font-size: clamp(9px, 1.1vw, 11px); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--text-tertiary); padding: clamp(8px, 1.2vh, 12px) 0 4px; margin-top: clamp(4px, 0.8vh, 8px); border-top: 1px solid var(--border); }
 .mod-subhead-note { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-quaternary); }
 .mod-advisory-tag { display: inline-block; font-family: var(--mono); font-size: clamp(8px, 1vw, 10px); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
+.mod-gating-tag { display: inline-block; font-family: var(--mono); font-size: clamp(8px, 1vw, 10px); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--teal, #00cec9); background: rgba(0,206,201,0.10); border: 1px solid rgba(0,206,201,0.35); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
 .mod-score.advisory { color: var(--text-tertiary); font-weight: 500; }
 
 /* Back button */
