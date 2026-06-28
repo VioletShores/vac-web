@@ -75,6 +75,15 @@ const MODE_CONFIG = {
                     email: (parts && parts.email) || userData().email,
                     detected_fingers: (parts && parts.detected_fingers != null) ? parts.detected_fingers : null,
                     face_still_b64: (parts && parts.face_still_b64 != null) ? parts.face_still_b64 : (window.__vacFaceStillB64 || ''),
+                    // F-637c: LIVE 128-D identity descriptor (face-api.js), single-face enforced
+                    // upstream in beginStillCapture. The server runs its euclidean identity check
+                    // (live vs stored enroll) on this — omitting it was why quick-reauth failed at
+                    // embedding_invalid every time. RAW array in this JSON envelope (the FULL path
+                    // JSON.stringifies only because it appends to FormData). In practice this is
+                    // always the live vector: the only path with no descriptor fails closed in
+                    // beginStillCapture + is re-checked in runFastVerification, so verify is never
+                    // reached with a null embedding. The `: null` is a defensive floor, not a route.
+                    face_embedding: (parts && parts.face_embedding != null) ? parts.face_embedding : null,
                 };
             },
         },
@@ -2360,6 +2369,7 @@ async function beginStillCapture() {
     try { vacDebug('begin_still_capture_called'); } catch(_) {}
     let detectedFingers = null;
     let stillB64 = '';
+    let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
     try {
         const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
@@ -2376,6 +2386,29 @@ async function beginStillCapture() {
             const dataUrl = c.toDataURL('image/jpeg', 0.9);
             const comma = dataUrl.indexOf(',');
             if (comma !== -1) stillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
+            // F-637c: compute the LIVE 128-D face descriptor from the SAME captured still and send
+            // it as face_embedding — without it the server fails quick-reauth at embedding_invalid
+            // and the euclidean identity check (live vs stored enroll) never runs. Mirrors the FULL
+            // clip path (onRecordingComplete) + the existing re-auth SDK (vac-auth.js). VACFaceEmbed
+            // enforces single-face: ok:true ONLY for exactly one face with a valid 128-D vector;
+            // 0 faces / >1 face / detector error → ok:false. compute() lazily awaits model load, so
+            // a cold model waits; we cap that wait with a fail-closed timeout so a stalled model can
+            // never strand the user (it routes to fallback instead). Computing from `c` keeps the
+            // descriptor and the still_b64 pixel-identical. We await BEFORE building parts, so
+            // buildBody can never read face_embedding before the descriptor resolves (no race).
+            if (window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+                try {
+                    const _EMB_TIMEOUT_MS = 10000;
+                    const r = await Promise.race([
+                        window.VACFaceEmbed.compute(c),
+                        new Promise(function(resolve){ setTimeout(function(){ resolve({ ok:false, reason:'embed_timeout' }); }, _EMB_TIMEOUT_MS); })
+                    ]);
+                    if (r && r.ok) { faceEmbedding = r.embedding; console.log('[VAC] Fast reauth embedding computed (dim ' + r.embedding.length + ')'); }
+                    else { try { vacDebug('fast_reauth_embedding_failed', (r && r.reason) || 'no_result', { faceCount: (r && r.faceCount != null) ? r.faceCount : null }); } catch(_) {} }
+                } catch (ee) { try { vacDebug('fast_reauth_embedding_failed', 'compute_threw'); } catch(_) {} }
+            } else {
+                try { vacDebug('fast_reauth_embedding_failed', 'embedder_absent'); } catch(_) {}
+            }
         }
     } catch (e) {
         // Never fabricate — an empty still tells the backend to fail-close (same contract as the clip still).
@@ -2385,7 +2418,17 @@ async function beginStillCapture() {
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
     goToStep(3);
-    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64 });
+    // F-637c FAIL-CLOSED: the server's identity gate REQUIRES a live descriptor. With no clean
+    // single-face embedding (0/>1 face, embedder down/absent/timeout, capture error) there is no
+    // identity proof to send, so we NEVER POST a body the server could 200 on — it would fail at
+    // embedding_invalid anyway. Route to the host fallback exactly as a denied/failed verify does
+    // (same onFallback(error) contract as runFastVerification's error path).
+    if (faceEmbedding == null) {
+        try { vacDebug('fast_reauth_failed', 'embedding_missing_fail_closed'); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: no live face embedding')); } catch(_) {} }
+        return;
+    }
+    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64, face_embedding: faceEmbedding });
 }
 
 // F-624 Rung 2 (FAST verify): POST the small JSON envelope to /v1/auth/quick-reauth
@@ -2394,6 +2437,31 @@ async function beginStillCapture() {
 // the host sees an identical success path regardless of mode. Failures route to the
 // host's onFallback, mirroring the clip path's error handoff.
 async function runFastVerification(parts) {
+    // F-637c (defense-in-depth, codex gate): re-verify the LIVE embedding shape at the terminal
+    // POST path, not only in beginStillCapture. This is security-sensitive auth — a future/alternate
+    // caller of runFastVerification must NOT be able to POST a body without a real 128-D identity
+    // vector. Require a plain Array of EXPECTED_DIM finite numbers (a plain array also guarantees the
+    // JSON serializes as [..], not the {"0":..} a typed array would). No valid embedding → fail
+    // closed to the host fallback, never POST. The normal fast flow always passes (beginStillCapture
+    // supplies a clean compute() result), so this only fires on an invalid/missing vector.
+    const _EMB_DIM = (window.VACFaceEmbed && window.VACFaceEmbed.EXPECTED_DIM) || 128;
+    const _emb = parts && parts.face_embedding;
+    // Indexed loop, NOT Array.prototype.every: .every() SKIPS array holes, so a sparse array such
+    // as new Array(128) would pass the finite-check vacuously and POST [null,null,...]. Reading
+    // _emb[_i] yields undefined for a hole → typeof !== 'number' → rejected. Mirrors the per-index
+    // validation VACFaceEmbed.compute itself uses, so a real dense descriptor still passes.
+    let _embOk = Array.isArray(_emb) && _emb.length === _EMB_DIM;
+    if (_embOk) {
+        for (let _i = 0; _i < _EMB_DIM; _i++) {
+            const _v = _emb[_i];
+            if (typeof _v !== 'number' || !isFinite(_v)) { _embOk = false; break; }
+        }
+    }
+    if (!_embOk) {
+        try { vacDebug('fast_reauth_failed', 'embedding_invalid_preflight'); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: invalid live face embedding')); } catch(_) {} }
+        return;
+    }
     const vCfg = modeConfig().verify;
     try {
         const _body = vCfg.buildBody(parts);   // fast → JSON object; full → FormData
