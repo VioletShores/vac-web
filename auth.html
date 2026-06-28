@@ -857,11 +857,19 @@ function startReauthCeremony(opts) {
         console.error('[VAC] VACReauth ceremony module not available');
         return;
     }
+    // F-635: when embedded as the SEAL-GATE re-auth, tribunal opens this page as /auth.html?greeting=skip
+    // — a same-session second full auth that drops the greeting/voice-anchor phase (lighter, proportional).
+    // The first identity auth opens this page WITHOUT the param → profile omitted → greeting required
+    // (regression guard: the standalone /auth experience and the first auth are unchanged).
+    var _greetingParam = null;
+    try { _greetingParam = new URLSearchParams(window.location.search).get('greeting'); } catch(_) {}
+    var _sealGateProfile = (_greetingParam === 'skip') ? { greeting: 'skip' } : null;
     VACReauth.run({
         name: d.name, email: d.email, org: d.org, role: d.role,
         riskLevel: 'medium',                 // auth.html runs the full ceremony (unchanged from before)
         mount: mount, context: 'register',
         auto: !!opts.auto,
+        profile: _sealGateProfile,           // F-635: {greeting:'skip'} only when ?greeting=skip (seal-gate); else null → greeting required
         retryAttempts: (typeof opts.retryAttempts === 'number') ? opts.retryAttempts : 0,
         onStep: function(n) { try { goToStep(n); } catch(_) {} },        // mirror progress on this page's step dots
         onComplete: function(result) { authResult = result; try { showSuccess(); } catch(e) { console.error('[VAC] showSuccess failed:', e); } },
@@ -1470,6 +1478,35 @@ if (typeof VACTheme !== 'undefined') {
         });
     }
 }
+
+// F-635-LIGHTER re-auth UX (L-2168/L-2173): a same-session re-auth (the seal-gate) opens this page
+// with ?reauth=1. The identity is ALREADY verified — DON'T make the user re-type it. Prefill + auto-
+// advance past the identity form into the ceremony.
+// L-2173 ROBUSTNESS: the previous build relied on the seal-gate threading name/email through the URL,
+// which came out EMPTY at runtime (the cross-iframe __vacVerified/localStorage read raced the seal).
+// Fix: read the identity DIRECTLY here. Source order: URL params → localStorage('vac_verified')
+// (same-origin, written by the first auth's showSuccess). Either fills the form; reauth=1 auto-skips.
+try {
+    const _rp = new URLSearchParams(window.location.search);
+    let _rName = _rp.get('name') || '';
+    let _rEmail = _rp.get('email') || '';
+    if (!_rName || !_rEmail) {
+        try {
+            const _vv = JSON.parse(localStorage.getItem('vac_verified') || '{}');
+            if (!_rName && _vv.name) _rName = _vv.name;
+            if (!_rEmail && _vv.email) _rEmail = _vv.email;
+        } catch(_) {}
+    }
+    if (_rName) { var _ni = document.getElementById('inputName'); if (_ni) _ni.value = _rName; }
+    if (_rEmail) { var _ei = document.getElementById('inputEmail'); if (_ei) _ei.value = _rEmail; }
+    try { vacDebug && vacDebug('reauth_prefill', null, { reauth: _rp.get('reauth'), has_name: !!_rName, has_email: !!_rEmail, src: (_rp.get('name')?'url':(_rName?'localStorage':'none')) }); } catch(_) {}
+    if (_rp.get('reauth') === '1' && _rName && _rEmail) {
+        // Auto-skip the identity form into the ceremony (same-session re-auth — no re-typing).
+        // goToCamera() validates name+email (now prefilled) and, since the same-session email is
+        // OTP-confirmed in shared localStorage, goes straight to the camera ceremony.
+        setTimeout(function(){ try { goToCamera(); } catch(e) { console.error('[VAC] reauth auto-skip failed', e); } }, 0);
+    }
+} catch(_) {}
 </script>
 <script>
 // Scroll indicator — hide when near bottom or not scrollable

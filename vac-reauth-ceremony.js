@@ -75,6 +75,15 @@ const MODE_CONFIG = {
                     email: (parts && parts.email) || userData().email,
                     detected_fingers: (parts && parts.detected_fingers != null) ? parts.detected_fingers : null,
                     face_still_b64: (parts && parts.face_still_b64 != null) ? parts.face_still_b64 : (window.__vacFaceStillB64 || ''),
+                    // F-637c: LIVE 128-D identity descriptor (face-api.js), single-face enforced
+                    // upstream in beginStillCapture. The server runs its euclidean identity check
+                    // (live vs stored enroll) on this — omitting it was why quick-reauth failed at
+                    // embedding_invalid every time. RAW array in this JSON envelope (the FULL path
+                    // JSON.stringifies only because it appends to FormData). In practice this is
+                    // always the live vector: the only path with no descriptor fails closed in
+                    // beginStillCapture + is re-checked in runFastVerification, so verify is never
+                    // reached with a null embedding. The `: null` is a defensive floor, not a route.
+                    face_embedding: (parts && parts.face_embedding != null) ? parts.face_embedding : null,
                 };
             },
         },
@@ -134,6 +143,7 @@ let authResult = null;
 let challengeData = null;
 let fingerFallback = 'none';
 let challengeSpeed = 'relaxed'; // 'relaxed', 'normal', 'fast'
+let skipGreeting = false; // F-635: when profile.greeting==='skip', a FULL ceremony drops the greeting/voice-anchor phase (same-session lighter re-auth). Set per-run in run().
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
@@ -231,6 +241,13 @@ async function requestCamera() {
         // Warm the face-EMBEDDING models now so the enrollment descriptor is ready by
         // the time recording completes (face-api.js loads ~12MB on first use, cached after).
         try { if (window.VACFaceEmbed) window.VACFaceEmbed.ready(); } catch(_) {}
+        // F-637c / codex P2: FAST still also needs MediaPipe ready — beginStillCapture reads a
+        // single FingerDetector.detect() for the bound digit (detected_fingers). FULL warms it via
+        // the hand pre-flight, but fast now skips that block, so warm it explicitly here (in
+        // addition to the page-load auto-init at FingerDetector.init). Idempotent ("no-op if
+        // already running"), so a cold/slow detector is loading through the whole pre-flight +
+        // countdown instead of risking a null finger read at capture. Fast-only; FULL unchanged.
+        try { if (modeConfig().capture.kind === 'still' && typeof FingerDetector !== 'undefined' && FingerDetector.init) FingerDetector.init(); } catch(_) {}
         document.getElementById('cameraLabel').textContent = 'CAMERA ACTIVE';
 
         // Show AV checks immediately — don't wait for challenge fetch
@@ -405,6 +422,26 @@ function startAVChecks() {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
+    // FAST still (S120 unify / F-637c): the quiet single-still re-auth has NO gesture/hand
+    // step — it must look like the FULL face framing (one #faceOval), not the hand-zone
+    // apparatus. So for capture.kind==='still' hide the Hand pill + hand hint and strip any
+    // stale show-hand-zone/hand-in-zone chrome off #cameraBox on EVERY entry (covers the
+    // retryAVSetup re-entry, not just the initial DOM). Deterministic display ('' restores
+    // the pill for FULL) so re-running in either mode lands the right state. The hand
+    // pre-flight block (runAVFrame) + the Start-gate (updateAVReady) are gated on the SAME
+    // _fastStill below; FULL/clip is byte-unchanged (regression-guarded default).
+    const _fastStill = (modeConfig().capture.kind === 'still');
+    try {
+        const _ph = document.getElementById('avPillHand'); if (_ph) _ph.style.display = _fastStill ? 'none' : '';
+        if (_fastStill) {
+            const _hh = document.getElementById('avHandHint'); if (_hh) _hh.style.display = 'none';
+            const _cb = document.getElementById('cameraBox'); if (_cb) _cb.classList.remove('show-hand-zone', 'hand-in-zone');
+            // The static Step-1 sub-header is gesture-ceremony copy ("Say a greeting, then show
+            // each number...") — false for a quiet still. Swap it for fast-accurate copy so the
+            // pre-flight reads consistently (FULL keeps the static gesture copy via the markup).
+            const _hs = document.getElementById('step2HeaderSub'); if (_hs) _hs.textContent = 'Find good light and test your mic, then hold still for a quick face check.';
+        }
+    } catch(_) {}
     // Set up audio analyser
     try {
         avAudioCtx = new AudioContext();
@@ -491,7 +528,12 @@ function startAVChecks() {
         // separate video (videoPreview), separate overlay (avHandOverlay); does NOT
         // touch the in-challenge loop. Guarded — never blocks Proceed.
         try {
-            if (FingerDetector.ready) {
+            // FAST still skips the hand pre-flight entirely (no show-hand-zone add, no
+            // hand detection, no "hold your hand up" hint, no avChecks.hand gating) — the
+            // fast verdict is face + the bound digit, a quiet still. FULL/clip (_fastStill
+            // false) runs the unchanged hand practice. _fastStill is the SAME flag set in
+            // startAVChecks (runAVFrame is its closure).
+            if (!_fastStill && FingerDetector.ready) {
                 const pv = document.getElementById('videoPreview');
                 const n = FingerDetector.detect(pv);          // warms the model + gives landmarks
                 const lm = FingerDetector.landmarks;
@@ -608,15 +650,30 @@ function updateMicTips() {
 function updateAVReady() {
     const btn = document.getElementById('btnCamera');
     const guide = document.getElementById('avGuide');
+    // FAST still (S120) has NO hand step: only light + mic gate Start (the hand pre-flight
+    // is skipped in startAVChecks/runAVFrame). FULL/clip keeps the light, mic, hand gate
+    // unchanged (regression-guarded default).
+    const _fastStill = (modeConfig().capture.kind === 'still');
+    // FAST: the bound digit is read by a single FingerDetector.detect() in beginStillCapture, so
+    // the detector must have RESOLVED (ready OR definitively failed) before capture can start —
+    // else a cold/slow MediaPipe load yields detected_fingers:null (codex P2). Gate on resolution,
+    // NOT on a hand gesture (that was the bug): ready => the finger read works; failed => proceed
+    // anyway (no strand; the server face-embedding identity check still gates). Undefined detector
+    // => treat as resolved (can't strand on a missing module; finger detection is moot then). The
+    // old hand gate guaranteed this implicitly via avChecks.hand requiring a successful detect.
+    const _fastDetectorReady = (typeof FingerDetector === 'undefined') || !!FingerDetector.ready || !!FingerDetector.failed;
     // S110 (F-559): guided sequential gate — walk the user through light → mic → hand,
     // one at a time, with explicit instructions. All three must pass before Start.
     if (guide) {
+        const _steps = _fastStill ? 2 : 3;   // fast: light+mic; full: +hand
         if (!avChecks.light) {
-            guide.textContent = 'Step 1 of 3 — find good lighting so your face is clearly visible';
+            guide.textContent = 'Step 1 of ' + _steps + ' — find good lighting so your face is clearly visible';
         } else if (!avChecks.mic) {
-            guide.textContent = 'Step 2 of 3 — say a few words to test your microphone';
-        } else if (!avChecks.hand) {
+            guide.textContent = 'Step 2 of ' + _steps + ' — say a few words to test your microphone';
+        } else if (!_fastStill && !avChecks.hand) {
             guide.textContent = 'Step 3 of 3 — hold your hand up in front of your face, inside the oval (you\u2019ll see it tracked)';
+        } else if (_fastStill && !_fastDetectorReady) {
+            guide.textContent = 'Finishing setup, one moment...';
         } else {
             guide.textContent = 'All set \u2713  You\u2019re ready to verify';
             guide.style.color = 'var(--success)';
@@ -624,7 +681,7 @@ function updateAVReady() {
             guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
         }
     }
-    const allGood = avChecks.light && avChecks.mic && avChecks.hand;
+    const allGood = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
     if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
         btn.disabled = !allGood;
         btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
@@ -745,6 +802,44 @@ function goToChallenge() {
         return;  // do NOT goToStep(2)/startCountdown with a blank phrase
     }
     stopAVChecks(); // Clean up audio context and animation frame
+
+    // ── FAST-MODE DIRECT PATH (S120 live-test fix, L-2162) ───────────────────────
+    // Fast/still re-auth ("show one finger + say the digit") must NOT run the full
+    // ceremony's greeting + voice-phrase + warmup + multi-digit explainer choreography.
+    // Before this branch, fast fell through into goToChallenge's greeting render and the
+    // showChallengeIntro/explainer handoff, which (a) showed the greeting screen fast
+    // should skip, and (b) stalled the advance to still-capture so it bounced back to the
+    // Re-authorise button ("live capture did not run on this device"). Here fast renders
+    // the single bound instruction (fingers + spoken_digit from /face-reauth-challenge) and
+    // goes straight to goToStep(2) -> startCountdown(), whose tail already routes
+    // capture.kind==='still' to beginStillCapture(). FULL mode is untouched below.
+    if (modeConfig().capture.kind === 'still') {
+        var _fc = challengeData || {};
+        var _digit = (_fc.spoken_digit != null) ? _fc.spoken_digit
+                   : (_fc.digits && _fc.digits.length ? _fc.digits[0]
+                   : (typeof _fc.fingers === 'number' ? _fc.fingers : null));
+        // FAST tier posts NO audio (embedding-gated) — so the instruction must NOT say "say it".
+        // Show the bound number to the camera, hold still for the face check. (honesty: L-2150)
+        var _instr = _fc.bound_instruction
+                   || (_digit != null ? ('Hold up ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' to the camera') : 'Show the number to the camera');
+        var _ctEl = document.getElementById('challengeText');
+        if (_ctEl) {
+            _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
+                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' to the camera')
+                                  : _instr)
+                + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.</div>';
+        }
+        var _recVidF = document.getElementById('videoPreviewRec');
+        if (_recVidF) { _recVidF.srcObject = mediaStream; _recVidF.muted = true; _recVidF.setAttribute('playsinline',''); _recVidF.play().catch(function(){}); }
+        try { vacDebug('fast_direct_path', null, { has_digit: _digit != null, digit: _digit, has_bound_instruction: !!_fc.bound_instruction }); } catch(_) {}
+        goToStep(2);
+        // L-2168: bring the user into the process — give a readable beat to absorb the instruction
+        // before the countdown starts, instead of snapping immediately. 1.6s ≈ time to read one line.
+        setTimeout(function(){ startCountdown(); }, 1600);  // readable lead-in; no greeting, no explainer
+        return;  // do NOT run the full greeting/voice/warmup/explainer path below
+    }
+    // ─────────────────────────────────────────────────────────────────────────────
+
     const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
     var greetPart = vacGreetingText() || phrase.replace(/,\s*\d[\d\s,]*$/, '');   // R2 + S114: single-source rotating greeting (real name); fallback to the local phrase only if no challenge
     // Voice-aware: in voice-only fallback there is NO finger phase, so the user must speak the
@@ -753,6 +848,16 @@ function goToChallenge() {
     // through goToChallenge) would prompt only the greeting and fail challenge-response (codex).
     if (fingerFallback === 'voice') {
         document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:12px;color:var(--warning);margin-top:8px;display:inline-block">Voice-only mode (reduced trust score)</span>';
+    } else if (skipGreeting) {
+        // F-635-LIGHTER (L-2171): greeting:skip is a LIGHTER full verify — drop the greeting
+        // (the backend skip-lists "kia/ora/hello/..." so it's never scored) but KEEP THE NAME:
+        // the full-verify scorer requires the NAME + digits at 0.80 (anti-replay, config.py S112).
+        // So the user still says "I am {name}" here (the identity clause, greeting stripped), then
+        // the digits per-gesture — NOT digits-only (which fails the 0.80 threshold by design).
+        // identityPart = the phrase from "I am" onward, minus the trailing digits.
+        var _idPart = phrase.replace(/^.*?(I am\s)/i, '$1').replace(/,\s*\d[\d\s,]*$/, '');
+        if (!/I am/i.test(_idPart)) { _idPart = 'I am ' + userData().name; }   // fallback if format differs
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px;color:var(--text-primary);font-weight:600">Say: "' + _idPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">then show each number as you say it · no greeting needed, you verified moments ago</span>';
     } else {
         // R2 (S114): greeting ONLY (greetPart strips the trailing digits). Pre-countdown lead-in
         // (overwritten by "Get ready…" in startCountdown); renderGreeting owns the live prompt. The
@@ -841,7 +946,18 @@ function showChallengeIntro() {
     // D-INTRO-GREETING-NUMBERS-ASYMMETRY (S114): preview the ACTUAL greeting from the SAME source the
     // greeting screen uses (rotating greeting + verified name). textContent = no markup-injection risk.
     var _greetEl = document.getElementById('challengeIntroGreeting');
-    if (_greetEl) { var _g = vacGreetingText(); _greetEl.textContent = _g ? ('“' + _g + '”') : ''; }
+    if (_greetEl) {
+        var _g;
+        if (skipGreeting) {
+            // F-635-LIGHTER: preview the identity phrase ("I am {name}") the user will say — greeting dropped, name kept.
+            var _ph = (challengeData && challengeData.phrase) || '';
+            _g = _ph.replace(/^.*?(I am\s)/i, '$1').replace(/,\s*\d[\d\s,]*$/, '');
+            if (!/I am/i.test(_g)) { _g = 'I am ' + userData().name; }
+        } else {
+            _g = vacGreetingText() || '';
+        }
+        _greetEl.textContent = _g ? ('“' + _g + '”') : '';
+    }
     overlay.style.display = 'block';
     try { vacDebug('challenge_intro_shown', null, { digits_count: digits.length, has_greeting: !!vacGreetingText() }); } catch(_) {}
 }
@@ -1059,7 +1175,15 @@ function beginRecording() {
             challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
         }
     }
-    try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
+    if (skipGreeting) {
+        // F-635-LIGHTER: the phrase phase RUNS (the user says the identity phrase "I am {name}"),
+        // so render the phrase screen normally — renderGreeting shows the identity phrase (greeting
+        // stripped) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
+        try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = 'Quick re-confirm'; _stG.style.color = ''; } } catch(_) {}
+        try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }
+    } else {
+        try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
+    }
 
     // S110: render the persistent above-video digit strip (current digit highlighted).
     // F-563 (2): PROGRESS DOTS only — NO numbers. The current digit's number lives in the big
@@ -1679,7 +1803,12 @@ function beginRecording() {
         try {
             var _camBox = document.getElementById('cameraBoxRec');
             _camBox.classList.toggle('hand-visible', _handPresent);
-            _camBox.classList.add('show-hand-zone');                 // reveal the hand guide during the gesture step
+            // Defense-in-depth (S120): NEVER reveal the hand-zone apparatus for a fast still
+            // (capture.kind==='still') — it would hide #faceOval (CSS .show-hand-zone .face-oval
+            // {display:none}) and show the dotted hand oval. This loop is full/clip-only at
+            // runtime (startCountdown routes fast -> beginStillCapture, not beginRecording), so
+            // this guard is belt-and-suspenders against a future fast caller. FULL: unchanged.
+            if (modeConfig().capture.kind !== 'still') _camBox.classList.add('show-hand-zone');   // reveal the hand guide during the gesture step
             _camBox.classList.toggle('hand-in-zone', _handNear);     // green when the hand reaches the near-face zone
         } catch(_){}
         // S110: hand-too-close / partially-out-of-frame guard (Rob — last digit
@@ -2134,7 +2263,18 @@ function beginRecording() {
         // VOICE-ONLY keeps the full phrase (it has no digit phase, so it must say the numbers here).
         // S114: finger-mode greeting comes from the SINGLE source (vacGreetingText) — same rotating
         // greeting + real name the intro previews — so the two screens can never diverge.
-        var _say = _vo ? _full : (vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, ''));
+        // F-635-LIGHTER: when greeting:skip, the live phrase prompt is the IDENTITY phrase
+        // ("I am {name}", greeting stripped) — the user must say the NAME (anti-replay anchor),
+        // just not the greeting. Otherwise (normal) show the greeting; voice-only shows the full phrase.
+        var _say;
+        if (_vo) {
+            _say = _full;
+        } else if (skipGreeting) {
+            _say = _full.replace(/^.*?(I am\s)/i, '$1').replace(/,\s*\d[\d\s,]*$/, '');
+            if (!/I am/i.test(_say)) { _say = 'I am ' + userData().name; }
+        } else {
+            _say = vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, '');
+        }
         var _st = document.getElementById('step2Title');
         // ✓ Heard it beat — FINGER mode only, AND only AFTER the read window (PHRASE_DURATION). The
         // phrase now includes the digits, so phraseSpoke can fire on a pause after the greeting clause
@@ -2192,7 +2332,11 @@ function beginRecording() {
         // unset (0) timestamp as "beat already done".
         if (phraseSpoke && _phraseTimerDone && !_phraseHeardAt) _phraseHeardAt = performance.now();
         const _heardBeatDone = !phraseSpoke || (_phraseHeardAt && (performance.now() - _phraseHeardAt >= GREET_HEARD_BEAT_MS));
-        // Voice-only speaks the full phrase here (no digit phase) → no "heard it" beat, just the timer gate.
+        // F-635-LIGHTER (L-2171): greeting:skip KEEPS the phrase phase — the user must still SAY
+        // the identity phrase ("I am {name}") here, because the backend scorer requires the NAME
+        // (anti-replay, 0.80). The PREVIOUS build bypassed this phase (skipGreeting || ...) so only
+        // digits were said → failed the 0.80 threshold. Now greeting:skip runs the normal phrase
+        // gate (just with greeting-less prompt copy); only the GREETING WORDS are dropped, not the phase.
         const _advanceGreeting = _phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone);
         if (_advanceGreeting) {
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
@@ -2360,6 +2504,7 @@ async function beginStillCapture() {
     try { vacDebug('begin_still_capture_called'); } catch(_) {}
     let detectedFingers = null;
     let stillB64 = '';
+    let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
     try {
         const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
@@ -2376,6 +2521,29 @@ async function beginStillCapture() {
             const dataUrl = c.toDataURL('image/jpeg', 0.9);
             const comma = dataUrl.indexOf(',');
             if (comma !== -1) stillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
+            // F-637c: compute the LIVE 128-D face descriptor from the SAME captured still and send
+            // it as face_embedding — without it the server fails quick-reauth at embedding_invalid
+            // and the euclidean identity check (live vs stored enroll) never runs. Mirrors the FULL
+            // clip path (onRecordingComplete) + the existing re-auth SDK (vac-auth.js). VACFaceEmbed
+            // enforces single-face: ok:true ONLY for exactly one face with a valid 128-D vector;
+            // 0 faces / >1 face / detector error → ok:false. compute() lazily awaits model load, so
+            // a cold model waits; we cap that wait with a fail-closed timeout so a stalled model can
+            // never strand the user (it routes to fallback instead). Computing from `c` keeps the
+            // descriptor and the still_b64 pixel-identical. We await BEFORE building parts, so
+            // buildBody can never read face_embedding before the descriptor resolves (no race).
+            if (window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+                try {
+                    const _EMB_TIMEOUT_MS = 10000;
+                    const r = await Promise.race([
+                        window.VACFaceEmbed.compute(c),
+                        new Promise(function(resolve){ setTimeout(function(){ resolve({ ok:false, reason:'embed_timeout' }); }, _EMB_TIMEOUT_MS); })
+                    ]);
+                    if (r && r.ok) { faceEmbedding = r.embedding; console.log('[VAC] Fast reauth embedding computed (dim ' + r.embedding.length + ')'); }
+                    else { try { vacDebug('fast_reauth_embedding_failed', (r && r.reason) || 'no_result', { faceCount: (r && r.faceCount != null) ? r.faceCount : null }); } catch(_) {} }
+                } catch (ee) { try { vacDebug('fast_reauth_embedding_failed', 'compute_threw'); } catch(_) {} }
+            } else {
+                try { vacDebug('fast_reauth_embedding_failed', 'embedder_absent'); } catch(_) {}
+            }
         }
     } catch (e) {
         // Never fabricate — an empty still tells the backend to fail-close (same contract as the clip still).
@@ -2385,7 +2553,17 @@ async function beginStillCapture() {
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
     goToStep(3);
-    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64 });
+    // F-637c FAIL-CLOSED: the server's identity gate REQUIRES a live descriptor. With no clean
+    // single-face embedding (0/>1 face, embedder down/absent/timeout, capture error) there is no
+    // identity proof to send, so we NEVER POST a body the server could 200 on — it would fail at
+    // embedding_invalid anyway. Route to the host fallback exactly as a denied/failed verify does
+    // (same onFallback(error) contract as runFastVerification's error path).
+    if (faceEmbedding == null) {
+        try { vacDebug('fast_reauth_failed', 'embedding_missing_fail_closed'); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: no live face embedding')); } catch(_) {} }
+        return;
+    }
+    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64, face_embedding: faceEmbedding });
 }
 
 // F-624 Rung 2 (FAST verify): POST the small JSON envelope to /v1/auth/quick-reauth
@@ -2394,6 +2572,31 @@ async function beginStillCapture() {
 // the host sees an identical success path regardless of mode. Failures route to the
 // host's onFallback, mirroring the clip path's error handoff.
 async function runFastVerification(parts) {
+    // F-637c (defense-in-depth, codex gate): re-verify the LIVE embedding shape at the terminal
+    // POST path, not only in beginStillCapture. This is security-sensitive auth — a future/alternate
+    // caller of runFastVerification must NOT be able to POST a body without a real 128-D identity
+    // vector. Require a plain Array of EXPECTED_DIM finite numbers (a plain array also guarantees the
+    // JSON serializes as [..], not the {"0":..} a typed array would). No valid embedding → fail
+    // closed to the host fallback, never POST. The normal fast flow always passes (beginStillCapture
+    // supplies a clean compute() result), so this only fires on an invalid/missing vector.
+    const _EMB_DIM = (window.VACFaceEmbed && window.VACFaceEmbed.EXPECTED_DIM) || 128;
+    const _emb = parts && parts.face_embedding;
+    // Indexed loop, NOT Array.prototype.every: .every() SKIPS array holes, so a sparse array such
+    // as new Array(128) would pass the finite-check vacuously and POST [null,null,...]. Reading
+    // _emb[_i] yields undefined for a hole → typeof !== 'number' → rejected. Mirrors the per-index
+    // validation VACFaceEmbed.compute itself uses, so a real dense descriptor still passes.
+    let _embOk = Array.isArray(_emb) && _emb.length === _EMB_DIM;
+    if (_embOk) {
+        for (let _i = 0; _i < _EMB_DIM; _i++) {
+            const _v = _emb[_i];
+            if (typeof _v !== 'number' || !isFinite(_v)) { _embOk = false; break; }
+        }
+    }
+    if (!_embOk) {
+        try { vacDebug('fast_reauth_failed', 'embedding_invalid_preflight'); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: invalid live face embedding')); } catch(_) {} }
+        return;
+    }
     const vCfg = modeConfig().verify;
     try {
         const _body = vCfg.buildBody(parts);   // fast → JSON object; full → FormData
@@ -2416,6 +2619,17 @@ async function runFastVerification(parts) {
         // can co-exist with authenticated:false. Unknown / missing verdict → denied (fail-closed).
         const _ok = !!(authResult && (authResult.authenticated === true || authResult.authorized === true));
         try { vacDebug('fast_reauth_result', null, { ok: _ok, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
+        // Surface the bound digit + advisory detected-finger count onto the result so hosts can
+        // render the proof faithfully (tribunal's success card interpolates result.digit). The
+        // server need not echo them: the bound digit is THIS run's challenge (challengeData.digits)
+        // and the detected count is what beginStillCapture read (parts.detected_fingers). Only fill
+        // when the server didn't already provide a value, so a server-authoritative field wins.
+        if (_ok && authResult && typeof authResult === 'object') {
+            try {
+                if (authResult.digit == null) authResult.digit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
+                if (authResult.detected_fingers == null) authResult.detected_fingers = (parts && parts.detected_fingers != null) ? parts.detected_fingers : null;
+            } catch(_) {}
+        }
         if (_ok) { _finish(); return; }
         try { vacDebug('fast_reauth_denied'); } catch(_) {}
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied')); } catch(_) {} }
@@ -3265,7 +3479,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Mic</div>
-        <div class="header-sub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
+        <div class="header-sub" id="step2HeaderSub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
@@ -3450,7 +3664,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
     <!-- Combined capture explanation (visible during recording) -->
     <div id="combinedCaptureInfo" style="margin-top: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
         <div style="font-family: var(--mono); font-size: 10px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px;">How it works</div>
-        <div style="font-size: clamp(11px, 3vw, 13px); color: var(--text-secondary); line-height: 1.5;">
+        <div id="combinedCaptureText" style="font-size: clamp(11px, 3vw, 13px); color: var(--text-secondary); line-height: 1.5;">
             Say the greeting, then show each number as you say it. Wait for the ✓ before moving to the next. One continuous take, 6 signals verified by AI.
         </div>
     </div>
@@ -3883,9 +4097,42 @@ const VACReauth = {
             profile: opts.profile || null,
         };
         if (!CTX.mount) { console.error('[VACReauth] run() called with no mount element'); return; }
+        // S120 live-test fix: fast mode → fast countdown timing (1s) so the still-capture
+        // quick check isn't paced like the full relaxed ceremony. Full/omitted → unchanged.
+        if (CTX.profile && CTX.profile.mode === 'fast') { challengeSpeed = 'fast'; }
+        // F-635 (greeting as a composable COPS/PID axis): profile.greeting === 'skip' drops the
+        // greeting/voice-anchor phase from a FULL ceremony — for a same-session re-auth where the
+        // greeting was already collected, the second auth is visibly lighter (digits + face only).
+        // Omitted → 'required' (regression guard: auth.html and the FIRST full auth are unchanged).
+        // Backend-coherent: the full verify gates on the OTP digit match + face embedding + liveness,
+        // NOT on the greeting words (greeting is the voice-anchor, not the challenge-response gate).
+        skipGreeting = !!(CTX.profile && CTX.profile.greeting === 'skip');
+        // F-635 + fast mode: BOTH are greeting-less (fast = the fast-direct-path still capture;
+        // greeting:skip = a full ceremony minus the greeting). Either way the static step-2 copy
+        // must not tell the user to "say a greeting" — update the header subtitle + how-it-works
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
         renderDOM();
+        // F-635-LIGHTER (ordering fix): rewrite the greeting-less copy AFTER renderDOM() — the prior
+        // build ran this BEFORE renderDOM, so step2HeaderSub/combinedCaptureText didn't exist yet
+        // (getElementById → null) and the static "Say a greeting" default rendered unchanged.
+        var _greetingless = skipGreeting || (modeConfig().capture.kind === 'still');
+        if (_greetingless) {
+            try {
+                var _hs = document.getElementById('step2HeaderSub');
+                var _cct = document.getElementById('combinedCaptureText');
+                if (skipGreeting) {
+                    // F-635-LIGHTER: full verify minus the greeting — the user STILL says "I am {name}"
+                    // (the name is the anti-replay anchor), then the numbers. Greeting dropped, name kept.
+                    if (_hs) _hs.textContent = 'Say "I am [your name]", then show each number as you say it. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Say "I am [your name]", then show each number as you say it — one take. No greeting needed; you verified moments ago.';
+                } else {
+                    // fast still-capture (vat-verify): genuinely one number, no phrase.
+                    if (_hs) _hs.textContent = 'Show the number in front of your face. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Show the number in front of your face — a quick face + number check. You verified moments ago, so no greeting is needed.';
+                }
+            } catch(_) {}
+        }
         CTX.mount.style.display = 'block';
         try { if (window.FingerDetector && !window.FingerDetector.ready) setTimeout(window.FingerDetector.init, 0); } catch(_) {}
         goToStep(1);                                  // show the camera pre-flight (step 1)
