@@ -2789,6 +2789,18 @@ async function runFastVerification(parts) {
                 if (authResult.digit == null) authResult.digit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
                 if (authResult.detected_fingers == null) authResult.detected_fingers = (parts && parts.detected_fingers != null) ? parts.detected_fingers : null;
             } catch(_) {}
+            // F-654: show the quick-reauth its OWN modality verdict — consistency with full auth
+            // (Rob: full auth shows results, quick-reauth showed nothing). Renders ONLY real server
+            // data; a "Continue" tap then completes, so the verdict is actually SEEN (not flashed).
+            try {
+                renderQuickReauthVerdict(authResult);
+                var _proceeded = false;
+                var _cont = document.getElementById('qrContinueBtn');
+                if (_cont) {
+                    _cont.onclick = function(){ if (_proceeded) return; _proceeded = true; _finish(); };
+                    return;  // wait for the user to read the verdict + tap Continue
+                }
+            } catch(ve){ console.error('[VACReauth] quick verdict render', ve); }
         }
         if (_ok) { _finish(); return; }
         try { vacDebug('fast_reauth_denied'); } catch(_) {}
@@ -2798,6 +2810,59 @@ async function runFastVerification(parts) {
         try { vacDebug('fast_reauth_failed', String((e && e.message) || e)); } catch(_) {}
         if (CTX && CTX.onFallback) { try { CTX.onFallback(e); } catch(_) {} }
     }
+}
+
+// F-654: the quick-reauth modality verdict — same idea as the full-auth modality summary,
+// so the user gets feedback (Rob: full auth shows results, quick-reauth showed nothing).
+// Renders ONLY real fields from the /v1/auth/quick-reauth response (no fabrication):
+//   identity   {metric:'euclidean', distance, threshold}  → FACE match (face-api.js 128-D)
+//   bound_digit{shown_ok, spoken_ok, cooccur_ok}          → FINGER (MediaPipe) + spoken digit
+//   liveness   {provider:'didit', status, score}          → passive liveness
+// Each row is expandable (click → detail) with a down-chevron affordance so the user knows
+// it's interactive. A section the server didn't send is shown as "not reported" — never faked.
+function renderQuickReauthVerdict(res) {
+    res = res || {};
+    var host = document.getElementById('challengeText') || document.getElementById('vacGuided');
+    if (!host) return;
+    function row(id, name, detector, ok, detail) {
+        var statusTxt = (ok === true) ? 'verified' : (ok === false ? 'failed' : 'not reported');
+        var color = (ok === true) ? '#22c55e' : (ok === false ? '#ef4444' : 'var(--text-tertiary)');
+        var mark = (ok === true) ? '\u2713' : (ok === false ? '\u2717' : '\u2013');
+        return '<div class="qr-mod-row" data-qr="' + id + '" onclick="(function(e){var d=document.getElementById(\'qrd-' + id + '\');if(d){var open=d.style.display!==\'none\';d.style.display=open?\'none\':\'block\';var c=document.getElementById(\'qrc-' + id + '\');if(c)c.style.transform=open?\'rotate(0deg)\':\'rotate(180deg)\';}})()" style="cursor:pointer;border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface);">'
+            + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
+            +   '<div style="display:flex;align-items:center;gap:9px;"><span style="color:' + color + ';font-weight:800;font-size:15px;">' + mark + '</span><span style="font-weight:600;color:var(--text-primary);font-size:14px;">' + name + '</span></div>'
+            +   '<div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--mono);font-size:11px;letter-spacing:0.5px;color:' + color + ';text-transform:uppercase;">' + statusTxt + '</span>'
+            +     '<span id="qrc-' + id + '" style="display:inline-block;transition:transform 0.15s;color:var(--text-tertiary);font-size:11px;">\u25BC</span></div>'
+            + '</div>'
+            + '<div id="qrd-' + id + '" style="display:none;margin-top:9px;padding-top:9px;border-top:1px solid var(--border);font-size:12px;color:var(--text-secondary);line-height:1.5;">'
+            +   '<div style="color:var(--text-tertiary);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Detector</div>' + detector
+            +   (detail ? ('<div style="margin-top:7px;color:var(--text-tertiary);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Result</div>' + detail) : '')
+            + '</div>'
+            + '</div>';
+    }
+    // FACE identity
+    var idy = res.identity || null;
+    var faceOk = idy ? (typeof idy.distance === 'number' && typeof idy.threshold === 'number' ? idy.distance <= idy.threshold : null) : null;
+    var faceDetail = idy ? ('Euclidean distance <strong>' + idy.distance + '</strong> vs threshold <strong>' + idy.threshold + '</strong> (lower = closer match).') : 'Server did not report a face-match distance.';
+    // BOUND DIGIT (finger + spoken)
+    var bd = res.bound_digit || null;
+    var fingerOk = bd ? (bd.shown_ok === true) : null;
+    var fingerDetail = bd
+        ? ('Shown fingers ' + (bd.shown_ok ? 'matched' : 'did NOT match') + ' the challenge; spoken digit ' + (bd.spoken_ok ? 'matched' : 'not matched') + '; co-occurrence ' + (bd.cooccur_ok ? 'confirmed' : 'not confirmed') + '.')
+        : 'Server did not report a bound-digit result (this re-auth may have run an advisory finger check).';
+    // LIVENESS
+    var lv = res.liveness || null;
+    var liveOk = lv ? (lv.status === 'verified') : null;
+    var liveDetail = lv ? ('Provider <strong>' + (lv.provider || 'didit') + '</strong>, status <strong>' + (lv.status || '?') + '</strong>' + (lv.score != null ? (', score <strong>' + lv.score + '</strong>') : '') + '.') : 'Server did not report a liveness result.';
+
+    var _req = reauthPolicyRequired() || [];
+    var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Verification modalities \u2014 tap a row for detail</div>';
+    host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _label
+        + row('face', 'Face match', 'face-api.js 128-D embedding, euclidean distance vs your stored template (server-computed).', faceOk, faceDetail)
+        + row('finger', 'Number on fingers', 'MediaPipe HandLandmarker (client) \u2014 the bound digit, shown AND said.', fingerOk, fingerDetail)
+        + row('liveness', 'Passive liveness', 'Didit passive-liveness on the captured still (server, fail-closed).', liveOk, liveDetail)
+        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Continue \u2192</button>'
+        + '</div>';
 }
 
 async function onRecordingComplete() {
