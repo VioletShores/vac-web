@@ -1106,6 +1106,13 @@ init();
       email = email || u.email || '';
       name = u.name || '';
     } catch (e) {}
+    // codex P2 / S120: a holder opening their credential link fresh (no prior login this
+    // session) has no localStorage identity, but render() resolved the credential's own
+    // email into window.__vacCredEmail from the verified token. Fall back to it so the fast
+    // face-reauth can key to the holder — the challenge matches the LIVE face against THAT
+    // email's enrolment, so a non-holder's face just fails closed to full verify; it never
+    // reveals anything. Without this, every fresh holder bounces straight to full verification.
+    try { email = email || window.__vacCredEmail || ''; } catch (e) {}
     return { email: email, name: name };
   }
 

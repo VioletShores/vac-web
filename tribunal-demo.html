@@ -1536,7 +1536,7 @@ function renderReauthResult(authz,tier){
   let viewCard;
   if(tier.state==='fast'){
     const why = ceremony
-      ? 'You just did it — one bound number ('+esc(String(tier.digit))+'): shown and spoken, matched against your verified face. The backend ran the fast one-digit-bound tier (face-embedding match + ONE bound digit + passive liveness), not full tri-modal.'
+      ? 'You just did it — one bound number ('+esc(String(tier.digit))+'): shown to camera, matched against your verified face. The backend ran the fast one-digit-bound tier (face-embedding match + ONE bound digit + passive liveness), not full tri-modal.'
       : 'You verified moments ago — the backend selected the fast one-digit-bound tier (face embedding + ONE bound digit + passive liveness), not full tri-modal.';
     viewCard='<div class="rd-tier rd-fast"><div class="rd-act">view_credential · low</div>'+
       '<div class="rd-name">Quick re-auth'+(ceremony?' · done':(tier.degraded?' · eligible (probe)':''))+'</div>'+
@@ -1577,7 +1577,7 @@ function renderReauthResult(authz,tier){
   }
   let note;
   if(cerOK){
-    note='The quick re-auth ran live against the production backend just now: camera opened, ONE number shown + spoken, a face still + the audio POSTed to '+QR_EP+', and the tier read verbatim from the response. Full tri-modal at the seal (~30s) vs one number here (a few seconds) — the proportional tier doing exactly the work the stakes call for. The finger count is advisory; your face-embedding match is the gate.';
+    note='The quick re-auth ran live against the production backend just now: camera opened, ONE number shown to camera, a face still + the live face embedding POSTed to '+QR_EP+', and the tier read verbatim from the response. Full tri-modal at the seal (~30s) vs one number here (a few seconds) — the proportional tier doing exactly the work the stakes call for. The finger count is advisory; your face-embedding match is the gate.';
   }else if(ceremony){
     note='The quick re-auth was attempted live; the server did not return a fast-tier pass, so only its verbatim outcome is shown above — no client-side faking.';
   }else if(tier.degraded==='camera_unavailable'){
