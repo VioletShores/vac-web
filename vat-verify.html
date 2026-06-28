@@ -1098,21 +1098,28 @@ init();
   }
 
   function currentIdentity() {
-    var email = '';
+    // SECURITY (codex P1): the credential's OWN owner email — resolved by render() from the
+    // verified token into window.__vacCredEmail — is the AUTHORITY for revealing it. The re-auth
+    // must prove the viewer IS the holder: the fast challenge keys on this email, so the server
+    // matches the LIVE face against THE OWNER's enrolment. A cached localStorage identity (from a
+    // prior or DIFFERENT login on a shared/stale browser) MUST NOT take precedence — otherwise
+    // that other authenticated person could pass the fast check against THEIR own face and unlock
+    // this holder-only credential. Owner email FIRST; localStorage only when the credential
+    // carried no email (degenerate token), where there's no owner to bind to.
+    var credEmail = '';
+    try { credEmail = window.__vacCredEmail || ''; } catch (e) {}
+    var lsEmail = '';
     var name = '';
     try {
-      email = localStorage.getItem('vac_email') || '';
+      lsEmail = localStorage.getItem('vac_email') || '';
       var u = JSON.parse(localStorage.getItem('vac_user') || 'null') || {};
-      email = email || u.email || '';
+      lsEmail = lsEmail || u.email || '';
       name = u.name || '';
     } catch (e) {}
-    // codex P2 / S120: a holder opening their credential link fresh (no prior login this
-    // session) has no localStorage identity, but render() resolved the credential's own
-    // email into window.__vacCredEmail from the verified token. Fall back to it so the fast
-    // face-reauth can key to the holder — the challenge matches the LIVE face against THAT
-    // email's enrolment, so a non-holder's face just fails closed to full verify; it never
-    // reveals anything. Without this, every fresh holder bounces straight to full verification.
-    try { email = email || window.__vacCredEmail || ''; } catch (e) {}
+    var email = credEmail || lsEmail;
+    // The fast challenge keys on email (name is cosmetic). Never attach a cached name that
+    // belongs to someone OTHER than the resolved owner email — drop it on a mismatch.
+    if (email && lsEmail && email !== lsEmail) name = '';
     return { email: email, name: name };
   }
 
