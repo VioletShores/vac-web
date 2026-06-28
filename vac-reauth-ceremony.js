@@ -183,6 +183,24 @@ function reauthPolicyDropsVoicePhrase() {
         return false; // any error → safe default: keep the phrase phase
     }
 }
+
+// F-654: the policy's required modality set, or null if no policy on the current challenge.
+// Single source for any path's modality-driven copy (full, seal, AND fast) — so no flow
+// hardcodes its modalities. Returns e.g. ['face_embedding','bound_digit','passive_liveness'].
+function reauthPolicyRequired() {
+    try {
+        var pol = challengeData && challengeData.reauth_modality_policy;
+        if (pol && Array.isArray(pol.required) && pol.required.length) return pol.required.slice();
+    } catch (_) {}
+    return null;
+}
+// Does the policy require a finger/bound-digit modality? Drives the fast-path copy so it
+// honestly states "face + one number on fingers" instead of "just a face photo".
+function reauthPolicyHasBoundDigit() {
+    var req = reauthPolicyRequired();
+    if (!req) return null; // unknown — caller keeps its default copy
+    return req.some(function(m){ return /bound_digit|finger|gesture/i.test(String(m)); });
+}
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
@@ -478,7 +496,19 @@ function startAVChecks() {
             // The static Step-1 sub-header is gesture-ceremony copy ("Say a greeting, then show
             // each number...") — false for a quiet still. Swap it for fast-accurate copy so the
             // pre-flight reads consistently (FULL keeps the static gesture copy via the markup).
-            const _hs = document.getElementById('step2HeaderSub'); if (_hs) { _hs.textContent = 'Hold still for a quick face check — one photo confirms it\u2019s you.'; _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px'; }
+            // F-654: derive the copy from the POLICY, not a hardcode. The fast tier's policy is
+            // [face_embedding, bound_digit, passive_liveness] — face AND one bound digit — so the
+            // copy must state BOTH (Rob: it said "one photo confirms it's you" but the flow also
+            // asks for a finger). reauthPolicyHasBoundDigit() may be null here if the challenge
+            // hasn't been fetched yet — default to the honest face+number copy for the fast tier.
+            const _hs = document.getElementById('step2HeaderSub');
+            if (_hs) {
+                var _hasDigit = reauthPolicyHasBoundDigit();
+                _hs.textContent = (_hasDigit === false)
+                    ? 'Hold still for a quick face check — one photo confirms it\u2019s you.'
+                    : 'Quick face check + one number on your fingers — confirms it\u2019s you in one step.';
+                _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px';
+            }
         }
     } catch(_) {}
     // Set up audio analyser
