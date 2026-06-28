@@ -157,6 +157,32 @@ let challengeData = null;
 let fingerFallback = 'none';
 let challengeSpeed = 'relaxed'; // 'relaxed', 'normal', 'fast'
 let skipGreeting = false; // F-635/F-648: profile.greeting==='skip' (the seal-gate) makes a FULL ceremony NAME-LESS — the user says ONLY the digits (no greeting, no "I am {name}"). Backend phrase is digits-only so the scorer core = the digits. The phrase phase is KEPT (user still speaks). Set per-run in run().
+
+// F-654 STEP 2 — PHASE COMPOSITION IS A COPS/PID OUTPUT, not a local flag.
+// The server's challenge response now carries reauth_modality_policy (F-654 step 1):
+// the engine-DERIVED modality set for this re-auth. When that policy is present AND
+// lists NO voice/voiceprint modality (low/medium-risk re-auth, e.g.
+// required=[face_embedding,bound_digit,passive_liveness]), the spoken-phrase phase is
+// STRUCTURALLY ABSENT — the ceremony goes straight to the fingers + per-gesture-digit
+// phase (the digits are still spoken per gesture, so no voice signal is lost). This is
+// the single source of truth for "does the phrase phase run"; mechanism is the policy,
+// NOT a skipGreeting branch (skipGreeting only strips the WORDS — it KEEPS the phase).
+//
+// REGRESSION GUARD (non-negotiable, F-654 §7): DEFAULTS TO has-voice-phrase = TRUE.
+// If reauth_modality_policy is absent/null/malformed (every full-auth call, and any
+// call the backend made before step 1 deployed), this returns false → the phrase phase
+// runs exactly as today → FULL AUTH IS BYTE-IDENTICAL. The skip can ONLY trigger for an
+// explicit policy that affirmatively lists no voice modality.
+function reauthPolicyDropsVoicePhrase() {
+    try {
+        var pol = challengeData && challengeData.reauth_modality_policy;
+        if (!pol || !Array.isArray(pol.required) || !pol.required.length) return false; // no policy → keep phrase phase (full-auth default)
+        var hasVoice = pol.required.some(function(m){ return /voice|voiceprint/i.test(String(m)); });
+        return !hasVoice; // policy present AND no voice modality → drop the phrase phase
+    } catch (_) {
+        return false; // any error → safe default: keep the phrase phase
+    }
+}
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
@@ -1132,7 +1158,16 @@ function beginRecording() {
 
     // Simultaneous: say greeting (4s), then say+show each digit (2s each)
     const digits = challengeData?.digits || [];
-    const PHRASE_DURATION = SPEED_CONFIG[challengeSpeed].phrase;
+    // F-654 STEP 2: PHRASE_DURATION is the SINGLE governor of the spoken-phrase phase —
+    // the recording timeline, the "read window over?" checks (sec < PHRASE_DURATION), and
+    // the finger-phase start (sec - PHRASE_DURATION) all key off it. When COPS/PID policy
+    // drops the voice modality (low/medium-risk re-auth), set it to 0 so the phrase phase
+    // has ZERO duration — the flow starts the fingers + per-gesture-digit phase immediately.
+    // The phase is structurally absent, not flag-skipped. Full auth (no policy / voice
+    // present) keeps the normal read window → byte-identical. (Digits still spoken per
+    // gesture, so the backend whole-transcript match still receives them.)
+    const _dropVoicePhrase = reauthPolicyDropsVoicePhrase();
+    const PHRASE_DURATION = _dropVoicePhrase ? 0 : SPEED_CONFIG[challengeSpeed].phrase;
     const DIGIT_DURATION = SPEED_CONFIG[challengeSpeed].digit;
     const BUFFER = 0;
     const totalDuration = PHRASE_DURATION + (digits.length * DIGIT_DURATION) + BUFFER;
@@ -4131,7 +4166,22 @@ const VACReauth = {
         // F-635-LIGHTER (ordering fix): rewrite the greeting-less copy AFTER renderDOM() — the prior
         // build ran this BEFORE renderDOM, so step2HeaderSub/combinedCaptureText didn't exist yet
         // (getElementById → null) and the static "Say a greeting" default rendered unchanged.
-        var _greetingless = skipGreeting || (modeConfig().capture.kind === 'still');
+        // F-654 STEP 2: the greeting-less COPY decision should ALSO be a policy output, not only
+        // the skipGreeting/mode shadow flags. run() executes before the challenge fetch, so the live
+        // reauth_modality_policy isn't on challengeData yet here; but a host/profile MAY carry the
+        // policy's required modalities up-front (CTX.profile.required_modalities) — when it does and
+        // lists no voice modality, treat the run as greeting-less. Regression guard preserved: this is
+        // an ADDITIONAL trigger ORed in; absent any such hint the behaviour is exactly as before
+        // (skipGreeting / still mode only). The authoritative timing skip still derives from the live
+        // server policy in beginRecording (PHRASE_DURATION=0); this only keeps the header copy honest.
+        var _policyDropsVoiceHint = false;
+        try {
+            var _rm = CTX.profile && CTX.profile.required_modalities;
+            if (Array.isArray(_rm) && _rm.length) {
+                _policyDropsVoiceHint = !_rm.some(function(m){ return /voice|voiceprint/i.test(String(m)); });
+            }
+        } catch(_) {}
+        var _greetingless = skipGreeting || (modeConfig().capture.kind === 'still') || _policyDropsVoiceHint;
         if (_greetingless) {
             try {
                 var _hs = document.getElementById('step2HeaderSub');
