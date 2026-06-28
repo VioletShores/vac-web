@@ -46,6 +46,19 @@ const MODE_CONFIG = {
                 if (CTX.profile && typeof CTX.profile.num_digits === 'number') {
                     body.num_digits = CTX.profile.num_digits;
                 }
+                // F-648: the SEAL-GATE lighter re-auth (greeting:skip — the ONLY caller that sets
+                // it, via tribunal seal -> auth.html?greeting=skip) is NAME-LESS. Tell the backend
+                // to build a digits-only challenge phrase so the user speaks ONLY the fresh
+                // per-session random digits (the anti-replay anchor) — no "I am {name}". The scorer
+                // CORE becomes the digits (UNORDERED set-overlap at 0.80), so a digits-only read
+                // scores 1.0 and a replay whose digit SET differs fails — same digit-set strength as
+                // the prior name-bearing seal-gate (the name was a constant). The spoken name was
+                // never a real identity proof (a known string); /verify gates on liveness + the fresh
+                // challenge, and the seal/session layer binds the owner. First auth (profile null /
+                // no greeting:skip) omits the flag -> identity phrase unchanged.
+                if (CTX.profile && CTX.profile.greeting === 'skip') {
+                    body.nameless = true;
+                }
                 return body;
             },
         },
@@ -143,7 +156,7 @@ let authResult = null;
 let challengeData = null;
 let fingerFallback = 'none';
 let challengeSpeed = 'relaxed'; // 'relaxed', 'normal', 'fast'
-let skipGreeting = false; // F-635: when profile.greeting==='skip', a FULL ceremony drops the greeting/voice-anchor phase (same-session lighter re-auth). Set per-run in run().
+let skipGreeting = false; // F-635/F-648: profile.greeting==='skip' (the seal-gate) makes a FULL ceremony NAME-LESS — the user says ONLY the digits (no greeting, no "I am {name}"). Backend phrase is digits-only so the scorer core = the digits. The phrase phase is KEPT (user still speaks). Set per-run in run().
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
@@ -849,15 +862,16 @@ function goToChallenge() {
     if (fingerFallback === 'voice') {
         document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + phrase + '"</span><br><span style="font-size:12px;color:var(--warning);margin-top:8px;display:inline-block">Voice-only mode (reduced trust score)</span>';
     } else if (skipGreeting) {
-        // F-635-LIGHTER (L-2171): greeting:skip is a LIGHTER full verify — drop the greeting
-        // (the backend skip-lists "kia/ora/hello/..." so it's never scored) but KEEP THE NAME:
-        // the full-verify scorer requires the NAME + digits at 0.80 (anti-replay, config.py S112).
-        // So the user still says "I am {name}" here (the identity clause, greeting stripped), then
-        // the digits per-gesture — NOT digits-only (which fails the 0.80 threshold by design).
-        // identityPart = the phrase from "I am" onward, minus the trailing digits.
-        var _idPart = phrase.replace(/^.*?(I am\s)/i, '$1').replace(/,\s*\d[\d\s,]*$/, '');
-        if (!/I am/i.test(_idPart)) { _idPart = 'I am ' + userData().name; }   // fallback if format differs
-        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px;color:var(--text-primary);font-weight:600">Say: "' + _idPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">then show each number as you say it · no greeting needed, you verified moments ago</span>';
+        // F-648 (was F-635-LIGHTER): the SEAL-GATE name-less re-auth — the user says ONLY the
+        // numbers (the fresh per-session random digits = the anti-replay anchor). No greeting and
+        // NO "I am {name}": the backend phrase is digits-only so the scorer CORE is the digits and a
+        // digits-only read scores 1.0 (config.py 0.80). A copy-only change that left the name in the
+        // backend phrase would score n/(n+1) < 0.80 and FAIL (L-2170) — this stays coherent with the
+        // backend nameless phrase + the live prompt. The spoken name was never a real identity proof
+        // (a known string); identity to the owner is the seal/session layer's job. The digits come
+        // from challengeData.digits (not phrase-parsing) so this is robust to the phrase being bare digits.
+        var _nums = ((challengeData && challengeData.digits) || []).join(' ');
+        document.getElementById('challengeText').innerHTML = '<span style="font-size:15px;color:var(--text-primary);font-weight:600">Say your numbers: "' + _nums + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">then show each number as you say it · no name needed, you verified moments ago</span>';
     } else {
         // R2 (S114): greeting ONLY (greetPart strips the trailing digits). Pre-countdown lead-in
         // (overwritten by "Get ready…" in startCountdown); renderGreeting owns the live prompt. The
@@ -949,10 +963,9 @@ function showChallengeIntro() {
     if (_greetEl) {
         var _g;
         if (skipGreeting) {
-            // F-635-LIGHTER: preview the identity phrase ("I am {name}") the user will say — greeting dropped, name kept.
-            var _ph = (challengeData && challengeData.phrase) || '';
-            _g = _ph.replace(/^.*?(I am\s)/i, '$1').replace(/,\s*\d[\d\s,]*$/, '');
-            if (!/I am/i.test(_g)) { _g = 'I am ' + userData().name; }
+            // F-648: name-less seal re-auth — there is no greeting/identity lead-in to preview.
+            // The numbers are previewed as the digit pips above; the user says only the numbers.
+            _g = '';
         } else {
             _g = vacGreetingText() || '';
         }
@@ -1176,9 +1189,9 @@ function beginRecording() {
         }
     }
     if (skipGreeting) {
-        // F-635-LIGHTER: the phrase phase RUNS (the user says the identity phrase "I am {name}"),
-        // so render the phrase screen normally — renderGreeting shows the identity phrase (greeting
-        // stripped) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
+        // F-648: the phrase phase RUNS (the user still SPEAKS — they say the NUMBERS, the per-session
+        // anti-replay anchor), so render the phrase screen normally — renderGreeting shows the digits
+        // (name-less) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
         try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = 'Quick re-confirm'; _stG.style.color = ''; } } catch(_) {}
         try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }
     } else {
@@ -2151,7 +2164,8 @@ function beginRecording() {
     // server-side is the authoritative word verifier. The old ~400ms threshold (2 ticks) fired on a
     // single cough/scrape/hum burst. Real speech is SUSTAINED + MODULATED over the word duration, so
     // require ~1.4s of voiced energy AND that it actually varies (a flat hum has near-constant rms).
-    // The greeting is always "[word], I am [name]" (>=~1.5s), so this won't stall it. LIVE-TUNE.
+    // The spoken anchor is "[word], I am [name]" (first auth) or — in the F-648 seal gate — the
+    // user saying their numbers (>=~1.5s either way), so this won't stall it. LIVE-TUNE.
     const PHRASE_VOICED_TICKS_NEEDED = 7;             // ~1.4s of voiced energy (TICK_MS=200) — a real multi-word greeting, not a transient
     const PHRASE_MOD_DELTA = 0.045;                  // modulation floor: the voiced run's rms range must exceed this (speech varies; a flat tone/hum doesn't). Best-effort — Gemini is authoritative.
     const PHRASE_SILENCE_TICKS_NEEDED = 2;            // ~400ms end-pause = the greeting utterance is COMPLETE (not a mid-word dip)
@@ -2263,15 +2277,15 @@ function beginRecording() {
         // VOICE-ONLY keeps the full phrase (it has no digit phase, so it must say the numbers here).
         // S114: finger-mode greeting comes from the SINGLE source (vacGreetingText) — same rotating
         // greeting + real name the intro previews — so the two screens can never diverge.
-        // F-635-LIGHTER: when greeting:skip, the live phrase prompt is the IDENTITY phrase
-        // ("I am {name}", greeting stripped) — the user must say the NAME (anti-replay anchor),
-        // just not the greeting. Otherwise (normal) show the greeting; voice-only shows the full phrase.
+        // F-648: when greeting:skip (the seal gate), the live phrase prompt is the NUMBERS only —
+        // the user says the fresh per-session digits (the anti-replay anchor), NO greeting and NO
+        // "I am {name}". The backend phrase is digits-only, so the scorer core is the digits and a
+        // digits-only read scores 1.0. Otherwise (normal) show the greeting; voice-only shows the full phrase.
         var _say;
         if (_vo) {
             _say = _full;
         } else if (skipGreeting) {
-            _say = _full.replace(/^.*?(I am\s)/i, '$1').replace(/,\s*\d[\d\s,]*$/, '');
-            if (!/I am/i.test(_say)) { _say = 'I am ' + userData().name; }
+            _say = ((challengeData && challengeData.digits) || []).join(' ');
         } else {
             _say = vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, '');
         }
@@ -2332,11 +2346,12 @@ function beginRecording() {
         // unset (0) timestamp as "beat already done".
         if (phraseSpoke && _phraseTimerDone && !_phraseHeardAt) _phraseHeardAt = performance.now();
         const _heardBeatDone = !phraseSpoke || (_phraseHeardAt && (performance.now() - _phraseHeardAt >= GREET_HEARD_BEAT_MS));
-        // F-635-LIGHTER (L-2171): greeting:skip KEEPS the phrase phase — the user must still SAY
-        // the identity phrase ("I am {name}") here, because the backend scorer requires the NAME
-        // (anti-replay, 0.80). The PREVIOUS build bypassed this phase (skipGreeting || ...) so only
-        // digits were said → failed the 0.80 threshold. Now greeting:skip runs the normal phrase
-        // gate (just with greeting-less prompt copy); only the GREETING WORDS are dropped, not the phase.
+        // F-648 (was F-635-LIGHTER / L-2171): greeting:skip KEEPS the phrase phase — the user must
+        // still SPEAK here (now they say the NUMBERS, the per-session anti-replay anchor). The phase
+        // is the voice/liveness anchor + the F-595 digit-gate calibration; it must NOT be bypassed
+        // (an earlier build bypassed it so nothing was scored → the L-2170 trap). greeting:skip runs
+        // the normal phrase gate with name-less prompt copy; the backend phrase is digits-only so the
+        // digits-only read scores 1.0 (the name is gone from BOTH the prompt and the expected phrase).
         const _advanceGreeting = _phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone);
         if (_advanceGreeting) {
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
@@ -4122,10 +4137,10 @@ const VACReauth = {
                 var _hs = document.getElementById('step2HeaderSub');
                 var _cct = document.getElementById('combinedCaptureText');
                 if (skipGreeting) {
-                    // F-635-LIGHTER: full verify minus the greeting — the user STILL says "I am {name}"
-                    // (the name is the anti-replay anchor), then the numbers. Greeting dropped, name kept.
-                    if (_hs) _hs.textContent = 'Say "I am [your name]", then show each number as you say it. Wait for the ✓.';
-                    if (_cct) _cct.textContent = 'Say "I am [your name]", then show each number as you say it — one take. No greeting needed; you verified moments ago.';
+                    // F-648: name-less seal re-auth — say the NUMBERS only (the per-session anti-replay
+                    // anchor); no name, no greeting. Backend phrase is digits-only (scorer core = digits).
+                    if (_hs) _hs.textContent = 'Say your numbers, showing each on your fingers. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Say your numbers out loud, then show each on your fingers as you say it — one take. No name or greeting needed; you verified moments ago.';
                 } else {
                     // fast still-capture (vat-verify): genuinely one number, no phrase.
                     if (_hs) _hs.textContent = 'Show the number in front of your face. Wait for the ✓.';
