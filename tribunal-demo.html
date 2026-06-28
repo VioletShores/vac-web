@@ -1459,6 +1459,11 @@ async function viewCredentialReauth(){
   const btn=document.getElementById('rdBtn');
   if(btn){btn.disabled=true;btn.textContent='Starting quick check…';}
   if(!cerEmail()) return reauthDegrade('no_session');
+  // No camera / non-secure context → the fast face check structurally cannot run. Degrade to the
+  // retry-safe tier probe (renders the server-attested fallback + re-enables the button) instead of
+  // launching the shared ceremony, whose requestCamera() error UI does NOT call onFallback and would
+  // leave the outer "Re-authorise" button stuck disabled until a manual back-out (codex P2).
+  if(!cerCamSupported()) return reauthDegrade('camera_unavailable');
   const mount=document.getElementById('vacReauthMount');
   if(!mount || typeof VACReauth==='undefined' || !VACReauth.run){
     // No shared component available → degrade to the retry-safe tier probe
