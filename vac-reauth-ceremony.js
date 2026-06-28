@@ -240,6 +240,13 @@ async function requestCamera() {
         // Warm the face-EMBEDDING models now so the enrollment descriptor is ready by
         // the time recording completes (face-api.js loads ~12MB on first use, cached after).
         try { if (window.VACFaceEmbed) window.VACFaceEmbed.ready(); } catch(_) {}
+        // F-637c / codex P2: FAST still also needs MediaPipe ready — beginStillCapture reads a
+        // single FingerDetector.detect() for the bound digit (detected_fingers). FULL warms it via
+        // the hand pre-flight, but fast now skips that block, so warm it explicitly here (in
+        // addition to the page-load auto-init at FingerDetector.init). Idempotent ("no-op if
+        // already running"), so a cold/slow detector is loading through the whole pre-flight +
+        // countdown instead of risking a null finger read at capture. Fast-only; FULL unchanged.
+        try { if (modeConfig().capture.kind === 'still' && typeof FingerDetector !== 'undefined' && FingerDetector.init) FingerDetector.init(); } catch(_) {}
         document.getElementById('cameraLabel').textContent = 'CAMERA ACTIVE';
 
         // Show AV checks immediately — don't wait for challenge fetch
@@ -414,6 +421,26 @@ function startAVChecks() {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
+    // FAST still (S120 unify / F-637c): the quiet single-still re-auth has NO gesture/hand
+    // step — it must look like the FULL face framing (one #faceOval), not the hand-zone
+    // apparatus. So for capture.kind==='still' hide the Hand pill + hand hint and strip any
+    // stale show-hand-zone/hand-in-zone chrome off #cameraBox on EVERY entry (covers the
+    // retryAVSetup re-entry, not just the initial DOM). Deterministic display ('' restores
+    // the pill for FULL) so re-running in either mode lands the right state. The hand
+    // pre-flight block (runAVFrame) + the Start-gate (updateAVReady) are gated on the SAME
+    // _fastStill below; FULL/clip is byte-unchanged (regression-guarded default).
+    const _fastStill = (modeConfig().capture.kind === 'still');
+    try {
+        const _ph = document.getElementById('avPillHand'); if (_ph) _ph.style.display = _fastStill ? 'none' : '';
+        if (_fastStill) {
+            const _hh = document.getElementById('avHandHint'); if (_hh) _hh.style.display = 'none';
+            const _cb = document.getElementById('cameraBox'); if (_cb) _cb.classList.remove('show-hand-zone', 'hand-in-zone');
+            // The static Step-1 sub-header is gesture-ceremony copy ("Say a greeting, then show
+            // each number...") — false for a quiet still. Swap it for fast-accurate copy so the
+            // pre-flight reads consistently (FULL keeps the static gesture copy via the markup).
+            const _hs = document.getElementById('avHeaderSub'); if (_hs) _hs.textContent = 'Find good light and test your mic, then hold still for a quick face check.';
+        }
+    } catch(_) {}
     // Set up audio analyser
     try {
         avAudioCtx = new AudioContext();
@@ -500,7 +527,12 @@ function startAVChecks() {
         // separate video (videoPreview), separate overlay (avHandOverlay); does NOT
         // touch the in-challenge loop. Guarded — never blocks Proceed.
         try {
-            if (FingerDetector.ready) {
+            // FAST still skips the hand pre-flight entirely (no show-hand-zone add, no
+            // hand detection, no "hold your hand up" hint, no avChecks.hand gating) — the
+            // fast verdict is face + the bound digit, a quiet still. FULL/clip (_fastStill
+            // false) runs the unchanged hand practice. _fastStill is the SAME flag set in
+            // startAVChecks (runAVFrame is its closure).
+            if (!_fastStill && FingerDetector.ready) {
                 const pv = document.getElementById('videoPreview');
                 const n = FingerDetector.detect(pv);          // warms the model + gives landmarks
                 const lm = FingerDetector.landmarks;
@@ -617,15 +649,30 @@ function updateMicTips() {
 function updateAVReady() {
     const btn = document.getElementById('btnCamera');
     const guide = document.getElementById('avGuide');
+    // FAST still (S120) has NO hand step: only light + mic gate Start (the hand pre-flight
+    // is skipped in startAVChecks/runAVFrame). FULL/clip keeps the light, mic, hand gate
+    // unchanged (regression-guarded default).
+    const _fastStill = (modeConfig().capture.kind === 'still');
+    // FAST: the bound digit is read by a single FingerDetector.detect() in beginStillCapture, so
+    // the detector must have RESOLVED (ready OR definitively failed) before capture can start —
+    // else a cold/slow MediaPipe load yields detected_fingers:null (codex P2). Gate on resolution,
+    // NOT on a hand gesture (that was the bug): ready => the finger read works; failed => proceed
+    // anyway (no strand; the server face-embedding identity check still gates). Undefined detector
+    // => treat as resolved (can't strand on a missing module; finger detection is moot then). The
+    // old hand gate guaranteed this implicitly via avChecks.hand requiring a successful detect.
+    const _fastDetectorReady = (typeof FingerDetector === 'undefined') || !!FingerDetector.ready || !!FingerDetector.failed;
     // S110 (F-559): guided sequential gate — walk the user through light → mic → hand,
     // one at a time, with explicit instructions. All three must pass before Start.
     if (guide) {
+        const _steps = _fastStill ? 2 : 3;   // fast: light+mic; full: +hand
         if (!avChecks.light) {
-            guide.textContent = 'Step 1 of 3 — find good lighting so your face is clearly visible';
+            guide.textContent = 'Step 1 of ' + _steps + ' — find good lighting so your face is clearly visible';
         } else if (!avChecks.mic) {
-            guide.textContent = 'Step 2 of 3 — say a few words to test your microphone';
-        } else if (!avChecks.hand) {
+            guide.textContent = 'Step 2 of ' + _steps + ' — say a few words to test your microphone';
+        } else if (!_fastStill && !avChecks.hand) {
             guide.textContent = 'Step 3 of 3 — hold your hand up in front of your face, inside the oval (you\u2019ll see it tracked)';
+        } else if (_fastStill && !_fastDetectorReady) {
+            guide.textContent = 'Finishing setup, one moment...';
         } else {
             guide.textContent = 'All set \u2713  You\u2019re ready to verify';
             guide.style.color = 'var(--success)';
@@ -633,7 +680,7 @@ function updateAVReady() {
             guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
         }
     }
-    const allGood = avChecks.light && avChecks.mic && avChecks.hand;
+    const allGood = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
     if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
         btn.disabled = !allGood;
         btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
@@ -1688,7 +1735,12 @@ function beginRecording() {
         try {
             var _camBox = document.getElementById('cameraBoxRec');
             _camBox.classList.toggle('hand-visible', _handPresent);
-            _camBox.classList.add('show-hand-zone');                 // reveal the hand guide during the gesture step
+            // Defense-in-depth (S120): NEVER reveal the hand-zone apparatus for a fast still
+            // (capture.kind==='still') — it would hide #faceOval (CSS .show-hand-zone .face-oval
+            // {display:none}) and show the dotted hand oval. This loop is full/clip-only at
+            // runtime (startCountdown routes fast -> beginStillCapture, not beginRecording), so
+            // this guard is belt-and-suspenders against a future fast caller. FULL: unchanged.
+            if (modeConfig().capture.kind !== 'still') _camBox.classList.add('show-hand-zone');   // reveal the hand guide during the gesture step
             _camBox.classList.toggle('hand-in-zone', _handNear);     // green when the hand reaches the near-face zone
         } catch(_){}
         // S110: hand-too-close / partially-out-of-frame guard (Rob — last digit
@@ -3333,7 +3385,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Mic</div>
-        <div class="header-sub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
+        <div class="header-sub" id="avHeaderSub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
