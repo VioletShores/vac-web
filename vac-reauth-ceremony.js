@@ -439,7 +439,7 @@ function startAVChecks() {
             // The static Step-1 sub-header is gesture-ceremony copy ("Say a greeting, then show
             // each number...") — false for a quiet still. Swap it for fast-accurate copy so the
             // pre-flight reads consistently (FULL keeps the static gesture copy via the markup).
-            const _hs = document.getElementById('step2HeaderSub'); if (_hs) _hs.textContent = 'Find good light and test your mic, then hold still for a quick face check.';
+            const _hs = document.getElementById('step2HeaderSub'); if (_hs) { _hs.textContent = 'Hold still for a quick face check — one photo confirms it\u2019s you.'; _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px'; }
         }
     } catch(_) {}
     // Set up audio analyser
