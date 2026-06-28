@@ -1505,6 +1505,8 @@ async function viewCredentialReauth(){
         ? { state:'fast', ceremony:true,
             reauth_tier:(result && result.reauth_tier) || 'fast_one_digit_bound',
             fast_tier_eligible:(!result || result.fast_tier_eligible!==false),
+            digit:(result && result.digit!=null) ? result.digit : null,        // bound digit, surfaced by VACReauth fast result
+            detected:(result && result.detected_fingers!=null) ? result.detected_fingers : null,  // advisory finger count
             qr_aar_id:(result && result.aar_id) || null }
         : { state:'failed', ceremony:true, reason:(result && result.reason) || 'not_authenticated' };
       // PRESERVE THE AUDIT CHAIN — authorize against the seal token, write the AAR,
@@ -1536,7 +1538,7 @@ function renderReauthResult(authz,tier){
   let viewCard;
   if(tier.state==='fast'){
     const why = ceremony
-      ? 'You just did it — one bound number ('+esc(String(tier.digit))+'): shown to camera, matched against your verified face. The backend ran the fast one-digit-bound tier (face-embedding match + ONE bound digit + passive liveness), not full tri-modal.'
+      ? 'You just did it — one bound number'+(tier.digit!=null?' ('+esc(String(tier.digit))+')':'')+': shown to camera, matched against your verified face. The backend ran the fast one-digit-bound tier (face-embedding match + ONE bound digit + passive liveness), not full tri-modal.'
       : 'You verified moments ago — the backend selected the fast one-digit-bound tier (face embedding + ONE bound digit + passive liveness), not full tri-modal.';
     viewCard='<div class="rd-tier rd-fast"><div class="rd-act">view_credential · low</div>'+
       '<div class="rd-name">Quick re-auth'+(ceremony?' · done':(tier.degraded?' · eligible (probe)':''))+'</div>'+
@@ -1565,7 +1567,7 @@ function renderReauthResult(authz,tier){
   if(authz.attested){
     facts='<div class="rd-kv">authorize fired: <span class="'+(authz.authorized?'ok':'warn')+'">'+(authz.authorized?'authorized=true':'authorized=false'+(authz.reason?(' ('+esc(String(authz.reason))+')'):''))+'</span>'+
       (cerOK?' · <span class="ok">quick-reauth authenticated=true</span>':'')+
-      (cerOK&&typeof tier.detected!=='undefined'?' · <span class="rk">finger '+esc(String(tier.detected))+' (advisory)</span>':'')+
+      (cerOK&&tier.detected!=null?' · <span class="rk">finger '+esc(String(tier.detected))+' (advisory)</span>':'')+
       (aar?(' · <span class="rk">AAR '+esc(String(aar))+'</span>'):'')+
       (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+(typeof tier.fast_tier_eligible==='boolean'?(', fast_tier_eligible='+tier.fast_tier_eligible):'')+'</span>'):'')+
       '</div>';

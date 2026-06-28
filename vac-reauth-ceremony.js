@@ -2615,6 +2615,17 @@ async function runFastVerification(parts) {
         // can co-exist with authenticated:false. Unknown / missing verdict → denied (fail-closed).
         const _ok = !!(authResult && (authResult.authenticated === true || authResult.authorized === true));
         try { vacDebug('fast_reauth_result', null, { ok: _ok, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
+        // Surface the bound digit + advisory detected-finger count onto the result so hosts can
+        // render the proof faithfully (tribunal's success card interpolates result.digit). The
+        // server need not echo them: the bound digit is THIS run's challenge (challengeData.digits)
+        // and the detected count is what beginStillCapture read (parts.detected_fingers). Only fill
+        // when the server didn't already provide a value, so a server-authoritative field wins.
+        if (_ok && authResult && typeof authResult === 'object') {
+            try {
+                if (authResult.digit == null) authResult.digit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
+                if (authResult.detected_fingers == null) authResult.detected_fingers = (parts && parts.detected_fingers != null) ? parts.detected_fingers : null;
+            } catch(_) {}
+        }
         if (_ok) { _finish(); return; }
         try { vacDebug('fast_reauth_denied'); } catch(_) {}
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied')); } catch(_) {} }
@@ -4113,8 +4124,8 @@ const VACReauth = {
                     if (_cct) _cct.textContent = 'Say "I am [your name]", then show each number as you say it — one take. No greeting needed; you verified moments ago.';
                 } else {
                     // fast still-capture (vat-verify): genuinely one number, no phrase.
-                    if (_hs) _hs.textContent = 'Show the number and say it, in front of your face. Wait for the ✓.';
-                    if (_cct) _cct.textContent = 'Show the number as you say it, in front of your face — a quick face + number check. You verified moments ago, so no greeting is needed.';
+                    if (_hs) _hs.textContent = 'Show the number in front of your face. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Show the number in front of your face — a quick face + number check. You verified moments ago, so no greeting is needed.';
                 }
             } catch(_) {}
         }
