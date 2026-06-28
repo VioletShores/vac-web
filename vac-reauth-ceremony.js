@@ -75,6 +75,15 @@ const MODE_CONFIG = {
                     email: (parts && parts.email) || userData().email,
                     detected_fingers: (parts && parts.detected_fingers != null) ? parts.detected_fingers : null,
                     face_still_b64: (parts && parts.face_still_b64 != null) ? parts.face_still_b64 : (window.__vacFaceStillB64 || ''),
+                    // F-637c: LIVE 128-D identity descriptor (face-api.js), single-face enforced
+                    // upstream in beginStillCapture. The server runs its euclidean identity check
+                    // (live vs stored enroll) on this — omitting it was why quick-reauth failed at
+                    // embedding_invalid every time. RAW array in this JSON envelope (the FULL path
+                    // JSON.stringifies only because it appends to FormData). In practice this is
+                    // always the live vector: the only path with no descriptor fails closed in
+                    // beginStillCapture + is re-checked in runFastVerification, so verify is never
+                    // reached with a null embedding. The `: null` is a defensive floor, not a route.
+                    face_embedding: (parts && parts.face_embedding != null) ? parts.face_embedding : null,
                 };
             },
         },
@@ -232,6 +241,13 @@ async function requestCamera() {
         // Warm the face-EMBEDDING models now so the enrollment descriptor is ready by
         // the time recording completes (face-api.js loads ~12MB on first use, cached after).
         try { if (window.VACFaceEmbed) window.VACFaceEmbed.ready(); } catch(_) {}
+        // F-637c / codex P2: FAST still also needs MediaPipe ready — beginStillCapture reads a
+        // single FingerDetector.detect() for the bound digit (detected_fingers). FULL warms it via
+        // the hand pre-flight, but fast now skips that block, so warm it explicitly here (in
+        // addition to the page-load auto-init at FingerDetector.init). Idempotent ("no-op if
+        // already running"), so a cold/slow detector is loading through the whole pre-flight +
+        // countdown instead of risking a null finger read at capture. Fast-only; FULL unchanged.
+        try { if (modeConfig().capture.kind === 'still' && typeof FingerDetector !== 'undefined' && FingerDetector.init) FingerDetector.init(); } catch(_) {}
         document.getElementById('cameraLabel').textContent = 'CAMERA ACTIVE';
 
         // Show AV checks immediately — don't wait for challenge fetch
@@ -406,6 +422,26 @@ function startAVChecks() {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
+    // FAST still (S120 unify / F-637c): the quiet single-still re-auth has NO gesture/hand
+    // step — it must look like the FULL face framing (one #faceOval), not the hand-zone
+    // apparatus. So for capture.kind==='still' hide the Hand pill + hand hint and strip any
+    // stale show-hand-zone/hand-in-zone chrome off #cameraBox on EVERY entry (covers the
+    // retryAVSetup re-entry, not just the initial DOM). Deterministic display ('' restores
+    // the pill for FULL) so re-running in either mode lands the right state. The hand
+    // pre-flight block (runAVFrame) + the Start-gate (updateAVReady) are gated on the SAME
+    // _fastStill below; FULL/clip is byte-unchanged (regression-guarded default).
+    const _fastStill = (modeConfig().capture.kind === 'still');
+    try {
+        const _ph = document.getElementById('avPillHand'); if (_ph) _ph.style.display = _fastStill ? 'none' : '';
+        if (_fastStill) {
+            const _hh = document.getElementById('avHandHint'); if (_hh) _hh.style.display = 'none';
+            const _cb = document.getElementById('cameraBox'); if (_cb) _cb.classList.remove('show-hand-zone', 'hand-in-zone');
+            // The static Step-1 sub-header is gesture-ceremony copy ("Say a greeting, then show
+            // each number...") — false for a quiet still. Swap it for fast-accurate copy so the
+            // pre-flight reads consistently (FULL keeps the static gesture copy via the markup).
+            const _hs = document.getElementById('step2HeaderSub'); if (_hs) _hs.textContent = 'Find good light and test your mic, then hold still for a quick face check.';
+        }
+    } catch(_) {}
     // Set up audio analyser
     try {
         avAudioCtx = new AudioContext();
@@ -492,7 +528,12 @@ function startAVChecks() {
         // separate video (videoPreview), separate overlay (avHandOverlay); does NOT
         // touch the in-challenge loop. Guarded — never blocks Proceed.
         try {
-            if (FingerDetector.ready) {
+            // FAST still skips the hand pre-flight entirely (no show-hand-zone add, no
+            // hand detection, no "hold your hand up" hint, no avChecks.hand gating) — the
+            // fast verdict is face + the bound digit, a quiet still. FULL/clip (_fastStill
+            // false) runs the unchanged hand practice. _fastStill is the SAME flag set in
+            // startAVChecks (runAVFrame is its closure).
+            if (!_fastStill && FingerDetector.ready) {
                 const pv = document.getElementById('videoPreview');
                 const n = FingerDetector.detect(pv);          // warms the model + gives landmarks
                 const lm = FingerDetector.landmarks;
@@ -609,15 +650,30 @@ function updateMicTips() {
 function updateAVReady() {
     const btn = document.getElementById('btnCamera');
     const guide = document.getElementById('avGuide');
+    // FAST still (S120) has NO hand step: only light + mic gate Start (the hand pre-flight
+    // is skipped in startAVChecks/runAVFrame). FULL/clip keeps the light, mic, hand gate
+    // unchanged (regression-guarded default).
+    const _fastStill = (modeConfig().capture.kind === 'still');
+    // FAST: the bound digit is read by a single FingerDetector.detect() in beginStillCapture, so
+    // the detector must have RESOLVED (ready OR definitively failed) before capture can start —
+    // else a cold/slow MediaPipe load yields detected_fingers:null (codex P2). Gate on resolution,
+    // NOT on a hand gesture (that was the bug): ready => the finger read works; failed => proceed
+    // anyway (no strand; the server face-embedding identity check still gates). Undefined detector
+    // => treat as resolved (can't strand on a missing module; finger detection is moot then). The
+    // old hand gate guaranteed this implicitly via avChecks.hand requiring a successful detect.
+    const _fastDetectorReady = (typeof FingerDetector === 'undefined') || !!FingerDetector.ready || !!FingerDetector.failed;
     // S110 (F-559): guided sequential gate — walk the user through light → mic → hand,
     // one at a time, with explicit instructions. All three must pass before Start.
     if (guide) {
+        const _steps = _fastStill ? 2 : 3;   // fast: light+mic; full: +hand
         if (!avChecks.light) {
-            guide.textContent = 'Step 1 of 3 — find good lighting so your face is clearly visible';
+            guide.textContent = 'Step 1 of ' + _steps + ' — find good lighting so your face is clearly visible';
         } else if (!avChecks.mic) {
-            guide.textContent = 'Step 2 of 3 — say a few words to test your microphone';
-        } else if (!avChecks.hand) {
+            guide.textContent = 'Step 2 of ' + _steps + ' — say a few words to test your microphone';
+        } else if (!_fastStill && !avChecks.hand) {
             guide.textContent = 'Step 3 of 3 — hold your hand up in front of your face, inside the oval (you\u2019ll see it tracked)';
+        } else if (_fastStill && !_fastDetectorReady) {
+            guide.textContent = 'Finishing setup, one moment...';
         } else {
             guide.textContent = 'All set \u2713  You\u2019re ready to verify';
             guide.style.color = 'var(--success)';
@@ -625,7 +681,7 @@ function updateAVReady() {
             guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
         }
     }
-    const allGood = avChecks.light && avChecks.mic && avChecks.hand;
+    const allGood = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
     if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
         btn.disabled = !allGood;
         btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
@@ -1743,7 +1799,12 @@ function beginRecording() {
         try {
             var _camBox = document.getElementById('cameraBoxRec');
             _camBox.classList.toggle('hand-visible', _handPresent);
-            _camBox.classList.add('show-hand-zone');                 // reveal the hand guide during the gesture step
+            // Defense-in-depth (S120): NEVER reveal the hand-zone apparatus for a fast still
+            // (capture.kind==='still') — it would hide #faceOval (CSS .show-hand-zone .face-oval
+            // {display:none}) and show the dotted hand oval. This loop is full/clip-only at
+            // runtime (startCountdown routes fast -> beginStillCapture, not beginRecording), so
+            // this guard is belt-and-suspenders against a future fast caller. FULL: unchanged.
+            if (modeConfig().capture.kind !== 'still') _camBox.classList.add('show-hand-zone');   // reveal the hand guide during the gesture step
             _camBox.classList.toggle('hand-in-zone', _handNear);     // green when the hand reaches the near-face zone
         } catch(_){}
         // S110: hand-too-close / partially-out-of-frame guard (Rob — last digit
@@ -2439,6 +2500,7 @@ async function beginStillCapture() {
     try { vacDebug('begin_still_capture_called'); } catch(_) {}
     let detectedFingers = null;
     let stillB64 = '';
+    let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
     try {
         const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
@@ -2455,6 +2517,29 @@ async function beginStillCapture() {
             const dataUrl = c.toDataURL('image/jpeg', 0.9);
             const comma = dataUrl.indexOf(',');
             if (comma !== -1) stillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
+            // F-637c: compute the LIVE 128-D face descriptor from the SAME captured still and send
+            // it as face_embedding — without it the server fails quick-reauth at embedding_invalid
+            // and the euclidean identity check (live vs stored enroll) never runs. Mirrors the FULL
+            // clip path (onRecordingComplete) + the existing re-auth SDK (vac-auth.js). VACFaceEmbed
+            // enforces single-face: ok:true ONLY for exactly one face with a valid 128-D vector;
+            // 0 faces / >1 face / detector error → ok:false. compute() lazily awaits model load, so
+            // a cold model waits; we cap that wait with a fail-closed timeout so a stalled model can
+            // never strand the user (it routes to fallback instead). Computing from `c` keeps the
+            // descriptor and the still_b64 pixel-identical. We await BEFORE building parts, so
+            // buildBody can never read face_embedding before the descriptor resolves (no race).
+            if (window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+                try {
+                    const _EMB_TIMEOUT_MS = 10000;
+                    const r = await Promise.race([
+                        window.VACFaceEmbed.compute(c),
+                        new Promise(function(resolve){ setTimeout(function(){ resolve({ ok:false, reason:'embed_timeout' }); }, _EMB_TIMEOUT_MS); })
+                    ]);
+                    if (r && r.ok) { faceEmbedding = r.embedding; console.log('[VAC] Fast reauth embedding computed (dim ' + r.embedding.length + ')'); }
+                    else { try { vacDebug('fast_reauth_embedding_failed', (r && r.reason) || 'no_result', { faceCount: (r && r.faceCount != null) ? r.faceCount : null }); } catch(_) {} }
+                } catch (ee) { try { vacDebug('fast_reauth_embedding_failed', 'compute_threw'); } catch(_) {} }
+            } else {
+                try { vacDebug('fast_reauth_embedding_failed', 'embedder_absent'); } catch(_) {}
+            }
         }
     } catch (e) {
         // Never fabricate — an empty still tells the backend to fail-close (same contract as the clip still).
@@ -2464,7 +2549,17 @@ async function beginStillCapture() {
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
     goToStep(3);
-    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64 });
+    // F-637c FAIL-CLOSED: the server's identity gate REQUIRES a live descriptor. With no clean
+    // single-face embedding (0/>1 face, embedder down/absent/timeout, capture error) there is no
+    // identity proof to send, so we NEVER POST a body the server could 200 on — it would fail at
+    // embedding_invalid anyway. Route to the host fallback exactly as a denied/failed verify does
+    // (same onFallback(error) contract as runFastVerification's error path).
+    if (faceEmbedding == null) {
+        try { vacDebug('fast_reauth_failed', 'embedding_missing_fail_closed'); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: no live face embedding')); } catch(_) {} }
+        return;
+    }
+    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64, face_embedding: faceEmbedding });
 }
 
 // F-624 Rung 2 (FAST verify): POST the small JSON envelope to /v1/auth/quick-reauth
@@ -2473,6 +2568,31 @@ async function beginStillCapture() {
 // the host sees an identical success path regardless of mode. Failures route to the
 // host's onFallback, mirroring the clip path's error handoff.
 async function runFastVerification(parts) {
+    // F-637c (defense-in-depth, codex gate): re-verify the LIVE embedding shape at the terminal
+    // POST path, not only in beginStillCapture. This is security-sensitive auth — a future/alternate
+    // caller of runFastVerification must NOT be able to POST a body without a real 128-D identity
+    // vector. Require a plain Array of EXPECTED_DIM finite numbers (a plain array also guarantees the
+    // JSON serializes as [..], not the {"0":..} a typed array would). No valid embedding → fail
+    // closed to the host fallback, never POST. The normal fast flow always passes (beginStillCapture
+    // supplies a clean compute() result), so this only fires on an invalid/missing vector.
+    const _EMB_DIM = (window.VACFaceEmbed && window.VACFaceEmbed.EXPECTED_DIM) || 128;
+    const _emb = parts && parts.face_embedding;
+    // Indexed loop, NOT Array.prototype.every: .every() SKIPS array holes, so a sparse array such
+    // as new Array(128) would pass the finite-check vacuously and POST [null,null,...]. Reading
+    // _emb[_i] yields undefined for a hole → typeof !== 'number' → rejected. Mirrors the per-index
+    // validation VACFaceEmbed.compute itself uses, so a real dense descriptor still passes.
+    let _embOk = Array.isArray(_emb) && _emb.length === _EMB_DIM;
+    if (_embOk) {
+        for (let _i = 0; _i < _EMB_DIM; _i++) {
+            const _v = _emb[_i];
+            if (typeof _v !== 'number' || !isFinite(_v)) { _embOk = false; break; }
+        }
+    }
+    if (!_embOk) {
+        try { vacDebug('fast_reauth_failed', 'embedding_invalid_preflight'); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: invalid live face embedding')); } catch(_) {} }
+        return;
+    }
     const vCfg = modeConfig().verify;
     try {
         const _body = vCfg.buildBody(parts);   // fast → JSON object; full → FormData
