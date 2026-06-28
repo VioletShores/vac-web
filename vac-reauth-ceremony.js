@@ -986,11 +986,25 @@ function showChallengeIntro() {
     // D-INTRO-GREETING-NUMBERS-ASYMMETRY (S114): preview the ACTUAL greeting from the SAME source the
     // greeting screen uses (rotating greeting + verified name). textContent = no markup-injection risk.
     var _greetEl = document.getElementById('challengeIntroGreeting');
+    // F-654: the INTRO copy must derive from the SAME policy as the flow — when COPS/PID
+    // drops the voice phase (seal re-auth), the intro must NOT say "First a greeting" /
+    // "Say a short greeting", because the flow goes straight to digits+fingers. Rewrite the
+    // headline + body from the policy so the intro can never promise a greeting the flow
+    // doesn't have (the drift Rob caught). Non-seal (voice present) keeps the static copy.
+    var _noVoice = false;
+    try { _noVoice = reauthPolicyDropsVoicePhrase(); } catch(_) {}
+    var _hEl = document.getElementById('challengeIntroHeadline');
+    var _bEl = document.getElementById('challengeIntroBody');
+    if (_noVoice) {
+        var _n = digits.length;
+        if (_hEl) _hEl.innerHTML = 'Show your numbers,<br>one at a time.';
+        if (_bEl) _bEl.innerHTML = 'Say your <strong style="color:var(--text-primary);">' + _n + (_n === 1 ? ' number' : ' numbers') + '</strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it at the same time</strong>, all in one continuous take.<br>We\u2019ll guide you through each step with a <span style="color:#22c55e;font-weight:700;">\u2713</span> as you go.';
+    }
     if (_greetEl) {
         var _g;
-        if (skipGreeting) {
-            // F-648: name-less seal re-auth — there is no greeting/identity lead-in to preview.
-            // The numbers are previewed as the digit pips above; the user says only the numbers.
+        if (skipGreeting || _noVoice) {
+            // F-648 / F-654: name-less seal re-auth — there is no greeting/identity lead-in to
+            // preview. The numbers are previewed as the digit pips above; the user says only the numbers.
             _g = '';
         } else {
             _g = vacGreetingText() || '';
@@ -3747,9 +3761,9 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
   <div style="max-width:520px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;justify-content:center;text-align:center;gap:clamp(16px,3vh,28px);">
     <div>
       <div style="font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--teal);text-transform:uppercase;margin-bottom:10px;">Before we start</div>
-      <div style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary);">First a greeting,<br>then your numbers.</div>
+      <div id="challengeIntroHeadline" style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary);">First a greeting,<br>then your numbers.</div>
     </div>
-    <div style="font-size:clamp(15px,4vw,18px);line-height:1.5;color:var(--text-secondary);">
+    <div id="challengeIntroBody" style="font-size:clamp(15px,4vw,18px);line-height:1.5;color:var(--text-secondary);">
       Say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it's you. Then <strong style="color:var(--text-primary);"><span id="challengeIntroCount">3 numbers</span></strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it at the same time</strong>, all in one continuous take.<br>
       We'll guide you through each step with a <span style="color:#22c55e;font-weight:700;">✓</span> as you go.
     </div>
