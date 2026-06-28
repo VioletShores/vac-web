@@ -1223,7 +1223,18 @@ function beginRecording() {
             challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
         }
     }
-    if (skipGreeting) {
+    if (_dropVoicePhrase) {
+        // F-654: COPS/PID policy dropped the voice-phrase modality (same-session SEAL re-auth —
+        // full strength, no greeting). Do NOT render the spoken-phrase screen at all: open the
+        // recording DIRECTLY in the finger/digit phase. renderGreeting() paints the audio-only
+        // phrase screen (camera + mic, no hand skeleton) — calling it even once shows the "silly"
+        // up-front audio phase before the finger phase. With PHRASE_DURATION=0, updatePhasePrompt(0)
+        // renders the FINGER branch (sec < 0 is false), so the user lands straight on the
+        // skeleton+digit phase. The digits are still spoken per gesture there, so liveness/voice is
+        // captured — just not as a separate phase.
+        try { var _stNV = document.getElementById('step2Title'); if (_stNV) { _stNV.textContent = 'Quick re-confirm'; _stNV.style.color = ''; } } catch(_) {}
+        try { updatePhasePrompt(0); } catch(_) {}
+    } else if (skipGreeting) {
         // F-648: the phrase phase RUNS (the user still SPEAKS — they say the NUMBERS, the per-session
         // anti-replay anchor), so render the phrase screen normally — renderGreeting shows the digits
         // (name-less) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
@@ -2387,7 +2398,15 @@ function beginRecording() {
         // (an earlier build bypassed it so nothing was scored → the L-2170 trap). greeting:skip runs
         // the normal phrase gate with name-less prompt copy; the backend phrase is digits-only so the
         // digits-only read scores 1.0 (the name is gone from BOTH the prompt and the expected phrase).
-        const _advanceGreeting = _phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone);
+        const _advanceGreeting = _dropVoicePhrase ? true : (_phraseTimerDone && _phraseGateOk && (_voiceOnly || _heardBeatDone));
+        // F-654: when COPS/PID policy drops the voice-phrase modality (the same-session SEAL
+        // re-auth — full strength, no greeting), there is NO spoken-phrase phase to wait for.
+        // The speech gate (_phraseGateOk) would otherwise hold here waiting for phraseSpoke /
+        // the 12s hard cap even with PHRASE_DURATION=0, which is exactly the "asks for audio
+        // first" symptom. Advance straight to the digit/finger phase — the digits are spoken
+        // per gesture there, so the voice/liveness signal is still captured, just not as a
+        // separate up-front phase. (Non-seal paths are unchanged: _dropVoicePhrase defaults
+        // false unless the server policy affirmatively lists no voice modality.)
         if (_advanceGreeting) {
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
             // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
