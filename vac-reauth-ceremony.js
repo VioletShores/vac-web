@@ -818,20 +818,24 @@ function goToChallenge() {
         var _digit = (_fc.spoken_digit != null) ? _fc.spoken_digit
                    : (_fc.digits && _fc.digits.length ? _fc.digits[0]
                    : (typeof _fc.fingers === 'number' ? _fc.fingers : null));
+        // FAST tier posts NO audio (embedding-gated) — so the instruction must NOT say "say it".
+        // Show the bound number to the camera, hold still for the face check. (honesty: L-2150)
         var _instr = _fc.bound_instruction
-                   || (_digit != null ? ('Hold up ' + _digit + ' and say “' + _digit + '” at the same time') : 'Show the number and say it');
+                   || (_digit != null ? ('Hold up ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' to the camera') : 'Show the number to the camera');
         var _ctEl = document.getElementById('challengeText');
         if (_ctEl) {
             _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
-                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> and say “<span style="color:var(--purple)">' + _digit + '</span>”')
+                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' to the camera')
                                   : _instr)
-                + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">in front of your face — one quick check</div>';
+                + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.</div>';
         }
         var _recVidF = document.getElementById('videoPreviewRec');
         if (_recVidF) { _recVidF.srcObject = mediaStream; _recVidF.muted = true; _recVidF.setAttribute('playsinline',''); _recVidF.play().catch(function(){}); }
         try { vacDebug('fast_direct_path', null, { has_digit: _digit != null, digit: _digit, has_bound_instruction: !!_fc.bound_instruction }); } catch(_) {}
         goToStep(2);
-        setTimeout(function(){ startCountdown(); }, 400);  // brief beat so the user reads the instruction; no greeting, no explainer
+        // L-2168: bring the user into the process — give a readable beat to absorb the instruction
+        // before the countdown starts, instead of snapping immediately. 1.6s ≈ time to read one line.
+        setTimeout(function(){ startCountdown(); }, 1600);  // readable lead-in; no greeting, no explainer
         return;  // do NOT run the full greeting/voice/warmup/explainer path below
     }
     // ─────────────────────────────────────────────────────────────────────────────
