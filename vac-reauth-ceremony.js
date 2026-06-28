@@ -665,6 +665,24 @@ function _avDrawHand(videoEl, lm){
     for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
 }
 
+// F-654: TOP-LEVEL shared hand-skeleton drawer for the RECORDING camera box (handOverlay),
+// so the fast quick-reauth draws the SAME skeleton as the full/seal finger phase (Rob:
+// consistency). Identical to the beginRecording-scoped _drawHandSkeleton, lifted out so
+// beginStillCapture can call it too (it was nested, hence the fast path had no skeleton).
+function _drawHandSkeletonShared(videoEl, lm){
+    const cv=document.getElementById('handOverlay');
+    if(!cv||!videoEl) return;
+    if(!cv._ctx) cv._ctx=cv.getContext('2d',{willReadFrequently:false});
+    const ctx=cv._ctx;
+    if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if(!lm) return;
+    ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
+    for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
+    const r=Math.max(5, cv.width*0.011);
+    for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
+}
+
 // SVG icons (from folioAI — clean, professional, no emoji)
 const AV_ICONS = {
     spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>',
@@ -2671,8 +2689,9 @@ async function beginStillCapture() {
                     _waited += _GEST_TICK;
                     let _n = null;
                     try { _n = FingerDetector.detect(_gv); } catch(_) {}
-                    // (skeleton is already drawn by the pre-flight FingerDetector loop on this same
-                    // camera; _drawHandSkeleton is scoped to beginRecording, so we don't call it here.)
+                    // F-654: draw the SAME hand skeleton as the full/seal finger phase (consistency,
+                    // Rob) via the top-level shared drawer (the beginRecording one is out of scope).
+                    try { if (FingerDetector.landmarks) _drawHandSkeletonShared(_gv, FingerDetector.landmarks); } catch(_) {}
                     if (typeof _n === 'number' && _n >= 0) {
                         // require the SAME count steady across consecutive ticks (not just presence)
                         if (_n === _lastSeen) _stable++; else _stable = 1;
