@@ -2618,6 +2618,53 @@ async function beginStillCapture() {
     let detectedFingers = null;
     let stillB64 = '';
     let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
+
+    // F-654: the quick-reauth must actually PROMPT the bound-digit gesture (the policy requires
+    // bound_digit), not snap one frozen frame. Same look/feel as the full path's finger phase —
+    // FingerDetector + skeleton — but GESTURE-ONLY, NO sound (Rob: configurable modalities; this
+    // run = {voice:false, gesture:true}). We prompt "show {N} fingers", poll the detector until it
+    // STABLY sees the expected count (or a short grace window elapses as a fail-open so a slow/absent
+    // detector can never strand the user — face+liveness still gate server-side), THEN capture. This
+    // replaces the silent one-frame read that completed before the user could raise a hand.
+    const _expectFingers = (challengeData && (typeof challengeData.fingers === 'number' ? challengeData.fingers
+                            : (challengeData.digits && challengeData.digits.length ? challengeData.digits[0] : null)));
+    try {
+        const _gv = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
+        if (_gv && _expectFingers != null) {
+            // Prompt copy — gesture-only, no "say it" (no voice modality on this policy).
+            try {
+                var _ct = document.getElementById('challengeText');
+                if (_ct) _ct.innerHTML = '<div style="font-size:clamp(18px,5vw,24px);font-weight:800;color:#fbbf24;line-height:1.3;">Show ' + _expectFingers + ' finger' + (_expectFingers === 1 ? '' : 's') + '</div>'
+                    + '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">hold steady — no need to say anything</div>';
+                var _t2 = document.getElementById('step2Title'); if (_t2) { _t2.textContent = 'Show the number'; _t2.style.color = '#fbbf24'; }
+            } catch(_) {}
+            // Poll for a STABLE matching finger count. Reuse FingerDetector (same as the full phase)
+            // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
+            // remain the server gate; the gesture is advisory pacing, mirroring the clip path).
+            const _GEST_MAX_MS = 6000, _GEST_TICK = 120, _STABLE_NEEDED = 4;
+            let _stable = 0, _waited = 0, _lastSeen = null;
+            await new Promise(function(resolve){
+                const _iv = setInterval(function(){
+                    _waited += _GEST_TICK;
+                    let _n = null;
+                    try { _n = FingerDetector.detect(_gv); } catch(_) {}
+                    // (skeleton is already drawn by the pre-flight FingerDetector loop on this same
+                    // camera; _drawHandSkeleton is scoped to beginRecording, so we don't call it here.)
+                    if (typeof _n === 'number' && _n >= 0) {
+                        // require the SAME count steady across consecutive ticks (not just presence)
+                        if (_n === _lastSeen) _stable++; else _stable = 1;
+                        _lastSeen = _n;
+                        if (_stable >= _STABLE_NEEDED) {
+                            try { var _ctd = document.getElementById('challengeText'); if (_ctd) _ctd.innerHTML = '<div style="font-size:clamp(22px,6vw,28px);font-weight:800;color:#22c55e;">\u2713 Got it</div>'; } catch(_) {}
+                            clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ beat, then capture
+                        }
+                    } else { _stable = 0; _lastSeen = null; }
+                    if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(); }  // fail-open: capture anyway
+                }, _GEST_TICK);
+            });
+        }
+    } catch (e) { console.warn('[VAC] fast gesture prompt failed (non-fatal):', (e && e.message) || e); }
+
     try {
         const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
