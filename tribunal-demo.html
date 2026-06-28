@@ -1439,7 +1439,21 @@ async function probeReauthTier(){
 // run. Always reachable — this is what the camera/face/email gates fall back to. Never a dead end.
 async function reauthDegrade(why){
   cerTeardown();
-  const authz=await authorizeViewCredential();
+  // F-654 (Rob S122): a DEGRADE must not silently grant access on a genuine biometric DENIAL.
+  // Previously this always called authorizeViewCredential() — so a FAILED quick-reauth (wrong
+  // finger / different face → onFallback → reauthDegrade('fast_denied')) still authorized off the
+  // seal token. Separate the two cases: an INFRASTRUCTURE degrade (no camera / no session / ceremony
+  // unavailable) may fall back to the seal-token authorization (the user never got to attempt the
+  // biometric); a biometric DENIAL ('fast_denied', or any reason containing 'denied'/'not_authent')
+  // must DENY — the ceremony ran and rejected the user.
+  var _isDenial = typeof why === 'string' && /denied|not_authent|mismatch|face_mismatch|finger/i.test(why);
+  var authz;
+  if (_isDenial) {
+    authz = { attested:false, authorized:false, reason:why };
+    try{ if (typeof vacDebug === 'function') vacDebug('tribunal_degrade_denied', why); }catch(_){}
+  } else {
+    authz = await authorizeViewCredential();
+  }
   const tier=await probeReauthTier();
   tier.degraded=why;
   renderReauthResult(authz,tier);
