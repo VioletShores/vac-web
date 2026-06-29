@@ -1579,8 +1579,8 @@ function beginRecording() {
     // greeting). PACING ONLY — Gemini server-side stays the authoritative voice check. LIVE-TUNE.
     const DIGIT_VOICE_MIN_MS = 350;  // CONTINUOUS voiced duration a real spoken digit clears (~300-500ms); a ~100ms tap can't. Proven live (Rob's clean one-take PASSED at 350ms).
     const DIGIT_VOICE_GAP_MS = 200;  // R1: max sustained OBSERVED dip (neither-band frames) within one voiced run. A real intra-word dip is brief; spaced taps leave a long neither-band gap between them. Gated on OBSERVED dip frames (not a bare inter-frame time delta) so rAF jank — a skipped frame — can't fake a gap and false-reject a real digit (adversarial-review F1).
-    const DIGIT_COOCCUR_MS = 700;    // SHOW-AS-YOU-SAY: after a sustained-voice fire, the FINGERS must come up within this window (fingers-up at the spoken timestamp → strong Gemini temporal binding). Covers both orders (gesture-held-then-voice = instant; voice-led-then-fingers = up to this long to appear). PACING only — Gemini does the authoritative fingers-at-timestamp check server-side. LIVE-TUNE.
-    const DIGIT_COOCCUR_MAX_MS = 2000; // absolute cap from the voice fire to advance, EVEN while a hand stays in frame — so a number said over an unstable/wrong hand held past the window can't advance on the stale utterance after a late silent settle (adversarial-review/Codex). Generous enough to cover the ~700ms stable-dwell + finger-count flicker (no livelock), tight enough to bound the intra-digit window. LIVE-TUNE.
+    // F-662: DIGIT_COOCCUR_MS / DIGIT_COOCCUR_MAX_MS moved to module scope (ONE source, shared with the
+    // FAST tier via _cooccurAdvanceDecision). Same values; the inline gate below now calls that helper.
     const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
     const COACH_DEBOUNCE_MS = 600;   // F-599: a coaching candidate must persist this long continuously before it shows — so the hint appears AFTER a genuine failed attempt, not mid-gesture. 'none' clears instantly (no lag on advance/correction).
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
@@ -2047,25 +2047,26 @@ function beginRecording() {
         // stronger Gemini temporal binding). No more camera-free hand-down "say" step.
         var _liveGestureOk = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED && digitStartTime > 0 && (performance.now() - digitStartTime) >= MIN_DIGIT_DWELL_MS);
         var _nowCo = performance.now();
-        // EXPIRE stale voice — but the co-occurrence proxy is "fingers came UP within the window of the
-        // voice", NOT "fingers fully STABILISED within it". So expire ONLY while the hand is genuinely
-        // DOWN (detected===0): a number said with no fingers shown can't satisfy the digit later (must
-        // re-say). While the hand IS up and merely settling (detected>0, count flickering), the voice
-        // stays alive — otherwise a voice-led user (say, then raise) would livelock, since the 700ms
-        // stable-dwell can outlast a 700ms window anchored at the voice (adversarial-review F1). R1 is
-        // untouched — speechReady is set ONLY by _markSpeech after DIGIT_VOICE_MIN_MS of voicing.
-        if (_speechMode !== 'off' && speechReady[currentDigitIndex]
-            && ((detected === 0 && (_nowCo - _voiceFiredAt) > DIGIT_COOCCUR_MS)   // hand DOWN, fingers never came up promptly → re-say
-                || (_nowCo - _voiceFiredAt) > DIGIT_COOCCUR_MAX_MS)) {            // absolute cap regardless of hand → bounds the intra-digit window
+        // F-662: expiry + advance are now the SHARED _cooccurAdvanceDecision (the FAST tier reuses the
+        // identical timing). Semantics UNCHANGED — a stale armed voice expires ONLY while the hand is
+        // genuinely DOWN (detected===0) past DIGIT_COOCCUR_MS (a voice-led user whose hand is up and
+        // merely settling does NOT expire → no livelock, adversarial-review F1), plus the absolute
+        // DIGIT_COOCCUR_MAX_MS cap; then advance on a live (stable, held) gesture AND still-armed voice
+        // co-occurring. speech-off (no mic) stays gesture-only + _acceptArmed re-arm, as before.
+        var _coDecision = _cooccurAdvanceDecision({
+            speechMode: _speechMode,
+            voiceArmed: speechReady[currentDigitIndex],
+            voiceFiredAt: _voiceFiredAt,
+            liveGestureOk: _liveGestureOk,
+            now: _nowCo,
+            handDown: (detected === 0),
+            escapePending: _escapeAdvancePending
+        });
+        if (_coDecision.expireVoice) {
             speechReady[currentDigitIndex] = false;   // F-599: do NOT also clear _voiceFiredAt here — the coaching classifier reads _voiceFiredAt>0 (survives expiry, cleared only on advance @ the _voiceFiredAt=0 line) to know voice fired this digit. Clearing it here would silently kill the near-miss/voice-only hints.
             try { vacDebug('speech_cooccur_expired', null, { digit_index: currentDigitIndex, since_ms: Math.round(_nowCo - _voiceFiredAt) }); } catch(_) {}
         }
-        // Co-occurrence: a live (stable, held) gesture AND voice still armed (hand came up within the
-        // window of the voice and hasn't dropped). The window is enforced by the hand-down expiry above,
-        // so the stable-dwell can take as long as it needs while the hand is held — no livelock. speech-off
-        // (degraded, no mic) stays gesture-only + _acceptArmed re-arm, as before.
-        var _voiceCo = (_speechMode === 'off') ? true : speechReady[currentDigitIndex];
-        var _advanceNow = (_liveGestureOk && _voiceCo) || (_escapeAdvancePending && _liveGestureOk);
+        var _advanceNow = _coDecision.advance;
         if (currentDigitIndex < digits.length && _advanceNow && _acceptArmed && performance.now() >= _confirmUntil) {
             _escapeAdvancePending = false;
             var _adNow = performance.now();
@@ -2627,6 +2628,96 @@ function beginRecording() {
     }, TICK_MS);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// F-662: shared co-occurrence gate for the bound digit ("show N AND say N together").
+// EXTRACTED from beginRecording's full/light finger phase so the FAST tier
+// (beginStillCapture) reuses the SAME advance timing instead of capturing on
+// finger-steadiness ALONE — the S122 false-deny, where _audioRec.stop() fired before
+// the user finished speaking → clipped spokenAudioB64 → server spoken_ok=false on a
+// CORRECT attempt. Pacing only — the server stays the authoritative spoken-digit check.
+// ─────────────────────────────────────────────────────────────────────────────
+// Co-occurrence window (moved here from beginRecording — ONE source, used by BOTH tiers).
+const DIGIT_COOCCUR_MS = 700;      // after a sustained-voice fire the FINGERS must come up within this window (fingers-up at the spoken timestamp → strong temporal binding). Covers both orders (gesture-held-then-voice = instant; voice-led-then-fingers = up to this long). PACING only — server does the authoritative fingers-at-timestamp check. LIVE-TUNE.
+const DIGIT_COOCCUR_MAX_MS = 2000; // absolute cap from the voice fire to advance, EVEN while a hand stays in frame — so a number said over an unstable/wrong hand held past the window can't advance on the stale utterance after a late silent settle (adversarial-review/Codex). Generous enough to cover the stable-dwell + finger-count flicker (no livelock), tight enough to bound the window. LIVE-TUNE.
+
+// The advance/expiry DECISION (pure). Reproduces beginRecording's inline gate exactly —
+// expire a stale armed voice ONLY while the hand is genuinely DOWN past DIGIT_COOCCUR_MS
+// (a voice-led user whose hand is up and merely settling does NOT expire → no livelock,
+// adversarial-review F1), plus the absolute DIGIT_COOCCUR_MAX_MS cap; then advance on a
+// live (stable, held) gesture AND still-armed voice co-occurring. speech-off (no mic) →
+// gesture-only. Shared so the LIVE full path and the FAST tier define "may advance" identically.
+//   o: { speechMode, voiceArmed, voiceFiredAt, liveGestureOk, now, handDown, escapePending }
+//   → { advance, expireVoice }  (expireVoice=true: caller clears its armed voice flag → re-say)
+function _cooccurAdvanceDecision(o) {
+    var since = o.now - o.voiceFiredAt;
+    var expireVoice = (o.speechMode !== 'off' && o.voiceArmed
+        && ((o.handDown && since > DIGIT_COOCCUR_MS)   // hand DOWN, fingers never came up promptly → re-say
+            || since > DIGIT_COOCCUR_MAX_MS));         // absolute cap regardless of hand → bounds the window
+    var armedAfter = expireVoice ? false : o.voiceArmed;
+    var voiceCo = (o.speechMode === 'off') ? true : armedAfter;
+    var advance = (o.liveGestureOk && voiceCo) || (o.escapePending && o.liveGestureOk);
+    return { advance: advance, expireVoice: expireVoice };
+}
+
+// FAST-tier voice arming. A single-window LIFT of beginRecording's _startSpeechGate VAD
+// core (sustained ≥ voiceMinMs, modulated ≥ modDelta, FRESH silence→voice onset, dip-
+// tolerant ≤ gapMs) — the SAME on-device energy gate, scoped to ONE bound digit (no
+// per-digit array, no _markSpeech/_speechMode/coaching state). It reads a standalone
+// analyser (startAudioMonitor's mic tap), so it never touches the clip flow. The LIVE
+// full path keeps its own inline _startSpeechGate (F-662 risk call, codex: don't refactor
+// the shipping VAD); these FAST_* constants MIRROR that inline tuning (kept separate on
+// purpose). Pacing only — the server (Deepgram) is the authoritative spoken-digit check.
+const FAST_VAD_SPEECH_RMS = 0.14;    // voiced threshold (rms above this = voice). Fallback: no greeting calibration in the fast tier. Mirrors VAD_SPEECH_RMS_FALLBACK.
+const FAST_VAD_SILENCE_RMS = 0.085;  // silence threshold (rms below this = silence). Mirrors VAD_SILENCE_RMS_FALLBACK.
+const FAST_DIGIT_VOICE_MIN_MS = 350; // CONTINUOUS voiced duration a real spoken digit clears (~300-500ms); a ~100ms tap can't. Mirrors DIGIT_VOICE_MIN_MS.
+const FAST_DIGIT_MOD_DELTA = 0.030;  // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy. Mirrors DIGIT_MOD_DELTA.
+const FAST_DIGIT_VOICE_GAP_MS = 200; // max sustained OBSERVED dip within one voiced run before the run breaks (spaced taps). Mirrors DIGIT_VOICE_GAP_MS.
+function _makeQuickReauthVoiceGate(cfg) {
+    var speechThr = cfg.speechThr, silenceThr = cfg.silenceThr;
+    var voiceMinMs = cfg.voiceMinMs, modDelta = cfg.modDelta, gapMs = cfg.gapMs;
+    var _armed = false, _firedAt = 0, _windowStart = 0, _raf = null, _stopped = false;
+    var voiced = 0, vMin = 1, vMax = 0, dipStart = 0, onsetAt = 0, sawSilence = false;
+    function _loop(analyser, buf) {
+        if (_stopped) { _raf = null; return; }
+        try {
+            analyser.getByteFrequencyData(buf);
+            var rms = 0; for (var i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+            rms = Math.sqrt(rms / buf.length) / 255;
+            var now = performance.now();
+            if (rms < silenceThr) {
+                sawSilence = true; voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
+            } else if (rms > speechThr) {
+                if (voiced === 0) {
+                    if (sawSilence) { onsetAt = now; vMin = rms; vMax = rms; voiced = 1; }   // a run STARTS only after a fresh in-window silence (binding)
+                } else {
+                    voiced++; if (rms < vMin) vMin = rms; if (rms > vMax) vMax = rms;
+                }
+                dipStart = 0;
+                if (voiced > 0 && now >= _windowStart
+                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= modDelta) {
+                    _armed = true; _firedAt = now;                              // sustained + modulated → FIRE
+                    voiced = 0; vMin = 1; vMax = 0; sawSilence = false;         // consumed; a NEW silence re-arms
+                }
+            } else if (voiced > 0) {
+                if (!dipStart) dipStart = now;
+                else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; }  // sustained dip kills the run
+            }
+        } catch(_) {}
+        _raf = requestAnimationFrame(function(){ _loop(analyser, buf); });
+    }
+    return {
+        start: function(analyser) {
+            if (_raf || _stopped || !analyser) return;
+            _windowStart = performance.now();
+            _loop(analyser, new Uint8Array(analyser.frequencyBinCount));
+        },
+        stop: function() { _stopped = true; if (_raf) { cancelAnimationFrame(_raf); _raf = null; } },
+        clearArm: function() { _armed = false; },
+        get armed() { return _armed; },
+        get firedAt() { return _firedAt; }
+    };
+}
+
 // Recording complete → upload to backend for real verification
 // F-624 Rung 2 (FAST capture): the lightweight counterpart to beginRecording — no
 // MediaRecorder, no A/V clip. Grab ONE still from the live preview plus a single
@@ -2656,6 +2747,10 @@ async function beginStillCapture() {
     // Start recording the spoken-digit audio ONLY when the policy's bound digit requires the spoken
     // half (COPS/PID decides — not this function). Same live mic track, no new getUserMedia.
     let _audioRec = null, _audioChunks = [], _audioStartMs = 0;
+    // F-662: the FAST tier's voice-arming gate for the bound digit (single window). Null when the
+    // policy is gesture-only (_captureVoice===false) or when no analyser can be brought up — both
+    // cases fall back to the show-only finger-steady advance below (codex: degrade, never hang).
+    let _voiceGate = null;
     if (_captureVoice) {
         try {
             const _atracks = mediaStream ? mediaStream.getAudioTracks() : [];
@@ -2667,6 +2762,22 @@ async function beginStillCapture() {
                 _audioStartMs = performance.now();
             }
         } catch(ae) { console.warn('[VAC] quick-reauth audio record start failed (non-fatal):', (ae && ae.message) || ae); }
+        // F-662: tap a STANDALONE analyser (startAudioMonitor's mic clone — independent of the clip
+        // MediaRecorder, so the lightweight contract is untouched) so the poll loop can gate capture on
+        // the spoken digit CO-OCCURRING with the gesture, instead of stopping _audioRec mid-utterance
+        // (the S122 false-deny). If the analyser can't come up, _voiceGate stays null → show-only advance.
+        try {
+            startAudioMonitor();
+            if (audioAnalyser) {
+                _voiceGate = _makeQuickReauthVoiceGate({
+                    speechThr: FAST_VAD_SPEECH_RMS, silenceThr: FAST_VAD_SILENCE_RMS,
+                    voiceMinMs: FAST_DIGIT_VOICE_MIN_MS, modDelta: FAST_DIGIT_MOD_DELTA, gapMs: FAST_DIGIT_VOICE_GAP_MS
+                });
+                _voiceGate.start(audioAnalyser);
+            } else {
+                try { vacDebug('fast_reauth_voice_gate', 'no_analyser_show_only'); } catch(_) {}
+            }
+        } catch(ve) { _voiceGate = null; console.warn('[VAC] quick-reauth voice gate start failed (non-fatal, show-only):', (ve && ve.message) || ve); }
     }
     try {
         const _gv = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
@@ -2692,15 +2803,36 @@ async function beginStillCapture() {
                     // F-654: draw the SAME hand skeleton as the full/seal finger phase (consistency,
                     // Rob) via the top-level shared drawer (the beginRecording one is out of scope).
                     try { if (FingerDetector.landmarks) _drawHandSkeletonShared(_gv, FingerDetector.landmarks); } catch(_) {}
+                    // require the SAME count steady across consecutive ticks (not just presence)
                     if (typeof _n === 'number' && _n >= 0) {
-                        // require the SAME count steady across consecutive ticks (not just presence)
                         if (_n === _lastSeen) _stable++; else _stable = 1;
                         _lastSeen = _n;
-                        if (_stable >= _STABLE_NEEDED) {
-                            try { var _ctd = document.getElementById('challengeText'); if (_ctd) _ctd.innerHTML = '<div style="font-size:clamp(22px,6vw,28px);font-weight:800;color:#22c55e;">\u2713 Got it</div>'; } catch(_) {}
-                            clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ beat, then capture
-                        }
                     } else { _stable = 0; _lastSeen = null; }
+                    // F-662 capture gate. VOICE policy (_voiceGate live): capture only when a STABLE
+                    // gesture (fingers UP) and the spoken digit CO-OCCUR — the SAME advance timing as the
+                    // full phase, via the shared _cooccurAdvanceDecision — so _audioRec is never stopped
+                    // mid-utterance (the S122 false-deny). GESTURE-ONLY policy (or no analyser): UNCHANGED
+                    // show-only steadiness. expireVoice clears a stale arm (hand never came up / cap elapsed).
+                    var _captureNow;
+                    if (_voiceGate) {
+                        var _g = _cooccurAdvanceDecision({
+                            speechMode: 'vad',
+                            voiceArmed: _voiceGate.armed,
+                            voiceFiredAt: _voiceGate.firedAt,
+                            liveGestureOk: (_stable >= _STABLE_NEEDED && typeof _n === 'number' && _n > 0),
+                            now: performance.now(),
+                            handDown: (typeof _n !== 'number' || _n <= 0),
+                            escapePending: false
+                        });
+                        if (_g.expireVoice) _voiceGate.clearArm();
+                        _captureNow = _g.advance;
+                    } else {
+                        _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy / VAD unavailable — unchanged
+                    }
+                    if (_captureNow) {
+                        try { var _ctd = document.getElementById('challengeText'); if (_ctd) _ctd.innerHTML = '<div style="font-size:clamp(22px,6vw,28px);font-weight:800;color:#22c55e;">\u2713 Got it</div>'; } catch(_) {}
+                        clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ beat, then capture
+                    }
                     if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(); }  // fail-open: capture anyway
                 }, _GEST_TICK);
             });
@@ -2778,6 +2910,13 @@ async function beginStillCapture() {
             }
         } catch(se) { console.warn('[VAC] quick-reauth audio finalize failed (non-fatal):', (se && se.message) || se); }
     }
+    // F-662: tear down the fast-tier voice analyser (started for the co-occurrence gate) BEFORE
+    // releasing the mic — single cleanup chokepoint that every exit path (incl. the fail-closed
+    // return below) passes through, so no VAD rAF / AudioContext is left alive (codex caveat A).
+    // stopAudioMonitor is guarded: the fast hosts may lack the #audioLevel element it hides, but
+    // its real teardown (cancel rAF, close context, null analyser) runs before that throwable line.
+    try { if (_voiceGate) _voiceGate.stop(); } catch(_) {}
+    try { stopAudioMonitor(); } catch(_) {}
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
     goToStep(3);
