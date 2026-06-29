@@ -289,6 +289,16 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .vo-close{background:transparent;border:none;color:var(--text-tertiary);font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}
 .vo-close:hover{color:var(--text-primary);}
 .vo-frame{flex:1 1 auto;width:100%;border:none;background:var(--bg);}
+/* F-666 #2: the FAST re-auth host renders the shared ceremony INLINE; unstyled it sprawled to the
+   full receipt width (~732px) with a squashed, stretched camera box. Frame it like the full-auth
+   modal (.vo / .vo-card) so fast renders at full sizing — a fixed centered overlay whose single
+   .active step becomes a bounded card. The `.vac-modal-open` selector (id+class) outranks the bare
+   `#vacReauthMount` display:none, so toggling the class drives visibility (viewCredentialReauth
+   clears the inline display when it adds the class; hide paths remove it + set display:none). */
+#vacReauthMount{display:none;}
+#vacReauthMount.vac-modal-open{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);overflow:auto;}
+#vacReauthMount.vac-modal-open .step-section.active{width:min(680px,100%);max-height:min(900px,96vh);overflow-y:auto;background:var(--surface);border:1px solid var(--border-light);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:clamp(16px,3vw,24px);}
+@media(max-width:560px){#vacReauthMount.vac-modal-open{padding:0;}#vacReauthMount.vac-modal-open .step-section.active{width:100%;max-height:100vh;min-height:100vh;border-radius:0;border:none;}}
 /* custodian-free honest-wall panel (matter 03 cfree — static, no stepper/receipt) */
 .wall{display:flex;flex-direction:column;gap:14px;}
 .wall-banner{font-family:var(--mono);font-size:clamp(12.5px,3.5vw,14.5px);font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:8px;padding:12px 14px;letter-spacing:.2px;line-height:1.5;}
@@ -432,8 +442,9 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <dl class="kv" id="receiptKv"></dl>
         <div class="audit" id="auditLog"></div>
         <div class="reauth-demo" id="reauthDemo" hidden></div>
-        <!-- S120 unify Lane 3: shared VACReauth fast ceremony renders here on "View the sealed credential". -->
-        <div id="vacReauthMount" style="display:none;"></div>
+        <!-- S120 unify Lane 3: shared VACReauth fast ceremony renders here on "View the sealed credential".
+             F-666 #2: hidden via CSS (#vacReauthMount{display:none}); shown as a modal via .vac-modal-open. -->
+        <div id="vacReauthMount"></div>
       </div>
     </section>
     </div><!-- /walkBody -->
@@ -1118,6 +1129,7 @@ document.getElementById('advance').onclick=()=>{
 // selection, branch s116-reauth-freshness-signal) is the planned upgrade once that
 // capture UI is factored into a shared module — tracked in F-TRIBUNAL-SEAL-REAUTH-GATE.
 function sealReauthGate(onPass, onCancel){
+  resetDemoSurface('full');   // F-666 #1: clear stale result cards + hide the inactive FAST mount before the FULL overlay opens
   let settled=false;
   const overlay=document.getElementById('verifyOverlay');
   const frame=document.getElementById('voFrame');
@@ -1392,6 +1404,24 @@ function cerTeardown(){
 }
 window.addEventListener('pagehide',function(){try{cerTeardown();}catch(e){}});
 
+// F-666 #1 (stacking): keep exactly ONE ceremony + ONE result on screen. Called at the TOP of
+// each launcher with the flow that is ABOUT to run. It (a) clears the stale RESULT surface
+// (#rdResult is only ever a result display — written by renderReauthResult, never a live mount —
+// so clearing it is always safe), and (b) hides ONLY the OTHER (inactive) flow's container. It
+// NEVER touches the active flow's own container (that flow is about to render there), so it cannot
+// tear down the running ceremony's own mount mid-flow. Media teardown stays with cerTeardown().
+function resetDemoSurface(active){
+  try{ var r=document.getElementById('rdResult'); if(r){ r.innerHTML=''; r.classList.remove('show'); } }catch(_){}
+  if(active==='fast'){
+    // FAST is launching → the FULL overlay (#verifyOverlay) is the INACTIVE flow → close it.
+    try{ var ov=document.getElementById('verifyOverlay');
+         if(ov && !ov.hidden){ ov.hidden=true; var f=document.getElementById('voFrame'); if(f) f.src='about:blank'; document.body.style.overflow=''; } }catch(_){}
+  }else if(active==='full'){
+    // FULL is launching → the FAST mount (#vacReauthMount) is the INACTIVE flow → hide it.
+    try{ var m=document.getElementById('vacReauthMount'); if(m){ m.classList.remove('vac-modal-open'); m.style.display='none'; } }catch(_){}
+  }
+}
+
 function cerEmail(){ return (window.__vacVerified&&window.__vacVerified.email)?String(window.__vacVerified.email).trim():''; }
 function cerSessionTok(){ return (window.__vacVerified&&window.__vacVerified.session_token)?window.__vacVerified.session_token:null; }
 function cerCamSupported(){ return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.isSecureContext!==false); }
@@ -1477,6 +1507,7 @@ async function reauthDegrade(why){
 async function viewCredentialReauth(){
   const btn=document.getElementById('rdBtn');
   if(btn){btn.disabled=true;btn.textContent='Starting quick check…';}
+  resetDemoSurface('fast');   // F-666 #1: clear stale result cards + close the inactive FULL overlay before the FAST ceremony mounts
   if(!cerEmail()) return reauthDegrade('no_session');
   // No camera / non-secure context → the fast face check structurally cannot run. Degrade to the
   // retry-safe tier probe (renders the server-attested fallback + re-enables the button) instead of
@@ -1509,9 +1540,7 @@ async function viewCredentialReauth(){
     }
     // has_embedding===true (or status unavailable) → enrolled (or unknown) → RUN the live ceremony.
   }catch(_){ /* status check failed → fall through to the live ceremony (the real attempt, not a skip) */ }
-  const host=document.getElementById('rdResult');
-  mount.style.display='block';
-  try{ mount.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){}
+  mount.classList.add('vac-modal-open');   // F-666 #2: overlay styling; inline display is cleared AFTER run() below (run() sets it to 'block')
 
   VACReauth.run({
     name: '',
@@ -1521,7 +1550,8 @@ async function viewCredentialReauth(){
     context: 'tribunal-view-credential',
     profile: { mode: 'fast' },             // single-digit face-reauth-challenge + quick-reauth, no Gemini
     onComplete: async function(result){
-      try{ mount.style.display='none'; }catch(_){}
+      try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){}   // F-666 #2: close the modal
+
       // Map the shared component's authResult into tribunal's `tier` shape so
       // renderReauthResult's two-card display is unchanged.
       const authed = !!(result && (result.authenticated===true || result.authorized===true));
@@ -1552,12 +1582,17 @@ async function viewCredentialReauth(){
     onFallback: async function(err){
       // Denied / fast-not-eligible → still record the authorize attempt + render
       // the honest verdict via the existing degrade path (no silent success).
-      try{ mount.style.display='none'; }catch(_){}
+      try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){}   // F-666 #2: close the modal
       console.warn('[VAC tribunal] fast reauth fell back:', err && err.message);
       return reauthDegrade('fast_denied');
     },
-    onBack: function(){ try{ mount.style.display='none'; }catch(_){ } if(btn){btn.disabled=false;btn.textContent='View the sealed credential';} },
+    onBack: function(){ try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){ } if(btn){btn.disabled=false;btn.textContent='View the sealed credential';} },
   });
+  // F-666 #2: VACReauth.run() sets mount.style.display='block' (inline) at its tail (ceremony.js
+  // ~4638), which beats the .vac-modal-open{display:flex} overlay rule and kills the flex
+  // centering. run() is synchronous, so clear the inline display NOW — the modal centering then
+  // wins, and nothing re-sets the mount display until the next ceremony run.
+  try{ mount.style.display=''; }catch(_){}
 }
 
 function renderReauthResult(authz,tier){

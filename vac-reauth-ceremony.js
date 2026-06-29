@@ -2732,6 +2732,13 @@ function _makeQuickReauthVoiceGate(cfg) {
 // in a later lane, where it gets live-tested with a real camera.
 async function beginStillCapture() {
     try { vacDebug('begin_still_capture_called'); } catch(_) {}
+    // F-666 #3 (codex P2): a PRIOR fast run's verdict may still occupy step3's progress area,
+    // including a live #qrContinueBtn wired to that run's _finish(). If the user tapped "Start
+    // over" instead of "Continue", goToStep(3) below would re-show that stale verdict and the
+    // stale button could complete THIS restarted attempt on the PRIOR result. Restore the
+    // pristine progress markup now (snapshotted in renderQuickReauthVerdict) so every capture
+    // starts step3 clean. innerHTML replacement also drops the stale button + its onclick.
+    try { var _pc0 = document.querySelector('#step3 .progress-container'); if (_pc0 && _pc0.__qrOrigHTML != null) { _pc0.innerHTML = _pc0.__qrOrigHTML; } } catch(_) {}
     let detectedFingers = null;
     let stillB64 = '';
     let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
@@ -2969,9 +2976,22 @@ async function runFastVerification(parts) {
         return;
     }
     const vCfg = modeConfig().verify;
+    // F-666 #4 (out-of-zone stranding guard): bound the backend wait so a stalled POST — e.g.
+    // an out-of-zone capture produces a still the server never finishes answering — can never
+    // leave the user on "Verifying…" forever. The timer arms HERE, AFTER the gesture loop +
+    // still capture + 128-D embedding compute + goToStep(3) have all run, so it covers ONLY the
+    // network round-trip, NEVER a slow-but-valid capture. On expiry the abort rejects fetch →
+    // the EXISTING catch(e) below → CTX.onFallback (same handoff as any other failure, never a
+    // strand). Cleared in finally the instant the POST settles — BEFORE the qrContinueBtn
+    // user-read wait — so a slow reader can't trip it. GUARD ONLY: no change to the bound-digit
+    // co-occurrence gate, the JSON body, or the authenticated/authorized verdict contract.
+    const _qrCtrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const _QR_FETCH_TIMEOUT_MS = 30000;   // LIVE-TUNE; generous ceiling — a valid quick-reauth answers in a few seconds
+    const _qrTimer = _qrCtrl ? setTimeout(function(){ try { _qrCtrl.abort(); } catch(_) {} }, _QR_FETCH_TIMEOUT_MS) : null;
     try {
         const _body = vCfg.buildBody(parts);   // fast → JSON object; full → FormData
         const _opts = { method: vCfg.method };
+        if (_qrCtrl) _opts.signal = _qrCtrl.signal;   // F-666 #4: timeout/abort signal (guard only)
         if (_body instanceof FormData) { _opts.body = _body; }
         else if (_body != null) { _opts.headers = { 'Content-Type': 'application/json' }; _opts.body = JSON.stringify(_body); }
         const resp = await fetch(vCfg.url(), _opts);
@@ -3020,6 +3040,11 @@ async function runFastVerification(parts) {
         console.error('[VACReauth] fast verify error', e);
         try { vacDebug('fast_reauth_failed', String((e && e.message) || e)); } catch(_) {}
         if (CTX && CTX.onFallback) { try { CTX.onFallback(e); } catch(_) {} }
+    } finally {
+        // F-666 #4: drop the watchdog the moment the POST settles — covers the early `return`
+        // on the qrContinueBtn path too (finally runs on return), so the timer is gone before
+        // the user reads the verdict and can never abort a resolved request.
+        if (_qrTimer) clearTimeout(_qrTimer);
     }
 }
 
@@ -3033,13 +3058,32 @@ async function runFastVerification(parts) {
 // it's interactive. A section the server didn't send is shown as "not reported" — never faked.
 function renderQuickReauthVerdict(res) {
     res = res || {};
-    var host = document.getElementById('challengeText') || document.getElementById('vacGuided');
+    // F-666 #3: render where the user is LOOKING. beginStillCapture calls goToStep(3) before
+    // verify, so step3 is active and #challengeText / #vacGuided (BOTH inside step2) are
+    // display:none — the old hosts rendered the verdict + #qrContinueBtn into a HIDDEN step
+    // ("dropdown doesn't expand on click"; Continue unreachable). Render into the VISIBLE step3
+    // progress area (the spinner the user is watching), falling back to the legacy hosts only
+    // if it is somehow absent.
+    var host = document.querySelector('#step3 .progress-container')
+        || document.getElementById('challengeText') || document.getElementById('vacGuided');
     if (!host) return;
+    // F-666 #3 (codex P2): snapshot the pristine progress markup ONCE, before this verdict
+    // overwrites it, so beginStillCapture can rebuild step3 clean on a restart (else the stale
+    // verdict + its #qrContinueBtn survive "Start over" and could complete the next run on the
+    // prior result). Snapshot once per host element — the element is fresh each ceremony run.
+    if (host.__qrOrigHTML == null) { try { host.__qrOrigHTML = host.innerHTML; } catch(_) {} }
+    // The full-auth-only dropdowns in step3 are never populated in the fast tier — hide them so
+    // the user doesn't see a redundant all-pending "Verification Modalities" / "Under the Hood"
+    // list beside the real verdict. Cosmetic; no modality or verdict logic is touched.
+    try { var _mr = document.getElementById('modalityResults'); if (_mr) _mr.style.display = 'none'; } catch(_) {}
+    try { var _uh = document.getElementById('underHoodContainer'); if (_uh) _uh.style.display = 'none'; } catch(_) {}
+    // Settle the step3 header from its in-flight "sending…" copy to a done state.
+    try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = 'Quick re-auth complete — here is what the backend checked.'; } catch(_) {}
     function row(id, name, detector, ok, detail) {
         var statusTxt = (ok === true) ? 'verified' : (ok === false ? 'failed' : 'not reported');
         var color = (ok === true) ? '#22c55e' : (ok === false ? '#ef4444' : 'var(--text-tertiary)');
         var mark = (ok === true) ? '\u2713' : (ok === false ? '\u2717' : '\u2013');
-        return '<div class="qr-mod-row" data-qr="' + id + '" onclick="(function(e){var d=document.getElementById(\'qrd-' + id + '\');if(d){var open=d.style.display!==\'none\';d.style.display=open?\'none\':\'block\';var c=document.getElementById(\'qrc-' + id + '\');if(c)c.style.transform=open?\'rotate(0deg)\':\'rotate(180deg)\';}})()" style="cursor:pointer;border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface);">'
+        return '<div class="qr-mod-row" data-qr="' + id + '" style="cursor:pointer;border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface);">'
             + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
             +   '<div style="display:flex;align-items:center;gap:9px;"><span style="color:' + color + ';font-weight:800;font-size:15px;">' + mark + '</span><span style="font-weight:600;color:var(--text-primary);font-size:14px;">' + name + '</span></div>'
             +   '<div style="display:flex;align-items:center;gap:8px;"><span style="font-family:var(--mono);font-size:11px;letter-spacing:0.5px;color:' + color + ';text-transform:uppercase;">' + statusTxt + '</span>'
@@ -3074,6 +3118,24 @@ function renderQuickReauthVerdict(res) {
         + row('liveness', 'Passive liveness', 'Didit passive-liveness on the captured still (server, fail-closed).', liveOk, liveDetail)
         + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Continue \u2192</button>'
         + '</div>';
+    // F-666 #3: wire ONE delegated expander listener on the (stable) host rather than a per-row
+    // inline handler \u2014 robust to the innerHTML re-render above, and the literal "wire the expander
+    // listener" fix. A tap on any .qr-mod-row toggles its #qrd-<id> detail + rotates the #qrc-<id>
+    // caret. Bound once per host element (host is a fresh node each ceremony run, so no stacking).
+    if (!host.__qrExpanderBound) {
+        host.__qrExpanderBound = true;
+        host.addEventListener('click', function(e){
+            var rowEl = (e.target && e.target.closest) ? e.target.closest('.qr-mod-row') : null;
+            if (!rowEl) return;
+            var qid = rowEl.getAttribute('data-qr');
+            var d = document.getElementById('qrd-' + qid);
+            if (!d) return;
+            var isOpen = d.style.display !== 'none';
+            d.style.display = isOpen ? 'none' : 'block';
+            var c = document.getElementById('qrc-' + qid);
+            if (c) c.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+        });
+    }
 }
 
 async function onRecordingComplete() {
