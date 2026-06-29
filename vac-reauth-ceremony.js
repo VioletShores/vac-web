@@ -909,16 +909,20 @@ function goToChallenge() {
         var _digit = (_fc.spoken_digit != null) ? _fc.spoken_digit
                    : (_fc.digits && _fc.digits.length ? _fc.digits[0]
                    : (typeof _fc.fingers === 'number' ? _fc.fingers : null));
-        // FAST tier posts NO audio (embedding-gated) — so the instruction must NOT say "say it".
-        // Show the bound number to the camera, hold still for the face check. (honesty: L-2150)
+        // F-662 follow: the lead-in copy is POLICY-DRIVEN (same _captureVoice derivation as
+        // beginStillCapture), not hardcoded no-voice. As of F-654 the fast tier's spoken half is
+        // policy-driven — under a bound_digit/voice policy the user MUST be told to say it here too,
+        // or the lead-in under-prompts voice and a correct-but-slow user can hit the 6s fail-open.
+        // Gesture-only policy keeps the show-only lead-in. (honesty: L-2150 — say what the policy needs)
+        var _leadVoice = (reauthPolicyRequired() || []).some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
         var _instr = _fc.bound_instruction
-                   || (_digit != null ? ('Hold up ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' to the camera') : 'Show the number to the camera');
+                   || (_digit != null ? ('Hold up ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + (_leadVoice ? (' and say \u201c' + _digit + '\u201d') : '') + ' to the camera') : 'Show the number to the camera');
         var _ctEl = document.getElementById('challengeText');
         if (_ctEl) {
             _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
-                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' to the camera')
+                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + (_leadVoice ? (' and say <span style="color:var(--purple)">\u201c' + _digit + '\u201d</span>') : '') + ' to the camera')
                                   : _instr)
-                + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.</div>';
+                + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">' + (_leadVoice ? 'Keep your face in the oval — when the count starts, show it and say it together.' : 'Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.') + '</div>';
         }
         var _recVidF = document.getElementById('videoPreviewRec');
         if (_recVidF) { _recVidF.srcObject = mediaStream; _recVidF.muted = true; _recVidF.setAttribute('playsinline',''); _recVidF.play().catch(function(){}); }
