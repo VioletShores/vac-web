@@ -683,6 +683,260 @@ function _drawHandSkeletonShared(videoEl, lm){
     for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
 }
 
+// ── F-671 Phase A: shared capture-feedback presentation. Lifted VERBATIM from
+//    beginRecording's inner fns, with closure state made explicit via a ctx object. Pure
+//    presentation — NO advance-loop state, NO video MediaRecorder, NO Gemini. The full
+//    ceremony renders through this now; the fast still-capture adopts it in Phase B.
+//    (_drawHandSkeletonShared above was step 1 of this same unification.) ──
+const CaptureFeedback = {
+    // Phase prompt updater (uses seconds with decimal precision)
+    updatePhasePrompt: function(ctx, sec) {
+        if (sec < ctx.phraseDuration) {
+            // F-563 UX: the active instruction takes over the header in YELLOW so it can't get lost
+            // among the other text (Rob — "Say the greeting" was getting lost).
+            var _st = ctx.byId('step2Title');
+            if (_st) { _st.textContent = (fingerFallback === 'voice') ? 'Say the phrase' : 'Say the greeting'; _st.style.color = '#fbbf24'; }
+            // Speaking phase. FINGER mode: GREETING ONLY (numbers stripped) — the numbers are
+            // spoken per-digit, each bound to its gesture (SUPP-7). VOICE-ONLY mode skips the
+            // digit phase, so the user must speak the FULL phrase (incl numbers) here (codex).
+            const _full = challengeData?.phrase || '';
+            if (fingerFallback === 'voice') {
+                ctx.byId('challengeText').innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"';
+            } else {
+                // R2 (S114): greeting ONLY — strip the trailing digits (the numbers are spoken
+                // per-gesture in the digit phase; one recording → backend still gets them). This
+                // is the fallback prompt; renderGreeting owns the primary live greeting screen.
+                var _greet = vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, '');   // S114: single-source greeting
+                ctx.byId('challengeText').innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greet + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number as you say it, one take</span>';
+            }
+        } else {
+            // Finger phase
+            const fingerElapsed = sec - ctx.phraseDuration;
+            const digitIndex = Math.min(Math.floor(fingerElapsed / ctx.digitDuration), ctx.digits.length - 1);
+            const digit = ctx.digits[digitIndex];
+            const step = digitIndex + 1;
+            // Show all digits with current highlighted
+            var circles = '';
+            for (var di = 0; di < ctx.digits.length; di++) {
+                if (di < digitIndex) circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:#22c55e;color:white;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 6px;box-shadow:0 0 12px rgba(34,197,94,0.4);">&#10003;</span>';
+                else if (di === digitIndex) circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + ctx.digits[di] + '</span>';
+                else circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + ctx.digits[di] + '</span>';
+            }
+            // W3.5 refactor: generic prompt — no per-step expected count.
+            // User already saw the full sequence in the challenge phrase; per-step
+            // count hints created "guess by trial and error" UX when the ticked
+            // count didn't match what the user thought they'd shown.
+            ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
+        }
+    },
+
+    // S110: render the persistent above-video digit strip (current digit highlighted).
+    // F-563 (2): PROGRESS DOTS only — NO numbers. The current digit's number lives in the big
+    // #vacGuided panel (single focus), so the strip never shows the upcoming sequence and the user
+    // can't race ahead. done = green ✓, current = filled purple dot, upcoming = empty dot.
+    renderDigitStrip: function(ctx, currentIdx) {
+        const strip = ctx.byId('digitStrip');
+        const row = ctx.byId('digitStripRow');
+        if (!strip || !row) return;
+        strip.style.display = 'block';
+        var html = '';
+        for (var i = 0; i < ctx.digits.length; i++) {
+            if (i < currentIdx) {
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 0 10px rgba(34,197,94,0.45);">&#10003;</span>';
+            } else if (i === currentIdx) {
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.45);animation:pulse 1s ease infinite;"></span>';
+            } else {
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:var(--surface);border:1px solid var(--border);"></span>';
+            }
+        }
+        row.innerHTML = html;
+    },
+
+    // F-563 (2): big guided one-digit panel. Reads the SAME per-digit gate flags the status block
+    // uses (gesture done = _qaGestureLatched; voice done = speechReady[i]) — NO gate logic here, pure
+    // presentation. The gesture ✓ lights on ANY stable deliberate gesture (content-blind — Gemini
+    // validates the count server-side; gating the tick on correctness would re-introduce the
+    // misdetection deadlock). Then the voice sub-gate is revealed; its ✓ lights on the spoken number.
+    // F-599: adaptive co-occurrence coaching copy. ONE simultaneity phrase ("at the same time")
+    // only on the near-miss — the case where timing IS the failure (both said + shown, just too far
+    // apart). The voice-only / gesture-only hints name the MISSING action instead of repeating the
+    // mantra, so the coaching tells the user what they actually forgot (Q4 = option B).
+    coachHintMsg: function(key, N) {
+        if (key === 'nearmiss')    return 'Almost — show your fingers and say it at the same time';
+        if (key === 'voiceonly')   return 'Now show your ' + N + ' finger' + (N === 1 ? '' : 's') + ' as you say “' + N + '”';
+        if (key === 'gestureonly') return 'Say “' + N + '” out loud while you hold up your fingers';
+        return '';
+    },
+
+    renderGuided: function(ctx, opts) {
+        var wrap = ctx.byId('vacGuided');
+        if (!wrap) return;
+        wrap.style.display = 'block';
+        var promptEl = ctx.byId('vacGuidedPrompt');
+        var subEl = ctx.byId('vacGuidedSub');
+        var gWrap = ctx.byId('vacGuidedGesture');
+        var vWrap = ctx.byId('vacGuidedVoice');
+        var gLamp = gWrap && gWrap.querySelector('.vac-lamp');
+        var vLamp = vWrap && vWrap.querySelector('.vac-lamp');
+        function setLamp(lamp, box, state, restIcon) {
+            if (!lamp || !box) return;
+            if (state === 'done') {
+                box.style.opacity = '1';
+                lamp.textContent = '✓';
+                lamp.style.color = '#fff'; lamp.style.background = '#22c55e';
+                lamp.style.borderColor = '#22c55e'; lamp.style.boxShadow = '0 0 14px rgba(34,197,94,0.45)';
+                lamp.style.animation = 'none';
+            } else if (state === 'active') {
+                box.style.opacity = '1';
+                lamp.textContent = restIcon;
+                lamp.style.color = ''; lamp.style.background = 'rgba(124,92,252,0.18)';
+                lamp.style.borderColor = 'var(--purple)'; lamp.style.boxShadow = '0 0 14px rgba(124,92,252,0.35)';
+                lamp.style.animation = 'pulse 1s ease infinite';
+            } else if (state === 'ready') {
+                // Green "in position" — mirrors the face oval flipping solid-green: the hand is in
+                // the near-face zone but a stable finger count isn't registering yet (keep the ✋
+                // glyph, not the ✓), so it reads as "good spot, hold it" not "complete".
+                box.style.opacity = '1';
+                lamp.textContent = restIcon;
+                lamp.style.color = '#22c55e'; lamp.style.background = 'rgba(34,197,94,0.18)';
+                lamp.style.borderColor = '#22c55e'; lamp.style.boxShadow = '0 0 14px rgba(34,197,94,0.45)';
+                lamp.style.animation = 'none';
+            } else { // pending/dim
+                box.style.opacity = '0.4';
+                lamp.textContent = restIcon;
+                lamp.style.color = ''; lamp.style.background = '';
+                lamp.style.borderColor = 'var(--border)'; lamp.style.boxShadow = 'none';
+                lamp.style.animation = 'none';
+            }
+        }
+        // F-563 (latch): the camera-free "Say N" cover. ON only during sub-gate 2 (gesture latched,
+        // voice not yet given) → one thing per screen. OFF everywhere else (show phase / beat / done)
+        // so the camera is back for the next digit's gesture.
+        function setSayView(on, word, hint) {
+            var sv = ctx.byId('vacSayView');
+            if (!sv) return;
+            sv.style.display = on ? 'flex' : 'none';
+            if (on) {
+                var w = ctx.byId('vacSayWord'); if (w) w.textContent = '“' + word + '”';
+                var h = ctx.byId('vacSayHint'); if (h) h.textContent = hint || '';
+            }
+        }
+        // F-563 UX: a BIG number during the show-fingers step so the target digit is unmissable.
+        function setBigNumber(on, n) {
+            var ne = ctx.byId('vacGuidedNumber');
+            if (!ne) return;
+            // F-AUTH-UX-POLISH (2): never substitute a default. If the digit isn't a real bound
+            // value yet (undefined/NaN/empty — e.g. digits[currentDigitIndex] not resolved), hide
+            // the big number this frame rather than paint a stray "1". The real digit appears only
+            // once it's actually bound.
+            var _valid = (typeof n === 'number' && !isNaN(n)) || (typeof n === 'string' && n !== '');
+            if (!on || !_valid) { ne.style.display = 'none'; return; }
+            ne.style.display = 'block';
+            ne.textContent = n;
+        }
+        if (opts.done) {
+            if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setSayView(false); setBigNumber(false);
+            return;
+        }
+        if (opts.beat) {
+            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setSayView(false); setBigNumber(false);
+            return;
+        }
+        var N = opts.digit;
+        // SHOW-AS-YOU-SAY: the camera-free hand-down "Say N" cover is GONE — you keep fingers up
+        // while you say it. So there is ONE simultaneous step (not two sub-gates); the lamps are LIVE
+        // sensing indicators, and the single combined ✓ is the only accept (handled by opts.beat above).
+        setSayView(false);
+        if (!opts.voiceOn && opts.rearmed === false) {
+            // Speech-off (degraded, no mic) + gesture confirmed but NOT re-armed: advance is BLOCKED
+            // (same held pose carried from the last accept). Prompt the re-show (codex). Unchanged.
+            if (promptEl) { promptEl.textContent = 'Lower your hand, then show ' + N + ' again'; promptEl.style.color = '#fbbf24'; }
+            if (subEl) subEl.textContent = '';
+            setLamp(gLamp, gWrap, 'active', '✋');
+            setLamp(vLamp, vWrap, 'pending', '🗣️');
+            setBigNumber(true, N);
+        } else {
+            // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
+            // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
+            // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” — at the same time'; promptEl.style.color = 'var(--text-primary)'; }
+            setBigNumber(true, N);
+            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
+            if (!opts.handNear) {
+                // No hand, or hand outside the in-front-of-face capture zone. THIS is the silent-failure
+                // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
+                // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
+                // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
+                if (subEl) subEl.textContent = '✋ Hold your hand up in front of your face';
+                setLamp(gLamp, gWrap, 'pending', '✋');
+            } else if (!opts.gestureLive) {
+                // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
+                // ("good spot") + hold-steady guidance, so the user knows the position is right.
+                if (subEl) subEl.textContent = 'Hand detected — hold steady.';
+                setLamp(gLamp, gWrap, 'ready', '✋');
+            } else {
+                // Fingers live in-zone — main's existing live-sensing lamp + adaptive co-occurrence coach.
+                // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
+                // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
+                var _coachSub = opts.voiceHelp ? '' : CaptureFeedback.coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
+                if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
+                setLamp(gLamp, gWrap, 'active', '✋');
+            }
+        }
+    },
+
+    // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
+    renderFingerPhase: function(ctx, hint, currentDigitIndex) {
+        if (ctx.digits.length === 0) { ctx.byId('challengeText').textContent = 'Processing\u2026'; return; }
+        // S111 #3: per-digit number circles live in #digitStrip ABOVE the video (single source).
+        // W3.5 refactor: generic per-step prompt.
+        // The detection loop already advances on ANY finger > 0 (line below);
+        // server validates the full sequence at the end. Showing the expected
+        // count per-step taught users to expect "did it accept my guess?" — the
+        // green tick reads as "we got this position, on to the next."
+        const hintHtml = hint ? '<div style="color:#fbbf24;font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
+        const remaining = ctx.digits.length - currentDigitIndex;
+        const stepLabel = remaining > 1 ? (remaining + ' gestures to go') : (remaining === 1 ? 'last gesture' : 'done');
+        // F-563 (2): the strip is now numberless progress DOTS, so this prompt must NAME the current
+        // digit itself — otherwise the detector-fallback path (which relies on this text) leaves the
+        // user with no per-step number after the one-time intro (codex).
+        var _cd = ctx.digits[currentDigitIndex];
+        var _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
+        ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
+    },
+
+    // S110: detect when the hand is too close / clipped by the frame edges so we
+    // can prompt the user to pull back. MediaPipe can't count reliably when not all
+    // 21 landmarks are visible. We check (a) any landmark near/past an edge and
+    // (b) the hand bounding box filling most of the frame. Debounced so the prompt
+    // doesn't flicker on momentary edge touches.
+    checkHandFraming: function(ctx, lm) {
+        const banner = ctx.byId('framingHint');
+        if (!lm) { ctx.framingBadFrames = 0; if (banner) banner.style.display = 'none'; return; }
+        let minX=1, maxX=0, minY=1, maxY=0;
+        for (const p of lm) { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+        const EDGE = 0.04;
+        const clipped = (minX < EDGE || maxX > 1-EDGE || minY < EDGE || maxY > 1-EDGE);
+        const tooBig  = ((maxX-minX) > 0.85 || (maxY-minY) > 0.9);
+        if (clipped || tooBig) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
+        if (banner) {
+            if (ctx.framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
+                banner.textContent = tooBig ? 'Move your hand back a little — keep your whole hand in view'
+                                            : 'Center your hand — keep it fully inside the frame';
+                banner.style.display = 'block';
+            } else if (ctx.framingBadFrames === 0) {
+                banner.style.display = 'none';
+            }
+        }
+    },
+};
+
 // SVG icons (from folioAI — clean, professional, no emoji)
 const AV_ICONS = {
     spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>',
@@ -1253,46 +1507,17 @@ function beginRecording() {
     ringFill.classList.add('recording');
     ringFill.style.strokeDashoffset = 0;
 
-    // Phase prompt updater (uses seconds with decimal precision)
-    function updatePhasePrompt(sec) {
-        if (sec < PHRASE_DURATION) {
-            // F-563 UX: the active instruction takes over the header in YELLOW so it can't get lost
-            // among the other text (Rob — "Say the greeting" was getting lost).
-            var _st = document.getElementById('step2Title');
-            if (_st) { _st.textContent = (fingerFallback === 'voice') ? 'Say the phrase' : 'Say the greeting'; _st.style.color = '#fbbf24'; }
-            // Speaking phase. FINGER mode: GREETING ONLY (numbers stripped) — the numbers are
-            // spoken per-digit, each bound to its gesture (SUPP-7). VOICE-ONLY mode skips the
-            // digit phase, so the user must speak the FULL phrase (incl numbers) here (codex).
-            const _full = challengeData?.phrase || '';
-            if (fingerFallback === 'voice') {
-                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"';
-            } else {
-                // R2 (S114): greeting ONLY — strip the trailing digits (the numbers are spoken
-                // per-gesture in the digit phase; one recording → backend still gets them). This
-                // is the fallback prompt; renderGreeting owns the primary live greeting screen.
-                var _greet = vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, '');   // S114: single-source greeting
-                challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greet + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number as you say it, one take</span>';
-            }
-        } else {
-            // Finger phase
-            const fingerElapsed = sec - PHRASE_DURATION;
-            const digitIndex = Math.min(Math.floor(fingerElapsed / DIGIT_DURATION), digits.length - 1);
-            const digit = digits[digitIndex];
-            const step = digitIndex + 1;
-            // Show all digits with current highlighted
-            var circles = '';
-            for (var di = 0; di < digits.length; di++) {
-                if (di < digitIndex) circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:#22c55e;color:white;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 6px;box-shadow:0 0 12px rgba(34,197,94,0.4);">&#10003;</span>';
-                else if (di === digitIndex) circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + digits[di] + '</span>';
-                else circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + digits[di] + '</span>';
-            }
-            // W3.5 refactor: generic prompt — no per-step expected count.
-            // User already saw the full sequence in the challenge phrase; per-step
-            // count hints created "guess by trial and error" UX when the ticked
-            // count didn't match what the user thought they'd shown.
-            challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
-        }
-    }
+    // F-671 Phase A: capture-feedback state made explicit so the presentation fns live at
+    // module level (CaptureFeedback.*) and can be shared with the fast still path (Phase B).
+    // FULL: byId = document.getElementById → byte-identical on auth.html. NO advance-loop
+    // state, NO recorder/Gemini ref enters ctx (the no-clip invariant, enforced by shape).
+    const ctx = {
+        byId: function(id){ return document.getElementById(id); },
+        digits: digits,
+        phraseDuration: PHRASE_DURATION,
+        digitDuration: DIGIT_DURATION,
+        framingBadFrames: 0,
+    };
     if (_dropVoicePhrase) {
         // F-654: COPS/PID policy dropped the voice-phrase modality (same-session SEAL re-auth —
         // full strength, no greeting). Do NOT render the spoken-phrase screen at all: open the
@@ -1303,175 +1528,15 @@ function beginRecording() {
         // skeleton+digit phase. The digits are still spoken per gesture there, so liveness/voice is
         // captured — just not as a separate phase.
         try { var _stNV = document.getElementById('step2Title'); if (_stNV) { _stNV.textContent = 'Quick re-confirm'; _stNV.style.color = ''; } } catch(_) {}
-        try { updatePhasePrompt(0); } catch(_) {}
+        try { CaptureFeedback.updatePhasePrompt(ctx, 0); } catch(_) {}
     } else if (skipGreeting) {
         // F-648: the phrase phase RUNS (the user still SPEAKS — they say the NUMBERS, the per-session
         // anti-replay anchor), so render the phrase screen normally — renderGreeting shows the digits
         // (name-less) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
         try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = 'Quick re-confirm'; _stG.style.color = ''; } } catch(_) {}
-        try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }
+        try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }
     } else {
-        try { renderGreeting(); } catch(_) { updatePhasePrompt(0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
-    }
-
-    // S110: render the persistent above-video digit strip (current digit highlighted).
-    // F-563 (2): PROGRESS DOTS only — NO numbers. The current digit's number lives in the big
-    // #vacGuided panel (single focus), so the strip never shows the upcoming sequence and the user
-    // can't race ahead. done = green ✓, current = filled purple dot, upcoming = empty dot.
-    function renderDigitStrip(currentIdx) {
-        const strip = document.getElementById('digitStrip');
-        const row = document.getElementById('digitStripRow');
-        if (!strip || !row) return;
-        strip.style.display = 'block';
-        var html = '';
-        for (var i = 0; i < digits.length; i++) {
-            if (i < currentIdx) {
-                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 0 10px rgba(34,197,94,0.45);">&#10003;</span>';
-            } else if (i === currentIdx) {
-                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.45);animation:pulse 1s ease infinite;"></span>';
-            } else {
-                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:var(--surface);border:1px solid var(--border);"></span>';
-            }
-        }
-        row.innerHTML = html;
-    }
-
-    // F-563 (2): big guided one-digit panel. Reads the SAME per-digit gate flags the status block
-    // uses (gesture done = _qaGestureLatched; voice done = speechReady[i]) — NO gate logic here, pure
-    // presentation. The gesture ✓ lights on ANY stable deliberate gesture (content-blind — Gemini
-    // validates the count server-side; gating the tick on correctness would re-introduce the
-    // misdetection deadlock). Then the voice sub-gate is revealed; its ✓ lights on the spoken number.
-    // F-599: adaptive co-occurrence coaching copy. ONE simultaneity phrase ("at the same time")
-    // only on the near-miss — the case where timing IS the failure (both said + shown, just too far
-    // apart). The voice-only / gesture-only hints name the MISSING action instead of repeating the
-    // mantra, so the coaching tells the user what they actually forgot (Q4 = option B).
-    function _coachHintMsg(key, N) {
-        if (key === 'nearmiss')    return 'Almost — show your fingers and say it at the same time';
-        if (key === 'voiceonly')   return 'Now show your ' + N + ' finger' + (N === 1 ? '' : 's') + ' as you say “' + N + '”';
-        if (key === 'gestureonly') return 'Say “' + N + '” out loud while you hold up your fingers';
-        return '';
-    }
-    function renderGuided(opts) {
-        var wrap = document.getElementById('vacGuided');
-        if (!wrap) return;
-        wrap.style.display = 'block';
-        var promptEl = document.getElementById('vacGuidedPrompt');
-        var subEl = document.getElementById('vacGuidedSub');
-        var gWrap = document.getElementById('vacGuidedGesture');
-        var vWrap = document.getElementById('vacGuidedVoice');
-        var gLamp = gWrap && gWrap.querySelector('.vac-lamp');
-        var vLamp = vWrap && vWrap.querySelector('.vac-lamp');
-        function setLamp(lamp, box, state, restIcon) {
-            if (!lamp || !box) return;
-            if (state === 'done') {
-                box.style.opacity = '1';
-                lamp.textContent = '✓';
-                lamp.style.color = '#fff'; lamp.style.background = '#22c55e';
-                lamp.style.borderColor = '#22c55e'; lamp.style.boxShadow = '0 0 14px rgba(34,197,94,0.45)';
-                lamp.style.animation = 'none';
-            } else if (state === 'active') {
-                box.style.opacity = '1';
-                lamp.textContent = restIcon;
-                lamp.style.color = ''; lamp.style.background = 'rgba(124,92,252,0.18)';
-                lamp.style.borderColor = 'var(--purple)'; lamp.style.boxShadow = '0 0 14px rgba(124,92,252,0.35)';
-                lamp.style.animation = 'pulse 1s ease infinite';
-            } else if (state === 'ready') {
-                // Green "in position" — mirrors the face oval flipping solid-green: the hand is in
-                // the near-face zone but a stable finger count isn't registering yet (keep the ✋
-                // glyph, not the ✓), so it reads as "good spot, hold it" not "complete".
-                box.style.opacity = '1';
-                lamp.textContent = restIcon;
-                lamp.style.color = '#22c55e'; lamp.style.background = 'rgba(34,197,94,0.18)';
-                lamp.style.borderColor = '#22c55e'; lamp.style.boxShadow = '0 0 14px rgba(34,197,94,0.45)';
-                lamp.style.animation = 'none';
-            } else { // pending/dim
-                box.style.opacity = '0.4';
-                lamp.textContent = restIcon;
-                lamp.style.color = ''; lamp.style.background = '';
-                lamp.style.borderColor = 'var(--border)'; lamp.style.boxShadow = 'none';
-                lamp.style.animation = 'none';
-            }
-        }
-        // F-563 (latch): the camera-free "Say N" cover. ON only during sub-gate 2 (gesture latched,
-        // voice not yet given) → one thing per screen. OFF everywhere else (show phase / beat / done)
-        // so the camera is back for the next digit's gesture.
-        function setSayView(on, word, hint) {
-            var sv = document.getElementById('vacSayView');
-            if (!sv) return;
-            sv.style.display = on ? 'flex' : 'none';
-            if (on) {
-                var w = document.getElementById('vacSayWord'); if (w) w.textContent = '“' + word + '”';
-                var h = document.getElementById('vacSayHint'); if (h) h.textContent = hint || '';
-            }
-        }
-        // F-563 UX: a BIG number during the show-fingers step so the target digit is unmissable.
-        function setBigNumber(on, n) {
-            var ne = document.getElementById('vacGuidedNumber');
-            if (!ne) return;
-            // F-AUTH-UX-POLISH (2): never substitute a default. If the digit isn't a real bound
-            // value yet (undefined/NaN/empty — e.g. digits[currentDigitIndex] not resolved), hide
-            // the big number this frame rather than paint a stray "1". The real digit appears only
-            // once it's actually bound.
-            var _valid = (typeof n === 'number' && !isNaN(n)) || (typeof n === 'string' && n !== '');
-            if (!on || !_valid) { ne.style.display = 'none'; return; }
-            ne.style.display = 'block';
-            ne.textContent = n;
-        }
-        if (opts.done) {
-            if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
-            if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
-            setSayView(false); setBigNumber(false);
-            return;
-        }
-        if (opts.beat) {
-            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
-            if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
-            setSayView(false); setBigNumber(false);
-            return;
-        }
-        var N = opts.digit;
-        // SHOW-AS-YOU-SAY: the camera-free hand-down "Say N" cover is GONE — you keep fingers up
-        // while you say it. So there is ONE simultaneous step (not two sub-gates); the lamps are LIVE
-        // sensing indicators, and the single combined ✓ is the only accept (handled by opts.beat above).
-        setSayView(false);
-        if (!opts.voiceOn && opts.rearmed === false) {
-            // Speech-off (degraded, no mic) + gesture confirmed but NOT re-armed: advance is BLOCKED
-            // (same held pose carried from the last accept). Prompt the re-show (codex). Unchanged.
-            if (promptEl) { promptEl.textContent = 'Lower your hand, then show ' + N + ' again'; promptEl.style.color = '#fbbf24'; }
-            if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'active', '✋');
-            setLamp(vLamp, vWrap, 'pending', '🗣️');
-            setBigNumber(true, N);
-        } else {
-            // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
-            // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
-            // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
-            if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” — at the same time'; promptEl.style.color = 'var(--text-primary)'; }
-            setBigNumber(true, N);
-            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
-            if (!opts.handNear) {
-                // No hand, or hand outside the in-front-of-face capture zone. THIS is the silent-failure
-                // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
-                // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
-                // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
-                if (subEl) subEl.textContent = '✋ Hold your hand up in front of your face';
-                setLamp(gLamp, gWrap, 'pending', '✋');
-            } else if (!opts.gestureLive) {
-                // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
-                // ("good spot") + hold-steady guidance, so the user knows the position is right.
-                if (subEl) subEl.textContent = 'Hand detected — hold steady.';
-                setLamp(gLamp, gWrap, 'ready', '✋');
-            } else {
-                // Fingers live in-zone — main's existing live-sensing lamp + adaptive co-occurrence coach.
-                // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
-                // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
-                var _coachSub = opts.voiceHelp ? '' : _coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
-                if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
-                setLamp(gLamp, gWrap, 'active', '✋');
-            }
-        }
+        try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
     }
 
     // ── Finger-phase shared state ──────────────────────────────────────────
@@ -1593,26 +1658,6 @@ function beginRecording() {
     // that gesture (no pre-satisfaction). Reusable per-digit unit for F-562 quick re-auth.
     let _sawSilence = false;         // observed real silence since THIS digit's window opened?
     let _voiceOnsetAt = 0;           // performance.now() when the current fresh voiced run began
-
-    // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
-    function renderFingerPhase(hint) {
-        if (digits.length === 0) { challengeEl.textContent = 'Processing\u2026'; return; }
-        // S111 #3: per-digit number circles live in #digitStrip ABOVE the video (single source).
-        // W3.5 refactor: generic per-step prompt.
-        // The detection loop already advances on ANY finger > 0 (line below);
-        // server validates the full sequence at the end. Showing the expected
-        // count per-step taught users to expect "did it accept my guess?" — the
-        // green tick reads as "we got this position, on to the next."
-        const hintHtml = hint ? '<div style="color:#fbbf24;font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
-        const remaining = digits.length - currentDigitIndex;
-        const stepLabel = remaining > 1 ? (remaining + ' gestures to go') : (remaining === 1 ? 'last gesture' : 'done');
-        // F-563 (2): the strip is now numberless progress DOTS, so this prompt must NAME the current
-        // digit itself — otherwise the detector-fallback path (which relies on this text) leaves the
-        // user with no per-step number after the one-time intro (codex).
-        var _cd = digits[currentDigitIndex];
-        var _showNum = (currentDigitIndex < digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
-        challengeEl.innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
-    }
 
     function finishFingerPhase() {
         if (recordingStopped) return;
@@ -1817,7 +1862,7 @@ function beginRecording() {
         }
         statusEl.style.color = '#fbbf24';
         statusEl.textContent = 'Camera detector unavailable — show AND SAY each number out loud, then tap to advance (your spoken numbers are still recorded for verification)';
-        renderFingerPhase(false);
+        CaptureFeedback.renderFingerPhase(ctx, false, currentDigitIndex);
 
         // Per-step MANUAL advance (no auto-advance). User taps to confirm each
         // gesture is held. This is the safety net when detection is down — it
@@ -1840,14 +1885,14 @@ function beginRecording() {
                     if (currentDigitIndex >= digits.length) {
                         btn.remove();
                         if (statusEl) statusEl.remove();
-                        renderFingerPhase(false);
+                        CaptureFeedback.renderFingerPhase(ctx, false, currentDigitIndex);
                         finishFingerPhase();
                     } else {
                         // S111 #3: the per-step numbers now live ONLY in #digitStrip (the in-frame
                         // circles were removed), so the manual fallback must advance the strip too —
                         // else it sticks on the first digit and the user shows the wrong sequence (codex).
-                        try { renderDigitStrip(currentDigitIndex); } catch(_) {}
-                        renderFingerPhase(false);
+                        try { CaptureFeedback.renderDigitStrip(ctx, currentDigitIndex); } catch(_) {}
+                        CaptureFeedback.renderFingerPhase(ctx, false, currentDigitIndex);
                     }
                 });
             }
@@ -1872,31 +1917,6 @@ function beginRecording() {
     // phase — shows the user the system is tracking them live. Same MediaPipe landmarks
     // already used for counting; purely visual.
     const _HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-    // S110: detect when the hand is too close / clipped by the frame edges so we
-    // can prompt the user to pull back. MediaPipe can't count reliably when not all
-    // 21 landmarks are visible. We check (a) any landmark near/past an edge and
-    // (b) the hand bounding box filling most of the frame. Debounced so the prompt
-    // doesn't flicker on momentary edge touches.
-    let _framingBadFrames = 0;
-    function _checkHandFraming(lm) {
-        const banner = document.getElementById('framingHint');
-        if (!lm) { _framingBadFrames = 0; if (banner) banner.style.display = 'none'; return; }
-        let minX=1, maxX=0, minY=1, maxY=0;
-        for (const p of lm) { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
-        const EDGE = 0.04;
-        const clipped = (minX < EDGE || maxX > 1-EDGE || minY < EDGE || maxY > 1-EDGE);
-        const tooBig  = ((maxX-minX) > 0.85 || (maxY-minY) > 0.9);
-        if (clipped || tooBig) { _framingBadFrames++; } else { _framingBadFrames = 0; }
-        if (banner) {
-            if (_framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
-                banner.textContent = tooBig ? 'Move your hand back a little — keep your whole hand in view'
-                                            : 'Center your hand — keep it fully inside the frame';
-                banner.style.display = 'block';
-            } else if (_framingBadFrames === 0) {
-                banner.style.display = 'none';
-            }
-        }
-    }
 
     function _drawHandSkeleton(videoEl, lm){
         const cv=document.getElementById('handOverlay');
@@ -1944,7 +1964,7 @@ function beginRecording() {
         // failed until he pulled his hand back so the whole hand was in frame).
         // MediaPipe needs all 21 landmarks visible to count reliably; if the hand
         // is clipped at an edge or fills the frame, prompt the user to pull back.
-        try { _checkHandFraming(FingerDetector.landmarks); } catch(_){}
+        try { CaptureFeedback.checkHandFraming(ctx, FingerDetector.landmarks); } catch(_){}
         _detLoopFrames++;
         if (_detLoopFrames === 1) {
             try { vacDebug('detect_loop_first_frame', null, { detected: detected, video_ready: (videoEl && videoEl.readyState) || null }); } catch(_) {}
@@ -2127,7 +2147,7 @@ function beginRecording() {
             timerEl.textContent = currentDigitIndex + '/' + digits.length;
             if (currentDigitIndex >= digits.length) {
                 try { vacDebug('detect_all_digits_complete', null, { frames: _detLoopFrames, counts: detectedCounts }); } catch(_) {}
-                renderFingerPhase(false);
+                CaptureFeedback.renderFingerPhase(ctx, false, currentDigitIndex);
                 finishFingerPhase();
                 return;
             }
@@ -2158,7 +2178,7 @@ function beginRecording() {
         var inConfirmBeat = _now < _confirmUntil;       // S110: the "Got it ✓" hold between digits
         // When the beat ends, NOW reveal the next number's highlight (delayed from accept).
         if (!inConfirmBeat && _confirmStripPending >= 0) {
-            try { renderDigitStrip(_confirmStripPending); } catch(_) {}
+            try { CaptureFeedback.renderDigitStrip(ctx, _confirmStripPending); } catch(_) {}
             _confirmStripPending = -1;
         }
         if (currentDigitIndex >= totalSteps) {
@@ -2232,7 +2252,7 @@ function beginRecording() {
         // this digit, content-blind); voice done = speechReady[currentDigitIndex].
         try {
             var _gPct = Math.min(Math.round((stableFrames / STABLE_FRAMES_NEEDED) * 100), 100);
-            renderGuided({
+            CaptureFeedback.renderGuided(ctx, {
                 coachKey: _coachKeyShown,   // F-599: debounced adaptive co-occurrence coaching key
                 done: currentDigitIndex >= totalSteps,
                 beat: inConfirmBeat,
@@ -2262,7 +2282,7 @@ function beginRecording() {
         _renderVoiceOffNote();
         // D2: once the gesture is confirmed and we're only waiting on voice, the 8s
         // "hold hand closer" hint is wrong here — suppress it.
-        renderFingerPhase(hintShown && !_waitingVoice);
+        CaptureFeedback.renderFingerPhase(ctx, hintShown && !_waitingVoice, currentDigitIndex);
         rafId = requestAnimationFrame(runDetectionLoop);
     }
 
@@ -2542,7 +2562,7 @@ function beginRecording() {
                         : '<span style="font-size:18px;color:#fbbf24;font-weight:700;">Starting…</span>');
             }
             renderGrace();
-            try { renderDigitStrip(0); } catch(_) {}
+            try { CaptureFeedback.renderDigitStrip(ctx, 0); } catch(_) {}
             try { vacDebug('phase2_entering', null, { detector_ready: FingerDetector.ready, detector_failed: FingerDetector.failed, module_loaded: !!window.__VAC_MediaPipe, digits_count: digits.length }); } catch(_) {}
             console.log('[VAC] Finger phase entering — detector ready=' + FingerDetector.ready + ' failed=' + FingerDetector.failed);
 
@@ -2577,7 +2597,7 @@ function beginRecording() {
                 // gate requires the count to be HELD ~0.6s before it's accepted.
                 stableCount = 0;
                 stableFrames = 0;
-                renderFingerPhase(false);
+                CaptureFeedback.renderFingerPhase(ctx, false, currentDigitIndex);
                 // S110: switch the ring/number from countdown to calm progress at
                 // the start of the detection phase — the user shows numbers at their
                 // own pace; nothing is racing a clock here.
