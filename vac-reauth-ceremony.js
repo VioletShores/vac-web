@@ -670,7 +670,10 @@ function _avDrawHand(videoEl, lm){
 // consistency). Identical to the beginRecording-scoped _drawHandSkeleton, lifted out so
 // beginStillCapture can call it too (it was nested, hence the fast path had no skeleton).
 function _drawHandSkeletonShared(videoEl, lm){
-    const cv=document.getElementById('handOverlay');
+    // F-671 Phase B1: mount-scoped lookup so the WHOLE fast path is zero-document-global on the
+    // embedded fast hosts (tribunal / vat-verify). This drawer is FAST-ONLY (called solely from
+    // beginStillCapture); the FULL path uses its own nested _drawHandSkeleton, so this cannot affect it.
+    const cv=(CTX && CTX.mount) ? CTX.mount.querySelector('#handOverlay') : document.getElementById('handOverlay');
     if(!cv||!videoEl) return;
     if(!cv._ctx) cv._ctx=cv.getContext('2d',{willReadFrequently:false});
     const ctx=cv._ctx;
@@ -861,6 +864,24 @@ const CaptureFeedback = {
             setLamp(gLamp, gWrap, 'active', '✋');
             setLamp(vLamp, vWrap, 'pending', '🗣️');
             setBigNumber(true, N);
+        } else if (ctx.voiceless) {
+            // F-671 Phase B1: gesture-only fast policy (_captureVoice=false) — drop the "say it" half so
+            // the copy matches the policy (the fast tier's prior inline copy: "no need to say anything").
+            // Hide the voice sub-gate; the gesture lamp logic mirrors the voiced branch below. FULL path
+            // never sets ctx.voiceless → this branch is skipped → rendered output stays byte-identical.
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' — hold steady'; promptEl.style.color = 'var(--text-primary)'; }
+            setBigNumber(true, N);
+            if (vWrap) vWrap.style.display = 'none';
+            if (!opts.handNear) {
+                if (subEl) subEl.textContent = '✋ Hold your hand up in front of your face';
+                setLamp(gLamp, gWrap, 'pending', '✋');
+            } else if (!opts.gestureLive) {
+                if (subEl) subEl.textContent = 'Hand detected — hold steady.';
+                setLamp(gLamp, gWrap, 'ready', '✋');
+            } else {
+                if (subEl) subEl.textContent = 'hold steady';
+                setLamp(gLamp, gWrap, 'active', '✋');
+            }
         } else {
             // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
             // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
@@ -907,7 +928,14 @@ const CaptureFeedback = {
         // digit itself — otherwise the detector-fallback path (which relies on this text) leaves the
         // user with no per-step number after the one-time intro (codex).
         var _cd = ctx.digits[currentDigitIndex];
-        var _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
+        // F-671 Phase B1: gesture-only fast policy drops the "say it" half (copy matches policy). FULL
+        // path never sets ctx.voiceless → else branch (the original expression) → byte-identical header.
+        var _showNum;
+        if (ctx.voiceless) {
+            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' — hold steady') : 'Show the next number';
+        } else {
+            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
+        }
         ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     },
 
@@ -2752,12 +2780,26 @@ function _makeQuickReauthVoiceGate(cfg) {
 // in a later lane, where it gets live-tested with a real camera.
 async function beginStillCapture() {
     try { vacDebug('begin_still_capture_called'); } catch(_) {}
+    // F-671 Phase B1: ONE mount-scoped resolver for the WHOLE fast path (step2 + step3 reads/writes), so
+    // every DOM lookup resolves INSIDE CTX.mount. Fast embeds CEREMONY_HTML into an arbitrary host
+    // (tribunal/vat-verify) where a bare document.getElementById could hit a colliding host id; the FULL
+    // path keeps document.getElementById (auth.html — the ceremony IS the page). Falls back to document
+    // when there's no mount (defensive; run() bails earlier if CTX.mount is absent). The CaptureFeedback
+    // ctx.byId below points here too, so #challengeText has exactly ONE resolution path (no double-write).
+    const _scope = (CTX && CTX.mount) ? CTX.mount : document;
+    const byId = function(id){ return _scope.querySelector('#' + id); };
     // F-666 #3 (codex P2): a PRIOR fast run's verdict may still occupy step3's progress area,
     // including a live #qrContinueBtn wired to that run's _finish(). If the user tapped "Start
     // over" instead of "Continue", goToStep(3) below would re-show that stale verdict and the
     // stale button could complete THIS restarted attempt on the PRIOR result. Restore the
     // pristine progress markup now (snapshotted in renderQuickReauthVerdict) so every capture
     // starts step3 clean. innerHTML replacement also drops the stale button + its onclick.
+    // F-671 Phase B1: the step3 verdict/continue cluster stays DOCUMENT-GLOBAL on purpose. Its
+    // #qrContinueBtn is WIRED in runFastVerification (a HELD verify-path fn this lane must not touch),
+    // so renderQuickReauthVerdict's host + this restore stay document-global to MATCH it — scoping only
+    // part of the trio would strand the __qrOrigHTML snapshot or mis-wire Continue. (This is the pre-B1
+    // behavior; the step2 capture UI below IS mount-scoped, where every consumer is in-path. Full step3
+    // collision-safety would need to scope the held runFastVerification too — a B2 / host-hardening lane.)
     try { var _pc0 = document.querySelector('#step3 .progress-container'); if (_pc0 && _pc0.__qrOrigHTML != null) { _pc0.innerHTML = _pc0.__qrOrigHTML; } } catch(_) {}
     let detectedFingers = null;
     let stillB64 = '';
@@ -2775,6 +2817,20 @@ async function beginStillCapture() {
     const _captureVoice = _policyReq.some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
     const _expectFingers = (challengeData && (typeof challengeData.fingers === 'number' ? challengeData.fingers
                             : (challengeData.digits && challengeData.digits.length ? challengeData.digits[0] : null)));
+    // F-671 Phase B1: light presentation ctx — drives the SHARED CaptureFeedback.* show-and-say feedback
+    // (the full path's per-digit UI: digit strip, big guided panel, live lamps, framing banner). Carries
+    // NO advance-loop / MediaRecorder / Gemini state (presentation only). digits = [the single bound digit];
+    // phraseDuration=0 so the phrase branch (the only reader of challengeData/fingerFallback/vacGreetingText
+    // globals) never fires; digitDuration is a nonzero divisor guard (fast never calls updatePhasePrompt).
+    // voiceless mirrors the gesture-only policy so the shared copy drops the "say it" half + hides the voice lamp.
+    const ctx = {
+        byId: byId,
+        digits: [_expectFingers],
+        phraseDuration: 0,
+        digitDuration: 1,
+        framingBadFrames: 0,
+        voiceless: !_captureVoice,
+    };
     // Start recording the spoken-digit audio ONLY when the policy's bound digit requires the spoken
     // half (COPS/PID decides — not this function). Same live mic track, no new getUserMedia.
     let _audioRec = null, _audioChunks = [], _audioStartMs = 0;
@@ -2811,15 +2867,28 @@ async function beginStillCapture() {
         } catch(ve) { _voiceGate = null; console.warn('[VAC] quick-reauth voice gate start failed (non-fatal, show-only):', (ve && ve.message) || ve); }
     }
     try {
-        const _gv = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
+        const _gv = byId('videoPreviewRec') || byId('videoPreview');
+        // F-671 Phase B1 (codex P2): goToChallenge attaches mediaStream to document.getElementById
+        // ('videoPreviewRec') — shared full-path setup we must NOT touch. On an embedded host with a
+        // colliding id that may NOT be the element this mount-scoped lookup returns, the mounted video
+        // would keep videoWidth=0 (still/embedding skipped → needless fallback). Idempotently ensure
+        // THIS (mounted) recorder video carries the live stream; a no-op in the normal no-collision case.
+        try { if (_gv && mediaStream && _gv.srcObject !== mediaStream) { _gv.srcObject = mediaStream; _gv.muted = true; _gv.setAttribute('playsinline',''); _gv.play().catch(function(){}); } } catch(_) {}
         if (_gv && _expectFingers != null) {
-            // Prompt copy — derived from the policy: say+show when the bound digit requires the
-            // spoken half (COPS/PID), show-only when it doesn't.
+            // F-671 Phase B1: render the show-and-say feedback through the SHARED CaptureFeedback.* (the
+            // full path's UI) instead of the old minimal inline #challengeText. renderDigitStrip ONCE (one
+            // bound digit → one progress dot that never changes index); renderFingerPhase owns the
+            // #challengeText header; renderGuided shows the big guided panel + live lamps (driven per-tick
+            // in the loop below). step2 title via byId (mount-scoped, same resolver as every fast lookup).
             try {
-                var _ct = document.getElementById('challengeText');
-                if (_ct) _ct.innerHTML = '<div style="font-size:clamp(18px,5vw,24px);font-weight:800;color:#fbbf24;line-height:1.3;">Show ' + _expectFingers + ' finger' + (_expectFingers === 1 ? '' : 's') + (_captureVoice ? (' and say &ldquo;' + _expectFingers + '&rdquo;') : '') + '</div>'
-                    + '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">' + (_captureVoice ? 'show it and say it together — hold steady' : 'hold steady — no need to say anything') + '</div>';
-                var _t2 = document.getElementById('step2Title'); if (_t2) { _t2.textContent = _captureVoice ? 'Show and say the number' : 'Show the number'; _t2.style.color = '#fbbf24'; }
+                // F-671 Phase B1 (codex P3): clear any sticky display:none the voice sub-gate may carry from a
+                // PRIOR gesture-only attempt in this (reused) mount — else a voiced challenge updates the lamp
+                // but the box stays hidden. renderGuided's voiceless branch re-hides it per tick when needed.
+                try { var _vv0 = byId('vacGuidedVoice'); if (_vv0) _vv0.style.display = ''; } catch(_) {}
+                CaptureFeedback.renderDigitStrip(ctx, 0);
+                CaptureFeedback.renderFingerPhase(ctx, false, 0);
+                CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: false, handNear: false, gestureLive: false, coachKey: '', voiceHelp: false });
+                var _t2 = byId('step2Title'); if (_t2) { _t2.textContent = _captureVoice ? 'Show and say the number' : 'Show the number'; _t2.style.color = '#fbbf24'; }
             } catch(_) {}
             // Poll for a STABLE matching finger count. Reuse FingerDetector (same as the full phase)
             // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
@@ -2839,6 +2908,24 @@ async function beginStillCapture() {
                         if (_n === _lastSeen) _stable++; else _stable = 1;
                         _lastSeen = _n;
                     } else { _stable = 0; _lastSeen = null; }
+                    // F-671 Phase B1: drive the SHARED guided panel + framing banner from THIS tick's live
+                    // state (the same sensing the full path's finger phase renders). PURE PRESENTATION: it
+                    // reads the loop's _n / _stable / landmarks / _voiceGate and writes only the #vacGuided
+                    // panel + framing banner — it does NOT touch the capture gate below (_cooccurAdvanceDecision
+                    // stays the sole advance authority). voiceHelp is intentionally dropped: the fast voice gate
+                    // exposes no RMS/silence state, so "speak louder" can't be told apart from "hasn't spoken yet"
+                    // — coachKey='gestureonly' ("say it out loud") carries the honest nudge instead.
+                    var _lm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
+                    var _handNear = !!_lm && _handNearFaceZone(_lm);
+                    var _gestureLive = (_stable >= _STABLE_NEEDED && typeof _n === 'number' && _n > 0);
+                    var _voiceDone = !!(_voiceGate && _voiceGate.armed);
+                    var _coachKey = '';
+                    if (!ctx.voiceless) {
+                        if (_gestureLive && !_voiceDone) _coachKey = 'gestureonly';   // shown, not yet said
+                        else if (_voiceDone && !_gestureLive) _coachKey = 'voiceonly'; // said, not yet shown
+                    }
+                    try { CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: _voiceDone, handNear: _handNear, gestureLive: _gestureLive, coachKey: _coachKey, voiceHelp: false }); } catch(_) {}
+                    try { CaptureFeedback.checkHandFraming(ctx, _lm); } catch(_) {}
                     // F-662 capture gate. VOICE policy (_voiceGate live): capture only when a STABLE
                     // gesture (fingers UP) and the spoken digit CO-OCCUR — the SAME advance timing as the
                     // full phase, via the shared _cooccurAdvanceDecision — so _audioRec is never stopped
@@ -2861,7 +2948,7 @@ async function beginStillCapture() {
                         _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy / VAD unavailable — unchanged
                     }
                     if (_captureNow) {
-                        try { var _ctd = document.getElementById('challengeText'); if (_ctd) _ctd.innerHTML = '<div style="font-size:clamp(22px,6vw,28px);font-weight:800;color:#22c55e;">\u2713 Got it</div>'; } catch(_) {}
+                        try { CaptureFeedback.renderGuided(ctx, { beat: true }); } catch(_) {}   // F-671 Phase B1: "Got it" beat now renders in the shared guided panel (full-path parity)
                         clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ beat, then capture
                     }
                     if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(); }  // fail-open: capture anyway
@@ -2871,7 +2958,7 @@ async function beginStillCapture() {
     } catch (e) { console.warn('[VAC] fast gesture prompt failed (non-fatal):', (e && e.message) || e); }
 
     try {
-        const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
+        const v = byId('videoPreviewRec') || byId('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
             // Single live finger reading. 0-5 = count, -1 = no hand, null = detector down.
             try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
@@ -2950,6 +3037,14 @@ async function beginStillCapture() {
     try { stopAudioMonitor(); } catch(_) {}
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
+    // F-671 Phase B1 (codex P2): hide the guided panels B1 now shows, mirroring the full path's
+    // capture-end hide (#digitStrip / #vacGuided, lines ~1690-1691). Without this they stay
+    // display:block after this attempt, so a "Start over" (toCamera → goToStep(1)) leaves the NEXT
+    // fast attempt's lead-in/countdown showing the prior digit until beginStillCapture re-renders.
+    // Scoped to the mount via byId (same resolver as the rest of the fast path).
+    try { var _ds = byId('digitStrip'); if (_ds) _ds.style.display = 'none'; } catch(_) {}
+    try { var _gp = byId('vacGuided'); if (_gp) _gp.style.display = 'none'; } catch(_) {}
+    try { var _fh = byId('framingHint'); if (_fh) _fh.style.display = 'none'; } catch(_) {}   // codex P3: clear the out-of-zone banner too — checkHandFraming may have shown it this attempt
     goToStep(3);
     // F-637c FAIL-CLOSED: the server's identity gate REQUIRES a live descriptor. With no clean
     // single-face embedding (0/>1 face, embedder down/absent/timeout, capture error) there is no
@@ -3084,6 +3179,9 @@ function renderQuickReauthVerdict(res) {
     // ("dropdown doesn't expand on click"; Continue unreachable). Render into the VISIBLE step3
     // progress area (the spinner the user is watching), falling back to the legacy hosts only
     // if it is somehow absent.
+    // F-671 Phase B1: document-global on purpose — kept consistent with the #qrContinueBtn wiring in
+    // runFastVerification (HELD verify-path fn) and the _pc0 restore in beginStillCapture, so the whole
+    // step3 verdict/continue cluster resolves the SAME elements. (Scoping it would need the held fn too.)
     var host = document.querySelector('#step3 .progress-container')
         || document.getElementById('challengeText') || document.getElementById('vacGuided');
     if (!host) return;
