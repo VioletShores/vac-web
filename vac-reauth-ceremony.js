@@ -2802,6 +2802,7 @@ async function beginStillCapture() {
     // collision-safety would need to scope the held runFastVerification too — a B2 / host-hardening lane.)
     try { var _pc0 = document.querySelector('#step3 .progress-container'); if (_pc0 && _pc0.__qrOrigHTML != null) { _pc0.innerHTML = _pc0.__qrOrigHTML; } } catch(_) {}
     let detectedFingers = null;
+    let _fingerFailReason = null;   // F-672: set when NO valid finger count could be captured → fail-closed (never POST detected_fingers:null)
     let stillB64 = '';
     let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
     let spokenAudioB64 = '';    // F-654: the SPOKEN digit clip (Deepgram) — the 'said' half of the bound digit
@@ -2893,9 +2894,14 @@ async function beginStillCapture() {
             // Poll for a STABLE matching finger count. Reuse FingerDetector (same as the full phase)
             // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
             // remain the server gate; the gesture is advisory pacing, mirroring the clip path).
-            const _GEST_MAX_MS = 6000, _GEST_TICK = 120, _STABLE_NEEDED = 4;
-            let _stable = 0, _waited = 0, _lastSeen = null;
-            await new Promise(function(resolve){
+            const _GEST_MAX_MS = 6000, _GEST_TICK = 120, _STABLE_NEEDED = 4, _FINGER_MAX_RETRY = 2;
+            // F-672: bounded coach-retry around the co-occurrence poll. Each window resolves the STABLE
+            // count (>=0) on advance, or null on timeout (NO capture-anyway). No-hand → coach + re-poll
+            // (MAX 2); down detector → fail-closed, no retry; NEVER POST detected_fingers:null. The retry
+            // re-runs the CLIENT poll only (no POST) so it can't consume the server step-up budget (F-673).
+            for (var _fAttempt = 0; ; _fAttempt++) {
+              var _polled = await new Promise(function(resolve){
+                let _stable = 0, _waited = 0, _lastSeen = null;
                 const _iv = setInterval(function(){
                     _waited += _GEST_TICK;
                     let _n = null;
@@ -2949,19 +2955,36 @@ async function beginStillCapture() {
                     }
                     if (_captureNow) {
                         try { CaptureFeedback.renderGuided(ctx, { beat: true }); } catch(_) {}   // F-671 Phase B1: "Got it" beat now renders in the shared guided panel (full-path parity)
-                        clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ beat, then capture
+                        clearInterval(_iv); var _cap = _lastSeen; setTimeout(function(){ resolve(_cap); }, 350); return;  // F-672: resolve WITH the co-occurrence-gated stable count
                     }
-                    if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(); }  // fail-open: capture anyway
+                    if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(null); }  // F-672: timeout → NO capture-anyway; null signals "no gesture" → the retry / fail-close logic decides
                 }, _GEST_TICK);
-            });
+              });
+              if (typeof _polled === 'number' && _polled >= 0) { break; }   // co-occurrence advance confirmed → capture; detected_fingers is RE-READ at the still instant (codex P2: the count must match the still)
+              // no advance this window — classify via a raw read (camera still live, pre-teardown).
+              var _rawFc = null; try { _rawFc = FingerDetector.detect(_gv); } catch(_) { _rawFc = null; }
+              if (_rawFc === null || (typeof FingerDetector !== 'undefined' && FingerDetector.failed)) { _fingerFailReason = 'finger_detector_down'; break; }   // null → detector down: retry can't recover → fail-closed, NO retry
+              if (_fAttempt >= _FINGER_MAX_RETRY) { _fingerFailReason = 'no_finger_after_retry'; break; }   // -1 no hand, retries exhausted → fail-closed
+              try { CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: false, handNear: false, gestureLive: false, coachKey: '', voiceHelp: false }); } catch(_) {}   // coachable retry via the shared feedback (camera live) → re-poll
+            }
         }
     } catch (e) { console.warn('[VAC] fast gesture prompt failed (non-fatal):', (e && e.message) || e); }
 
+    // F-672: defer the still + 128-D embedding (+ audio finalize) until a VALID finger count. On a
+    // fail-close path (_fingerFailReason set) skip capture entirely — no wasted ~10s embedding, and the
+    // still is never bound to a failed/absent gesture.
+    if (!_fingerFailReason) {
     try {
         const v = byId('videoPreviewRec') || byId('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
-            // Single live finger reading. 0-5 = count, -1 = no hand, null = detector down.
-            try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
+            // F-672 + codex P2: re-read the finger count AT the still instant (same live frame the still
+            // is drawn from) so the POSTed detected_fingers CORRESPONDS to the still. The co-occurrence
+            // poll confirmed a valid gesture, but the 350ms "Got it" beat means the hand may have moved,
+            // and the detector contract is that raw counts are read at capture time. Invalid here (hand
+            // dropped during the beat) → mark a fail-close; we never POST a null/stale/mismatched count.
+            var _fcStill = null; try { _fcStill = FingerDetector.detect(v); } catch(_) { _fcStill = null; }
+            if (typeof _fcStill === 'number' && _fcStill >= 0) { detectedFingers = _fcStill; }
+            else { _fingerFailReason = _fingerFailReason || 'finger_lost_at_capture'; }
             // Bound still — same <=640px downscale + RAW (un-mirrored) capture as the clip path.
             const longest = Math.max(v.videoWidth, v.videoHeight);
             const scale = longest > 640 ? 640 / longest : 1;
@@ -2986,7 +3009,7 @@ async function beginStillCapture() {
             // never strand the user (it routes to fallback instead). Computing from `c` keeps the
             // descriptor and the still_b64 pixel-identical. We await BEFORE building parts, so
             // buildBody can never read face_embedding before the descriptor resolves (no race).
-            if (window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+            if (!_fingerFailReason && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
                 try {
                     const _EMB_TIMEOUT_MS = 10000;
                     const r = await Promise.race([
@@ -3028,12 +3051,14 @@ async function beginStillCapture() {
             }
         } catch(se) { console.warn('[VAC] quick-reauth audio finalize failed (non-fatal):', (se && se.message) || se); }
     }
+    }   // end F-672 capture guard (!_fingerFailReason)
     // F-662: tear down the fast-tier voice analyser (started for the co-occurrence gate) BEFORE
     // releasing the mic — single cleanup chokepoint that every exit path (incl. the fail-closed
     // return below) passes through, so no VAD rAF / AudioContext is left alive (codex caveat A).
     // stopAudioMonitor is guarded: the fast hosts may lack the #audioLevel element it hides, but
     // its real teardown (cancel rAF, close context, null analyser) runs before that throwable line.
     try { if (_voiceGate) _voiceGate.stop(); } catch(_) {}
+    try { if (_audioRec && _audioRec.state && _audioRec.state !== 'inactive') _audioRec.stop(); } catch(_) {}   // F-672: on a fail-close path the audio finalize was skipped — stop the recorder here (no-op on the normal path, already inactive)
     try { stopAudioMonitor(); } catch(_) {}
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
@@ -3046,6 +3071,16 @@ async function beginStillCapture() {
     try { var _gp = byId('vacGuided'); if (_gp) _gp.style.display = 'none'; } catch(_) {}
     try { var _fh = byId('framingHint'); if (_fh) _fh.style.display = 'none'; } catch(_) {}   // codex P3: clear the out-of-zone banner too — checkHandFraming may have shown it this attempt
     goToStep(3);
+    // F-672 FAIL-CLOSED: no valid finger count — detector down (no retry), or no hand after MAX 2 coached
+    // retries. Route to the host fallback exactly like the embedding fail-close below; we NEVER reach
+    // runFastVerification, so detected_fingers:null is never POSTed (the server 422 dead-end). A null
+    // detectedFingers under a bound-digit challenge is also caught here (defensive floor).
+    if (_fingerFailReason || detectedFingers == null) {
+        var _ffr = _fingerFailReason || 'no_finger_captured';
+        try { vacDebug('fast_reauth_failed', _ffr); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: ' + _ffr)); } catch(_) {} }
+        return;
+    }
     // F-637c FAIL-CLOSED: the server's identity gate REQUIRES a live descriptor. With no clean
     // single-face embedding (0/>1 face, embedder down/absent/timeout, capture error) there is no
     // identity proof to send, so we NEVER POST a body the server could 200 on — it would fail at
