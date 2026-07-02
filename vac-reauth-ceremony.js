@@ -3145,44 +3145,48 @@ async function runFastVerification(parts) {
         if (_body instanceof FormData) { _opts.body = _body; }
         else if (_body != null) { _opts.headers = { 'Content-Type': 'application/json' }; _opts.body = JSON.stringify(_body); }
         const resp = await fetch(vCfg.url(), _opts);
-        if (!resp.ok) {
-            var errText = await resp.text();
-            throw new Error('Server error ' + resp.status + ': ' + errText.substring(0, 300));
-        }
-        authResult = await resp.json();
-        // FAIL-CLOSED (codex P1): a 2xx from /v1/auth/quick-reauth can still carry a NEGATIVE
-        // verdict (authenticated:false / authorized:false), exactly as the existing quick-reauth
-        // callers (vat-verify) treat it. Only an EXPLICIT positive verdict may run the host
-        // SUCCESS path (_finish → onComplete); a negative OR unrecognised shape routes to the
-        // host fallback, so a failed fast re-auth can never reveal gated content by default.
-        // Gate ONLY on an explicit auth verdict, exactly as the existing quick-reauth caller
-        // (vat-verify) does — never a generic "request processed" flag (ok/success/pass), which
-        // can co-exist with authenticated:false. Unknown / missing verdict → denied (fail-closed).
-        const _ok = !!(authResult && (authResult.authenticated === true || authResult.authorized === true));
-        try { vacDebug('fast_reauth_result', null, { ok: _ok, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
-        // Surface the bound digit + advisory detected-finger count onto the result so hosts can
-        // render the proof faithfully (tribunal's success card interpolates result.digit). The
-        // server need not echo them: the bound digit is THIS run's challenge (challengeData.digits)
-        // and the detected count is what beginStillCapture read (parts.detected_fingers). Only fill
-        // when the server didn't already provide a value, so a server-authoritative field wins.
+        // ITEM 1: parse the verdict body on BOTH success and failure. A denied quick-reauth (401/409)
+        // returns a JSON error verdict — FastAPI wraps HTTPException as { detail: {...} }, so unwrap it.
+        // We no longer discard the failure body as text and throw (which dropped the user to a bare
+        // result); we render it so the user sees WHICH modality failed and what to do.
+        var _raw = null;
+        try { _raw = await resp.json(); } catch(_) { _raw = null; }
+        if (_raw && _raw.detail && typeof _raw.detail === 'object' && !Array.isArray(_raw.detail)) { authResult = _raw.detail; }
+        else if (_raw != null) { authResult = _raw; }
+        else if (!resp.ok) { authResult = { error: 'server_error', message: 'Server error ' + resp.status + '.', http_status: resp.status }; }
+        else { authResult = {}; }
+        // FAIL-CLOSED (codex P1): ONLY an explicit positive verdict on a 2xx may run the host SUCCESS
+        // path (_finish → onComplete). A non-2xx, a negative verdict, or an unrecognised shape → host
+        // fallback (deny). `resp.ok &&` makes a non-2xx un-passable even if the body claimed otherwise.
+        const _ok = resp.ok && !!(authResult && (authResult.authenticated === true || authResult.authorized === true));
+        try { vacDebug('fast_reauth_result', null, { ok: _ok, status: resp.status, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
+        // On success, surface the bound digit + advisory detected-finger count for the proof rows
+        // (server need not echo them; the bound digit is THIS run's challenge, the count is what
+        // beginStillCapture read). Only fill when absent, so a server-authoritative field wins.
         if (_ok && authResult && typeof authResult === 'object') {
             try {
                 if (authResult.digit == null) authResult.digit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
                 if (authResult.detected_fingers == null) authResult.detected_fingers = (parts && parts.detected_fingers != null) ? parts.detected_fingers : null;
             } catch(_) {}
-            // F-654: show the quick-reauth its OWN modality verdict — consistency with full auth
-            // (Rob: full auth shows results, quick-reauth showed nothing). Renders ONLY real server
-            // data; a "Continue" tap then completes, so the verdict is actually SEEN (not flashed).
-            try {
-                renderQuickReauthVerdict(authResult);
-                var _proceeded = false;
-                var _cont = document.getElementById('qrContinueBtn');
-                if (_cont) {
-                    _cont.onclick = function(){ if (_proceeded) return; _proceeded = true; _finish(); };
-                    return;  // wait for the user to read the verdict + tap Continue
-                }
-            } catch(ve){ console.error('[VACReauth] quick verdict render', ve); }
         }
+        // ITEM 1: render the per-modality verdict modal on BOTH pass and fail. The button routes by
+        // OUTCOME — pass → _finish (host success), fail → onFallback (host deny handoff). FAIL-CLOSED
+        // preserved: a non-_ok result NEVER calls _finish, so a failed fast re-auth reveals nothing.
+        try {
+            renderQuickReauthVerdict(authResult);
+            var _proceeded = false;
+            var _cont = document.getElementById('qrContinueBtn');
+            if (_cont) {
+                _cont.onclick = function(){
+                    if (_proceeded) return; _proceeded = true;
+                    if (_ok) { _finish(); return; }
+                    try { vacDebug('fast_reauth_denied', (authResult && authResult.error) || null); } catch(_) {}
+                    if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied: ' + ((authResult && authResult.error) || 'denied'))); } catch(_) {} }
+                };
+                return;  // wait for the user to READ the verdict (pass OR fail) + tap the button
+            }
+        } catch(ve){ console.error('[VACReauth] quick verdict render', ve); }
+        // No button (render failed / no host element) → preserve the direct handoff.
         if (_ok) { _finish(); return; }
         try { vacDebug('fast_reauth_denied'); } catch(_) {}
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied')); } catch(_) {} }
@@ -3208,6 +3212,47 @@ async function runFastVerification(parts) {
 // it's interactive. A section the server didn't send is shown as "not reported" — never faked.
 function renderQuickReauthVerdict(res) {
     res = res || {};
+    // F-671 cluster ITEM 1: FAILURE-aware verdict. On a DENIED quick-reauth the server returns
+    // { error, message, retries_remaining, require_full_auth, _debug } (no per-modality objects — the
+    // gate stops at the FIRST failing check). Render the SAME modal, mark the failing modality red,
+    // and surface the plain reason + corrective action + retries — so the user is never dropped to a
+    // bare result. PRESENTATION ONLY: the auth verdict + fail-closed handoff are decided upstream in
+    // runFastVerification (a non-pass still routes to onFallback); this only explains the outcome.
+    var _denied = (res.authenticated === false) || (res.authorized === false) || (typeof res.error === 'string' && !!res.error);
+    var _errCode = (typeof res.error === 'string') ? res.error : null;
+    var _reqFull = res.require_full_auth === true;
+    var _retries = (typeof res.retries_remaining === 'number') ? res.retries_remaining : null;
+    var _dbg = res._debug || {};
+    var _expDigit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
+    // Map the server error code → which modality row failed + the corrective action the user can take.
+    var _FAIL = {
+        face_mismatch:          { row:'face',     act:'Move closer, get even lighting, and face the camera straight on.' },
+        embedding_required:     { row:'face',     act:'We couldn’t read a clear face — move closer / better light and try again.' },
+        no_embedding:           { row:'face',     act:'Full verification is required to enroll your face.' },
+        no_face_reference:      { row:'face',     act:'No face on file — full verification required.' },
+        corrupt_face_reference: { row:'face',     act:'Stored face template is unreadable — full verification required.' },
+        finger_mismatch:        { row:'finger',   act:(_expDigit != null ? ('Show exactly ' + _expDigit + ' finger' + (_expDigit === 1 ? '' : 's') + ' to the camera.') : 'Show the requested number of fingers.') },
+        spoken_digit_mismatch:  { row:'finger',   act:(_expDigit != null ? ('Say “' + _expDigit + '” clearly as you show it.') : 'Say the number clearly as you show it.') },
+        not_cooccurring:        { row:'finger',   act:'Show the number AND say it at the same time.' },
+        liveness_failed:        { row:'liveness', act:'Hold still in good, even light and look straight at the camera.' },
+    };
+    var _fail = _errCode ? _FAIL[_errCode] : null;
+    var _failRow = _fail ? _fail.row : null;
+    // Red reason banner (message + corrective action + retries) — built here, prepended to the modal below.
+    var _reasonHtml = '';
+    if (_denied) {
+        var _msg = (typeof res.message === 'string' && res.message) ? res.message : 'The quick check did not confirm your identity.';
+        var _act = _fail ? _fail.act : (_reqFull ? 'Full verification is required.' : '');
+        var _retTxt = _reqFull ? 'Full verification required'
+            : (_retries != null && _retries > 0) ? (_retries + ' ' + (_retries === 1 ? 'try' : 'tries') + ' left')
+            : (_retries === 0) ? 'No tries left — full verification required' : '';
+        _reasonHtml = '<div style="border:1px solid #ef4444;background:rgba(239,68,68,0.10);border-radius:10px;padding:11px 13px;margin-bottom:12px;">'
+            + '<div style="color:#ef4444;font-weight:700;font-size:14px;margin-bottom:3px;">Not confirmed</div>'
+            + '<div style="color:var(--text-primary);font-size:13px;line-height:1.4;">' + _msg + '</div>'
+            + (_act ? ('<div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">→ ' + _act + '</div>') : '')
+            + (_retTxt ? ('<div style="color:var(--text-tertiary);font-family:var(--mono);font-size:11px;letter-spacing:0.5px;margin-top:6px;text-transform:uppercase;">' + _retTxt + '</div>') : '')
+            + '</div>';
+    }
     // F-666 #3: render where the user is LOOKING. beginStillCapture calls goToStep(3) before
     // verify, so step3 is active and #challengeText / #vacGuided (BOTH inside step2) are
     // display:none — the old hosts rendered the verdict + #qrContinueBtn into a HIDDEN step
@@ -3231,7 +3276,7 @@ function renderQuickReauthVerdict(res) {
     try { var _mr = document.getElementById('modalityResults'); if (_mr) _mr.style.display = 'none'; } catch(_) {}
     try { var _uh = document.getElementById('underHoodContainer'); if (_uh) _uh.style.display = 'none'; } catch(_) {}
     // Settle the step3 header from its in-flight "sending…" copy to a done state.
-    try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = 'Quick re-auth complete — here is what the backend checked.'; } catch(_) {}
+    try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = _denied ? 'Quick re-auth was not confirmed — here is what the backend checked.' : 'Quick re-auth complete — here is what the backend checked.'; } catch(_) {}
     function row(id, name, detector, ok, detail) {
         var statusTxt = (ok === true) ? 'verified' : (ok === false ? 'failed' : 'not reported');
         var color = (ok === true) ? '#22c55e' : (ok === false ? '#ef4444' : 'var(--text-tertiary)');
@@ -3248,28 +3293,35 @@ function renderQuickReauthVerdict(res) {
             + '</div>'
             + '</div>';
     }
-    // FACE identity
+    // FACE identity — success uses the reported distance/threshold; a face-family denial marks it red
+    // (ITEM 2 fold: face is a REQUIRED reauth modality, shown as a first-class gating row, never can_skip).
     var idy = res.identity || null;
-    var faceOk = idy ? (typeof idy.distance === 'number' && typeof idy.threshold === 'number' ? idy.distance <= idy.threshold : null) : null;
-    var faceDetail = idy ? ('Euclidean distance <strong>' + idy.distance + '</strong> vs threshold <strong>' + idy.threshold + '</strong> (lower = closer match).') : 'Server did not report a face-match distance.';
+    var faceOk = idy ? (typeof idy.distance === 'number' && typeof idy.threshold === 'number' ? idy.distance <= idy.threshold : null) : (_failRow === 'face' ? false : null);
+    var faceDetail = idy ? ('Euclidean distance <strong>' + idy.distance + '</strong> vs threshold <strong>' + idy.threshold + '</strong> (lower = closer match).')
+        : (_failRow === 'face' ? ((typeof _dbg.distance === 'number' ? ('Euclidean distance <strong>' + _dbg.distance + '</strong> vs threshold <strong>' + (_dbg.threshold != null ? _dbg.threshold : '0.5') + '</strong> — too far to confirm. ') : '') + _fail.act)
+        : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a face-match distance.'));
     // BOUND DIGIT (finger + spoken)
     var bd = res.bound_digit || null;
-    var fingerOk = bd ? (bd.shown_ok === true) : null;
+    var fingerOk = bd ? (bd.shown_ok === true) : (_failRow === 'finger' ? false : null);
     var fingerDetail = bd
         ? ('Shown fingers ' + (bd.shown_ok ? 'matched' : 'did NOT match') + ' the challenge; spoken digit ' + (bd.spoken_ok ? 'matched' : 'not matched') + '; co-occurrence ' + (bd.cooccur_ok ? 'confirmed' : 'not confirmed') + '.')
-        : 'Server did not report a bound-digit result (this re-auth may have run an advisory finger check).';
+        : (_failRow === 'finger' ? _fail.act : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a bound-digit result (this re-auth may have run an advisory finger check).'));
     // LIVENESS
     var lv = res.liveness || null;
-    var liveOk = lv ? (lv.status === 'verified') : null;
-    var liveDetail = lv ? ('Provider <strong>' + (lv.provider || 'didit') + '</strong>, status <strong>' + (lv.status || '?') + '</strong>' + (lv.score != null ? (', score <strong>' + lv.score + '</strong>') : '') + '.') : 'Server did not report a liveness result.';
+    var liveOk = lv ? (lv.status === 'verified') : (_failRow === 'liveness' ? false : null);
+    var liveDetail = lv ? ('Provider <strong>' + (lv.provider || 'didit') + '</strong>, status <strong>' + (lv.status || '?') + '</strong>' + (lv.score != null ? (', score <strong>' + lv.score + '</strong>') : '') + '.')
+        : (_failRow === 'liveness' ? _fail.act : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a liveness result.'));
 
     var _req = reauthPolicyRequired() || [];
     var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Verification modalities \u2014 tap a row for detail</div>';
-    host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _label
+    var _btnLabel = !_denied ? 'Continue \u2192'
+        : (_reqFull ? 'Continue to full verification \u2192'
+        : ((_retries == null || _retries > 0) ? 'Try again \u2192' : 'Continue \u2192'));
+    host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _reasonHtml + _label
         + row('face', 'Face match', 'face-api.js 128-D embedding, euclidean distance vs your stored template (server-computed).', faceOk, faceDetail)
         + row('finger', 'Number on fingers', 'MediaPipe HandLandmarker (client) \u2014 the bound digit, shown AND said.', fingerOk, fingerDetail)
         + row('liveness', 'Passive liveness', 'Didit passive-liveness on the captured still (server, fail-closed).', liveOk, liveDetail)
-        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Continue \u2192</button>'
+        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">' + _btnLabel + '</button>'
         + '</div>';
     // F-666 #3: wire ONE delegated expander listener on the (stable) host rather than a per-row
     // inline handler \u2014 robust to the innerHTML re-render above, and the literal "wire the expander
