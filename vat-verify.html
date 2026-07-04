@@ -274,6 +274,10 @@ body {
 .tk-label { color: var(--accent-light); font-weight: 700; }
 .tk-value { color: var(--text-secondary); }
 .tk-dim { color: var(--text-muted); }
+/* F-687 Fix 6 (F-690): reusable info-"i" gloss affordance. Uses the native title
+   tooltip (not clipped by .token-block's overflow); the "i" circle is the affordance. */
+.gloss { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; margin:0 5px; border-radius:50%; border:1px solid var(--border-light); color:var(--text-muted); font-size:9px; font-style:normal; font-weight:700; font-family:var(--mono); line-height:1; cursor:help; vertical-align:middle; user-select:none; transition:border-color .12s, color .12s; }
+.gloss:hover, .gloss:focus { border-color:var(--accent); color:var(--accent); outline:none; }
 
 /* Use cases */
 .usecase-select-wrap { position: relative; margin-bottom: 10px; }
@@ -465,7 +469,7 @@ body {
     <div id="app"><div class="loading"><div class="spinner"></div><div class="loading-text">Verifying chain integrity</div></div></div>
     <div class="footer">
         <div class="footer-line"><a href="https://vacprotocol.org">vacprotocol.org</a></div>
-        <div class="footer-line">Ed25519 + JWT · Protocol v0.1.0 · 1028+ patent claims</div>
+        <div class="footer-line">Ed25519 + JWT <span class="gloss" tabindex="0" role="note" title="The signature standard that lets anyone verify this independently, without trusting us." aria-label="The signature standard that lets anyone verify this independently, without trusting us.">i</span> · Protocol v0.1.0 · 1028+ patent claims</div>
         <div class="footer-tagline" id="footerTagline">Math so neither party has to rely on trust alone.</div>
     </div>
 </div>
@@ -683,8 +687,12 @@ function render(data, verif, budgetData) {
     }
     h += '</div></div></div>';
 
+    // F-687 Fix 6 (F-690): plain-English anchor for the authority chain + credential,
+    // placed above the Delegation Chain / Token Inspector that follow.
+    h += '<div class="section"><div style="font-size:13.5px;line-height:1.55;color:var(--text-secondary);">Here is exactly who authorized whom, cryptographically linked, time-limited, with trust visibly narrowing at each hand-off — and you can verify it yourself.</div></div>';
+
     // Chain (collapsible)
-    h += '<div class="section"><div class="collapse-trigger" onclick="togSection(this,\'chainBody\')"><span>Delegation Chain · ' + cd.length + ' nodes</span><span class="collapse-chevron">▼</span></div><div class="collapse-body" id="chainBody" style="display:none;"><div class="card"><div class="chain-container"><div class="chain-line"></div>';
+    h += '<div class="section"><div class="collapse-trigger" onclick="togSection(this,\'chainBody\')"><span>Delegation Chain · ' + cd.length + ' nodes</span><span class="collapse-chevron">▼</span></div><div class="collapse-body" id="chainBody"><div class="card"><div class="chain-container"><div class="chain-line"></div>';
     cd.forEach((n, i) => {
         const pct = (n.trust_score * 100).toFixed(1);
         const cls = n.trust_score > 0.7 ? 'high' : n.trust_score > 0.4 ? 'mid' : 'low';
@@ -742,12 +750,18 @@ function render(data, verif, budgetData) {
         // viewer is that person (matched server-side vs their enrolled face).
         window.__vacCredEmail = v.email || (verif && verif.email) || '';
         let insp = '<div class="token-block">';
+        // F-687 Fix 6 (F-690): reused .gloss affordance; each gloss renders once (first node) so the block stays legible.
+        const _glossed = new Set();
+        const g = (key, tip) => { if (_glossed.has(key)) return ''; _glossed.add(key); return '<span class="gloss" tabindex="0" role="note" title="' + tip + '" aria-label="' + tip + '">i</span>'; };
         verif.chain.forEach((n, i) => {
             const sep = i < verif.chain.length - 1 ? 'border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;' : '';
-            insp += `<div style="${sep}"><div class="tk-label">${n.is_root ? '\u25cf Root VAT' : `\u25cf Derived VAT (depth ${n.delegation_depth})`}</div><div><span class="tk-dim">jti: </span><span class="tk-value">${n.token_id}</span></div><div><span class="tk-dim">trust: </span><span class="tk-value">${n.trust_score}</span></div><div><span class="tk-dim">method: </span><span class="tk-value">${n.verification_method}</span></div><div><span class="tk-dim">issued: </span><span class="tk-value">${new Date(n.issued_at).toLocaleString()}</span></div><div><span class="tk-dim">expires: </span><span class="tk-value">${new Date(n.expires_at).toLocaleString()}</span></div><div><span class="tk-dim">chain_hash: </span><span class="tk-dim">${(n.chain_hash || '').substring(0, 32)}\u2026</span></div></div>`;
+            insp += `<div style="${sep}"><div class="tk-label">${n.is_root ? '\u25cf Root VAT' : `\u25cf Derived VAT (depth ${n.delegation_depth})${g("derived","Authority passed down N steps from the original verified human.")}`}</div><div><span class="tk-dim">jti: </span>${g("jti","This token's unique ID — like a serial number.")}<span class="tk-value">${n.token_id}</span></div><div><span class="tk-dim">trust: </span>${g("trust","Confidence in this token (0–1). It narrows with each hand-off down the chain.")}<span class="tk-value">${n.trust_score}</span></div><div><span class="tk-dim">method: </span>${g("method","How the person was verified — here, multiple biometrics together (face, voice, gesture).")}<span class="tk-value">${n.verification_method}</span></div><div><span class="tk-dim">issued: </span>${g("issuedexpires","When this authority was granted and when it lapses — it's time-limited, not permanent.")}<span class="tk-value">${new Date(n.issued_at).toLocaleString()}</span></div><div><span class="tk-dim">expires: </span><span class="tk-value">${new Date(n.expires_at).toLocaleString()}</span></div><div><span class="tk-dim">chain_hash: </span>${g("chain_hash","A cryptographic fingerprint linking this token to its parent. Change anything and it breaks — so the chain is tamper-evident.")}<span class="tk-dim">${(n.chain_hash || '').substring(0, 32)}\u2026</span></div></div>`;
         });
         insp += '</div>';
         h += '<div class="section">';
+        // F-687 Fix 7: when no ?jti= is present the chain is demoData() (hardcoded sample),
+        // so label the inspector honestly. Real credentials (jti in URL) get no banner.
+        if (!getJTI()) h += '<div style="font-family:var(--mono);font-size:11px;color:var(--warning);letter-spacing:0.5px;margin-bottom:8px;">Illustrative — sample credential</div>';
         if (getIntent() === 'verify') {
             // F-639 VERIFIER PATH (Caroline): the token inspector IS the proof she came to check —
             // jti, chain_hash, signature, issue/expiry. It's a public-verifiable token, NOT a held

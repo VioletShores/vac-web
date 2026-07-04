@@ -205,6 +205,14 @@ function reauthPolicyHasBoundDigit() {
     if (!req) return null; // unknown — caller keeps its default copy
     return req.some(function(m){ return /bound_digit|finger|gesture/i.test(String(m)); });
 }
+// F-687 Fix 4: this module IS the re-auth ceremony. Every current caller re-confirms an already-
+// enrolled identity EXCEPT auth.html's context:'register' (the first/main identity auth, which can
+// be a first-time enrolment) — that one keeps the human-liveness heading. Default TRUE (re-auth):
+// confirmed callers are vat-verify-reveal + tribunal-view-credential (re-auth) vs register (first
+// auth). A future first-enrolment context would be exempted here too. Errors → true (Rob: default).
+function _isReauthContext() {
+    try { return CTX.context !== 'register'; } catch (_) { return true; }
+}
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
@@ -483,9 +491,11 @@ function startAVChecks() {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
-    // FAST still (S120 unify / F-637c): the quiet single-still re-auth has NO gesture/hand
-    // step — it must look like the FULL face framing (one #faceOval), not the hand-zone
-    // apparatus. So for capture.kind==='still' hide the Hand pill + hand hint and strip any
+    // FAST still (S120 unify / F-637c): the PRE-FLIGHT camera box (#cameraBox) is a quiet single
+    // #faceOval face-check — no hand-zone apparatus, no hand pre-flight gate (that stranded the fast
+    // user). NOTE (F-626): this is the PRE-FLIGHT only; the CAPTURE step (#cameraBoxRec, set in
+    // goToChallenge's fast direct path) DOES reuse the wide .hand-zone oval so the face and fingers
+    // frame together. So for capture.kind==='still' hide the Hand pill + hand hint and strip any
     // stale show-hand-zone/hand-in-zone chrome off #cameraBox on EVERY entry (covers the
     // retryAVSetup re-entry, not just the initial DOM). Deterministic display ('' restores
     // the pill for FULL) so re-running in either mode lands the right state. The hand
@@ -510,7 +520,12 @@ function startAVChecks() {
                 var _hasDigit = reauthPolicyHasBoundDigit();
                 _hs.textContent = (_hasDigit === false)
                     ? 'Hold still for a quick face check — one photo confirms it\u2019s you.'
-                    : 'Quick face check + one number on your fingers — confirms it\u2019s you in one step.';
+                    // Residual B: unify the framing to match the challenge copy ("show your finger(s) in
+                    // front of your face") + the re-auth "still you" vocab. Gesture-only (has_phrase:false):
+                    // NO voice mention. The run() subprompt ("show the number… Wait for the ✓") is correct
+                    // and stays. (The _hasDigit===false pure-face branch above is dead for the real fast tier
+                    // — bound_digit is always required — so it keeps its existing copy.)
+                    : 'Show your finger(s) in front of your face \u2014 confirms it\u2019s still you.';
                 _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px';
             }
         }
@@ -670,7 +685,10 @@ function _avDrawHand(videoEl, lm){
 // consistency). Identical to the beginRecording-scoped _drawHandSkeleton, lifted out so
 // beginStillCapture can call it too (it was nested, hence the fast path had no skeleton).
 function _drawHandSkeletonShared(videoEl, lm){
-    const cv=document.getElementById('handOverlay');
+    // F-671 Phase B1: mount-scoped lookup so the WHOLE fast path is zero-document-global on the
+    // embedded fast hosts (tribunal / vat-verify). This drawer is FAST-ONLY (called solely from
+    // beginStillCapture); the FULL path uses its own nested _drawHandSkeleton, so this cannot affect it.
+    const cv=(CTX && CTX.mount) ? CTX.mount.querySelector('#handOverlay') : document.getElementById('handOverlay');
     if(!cv||!videoEl) return;
     if(!cv._ctx) cv._ctx=cv.getContext('2d',{willReadFrequently:false});
     const ctx=cv._ctx;
@@ -861,6 +879,24 @@ const CaptureFeedback = {
             setLamp(gLamp, gWrap, 'active', '✋');
             setLamp(vLamp, vWrap, 'pending', '🗣️');
             setBigNumber(true, N);
+        } else if (ctx.voiceless) {
+            // F-671 Phase B1: gesture-only fast policy (_captureVoice=false) — drop the "say it" half so
+            // the copy matches the policy (the fast tier's prior inline copy: "no need to say anything").
+            // Hide the voice sub-gate; the gesture lamp logic mirrors the voiced branch below. FULL path
+            // never sets ctx.voiceless → this branch is skipped → rendered output stays byte-identical.
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' — hold steady'; promptEl.style.color = 'var(--text-primary)'; }
+            setBigNumber(true, N);
+            if (vWrap) vWrap.style.display = 'none';
+            if (!opts.handNear) {
+                if (subEl) subEl.textContent = '✋ Hold your hand up in front of your face';
+                setLamp(gLamp, gWrap, 'pending', '✋');
+            } else if (!opts.gestureLive) {
+                if (subEl) subEl.textContent = 'Hand detected — hold steady.';
+                setLamp(gLamp, gWrap, 'ready', '✋');
+            } else {
+                if (subEl) subEl.textContent = 'hold steady';
+                setLamp(gLamp, gWrap, 'active', '✋');
+            }
         } else {
             // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
             // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
@@ -907,7 +943,14 @@ const CaptureFeedback = {
         // digit itself — otherwise the detector-fallback path (which relies on this text) leaves the
         // user with no per-step number after the one-time intro (codex).
         var _cd = ctx.digits[currentDigitIndex];
-        var _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
+        // F-671 Phase B1: gesture-only fast policy drops the "say it" half (copy matches policy). FULL
+        // path never sets ctx.voiceless → else branch (the original expression) → byte-identical header.
+        var _showNum;
+        if (ctx.voiceless) {
+            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' — hold steady') : 'Show the next number';
+        } else {
+            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
+        }
         ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     },
 
@@ -1170,16 +1213,29 @@ function goToChallenge() {
         // Gesture-only policy keeps the show-only lead-in. (honesty: L-2150 — say what the policy needs)
         var _leadVoice = (reauthPolicyRequired() || []).some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
         var _instr = _fc.bound_instruction
-                   || (_digit != null ? ('Hold up ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + (_leadVoice ? (' and say \u201c' + _digit + '\u201d') : '') + ' to the camera') : 'Show the number to the camera');
+                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : '')) : ('Quick re-verify \u2014 show the number in front of your face' + (_leadVoice ? ' and say it' : '')));
         var _ctEl = document.getElementById('challengeText');
         if (_ctEl) {
             _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
-                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + (_leadVoice ? (' and say <span style="color:var(--purple)">\u201c' + _digit + '\u201d</span>') : '') + ' to the camera')
+                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : ''))
                                   : _instr)
                 + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">' + (_leadVoice ? 'Keep your face in the oval — when the count starts, show it and say it together.' : 'Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.') + '</div>';
         }
         var _recVidF = document.getElementById('videoPreviewRec');
         if (_recVidF) { _recVidF.srcObject = mediaStream; _recVidF.muted = true; _recVidF.setAttribute('playsinline',''); _recVidF.play().catch(function(){}); }
+        // F-626: the fast still-capture must frame the FACE and the FINGERS together. Reuse the SAME
+        // wide .hand-zone oval the full-auth gesture step shows (show-hand-zone on #cameraBoxRec)
+        // instead of the narrow .face-oval (CSS: .show-hand-zone hides .face-oval, reveals .hand-zone).
+        // The narrow face oval led the user to fill it with their face, so raising fingers "in front of
+        // your face" occluded the face -> face-api saw 0 faces -> fast_reauth_embedding_failed no_face ->
+        // embedding_missing_fail_closed -> fell back to full. PRESENTATION ONLY: the still is drawn from
+        // the FULL video frame (drawImage(v,0,0,cw,ch) in beginStillCapture, NOT the oval), so widening
+        // the guide changes no captured bytes, no embedding, and no gate — it only helps a genuine attempt
+        // frame so its embedding is computable. Mount-scoped (embedded hosts may collide on the id; mirrors
+        // beginStillCapture's B1 resolver). No fast-path teardown strips this between here and capture — the
+        // show-hand-zone removals all live in the full/clip path (beginRecording/runDetectionLoop/
+        // onRecordingComplete/resetGuidedUI); the next ceremony reset clears it.
+        try { var _cbrF = (CTX && CTX.mount) ? CTX.mount.querySelector('#cameraBoxRec') : document.getElementById('cameraBoxRec'); if (_cbrF) _cbrF.classList.add('show-hand-zone'); } catch(_) {}
         try { vacDebug('fast_direct_path', null, { has_digit: _digit != null, digit: _digit, has_bound_instruction: !!_fc.bound_instruction }); } catch(_) {}
         goToStep(2);
         // L-2168: bring the user into the process — give a readable beat to absorb the instruction
@@ -2752,14 +2808,29 @@ function _makeQuickReauthVoiceGate(cfg) {
 // in a later lane, where it gets live-tested with a real camera.
 async function beginStillCapture() {
     try { vacDebug('begin_still_capture_called'); } catch(_) {}
+    // F-671 Phase B1: ONE mount-scoped resolver for the WHOLE fast path (step2 + step3 reads/writes), so
+    // every DOM lookup resolves INSIDE CTX.mount. Fast embeds CEREMONY_HTML into an arbitrary host
+    // (tribunal/vat-verify) where a bare document.getElementById could hit a colliding host id; the FULL
+    // path keeps document.getElementById (auth.html — the ceremony IS the page). Falls back to document
+    // when there's no mount (defensive; run() bails earlier if CTX.mount is absent). The CaptureFeedback
+    // ctx.byId below points here too, so #challengeText has exactly ONE resolution path (no double-write).
+    const _scope = (CTX && CTX.mount) ? CTX.mount : document;
+    const byId = function(id){ return _scope.querySelector('#' + id); };
     // F-666 #3 (codex P2): a PRIOR fast run's verdict may still occupy step3's progress area,
     // including a live #qrContinueBtn wired to that run's _finish(). If the user tapped "Start
     // over" instead of "Continue", goToStep(3) below would re-show that stale verdict and the
     // stale button could complete THIS restarted attempt on the PRIOR result. Restore the
     // pristine progress markup now (snapshotted in renderQuickReauthVerdict) so every capture
     // starts step3 clean. innerHTML replacement also drops the stale button + its onclick.
+    // F-671 Phase B1: the step3 verdict/continue cluster stays DOCUMENT-GLOBAL on purpose. Its
+    // #qrContinueBtn is WIRED in runFastVerification (a HELD verify-path fn this lane must not touch),
+    // so renderQuickReauthVerdict's host + this restore stay document-global to MATCH it — scoping only
+    // part of the trio would strand the __qrOrigHTML snapshot or mis-wire Continue. (This is the pre-B1
+    // behavior; the step2 capture UI below IS mount-scoped, where every consumer is in-path. Full step3
+    // collision-safety would need to scope the held runFastVerification too — a B2 / host-hardening lane.)
     try { var _pc0 = document.querySelector('#step3 .progress-container'); if (_pc0 && _pc0.__qrOrigHTML != null) { _pc0.innerHTML = _pc0.__qrOrigHTML; } } catch(_) {}
     let detectedFingers = null;
+    let _fingerFailReason = null;   // F-672: set when NO valid finger count could be captured → fail-closed (never POST detected_fingers:null)
     let stillB64 = '';
     let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
     let spokenAudioB64 = '';    // F-654: the SPOKEN digit clip (Deepgram) — the 'said' half of the bound digit
@@ -2775,6 +2846,20 @@ async function beginStillCapture() {
     const _captureVoice = _policyReq.some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
     const _expectFingers = (challengeData && (typeof challengeData.fingers === 'number' ? challengeData.fingers
                             : (challengeData.digits && challengeData.digits.length ? challengeData.digits[0] : null)));
+    // F-671 Phase B1: light presentation ctx — drives the SHARED CaptureFeedback.* show-and-say feedback
+    // (the full path's per-digit UI: digit strip, big guided panel, live lamps, framing banner). Carries
+    // NO advance-loop / MediaRecorder / Gemini state (presentation only). digits = [the single bound digit];
+    // phraseDuration=0 so the phrase branch (the only reader of challengeData/fingerFallback/vacGreetingText
+    // globals) never fires; digitDuration is a nonzero divisor guard (fast never calls updatePhasePrompt).
+    // voiceless mirrors the gesture-only policy so the shared copy drops the "say it" half + hides the voice lamp.
+    const ctx = {
+        byId: byId,
+        digits: [_expectFingers],
+        phraseDuration: 0,
+        digitDuration: 1,
+        framingBadFrames: 0,
+        voiceless: !_captureVoice,
+    };
     // Start recording the spoken-digit audio ONLY when the policy's bound digit requires the spoken
     // half (COPS/PID decides — not this function). Same live mic track, no new getUserMedia.
     let _audioRec = null, _audioChunks = [], _audioStartMs = 0;
@@ -2811,22 +2896,40 @@ async function beginStillCapture() {
         } catch(ve) { _voiceGate = null; console.warn('[VAC] quick-reauth voice gate start failed (non-fatal, show-only):', (ve && ve.message) || ve); }
     }
     try {
-        const _gv = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
+        const _gv = byId('videoPreviewRec') || byId('videoPreview');
+        // F-671 Phase B1 (codex P2): goToChallenge attaches mediaStream to document.getElementById
+        // ('videoPreviewRec') — shared full-path setup we must NOT touch. On an embedded host with a
+        // colliding id that may NOT be the element this mount-scoped lookup returns, the mounted video
+        // would keep videoWidth=0 (still/embedding skipped → needless fallback). Idempotently ensure
+        // THIS (mounted) recorder video carries the live stream; a no-op in the normal no-collision case.
+        try { if (_gv && mediaStream && _gv.srcObject !== mediaStream) { _gv.srcObject = mediaStream; _gv.muted = true; _gv.setAttribute('playsinline',''); _gv.play().catch(function(){}); } } catch(_) {}
         if (_gv && _expectFingers != null) {
-            // Prompt copy — derived from the policy: say+show when the bound digit requires the
-            // spoken half (COPS/PID), show-only when it doesn't.
+            // F-671 Phase B1: render the show-and-say feedback through the SHARED CaptureFeedback.* (the
+            // full path's UI) instead of the old minimal inline #challengeText. renderDigitStrip ONCE (one
+            // bound digit → one progress dot that never changes index); renderFingerPhase owns the
+            // #challengeText header; renderGuided shows the big guided panel + live lamps (driven per-tick
+            // in the loop below). step2 title via byId (mount-scoped, same resolver as every fast lookup).
             try {
-                var _ct = document.getElementById('challengeText');
-                if (_ct) _ct.innerHTML = '<div style="font-size:clamp(18px,5vw,24px);font-weight:800;color:#fbbf24;line-height:1.3;">Show ' + _expectFingers + ' finger' + (_expectFingers === 1 ? '' : 's') + (_captureVoice ? (' and say &ldquo;' + _expectFingers + '&rdquo;') : '') + '</div>'
-                    + '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">' + (_captureVoice ? 'show it and say it together — hold steady' : 'hold steady — no need to say anything') + '</div>';
-                var _t2 = document.getElementById('step2Title'); if (_t2) { _t2.textContent = _captureVoice ? 'Show and say the number' : 'Show the number'; _t2.style.color = '#fbbf24'; }
+                // F-671 Phase B1 (codex P3): clear any sticky display:none the voice sub-gate may carry from a
+                // PRIOR gesture-only attempt in this (reused) mount — else a voiced challenge updates the lamp
+                // but the box stays hidden. renderGuided's voiceless branch re-hides it per tick when needed.
+                try { var _vv0 = byId('vacGuidedVoice'); if (_vv0) _vv0.style.display = ''; } catch(_) {}
+                CaptureFeedback.renderDigitStrip(ctx, 0);
+                CaptureFeedback.renderFingerPhase(ctx, false, 0);
+                CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: false, handNear: false, gestureLive: false, coachKey: '', voiceHelp: false });
+                var _t2 = byId('step2Title'); if (_t2) { _t2.textContent = _captureVoice ? 'Show your fingers and say the number' : 'Show your fingers'; _t2.style.color = '#fbbf24'; }
             } catch(_) {}
             // Poll for a STABLE matching finger count. Reuse FingerDetector (same as the full phase)
             // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
             // remain the server gate; the gesture is advisory pacing, mirroring the clip path).
-            const _GEST_MAX_MS = 6000, _GEST_TICK = 120, _STABLE_NEEDED = 4;
-            let _stable = 0, _waited = 0, _lastSeen = null;
-            await new Promise(function(resolve){
+            const _GEST_MAX_MS = 6000, _GEST_TICK = 120, _STABLE_NEEDED = 4, _FINGER_MAX_RETRY = 2;
+            // F-672: bounded coach-retry around the co-occurrence poll. Each window resolves the STABLE
+            // count (>=0) on advance, or null on timeout (NO capture-anyway). No-hand → coach + re-poll
+            // (MAX 2); down detector → fail-closed, no retry; NEVER POST detected_fingers:null. The retry
+            // re-runs the CLIENT poll only (no POST) so it can't consume the server step-up budget (F-673).
+            for (var _fAttempt = 0; ; _fAttempt++) {
+              var _polled = await new Promise(function(resolve){
+                let _stable = 0, _waited = 0, _lastSeen = null;
                 const _iv = setInterval(function(){
                     _waited += _GEST_TICK;
                     let _n = null;
@@ -2839,6 +2942,24 @@ async function beginStillCapture() {
                         if (_n === _lastSeen) _stable++; else _stable = 1;
                         _lastSeen = _n;
                     } else { _stable = 0; _lastSeen = null; }
+                    // F-671 Phase B1: drive the SHARED guided panel + framing banner from THIS tick's live
+                    // state (the same sensing the full path's finger phase renders). PURE PRESENTATION: it
+                    // reads the loop's _n / _stable / landmarks / _voiceGate and writes only the #vacGuided
+                    // panel + framing banner — it does NOT touch the capture gate below (_cooccurAdvanceDecision
+                    // stays the sole advance authority). voiceHelp is intentionally dropped: the fast voice gate
+                    // exposes no RMS/silence state, so "speak louder" can't be told apart from "hasn't spoken yet"
+                    // — coachKey='gestureonly' ("say it out loud") carries the honest nudge instead.
+                    var _lm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
+                    var _handNear = !!_lm && _handNearFaceZone(_lm);
+                    var _gestureLive = (_stable >= _STABLE_NEEDED && typeof _n === 'number' && _n > 0);
+                    var _voiceDone = !!(_voiceGate && _voiceGate.armed);
+                    var _coachKey = '';
+                    if (!ctx.voiceless) {
+                        if (_gestureLive && !_voiceDone) _coachKey = 'gestureonly';   // shown, not yet said
+                        else if (_voiceDone && !_gestureLive) _coachKey = 'voiceonly'; // said, not yet shown
+                    }
+                    try { CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: _voiceDone, handNear: _handNear, gestureLive: _gestureLive, coachKey: _coachKey, voiceHelp: false }); } catch(_) {}
+                    try { CaptureFeedback.checkHandFraming(ctx, _lm); } catch(_) {}
                     // F-662 capture gate. VOICE policy (_voiceGate live): capture only when a STABLE
                     // gesture (fingers UP) and the spoken digit CO-OCCUR — the SAME advance timing as the
                     // full phase, via the shared _cooccurAdvanceDecision — so _audioRec is never stopped
@@ -2861,20 +2982,37 @@ async function beginStillCapture() {
                         _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy / VAD unavailable — unchanged
                     }
                     if (_captureNow) {
-                        try { var _ctd = document.getElementById('challengeText'); if (_ctd) _ctd.innerHTML = '<div style="font-size:clamp(22px,6vw,28px);font-weight:800;color:#22c55e;">\u2713 Got it</div>'; } catch(_) {}
-                        clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ beat, then capture
+                        try { CaptureFeedback.renderGuided(ctx, { beat: true }); } catch(_) {}   // F-671 Phase B1: "Got it" beat now renders in the shared guided panel (full-path parity)
+                        clearInterval(_iv); var _cap = _lastSeen; setTimeout(function(){ resolve(_cap); }, 350); return;  // F-672: resolve WITH the co-occurrence-gated stable count
                     }
-                    if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(); }  // fail-open: capture anyway
+                    if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(null); }  // F-672: timeout → NO capture-anyway; null signals "no gesture" → the retry / fail-close logic decides
                 }, _GEST_TICK);
-            });
+              });
+              if (typeof _polled === 'number' && _polled >= 0) { break; }   // co-occurrence advance confirmed → capture; detected_fingers is RE-READ at the still instant (codex P2: the count must match the still)
+              // no advance this window — classify via a raw read (camera still live, pre-teardown).
+              var _rawFc = null; try { _rawFc = FingerDetector.detect(_gv); } catch(_) { _rawFc = null; }
+              if (_rawFc === null || (typeof FingerDetector !== 'undefined' && FingerDetector.failed)) { _fingerFailReason = 'finger_detector_down'; break; }   // null → detector down: retry can't recover → fail-closed, NO retry
+              if (_fAttempt >= _FINGER_MAX_RETRY) { _fingerFailReason = 'no_finger_after_retry'; break; }   // -1 no hand, retries exhausted → fail-closed
+              try { CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: false, handNear: false, gestureLive: false, coachKey: '', voiceHelp: false }); } catch(_) {}   // coachable retry via the shared feedback (camera live) → re-poll
+            }
         }
     } catch (e) { console.warn('[VAC] fast gesture prompt failed (non-fatal):', (e && e.message) || e); }
 
+    // F-672: defer the still + 128-D embedding (+ audio finalize) until a VALID finger count. On a
+    // fail-close path (_fingerFailReason set) skip capture entirely — no wasted ~10s embedding, and the
+    // still is never bound to a failed/absent gesture.
+    if (!_fingerFailReason) {
     try {
-        const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
+        const v = byId('videoPreviewRec') || byId('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
-            // Single live finger reading. 0-5 = count, -1 = no hand, null = detector down.
-            try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
+            // F-672 + codex P2: re-read the finger count AT the still instant (same live frame the still
+            // is drawn from) so the POSTed detected_fingers CORRESPONDS to the still. The co-occurrence
+            // poll confirmed a valid gesture, but the 350ms "Got it" beat means the hand may have moved,
+            // and the detector contract is that raw counts are read at capture time. Invalid here (hand
+            // dropped during the beat) → mark a fail-close; we never POST a null/stale/mismatched count.
+            var _fcStill = null; try { _fcStill = FingerDetector.detect(v); } catch(_) { _fcStill = null; }
+            if (typeof _fcStill === 'number' && _fcStill >= 0) { detectedFingers = _fcStill; }
+            else { _fingerFailReason = _fingerFailReason || 'finger_lost_at_capture'; }
             // Bound still — same <=640px downscale + RAW (un-mirrored) capture as the clip path.
             const longest = Math.max(v.videoWidth, v.videoHeight);
             const scale = longest > 640 ? 640 / longest : 1;
@@ -2899,7 +3037,7 @@ async function beginStillCapture() {
             // never strand the user (it routes to fallback instead). Computing from `c` keeps the
             // descriptor and the still_b64 pixel-identical. We await BEFORE building parts, so
             // buildBody can never read face_embedding before the descriptor resolves (no race).
-            if (window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+            if (!_fingerFailReason && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
                 try {
                     const _EMB_TIMEOUT_MS = 10000;
                     const r = await Promise.race([
@@ -2941,16 +3079,36 @@ async function beginStillCapture() {
             }
         } catch(se) { console.warn('[VAC] quick-reauth audio finalize failed (non-fatal):', (se && se.message) || se); }
     }
+    }   // end F-672 capture guard (!_fingerFailReason)
     // F-662: tear down the fast-tier voice analyser (started for the co-occurrence gate) BEFORE
     // releasing the mic — single cleanup chokepoint that every exit path (incl. the fail-closed
     // return below) passes through, so no VAD rAF / AudioContext is left alive (codex caveat A).
     // stopAudioMonitor is guarded: the fast hosts may lack the #audioLevel element it hides, but
     // its real teardown (cancel rAF, close context, null analyser) runs before that throwable line.
     try { if (_voiceGate) _voiceGate.stop(); } catch(_) {}
+    try { if (_audioRec && _audioRec.state && _audioRec.state !== 'inactive') _audioRec.stop(); } catch(_) {}   // F-672: on a fail-close path the audio finalize was skipped — stop the recorder here (no-op on the normal path, already inactive)
     try { stopAudioMonitor(); } catch(_) {}
     // Stop the camera — the still is captured, nothing more to record.
     try { if (mediaStream) mediaStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {}
+    // F-671 Phase B1 (codex P2): hide the guided panels B1 now shows, mirroring the full path's
+    // capture-end hide (#digitStrip / #vacGuided, lines ~1690-1691). Without this they stay
+    // display:block after this attempt, so a "Start over" (toCamera → goToStep(1)) leaves the NEXT
+    // fast attempt's lead-in/countdown showing the prior digit until beginStillCapture re-renders.
+    // Scoped to the mount via byId (same resolver as the rest of the fast path).
+    try { var _ds = byId('digitStrip'); if (_ds) _ds.style.display = 'none'; } catch(_) {}
+    try { var _gp = byId('vacGuided'); if (_gp) _gp.style.display = 'none'; } catch(_) {}
+    try { var _fh = byId('framingHint'); if (_fh) _fh.style.display = 'none'; } catch(_) {}   // codex P3: clear the out-of-zone banner too — checkHandFraming may have shown it this attempt
     goToStep(3);
+    // F-672 FAIL-CLOSED: no valid finger count — detector down (no retry), or no hand after MAX 2 coached
+    // retries. Route to the host fallback exactly like the embedding fail-close below; we NEVER reach
+    // runFastVerification, so detected_fingers:null is never POSTed (the server 422 dead-end). A null
+    // detectedFingers under a bound-digit challenge is also caught here (defensive floor).
+    if (_fingerFailReason || detectedFingers == null) {
+        var _ffr = _fingerFailReason || 'no_finger_captured';
+        try { vacDebug('fast_reauth_failed', _ffr); } catch(_) {}
+        if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: ' + _ffr)); } catch(_) {} }
+        return;
+    }
     // F-637c FAIL-CLOSED: the server's identity gate REQUIRES a live descriptor. With no clean
     // single-face embedding (0/>1 face, embedder down/absent/timeout, capture error) there is no
     // identity proof to send, so we NEVER POST a body the server could 200 on — it would fail at
@@ -3015,44 +3173,48 @@ async function runFastVerification(parts) {
         if (_body instanceof FormData) { _opts.body = _body; }
         else if (_body != null) { _opts.headers = { 'Content-Type': 'application/json' }; _opts.body = JSON.stringify(_body); }
         const resp = await fetch(vCfg.url(), _opts);
-        if (!resp.ok) {
-            var errText = await resp.text();
-            throw new Error('Server error ' + resp.status + ': ' + errText.substring(0, 300));
-        }
-        authResult = await resp.json();
-        // FAIL-CLOSED (codex P1): a 2xx from /v1/auth/quick-reauth can still carry a NEGATIVE
-        // verdict (authenticated:false / authorized:false), exactly as the existing quick-reauth
-        // callers (vat-verify) treat it. Only an EXPLICIT positive verdict may run the host
-        // SUCCESS path (_finish → onComplete); a negative OR unrecognised shape routes to the
-        // host fallback, so a failed fast re-auth can never reveal gated content by default.
-        // Gate ONLY on an explicit auth verdict, exactly as the existing quick-reauth caller
-        // (vat-verify) does — never a generic "request processed" flag (ok/success/pass), which
-        // can co-exist with authenticated:false. Unknown / missing verdict → denied (fail-closed).
-        const _ok = !!(authResult && (authResult.authenticated === true || authResult.authorized === true));
-        try { vacDebug('fast_reauth_result', null, { ok: _ok, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
-        // Surface the bound digit + advisory detected-finger count onto the result so hosts can
-        // render the proof faithfully (tribunal's success card interpolates result.digit). The
-        // server need not echo them: the bound digit is THIS run's challenge (challengeData.digits)
-        // and the detected count is what beginStillCapture read (parts.detected_fingers). Only fill
-        // when the server didn't already provide a value, so a server-authoritative field wins.
+        // ITEM 1: parse the verdict body on BOTH success and failure. A denied quick-reauth (401/409)
+        // returns a JSON error verdict — FastAPI wraps HTTPException as { detail: {...} }, so unwrap it.
+        // We no longer discard the failure body as text and throw (which dropped the user to a bare
+        // result); we render it so the user sees WHICH modality failed and what to do.
+        var _raw = null;
+        try { _raw = await resp.json(); } catch(_) { _raw = null; }
+        if (_raw && _raw.detail && typeof _raw.detail === 'object' && !Array.isArray(_raw.detail)) { authResult = _raw.detail; }
+        else if (_raw != null) { authResult = _raw; }
+        else if (!resp.ok) { authResult = { error: 'server_error', message: 'Server error ' + resp.status + '.', http_status: resp.status }; }
+        else { authResult = {}; }
+        // FAIL-CLOSED (codex P1): ONLY an explicit positive verdict on a 2xx may run the host SUCCESS
+        // path (_finish → onComplete). A non-2xx, a negative verdict, or an unrecognised shape → host
+        // fallback (deny). `resp.ok &&` makes a non-2xx un-passable even if the body claimed otherwise.
+        const _ok = resp.ok && !!(authResult && (authResult.authenticated === true || authResult.authorized === true));
+        try { vacDebug('fast_reauth_result', null, { ok: _ok, status: resp.status, keys: authResult ? Object.keys(authResult).join(',') : null }); } catch(_) {}
+        // On success, surface the bound digit + advisory detected-finger count for the proof rows
+        // (server need not echo them; the bound digit is THIS run's challenge, the count is what
+        // beginStillCapture read). Only fill when absent, so a server-authoritative field wins.
         if (_ok && authResult && typeof authResult === 'object') {
             try {
                 if (authResult.digit == null) authResult.digit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
                 if (authResult.detected_fingers == null) authResult.detected_fingers = (parts && parts.detected_fingers != null) ? parts.detected_fingers : null;
             } catch(_) {}
-            // F-654: show the quick-reauth its OWN modality verdict — consistency with full auth
-            // (Rob: full auth shows results, quick-reauth showed nothing). Renders ONLY real server
-            // data; a "Continue" tap then completes, so the verdict is actually SEEN (not flashed).
-            try {
-                renderQuickReauthVerdict(authResult);
-                var _proceeded = false;
-                var _cont = document.getElementById('qrContinueBtn');
-                if (_cont) {
-                    _cont.onclick = function(){ if (_proceeded) return; _proceeded = true; _finish(); };
-                    return;  // wait for the user to read the verdict + tap Continue
-                }
-            } catch(ve){ console.error('[VACReauth] quick verdict render', ve); }
         }
+        // ITEM 1: render the per-modality verdict modal on BOTH pass and fail. The button routes by
+        // OUTCOME — pass → _finish (host success), fail → onFallback (host deny handoff). FAIL-CLOSED
+        // preserved: a non-_ok result NEVER calls _finish, so a failed fast re-auth reveals nothing.
+        try {
+            renderQuickReauthVerdict(authResult);
+            var _proceeded = false;
+            var _cont = document.getElementById('qrContinueBtn');
+            if (_cont) {
+                _cont.onclick = function(){
+                    if (_proceeded) return; _proceeded = true;
+                    if (_ok) { _finish(); return; }
+                    try { vacDebug('fast_reauth_denied', (authResult && authResult.error) || null); } catch(_) {}
+                    if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied: ' + ((authResult && authResult.error) || 'denied'))); } catch(_) {} }
+                };
+                return;  // wait for the user to READ the verdict (pass OR fail) + tap the button
+            }
+        } catch(ve){ console.error('[VACReauth] quick verdict render', ve); }
+        // No button (render failed / no host element) → preserve the direct handoff.
         if (_ok) { _finish(); return; }
         try { vacDebug('fast_reauth_denied'); } catch(_) {}
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied')); } catch(_) {} }
@@ -3078,12 +3240,56 @@ async function runFastVerification(parts) {
 // it's interactive. A section the server didn't send is shown as "not reported" — never faked.
 function renderQuickReauthVerdict(res) {
     res = res || {};
+    // F-671 cluster ITEM 1: FAILURE-aware verdict. On a DENIED quick-reauth the server returns
+    // { error, message, retries_remaining, require_full_auth, _debug } (no per-modality objects — the
+    // gate stops at the FIRST failing check). Render the SAME modal, mark the failing modality red,
+    // and surface the plain reason + corrective action + retries — so the user is never dropped to a
+    // bare result. PRESENTATION ONLY: the auth verdict + fail-closed handoff are decided upstream in
+    // runFastVerification (a non-pass still routes to onFallback); this only explains the outcome.
+    var _denied = (res.authenticated === false) || (res.authorized === false) || (typeof res.error === 'string' && !!res.error);
+    var _errCode = (typeof res.error === 'string') ? res.error : null;
+    var _reqFull = res.require_full_auth === true;
+    var _retries = (typeof res.retries_remaining === 'number') ? res.retries_remaining : null;
+    var _dbg = res._debug || {};
+    var _expDigit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
+    // Map the server error code → which modality row failed + the corrective action the user can take.
+    var _FAIL = {
+        face_mismatch:          { row:'face',     act:'Move closer, get even lighting, and face the camera straight on.' },
+        embedding_required:     { row:'face',     act:'We couldn’t read a clear face — move closer / better light and try again.' },
+        no_embedding:           { row:'face',     act:'Full verification is required to enroll your face.' },
+        no_face_reference:      { row:'face',     act:'No face on file — full verification required.' },
+        corrupt_face_reference: { row:'face',     act:'Stored face template is unreadable — full verification required.' },
+        finger_mismatch:        { row:'finger',   act:(_expDigit != null ? ('Show exactly ' + _expDigit + ' finger' + (_expDigit === 1 ? '' : 's') + ' to the camera.') : 'Show the requested number of fingers.') },
+        spoken_digit_mismatch:  { row:'finger',   act:(_expDigit != null ? ('Say “' + _expDigit + '” clearly as you show it.') : 'Say the number clearly as you show it.') },
+        not_cooccurring:        { row:'finger',   act:'Show the number AND say it at the same time.' },
+        liveness_failed:        { row:'liveness', act:'Hold still in good, even light and look straight at the camera.' },
+    };
+    var _fail = _errCode ? _FAIL[_errCode] : null;
+    var _failRow = _fail ? _fail.row : null;
+    // Red reason banner (message + corrective action + retries) — built here, prepended to the modal below.
+    var _reasonHtml = '';
+    if (_denied) {
+        var _msg = (typeof res.message === 'string' && res.message) ? res.message : 'The quick check did not confirm your identity.';
+        var _act = _fail ? _fail.act : (_reqFull ? 'Full verification is required.' : '');
+        var _retTxt = _reqFull ? 'Full verification required'
+            : (_retries != null && _retries > 0) ? (_retries + ' ' + (_retries === 1 ? 'try' : 'tries') + ' left')
+            : (_retries === 0) ? 'No tries left — full verification required' : '';
+        _reasonHtml = '<div style="border:1px solid var(--error);background:rgba(239,68,68,0.10);border-radius:10px;padding:11px 13px;margin-bottom:12px;">'
+            + '<div style="color:var(--error);font-weight:700;font-size:14px;margin-bottom:3px;">Not confirmed</div>'
+            + '<div style="color:var(--text-primary);font-size:13px;line-height:1.4;">' + _msg + '</div>'
+            + (_act ? ('<div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">→ ' + _act + '</div>') : '')
+            + (_retTxt ? ('<div style="color:var(--text-tertiary);font-family:var(--mono);font-size:11px;letter-spacing:0.5px;margin-top:6px;text-transform:uppercase;">' + _retTxt + '</div>') : '')
+            + '</div>';
+    }
     // F-666 #3: render where the user is LOOKING. beginStillCapture calls goToStep(3) before
     // verify, so step3 is active and #challengeText / #vacGuided (BOTH inside step2) are
     // display:none — the old hosts rendered the verdict + #qrContinueBtn into a HIDDEN step
     // ("dropdown doesn't expand on click"; Continue unreachable). Render into the VISIBLE step3
     // progress area (the spinner the user is watching), falling back to the legacy hosts only
     // if it is somehow absent.
+    // F-671 Phase B1: document-global on purpose — kept consistent with the #qrContinueBtn wiring in
+    // runFastVerification (HELD verify-path fn) and the _pc0 restore in beginStillCapture, so the whole
+    // step3 verdict/continue cluster resolves the SAME elements. (Scoping it would need the held fn too.)
     var host = document.querySelector('#step3 .progress-container')
         || document.getElementById('challengeText') || document.getElementById('vacGuided');
     if (!host) return;
@@ -3098,10 +3304,10 @@ function renderQuickReauthVerdict(res) {
     try { var _mr = document.getElementById('modalityResults'); if (_mr) _mr.style.display = 'none'; } catch(_) {}
     try { var _uh = document.getElementById('underHoodContainer'); if (_uh) _uh.style.display = 'none'; } catch(_) {}
     // Settle the step3 header from its in-flight "sending…" copy to a done state.
-    try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = 'Quick re-auth complete — here is what the backend checked.'; } catch(_) {}
+    try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = _denied ? 'Quick re-auth was not confirmed — here is what the backend checked.' : 'Quick re-auth complete — here is what the backend checked.'; } catch(_) {}
     function row(id, name, detector, ok, detail) {
         var statusTxt = (ok === true) ? 'verified' : (ok === false ? 'failed' : 'not reported');
-        var color = (ok === true) ? '#22c55e' : (ok === false ? '#ef4444' : 'var(--text-tertiary)');
+        var color = (ok === true) ? 'var(--success)' : (ok === false ? 'var(--error)' : 'var(--text-tertiary)');
         var mark = (ok === true) ? '\u2713' : (ok === false ? '\u2717' : '\u2013');
         return '<div class="qr-mod-row" data-qr="' + id + '" style="cursor:pointer;border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface);">'
             + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
@@ -3115,28 +3321,35 @@ function renderQuickReauthVerdict(res) {
             + '</div>'
             + '</div>';
     }
-    // FACE identity
+    // FACE identity — success uses the reported distance/threshold; a face-family denial marks it red
+    // (ITEM 2 fold: face is a REQUIRED reauth modality, shown as a first-class gating row, never can_skip).
     var idy = res.identity || null;
-    var faceOk = idy ? (typeof idy.distance === 'number' && typeof idy.threshold === 'number' ? idy.distance <= idy.threshold : null) : null;
-    var faceDetail = idy ? ('Euclidean distance <strong>' + idy.distance + '</strong> vs threshold <strong>' + idy.threshold + '</strong> (lower = closer match).') : 'Server did not report a face-match distance.';
+    var faceOk = idy ? (typeof idy.distance === 'number' && typeof idy.threshold === 'number' ? idy.distance <= idy.threshold : null) : (_failRow === 'face' ? false : null);
+    var faceDetail = idy ? ('Euclidean distance <strong>' + idy.distance + '</strong> vs threshold <strong>' + idy.threshold + '</strong> (lower = closer match).')
+        : (_failRow === 'face' ? ((typeof _dbg.distance === 'number' ? ('Euclidean distance <strong>' + _dbg.distance + '</strong> vs threshold <strong>' + (_dbg.threshold != null ? _dbg.threshold : '0.5') + '</strong> — too far to confirm. ') : '') + _fail.act)
+        : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a face-match distance.'));
     // BOUND DIGIT (finger + spoken)
     var bd = res.bound_digit || null;
-    var fingerOk = bd ? (bd.shown_ok === true) : null;
+    var fingerOk = bd ? (bd.shown_ok === true) : (_failRow === 'finger' ? false : null);
     var fingerDetail = bd
         ? ('Shown fingers ' + (bd.shown_ok ? 'matched' : 'did NOT match') + ' the challenge; spoken digit ' + (bd.spoken_ok ? 'matched' : 'not matched') + '; co-occurrence ' + (bd.cooccur_ok ? 'confirmed' : 'not confirmed') + '.')
-        : 'Server did not report a bound-digit result (this re-auth may have run an advisory finger check).';
+        : (_failRow === 'finger' ? _fail.act : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a bound-digit result (this re-auth may have run an advisory finger check).'));
     // LIVENESS
     var lv = res.liveness || null;
-    var liveOk = lv ? (lv.status === 'verified') : null;
-    var liveDetail = lv ? ('Provider <strong>' + (lv.provider || 'didit') + '</strong>, status <strong>' + (lv.status || '?') + '</strong>' + (lv.score != null ? (', score <strong>' + lv.score + '</strong>') : '') + '.') : 'Server did not report a liveness result.';
+    var liveOk = lv ? (lv.status === 'verified') : (_failRow === 'liveness' ? false : null);
+    var liveDetail = lv ? ('Provider <strong>' + (lv.provider || 'didit') + '</strong>, status <strong>' + (lv.status || '?') + '</strong>' + (lv.score != null ? (', score <strong>' + lv.score + '</strong>') : '') + '.')
+        : (_failRow === 'liveness' ? _fail.act : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a liveness result.'));
 
     var _req = reauthPolicyRequired() || [];
     var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Verification modalities \u2014 tap a row for detail</div>';
-    host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _label
+    var _btnLabel = !_denied ? 'Continue \u2192'
+        : (_reqFull ? 'Continue to full verification \u2192'
+        : ((_retries == null || _retries > 0) ? 'Try again \u2192' : 'Continue \u2192'));
+    host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _reasonHtml + _label
         + row('face', 'Face match', 'face-api.js 128-D embedding, euclidean distance vs your stored template (server-computed).', faceOk, faceDetail)
         + row('finger', 'Number on fingers', 'MediaPipe HandLandmarker (client) \u2014 the bound digit, shown AND said.', fingerOk, fingerDetail)
         + row('liveness', 'Passive liveness', 'Didit passive-liveness on the captured still (server, fail-closed).', liveOk, liveDetail)
-        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Continue \u2192</button>'
+        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">' + _btnLabel + '</button>'
         + '</div>';
     // F-666 #3: wire ONE delegated expander listener on the (stable) host rather than a per-row
     // inline handler \u2014 robust to the innerHTML re-render above, and the literal "wire the expander
@@ -4224,7 +4437,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
             Start over
         </button>
         <div class="header-eyebrow">Step 4 of 4</div>
-        <div class="header-title">Verifying You're Human</div>
+        <div class="header-title" id="verifyStepTitle">Verifying You're Human</div>
         <div class="header-sub" id="verifySubtitle">Sending biometric data to verification engines…</div>
     </div>
     <div class="progress-container">
@@ -4632,6 +4845,9 @@ const VACReauth = {
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
         renderDOM();
+        // F-687 Fix 4: context-derived verification heading. Re-auth contexts read "Confirming it's
+        // still you"; auth.html's first/main auth (context:'register') keeps "Verifying You're Human".
+        try { var _vst = document.getElementById('verifyStepTitle'); if (_vst && _isReauthContext()) _vst.textContent = "Confirming it's still you"; } catch(_) {}
         // F-635-LIGHTER (ordering fix): rewrite the greeting-less copy AFTER renderDOM() — the prior
         // build ran this BEFORE renderDOM, so step2HeaderSub/combinedCaptureText didn't exist yet
         // (getElementById → null) and the static "Say a greeting" default rendered unchanged.
@@ -4660,8 +4876,13 @@ const VACReauth = {
                     // anchor); no name, no greeting. Backend phrase is digits-only (scorer core = digits).
                     if (_hs) _hs.textContent = 'Say your numbers, showing each on your fingers. Wait for the ✓.';
                     if (_cct) _cct.textContent = 'Say your numbers out loud, then show each on your fingers as you say it — one take. No name or greeting needed; you verified moments ago.';
+                } else if (modeConfig().capture.kind === 'still') {
+                    // fast still-capture (vat-verify): genuinely one number, no phrase. F-687 Fix 1: re-verify framing.
+                    if (_hs) _hs.textContent = 'Quick re-verify — show the number in front of your face. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Quick re-verify — show the number in front of your face. A quick face + number check; you verified moments ago, so no greeting is needed.';
                 } else {
-                    // fast still-capture (vat-verify): genuinely one number, no phrase.
+                    // Non-still greeting-less (e.g. policy-drops-voice on a full re-auth): keep the prior
+                    // copy BYTE-IDENTICAL — F-687 Fix 1 reframes the fast still path only.
                     if (_hs) _hs.textContent = 'Show the number in front of your face. Wait for the ✓.';
                     if (_cct) _cct.textContent = 'Show the number in front of your face — a quick face + number check. You verified moments ago, so no greeting is needed.';
                 }
