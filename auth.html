@@ -1043,6 +1043,32 @@ function reauthReload(opts) {
 }
 
 
+// D-CAROLINE-RETURN-NAV: validate the ?return= handoff param. Open-redirect-safe — accept ONLY a
+// same-origin ABSOLUTE PATH, so a crafted ?return=https://evil.com (or //evil.com, /\evil.com, a
+// javascript: URL, a whitespace-split, /..//evil.com folding, etc.) can NEVER redirect off-origin.
+// Returns a same-origin URL object (fresh each call, safe to mutate) or null. Post-success
+// NAVIGATION only — this never touches the auth GATE. Callers append the verified identity.
+function safeReturnUrl() {
+    var raw;
+    try { raw = new URLSearchParams(window.location.search).get('return'); } catch (_) { return null; }
+    if (!raw || typeof raw !== 'string') return null;
+    // Must be a single-slash absolute path — reject protocol-relative "//host" and any non-path value.
+    if (raw.charAt(0) !== '/' || raw.charAt(1) === '/') return null;
+    // Reject backslashes (browsers fold "\"→"/", so "/\evil.com" would resolve to "//evil.com") and
+    // any whitespace/control chars (defeat split/smuggling tricks). A required leading "/" already
+    // precludes any "scheme:" prefix, so this stays a pure same-origin path reference.
+    if (raw.indexOf('\\') !== -1) return null;   // reject backslashes (folded to '/' by browsers)
+    if (/[\u0000-\u001f\u007f]/.test(raw) || /\s/.test(raw)) return null;   // reject control chars + whitespace
+    // Belt-and-suspenders: resolve against our OWN origin and require it stays same-origin.
+    var u;
+    try { u = new URL(raw, window.location.origin); } catch (_) { return null; }
+    if (u.origin !== window.location.origin) return null;
+    // Post-normalization guard: the resolved path must itself be a single-slash absolute path, so a
+    // re-parse can never read it as protocol-relative "//host" (blocks "/..//evil.com" folding).
+    if (u.pathname.charAt(0) !== '/' || u.pathname.charAt(1) === '/') return null;
+    return u;
+}
+
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
@@ -1259,6 +1285,39 @@ function showSuccess() {
         url.searchParams.set('verified', 'true');
         url.searchParams.set('email', verifiedEmail);
         window.history.replaceState({}, '', url);
+
+        // D-CAROLINE-RETURN-NAV: if the user arrived via a same-origin ?return= handoff (e.g.
+        // /vat-verify bounced them here to obtain identity), surface an explicit "Continue →" that
+        // routes BACK to that page carrying the fresh verified identity, so the caller's quick-reauth
+        // runs. Post-success NAVIGATION only — the auth GATE above is untouched. Open-redirect-safe:
+        // safeReturnUrl() honors ONLY a validated same-origin path; anything else (incl. no param)
+        // falls through to the unchanged "Enter VAC Protocol" screen. Explicit button, never a silent
+        // auto-redirect (L-2168). Lives inside the ok-gate, so a partial/"Continue Anyway" run never
+        // carries verified identity back to the caller.
+        try {
+            const _dest = safeReturnUrl();
+            const _enterBtn = document.getElementById('enterAppBtn');
+            if (_dest && _enterBtn && !document.getElementById('continueReturnBtn')) {
+                _dest.searchParams.set('verified', 'true');
+                _dest.searchParams.set('email', verifiedEmail);
+                // Primary: Continue → caller (inherits the primary button's exact styling).
+                const _cont = document.createElement('a');
+                _cont.id = 'continueReturnBtn';
+                _cont.setAttribute('style', _enterBtn.getAttribute('style'));
+                _cont.href = _dest.pathname + _dest.search + _dest.hash;
+                _cont.textContent = 'Continue →';
+                _enterBtn.parentNode.insertBefore(_cont, _enterBtn);
+                _enterBtn.parentNode.insertBefore(document.createElement('br'), _enterBtn);
+                // Demote "Enter VAC Protocol" to a clearly-secondary action.
+                _enterBtn.style.background = 'transparent';
+                _enterBtn.style.color = 'var(--text-secondary)';
+                _enterBtn.style.border = '1px solid var(--border)';
+                _enterBtn.style.fontWeight = '600';
+                _enterBtn.style.padding = '10px 24px';
+                _enterBtn.style.marginTop = '12px';
+                try { vacDebug('return_nav_wired', null, { dest_path: _dest.pathname }); } catch (_) {}
+            }
+        } catch (e) { try { console.warn('[VAC] return-nav wiring failed:', e); } catch (_) {} }
     }
 }
 
