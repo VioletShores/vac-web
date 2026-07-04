@@ -1077,8 +1077,19 @@ function showSuccess() {
             if (window.parent !== window) {
                 var _msg = { type: 'vac-auth-success', email: d.email, name: d.name,
                     overall_score: (authResult && authResult.biometric_verification ? authResult.biometric_verification.overall_score : undefined) };
-                var _sess = (authResult && authResult.session_token) ? authResult.session_token : null;
-                var _level = (authResult && authResult.auth_level) ? authResult.auth_level : null;
+                // S126 nesting fix: /v1/vat/auth/verify returns session_token at the TOP LEVEL
+                // (result["session_token"]) but auth_level ONLY NESTED under result["session"]
+                // (main.py: result["session"]={token, auth_level:'full', ...}). Reading a top-level
+                // authResult.auth_level was ALWAYS undefined → the message carried auth_level:null,
+                // so the tribunal's __vacVerified.auth_level was null after a full seal re-auth. The
+                // seal GATE reads auth_level from the decoded token server-side so it never blocked,
+                // but the client-side level must be honest. Read the nested session; keep top-level
+                // fallbacks so this is resilient if the backend shape ever changes.
+                var _sessObj = (authResult && authResult.session) ? authResult.session : null;
+                var _sess = (authResult && authResult.session_token) ? authResult.session_token
+                          : (_sessObj && _sessObj.token) ? _sessObj.token : null;
+                var _level = (_sessObj && _sessObj.auth_level) ? _sessObj.auth_level
+                           : (authResult && authResult.auth_level) ? authResult.auth_level : null;
                 // Only attach the credential when posting to our OWN origin.
                 if (_sess) { _msg.session_token = _sess; _msg.auth_level = _level; }
                 window.parent.postMessage(_msg, window.location.origin);
