@@ -1122,6 +1122,15 @@ init();
     // carried no email (degenerate token), where there's no owner to bind to.
     var credEmail = '';
     try { credEmail = window.__vacCredEmail || ''; } catch (e) {}
+    // D-CAROLINE-RETURN-NAV (Option B): after a full re-verify, /auth returns the holder here with
+    // ?email= (the identity they just proved) so the fast challenge can key on it. Read it as a
+    // MIDDLE-precedence source: AFTER __vacCredEmail (a holder-only credential stays bound to its
+    // owner — the URL must NEVER override it, preserving the codex-P1 fix) and BEFORE localStorage.
+    // TRANSIENT: never written to localStorage. ?verified= is display-only, never an authority. This
+    // only selects WHOSE enrolment the server face-matches against; a wrong email fails closed (the
+    // live face won't match) — no forge path.
+    var urlEmail = '';
+    try { urlEmail = (new URLSearchParams(window.location.search).get('email') || '').trim(); } catch (e) {}
     var lsEmail = '';
     var name = '';
     try {
@@ -1130,7 +1139,7 @@ init();
       lsEmail = lsEmail || u.email || '';
       name = u.name || '';
     } catch (e) {}
-    var email = credEmail || lsEmail;
+    var email = credEmail || urlEmail || lsEmail;
     // The fast challenge keys on email (name is cosmetic). Never attach a cached name that
     // belongs to someone OTHER than the resolved owner email — drop it on a mismatch.
     if (email && lsEmail && email !== lsEmail) name = '';
