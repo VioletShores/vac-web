@@ -491,9 +491,11 @@ function startAVChecks() {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
-    // FAST still (S120 unify / F-637c): the quiet single-still re-auth has NO gesture/hand
-    // step — it must look like the FULL face framing (one #faceOval), not the hand-zone
-    // apparatus. So for capture.kind==='still' hide the Hand pill + hand hint and strip any
+    // FAST still (S120 unify / F-637c): the PRE-FLIGHT camera box (#cameraBox) is a quiet single
+    // #faceOval face-check — no hand-zone apparatus, no hand pre-flight gate (that stranded the fast
+    // user). NOTE (F-626): this is the PRE-FLIGHT only; the CAPTURE step (#cameraBoxRec, set in
+    // goToChallenge's fast direct path) DOES reuse the wide .hand-zone oval so the face and fingers
+    // frame together. So for capture.kind==='still' hide the Hand pill + hand hint and strip any
     // stale show-hand-zone/hand-in-zone chrome off #cameraBox on EVERY entry (covers the
     // retryAVSetup re-entry, not just the initial DOM). Deterministic display ('' restores
     // the pill for FULL) so re-running in either mode lands the right state. The hand
@@ -1216,6 +1218,19 @@ function goToChallenge() {
         }
         var _recVidF = document.getElementById('videoPreviewRec');
         if (_recVidF) { _recVidF.srcObject = mediaStream; _recVidF.muted = true; _recVidF.setAttribute('playsinline',''); _recVidF.play().catch(function(){}); }
+        // F-626: the fast still-capture must frame the FACE and the FINGERS together. Reuse the SAME
+        // wide .hand-zone oval the full-auth gesture step shows (show-hand-zone on #cameraBoxRec)
+        // instead of the narrow .face-oval (CSS: .show-hand-zone hides .face-oval, reveals .hand-zone).
+        // The narrow face oval led the user to fill it with their face, so raising fingers "in front of
+        // your face" occluded the face -> face-api saw 0 faces -> fast_reauth_embedding_failed no_face ->
+        // embedding_missing_fail_closed -> fell back to full. PRESENTATION ONLY: the still is drawn from
+        // the FULL video frame (drawImage(v,0,0,cw,ch) in beginStillCapture, NOT the oval), so widening
+        // the guide changes no captured bytes, no embedding, and no gate — it only helps a genuine attempt
+        // frame so its embedding is computable. Mount-scoped (embedded hosts may collide on the id; mirrors
+        // beginStillCapture's B1 resolver). No fast-path teardown strips this between here and capture — the
+        // show-hand-zone removals all live in the full/clip path (beginRecording/runDetectionLoop/
+        // onRecordingComplete/resetGuidedUI); the next ceremony reset clears it.
+        try { var _cbrF = (CTX && CTX.mount) ? CTX.mount.querySelector('#cameraBoxRec') : document.getElementById('cameraBoxRec'); if (_cbrF) _cbrF.classList.add('show-hand-zone'); } catch(_) {}
         try { vacDebug('fast_direct_path', null, { has_digit: _digit != null, digit: _digit, has_bound_instruction: !!_fc.bound_instruction }); } catch(_) {}
         goToStep(2);
         // L-2168: bring the user into the process — give a readable beat to absorb the instruction
