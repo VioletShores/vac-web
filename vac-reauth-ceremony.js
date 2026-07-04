@@ -520,7 +520,12 @@ function startAVChecks() {
                 var _hasDigit = reauthPolicyHasBoundDigit();
                 _hs.textContent = (_hasDigit === false)
                     ? 'Hold still for a quick face check — one photo confirms it\u2019s you.'
-                    : 'Quick face check + one number on your fingers — confirms it\u2019s you in one step.';
+                    // Residual B: unify the framing to match the challenge copy ("show your finger(s) in
+                    // front of your face") + the re-auth "still you" vocab. Gesture-only (has_phrase:false):
+                    // NO voice mention. The run() subprompt ("show the number… Wait for the ✓") is correct
+                    // and stays. (The _hasDigit===false pure-face branch above is dead for the real fast tier
+                    // — bound_digit is always required — so it keeps its existing copy.)
+                    : 'Show your finger(s) in front of your face \u2014 confirms it\u2019s still you.';
                 _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px';
             }
         }
