@@ -85,10 +85,6 @@
       "destination": "/agents.html"
     },
     {
-      "source": "/intelligence",
-      "destination": "/intelligence.html"
-    },
-    {
       "source": "/demo",
       "destination": "/control-demo.html"
     },

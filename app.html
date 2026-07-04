@@ -84,12 +84,6 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100v
 
 <div class="nav-divider"></div>
 
-<a class="nav-tab" data-tab="intelligence" onclick="goTab('intelligence')">
-<div class="dot" style="background:#C9A84C"></div>Trust Map
-</a>
-
-<div class="nav-divider"></div>
-
 <!-- Apps Dropdown -->
 <div class="apps-backdrop" id="appsBackdrop" onclick="closeApps()"></div>
 <div class="apps-dropdown" id="appsDropdown">
@@ -159,7 +153,6 @@ const tabs = {
     dashboard: '/dashboard' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
     trust: '/trust' + (email ? '?email=' + e : ''),
     verify: '/auth' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
-    intelligence: '/intelligence' + (email ? '?email=' + e : ''),
     agents: '/agents' + (email ? '?email=' + e : ''),
     apikeys: '/apikeys' + (email ? '?email=' + e : ''),
     messaging: '/msg' + (email ? '?from=' + e : ''),
