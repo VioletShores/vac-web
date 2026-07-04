@@ -1198,11 +1198,11 @@ function goToChallenge() {
         // Gesture-only policy keeps the show-only lead-in. (honesty: L-2150 — say what the policy needs)
         var _leadVoice = (reauthPolicyRequired() || []).some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
         var _instr = _fc.bound_instruction
-                   || (_digit != null ? ('Hold up ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + (_leadVoice ? (' and say \u201c' + _digit + '\u201d') : '') + ' to the camera') : 'Show the number to the camera');
+                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : '')) : ('Quick re-verify \u2014 show the number in front of your face' + (_leadVoice ? ' and say it' : '')));
         var _ctEl = document.getElementById('challengeText');
         if (_ctEl) {
             _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
-                + (_digit != null ? ('Hold up <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + (_leadVoice ? (' and say <span style="color:var(--purple)">\u201c' + _digit + '\u201d</span>') : '') + ' to the camera')
+                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : ''))
                                   : _instr)
                 + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">' + (_leadVoice ? 'Keep your face in the oval — when the count starts, show it and say it together.' : 'Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.') + '</div>';
         }
@@ -2889,7 +2889,7 @@ async function beginStillCapture() {
                 CaptureFeedback.renderDigitStrip(ctx, 0);
                 CaptureFeedback.renderFingerPhase(ctx, false, 0);
                 CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: false, handNear: false, gestureLive: false, coachKey: '', voiceHelp: false });
-                var _t2 = byId('step2Title'); if (_t2) { _t2.textContent = _captureVoice ? 'Show and say the number' : 'Show the number'; _t2.style.color = '#fbbf24'; }
+                var _t2 = byId('step2Title'); if (_t2) { _t2.textContent = _captureVoice ? 'Show your fingers and say the number' : 'Show your fingers'; _t2.style.color = '#fbbf24'; }
             } catch(_) {}
             // Poll for a STABLE matching finger count. Reuse FingerDetector (same as the full phase)
             // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
@@ -4845,8 +4845,13 @@ const VACReauth = {
                     // anchor); no name, no greeting. Backend phrase is digits-only (scorer core = digits).
                     if (_hs) _hs.textContent = 'Say your numbers, showing each on your fingers. Wait for the ✓.';
                     if (_cct) _cct.textContent = 'Say your numbers out loud, then show each on your fingers as you say it — one take. No name or greeting needed; you verified moments ago.';
+                } else if (modeConfig().capture.kind === 'still') {
+                    // fast still-capture (vat-verify): genuinely one number, no phrase. F-687 Fix 1: re-verify framing.
+                    if (_hs) _hs.textContent = 'Quick re-verify — show the number in front of your face. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Quick re-verify — show the number in front of your face. A quick face + number check; you verified moments ago, so no greeting is needed.';
                 } else {
-                    // fast still-capture (vat-verify): genuinely one number, no phrase.
+                    // Non-still greeting-less (e.g. policy-drops-voice on a full re-auth): keep the prior
+                    // copy BYTE-IDENTICAL — F-687 Fix 1 reframes the fast still path only.
                     if (_hs) _hs.textContent = 'Show the number in front of your face. Wait for the ✓.';
                     if (_cct) _cct.textContent = 'Show the number in front of your face — a quick face + number check. You verified moments ago, so no greeting is needed.';
                 }
