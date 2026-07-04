@@ -1679,7 +1679,17 @@ function renderReauthResult(authz,tier){
     if(verified){
       // L-2172: capture EMAIL too (not just name) — the seal-gate re-auth needs both to
       // prefill + skip the identity form. The first auth's vac-auth-success carries d.email.
-      window.__vacVerified={name:(name||'').trim(),email:(email||null)};
+      // S126 hardening: MERGE, never REPLACE. The seal-gate re-auth handler (~:1152) writes a
+      // token-bearing __vacVerified {name,email,session_token,auth_level}; a bare {name,email}
+      // replace here would DROP session_token → authorizeSeal records no_session_token → the
+      // seal never authorises. This identity-reveal write runs BEFORE the seal today (no live
+      // clobber, diagnosed S126), but MERGE makes the session_token/auth_level un-droppable under
+      // any future re-ordering. session_token/auth_level are preserved verbatim; name/email
+      // update only when THIS write actually carries them (empty → keep the prior value). The
+      // backend gate still re-binds the token to the minted human_ref + enforces freshness, so a
+      // preserved token can never forge an authorisation — it fails closed on any mismatch.
+      var _prevVV=window.__vacVerified||{};
+      window.__vacVerified=Object.assign({},_prevVV,{name:(name||'').trim()||_prevVV.name||'',email:(email||_prevVV.email||null)});
       const badge=document.getElementById('idVerified');
       badge.querySelector('.idv-name').textContent=window.__vacVerified.name?(' · '+window.__vacVerified.name):'';
       badge.hidden=false;gate.classList.add('done');   // CSS collapses #idPre, leaving only the badge
