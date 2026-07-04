@@ -684,7 +684,7 @@ function render(data, verif, budgetData) {
     h += '</div></div></div>';
 
     // Chain (collapsible)
-    h += '<div class="section"><div class="collapse-trigger" onclick="togSection(this,\'chainBody\')"><span>Delegation Chain · ' + cd.length + ' nodes</span><span class="collapse-chevron">▼</span></div><div class="collapse-body" id="chainBody" style="display:none;"><div class="card"><div class="chain-container"><div class="chain-line"></div>';
+    h += '<div class="section"><div class="collapse-trigger" onclick="togSection(this,\'chainBody\')"><span>Delegation Chain · ' + cd.length + ' nodes</span><span class="collapse-chevron">▼</span></div><div class="collapse-body" id="chainBody"><div class="card"><div class="chain-container"><div class="chain-line"></div>';
     cd.forEach((n, i) => {
         const pct = (n.trust_score * 100).toFixed(1);
         const cls = n.trust_score > 0.7 ? 'high' : n.trust_score > 0.4 ? 'mid' : 'low';
