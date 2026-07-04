@@ -89,10 +89,6 @@
       "destination": "/intelligence.html"
     },
     {
-      "source": "/compare",
-      "destination": "/compare.html"
-    },
-    {
       "source": "/demo",
       "destination": "/control-demo.html"
     },
