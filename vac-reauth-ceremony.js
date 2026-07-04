@@ -205,6 +205,14 @@ function reauthPolicyHasBoundDigit() {
     if (!req) return null; // unknown — caller keeps its default copy
     return req.some(function(m){ return /bound_digit|finger|gesture/i.test(String(m)); });
 }
+// F-687 Fix 4: this module IS the re-auth ceremony. Every current caller re-confirms an already-
+// enrolled identity EXCEPT auth.html's context:'register' (the first/main identity auth, which can
+// be a first-time enrolment) — that one keeps the human-liveness heading. Default TRUE (re-auth):
+// confirmed callers are vat-verify-reveal + tribunal-view-credential (re-auth) vs register (first
+// auth). A future first-enrolment context would be exempted here too. Errors → true (Rob: default).
+function _isReauthContext() {
+    try { return CTX.context !== 'register'; } catch (_) { return true; }
+}
 const SPEED_CONFIG = {
     relaxed: { phrase: 5, digit: 2, countdown: 3 },
     normal:  { phrase: 3, digit: 1, countdown: 2 },
@@ -4409,7 +4417,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
             Start over
         </button>
         <div class="header-eyebrow">Step 4 of 4</div>
-        <div class="header-title">Verifying You're Human</div>
+        <div class="header-title" id="verifyStepTitle">Verifying You're Human</div>
         <div class="header-sub" id="verifySubtitle">Sending biometric data to verification engines…</div>
     </div>
     <div class="progress-container">
@@ -4817,6 +4825,9 @@ const VACReauth = {
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
         renderDOM();
+        // F-687 Fix 4: context-derived verification heading. Re-auth contexts read "Confirming it's
+        // still you"; auth.html's first/main auth (context:'register') keeps "Verifying You're Human".
+        try { var _vst = document.getElementById('verifyStepTitle'); if (_vst && _isReauthContext()) _vst.textContent = "Confirming it's still you"; } catch(_) {}
         // F-635-LIGHTER (ordering fix): rewrite the greeting-less copy AFTER renderDOM() — the prior
         // build ran this BEFORE renderDOM, so step2HeaderSub/combinedCaptureText didn't exist yet
         // (getElementById → null) and the static "Say a greeting" default rendered unchanged.
