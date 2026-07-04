@@ -748,6 +748,9 @@ function render(data, verif, budgetData) {
         });
         insp += '</div>';
         h += '<div class="section">';
+        // F-687 Fix 7: when no ?jti= is present the chain is demoData() (hardcoded sample),
+        // so label the inspector honestly. Real credentials (jti in URL) get no banner.
+        if (!getJTI()) h += '<div style="font-family:var(--mono);font-size:11px;color:var(--warning);letter-spacing:0.5px;margin-bottom:8px;">Illustrative — sample credential</div>';
         if (getIntent() === 'verify') {
             // F-639 VERIFIER PATH (Caroline): the token inspector IS the proof she came to check —
             // jti, chain_hash, signature, issue/expiry. It's a public-verifiable token, NOT a held
