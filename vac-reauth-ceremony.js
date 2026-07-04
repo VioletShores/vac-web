@@ -3254,8 +3254,8 @@ function renderQuickReauthVerdict(res) {
         var _retTxt = _reqFull ? 'Full verification required'
             : (_retries != null && _retries > 0) ? (_retries + ' ' + (_retries === 1 ? 'try' : 'tries') + ' left')
             : (_retries === 0) ? 'No tries left — full verification required' : '';
-        _reasonHtml = '<div style="border:1px solid #ef4444;background:rgba(239,68,68,0.10);border-radius:10px;padding:11px 13px;margin-bottom:12px;">'
-            + '<div style="color:#ef4444;font-weight:700;font-size:14px;margin-bottom:3px;">Not confirmed</div>'
+        _reasonHtml = '<div style="border:1px solid var(--error);background:rgba(239,68,68,0.10);border-radius:10px;padding:11px 13px;margin-bottom:12px;">'
+            + '<div style="color:var(--error);font-weight:700;font-size:14px;margin-bottom:3px;">Not confirmed</div>'
             + '<div style="color:var(--text-primary);font-size:13px;line-height:1.4;">' + _msg + '</div>'
             + (_act ? ('<div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">→ ' + _act + '</div>') : '')
             + (_retTxt ? ('<div style="color:var(--text-tertiary);font-family:var(--mono);font-size:11px;letter-spacing:0.5px;margin-top:6px;text-transform:uppercase;">' + _retTxt + '</div>') : '')
@@ -3287,7 +3287,7 @@ function renderQuickReauthVerdict(res) {
     try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = _denied ? 'Quick re-auth was not confirmed — here is what the backend checked.' : 'Quick re-auth complete — here is what the backend checked.'; } catch(_) {}
     function row(id, name, detector, ok, detail) {
         var statusTxt = (ok === true) ? 'verified' : (ok === false ? 'failed' : 'not reported');
-        var color = (ok === true) ? '#22c55e' : (ok === false ? '#ef4444' : 'var(--text-tertiary)');
+        var color = (ok === true) ? 'var(--success)' : (ok === false ? 'var(--error)' : 'var(--text-tertiary)');
         var mark = (ok === true) ? '\u2713' : (ok === false ? '\u2717' : '\u2013');
         return '<div class="qr-mod-row" data-qr="' + id + '" style="cursor:pointer;border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-bottom:8px;background:var(--surface);">'
             + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">'
