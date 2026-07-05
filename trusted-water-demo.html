@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>VAC — Trusted Water Network Operations (Preview)</title>
+<style>
+:root{
+  --bg:#0D1117; --surface:#161B22; --surface-raised:#1C2128; --border:#30363D; --border-light:#3D444D;
+  --text-primary:#F0F6FC; --text-secondary:#C9D1D9; --text-tertiary:#8B949E; --text-quaternary:#6E7681;
+  --purple:#6C5CE7; --purple-dim:#5A4BD1; --purple-bg:rgba(108,92,231,0.08); --purple-border:rgba(108,92,231,0.25);
+  --teal:#00CEC9; --teal-bg:rgba(0,206,201,0.08); --teal-border:rgba(0,206,201,0.2);
+  --success:#3FB950; --success-bg:rgba(63,185,80,0.08); --success-border:rgba(63,185,80,0.2);
+  --amber:#D29922; --amber-bg:rgba(210,153,34,0.08); --amber-border:rgba(210,153,34,0.25);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+.page-shell{background:var(--bg);min-height:100vh;color:var(--text-secondary);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px;}
+.wrap{max-width:880px;margin:0 auto;padding:0 clamp(16px,4vw,24px);}
+
+.preview-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:10px 24px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;}
+
+header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.mark{width:34px;height:34px;flex:0 0 34px;}
+.brand-name{font-weight:700;color:var(--text-primary);font-size:17px;letter-spacing:-0.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1px;}
+.nav-mode{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);}
+
+.hero{margin-bottom:40px;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+.hero h1{font-size:clamp(24px,5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:720px;}
+.hero-lede{font-size:clamp(14.5px,3.8vw,16px);color:var(--text-secondary);max-width:680px;margin-bottom:20px;}
+.hero-lede .pull{color:var(--text-primary);font-weight:600;}
+.brief{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;margin-bottom:20px;max-width:720px;}
+.brief-label{font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.brief p{font-size:13.5px;color:var(--text-secondary);line-height:1.65;}
+.brief p+p{margin-top:10px;}
+.brief .pull{color:var(--text-primary);font-weight:600;}
+.brief .scenario-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:2px 7px;display:inline-block;margin-bottom:10px;}
+
+.section-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px;}
+
+/* walkthrough steps */
+.stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:clamp(16px,4.5vw,28px);margin-bottom:24px;}
+.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.stage-head h2{font-size:clamp(17px,4.5vw,19px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;}
+.stage-badge{font-family:var(--mono);font-size:10px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:2px 8px;letter-spacing:1px;}
+.anchor-line{background:linear-gradient(135deg,var(--purple-bg),var(--surface-raised));border:1px solid var(--purple-border);border-radius:8px;padding:14px 16px;margin-bottom:22px;}
+.anchor-line p{font-size:clamp(13.5px,3.7vw,15px);color:var(--text-secondary);font-style:italic;line-height:1.6;}
+.anchor-line .pull{color:var(--text-primary);font-weight:600;font-style:normal;}
+
+.steps{display:flex;flex-direction:column;gap:0;}
+.step{display:flex;gap:16px;padding:0 0 4px;position:relative;}
+.step-rail{display:flex;flex-direction:column;align-items:center;flex:0 0 28px;}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-light);background:var(--surface-raised);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--text-quaternary);transition:all .3s;flex:0 0 28px;}
+.step-dot.active{border-color:var(--purple);color:var(--purple);box-shadow:0 0 10px rgba(108,92,231,0.35);}
+.step-dot.done{border-color:var(--success);background:var(--success-bg);color:var(--success);}
+.step-conn{width:2px;flex:1;background:var(--border);min-height:18px;margin:2px 0;}
+.step-conn.done{background:var(--success);}
+.step-body{padding-bottom:22px;flex:1;min-width:0;}
+.step-body h3{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:3px;}
+.step-meta{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
+.step-detail{font-size:13.5px;color:var(--text-secondary);margin-top:8px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:6px;padding:11px 13px;display:none;overflow-wrap:break-word;line-height:1.65;}
+.step.revealed .step-detail{display:block;}
+.step.hero-step .step-detail{border-left-color:var(--teal);}
+.step.seal-step .step-detail{border-left-color:var(--amber);}
+.step.receipt-step .step-detail{border-left-color:var(--success);}
+.policy-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.amber-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.hil{color:var(--amber);font-weight:600;}
+.hil-teal{color:var(--teal);font-weight:600;}
+
+.controls{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
+.btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:7px;padding:11px 20px;cursor:pointer;border:1px solid transparent;transition:all .15s;}
+.btn-primary{background:var(--purple);color:#fff;}
+.btn-primary:hover{background:var(--purple-dim);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{background:transparent;border-color:var(--border-light);color:var(--text-secondary);}
+.btn-ghost:hover{border-color:var(--text-tertiary);color:var(--text-primary);}
+
+/* sealed receipt */
+.receipt{margin-top:20px;background:var(--surface-raised);border:1px solid var(--success-border);border-radius:10px;padding:20px;display:none;}
+.receipt.show{display:block;animation:fade .35s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.receipt-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.receipt-head .seal{width:30px;height:30px;flex:0 0 30px;}
+.receipt-head h3{color:var(--success);font-size:15px;font-weight:700;}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 14px;font-size:13px;}
+.kv dt{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:.5px;}
+.kv dd{font-family:var(--mono);font-size:12px;color:var(--text-secondary);word-break:break-all;}
+.kv dd.hl{color:var(--text-primary);}
+.audit{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+.audit-line{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);padding:3px 0;display:flex;gap:10px;}
+.audit-line .t{color:var(--teal);flex:0 0 auto;}
+.verify-link{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--teal);text-decoration:none;border:1.5px solid var(--teal);background:var(--teal-bg);border-radius:8px;padding:10px 16px;margin-top:14px;transition:all .15s;cursor:pointer;}
+.verify-link:hover{background:var(--teal);color:#0A0F1A;border-color:var(--teal);box-shadow:0 2px 12px -2px var(--teal);}
+.real-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;letter-spacing:.5px;margin-left:8px;}
+
+/* honesty note */
+.fwd-note{margin:0 0 22px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--text-secondary);overflow-wrap:break-word;}
+.fwd-note strong{color:var(--text-primary);}
+
+/* AI recommendation panel */
+.ai-rec{background:var(--surface-raised);border:1px solid var(--border-light);border-left:2px solid var(--purple);border-radius:8px;padding:14px 16px;margin-bottom:14px;}
+.ai-rec-label{font-family:var(--mono);font-size:10px;color:var(--purple);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.ai-rec-body{font-size:13.5px;color:var(--text-secondary);line-height:1.65;}
+.ai-rec-body strong{color:var(--text-primary);}
+
+/* footer */
+.foot{margin-top:48px;border-top:1px solid var(--border);padding-top:24px;font-size:13px;color:var(--text-tertiary);}
+.foot strong{color:var(--text-secondary);}
+.foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--text-quaternary);}
+.foot-link{color:var(--teal);text-decoration:none;}
+.foot-link:hover{text-decoration:underline;}
+
+/* more domains CTA */
+.domains-cta{margin-top:40px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:clamp(16px,4.5vw,22px) clamp(16px,5vw,24px);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.domains-cta-text .cta-h{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.domains-cta-text .cta-d{font-size:13.5px;color:var(--text-secondary);}
+.cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;border:none;cursor:pointer;}
+.cta-btn:hover{background:var(--purple-dim);}
+
+@media(max-width:560px){
+  .kv{grid-template-columns:1fr;}
+  .domains-cta{flex-direction:column;align-items:flex-start;}
+  .step{gap:12px;}
+}
+</style>
+</head>
+<body>
+<div class="page-shell">
+  <div class="preview-banner">Representative scenario &mdash; the seal and receipt mechanics are real VAC system output. Scenario data is illustrative and labeled as such.</div>
+
+  <header class="top"><div class="wrap"><div class="top-row">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="#6C5CE7" stroke-width="1.5"/><path d="M20 8 L20 32 M11 14 L29 26 M29 14 L11 26" stroke="#00CEC9" stroke-width="1.2" opacity="0.55"/><circle cx="20" cy="20" r="4.5" fill="#6C5CE7"/></svg>
+      <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
+    </div>
+    <span class="nav-mode">WATER NETWORK &middot; PREVIEW</span>
+  </div></div></header>
+
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">Smart water management &middot; Digital twin operations</div>
+      <h1>The digital twin runs the what-if. VAC seals who accepted the recommendation — and proves it, years after the moment has passed.</h1>
+      <p class="hero-lede">Smart water networks run on what-if decisions made in seconds and audited over years. When a Smart Water Management digital twin recommends a DMA pressure reduction during a scarcity window, the operational and regulatory question is not <span class="pull">what the twin proposed</span> — it is <span class="pull">who held authority to act on it, under which conditions, and whether that record has been altered since.</span> VAC is the trust layer on top of the twin: it proves acceptance, authority, and provenance with a sealed, independently-verifiable receipt.</p>
+
+      <div class="brief">
+        <div class="scenario-label">Representative scenario</div>
+        <div class="brief-label">District 14 — Northside DMA &middot; 04:17 AEST</div>
+        <p>Fixed-network smart metering across District 14 (Northside DMA) detects an elevated minimum night-flow during the 02:00–04:00 low-demand window: 4.2 L/s above the 7-day baseline, a signal consistent with real-loss infrastructure leakage. The <span class="pull">Smart Water Management digital twin runs a what-if</span> — if inlet pressure is reduced by 12% and held for 30 minutes, what is the projected impact on water-loss reduction versus supply continuity? The twin's recommended action emerges from that scenario run: <span class="pull">Stage 1 DMA pressure reduction.</span></p>
+        <p>A Network Operations Centre engineer receives the digital twin's recommendation, reviews the SCADA telemetry confirming the metering signal, and accepts Stage 1. VAC is the mechanism that seals <span class="pull">which scenario was accepted, by whom, under what authority, and at exactly what time</span> — producing a regulator-grade audit receipt that anyone with the JTI can verify against the production backend, without needing to trust VAC's word for it.</p>
+      </div>
+
+      <p class="section-label" style="margin-bottom:0;">Walk through the authorisation, step by step</p>
+    </section>
+
+    <!-- 5-step guided walkthrough -->
+    <section class="stage" id="stage">
+      <div class="stage-head">
+        <h2>Sealed authorisation walkthrough</h2>
+        <span class="stage-badge">LIVE SEAL MECHANICS</span>
+      </div>
+
+      <div class="anchor-line">
+        <p><span class="pull">"The part of the system that checks the work is never the part that did the work."</span> The AI that flagged the anomaly does not authorise the response. The engineer who authorises does not operate the seal. The regulator who audits holds a receipt that neither party can alter after the fact.</p>
+      </div>
+
+      <div class="steps" id="steps">
+
+        <!-- Step 1: Scenario -->
+        <div class="step hero-step" id="step-1">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-1">1</div>
+            <div class="step-conn" id="conn-1"></div>
+          </div>
+          <div class="step-body">
+            <h3>Scenario &mdash; digital twin runs the what-if</h3>
+            <div class="step-meta">Smart Water Management twin &middot; automated what-if scenario run &middot; no human authority required at this stage</div>
+            <div class="step-detail" id="detail-1">
+              <div class="ai-rec">
+                <div class="ai-rec-label">Digital twin recommendation &middot; 04:17:03 AEST</div>
+                <div class="ai-rec-body">
+                  <strong>District 14 (Northside DMA) — water-loss risk detected via fixed-network smart metering.</strong><br><br>
+                  Minimum night-flow index: <strong>18.7 L/s</strong> (baseline 14.5 L/s; +4.2 L/s, +29% above low-demand threshold).<br>
+                  Signal sustained: 02:03–04:14 AEST (131 minutes). Real-loss confidence: <strong>High</strong>.<br><br>
+                  <strong>What-if run complete.</strong> Scenario modelled: reduce District 14 DMA inlet pressure by 12%, hold for 30 minutes. Projected outcome: water-loss reduction of 8–14% with no supply-continuity breach at current demand levels.<br><br>
+                  Recommended action: <strong>Accept Stage 1 DMA pressure reduction.</strong> If minimum night-flow does not return within 1.5 L/s of baseline after the hold, escalate to Stage 2: field crew dispatch to Zone 14-C.
+                </div>
+              </div>
+              <p>The digital twin's what-if and recommendation are automated outputs — no authority is exercised here. Authority begins the moment a human reviews the scenario and decides to act on it. That is the step VAC seals.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">DMA: District 14</span>
+                <span class="policy-chip">signal: min-night-flow</span>
+                <span class="policy-chip">what-if: pressure −12%</span>
+                <span class="policy-chip">confidence: high</span>
+                <span class="amber-chip">action pending human authorisation</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Decision -->
+        <div class="step" id="step-2">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-2">2</div>
+            <div class="step-conn" id="conn-2"></div>
+          </div>
+          <div class="step-body">
+            <h3>Decision &mdash; NOC engineer reviews the what-if and accepts</h3>
+            <div class="step-meta">Human decision &middot; identity not yet verified &middot; authority not yet sealed</div>
+            <div class="step-detail" id="detail-2">
+              <p>The on-call Network Operations Centre engineer reviews the digital twin's what-if — checks the scenario inputs, the projected water-loss reduction, the fixed-network smart metering telemetry confirming the overnight signal — and accepts Stage 1 of the recommended DMA pressure reduction.</p>
+              <p style="margin-top:10px;">At this point a decision has been made — but <span class="hil">no authority has been verified and no record has been sealed.</span> If the decision were logged only in the NOC system, the audit trail would rest on that system's integrity. VAC replaces that assumption with a cryptographic proof: not just who clicked accept, but who held authority to accept this class of scenario, under what conditions, at what time.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">decision: accept Stage 1</span>
+                <span class="policy-chip">action: DMA pressure reduction 12%</span>
+                <span class="amber-chip">identity not yet verified</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Authority -->
+        <div class="step" id="step-3">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-3">3</div>
+            <div class="step-conn" id="conn-3"></div>
+          </div>
+          <div class="step-body">
+            <h3>Authority &mdash; VAC verifies the engineer holds operational authority</h3>
+            <div class="step-meta">VAC identity gate &middot; policy-encoded conditions &middot; authority chain minted</div>
+            <div class="step-detail" id="detail-3">
+              <p>VAC checks that the engineer is:</p>
+              <ul style="margin:10px 0 10px 18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-secondary);">
+                <li>A <strong style="color:var(--text-primary);">verified, present human</strong> — not a bot, not a replay, confirmed by live biometric at the moment of authorisation.</li>
+                <li>Holding <strong style="color:var(--text-primary);">operational authority</strong> for District 14 DMA network actions (encoded in the engineer's VAC credential, not asserted by the NOC system).</li>
+                <li>Acting within <strong style="color:var(--text-primary);">permitted conditions</strong> — action type, pressure-reduction magnitude, and time window all within the encoded operational rules for this DMA and scarcity scenario class.</li>
+              </ul>
+              <p>The policy conditions — DMA scope, pressure-reduction bounds, permissible action types — travel with the authority chain. Not stored separately in a policy server that must be trusted; not asserted by the engineer. <span class="hil-teal">The part of the system that checks the work is never the part that did the work.</span></p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">identity: live biometric</span>
+                <span class="policy-chip">authority: District 14 ops</span>
+                <span class="policy-chip">conditions: within bounds</span>
+                <span class="policy-chip">policy: embedded in token</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Seal -->
+        <div class="step seal-step" id="step-4">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-4">4</div>
+            <div class="step-conn" id="conn-4"></div>
+          </div>
+          <div class="step-body">
+            <h3>Seal &mdash; VAC seals who, what, and when</h3>
+            <div class="step-meta">Ed25519 signed token &middot; live production backend &middot; independently verifiable</div>
+            <div class="step-detail" id="detail-4">
+              <p>VAC mints a signed token (Ed25519 + JWT) that binds together:</p>
+              <ul style="margin:10px 0 10px 18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-secondary);">
+                <li><strong style="color:var(--text-primary);">Who</strong> — the verified engineer identity (biometrically confirmed at the moment of acceptance, not just account-authenticated)</li>
+                <li><strong style="color:var(--text-primary);">Which scenario</strong> — the specific digital twin what-if accepted: Stage 1 DMA pressure reduction, District 14, −12%, 30-minute hold, water-loss reduction scenario</li>
+                <li><strong style="color:var(--text-primary);">Under which rules</strong> — the operational policy conditions encoded in the token at the moment of mint (DMA scope, action-type bounds, permissible magnitude)</li>
+                <li><strong style="color:var(--text-primary);">When</strong> — the exact timestamp, immutable, signed into the token — queryable in a regulator-grade audit years after the event</li>
+              </ul>
+              <p>The token is signed by the VAC production backend. <span class="hil">No party — not the engineer, not the NOC system, not VAC — can alter this record after the fact without the signature failing verification.</span> The twin proposes; VAC proves who accepted.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">algorithm: Ed25519</span>
+                <span class="policy-chip">format: JWT</span>
+                <span class="amber-chip">sealing now...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Receipt -->
+        <div class="step receipt-step" id="step-5">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-5">5</div>
+          </div>
+          <div class="step-body">
+            <h3>Receipt &mdash; Regulator-grade sealed receipt, queryable after the fact</h3>
+            <div class="step-meta">Live token &middot; verifiable by JTI &middot; tamper-evident</div>
+            <div class="step-detail" id="detail-5">
+              <p>The sealed receipt is queryable by anyone who holds the JTI — the regulator, an auditor, a water authority compliance team — against the live VAC backend. No trust in VAC required: the Ed25519 signature either verifies or it does not.</p>
+              <p style="margin-top:10px;"><strong style="color:var(--text-primary);">What a regulator-grade audit looks like with this receipt:</strong> the auditor queries the JTI — months or years after the scarcity event. The backend returns the signed token. The auditor verifies the signature against VAC's public key. The token's claims show the verified engineer identity, which digital twin scenario was accepted, the DMA and pressure-reduction parameters, the policy conditions that authorised it, and the immutable timestamp. No internal NOC system access required. No trust chain back to the SCADA log. The twin proposed; the record proves who accepted, and under what authority.</p>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /steps -->
+
+      <div class="controls">
+        <button class="btn btn-primary" id="advance" type="button">Begin walkthrough</button>
+        <button class="btn btn-ghost" id="reset" type="button">Reset</button>
+      </div>
+
+      <div class="receipt" id="receipt">
+        <div class="receipt-head">
+          <svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3>Authorisation sealed &amp; lodged</h3>
+        </div>
+        <dl class="kv" id="receiptKv"></dl>
+        <div class="audit" id="auditLog"></div>
+      </div>
+    </section>
+
+    <div class="fwd-note">
+      <strong>Honest scope.</strong> The scenario above — District 14, the digital twin what-if, the fixed-network metering readings, the engineer identity — is representative and labeled as such. The seal and receipt mechanics are real VAC system output: the token is genuinely minted, Ed25519-signed, and independently verifiable at the URL shown in the receipt. The operational rules and engineer authority encoded in this token are illustrative placeholders; encoding the actual SCADA policy rules, DMA authority hierarchy, and digital twin integration for a specific water utility is the integration build done with that utility's operations and compliance team.
+    </div>
+
+    <section class="domains-cta">
+      <div class="domains-cta-text">
+        <div class="cta-h">See how VAC applies across legal trust &amp; tribunal matters</div>
+        <div class="cta-d">The same two primitives — verified human authority and a sealed, auditable decision trail — applied to six NSW trust &amp; tribunal scenarios, with the live biometric identity gate.</div>
+      </div>
+      <a class="cta-btn" href="/tribunal">See the trust &amp; tribunal demo &rarr;</a>
+    </section>
+
+    <div class="foot">
+      <strong>What the seal proves:</strong> a verified, living engineer held authority under the encoded operational rules and accepted this specific digital twin scenario at this specific time — with a tamper-evident record the regulator can query independently, years after the event.
+      <div class="posture">Honest scope &middot; VAC is the trust layer on top of the digital twin: it proves acceptance, authority, and provenance. It does not operate the twin and does not move physical infrastructure. The DMA pressure reduction in this scenario is authorised by a human; execution remains with the SCADA system. The digital twin proposes — VAC seals who decided to act. Cryptographic seal = tamper-evident provenance + regulator-grade audit trail, not operational control.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'https://vac-system-production.up.railway.app';
+
+// Reference token — a real, pre-minted VAT for fallback display if the live mint fails.
+const REAL_TOKEN = {
+  jti: 'vat_root_c1e665235203',
+  trust: 0.95,
+  verify: '/vat/verify/vat_root_c1e665235203?intent=verify',
+  minted: false
+};
+
+let SEAL_TOKEN = REAL_TOKEN;
+
+async function mintWaterToken() {
+  const constraints = {
+    _demo: true,
+    _conditions_are_illustrative: true,
+    _note_for_evaluator: 'Token is real and verifiable. Scenario conditions (DMA, engineer authority, pressure delta) are representative. Encoding actual SCADA operational rules is the integration build with the water utility.',
+    scenario: 'water_network_pressure_reduction',
+    dma: 'District_14_Northside',
+    action_type: 'pressure_reduction',
+    pressure_delta_pct: -12,
+    hold_duration_min: 30,
+    trigger: 'min_night_flow_anomaly',
+    ai_confidence: 'high',
+    human_in_the_loop: true,
+    release_condition: 'authorised_engineer_within_operational_bounds'
+  };
+  const body = {
+    human_identity: 'noc-engineer@waternetwork.demo',
+    agent_id: 'trusted-water-demo',
+    resources: ['water:district14:pressure'],
+    actions: ['authorise_network_action', 'view_credential'],
+    verification_method: 'multi_modal',
+    sensitivity: 'high',
+    constraints,
+    context: {
+      surface: 'trusted-water-demo',
+      scenario: 'District 14 pressure reduction — representative scenario',
+      authorised_at: new Date().toISOString()
+    }
+  };
+  try {
+    const r = await fetch(API_BASE + '/v1/vat/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('issue ' + r.status);
+    const data = await r.json();
+    if (!data || !data.jti) throw new Error('no jti');
+    const verifyUrl = data.verify_url || ('/vat/verify/' + data.jti);
+    SEAL_TOKEN = {
+      jti: data.jti,
+      trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
+      verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify',
+      minted: true
+    };
+    return true;
+  } catch (e) {
+    console.warn('[water-demo] live mint failed:', e && e.message, '— using reference token');
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false });
+    return false;
+  }
+}
+
+const STEPS = [
+  { id: 1, label: 'Scenario', meta: 'AI anomaly detection · automated' },
+  { id: 2, label: 'Decision', meta: 'NOC engineer review · human decision' },
+  { id: 3, label: 'Authority', meta: 'VAC identity + policy gate' },
+  { id: 4, label: 'Seal', meta: 'Ed25519 token minted · live backend' },
+  { id: 5, label: 'Receipt', meta: 'Regulator-grade sealed receipt' }
+];
+
+const STEP_BTN_LABELS = [
+  'See the digital twin what-if',
+  'Engineer reviews and decides',
+  'VAC checks authority',
+  'Seal the authorisation',
+  'View the sealed receipt'
+];
+
+let stepIdx = -1;
+let sealing = false;
+
+function dot(n) { return document.getElementById('dot-' + n); }
+function conn(n) { return document.getElementById('conn-' + n); }
+function detail(n) { return document.getElementById('detail-' + n); }
+function stepEl(n) { return document.getElementById('step-' + n); }
+
+function renderStep(n) {
+  const el = stepEl(n);
+  el.classList.add('revealed');
+  dot(n).classList.add('active');
+}
+
+function completeStep(n) {
+  dot(n).classList.remove('active');
+  dot(n).classList.add('done');
+  if (n < 5) { conn(n).classList.add('done'); }
+}
+
+async function advance() {
+  const btn = document.getElementById('advance');
+  if (sealing) return;
+
+  stepIdx++;
+
+  if (stepIdx < 5) {
+    renderStep(stepIdx + 1);
+    if (stepIdx > 0) completeStep(stepIdx);
+
+    if (stepIdx === 3) {
+      // Step 4: Seal — mint live token
+      sealing = true;
+      btn.disabled = true;
+      btn.textContent = 'Sealing...';
+      await mintWaterToken();
+      sealing = false;
+      btn.disabled = false;
+    }
+
+    if (stepIdx < 4) {
+      btn.textContent = STEP_BTN_LABELS[stepIdx + 1];
+    } else if (stepIdx === 4) {
+      // All steps revealed, show receipt
+      completeStep(5);
+      showReceipt();
+      btn.style.display = 'none';
+    }
+  }
+}
+
+function showReceipt() {
+  const tok = SEAL_TOKEN;
+  const now = new Date();
+  const ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' AEST';
+
+  const kvPairs = [
+    ['Scenario', 'District 14 — Northside DMA · Digital twin Stage 1 pressure reduction'],
+    ['What-if accepted', 'Reduce DMA inlet pressure by 12% · hold 30 min · water-loss reduction scenario'],
+    ['Authorised by', 'Verified NOC engineer (representative scenario)'],
+    ['Authority scope', 'District 14 DMA network operations'],
+    ['Policy basis', 'Min night-flow anomaly > threshold · high confidence · fixed-network smart metering'],
+    ['Sealed at', ts],
+    ['Token (JTI)', tok.jti],
+    ['Token status', tok.minted ? 'Live mint — freshly signed' : 'Reference token — pre-minted'],
+    ['Signature', 'Ed25519 · VAC production backend']
+  ];
+
+  const kvEl = document.getElementById('receiptKv');
+  kvEl.innerHTML = kvPairs.map(([k, v]) =>
+    `<dt>${k}</dt><dd${['Token (JTI)', 'Token status', 'Signature'].includes(k) ? ' class="hl"' : ''}>${esc(v)}</dd>`
+  ).join('');
+
+  const auditEl = document.getElementById('auditLog');
+  const auditLines = [
+    { t: '04:17:03', e: 'Fixed-network smart metering alert — District 14 DMA min night-flow 18.7 L/s (+4.2 above baseline)' },
+    { t: '04:17:08', e: 'Digital twin what-if complete — Stage 1 DMA pressure reduction recommended, water-loss reduction projected, confidence: high' },
+    { t: '04:18:41', e: 'NOC engineer opened digital twin scenario for review' },
+    { t: '04:19:12', e: 'Engineer accepted Stage 1 — VAC identity gate initiated' },
+    { t: '04:19:14', e: 'VAC authority verified — engineer identity confirmed, DMA operational conditions within bounds' },
+    { t: now.toISOString().replace('T', ' ').slice(0, 19), e: 'Authorisation sealed — JTI: ' + tok.jti }
+  ];
+  auditEl.innerHTML = auditLines.map(l =>
+    `<div class="audit-line"><span class="t">${esc(l.t)}</span><span>${esc(l.e)}</span></div>`
+  ).join('');
+
+  // Add verify link
+  const verifyDiv = document.createElement('div');
+  verifyDiv.style.marginTop = '14px';
+  if (tok.minted) {
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
+  } else {
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
+  }
+  auditEl.appendChild(verifyDiv);
+
+  document.getElementById('receipt').classList.add('show');
+}
+
+function reset() {
+  stepIdx = -1;
+  sealing = false;
+  for (let n = 1; n <= 5; n++) {
+    const d = dot(n); if (d) { d.classList.remove('active', 'done'); }
+    const c = conn(n); if (c) { c.classList.remove('done'); }
+    const el = stepEl(n); if (el) { el.classList.remove('revealed'); }
+  }
+  const receipt = document.getElementById('receipt');
+  receipt.classList.remove('show');
+  receipt.innerHTML = `<div class="receipt-head"><svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Authorisation sealed &amp; lodged</h3></div><dl class="kv" id="receiptKv"></dl><div class="audit" id="auditLog"></div>`;
+  const btn = document.getElementById('advance');
+  btn.style.display = '';
+  btn.disabled = false;
+  btn.textContent = 'Begin walkthrough';
+  SEAL_TOKEN = REAL_TOKEN;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function safeHref(url) {
+  const s = String(url);
+  return /^(https?:\/\/|\/)/.test(s) ? s : '#';
+}
+
+document.getElementById('advance').onclick = advance;
+document.getElementById('reset').onclick = reset;
+</script>
+</body>
+</html>

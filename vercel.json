@@ -193,6 +193,10 @@
       "destination": "/tribunal-demo.html"
     },
     {
+      "source": "/trusted-water-demo",
+      "destination": "/trusted-water-demo.html"
+    },
+    {
       "source": "/vat-verify",
       "destination": "/vat-verify.html"
     }
