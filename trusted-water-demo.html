@@ -145,15 +145,15 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
   <div class="wrap">
     <section class="hero">
-      <div class="eyebrow">For AQP innovation &amp; network operations teams</div>
-      <h1>The AI makes a recommendation. VAC seals who authorised it, and why — so the regulator can check independently, long after the moment has passed.</h1>
-      <p class="hero-lede">Water networks run on decisions made in seconds and audited over years. When AI recommends a pressure reduction or a leak-dispatch on a district metered area, the operational and regulatory question is not <span class="pull">what the AI said</span> — it is <span class="pull">who held authority to act on it, under which conditions, and whether that record has been altered since.</span> VAC answers that question with a sealed, independently-verifiable receipt.</p>
+      <div class="eyebrow">Smart water management &middot; Digital twin operations</div>
+      <h1>The digital twin runs the what-if. VAC seals who accepted the recommendation — and proves it, years after the moment has passed.</h1>
+      <p class="hero-lede">Smart water networks run on what-if decisions made in seconds and audited over years. When a Smart Water Management digital twin recommends a DMA pressure reduction during a scarcity window, the operational and regulatory question is not <span class="pull">what the twin proposed</span> — it is <span class="pull">who held authority to act on it, under which conditions, and whether that record has been altered since.</span> VAC is the trust layer on top of the twin: it proves acceptance, authority, and provenance with a sealed, independently-verifiable receipt.</p>
 
       <div class="brief">
         <div class="scenario-label">Representative scenario</div>
         <div class="brief-label">District 14 — Northside DMA &middot; 04:17 AEST</div>
-        <p>Overnight monitoring detects an elevated minimum night-flow index on District 14 (Northside DMA): 4.2 L/s above the 7-day baseline, sustained across the 02:00–04:00 window. The AI system flags a <span class="pull">probable infrastructure leak</span> and recommends a staged pressure reduction — Step 1: reduce inlet pressure by 12% and hold for 30 minutes; Step 2 if flow persists: dispatch a field crew to Zone 14-C.</p>
-        <p>A Network Operations Centre engineer receives the recommendation, reviews the signal, and accepts Step 1. VAC is the mechanism that seals <span class="pull">who authorised the pressure change, under what operational rules, and at exactly what time</span> — producing a regulator-grade receipt that anyone with the JTI can verify against the production backend, without needing to trust VAC's word for it.</p>
+        <p>Fixed-network smart metering across District 14 (Northside DMA) detects an elevated minimum night-flow during the 02:00–04:00 low-demand window: 4.2 L/s above the 7-day baseline, a signal consistent with real-loss infrastructure leakage. The <span class="pull">Smart Water Management digital twin runs a what-if</span> — if inlet pressure is reduced by 12% and held for 30 minutes, what is the projected impact on water-loss reduction versus supply continuity? The twin's recommended action emerges from that scenario run: <span class="pull">Stage 1 DMA pressure reduction.</span></p>
+        <p>A Network Operations Centre engineer receives the digital twin's recommendation, reviews the SCADA telemetry confirming the metering signal, and accepts Stage 1. VAC is the mechanism that seals <span class="pull">which scenario was accepted, by whom, under what authority, and at exactly what time</span> — producing a regulator-grade audit receipt that anyone with the JTI can verify against the production backend, without needing to trust VAC's word for it.</p>
       </div>
 
       <p class="section-label" style="margin-bottom:0;">Walk through the authorisation, step by step</p>
@@ -179,22 +179,24 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
             <div class="step-conn" id="conn-1"></div>
           </div>
           <div class="step-body">
-            <h3>Scenario &mdash; AI flags District 14 anomaly</h3>
-            <div class="step-meta">Monitoring AI &middot; automated detection &middot; no human authority required at this stage</div>
+            <h3>Scenario &mdash; digital twin runs the what-if</h3>
+            <div class="step-meta">Smart Water Management twin &middot; automated what-if scenario run &middot; no human authority required at this stage</div>
             <div class="step-detail" id="detail-1">
               <div class="ai-rec">
-                <div class="ai-rec-label">AI recommendation &middot; 04:17:03 AEST</div>
+                <div class="ai-rec-label">Digital twin recommendation &middot; 04:17:03 AEST</div>
                 <div class="ai-rec-body">
-                  <strong>District 14 (Northside DMA) — probable infrastructure leak detected.</strong><br><br>
-                  Minimum night-flow index: <strong>18.7 L/s</strong> (baseline 14.5 L/s; +4.2 L/s, +29% above threshold).<br>
-                  Signal sustained: 02:03–04:14 AEST (131 minutes). Confidence: <strong>High</strong>.<br><br>
-                  Recommended action: <strong>Staged pressure reduction — Step 1.</strong> Reduce District 14 inlet pressure by 12% and hold for 30 minutes. If minimum night-flow does not return within 1.5 L/s of baseline, escalate to Step 2: dispatch field crew to Zone 14-C.
+                  <strong>District 14 (Northside DMA) — water-loss risk detected via fixed-network smart metering.</strong><br><br>
+                  Minimum night-flow index: <strong>18.7 L/s</strong> (baseline 14.5 L/s; +4.2 L/s, +29% above low-demand threshold).<br>
+                  Signal sustained: 02:03–04:14 AEST (131 minutes). Real-loss confidence: <strong>High</strong>.<br><br>
+                  <strong>What-if run complete.</strong> Scenario modelled: reduce District 14 DMA inlet pressure by 12%, hold for 30 minutes. Projected outcome: water-loss reduction of 8–14% with no supply-continuity breach at current demand levels.<br><br>
+                  Recommended action: <strong>Accept Stage 1 DMA pressure reduction.</strong> If minimum night-flow does not return within 1.5 L/s of baseline after the hold, escalate to Stage 2: field crew dispatch to Zone 14-C.
                 </div>
               </div>
-              <p>The AI detection and recommendation are automated — no authority is exercised here. Authority begins the moment a human reviews and decides to act. That is the step VAC seals.</p>
+              <p>The digital twin's what-if and recommendation are automated outputs — no authority is exercised here. Authority begins the moment a human reviews the scenario and decides to act on it. That is the step VAC seals.</p>
               <div style="margin-top:10px;">
                 <span class="policy-chip">DMA: District 14</span>
                 <span class="policy-chip">signal: min-night-flow</span>
+                <span class="policy-chip">what-if: pressure −12%</span>
                 <span class="policy-chip">confidence: high</span>
                 <span class="amber-chip">action pending human authorisation</span>
               </div>
@@ -209,14 +211,14 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
             <div class="step-conn" id="conn-2"></div>
           </div>
           <div class="step-body">
-            <h3>Decision &mdash; NOC engineer reviews and accepts</h3>
+            <h3>Decision &mdash; NOC engineer reviews the what-if and accepts</h3>
             <div class="step-meta">Human decision &middot; identity not yet verified &middot; authority not yet sealed</div>
             <div class="step-detail" id="detail-2">
-              <p>The on-call Network Operations Centre engineer reviews the AI recommendation, cross-references the SCADA telemetry for District 14, and accepts Step 1 of the recommended response.</p>
-              <p style="margin-top:10px;">At this point a decision has been made — but <span class="hil">no authority has been verified and no record has been sealed.</span> If the decision were logged only in the NOC system, the audit trail would rest on that system's integrity. VAC replaces that assumption with a cryptographic proof.</p>
+              <p>The on-call Network Operations Centre engineer reviews the digital twin's what-if — checks the scenario inputs, the projected water-loss reduction, the fixed-network smart metering telemetry confirming the overnight signal — and accepts Stage 1 of the recommended DMA pressure reduction.</p>
+              <p style="margin-top:10px;">At this point a decision has been made — but <span class="hil">no authority has been verified and no record has been sealed.</span> If the decision were logged only in the NOC system, the audit trail would rest on that system's integrity. VAC replaces that assumption with a cryptographic proof: not just who clicked accept, but who held authority to accept this class of scenario, under what conditions, at what time.</p>
               <div style="margin-top:10px;">
-                <span class="policy-chip">decision: accept Step 1</span>
-                <span class="policy-chip">action: pressure reduction 12%</span>
+                <span class="policy-chip">decision: accept Stage 1</span>
+                <span class="policy-chip">action: DMA pressure reduction 12%</span>
                 <span class="amber-chip">identity not yet verified</span>
               </div>
             </div>
@@ -236,10 +238,10 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
               <p>VAC checks that the engineer is:</p>
               <ul style="margin:10px 0 10px 18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-secondary);">
                 <li>A <strong style="color:var(--text-primary);">verified, present human</strong> — not a bot, not a replay, confirmed by live biometric at the moment of authorisation.</li>
-                <li>Holding <strong style="color:var(--text-primary);">operational authority</strong> for District 14 network actions (encoded in the engineer's VAC credential).</li>
-                <li>Acting within <strong style="color:var(--text-primary);">permitted conditions</strong> — action type, pressure reduction magnitude, and time window all within the encoded operational rules.</li>
+                <li>Holding <strong style="color:var(--text-primary);">operational authority</strong> for District 14 DMA network actions (encoded in the engineer's VAC credential, not asserted by the NOC system).</li>
+                <li>Acting within <strong style="color:var(--text-primary);">permitted conditions</strong> — action type, pressure-reduction magnitude, and time window all within the encoded operational rules for this DMA and scarcity scenario class.</li>
               </ul>
-              <p>The policy conditions travel with the authority chain — not stored separately in a policy server that must be trusted, and not asserted by the engineer. <span class="hil-teal">The part of the system that checks the work is never the part that did the work.</span></p>
+              <p>The policy conditions — DMA scope, pressure-reduction bounds, permissible action types — travel with the authority chain. Not stored separately in a policy server that must be trusted; not asserted by the engineer. <span class="hil-teal">The part of the system that checks the work is never the part that did the work.</span></p>
               <div style="margin-top:10px;">
                 <span class="policy-chip">identity: live biometric</span>
                 <span class="policy-chip">authority: District 14 ops</span>
@@ -262,12 +264,12 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
             <div class="step-detail" id="detail-4">
               <p>VAC mints a signed token (Ed25519 + JWT) that binds together:</p>
               <ul style="margin:10px 0 10px 18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-secondary);">
-                <li><strong style="color:var(--text-primary);">Who</strong> — the verified engineer identity (biometrically confirmed, not just account-authenticated)</li>
-                <li><strong style="color:var(--text-primary);">What</strong> — the specific action authorised: Stage 1 pressure reduction, District 14, 12%, 30-minute hold</li>
-                <li><strong style="color:var(--text-primary);">Under which rules</strong> — the operational policy conditions encoded in the token at the moment of mint</li>
-                <li><strong style="color:var(--text-primary);">When</strong> — the exact timestamp, immutable, signed into the token</li>
+                <li><strong style="color:var(--text-primary);">Who</strong> — the verified engineer identity (biometrically confirmed at the moment of acceptance, not just account-authenticated)</li>
+                <li><strong style="color:var(--text-primary);">Which scenario</strong> — the specific digital twin what-if accepted: Stage 1 DMA pressure reduction, District 14, −12%, 30-minute hold, water-loss reduction scenario</li>
+                <li><strong style="color:var(--text-primary);">Under which rules</strong> — the operational policy conditions encoded in the token at the moment of mint (DMA scope, action-type bounds, permissible magnitude)</li>
+                <li><strong style="color:var(--text-primary);">When</strong> — the exact timestamp, immutable, signed into the token — queryable in a regulator-grade audit years after the event</li>
               </ul>
-              <p>The token is signed by the VAC production backend. <span class="hil">No party — not the engineer, not the NOC system, not VAC — can alter this record after the fact without the signature failing verification.</span></p>
+              <p>The token is signed by the VAC production backend. <span class="hil">No party — not the engineer, not the NOC system, not VAC — can alter this record after the fact without the signature failing verification.</span> The twin proposes; VAC proves who accepted.</p>
               <div style="margin-top:10px;">
                 <span class="policy-chip">algorithm: Ed25519</span>
                 <span class="policy-chip">format: JWT</span>
@@ -287,7 +289,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
             <div class="step-meta">Live token &middot; verifiable by JTI &middot; tamper-evident</div>
             <div class="step-detail" id="detail-5">
               <p>The sealed receipt is queryable by anyone who holds the JTI — the regulator, an auditor, a water authority compliance team — against the live VAC backend. No trust in VAC required: the Ed25519 signature either verifies or it does not.</p>
-              <p style="margin-top:10px;"><strong style="color:var(--text-primary);">What a compliance audit looks like with this receipt:</strong> the auditor queries the JTI, the backend returns the signed token, and the auditor verifies the signature against VAC's public key. The token's claims show the verified engineer identity, the authorised action, the policy conditions, and the timestamp. No internal system access required. No trust chain back to the NOC SCADA log.</p>
+              <p style="margin-top:10px;"><strong style="color:var(--text-primary);">What a regulator-grade audit looks like with this receipt:</strong> the auditor queries the JTI — months or years after the scarcity event. The backend returns the signed token. The auditor verifies the signature against VAC's public key. The token's claims show the verified engineer identity, which digital twin scenario was accepted, the DMA and pressure-reduction parameters, the policy conditions that authorised it, and the immutable timestamp. No internal NOC system access required. No trust chain back to the SCADA log. The twin proposed; the record proves who accepted, and under what authority.</p>
             </div>
           </div>
         </div>
@@ -310,7 +312,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     </section>
 
     <div class="fwd-note">
-      <strong>Honest scope.</strong> The scenario above — District 14, the anomaly readings, the engineer identity — is representative and labeled as such. The seal and receipt mechanics are real VAC system output: the token is genuinely minted, Ed25519-signed, and independently verifiable at the URL shown in the receipt. The operational rules and engineer authority encoded in this token are illustrative placeholders; encoding the actual SCADA policy rules and authority hierarchy for a specific water utility is the integration build done with that utility's operations and compliance team.
+      <strong>Honest scope.</strong> The scenario above — District 14, the digital twin what-if, the fixed-network metering readings, the engineer identity — is representative and labeled as such. The seal and receipt mechanics are real VAC system output: the token is genuinely minted, Ed25519-signed, and independently verifiable at the URL shown in the receipt. The operational rules and engineer authority encoded in this token are illustrative placeholders; encoding the actual SCADA policy rules, DMA authority hierarchy, and digital twin integration for a specific water utility is the integration build done with that utility's operations and compliance team.
     </div>
 
     <section class="domains-cta">
@@ -322,8 +324,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     </section>
 
     <div class="foot">
-      <strong>What the seal proves:</strong> a verified, living engineer held authority under the encoded operational rules and authorised this specific action at this specific time — with a tamper-evident record the regulator can check independently.
-      <div class="posture">Honest scope &middot; VAC provides the verification and the sealed audit rails. It does not operate network controls and does not move physical infrastructure. The pressure reduction in this scenario is authorised by a human; execution remains with the SCADA system. Cryptographic seal = tamper-evident provenance + audit trail, not operational control.</div>
+      <strong>What the seal proves:</strong> a verified, living engineer held authority under the encoded operational rules and accepted this specific digital twin scenario at this specific time — with a tamper-evident record the regulator can query independently, years after the event.
+      <div class="posture">Honest scope &middot; VAC is the trust layer on top of the digital twin: it proves acceptance, authority, and provenance. It does not operate the twin and does not move physical infrastructure. The DMA pressure reduction in this scenario is authorised by a human; execution remains with the SCADA system. The digital twin proposes — VAC seals who decided to act. Cryptographic seal = tamper-evident provenance + regulator-grade audit trail, not operational control.</div>
     </div>
   </div>
 </div>
@@ -403,7 +405,7 @@ const STEPS = [
 ];
 
 const STEP_BTN_LABELS = [
-  'See the AI recommendation',
+  'See the digital twin what-if',
   'Engineer reviews and decides',
   'VAC checks authority',
   'Seal the authorisation',
@@ -467,11 +469,11 @@ function showReceipt() {
   const ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' AEST';
 
   const kvPairs = [
-    ['Scenario', 'District 14 — Northside DMA · Pressure reduction Step 1'],
-    ['Action authorised', 'Reduce inlet pressure by 12% · hold 30 min'],
+    ['Scenario', 'District 14 — Northside DMA · Digital twin Stage 1 pressure reduction'],
+    ['What-if accepted', 'Reduce DMA inlet pressure by 12% · hold 30 min · water-loss reduction scenario'],
     ['Authorised by', 'Verified NOC engineer (representative scenario)'],
-    ['Authority scope', 'District 14 network operations'],
-    ['Policy basis', 'Minimum night-flow anomaly > threshold · high confidence'],
+    ['Authority scope', 'District 14 DMA network operations'],
+    ['Policy basis', 'Min night-flow anomaly > threshold · high confidence · fixed-network smart metering'],
     ['Sealed at', ts],
     ['Token (JTI)', tok.jti],
     ['Token status', tok.minted ? 'Live mint — freshly signed' : 'Reference token — pre-minted'],
@@ -485,11 +487,11 @@ function showReceipt() {
 
   const auditEl = document.getElementById('auditLog');
   const auditLines = [
-    { t: '04:17:03', e: 'AI anomaly detected — District 14 min night-flow index 18.7 L/s (+4.2 above baseline)' },
-    { t: '04:17:08', e: 'AI recommendation issued — Step 1 pressure reduction, confidence: high' },
-    { t: '04:18:41', e: 'NOC engineer opened recommendation for review' },
-    { t: '04:19:12', e: 'Engineer accepted Step 1 — VAC identity gate initiated' },
-    { t: '04:19:14', e: 'VAC authority verified — engineer identity confirmed, conditions within operational bounds' },
+    { t: '04:17:03', e: 'Fixed-network smart metering alert — District 14 DMA min night-flow 18.7 L/s (+4.2 above baseline)' },
+    { t: '04:17:08', e: 'Digital twin what-if complete — Stage 1 DMA pressure reduction recommended, water-loss reduction projected, confidence: high' },
+    { t: '04:18:41', e: 'NOC engineer opened digital twin scenario for review' },
+    { t: '04:19:12', e: 'Engineer accepted Stage 1 — VAC identity gate initiated' },
+    { t: '04:19:14', e: 'VAC authority verified — engineer identity confirmed, DMA operational conditions within bounds' },
     { t: now.toISOString().replace('T', ' ').slice(0, 19), e: 'Authorisation sealed — JTI: ' + tok.jti }
   ];
   auditEl.innerHTML = auditLines.map(l =>
