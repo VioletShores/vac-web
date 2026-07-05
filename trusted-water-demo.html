@@ -500,9 +500,9 @@ function showReceipt() {
   const verifyDiv = document.createElement('div');
   verifyDiv.style.marginTop = '14px';
   if (tok.minted) {
-    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(tok.verify)}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
   } else {
-    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(tok.verify)}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
   }
   auditEl.appendChild(verifyDiv);
 
@@ -529,6 +529,10 @@ function reset() {
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function safeHref(url) {
+  const s = String(url);
+  return /^(https?:\/\/|\/)/.test(s) ? s : '#';
 }
 
 document.getElementById('advance').onclick = advance;
