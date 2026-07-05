@@ -89,7 +89,7 @@ tr:last-child td{border-bottom:none}
   <div class="hero">
     <div class="hero-kicker">SCORING · WEIGHTS · THRESHOLDS</div>
     <h1 class="hero-title">The variables behind<br>every decision</h1>
-    <p class="hero-sub">Every score that gates an authentication, and every weight that routes a model, is a number you can read. This is the full set — what each one means, what it's set to, and whether you can change it in your tenant.</p>
+    <p class="hero-sub">Every score that gates an authentication is a number you can read. This is the full set — what each one means, what it's set to, and whether you can change it in your tenant.</p>
     <div class="stamp">SNAPSHOT 2026-06-26 · SOURCE: LIVE ENGINE CONFIG · GET /v1/engine/config</div>
   </div>
 
@@ -101,7 +101,7 @@ tr:last-child td{border-bottom:none}
 
   <!-- AUTH COMPOSITE -->
   <div class="section-title">ENGINE 1 · VAC BIOMETRIC — HOW A VERIFICATION PASSES</div>
-  <p class="section-lead">Each modality produces a 0–1 score. The composite is a weighted sum, and it must clear the threshold for the action's risk level. Higher-risk actions demand a higher composite.</p>
+  <p class="section-lead">Each row produces a 0–1 score; the composite is their weighted sum and must clear the threshold for the action's risk level — higher-risk actions demand a higher composite. These four are the composite's weighted inputs, not the full modality list: VAC's biometric engine runs seven modalities in all (face liveness, deepfake, speech match, lip-sync, challenge, finger gesture, duress — see <a href="/standards" style="color:inherit;text-decoration:underline">standards</a>), captured chiefly through the video-liveness and voice inputs above.</p>
   <div class="card"><table>
     <thead><tr><th>Modality</th><th>Weight</th><th class="barcol"></th><th>Configurable</th></tr></thead>
     <tbody>
@@ -188,49 +188,6 @@ tr:last-child td{border-bottom:none}
   </table></div>
   <div class="src">ACTION_SENSITIVITY · DEFAULT="critical" (literal, not env-configurable) · config.py</div>
 
-  <!-- SIGNALRANK -->
-  <div class="section-title">ENGINE 2 · SIGNALRANK — HOW A MODEL EARNS TRUST</div>
-  <p class="section-lead">SignalRank scores each model's trustworthiness from five measured components, combined into a composite. Hallucination is inverted — lower is better.</p>
-  <div class="card"><table>
-    <thead><tr><th>Component</th><th>Weight</th><th class="barcol"></th><th>Configurable</th></tr></thead>
-    <tbody>
-      <tr><td class="nm">Reliability <span class="dim">— consistency of correct answers</span></td><td class="val">0.25</td><td class="barcol"><div class="bar purple"><span style="width:100%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
-      <tr><td class="nm">Low hallucination <span class="dim">— inverted (1 − rate)</span></td><td class="val">0.25</td><td class="barcol"><div class="bar purple"><span style="width:100%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
-      <tr><td class="nm">Honesty <span class="dim">— calibrated confidence</span></td><td class="val">0.20</td><td class="barcol"><div class="bar purple"><span style="width:80%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
-      <tr><td class="nm">Restriction transparency</td><td class="val">0.15</td><td class="barcol"><div class="bar purple"><span style="width:60%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
-      <tr><td class="nm">Independence</td><td class="val">0.15</td><td class="barcol"><div class="bar purple"><span style="width:60%"></span></div></td><td><span class="badge tenant">TENANT</span></td></tr>
-    </tbody>
-  </table></div>
-  <div class="src">composite = r·0.25 + h·0.20 + rt·0.15 + (1−hr)·0.25 + ind·0.15 · trust_graph.py · weights sum to 1.00</div>
-
-  <div class="section-title">ROUTING PRIORITY PROFILES</div>
-  <p class="section-lead">When choosing a model, the router blends trust, SignalRank, cost, and rail (restriction-fit). Each profile shifts the emphasis — premium leans on trust, speed leans on cost.</p>
-  <div class="card"><table>
-    <thead><tr><th>Profile</th><th>Trust</th><th>SignalRank</th><th>Cost</th><th>Rail</th></tr></thead>
-    <tbody>
-      <tr><td class="nm">Premium</td><td class="val">5.0</td><td class="val">3.0</td><td class="val">0.0</td><td class="val">1.5</td></tr>
-      <tr><td class="nm">Quality</td><td class="val">5.0</td><td class="val">3.0</td><td class="val">0.1</td><td class="val">1.5</td></tr>
-      <tr><td class="nm">Balanced <span class="dim">— default</span></td><td class="val">4.0</td><td class="val">3.0</td><td class="val">0.3</td><td class="val">1.0</td></tr>
-      <tr><td class="nm">Cost</td><td class="val">1.0</td><td class="val">1.0</td><td class="val">3.0</td><td class="val">1.0</td></tr>
-      <tr><td class="nm">Speed</td><td class="val">0.5</td><td class="val">0.5</td><td class="val">5.0</td><td class="val">0.5</td></tr>
-      <tr><td class="nm">Unrestricted</td><td class="val">1.5</td><td class="val">1.0</td><td class="val">0.5</td><td class="val">4.0</td></tr>
-    </tbody>
-  </table></div>
-  <div class="src">get_priority_weights() · engine_config.py · stored in engine_room_config, editable via the Engine Room</div>
-
-  <div class="section-title">CLASSIFICATION CONSENSUS &amp; DRIFT</div>
-  <p class="section-lead">Routing a request to a domain: keyword pattern-match and LLM judgement both vote, weighted so no single signal gatekeeps.</p>
-  <div class="card"><table>
-    <thead><tr><th>Parameter</th><th>Value</th><th>Governs</th></tr></thead>
-    <tbody>
-      <tr><td class="nm">LLM vote weight</td><td class="val">0.85</td><td class="dim">Semantic understanding — the primary signal</td></tr>
-      <tr><td class="nm">Keyword vote weight</td><td class="val">0.15</td><td class="dim">Pattern-match — supporting signal, never gatekeeps</td></tr>
-      <tr><td class="nm">Beta-blend coefficient (F-093)</td><td class="val">0.6</td><td class="dim">trust = decay × (0.6 × beta_mean + 0.4 × EWMA)</td></tr>
-      <tr><td class="nm">Model-drift threshold</td><td class="val">0.15</td><td class="dim">Absolute rating drift that flags a model underperforming</td></tr>
-      <tr><td class="nm">Challenge min datapoints</td><td class="val">30</td><td class="dim">Minimum data points before a challenge cycle runs</td></tr>
-    </tbody>
-  </table></div>
-  <div class="src">classify_wa.py · engine_room_config · main.py</div>
 
   <!-- TENANCY -->
   <div class="honesty">
@@ -250,7 +207,7 @@ tr:last-child td{border-bottom:none}
     SNAPSHOT OF LIVE ENGINE CONFIGURATION · 2026-06-26 · SESSION 119<br>
     Authoritative source is the running config (GET /v1/engine/config); values here are a dated read and may lag a live change.<br>
     Standards verified against current revisions (NIST SP 800-63-4, Jul 2025; ISO/IEC 30107-3). eIDAS / PSD2 SCA mapped on request.<br>
-    VAC PROTOCOL · VIOLET SHORES · Built on the Athena trust-and-decision substrate.
+    VAC PROTOCOL · VIOLET SHORES
   </div>
 
 </div>
