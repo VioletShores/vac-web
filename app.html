@@ -69,10 +69,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);height:100v
 </div>
 
 <nav class="nav">
-<a class="nav-tab active" data-tab="deck" onclick="goTab('deck')">
-<div class="dot" style="background:var(--gold)"></div>Deck
-</a>
-<a class="nav-tab" data-tab="verify" onclick="goTab('verify')">
+<a class="nav-tab active" data-tab="verify" onclick="goTab('verify')">
 <div class="dot" style="background:var(--emerald)"></div>Verify
 </a>
 <a class="nav-tab" data-tab="dashboard" onclick="goTab('dashboard')" style="display:none">
@@ -138,8 +135,7 @@ Apps <span class="badge">6</span> <span class="arrow">▾</span>
 </nav>
 
 <div class="content">
-<iframe id="deckFrame" src="/deck" style="width:100%;height:100%;border:none;background:var(--bg);"></iframe>
-<iframe id="appFrame" src="about:blank" style="width:100%;height:100%;border:none;background:var(--bg);display:none;"></iframe>
+<iframe id="appFrame" src="about:blank" style="width:100%;height:100%;border:none;background:var(--bg);"></iframe>
 </div>
 
 <script>
@@ -149,7 +145,6 @@ const e = encodeURIComponent(email);
 
 const v = Date.now(); // Cache bust for iframes
 const tabs = {
-    deck: '/deck',
     dashboard: '/dashboard' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
     trust: '/trust' + (email ? '?email=' + e : ''),
     verify: '/auth' + (email ? '?email=' + e + '&v=' + v : '?v=' + v),
@@ -195,22 +190,10 @@ function goTab(tab) {
     const tabEl = document.querySelector(`.nav-tab[data-tab="${tab}"]`);
     if (tabEl) tabEl.classList.add('active');
     
-    const deckFrame = document.getElementById('deckFrame');
     const appFrame = document.getElementById('appFrame');
-    
-    if (tab === 'deck') {
-        // Show deck iframe (never reloads), hide app iframe
-        deckFrame.style.display = 'block';
-        appFrame.style.display = 'none';
-        setTimeout(() => deckFrame.focus(), 300);
-    } else {
-        // Hide deck iframe, show app iframe with new content
-        deckFrame.style.display = 'none';
-        appFrame.style.display = 'block';
-        const url = tabs[tab];
-        if (url) appFrame.src = url;
-        setTimeout(() => appFrame.focus(), 300);
-    }
+    const url = tabs[tab];
+    if (url) appFrame.src = url;
+    setTimeout(() => appFrame.focus(), 300);
     window.location.hash = tab;
 }
 
@@ -231,10 +214,7 @@ function goApp(app) {
     // Close menu + backdrop
     closeApps();
     
-    // Hide deck, show app iframe
-    document.getElementById('deckFrame').style.display = 'none';
     const frame = document.getElementById('appFrame');
-    frame.style.display = 'block';
     const url = tabs[app];
     if (url) frame.src = url;
     window.location.hash = app;
@@ -261,17 +241,9 @@ document.addEventListener('click', (e) => {
     if (!dd.contains(e.target)) { closeApps(); }
 });
 
-// Close dropdown on ESC, forward arrow keys to iframe for deck navigation
-document.addEventListener('keydown', (e) => { 
+// Close dropdown on ESC
+document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeApps();
-    // Forward navigation keys to deck iframe (for slide navigation)
-    if (['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
-        const deckFrame = document.getElementById('deckFrame');
-        if (deckFrame && deckFrame.style.display !== 'none' && deckFrame.contentWindow) {
-            deckFrame.contentWindow.postMessage({ type: 'keydown', key: e.key }, '*');
-            e.preventDefault();
-        }
-    }
 });
 
 // Listen for iframe messages
@@ -292,11 +264,11 @@ window.addEventListener('message', (e) => {
 });
 
 // Init
-const initTab = window.location.hash.replace('#', '') || 'deck';
+const initTab = window.location.hash.replace('#', '') || 'verify';
 const appTabs = ['agents', 'messaging', 'governance', 'keyvault'];
 if (appTabs.includes(initTab)) goApp(initTab);
 else if (tabs[initTab]) goTab(initTab);
-else goTab('deck');
+else goTab('verify');
 </script>
 
 </body>

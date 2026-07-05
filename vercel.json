@@ -5,10 +5,6 @@
       "destination": "/athena-about.html"
     },
     {
-      "source": "/deck",
-      "destination": "/deck.html"
-    },
-    {
       "source": "/standards",
       "destination": "/standards.html"
     },
@@ -51,10 +47,6 @@
     {
       "source": "/app",
       "destination": "/app.html"
-    },
-    {
-      "source": "/deck",
-      "destination": "/deck.html"
     },
     {
       "source": "/auth",
