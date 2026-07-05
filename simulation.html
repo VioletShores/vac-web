@@ -307,8 +307,8 @@ const SCENARIOS = {
       intro: "Aroha is 15. She's learning kapa haka at her local wānanga — a traditional Māori house of learning — funded by a government grant to strengthen cultural competency among rangatahi (young people). The grant requires progress reports to keep the funding. But Mere, the kaumātua (elder), has one rule: practice videos of our young people performing cultural taonga (treasures) do not leave the whānau (family). So how does the wānanga prove the programme is working without handing over Aroha's videos?",
       whyVAC: "This is a real problem: Māori organisations are asked to report outcomes to keep funding, but sharing practice videos of rangatahi performing cultural taonga raises serious data sovereignty concerns. Without VAC, there's no technical way to separate 'aggregate progress data the funder needs' from 'raw cultural content that must stay in the whānau.' VAC enforces that boundary — the kaumātua's authority over what leaves the whānau is as binding as a firewall rule.",
       beats: [
-        { at: 0, text: "Mere — the kaumātua — opens FolioAI on her phone and records a 5-second video saying 'Ko Mere tēnei, e whakaae ana au' (This is Mere, I consent). Behind the scenes, the VAC SDK captures all five biometric signals from that one recording: her face, her voice, her behavioural patterns, her location, and the timestamp. She then sets the governance scope: practice recordings stay within whānau." },
-        { at: 1, text: "Hemi — the kaiako — does the same: opens FolioAI, records a short video confirming his teaching role. The VAC SDK running inside FolioAI matches his face, voice, and behavioural signature against his enrolled biometrics. Five signals checked. He's verified as kaiako — no username, no password, just him on camera for a few seconds." },
+        { at: 0, text: "Mere — the kaumātua — opens FolioAI on her phone and records a 5-second video saying 'Ko Mere tēnei, e whakaae ana au' (This is Mere, I consent). Behind the scenes, the VAC SDK captures all five mandatory biometric signals from that one recording: her face, her voice, her lip-sync, a deepfake scan, and her live challenge response. She then sets the governance scope: practice recordings stay within whānau." },
+        { at: 1, text: "Hemi — the kaiako — does the same: opens FolioAI, records a short video confirming his teaching role. The VAC SDK running inside FolioAI matches his face, voice, lip-sync, deepfake resistance, and challenge response against his enrolled biometrics. Five signals checked. He's verified as kaiako — no username, no password, just him on camera for a few seconds." },
         { at: 2, text: "The whānau representative records their verification video in FolioAI too. Three people, three short videos, five biometric signals each. The governance structure is now active — not because someone ticked a box in a settings screen, but because three real people showed up on camera and the VAC SDK proved it was them." },
         { at: 3, text: "Aroha opens FolioAI and hits Record to start her kapa haka practice. She doesn't know the VAC SDK exists — she just sees FolioAI. But underneath, the SDK is capturing her face, voice, movement patterns, device location, and session timing. One action: practise. Two outcomes: learning content + biometric proof." },
         { at: 4, text: "The VAC SDK creates a Verified Authority Token anchored to Aroha's 5-modal biometric signature from the recording. The scope — set by Mere's kaumātua authority — says: this cultural content cannot leave the whānau. That rule is cryptographically locked to the token. FolioAI enforces it; VAC makes it unbreakable." },
@@ -389,7 +389,7 @@ const SCENARIOS = {
     ],
     edges: [["jake","pdos"],["lisa","pdos"],["pdos","financial"],["pdos","market"],["pdos","pitch"],["pdos","legal"],["pdos","dataroom"],["lisa","ir"],["legal","blocked"]],
     events: [
-      { time: 0, type: "verify", node: "jake", message: "📹 Jake verified — 5-modal biometric: face, voice, behaviour, location, timestamp ✓" },
+      { time: 0, type: "verify", node: "jake", message: "📹 Jake verified — 5-modal biometric: face, voice, lip-sync, deepfake, challenge-response ✓" },
       { time: 1200, type: "create", node: "pdos", message: "Athena recommends 5-agent team for Series A preparation" },
       { time: 2200, type: "delegate", node: "financial", message: "Financial Analyst deployed — Scope: revenue + models, READ ONLY | Purpose: deliver revenue projection model" },
       { time: 3000, type: "delegate", node: "market", message: "Market Researcher deployed — Scope: competitive intel ONLY | Purpose: deliver competitive analysis" },
@@ -422,10 +422,10 @@ const SCENARIOS = {
       intro: "Sarah is preparing for a career transition. She's been using FolioAI — a video reflection coaching app — to practice her interview responses, record coaching sessions, and track her progress over 3 months. She has 47 recordings: raw practice takes (some terrible), private reflections about her anxiety, and a few polished highlights she's proud of. A recruiter at a company she loves asks for a 'video introduction.' Sarah wants to share her best 90-second clip — verified as authentically her, not AI-generated — without exposing her raw footage or her private coaching journey.",
       whyVAC: "Today, sharing a video means losing control of it. You send a file or a link — the recipient can download it, forward it, screen-record it. You have no way to prove the video is authentically you (not a deepfake). And you definitely can't share a curated clip while cryptographically preventing access to the raw footage it came from. VAC solves all three: biometric proof of identity, scoped sharing (curated only, no raw access), and time-bound access that auto-revokes.",
       beats: [
-        { at: 0, text: "Sarah opens FolioAI and records her 90-second highlight. The VAC SDK captures her 5-modal biometric signature — face liveness, deepfake detection, speech match, challenge-response, and geolocation. This isn't just a video. It's a cryptographically verified human artifact." },
+        { at: 0, text: "Sarah opens FolioAI and records her 90-second highlight. The VAC SDK captures her 5-modal biometric signature — face liveness, deepfake detection, speech match, lip-sync, and challenge-response. This isn't just a video. It's a cryptographically verified human artifact." },
         { at: 1, text: "Sarah's VAT (Verified Authority Token) is issued as the root of a delegation chain. Her scope is set: she controls what gets shared and with whom. 47 recordings exist in her FolioAI account. Only the ones she explicitly delegates for sharing will be accessible." },
         { at: 2, text: "Sarah selects her best 90-second clip and creates a sharing scope: 'Share this clip with [recruiter email]. Access type: view only. Duration: 14 days. Raw footage: BLOCKED. Private reflections: BLOCKED. Session history: BLOCKED.' The scope constraints are locked into a derived VAT token." },
-        { at: 3, text: "The recruiter receives a VAC verification link. They click it and see: Sarah's verified identity (biometric proof across 5 modalities), the curated clip she chose to share, and a trust score showing this is genuinely her — not AI-generated, not a deepfake, not someone else." },
+        { at: 3, text: "The recruiter receives a VAC verification link. They click it and see: Sarah's verified identity (biometric proof across the 5 mandatory modalities of VAC's 7-modality engine), the curated clip she chose to share, and a trust score showing this is genuinely her — not AI-generated, not a deepfake, not someone else." },
         { at: 4, text: "The recruiter is impressed by Sarah's presentation. They want to see more — maybe her practice progression or other takes. They request additional access. The request goes to Sarah, not to FolioAI. Sarah is the root authority. Only she can widen the scope." },
         { at: 5, text: "Sarah decides to share two more clips — her mock interview answer about leadership and her coaching reflection on handling pressure. She records a fresh biometric verification (not a cached session) and issues a supplementary token: these two clips, view only, same 14-day window." },
         { at: 6, text: "The recruiter now sees 3 clips total. They try to access Sarah's raw practice footage — BLOCKED. They try to see her session history — BLOCKED. They try to download the clips — BLOCKED. Every boundary Sarah set is cryptographically enforced by VAC. FolioAI enforces the scope; VAC makes it unbreakable." },
@@ -1093,7 +1093,7 @@ function VACSimulation() {
             </div>
 
             <div style={{ fontSize: 13, color: "#aaa", lineHeight: 1.8, marginTop: 10, maxWidth: 800 }}>
-              When a user records a video in FolioAI, they don't see VAC. They don't know it's there. But the SDK is capturing five biometric signals from that single recording — face, voice, behavioural patterns, location, and timing — and fusing them into a composite trust score that's exponentially harder to fake than any single factor.
+              When a user records a video in FolioAI, they don't see VAC. They don't know it's there. But the SDK is capturing five mandatory biometric signals from that single recording — face, voice, lip-sync, deepfake detection, and challenge-response — and fusing them into a composite trust score that's exponentially harder to fake than any single factor.
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 16 }}>
@@ -1221,7 +1221,7 @@ function VACSimulation() {
             <div style={{ padding: "16px 20px", background: "#0a1628", borderBottom: "1px solid #1a3050", fontFamily: "-apple-system, 'Segoe UI', sans-serif" }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#2E75B6", marginBottom: 12 }}>The VAT Token — The World's Only 5-Modal Biometric Human Key</div>
               <div style={{ fontSize: 13, color: "#ccc", lineHeight: 1.8, maxWidth: 800 }}>
-                A <strong style={{ color: "#5DADE2" }}>Verified Authority Token (VAT)</strong> is a cryptographic proof that a real, specific human authorised a specific action. Not a password. Not a code from your phone. A proof anchored to <em>who you physically are, how you behave, where you are, and when</em> — across five modalities simultaneously.
+                A <strong style={{ color: "#5DADE2" }}>Verified Authority Token (VAT)</strong> is a cryptographic proof that a real, specific human authorised a specific action. Not a password. Not a code from your phone. A proof anchored to <em>who you physically are, how you speak, and how you respond to a live challenge</em> — the 5 modalities that gate every verification, out of VAC's 7-modality engine.
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 16, maxWidth: 900 }}>
@@ -1234,23 +1234,23 @@ function VACSimulation() {
                   <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Your spoken challenge phrase, captured and checked. Cross-checked against your face — lip movements must match your voice.</div>
                 </div>
                 <div style={{ padding: "12px 14px", background: "#111", borderRadius: 6, borderLeft: "3px solid #FFB74D" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>⌨️ Behavioural — How You Act</div>
-                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Typing patterns, interaction rhythms, device signals. A behavioural fingerprint unique to you and nearly impossible to replicate.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#FFB74D" }}>🎭 Deepfake — Not Synthetic Media</div>
+                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Every frame scanned for AI-generation and synthetic-media artifacts. A deepfake or a replay fails here, before anything else runs.</div>
                 </div>
                 <div style={{ padding: "12px 14px", background: "#111", borderRadius: 6, borderLeft: "3px solid #CE93D8" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#CE93D8" }}>📍 Location — Where You Are</div>
-                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Geolocation verification. If you're meant to be in Auckland, a login from Moscow gets flagged — before anything happens.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#CE93D8" }}>👄 Lip-Sync — Matched to Your Voice</div>
+                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Lip movements are cross-checked frame-by-frame against what you said. A dubbed or voice-cloned attack falls out of sync and fails.</div>
                 </div>
                 <div style={{ padding: "12px 14px", background: "#111", borderRadius: 6, borderLeft: "3px solid #EF5350" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#EF5350" }}>⏱ Temporal — When & How Long</div>
-                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>Trust decays over time. Permissions expire. How long you stay, how quickly you decide, when you're active — all signals. A rāhui lifts after 6 months. A doctor's shift ends at 6pm. Time is a biometric.</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#EF5350" }}>🎯 Challenge — Live, Unscripted Response</div>
+                  <div style={{ fontSize: 12, color: "#aaa", marginTop: 4, lineHeight: 1.6 }}>An unpredictable prompt, generated fresh for this verification. You respond live, on camera — nothing pre-recorded can pass.</div>
                 </div>
               </div>
 
               <div style={{ marginTop: 16, padding: "14px 16px", background: "#0d1a0d", borderRadius: 6, border: "1px solid #2D5A27" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#4CAF50", marginBottom: 6 }}>Why This Is Unique — And Patented</div>
                 <div style={{ fontSize: 12, color: "#bbb", lineHeight: 1.7 }}>
-                  Every existing identity system uses one or two of these. Auth0 uses passwords. iProov uses face only. Nuance uses voice only. <strong style={{ color: "#fff" }}>Nobody combines all five into a single composite trust score where trust continuously decays and must be re-earned.</strong> A deepfake might fool a camera. It won't fool a camera + speech match + behavioural pattern + location + temporal consistency check simultaneously. And even if it could — in 60 seconds the trust score drops and re-verification is required.
+                  Every existing identity system uses one or two of these. Auth0 uses passwords. iProov uses face only. Nuance uses voice only. <strong style={{ color: "#fff" }}>Nobody combines all five into a single composite trust score where trust continuously decays and must be re-earned.</strong> A deepfake might fool a single detector. It won't fool a camera + speech match + lip-sync + deepfake scan + a live challenge response, all at once. And even if it could — the trust score still decays and re-verification is required.
                 </div>
               </div>
 
