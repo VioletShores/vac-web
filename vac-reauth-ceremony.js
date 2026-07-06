@@ -2992,8 +2992,11 @@ async function beginStillCapture() {
                     } else if (_captureVoice) {
                         // F-637: voice required, gate unavailable. Gate on minimum audio elapsed
                         // so stillTsMs stays within the utterance for users who show+say together.
-                        var _audioElapsed = _audioStartMs ? (performance.now() - _audioStartMs) : 0;
-                        _captureNow = (_stable >= _STABLE_NEEDED) && (_audioElapsed >= _MIN_AUDIO_BEFORE_CAPTURE_MS);
+                        // If audio never started (_audioStartMs=0, recorder threw), default elapsed
+                        // to _MIN_AUDIO_BEFORE_CAPTURE_MS so we fall back to gesture-only and
+                        // avoid an 18-second livelock (3 × 6s timeout) for this dual-failure path.
+                        var _audioElapsed = _audioStartMs ? (performance.now() - _audioStartMs) : _MIN_AUDIO_BEFORE_CAPTURE_MS;
+                        _captureNow = (_stable >= _STABLE_NEEDED) && (typeof _n === 'number' && _n > 0) && (_audioElapsed >= _MIN_AUDIO_BEFORE_CAPTURE_MS);
                     } else {
                         _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy: unchanged
                     }
@@ -3034,7 +3037,7 @@ async function beginStillCapture() {
                 detectedFingers = _pollDetectedFingers;
             } else {
                 // Fail-open path: _GEST_MAX_MS timer fired, no co-occurrence stamped.
-                try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
+                try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; else _fingerFailReason = _fingerFailReason || 'finger_lost_at_capture'; } catch(_) { _fingerFailReason = _fingerFailReason || 'finger_lost_at_capture'; }
             }
             // Bound still — same <=640px downscale + RAW (un-mirrored) capture as the clip path.
             const longest = Math.max(v.videoWidth, v.videoHeight);
