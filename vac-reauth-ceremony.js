@@ -86,6 +86,9 @@ const MODE_CONFIG = {
             buildBody: function(parts){
                 return {
                     email: (parts && parts.email) || userData().email,
+                    // F-731: thread the challenge_id so the server looks up the digit by this id
+                    // (not by email single-slot), preventing the rapid-retry race condition.
+                    challenge_id: (parts && parts.challenge_id != null) ? parts.challenge_id : (challengeData && challengeData.challenge_id) || '',
                     detected_fingers: (parts && parts.detected_fingers != null) ? parts.detected_fingers : null,
                     face_still_b64: (parts && parts.face_still_b64 != null) ? parts.face_still_b64 : (window.__vacFaceStillB64 || ''),
                     // F-637c: LIVE 128-D identity descriptor (face-api.js), single-face enforced
@@ -3155,7 +3158,7 @@ async function beginStillCapture() {
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: no live face embedding')); } catch(_) {} }
         return;
     }
-    await runFastVerification({ email: userData().email, detected_fingers: detectedFingers, face_still_b64: stillB64, face_embedding: faceEmbedding, spoken_audio_b64: spokenAudioB64, still_ts_ms: stillTsMs });
+    await runFastVerification({ email: userData().email, challenge_id: challengeData && challengeData.challenge_id, detected_fingers: detectedFingers, face_still_b64: stillB64, face_embedding: faceEmbedding, spoken_audio_b64: spokenAudioB64, still_ts_ms: stillTsMs });
 }
 
 // F-624 Rung 2 (FAST verify): POST the small JSON envelope to /v1/auth/quick-reauth
