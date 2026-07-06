@@ -2825,6 +2825,16 @@ async function beginStillCapture() {
             // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
             // remain the server gate; the gesture is advisory pacing, mirroring the clip path).
             const _GEST_MAX_MS = 6000, _GEST_TICK = 120, _STABLE_NEEDED = 4;
+            // F-637 co-occur fix: stamp stillTsMs and detectedFingers at the exact advance
+            // moment — before the 350ms UX beat — so the timestamp lands mid-utterance, not
+            // 350ms+embedding_time later in silence. _pollDetectedFingers avoids the post-beat
+            // FingerDetector.detect() re-read that can race with hand-down on settle.
+            let _pollStillTsMs = 0, _pollDetectedFingers = null;
+            // F-637: minimum audio window for the gesture-only fallback (voice required but
+            // _voiceGate = null). Without this, stable-gesture fires at ~480ms before the
+            // user speaks, leaving stillTsMs in pre-speech silence. 800ms ensures the audio
+            // has captured the start of the utterance before the still is taken.
+            const _MIN_AUDIO_BEFORE_CAPTURE_MS = 800;
             let _stable = 0, _waited = 0, _lastSeen = null;
             await new Promise(function(resolve){
                 const _iv = setInterval(function(){
@@ -2839,11 +2849,16 @@ async function beginStillCapture() {
                         if (_n === _lastSeen) _stable++; else _stable = 1;
                         _lastSeen = _n;
                     } else { _stable = 0; _lastSeen = null; }
-                    // F-662 capture gate. VOICE policy (_voiceGate live): capture only when a STABLE
-                    // gesture (fingers UP) and the spoken digit CO-OCCUR — the SAME advance timing as the
-                    // full phase, via the shared _cooccurAdvanceDecision — so _audioRec is never stopped
-                    // mid-utterance (the S122 false-deny). GESTURE-ONLY policy (or no analyser): UNCHANGED
-                    // show-only steadiness. expireVoice clears a stale arm (hand never came up / cap elapsed).
+                    // F-662/F-637 capture gate. Three branches:
+                    // 1. _voiceGate live: co-occurrence (voice onset AND stable gesture) via
+                    //    _cooccurAdvanceDecision — same timing as the full phase. expireVoice
+                    //    clears a stale arm when the hand never came up within DIGIT_COOCCUR_MS.
+                    // 2. _captureVoice + no gate (VAD unavailable): voice is required by policy
+                    //    but the gate failed to start. Gate advance on _MIN_AUDIO_BEFORE_CAPTURE_MS
+                    //    so the audio window contains the utterance before the still is taken.
+                    //    Pure gesture-only at 480ms fires BEFORE the user speaks, leaving stillTsMs
+                    //    in pre-speech silence and the server's bound-digit gate fails closed.
+                    // 3. Gesture-only policy (_captureVoice=false): unchanged show-only steadiness.
                     var _captureNow;
                     if (_voiceGate) {
                         var _g = _cooccurAdvanceDecision({
@@ -2857,12 +2872,23 @@ async function beginStillCapture() {
                         });
                         if (_g.expireVoice) _voiceGate.clearArm();
                         _captureNow = _g.advance;
+                    } else if (_captureVoice) {
+                        // F-637: voice required, gate unavailable. Gate on minimum audio elapsed
+                        // so stillTsMs stays within the utterance for users who show+say together.
+                        var _audioElapsed = _audioStartMs ? (performance.now() - _audioStartMs) : 0;
+                        _captureNow = (_stable >= _STABLE_NEEDED) && (_audioElapsed >= _MIN_AUDIO_BEFORE_CAPTURE_MS);
                     } else {
-                        _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy / VAD unavailable — unchanged
+                        _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy: unchanged
                     }
                     if (_captureNow) {
+                        // F-637: stamp at co-occurrence moment, before the 350ms UX beat.
+                        // The beat is visual-only; server needs stillTsMs to overlap the
+                        // utterance window, not land in the post-utterance silence.
+                        _pollStillTsMs = (_captureVoice && _audioStartMs) ? Math.round(performance.now() - _audioStartMs) : 0;
+                        _pollDetectedFingers = (typeof _n === 'number' && _n >= 0) ? _n : _lastSeen;
+                        try { vacDebug('fast_cooccur_advance', null, { still_ts_ms: _pollStillTsMs, detected_fingers: _pollDetectedFingers, voice_gate: !!_voiceGate, waited_ms: _waited }); } catch(_) {}
                         try { var _ctd = document.getElementById('challengeText'); if (_ctd) _ctd.innerHTML = '<div style="font-size:clamp(22px,6vw,28px);font-weight:800;color:#22c55e;">\u2713 Got it</div>'; } catch(_) {}
-                        clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ beat, then capture
+                        clearInterval(_iv); setTimeout(resolve, 350); return;  // brief ✓ UX beat, then canvas + embedding
                     }
                     if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(); }  // fail-open: capture anyway
                 }, _GEST_TICK);
@@ -2873,8 +2899,15 @@ async function beginStillCapture() {
     try {
         const v = document.getElementById('videoPreviewRec') || document.getElementById('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
-            // Single live finger reading. 0-5 = count, -1 = no hand, null = detector down.
-            try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
+            // F-637: prefer poll-time finger count (stamped at co-occurrence, no post-beat
+            // race). Fall back to a live re-read only when the fail-open timer fired
+            // (_pollDetectedFingers = null because no advance event ran).
+            if (_pollDetectedFingers !== null) {
+                detectedFingers = _pollDetectedFingers;
+            } else {
+                // Fail-open path: _GEST_MAX_MS timer fired, no co-occurrence stamped.
+                try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
+            }
             // Bound still — same <=640px downscale + RAW (un-mirrored) capture as the clip path.
             const longest = Math.max(v.videoWidth, v.videoHeight);
             const scale = longest > 640 ? 640 / longest : 1;
@@ -2883,9 +2916,15 @@ async function beginStillCapture() {
             const c = document.createElement('canvas');
             c.width = cw; c.height = ch;
             c.getContext('2d').drawImage(v, 0, 0, cw, ch);
-            // F-654: offset of THIS still into the spoken-audio clip — proves the said digit and the
-            // shown fingers co-occur (the server's cooccur_ok gate). 0 when no audio was recorded.
-            if (_captureVoice && _audioStartMs) { stillTsMs = Math.round(performance.now() - _audioStartMs); }
+            // F-637/F-654: use the timestamp stamped at co-occurrence (poll-time), not now.
+            // 'now' is 350ms+embedding_time later, potentially in post-utterance silence.
+            // _pollStillTsMs = 0 on the fail-open path; fall back to performance.now() offset
+            // which preserves the existing fail-open behavior.
+            if (_pollStillTsMs > 0) {
+                stillTsMs = _pollStillTsMs;   // co-occurrence timestamp (mid-utterance)
+            } else if (_captureVoice && _audioStartMs) {
+                stillTsMs = Math.round(performance.now() - _audioStartMs); // fallback: fail-open
+            }
             const dataUrl = c.toDataURL('image/jpeg', 0.9);
             const comma = dataUrl.indexOf(',');
             if (comma !== -1) stillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
