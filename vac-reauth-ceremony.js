@@ -2923,6 +2923,16 @@ async function beginStillCapture() {
             // + draw the skeleton for the same feel. Grace window = fail-open backstop (face+liveness
             // remain the server gate; the gesture is advisory pacing, mirroring the clip path).
             const _GEST_MAX_MS = 6000, _GEST_TICK = 120, _STABLE_NEEDED = 4, _FINGER_MAX_RETRY = 2;
+            // F-637 co-occur fix: stamp stillTsMs and detectedFingers at the exact advance
+            // moment — before the 350ms UX beat — so the timestamp lands mid-utterance, not
+            // 350ms+embedding_time later in silence. _pollDetectedFingers avoids the post-beat
+            // FingerDetector.detect() re-read that can race with hand-down on settle.
+            let _pollStillTsMs = 0, _pollDetectedFingers = null;
+            // F-637: minimum audio window for the gesture-only fallback (voice required but
+            // _voiceGate = null). Without this, stable-gesture fires at ~480ms before the
+            // user speaks, leaving stillTsMs in pre-speech silence. 800ms ensures the audio
+            // has captured the start of the utterance before the still is taken.
+            const _MIN_AUDIO_BEFORE_CAPTURE_MS = 800;
             // F-672: bounded coach-retry around the co-occurrence poll. Each window resolves the STABLE
             // count (>=0) on advance, or null on timeout (NO capture-anyway). No-hand → coach + re-poll
             // (MAX 2); down detector → fail-closed, no retry; NEVER POST detected_fingers:null. The retry
@@ -2960,11 +2970,12 @@ async function beginStillCapture() {
                     }
                     try { CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: _voiceDone, handNear: _handNear, gestureLive: _gestureLive, coachKey: _coachKey, voiceHelp: false }); } catch(_) {}
                     try { CaptureFeedback.checkHandFraming(ctx, _lm); } catch(_) {}
-                    // F-662 capture gate. VOICE policy (_voiceGate live): capture only when a STABLE
-                    // gesture (fingers UP) and the spoken digit CO-OCCUR — the SAME advance timing as the
-                    // full phase, via the shared _cooccurAdvanceDecision — so _audioRec is never stopped
-                    // mid-utterance (the S122 false-deny). GESTURE-ONLY policy (or no analyser): UNCHANGED
-                    // show-only steadiness. expireVoice clears a stale arm (hand never came up / cap elapsed).
+                    // F-662/F-637 capture gate. Three branches:
+                    // 1. _voiceGate live: co-occurrence (voice onset AND stable gesture) via
+                    //    _cooccurAdvanceDecision — expireVoice clears a stale arm.
+                    // 2. _captureVoice + no gate (VAD unavailable): gate on _MIN_AUDIO_BEFORE_CAPTURE_MS
+                    //    so the audio window contains the utterance before the still is taken.
+                    // 3. Gesture-only policy (_captureVoice=false): unchanged show-only steadiness.
                     var _captureNow;
                     if (_voiceGate) {
                         var _g = _cooccurAdvanceDecision({
@@ -2978,17 +2989,28 @@ async function beginStillCapture() {
                         });
                         if (_g.expireVoice) _voiceGate.clearArm();
                         _captureNow = _g.advance;
+                    } else if (_captureVoice) {
+                        // F-637: voice required, gate unavailable. Gate on minimum audio elapsed
+                        // so stillTsMs stays within the utterance for users who show+say together.
+                        var _audioElapsed = _audioStartMs ? (performance.now() - _audioStartMs) : 0;
+                        _captureNow = (_stable >= _STABLE_NEEDED) && (_audioElapsed >= _MIN_AUDIO_BEFORE_CAPTURE_MS);
                     } else {
-                        _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy / VAD unavailable — unchanged
+                        _captureNow = (_stable >= _STABLE_NEEDED);   // gesture-only policy: unchanged
                     }
                     if (_captureNow) {
+                        // F-637: stamp at co-occurrence moment, before the 350ms UX beat.
+                        // The beat is visual-only; server needs stillTsMs to overlap the
+                        // utterance window, not land in the post-utterance silence.
+                        _pollStillTsMs = (_captureVoice && _audioStartMs) ? Math.round(performance.now() - _audioStartMs) : 0;
+                        _pollDetectedFingers = (typeof _n === 'number' && _n >= 0) ? _n : _lastSeen;
+                        try { vacDebug('fast_cooccur_advance', null, { still_ts_ms: _pollStillTsMs, detected_fingers: _pollDetectedFingers, voice_gate: !!_voiceGate, waited_ms: _waited }); } catch(_) {}
                         try { CaptureFeedback.renderGuided(ctx, { beat: true }); } catch(_) {}   // F-671 Phase B1: "Got it" beat now renders in the shared guided panel (full-path parity)
                         clearInterval(_iv); var _cap = _lastSeen; setTimeout(function(){ resolve(_cap); }, 350); return;  // F-672: resolve WITH the co-occurrence-gated stable count
                     }
                     if (_waited >= _GEST_MAX_MS) { clearInterval(_iv); resolve(null); }  // F-672: timeout → NO capture-anyway; null signals "no gesture" → the retry / fail-close logic decides
                 }, _GEST_TICK);
               });
-              if (typeof _polled === 'number' && _polled >= 0) { break; }   // co-occurrence advance confirmed → capture; detected_fingers is RE-READ at the still instant (codex P2: the count must match the still)
+              if (typeof _polled === 'number' && _polled >= 0) { break; }   // co-occurrence advance confirmed → capture; _pollDetectedFingers stamped at advance (F-637)
               // no advance this window — classify via a raw read (camera still live, pre-teardown).
               var _rawFc = null; try { _rawFc = FingerDetector.detect(_gv); } catch(_) { _rawFc = null; }
               if (_rawFc === null || (typeof FingerDetector !== 'undefined' && FingerDetector.failed)) { _fingerFailReason = 'finger_detector_down'; break; }   // null → detector down: retry can't recover → fail-closed, NO retry
@@ -3005,14 +3027,15 @@ async function beginStillCapture() {
     try {
         const v = byId('videoPreviewRec') || byId('videoPreview');
         if (v && v.videoWidth && v.videoHeight) {
-            // F-672 + codex P2: re-read the finger count AT the still instant (same live frame the still
-            // is drawn from) so the POSTed detected_fingers CORRESPONDS to the still. The co-occurrence
-            // poll confirmed a valid gesture, but the 350ms "Got it" beat means the hand may have moved,
-            // and the detector contract is that raw counts are read at capture time. Invalid here (hand
-            // dropped during the beat) → mark a fail-close; we never POST a null/stale/mismatched count.
-            var _fcStill = null; try { _fcStill = FingerDetector.detect(v); } catch(_) { _fcStill = null; }
-            if (typeof _fcStill === 'number' && _fcStill >= 0) { detectedFingers = _fcStill; }
-            else { _fingerFailReason = _fingerFailReason || 'finger_lost_at_capture'; }
+            // F-637: prefer poll-time finger count (stamped at co-occurrence, no post-beat
+            // race). Fall back to a live re-read only when the fail-open timer fired
+            // (_pollDetectedFingers = null because no advance event ran).
+            if (_pollDetectedFingers !== null) {
+                detectedFingers = _pollDetectedFingers;
+            } else {
+                // Fail-open path: _GEST_MAX_MS timer fired, no co-occurrence stamped.
+                try { var _fc = FingerDetector.detect(v); if (typeof _fc === 'number' && _fc >= 0) detectedFingers = _fc; } catch(_) {}
+            }
             // Bound still — same <=640px downscale + RAW (un-mirrored) capture as the clip path.
             const longest = Math.max(v.videoWidth, v.videoHeight);
             const scale = longest > 640 ? 640 / longest : 1;
@@ -3021,9 +3044,15 @@ async function beginStillCapture() {
             const c = document.createElement('canvas');
             c.width = cw; c.height = ch;
             c.getContext('2d').drawImage(v, 0, 0, cw, ch);
-            // F-654: offset of THIS still into the spoken-audio clip — proves the said digit and the
-            // shown fingers co-occur (the server's cooccur_ok gate). 0 when no audio was recorded.
-            if (_captureVoice && _audioStartMs) { stillTsMs = Math.round(performance.now() - _audioStartMs); }
+            // F-637/F-654: use the timestamp stamped at co-occurrence (poll-time), not now.
+            // 'now' is 350ms+embedding_time later, potentially in post-utterance silence.
+            // _pollStillTsMs = 0 on the fail-open path; fall back to performance.now() offset
+            // which preserves the existing fail-open behavior.
+            if (_pollStillTsMs > 0) {
+                stillTsMs = _pollStillTsMs;   // co-occurrence timestamp (mid-utterance)
+            } else if (_captureVoice && _audioStartMs) {
+                stillTsMs = Math.round(performance.now() - _audioStartMs); // fallback: fail-open
+            }
             const dataUrl = c.toDataURL('image/jpeg', 0.9);
             const comma = dataUrl.indexOf(',');
             if (comma !== -1) stillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
