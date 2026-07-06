@@ -2832,6 +2832,9 @@ async function beginStillCapture() {
     let detectedFingers = null;
     let _fingerFailReason = null;   // F-672: set when NO valid finger count could be captured → fail-closed (never POST detected_fingers:null)
     let stillB64 = '';
+    // F-637 (L-2224 scope fix): these are STAMPED inside the nested gesture-poll block but READ
+    // below at capture time (outside that block). Declared at function scope so the reads resolve.
+    let _pollStillTsMs = 0, _pollDetectedFingers = null;
     let faceEmbedding = null;   // F-637c: LIVE 128-D identity descriptor of THIS capture (single-face enforced)
     let spokenAudioB64 = '';    // F-654: the SPOKEN digit clip (Deepgram) — the 'said' half of the bound digit
     let stillTsMs = 0;          // offset of the bound still into the spoken clip (co-occurrence proof)
@@ -2927,7 +2930,8 @@ async function beginStillCapture() {
             // moment — before the 350ms UX beat — so the timestamp lands mid-utterance, not
             // 350ms+embedding_time later in silence. _pollDetectedFingers avoids the post-beat
             // FingerDetector.detect() re-read that can race with hand-down on settle.
-            let _pollStillTsMs = 0, _pollDetectedFingers = null;
+            // (Declared at function scope above — L-2224 — so the capture-time reads resolve.)
+            _pollStillTsMs = 0; _pollDetectedFingers = null;
             // F-637: minimum audio window for the gesture-only fallback (voice required but
             // _voiceGate = null). Without this, stable-gesture fires at ~480ms before the
             // user speaks, leaving stillTsMs in pre-speech silence. 800ms ensures the audio
