@@ -195,6 +195,22 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
                   <span class="amber-chip">not anomaly detection</span>
                 </div>
               </div>
+
+              <div style="background:var(--surface);border:1px solid var(--amber-border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 15px;margin-bottom:14px;">
+                <div style="margin-bottom:9px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+                  <span style="font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;">Installer Commissioning &middot; Where Source Trust Begins</span>
+                  <span class="amber-chip" style="margin:0;">Illustrative &middot; Under development</span>
+                </div>
+                <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.65;margin-bottom:8px;"><strong style="color:var(--text-primary);">Source trust has to start somewhere — it starts at commissioning.</strong> When a field installer brings a smart water meter or DMA sensor into the network, VAC binds a <strong style="color:var(--text-primary);">verified-human installer biometric</strong> into the commissioning record alongside the device's hardware key (LoRaWAN DevEUI / AppKey). The physical device and the accountable human who installed it become cryptographically linked at the moment of first activation.</p>
+                <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.65;margin-bottom:8px;">This means every reading that sensor ever produces traces back to a sealed, accountable human — not to a paper work order, a badge swipe, or a PM-system entry that no one can independently verify after the fact. <strong style="color:var(--text-primary);">This is what makes the sensor identity trustworthy in step 1.</strong> SignalRank can only score source trust because the commissioning chain is cryptographically intact from day one.</p>
+                <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.65;">This matters most where third-party install contractors touch large meter fleets — UK AMP8-style rollouts, for example, where thousands of meters are commissioned across a programme by multiple contractors over multiple years. Today's paper-and-badge sign-off provides no persistent, independently-verifiable chain of custody. VAC's commissioning attestation closes accountability at the weakest point in the trust chain.</p>
+                <div style="margin-top:9px;">
+                  <span class="policy-chip">installer: biometric-sealed</span>
+                  <span class="policy-chip">bound to: device key</span>
+                  <span class="amber-chip">replaces: paper sign-off</span>
+                </div>
+              </div>
+
               <div class="ai-rec">
                 <div class="ai-rec-label">Digital twin recommendation &middot; 04:17:03 AEST</div>
                 <div class="ai-rec-body">
