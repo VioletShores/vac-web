@@ -329,6 +329,59 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
       </div><!-- /steps -->
 
+      <!-- Step 6: Gateway/BACnet actuation + retrofit + chain summary -->
+      <div style="margin-top:18px;background:var(--surface-raised);border:1px solid var(--border);border-radius:10px;padding:clamp(16px,4vw,22px);">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:16px;">The far end of the chain &mdash; what comes after the seal</div>
+
+        <!-- (a) Gateway actuation -->
+        <div style="background:var(--surface);border:1px solid var(--amber-border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 15px;margin-bottom:14px;">
+          <div style="margin-bottom:9px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;">Gateway / BACnet Actuation &middot; IT/OT Trust Bridge</span>
+            <span class="amber-chip" style="margin:0;">Illustrative &middot; Under development</span>
+          </div>
+          <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.65;margin-bottom:8px;">Once the human authorisation is sealed (step&nbsp;4) and the receipt minted (step&nbsp;5), the sealed decision can become a <strong style="color:var(--text-primary);">physical action</strong>: at the local LoRaWAN gateway&nbsp;/&nbsp;edge controller, the authorised pressure-reduction command is executed &mdash; for example via BACnet to the DMA pressure-control valve. VAC seals the human authority <em>onto</em> the actuation command itself, so the physical change traces to a verified human decision rather than an automated script.</p>
+          <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.65;">This is the <strong style="color:var(--text-primary);">IT/OT trust bridge</strong>: AI and the digital twin can recommend, but only a sealed human authority actuates. The OT layer receives a command that carries its own provenance &mdash; who authorised it, under which policy, verified at what time &mdash; not just an instruction from a SCADA script whose origin is unverifiable after the fact.</p>
+          <div style="margin-top:9px;">
+            <span class="policy-chip">protocol: BACnet</span>
+            <span class="policy-chip">bridge: IT/OT</span>
+            <span class="amber-chip">actuation under development</span>
+          </div>
+        </div>
+
+        <!-- (b) Retrofit note -->
+        <div style="background:var(--surface);border:1px solid var(--border-light);border-left:2px solid var(--teal);border-radius:8px;padding:13px 15px;margin-bottom:14px;">
+          <div style="margin-bottom:9px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">
+            <span style="font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;">Retrofit &middot; No Device Re-visits Required</span>
+            <span class="amber-chip" style="margin:0;">Illustrative &middot; Under development</span>
+          </div>
+          <p style="font-size:13.5px;color:var(--text-secondary);line-height:1.65;">For the millions of meters and sensors already deployed in the field, this decision-seal and source-trust layer applies <strong style="color:var(--text-primary);">without re-visiting devices</strong> &mdash; no truck rolls, no firmware updates, no physical access to field hardware required. The seal rides the existing LoRaWAN&nbsp;/&nbsp;cellular network and gateway infrastructure. The field device sees the same packet headers it always has; the provenance and authority layer is added at the gateway and seal layer above it.</p>
+          <div style="margin-top:9px;">
+            <span class="policy-chip">retrofit: gateway-layer</span>
+            <span class="amber-chip">no truck rolls</span>
+          </div>
+        </div>
+
+        <!-- (c) Full chain summary -->
+        <div style="background:var(--surface);border:1px solid var(--success-border);border-left:2px solid var(--success);border-radius:8px;padding:13px 15px;">
+          <div style="font-family:var(--mono);font-size:10px;color:var(--success);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;">The full chain</div>
+          <p style="font-size:13px;color:var(--text-secondary);line-height:2;">
+            <span class="policy-chip">installer-sealed sensor</span>
+            <span style="color:var(--text-quaternary);font-family:var(--mono);font-size:11px;">&nbsp;&rarr;&nbsp;</span>
+            <span class="policy-chip">SignalRank source-trust</span>
+            <span style="color:var(--text-quaternary);font-family:var(--mono);font-size:11px;">&nbsp;&rarr;&nbsp;</span>
+            <span class="policy-chip">digital-twin what-if</span>
+            <span style="color:var(--text-quaternary);font-family:var(--mono);font-size:11px;">&nbsp;&rarr;&nbsp;</span>
+            <span class="policy-chip" style="color:var(--success);background:var(--success-bg);border-color:var(--success-border);">governed human seal</span>
+            <span class="real-badge">LIVE &middot; REAL AAR</span>
+            <span style="color:var(--text-quaternary);font-family:var(--mono);font-size:11px;">&nbsp;&rarr;&nbsp;</span>
+            <span class="policy-chip">regulator-grade receipt</span>
+            <span style="color:var(--text-quaternary);font-family:var(--mono);font-size:11px;">&nbsp;&rarr;&nbsp;</span>
+            <span class="amber-chip">gateway / BACnet actuation</span>
+          </p>
+          <p style="font-size:13px;color:var(--text-secondary);line-height:1.65;margin-top:10px;">Exactly <strong style="color:var(--text-primary);">one link is live today</strong>: the governed human seal &mdash; accepting the digital twin&rsquo;s recommendation mints a real, Ed25519-signed AAR on the production backend, independently verifiable by JTI. The installer commissioning attestation, SignalRank source-trust scoring, and gateway&nbsp;/&nbsp;BACnet actuation are under active development.</p>
+        </div>
+      </div><!-- /closing block -->
+
       <div class="controls">
         <button class="btn btn-primary" id="advance" type="button">Begin walkthrough</button>
         <button class="btn btn-ghost" id="reset" type="button">Reset</button>
