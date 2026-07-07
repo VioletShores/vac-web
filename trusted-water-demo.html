@@ -129,6 +129,10 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
   .domains-cta{flex-direction:column;align-items:flex-start;}
   .step{gap:12px;}
 }
+#vacReauthMount{display:none;}
+#vacReauthMount.vac-modal-open{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);overflow:auto;}
+#vacReauthMount.vac-modal-open .step-section.active{width:min(680px,100%);max-height:min(900px,96vh);overflow-y:auto;background:var(--surface);border:1px solid var(--border-light);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:clamp(16px,3vw,24px);}
+@media(max-width:560px){#vacReauthMount.vac-modal-open{padding:0;}#vacReauthMount.vac-modal-open .step-section.active{width:100%;max-height:100vh;min-height:100vh;border-radius:0;border:none;}}
 </style>
 </head>
 <body>
@@ -308,6 +312,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
                 <span class="policy-chip">format: JWT</span>
                 <span class="amber-chip">sealing now...</span>
               </div>
+              <div id="sealDenial" style="display:none;margin-top:14px;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:8px;padding:13px 15px;font-family:var(--mono);font-size:12.5px;color:var(--amber);"></div>
             </div>
           </div>
         </div>
@@ -416,6 +421,10 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
   </div>
 </div>
 
+<div id="vacReauthMount"></div>
+<script src="/vac-face-embed.js"></script>
+<script src="/vac-finger-detect.js"></script>
+<script src="/vac-reauth-ceremony.js"></script>
 <script>
 const API_BASE = 'https://vac-system-production.up.railway.app';
 
@@ -429,7 +438,7 @@ const REAL_TOKEN = {
 
 let SEAL_TOKEN = REAL_TOKEN;
 
-async function mintWaterToken() {
+async function mintWaterToken(email) {
   const constraints = {
     _demo: true,
     _conditions_are_illustrative: true,
@@ -445,7 +454,7 @@ async function mintWaterToken() {
     release_condition: 'authorised_engineer_within_operational_bounds'
   };
   const body = {
-    human_identity: 'noc-engineer@waternetwork.demo',
+    human_identity: email || 'noc-engineer@waternetwork.demo',
     agent_id: 'trusted-water-demo',
     resources: ['water:district14:pressure'],
     actions: ['authorise_network_action', 'view_credential'],
@@ -529,13 +538,12 @@ async function advance() {
     if (stepIdx > 0) completeStep(stepIdx);
 
     if (stepIdx === 3) {
-      // Step 4: Seal — mint live token
+      // Step 4: Seal — live biometric ceremony gates the mint
       sealing = true;
       btn.disabled = true;
-      btn.textContent = 'Sealing...';
-      await mintWaterToken();
-      sealing = false;
-      btn.disabled = false;
+      btn.textContent = 'Verifying identity...';
+      runSealCeremony(btn);
+      return; // ceremony callbacks drive continuation
     }
 
     if (stepIdx < 4) {
@@ -608,6 +616,8 @@ function reset() {
   const receipt = document.getElementById('receipt');
   receipt.classList.remove('show');
   receipt.innerHTML = `<div class="receipt-head"><svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Authorisation sealed &amp; lodged</h3></div><dl class="kv" id="receiptKv"></dl><div class="audit" id="auditLog"></div>`;
+  const denial = document.getElementById('sealDenial');
+  if (denial) { denial.style.display = 'none'; denial.textContent = ''; }
   const btn = document.getElementById('advance');
   btn.style.display = '';
   btn.disabled = false;
@@ -621,6 +631,97 @@ function esc(s) {
 function safeHref(url) {
   const s = String(url);
   return /^(https?:\/\/|\/)/.test(s) ? s : '#';
+}
+
+// Resolve the demo user email — mirrors tribunal's cerEmail() + prompt fallback.
+let _waterEmail = '';
+function cerEmail() {
+  if (window.__vacVerified && window.__vacVerified.email) return String(window.__vacVerified.email).trim();
+  return _waterEmail;
+}
+function promptEmail() {
+  const e = (window.prompt('Enter your VAC account email to proceed with biometric seal:') || '').trim();
+  if (e) _waterEmail = e;
+  return e;
+}
+
+function showSealDenial(msg) {
+  const el = document.getElementById('sealDenial');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function runSealCeremony(btn) {
+  const email = cerEmail() || promptEmail();
+  if (!email) {
+    stepIdx--;
+    sealing = false;
+    btn.disabled = false;
+    btn.textContent = STEP_BTN_LABELS[3];
+    return;
+  }
+
+  // Face-ref-status pre-gate: skip the doomed camera ceremony when there is no enrolled embedding.
+  try {
+    const _statusR = await fetch(API_BASE + '/v1/auth/face-ref-status?email=' + encodeURIComponent(email));
+    const _status = await _statusR.json().catch(() => ({}));
+    if (_statusR.ok && _status && _status.has_embedding === false) {
+      showSealDenial('No enrolled biometric found for this account — seal requires live face verification. Complete identity enrolment first.');
+      stepIdx--;
+      sealing = false;
+      btn.disabled = false;
+      btn.textContent = STEP_BTN_LABELS[3];
+      return;
+    }
+  } catch (_) { /* status unavailable → fall through to live ceremony */ }
+
+  const mount = document.getElementById('vacReauthMount');
+  mount.classList.add('vac-modal-open');
+
+  VACReauth.run({
+    name: '',
+    email: email,
+    riskLevel: 'high',
+    mount: mount,
+    context: 'water-demo-seal',
+    profile: { mode: 'fast' },
+    onComplete: async function(result) {
+      try { mount.classList.remove('vac-modal-open'); mount.style.display = 'none'; } catch(_) {}
+      const authed = !!(result && (result.authenticated === true || result.authorized === true));
+      if (authed) {
+        btn.textContent = 'Sealing...';
+        await mintWaterToken(email);
+        sealing = false;
+        btn.disabled = false;
+        btn.textContent = STEP_BTN_LABELS[4]; // 'View the sealed receipt'
+      } else {
+        showSealDenial('Biometric verification failed — authorisation not sealed. The seal requires a confirmed live identity. Please try again.');
+        stepIdx--;
+        sealing = false;
+        btn.disabled = false;
+        btn.textContent = STEP_BTN_LABELS[3]; // 'Seal the authorisation'
+      }
+    },
+    onFallback: function(err) {
+      try { mount.classList.remove('vac-modal-open'); mount.style.display = 'none'; } catch(_) {}
+      console.warn('[VAC water-demo] reauth fell back:', err && err.message);
+      showSealDenial('Biometric re-authentication fell back — authorisation not sealed. Please try again.');
+      stepIdx--;
+      sealing = false;
+      btn.disabled = false;
+      btn.textContent = STEP_BTN_LABELS[3];
+    },
+    onBack: function() {
+      try { mount.classList.remove('vac-modal-open'); mount.style.display = 'none'; } catch(_) {}
+      stepIdx--;
+      sealing = false;
+      btn.disabled = false;
+      btn.textContent = STEP_BTN_LABELS[3];
+    },
+  });
+  // VACReauth.run() sets mount.style.display='block' synchronously; clear it so the flex overlay wins.
+  try { mount.style.display = ''; } catch(_) {}
 }
 
 document.getElementById('advance').onclick = advance;
