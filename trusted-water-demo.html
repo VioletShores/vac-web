@@ -390,6 +390,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <div class="controls">
         <button class="btn btn-primary" id="advance" type="button">Begin walkthrough</button>
         <button class="btn btn-ghost" id="reset" type="button">Reset</button>
+        <button id="sealSkip" type="button" class="cta-btn" style="display:none;background:transparent;border:1px solid var(--amber-border);color:var(--text-tertiary);font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:2px;padding:10px 18px;">Continue to the water scenario &rarr;</button>
       </div>
 
       <div class="receipt" id="receipt">
@@ -562,15 +563,25 @@ function showReceipt() {
   const now = new Date();
   const ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' AEST';
 
+  // Honest labeling: live seal vs skipped (reference/narrative) vs mint-fallback
+  let tokenStatus;
+  if (tok.minted) {
+    tokenStatus = 'Live mint — freshly signed, biometrically sealed';
+  } else if (tok.skipped) {
+    tokenStatus = 'Reference token — narrative walkthrough, no biometric seal performed';
+  } else {
+    tokenStatus = 'Reference token — pre-minted (live mint unavailable)';
+  }
+
   const kvPairs = [
     ['Scenario', 'District 14 — Northside DMA · Digital twin Stage 1 pressure reduction'],
     ['What-if accepted', 'Reduce DMA inlet pressure by 12% · hold 30 min · water-loss reduction scenario'],
-    ['Authorised by', 'Verified NOC engineer (representative scenario)'],
+    ['Authorised by', tok.skipped ? 'NOC engineer (representative scenario · reference path)' : 'Verified NOC engineer (representative scenario)'],
     ['Authority scope', 'District 14 DMA network operations'],
     ['Policy basis', 'Min night-flow anomaly > threshold · high confidence · fixed-network smart metering'],
     ['Sealed at', ts],
     ['Token (JTI)', tok.jti],
-    ['Token status', tok.minted ? 'Live mint — freshly signed' : 'Reference token — pre-minted'],
+    ['Token status', tokenStatus],
     ['Signature', 'Ed25519 · VAC production backend']
   ];
 
@@ -579,24 +590,35 @@ function showReceipt() {
     `<dt>${k}</dt><dd${['Token (JTI)', 'Token status', 'Signature'].includes(k) ? ' class="hl"' : ''}>${esc(v)}</dd>`
   ).join('');
 
+  // Update receipt heading to reflect skip path
+  const receiptH3 = document.querySelector('#receipt .receipt-head h3');
+  if (receiptH3) {
+    receiptH3.textContent = tok.skipped ? 'Scenario reference receipt' : 'Authorisation sealed & lodged';
+  }
+
   const auditEl = document.getElementById('auditLog');
+  const lastEvent = tok.skipped
+    ? 'Narrative walkthrough completed — reference token displayed (no biometric seal)'
+    : ('Authorisation sealed — JTI: ' + tok.jti);
   const auditLines = [
     { t: '04:17:03', e: 'Fixed-network smart metering alert — District 14 DMA min night-flow 18.7 L/s (+4.2 above baseline)' },
     { t: '04:17:08', e: 'Digital twin what-if complete — Stage 1 DMA pressure reduction recommended, water-loss reduction projected, confidence: high' },
     { t: '04:18:41', e: 'NOC engineer opened digital twin scenario for review' },
     { t: '04:19:12', e: 'Engineer accepted Stage 1 — VAC identity gate initiated' },
-    { t: '04:19:14', e: 'VAC authority verified — engineer identity confirmed, DMA operational conditions within bounds' },
-    { t: now.toISOString().replace('T', ' ').slice(0, 19), e: 'Authorisation sealed — JTI: ' + tok.jti }
+    { t: '04:19:14', e: tok.skipped ? 'Biometric seal skipped — continuing to scenario receipt' : 'VAC authority verified — engineer identity confirmed, DMA operational conditions within bounds' },
+    { t: now.toISOString().replace('T', ' ').slice(0, 19), e: lastEvent }
   ];
   auditEl.innerHTML = auditLines.map(l =>
     `<div class="audit-line"><span class="t">${esc(l.t)}</span><span>${esc(l.e)}</span></div>`
   ).join('');
 
-  // Add verify link
+  // Add verify link — skip path shows reference note
   const verifyDiv = document.createElement('div');
   verifyDiv.style.marginTop = '14px';
   if (tok.minted) {
     verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
+  } else if (tok.skipped) {
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Narrative path — no biometric seal was performed. This is a pre-minted reference token that demonstrates the receipt format. The live seal path produces a freshly-signed, biometrically-bound AAR.</div>`;
   } else {
     verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
   }
@@ -622,6 +644,8 @@ function reset() {
   btn.style.display = '';
   btn.disabled = false;
   btn.textContent = 'Begin walkthrough';
+  const skipBtn = document.getElementById('sealSkip');
+  if (skipBtn) skipBtn.style.display = 'none';
   SEAL_TOKEN = REAL_TOKEN;
 }
 
@@ -652,13 +676,33 @@ function showSealDenial(msg) {
   el.style.display = 'block';
 }
 
+function skipSeal() {
+  const btn = document.getElementById('advance');
+  const skipBtn = document.getElementById('sealSkip');
+  if (skipBtn) skipBtn.style.display = 'none';
+  // Close ceremony modal if open (user may have pressed Back first)
+  try { const m = document.getElementById('vacReauthMount'); m.classList.remove('vac-modal-open'); m.style.display = 'none'; } catch(_) {}
+  // Reference token marked as skipped — no biometric seal
+  SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { skipped: true });
+  sealing = false;
+  // Complete seal step and render receipt step
+  completeStep(4);
+  renderStep(5);
+  completeStep(5);
+  stepIdx = 5;
+  btn.style.display = 'none';
+  showReceipt();
+}
+
 async function runSealCeremony(btn) {
   const email = cerEmail() || promptEmail();
+  const skipBtn = document.getElementById('sealSkip');
   if (!email) {
     stepIdx--;
     sealing = false;
     btn.disabled = false;
     btn.textContent = STEP_BTN_LABELS[3];
+    if (skipBtn) skipBtn.style.display = '';
     return;
   }
 
@@ -672,12 +716,15 @@ async function runSealCeremony(btn) {
       sealing = false;
       btn.disabled = false;
       btn.textContent = STEP_BTN_LABELS[3];
+      if (skipBtn) skipBtn.style.display = '';
       return;
     }
   } catch (_) { /* status unavailable → fall through to live ceremony */ }
 
   const mount = document.getElementById('vacReauthMount');
   mount.classList.add('vac-modal-open');
+  // Show skip option — visible after user dismisses the ceremony modal
+  if (skipBtn) skipBtn.style.display = '';
 
   VACReauth.run({
     name: '',
@@ -688,6 +735,7 @@ async function runSealCeremony(btn) {
     profile: { mode: 'fast' },
     onComplete: async function(result) {
       try { mount.classList.remove('vac-modal-open'); mount.style.display = 'none'; } catch(_) {}
+      if (skipBtn) skipBtn.style.display = 'none';
       const authed = !!(result && (result.authenticated === true || result.authorized === true));
       if (authed) {
         btn.textContent = 'Sealing...';
@@ -701,6 +749,7 @@ async function runSealCeremony(btn) {
         sealing = false;
         btn.disabled = false;
         btn.textContent = STEP_BTN_LABELS[3]; // 'Seal the authorisation'
+        if (skipBtn) skipBtn.style.display = '';
       }
     },
     onFallback: function(err) {
@@ -711,6 +760,7 @@ async function runSealCeremony(btn) {
       sealing = false;
       btn.disabled = false;
       btn.textContent = STEP_BTN_LABELS[3];
+      if (skipBtn) skipBtn.style.display = '';
     },
     onBack: function() {
       try { mount.classList.remove('vac-modal-open'); mount.style.display = 'none'; } catch(_) {}
@@ -718,6 +768,7 @@ async function runSealCeremony(btn) {
       sealing = false;
       btn.disabled = false;
       btn.textContent = STEP_BTN_LABELS[3];
+      if (skipBtn) skipBtn.style.display = '';
     },
   });
   // VACReauth.run() sets mount.style.display='block' synchronously; clear it so the flex overlay wins.
@@ -726,6 +777,7 @@ async function runSealCeremony(btn) {
 
 document.getElementById('advance').onclick = advance;
 document.getElementById('reset').onclick = reset;
+document.getElementById('sealSkip').onclick = skipSeal;
 </script>
 </body>
 </html>
