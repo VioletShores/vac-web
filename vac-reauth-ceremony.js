@@ -159,6 +159,8 @@ function _finish(){
 let mediaStream = null;
 let mediaRecorder = null;
 let recordedChunks = [];
+let _recorderStartMs = 0;       // F-720: performance.now() at MediaRecorder.start()
+let _legitStopScheduled = false; // F-720: true only when finishFingerPhase schedules the stop
 let authResult = null;
 let challengeData = null;
 let fingerFallback = 'none';
@@ -304,6 +306,10 @@ async function requestCamera() {
         mediaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
             audio: true,
+        });
+        // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
+        mediaStream.getTracks().forEach(function(t) {
+            t.onended = function() { try { vacDebug('track_ended', null, { kind: t.kind, label: t.label }); } catch(_) {} };
         });
         const vid = document.getElementById('videoPreview');
         vid.srcObject = mediaStream;
@@ -1447,6 +1453,7 @@ function startCountdown() {
 }
 
 function beginRecording() {
+    _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
     try { FingerDetector.reset(); } catch(_) {}  // S110: clear slow-frame latch so retry re-engages detection
@@ -1489,7 +1496,22 @@ function beginRecording() {
         : { videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 };
     mediaRecorder = new MediaRecorder(mediaStream, options);
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
-    mediaRecorder.onstop = () => { try { vacDebug('recorder_stopped'); } catch(_) {} onRecordingComplete(); };
+    // F-720: fail-closed guard. onstop fires legitimately ONLY via finishFingerPhase's
+    // 1500ms-delayed stop. Any earlier stop means a stream/track death — abort, never submit.
+    mediaRecorder.onstop = function() {
+        try { vacDebug('recorder_stopped'); } catch(_) {}
+        var _elapsed = performance.now() - _recorderStartMs;
+        if (!_legitStopScheduled || _elapsed < 2000) {
+            var _vt = 'unknown', _at = 'unknown';
+            try { _vt = (mediaStream && mediaStream.getVideoTracks()[0]) ? mediaStream.getVideoTracks()[0].readyState : 'none'; } catch(_) {}
+            try { _at = (mediaStream && mediaStream.getAudioTracks()[0]) ? mediaStream.getAudioTracks()[0].readyState : 'none'; } catch(_) {}
+            try { vacDebug('capture_died', null, { elapsed_ms: Math.round(_elapsed), video_track_state: _vt, audio_track_state: _at }); } catch(_) {}
+            _showCaptureDiedRecovery();
+            return;
+        }
+        onRecordingComplete();
+    };
+    _recorderStartMs = performance.now();
     mediaRecorder.start();
     try { vacDebug('recorder_started'); } catch(_) {}  // F-560: anchor the QA overlay clock (t0) at the real recorder start
 
@@ -1736,6 +1758,7 @@ function beginRecording() {
         // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
         try { _stopSpeechGate(); } catch(_){}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
+        _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
         setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
     }
 
@@ -3411,6 +3434,15 @@ function renderQuickReauthVerdict(res) {
 }
 
 async function onRecordingComplete() {
+    // F-720: client-side clip floor — belt-and-suspenders behind the onstop guard.
+    // A near-zero clip means the recorder or stream died; never POST garbage to the backend.
+    var _clipElapsed = performance.now() - _recorderStartMs;
+    var _clipBytes = recordedChunks.reduce(function(a, c){ return a + c.size; }, 0);
+    if (_clipBytes < 20480 || _clipElapsed < 2000) {
+        try { vacDebug('clip_floor_abort', null, { bytes: _clipBytes, elapsed_ms: Math.round(_clipElapsed) }); } catch(_) {}
+        _showCaptureDiedRecovery();
+        return;
+    }
     document.getElementById('recIndicator').style.display = 'none';
     document.getElementById('cameraBoxRec').classList.remove('recording', 'show-hand-zone', 'hand-in-zone', 'hand-visible');
     stopAudioMonitor();
@@ -4017,6 +4049,22 @@ function showRetry(result) {
 // genuinely unavailable mid-flow (audioAnalyser null → the phrase fail-open advances past the
 // greeting, gesture-only), SURFACE it honestly + offer reachable exits — reusing what we already
 // have (the pre-flight mic test, reached via the reload primitive) rather than rebuilding recovery UI.
+// F-720: shown when the recorder stops before finishFingerPhase schedules it (stream/track death).
+// Fail-closed: no POST, no gate bypass. Single action: restart.
+function _showCaptureDiedRecovery() {
+    if (document.getElementById('vacCaptureDied')) return; // idempotent
+    var host = document.getElementById('challengePanel');
+    if (!host || !host.parentElement) return;
+    var panel = document.createElement('div');
+    panel.id = 'vacCaptureDied';
+    panel.style.cssText = 'margin:10px 0 0;padding:12px 14px;background:rgba(220,38,38,0.08);border:1px solid var(--danger,#dc2626);border-radius:10px;text-align:center;';
+    panel.innerHTML =
+        '<div style="font-size:13px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:4px;">Camera or microphone dropped — restart verification</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">Your camera or microphone stopped unexpectedly before the recording completed. Please restart to try again.</div>' +
+        '<button onclick="VACReauth.reload({auto:false,keepRetryBudget:false})" style="display:block;width:100%;padding:10px 12px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart verification</button>';
+    host.parentElement.insertBefore(panel, host.nextSibling);
+    try { vacDebug('capture_died_recovery_shown'); } catch(_) {}
+}
 function _showNoMicRecovery(reason) {
     if (window.__vacNoMicDismissed) return;             // user chose "Continue — skip voice" → don't nag again this session
     if (document.getElementById('vacNoMic')) return;    // idempotent — show once, persist until acted on
