@@ -154,11 +154,11 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     document.getElementById(id).className = "";
   }
 
-  function setErr(id, msg, is401) {
+  function setErr(id, msg, kind) {
     var safe = escHtml(msg);
-    var html = is401
-      ? safe + ' <a href="/auth.html">Re-verify &rarr;</a>'
-      : safe;
+    var html = safe;
+    if (kind === "401") html += ' <a href="/auth.html">Re-verify &rarr;</a>';
+    else if (kind === "noOrg") html += ' <a href="/org-onboard.html">Start a new organisation &rarr;</a>';
     document.getElementById(id).innerHTML = html;
     document.getElementById(id).className = "state-box error";
   }
@@ -370,7 +370,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
   if (!orgId) {
     ["aarContent", "rollupContent", "auditContent"].forEach(function (id) {
-      setErr(id, "No organisation ID found in session. Complete org onboarding first.", false);
+      setErr(id, "No organisation ID found in session. Complete org onboarding first.", "noOrg");
     });
     return;
   }
@@ -378,17 +378,17 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   // AAR stats (not org-scoped per spec)
   fetcher(BASE + "/v1/vat/aar/stats")
     .then(function (data) { renderAarStats(data); })
-    .catch(function (err) { setErr("aarContent", err.message, err.is401); });
+    .catch(function (err) { setErr("aarContent", err.message, err.is401 ? "401" : null); });
 
   // Approvals rollup
   fetcher(BASE + "/v1/orgs/" + encodeURIComponent(orgId) + "/rollup")
     .then(function (data) { renderRollup(data); })
-    .catch(function (err) { setErr("rollupContent", err.message, err.is401); });
+    .catch(function (err) { setErr("rollupContent", err.message, err.is401 ? "401" : null); });
 
   // Audit trail
   fetcher(BASE + "/v1/orgs/" + encodeURIComponent(orgId) + "/audit?limit=25")
     .then(function (data) { renderAudit(data); })
-    .catch(function (err) { setErr("auditContent", err.message, err.is401); });
+    .catch(function (err) { setErr("auditContent", err.message, err.is401 ? "401" : null); });
 
 }());
 </script>
