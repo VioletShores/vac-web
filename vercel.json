@@ -187,6 +187,10 @@
     {
       "source": "/org-onboard",
       "destination": "/org-onboard.html"
+    },
+    {
+      "source": "/org-invite",
+      "destination": "/org-invite.html"
     }
   ],
   "redirects": [

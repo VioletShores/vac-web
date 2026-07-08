@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invite Your Team — VAC Protocol</title>
+<link rel="icon" type="image/svg+xml" href="/branding/vac-logo-square-dark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#6C5CE7;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--light:#D1D5DB;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px;letter-spacing:1px;margin-left:auto;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,0.1)}
+main{max-width:520px;margin:0 auto;padding:40px 20px 80px}
+.owner-bar{background:rgba(45,212,191,0.06);border:1px solid rgba(45,212,191,0.2);border-radius:8px;padding:10px 14px;margin-bottom:28px;display:flex;align-items:center;gap:10px}
+.owner-dot{width:8px;height:8px;border-radius:50%;background:var(--emerald);flex-shrink:0}
+.owner-label{font-family:var(--mono);font-size:11px;color:var(--emerald);letter-spacing:0.5px}
+h1{font-size:24px;font-weight:700;color:var(--white);margin-bottom:8px}
+.subtitle{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:32px}
+.subtitle strong{color:var(--light);font-weight:600}
+.vouch-callout{background:rgba(108,92,231,0.08);border:1px solid rgba(108,92,231,0.25);border-radius:8px;padding:14px 16px;margin-bottom:28px;font-size:13px;color:var(--light);line-height:1.6}
+.vouch-callout strong{color:#a89cf7;font-weight:600}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:20px}
+.section-label{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;margin-bottom:16px}
+.field{margin-bottom:18px}
+.field:last-child{margin-bottom:0}
+label{display:block;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--light);letter-spacing:0.5px;margin-bottom:7px}
+label .req{color:var(--teal);margin-left:3px}
+input[type=text],input[type=email],textarea{width:100%;padding:11px 14px;background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--white);font-family:var(--sans);font-size:14px;outline:none;transition:border-color 0.2s}
+input[type=text]:focus,input[type=email]:focus,textarea:focus{border-color:var(--teal)}
+input[type=text]::placeholder,input[type=email]::placeholder,textarea::placeholder{color:var(--muted)}
+textarea{resize:vertical;min-height:80px;line-height:1.5}
+.field-hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.4}
+.btn-submit{width:100%;padding:13px;border-radius:8px;border:none;background:var(--teal);color:#0D0F17;font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:0.5px;cursor:pointer;transition:opacity 0.2s;margin-top:24px}
+.btn-submit:hover{opacity:0.88}
+.btn-submit:disabled{opacity:0.4;cursor:not-allowed}
+.error-box{display:none;background:rgba(249,97,103,0.08);border:1px solid rgba(249,97,103,0.3);border-radius:8px;padding:14px 16px;margin-top:16px;font-family:var(--mono);font-size:12px;color:var(--coral);line-height:1.6}
+.error-box a{color:var(--teal);text-decoration:underline}
+.success-panel{display:none;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.25);border-radius:10px;padding:28px 24px;margin-top:20px}
+.success-icon{margin:0 auto 16px;display:block}
+.success-title{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--emerald);letter-spacing:1px;margin-bottom:10px;text-align:center}
+.success-msg{font-size:13px;color:var(--light);line-height:1.6;margin-bottom:24px;text-align:center}
+.success-actions{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.btn-another{padding:11px 22px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--light);font-family:var(--mono);font-size:13px;font-weight:600;cursor:pointer;transition:border-color 0.2s,color 0.2s;letter-spacing:0.3px}
+.btn-another:hover{border-color:var(--teal);color:var(--teal)}
+.btn-done{display:inline-block;padding:11px 22px;border-radius:8px;border:1px solid var(--teal);background:rgba(45,212,191,0.1);color:var(--teal);font-family:var(--mono);font-size:13px;font-weight:700;text-decoration:none;letter-spacing:0.3px;cursor:pointer;transition:background 0.2s}
+.btn-done:hover{background:rgba(45,212,191,0.18)}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <svg width="22" height="22" viewBox="0 0 100 100">
+    <polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="5"/>
+    <polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.1" stroke="#6C5CE7" stroke-width="2.5"/>
+  </svg>
+  <div class="nav-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></div>
+  <div class="nav-badge">ORG SETUP</div>
+</nav>
+
+<main>
+  <div id="ownerBar" class="owner-bar" style="display:none">
+    <div class="owner-dot"></div>
+    <div class="owner-label" id="ownerLabel"></div>
+  </div>
+
+  <h1>Invite your team</h1>
+  <p class="subtitle">
+    Add colleagues to your organisation by inviting them directly.
+  </p>
+
+  <div class="vouch-callout">
+    When you invite a colleague, you are <strong>VOUCHING for them</strong> — your verified identity backs their access. They complete their own biometric verification to join.
+  </div>
+
+  <form id="inviteForm" autocomplete="off" novalidate>
+    <div class="card">
+      <div class="section-label">COLLEAGUE DETAILS</div>
+      <div class="field">
+        <label for="colleagueName">Colleague name<span class="req">*</span></label>
+        <input type="text" id="colleagueName" name="colleague_name" placeholder="Jane Smith" required maxlength="200">
+      </div>
+      <div class="field">
+        <label for="colleagueEmail">Colleague email<span class="req">*</span></label>
+        <input type="email" id="colleagueEmail" name="colleague_email" placeholder="jane@example.com" required maxlength="320">
+      </div>
+      <div class="field">
+        <label for="message">Personal message <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+        <textarea id="message" name="message" placeholder="Hi Jane, I'm inviting you to our organisation on VAC Protocol..."></textarea>
+        <div class="field-hint">Included in the invitation email your colleague receives.</div>
+      </div>
+    </div>
+
+    <div id="errorBox" class="error-box"></div>
+    <button type="submit" class="btn-submit" id="submitBtn">Send invitation</button>
+  </form>
+
+  <div id="successPanel" class="success-panel">
+    <svg class="success-icon" width="40" height="40" viewBox="0 0 100 100">
+      <polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#10B981" stroke-width="5"/>
+      <polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#10B981" fill-opacity="0.1" stroke="#10B981" stroke-width="2.5"/>
+      <polyline points="34,50 46,62 66,40" fill="none" stroke="#10B981" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="success-title">INVITATION SENT</div>
+    <div class="success-msg" id="successMsg"></div>
+    <div class="success-actions">
+      <button class="btn-another" id="btnAnother">Invite another</button>
+      <a href="/org-console.html" class="btn-done">Done &rarr; go to console</a>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  function authHeader() {
+    var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
+    return t ? { Authorization: "Bearer " + t } : {};
+  }
+
+  var voucherEmail = localStorage.getItem("vac_email") || new URLSearchParams(location.search).get("email") || "";
+  var voucherName = localStorage.getItem("vac_name") || voucherEmail;
+
+  if (voucherEmail) {
+    var bar = document.getElementById("ownerBar");
+    document.getElementById("ownerLabel").textContent = "Vouching as: " + voucherEmail + " (verified)";
+    bar.style.display = "flex";
+  }
+
+  var form = document.getElementById("inviteForm");
+  var errorBox = document.getElementById("errorBox");
+  var submitBtn = document.getElementById("submitBtn");
+  var successPanel = document.getElementById("successPanel");
+  var successMsg = document.getElementById("successMsg");
+
+  function showError(content, isHtml) {
+    if (isHtml) {
+      errorBox.innerHTML = content;
+    } else {
+      errorBox.textContent = content;
+    }
+    errorBox.style.display = "block";
+  }
+
+  function clearError() {
+    errorBox.textContent = "";
+    errorBox.style.display = "none";
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearError();
+
+    var colleagueName = document.getElementById("colleagueName").value.trim();
+    var colleagueEmail = document.getElementById("colleagueEmail").value.trim();
+    var message = document.getElementById("message").value.trim();
+
+    if (!colleagueName) { showError("Colleague name is required."); return; }
+    if (!colleagueEmail) { showError("Colleague email is required."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(colleagueEmail)) { showError("Please enter a valid email address."); return; }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending...";
+
+    var base = (window.VAC_API || "https://api.athenapilot.ai");
+    var headers = Object.assign({ "Content-Type": "application/json" }, authHeader());
+
+    var body = JSON.stringify({
+      requester_name: colleagueName,
+      requester_email: colleagueEmail,
+      voucher_name: voucherName,
+      voucher_email: voucherEmail,
+      message: message || null,
+      vouch_type: "identity",
+      source_app: "org-onboard",
+      source_context: sessionStorage.getItem("vac_org_id") || ""
+    });
+
+    fetch(base + "/v1/vouch/request", {
+      method: "POST",
+      headers: headers,
+      body: body
+    })
+      .then(function (res) {
+        if (res.status === 401) {
+          return res.json().catch(function () { return {}; }).then(function () {
+            showError('Your verified session expired — please <a href="/auth.html">re-verify</a>.', true);
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Send invitation";
+            return null;
+          });
+        }
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
+            showError(detail);
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Send invitation";
+            return null;
+          }
+          return { data: data, name: colleagueName };
+        });
+      })
+      .then(function (result) {
+        if (!result) return;
+        form.style.display = "none";
+        successMsg.textContent = result.name + " has been invited — they will receive an email to verify and join. You are vouching for them.";
+        successPanel.style.display = "block";
+      })
+      .catch(function (err) {
+        showError("Network error: " + err.message);
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send invitation";
+      });
+  });
+
+  document.getElementById("btnAnother").addEventListener("click", function () {
+    successPanel.style.display = "none";
+    form.reset();
+    clearError();
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Send invitation";
+    form.style.display = "block";
+  });
+}());
+</script>
+</body>
+</html>
