@@ -1225,12 +1225,17 @@ function goToChallenge() {
         // or the lead-in under-prompts voice and a correct-but-slow user can hit the 6s fail-open.
         // Gesture-only policy keeps the show-only lead-in. (honesty: L-2150 — say what the policy needs)
         var _leadVoice = (reauthPolicyRequired() || []).some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
+        // finger-still-coaching (Fix A): when COPS/PID binds a digit, the lead-in must also set the
+        // hand-DISTANCE expectation (the still tier snaps a single frame \u2014 a hand held too far reads
+        // tooSmall and the count/embedding suffers). Append the same "fill the oval" cue the capture
+        // step coaches, POLICY-GATED so a no-finger policy keeps the plain copy. (honesty: L-2150.)
+        var _fillOval = (reauthPolicyHasBoundDigit() === true) ? ' \u2014 close enough to fill the oval' : '';
         var _instr = _fc.bound_instruction
-                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : '')) : ('Quick re-verify \u2014 show the number in front of your face' + (_leadVoice ? ' and say it' : '')));
+                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : '') + _fillOval) : ('Quick re-verify \u2014 show the number in front of your face' + (_leadVoice ? ' and say it' : '') + _fillOval));
         var _ctEl = document.getElementById('challengeText');
         if (_ctEl) {
             _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
-                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : ''))
+                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : '') + _fillOval)
                                   : _instr)
                 + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">' + (_leadVoice ? 'Keep your face in the oval — when the count starts, show it and say it together.' : 'Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.') + '</div>';
         }
@@ -1253,7 +1258,59 @@ function goToChallenge() {
         goToStep(2);
         // L-2168: bring the user into the process — give a readable beat to absorb the instruction
         // before the countdown starts, instead of snapping immediately. 1.6s ≈ time to read one line.
-        setTimeout(function(){ startCountdown(); }, 1600);  // readable lead-in; no greeting, no explainer
+        //
+        // finger-still-coaching (Fix B): the still tier snaps ONE frame at the end of the countdown, so
+        // a hand held too far reads tooSmall and the count/embedding suffer with no chance to correct.
+        // The clip/full path coaches distance in its pre-flight guard; give the still tier the SAME
+        // coaching HERE, at the lead-in beat. When COPS/PID binds a digit, poll the live video and DEFER
+        // the countdown while the hand is missing / out-of-zone / tooSmall, showing "move closer — fill
+        // the oval" in the framing hint. Start the moment it's framed (after the readable beat). Hard
+        // safety (L-2238): a 4s max-wait ALWAYS proceeds — the lean fast tier must never hang or dead-end.
+        // PRESENTATION-ONLY: a hint + a capture defer that reuses the SAME _handNearFaceZone/tooSmall
+        // sensing as the clip path — it does NOT touch the count/embedding/deny gate downstream, and the
+        // Hand pill stays hidden (preserve the lean fast UX; this is not the full hand-practice gate).
+        try { if (window.__vacStillFramePoll) { clearInterval(window.__vacStillFramePoll); window.__vacStillFramePoll = null; } } catch(_) {}
+        var _stillBoundDigit = false; try { _stillBoundDigit = (reauthPolicyHasBoundDigit() === true); } catch(_) {}
+        if (_stillBoundDigit) {
+            var _fhEl = (CTX && CTX.mount) ? CTX.mount.querySelector('#framingHint') : document.getElementById('framingHint');
+            var _READ_MIN_MS = 1600, _FRAME_MAX_MS = 4000, _FRAME_TICK_MS = 150;
+            var _frameWaited = 0;
+            var _startStill = function(){
+                try { if (window.__vacStillFramePoll) { clearInterval(window.__vacStillFramePoll); window.__vacStillFramePoll = null; } } catch(_) {}
+                try { if (_fhEl) _fhEl.style.display = 'none'; } catch(_) {}   // clear the coach banner before the countdown owns the box
+                startCountdown();
+            };
+            window.__vacStillFramePoll = setInterval(function(){
+                _frameWaited += _FRAME_TICK_MS;
+                var _framed = false;
+                try {
+                    var _pv = _recVidF || document.getElementById('videoPreviewRec');
+                    if (_pv && typeof FingerDetector !== 'undefined' && FingerDetector.detect) {
+                        FingerDetector.detect(_pv);   // warms MediaPipe + refreshes landmarks (same read beginStillCapture uses)
+                        var _lm = FingerDetector.landmarks;
+                        if (_lm && _lm.length >= 21 && _handNearFaceZone(_lm)) {
+                            var _minX=1,_maxX=0,_minY=1,_maxY=0;
+                            for (var _pi=0;_pi<_lm.length;_pi++){ var _p=_lm[_pi]; if(_p.x<_minX)_minX=_p.x; if(_p.x>_maxX)_maxX=_p.x; if(_p.y<_minY)_minY=_p.y; if(_p.y>_maxY)_maxY=_p.y; }
+                            var _tooSmall = ((_maxX-_minX) < 0.28 && (_maxY-_minY) < 0.28);   // SAME threshold as checkHandFraming
+                            _framed = !_tooSmall;
+                        }
+                    }
+                } catch(_) {}
+                // Hard safety (L-2238): past the max-wait, proceed to capture regardless — never hang.
+                if (_frameWaited >= _FRAME_MAX_MS) { _startStill(); return; }
+                // Framed AND the readable beat has elapsed → begin. (Never START faster than today's 1.6s.)
+                if (_framed && _frameWaited >= _READ_MIN_MS) { _startStill(); return; }
+                // Not framed yet: coach hand distance in the still hint area; hide it the instant it's framed.
+                try {
+                    if (_fhEl) {
+                        if (_framed) { _fhEl.style.display = 'none'; }
+                        else { _fhEl.textContent = 'Move your hand closer — fill the oval'; _fhEl.style.display = 'block'; }
+                    }
+                } catch(_) {}
+            }, _FRAME_TICK_MS);
+        } else {
+            setTimeout(function(){ startCountdown(); }, 1600);  // readable lead-in; no greeting, no explainer
+        }
         return;  // do NOT run the full greeting/voice/warmup/explainer path below
     }
     // ─────────────────────────────────────────────────────────────────────────────
@@ -1379,6 +1436,15 @@ function showChallengeIntro() {
         if (_hEl) _hEl.innerHTML = 'Show your numbers,<br>one at a time.';
         if (_bEl) _bEl.innerHTML = 'Say your <strong style="color:var(--text-primary);">' + _n + (_n === 1 ? ' number' : ' numbers') + '</strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it at the same time</strong>, all in one continuous take.<br>We\u2019ll guide you through each step with a <span style="color:#22c55e;font-weight:700;">\u2713</span> as you go.';
     }
+    // finger-still-coaching (Fix A): mirror the fast lead-in's distance cue on the full-tier intro so
+    // both tiers set the SAME hand-DISTANCE expectation before the countdown. POLICY-GATED (only when
+    // COPS/PID binds a finger digit) and idempotent (dataset guard) so a retry re-render can't double it.
+    try {
+        if (reauthPolicyHasBoundDigit() === true && _bEl && !_bEl.dataset.fillOval) {
+            _bEl.innerHTML += ' <span style="color:var(--text-primary);font-weight:600;">Hold your hand close enough to fill the oval.</span>';
+            _bEl.dataset.fillOval = '1';
+        }
+    } catch(_) {}
     if (_greetEl) {
         var _g;
         if (skipGreeting || _noVoice) {
