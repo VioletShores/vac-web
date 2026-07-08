@@ -651,11 +651,13 @@ function startAVChecks() {
                     for (const p of lm){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
                     const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
                     const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
+                    const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
                     if (!_near) {
                         // Hand visible but OUTSIDE the in-front-of-face zone — the real constraint.
                         // Prompt + keep the Hand pill un-ticked so Start stays gated until it's in.
                         setAVStatus('hand','warn','Hand: in front of face'); document.getElementById('avHandHint').textContent='✋ Hold your hand up in front of your face'; document.getElementById('avHandHint').style.display='block';
                     } else if (clipped || tooBig) { setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
+                    else if (tooSmall) { setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
                     else { setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none'; }
                 } else {
                     _camBox.classList.remove('hand-in-zone');
@@ -976,11 +978,13 @@ const CaptureFeedback = {
         const EDGE = 0.04;
         const clipped = (minX < EDGE || maxX > 1-EDGE || minY < EDGE || maxY > 1-EDGE);
         const tooBig  = ((maxX-minX) > 0.85 || (maxY-minY) > 0.9);
-        if (clipped || tooBig) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
+        const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
+        if (clipped || tooBig || tooSmall) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
         if (banner) {
             if (ctx.framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
-                banner.textContent = tooBig ? 'Move your hand back a little — keep your whole hand in view'
-                                            : 'Center your hand — keep it fully inside the frame';
+                banner.textContent = tooSmall ? 'Move your hand closer — fill the oval'
+                                  : tooBig    ? 'Move your hand back a little — keep your whole hand in view'
+                                              : 'Center your hand — keep it fully inside the frame';
                 banner.style.display = 'block';
             } else if (ctx.framingBadFrames === 0) {
                 banner.style.display = 'none';
