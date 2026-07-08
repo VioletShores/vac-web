@@ -222,7 +222,13 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
           if (!res.ok) {
             var detail = (data && (data.detail || data.error || data.message)) || "";
             var msg = humanizeError(res.status, detail);
-            showError(msg);
+            if (res.status === 404) {
+              /* humanizeError(404) returns a fixed string with no interpolated
+                 server data, so this is safe to render as HTML. */
+              showError(msg + ' <a href="/org-onboard.html">Start a new organisation &rarr;</a>', true);
+            } else {
+              showError(msg);
+            }
             submitBtn.disabled = false;
             submitBtn.textContent = "Send invitation";
             return null;
