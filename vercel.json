@@ -191,6 +191,10 @@
     {
       "source": "/org-invite",
       "destination": "/org-invite.html"
+    },
+    {
+      "source": "/org-console",
+      "destination": "/org-console.html"
     }
   ],
   "redirects": [
