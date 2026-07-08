@@ -190,7 +190,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
     submitBtn.disabled = true;
     submitBtn.textContent = "Sending...";
 
-    var base = (window.VAC_API || "https://api.athenapilot.ai");
+    var base = (window.VAC_API || "https://vac-system-production.up.railway.app");
     var headers = Object.assign({ "Content-Type": "application/json" }, authHeader());
 
     var body = JSON.stringify({

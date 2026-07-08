@@ -193,7 +193,7 @@ select option{background:var(--surface);color:var(--white)}
     submitBtn.disabled = true;
     submitBtn.textContent = "Creating...";
 
-    var base = (window.VAC_API || "https://api.athenapilot.ai");
+    var base = (window.VAC_API || "https://vac-system-production.up.railway.app");
     var headers = Object.assign({ "Content-Type": "application/json" }, authHeader());
 
     fetch(base + "/v1/orgs", {

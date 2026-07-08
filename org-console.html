@@ -129,7 +129,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   }
   document.getElementById("btnSettings").href = "/org-config.html" + preserveCtx();
 
-  var BASE = window.VAC_API || "https://api.athenapilot.ai";
+  var BASE = window.VAC_API || "https://vac-system-production.up.railway.app";
 
   function authHeader() {
     var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
