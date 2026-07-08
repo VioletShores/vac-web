@@ -176,6 +176,14 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       .replace(/"/g, "&quot;");
   }
 
+  function humanizeError(status, detail){
+    if(status===404) return "We couldn't find that organisation. The link may be out of date — you can start a new organisation below.";
+    if(status===409) return "An organisation with these details already exists.";
+    if(status===400) return "Some details couldn't be accepted: " + (detail||"") + ". Please check and try again.";
+    if(status>=500) return "Something went wrong on our side (Error " + status + "). Please try again in a moment.";
+    return (detail && detail.length>2) ? detail : ("Error " + status);
+  }
+
   function fetcher(url) {
     return fetch(url, { headers: authHeader() }).then(function (res) {
       if (res.status === 401) {
@@ -185,7 +193,8 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       }
       return res.json().then(function (data) {
         if (!res.ok) {
-          throw new Error((data && (data.detail || data.error || data.message)) || "Error " + res.status);
+          var detail = (data && (data.detail || data.error || data.message)) || "";
+          throw new Error(humanizeError(res.status, detail));
         }
         return data;
       });

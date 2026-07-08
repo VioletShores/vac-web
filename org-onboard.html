@@ -46,6 +46,7 @@ select option{background:var(--surface);color:var(--white)}
 .success-org-id{font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:20px;word-break:break-all}
 .btn-next{display:inline-block;padding:11px 28px;border-radius:8px;border:1px solid var(--teal);background:rgba(45,212,191,0.1);color:var(--teal);font-family:var(--mono);font-size:13px;font-weight:700;text-decoration:none;letter-spacing:0.5px;cursor:pointer;transition:background 0.2s}
 .btn-next:hover{background:rgba(45,212,191,0.18)}
+.form-hint{color:var(--muted);font-size:13px;margin:4px 0 14px}
 </style>
 </head>
 <body>
@@ -72,6 +73,7 @@ select option{background:var(--surface);color:var(--white)}
   <form id="createOrgForm" autocomplete="off" novalidate>
     <div class="card">
       <div class="section-label">ORGANISATION DETAILS</div>
+      <p class="form-hint">Fields marked <span class="req">*</span> are required.</p>
       <div class="field">
         <label for="orgName">Organisation name<span class="req">*</span></label>
         <input type="text" id="orgName" name="name" placeholder="Acme Regulatory Group" required maxlength="200">
@@ -94,15 +96,15 @@ select option{background:var(--surface);color:var(--white)}
       <div class="section-label">COMPANY PROFILE</div>
       <p class="display-only-note">These fields are saved locally for your configuration setup (F-704) and are not sent to the server during org creation.</p>
       <div class="field">
-        <label for="industry">Industry / Sector</label>
+        <label for="industry">Industry / Sector <span style="color:var(--muted);font-weight:400">(optional)</span></label>
         <input type="text" id="industry" name="industry" placeholder="e.g. Financial Services, Healthcare">
       </div>
       <div class="field">
-        <label for="primaryRegulator">Primary regulator</label>
+        <label for="primaryRegulator">Primary regulator <span style="color:var(--muted);font-weight:400">(optional)</span></label>
         <input type="text" id="primaryRegulator" name="primary_regulator" placeholder="e.g. FCA, SEC, FINRA">
       </div>
       <div class="field">
-        <label for="locale">Locale</label>
+        <label for="locale">Locale <span style="color:var(--muted);font-weight:400">(optional)</span></label>
         <input type="text" id="locale" name="locale" placeholder="e.g. GB, US, EU">
       </div>
     </div>
@@ -167,6 +169,14 @@ select option{background:var(--surface);color:var(--white)}
     errorBox.style.display = "none";
   }
 
+  function humanizeError(status, detail){
+    if(status===404) return "We couldn't find that organisation. The link may be out of date — you can start a new organisation below.";
+    if(status===409) return "An organisation with these details already exists.";
+    if(status===400) return "Some details couldn't be accepted: " + (detail||"") + ". Please check and try again.";
+    if(status>=500) return "Something went wrong on our side (Error " + status + "). Please try again in a moment.";
+    return (detail && detail.length>2) ? detail : ("Error " + status);
+  }
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     clearError();
@@ -202,8 +212,9 @@ select option{background:var(--surface);color:var(--white)}
         }
         return res.json().then(function (data) {
           if (!res.ok) {
-            var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
-            showError(detail);
+            var detail = (data && (data.detail || data.error || data.message)) || "";
+            var msg = humanizeError(res.status, detail);
+            showError(msg);
             submitBtn.disabled = false;
             submitBtn.textContent = "Create organisation";
             return null;

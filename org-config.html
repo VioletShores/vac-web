@@ -234,6 +234,14 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
   function clearMsg(el) { el.className = "msg"; el.textContent = ""; hide(el); }
 
+  function humanizeError(status, detail){
+    if(status===404) return "We couldn't find that organisation. The link may be out of date — you can start a new organisation below.";
+    if(status===409) return "An organisation with these details already exists.";
+    if(status===400) return "Some details couldn't be accepted: " + (detail||"") + ". Please check and try again.";
+    if(status>=500) return "Something went wrong on our side (Error " + status + "). Please try again in a moment.";
+    return (detail && detail.length>2) ? detail : ("Error " + status);
+  }
+
   function handle401() {
     location.href = "/auth.html?reason=session-expired";
   }
@@ -281,9 +289,10 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       if (res.status === 401) { handle401(); return null; }
       return res.json().then(function (data) {
         if (!res.ok) {
-          var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
+          var detail = (data && (data.detail || data.error || data.message)) || "";
+          var msg = humanizeError(res.status, detail);
           hide(orgSettingsLoading);
-          orgSettingsError.textContent = detail;
+          orgSettingsError.textContent = msg;
           show(orgSettingsError);
           return null;
         }
@@ -333,8 +342,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         if (res.status === 401) { handle401(); return null; }
         return res.json().then(function (data) {
           if (!res.ok) {
-            var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
-            showMsg(orgSettingsMsg, detail, "error");
+            var detail = (data && (data.detail || data.error || data.message)) || "";
+            var msg = humanizeError(res.status, detail);
+            showMsg(orgSettingsMsg, msg, "error");
             return null;
           }
           return data;
@@ -403,8 +413,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
             if (res.status === 401) { handle401(); return null; }
             return res.json().then(function (data) {
               if (!res.ok) {
-                var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
-                showMsg(memberActionMsg, detail, "error");
+                var detail = (data && (data.detail || data.error || data.message)) || "";
+                var msg = humanizeError(res.status, detail);
+                showMsg(memberActionMsg, msg, "error");
                 sel.value = role; /* revert */
                 return null;
               }
@@ -454,8 +465,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
             if (res.status === 204) return {};
             return res.json().then(function (data) {
               if (!res.ok) {
-                var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
-                showMsg(memberActionMsg, detail, "error");
+                var detail = (data && (data.detail || data.error || data.message)) || "";
+                var msg = humanizeError(res.status, detail);
+                showMsg(memberActionMsg, msg, "error");
                 removeBtn.disabled = false;
                 return null;
               }
@@ -488,9 +500,10 @@ tr:hover td{background:rgba(255,255,255,0.02)}
       if (res.status === 401) { handle401(); return null; }
       return res.json().then(function (data) {
         if (!res.ok) {
-          var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
+          var detail = (data && (data.detail || data.error || data.message)) || "";
+          var msg = humanizeError(res.status, detail);
           hide(membersLoading);
-          membersError.textContent = detail;
+          membersError.textContent = msg;
           show(membersError);
           return null;
         }
