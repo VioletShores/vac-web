@@ -246,6 +246,14 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     location.href = "/auth.html?reason=session-expired";
   }
 
+  function appendStartOrgLink(el) {
+    var a = document.createElement("a");
+    a.href = "/org-onboard.html";
+    a.textContent = "Start a new organisation →";
+    a.style.marginLeft = "6px";
+    el.appendChild(a);
+  }
+
   /* ── Guard: must have orgId ── */
   var orgIdPill = document.getElementById("orgIdPill");
   if (!orgId) {
@@ -300,6 +308,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
           var msg = humanizeError(res.status, detail);
           hide(orgSettingsLoading);
           orgSettingsError.textContent = msg;
+          if (res.status === 404) appendStartOrgLink(orgSettingsError);
           show(orgSettingsError);
           return null;
         }
@@ -511,6 +520,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
           var msg = humanizeError(res.status, detail);
           hide(membersLoading);
           membersError.textContent = msg;
+          if (res.status === 404) appendStartOrgLink(membersError);
           show(membersError);
           return null;
         }
