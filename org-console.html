@@ -17,6 +17,8 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 .nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
 .nav-org{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;padding-left:12px;border-left:1px solid var(--border)}
 .nav-badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px;letter-spacing:1px;margin-left:auto;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,0.1)}
+.nav-settings{font-family:var(--mono);font-size:11px;color:var(--teal);text-decoration:none;padding:5px 12px;border:1px solid rgba(45,212,191,0.3);border-radius:5px;background:rgba(45,212,191,0.06);transition:background 0.2s;margin-left:8px}
+.nav-settings:hover{background:rgba(45,212,191,0.14)}
 main{max-width:960px;margin:0 auto;padding:40px 20px 80px}
 .page-head{margin-bottom:36px}
 .page-head h1{font-size:22px;font-weight:700;color:var(--white);margin-bottom:6px}
@@ -83,6 +85,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   <div class="nav-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></div>
   <div class="nav-org" id="navOrg" style="display:none"></div>
   <div class="nav-badge">ORG CONSOLE</div>
+  <a id="btnSettings" href="/org-config.html" class="nav-settings">Settings</a>
 </nav>
 
 <main>
@@ -115,6 +118,17 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
 <script>
 (function () {
+  function preserveCtx() {
+    var p = new URLSearchParams();
+    var e = localStorage.getItem("vac_email") || new URLSearchParams(location.search).get("email");
+    var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
+    if (e) p.set("email", e);
+    if (t) p.set("token", t);
+    var s = p.toString();
+    return s ? ("?" + s) : "";
+  }
+  document.getElementById("btnSettings").href = "/org-config.html" + preserveCtx();
+
   var BASE = window.VAC_API || "https://api.athenapilot.ai";
 
   function authHeader() {

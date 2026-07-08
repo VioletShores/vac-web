@@ -109,13 +109,24 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
     <div class="success-msg" id="successMsg"></div>
     <div class="success-actions">
       <button class="btn-another" id="btnAnother">Invite another</button>
-      <a href="/org-console.html" class="btn-done">Done &rarr; go to console</a>
+      <a id="btnDone" href="/org-console.html" class="btn-done">Done &rarr; go to console</a>
     </div>
   </div>
 </main>
 
 <script>
 (function () {
+  function preserveCtx() {
+    var p = new URLSearchParams();
+    var e = localStorage.getItem("vac_email") || new URLSearchParams(location.search).get("email");
+    var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
+    if (e) p.set("email", e);
+    if (t) p.set("token", t);
+    var s = p.toString();
+    return s ? ("?" + s) : "";
+  }
+  document.getElementById("btnDone").href = "/org-console.html" + preserveCtx();
+
   function authHeader() {
     var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
     return t ? { Authorization: "Bearer " + t } : {};

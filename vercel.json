@@ -195,6 +195,10 @@
     {
       "source": "/org-console",
       "destination": "/org-console.html"
+    },
+    {
+      "source": "/org-config",
+      "destination": "/org-config.html"
     }
   ],
   "redirects": [
