@@ -272,7 +272,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         if (!res.ok) {
           var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
           hide(orgSettingsLoading);
-          orgSettingsError.innerHTML = detail;
+          orgSettingsError.textContent = detail;
           show(orgSettingsError);
           return null;
         }
@@ -479,7 +479,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
         if (!res.ok) {
           var detail = (data && (data.detail || data.error || data.message)) || ("Error " + res.status);
           hide(membersLoading);
-          membersError.innerHTML = detail;
+          membersError.textContent = detail;
           show(membersError);
           return null;
         }
