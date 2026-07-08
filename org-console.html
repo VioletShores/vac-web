@@ -136,6 +136,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     return t ? { "Authorization": "Bearer " + t } : {};
   }
 
+  var _tok = (localStorage.getItem('vac_session') || localStorage.getItem('vac_session_token') || new URLSearchParams(location.search).get('token'));
+  if (!_tok) { window.location.assign('/auth?next=' + encodeURIComponent(location.pathname)); return; }
+
   var orgId = sessionStorage.getItem("vac_org_id") || new URLSearchParams(location.search).get("org_id");
   var orgName = sessionStorage.getItem("vac_org_name") || "";
 
@@ -157,7 +160,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   function setErr(id, msg, kind) {
     var safe = escHtml(msg);
     var html = safe;
-    if (kind === "401") html += ' <a href="/auth.html">Re-verify &rarr;</a>';
+    if (kind === "401") html += ' <a href="/auth?next=' + encodeURIComponent(location.pathname) + '">Re-verify &rarr;</a>';
     else if (kind === "noOrg") html += ' <a href="/org-onboard.html">Start a new organisation &rarr;</a>';
     document.getElementById(id).innerHTML = html;
     document.getElementById(id).className = "state-box error";

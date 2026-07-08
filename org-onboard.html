@@ -143,6 +143,9 @@ select option{background:var(--surface);color:var(--white)}
     return t ? { Authorization: "Bearer " + t } : {};
   }
 
+  var _tok = (localStorage.getItem('vac_session') || localStorage.getItem('vac_session_token') || new URLSearchParams(location.search).get('token'));
+  if (!_tok) { window.location.assign('/auth?next=' + encodeURIComponent(location.pathname)); return; }
+
   var email = new URLSearchParams(location.search).get("email") || localStorage.getItem("vac_email") || "";
   if (email) {
     var bar = document.getElementById("ownerBar");
@@ -204,7 +207,7 @@ select option{background:var(--surface);color:var(--white)}
       .then(function (res) {
         if (res.status === 401) {
           return res.json().catch(function () { return {}; }).then(function () {
-            showError('Your verified session expired — please <a href="/auth.html">re-verify</a>.', true);
+            showError('Your verified session expired — please <a href="/auth?next=' + encodeURIComponent(location.pathname) + '">re-verify</a>.', true);
             submitBtn.disabled = false;
             submitBtn.textContent = "Create organisation";
             return null;

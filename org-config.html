@@ -219,6 +219,9 @@ tr:hover td{background:rgba(255,255,255,0.02)}
     return t ? { Authorization: "Bearer " + t } : {};
   }
 
+  var _tok = (localStorage.getItem('vac_session') || localStorage.getItem('vac_session_token') || new URLSearchParams(location.search).get('token'));
+  if (!_tok) { window.location.assign('/auth?next=' + encodeURIComponent(location.pathname)); return; }
+
   function jsonHeaders() {
     return Object.assign({ "Content-Type": "application/json" }, authHeader());
   }
@@ -243,7 +246,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
   }
 
   function handle401() {
-    location.href = "/auth.html?reason=session-expired";
+    window.location.assign('/auth?next=' + encodeURIComponent(location.pathname));
   }
 
   function appendStartOrgLink(el) {

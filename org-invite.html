@@ -138,6 +138,9 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
     return t ? { Authorization: "Bearer " + t } : {};
   }
 
+  var _tok = (localStorage.getItem('vac_session') || localStorage.getItem('vac_session_token') || new URLSearchParams(location.search).get('token'));
+  if (!_tok) { window.location.assign('/auth?next=' + encodeURIComponent(location.pathname)); return; }
+
   var voucherEmail = localStorage.getItem("vac_email") || new URLSearchParams(location.search).get("email") || "";
   var voucherName = localStorage.getItem("vac_name") || voucherEmail;
 
@@ -212,7 +215,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.5}
       .then(function (res) {
         if (res.status === 401) {
           return res.json().catch(function () { return {}; }).then(function () {
-            showError('Your verified session expired — please <a href="/auth.html">re-verify</a>.', true);
+            showError('Your verified session expired — please <a href="/auth?next=' + encodeURIComponent(location.pathname) + '">re-verify</a>.', true);
             submitBtn.disabled = false;
             submitBtn.textContent = "Send invitation";
             return null;
