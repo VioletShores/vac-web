@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Accountability Console — VAC Protocol</title>
+<link rel="icon" type="image/svg+xml" href="/branding/vac-logo-square-dark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#6C5CE7;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--light:#D1D5DB;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-org{font-family:var(--mono);font-size:11px;color:var(--muted);margin-left:8px;padding-left:12px;border-left:1px solid var(--border)}
+.nav-badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px;letter-spacing:1px;margin-left:auto;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,0.1)}
+.nav-settings{font-family:var(--mono);font-size:11px;color:var(--teal);text-decoration:none;padding:5px 12px;border:1px solid rgba(45,212,191,0.3);border-radius:5px;background:rgba(45,212,191,0.06);transition:background 0.2s;margin-left:8px}
+.nav-settings:hover{background:rgba(45,212,191,0.14)}
+main{max-width:960px;margin:0 auto;padding:40px 20px 80px}
+.page-head{margin-bottom:36px}
+.page-head h1{font-size:22px;font-weight:700;color:var(--white);margin-bottom:6px}
+.page-head p{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* Sections */
+.section{margin-bottom:44px}
+.section-label{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--teal);letter-spacing:2px;margin-bottom:4px}
+.section-desc{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+
+/* State boxes */
+.state-box{padding:20px 24px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;background:var(--surface)}
+.state-box.loading::before{content:"⬡";display:block;font-size:20px;margin-bottom:8px;color:var(--border)}
+.state-box.empty::before{content:"—";display:block;font-size:18px;margin-bottom:8px;color:var(--border)}
+.state-box.error{border-color:rgba(249,97,103,0.3);color:var(--coral);background:rgba(249,97,103,0.04)}
+.state-box.error a{color:var(--teal);text-decoration:underline}
+
+/* Stat cards */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px}
+.stat-key{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--muted);letter-spacing:1.5px;margin-bottom:10px;text-transform:uppercase;word-break:break-all}
+.stat-val{font-family:var(--mono);font-weight:700}
+.stat-val.num{font-size:32px;color:var(--teal)}
+.stat-val.bool-true{font-size:16px;color:var(--emerald)}
+.stat-val.bool-false{font-size:16px;color:var(--coral)}
+.stat-val.str{font-size:14px;color:var(--light);word-break:break-word}
+.stat-val.obj{font-size:11px;color:var(--muted);word-break:break-all;line-height:1.5;max-height:72px;overflow:hidden}
+
+/* Rollup table */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:rgba(30,34,48,0.8)}
+th{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1.5px;padding:11px 16px;text-align:left;border-bottom:1px solid var(--border)}
+td{padding:11px 16px;border-bottom:1px solid var(--border);color:var(--light);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr.row-denied td{background:rgba(249,97,103,0.03)}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.8px;padding:3px 10px;border-radius:4px}
+.badge-granted{background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:var(--emerald)}
+.badge-denied{background:rgba(249,97,103,0.1);border:1px solid rgba(249,97,103,0.3);color:var(--coral)}
+.caption{margin-top:14px;font-size:12px;color:var(--gray);line-height:1.7;padding:12px 16px;border:1px solid rgba(108,92,231,0.2);border-radius:8px;background:rgba(108,92,231,0.04)}
+.caption strong{color:var(--light)}
+
+/* Audit list */
+.audit-list{border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.audit-entry{background:var(--surface);padding:12px 18px;border-bottom:1px solid var(--border)}
+.audit-entry:last-child{border-bottom:none}
+.audit-row{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.audit-ts{font-family:var(--mono);font-size:10px;color:var(--muted);flex-shrink:0}
+.audit-action{font-size:13px;color:var(--light);font-weight:500;flex:1;min-width:0;word-break:break-word}
+.audit-actor{font-family:var(--mono);font-size:10px;color:var(--muted);flex-shrink:0}
+.audit-extra{margin-top:5px;display:flex;flex-wrap:wrap;gap:8px}
+.audit-kv{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.audit-kv span{color:var(--gray)}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <svg width="22" height="22" viewBox="0 0 100 100">
+    <polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="5"/>
+    <polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.1" stroke="#6C5CE7" stroke-width="2.5"/>
+  </svg>
+  <div class="nav-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></div>
+  <div class="nav-org" id="navOrg" style="display:none"></div>
+  <div class="nav-badge">ORG CONSOLE</div>
+  <a id="btnSettings" href="/org-config.html" class="nav-settings">Settings</a>
+</nav>
+
+<main>
+  <div class="page-head">
+    <h1 id="pageTitle">Accountability Console</h1>
+    <p>Every approval is cryptographically recorded. No position in the hierarchy confers access — only explicit, verified grants do.</p>
+  </div>
+
+  <!-- AAR STATS -->
+  <div class="section">
+    <div class="section-label">AAR STATS</div>
+    <div class="section-desc">Cryptographic Accountability Records generated across all verified sessions.</div>
+    <div id="aarContent" class="state-box loading">Loading AAR stats&hellip;</div>
+  </div>
+
+  <!-- APPROVALS ROLLUP -->
+  <div class="section">
+    <div class="section-label">APPROVALS ROLLUP</div>
+    <div class="section-desc">Every entity in the organisational hierarchy and its explicit access status.</div>
+    <div id="rollupContent" class="state-box loading">Loading approvals&hellip;</div>
+  </div>
+
+  <!-- AUDIT TRAIL -->
+  <div class="section">
+    <div class="section-label">AUDIT TRAIL</div>
+    <div class="section-desc">The 25 most recent approval events, in chronological order.</div>
+    <div id="auditContent" class="state-box loading">Loading audit trail&hellip;</div>
+  </div>
+</main>
+
+<script>
+(function () {
+  function preserveCtx() {
+    var p = new URLSearchParams();
+    var e = localStorage.getItem("vac_email") || new URLSearchParams(location.search).get("email");
+    var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
+    if (e) p.set("email", e);
+    if (t) p.set("token", t);
+    var s = p.toString();
+    return s ? ("?" + s) : "";
+  }
+  document.getElementById("btnSettings").href = "/org-config.html" + preserveCtx();
+
+  var BASE = window.VAC_API || "https://vac-system-production.up.railway.app";
+
+  function authHeader() {
+    var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
+    return t ? { "Authorization": "Bearer " + t } : {};
+  }
+
+  var orgId = sessionStorage.getItem("vac_org_id") || new URLSearchParams(location.search).get("org_id");
+  var orgName = sessionStorage.getItem("vac_org_name") || "";
+
+  // Populate nav + page title with org name if available
+  if (orgName) {
+    var navOrg = document.getElementById("navOrg");
+    navOrg.textContent = orgName;
+    navOrg.style.display = "block";
+    document.getElementById("pageTitle").textContent = orgName + " — Accountability Console";
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  function setEl(id, html) {
+    document.getElementById(id).innerHTML = html;
+    document.getElementById(id).className = "";
+  }
+
+  function setErr(id, msg, kind) {
+    var safe = escHtml(msg);
+    var html = safe;
+    if (kind === "401") html += ' <a href="/auth.html">Re-verify &rarr;</a>';
+    else if (kind === "noOrg") html += ' <a href="/org-onboard.html">Start a new organisation &rarr;</a>';
+    document.getElementById(id).innerHTML = html;
+    document.getElementById(id).className = "state-box error";
+  }
+
+  function setEmpty(id, msg) {
+    document.getElementById(id).textContent = msg || "No records yet.";
+    document.getElementById(id).className = "state-box empty";
+  }
+
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function humanizeError(status, detail){
+    if(status===404) return "We couldn't find that organisation. The link may be out of date — you can start a new organisation below.";
+    if(status===409) return "An organisation with these details already exists.";
+    if(status===400) return "Some details couldn't be accepted: " + (detail||"") + ". Please check and try again.";
+    if(status>=500) return "Something went wrong on our side (Error " + status + "). Please try again in a moment.";
+    return (detail && detail.length>2) ? detail : ("Error " + status);
+  }
+
+  function fetcher(url) {
+    return fetch(url, { headers: authHeader() }).then(function (res) {
+      if (res.status === 401) {
+        var err = new Error("Session expired — your verified session has ended, please re-verify.");
+        err.kind = "401";
+        throw err;
+      }
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          var detail = (data && (data.detail || data.error || data.message)) || "";
+          var err2 = new Error(humanizeError(res.status, detail));
+          if (res.status === 404) err2.kind = "noOrg";
+          throw err2;
+        }
+        return data;
+      });
+    });
+  }
+
+  // ── AAR Stats ───────────────────────────────────────────────────────────────
+
+  function renderAarStats(data) {
+    // data may be the object directly, or { stats: {...} } — unwrap if nested under a known key
+    var obj = (data && typeof data === "object") ? data : null;
+    if (!obj) { setEmpty("aarContent", "No stats returned."); return; }
+
+    // If the response wraps stats under a single key, unwrap it
+    var keys = Object.keys(obj);
+    if (keys.length === 1 && obj[keys[0]] !== null && typeof obj[keys[0]] === "object" && !Array.isArray(obj[keys[0]])) {
+      obj = obj[keys[0]];
+      keys = Object.keys(obj);
+    }
+
+    if (keys.length === 0) { setEmpty("aarContent", "No stat fields returned yet."); return; }
+
+    var cards = keys.map(function (k) {
+      var v = obj[k];
+      var cls, display;
+      if (typeof v === "number") {
+        cls = "num";
+        display = escHtml(String(v));
+      } else if (typeof v === "boolean") {
+        cls = v ? "bool-true" : "bool-false";
+        display = v ? "true" : "false";
+      } else if (v === null || v === undefined) {
+        cls = "str";
+        display = "<em style='color:var(--muted)'>null</em>";
+      } else if (typeof v === "object") {
+        cls = "obj";
+        display = escHtml(JSON.stringify(v, null, 1));
+      } else {
+        cls = "str";
+        display = escHtml(String(v));
+      }
+      return '<div class="stat-card"><div class="stat-key">' + escHtml(k.replace(/_/g, " ")) + '</div>'
+           + '<div class="stat-val ' + cls + '">' + display + '</div></div>';
+    });
+
+    setEl("aarContent", '<div class="stat-grid">' + cards.join("") + '</div>');
+  }
+
+  // ── Approvals Rollup ────────────────────────────────────────────────────────
+
+  function renderRollup(data) {
+    var entries = Array.isArray(data) ? data : (data && Array.isArray(data.entries) ? data.entries : null);
+    if (!entries) { entries = []; }
+
+    if (entries.length === 0) {
+      setEmpty("rollupContent", "No entities in the approval rollup yet.");
+      return;
+    }
+
+    // Gather all unique keys across entries for dynamic columns
+    var knownKeys = ["name", "org_type", "org_id", "granted"];
+    var extraKeys = [];
+    entries.forEach(function (e) {
+      Object.keys(e).forEach(function (k) {
+        if (knownKeys.indexOf(k) === -1 && extraKeys.indexOf(k) === -1) extraKeys.push(k);
+      });
+    });
+
+    var headerCells = [
+      "<th>Name</th>",
+      "<th>Type</th>",
+      "<th>Org ID</th>"
+    ].concat(extraKeys.map(function (k) { return "<th>" + escHtml(k.toUpperCase()) + "</th>"; }))
+     .concat(["<th>Access Grant</th>"]);
+
+    var rows = entries.map(function (e) {
+      var granted = e.granted;
+      var grantBadge = granted === true
+        ? '<span class="badge badge-granted">GRANTED</span>'
+        : granted === false
+          ? '<span class="badge badge-denied">NO GRANT</span>'
+          : '<span class="badge" style="color:var(--muted);border:1px solid var(--border)">UNKNOWN</span>';
+
+      var baseCells = [
+        "<td>" + escHtml(e.name || "—") + "</td>",
+        "<td style='font-family:var(--mono);font-size:11px;color:var(--muted)'>" + escHtml(e.org_type || "—") + "</td>",
+        "<td style='font-family:var(--mono);font-size:10px;color:var(--muted)'>" + escHtml(e.org_id || "—") + "</td>"
+      ].concat(extraKeys.map(function (k) {
+        return "<td style='font-family:var(--mono);font-size:11px;color:var(--muted)'>" + escHtml(e[k] != null ? String(e[k]) : "—") + "</td>";
+      })).concat(["<td>" + grantBadge + "</td>"]);
+
+      var rowClass = granted === false ? " class='row-denied'" : "";
+      return "<tr" + rowClass + ">" + baseCells.join("") + "</tr>";
+    });
+
+    var hasUngrantedFirms = entries.some(function (e) { return e.granted === false; });
+
+    var captionHtml = hasUngrantedFirms
+      ? '<div class="caption">Position in the hierarchy confers no access. '
+        + '<strong>Access is granted explicitly and every grant is cryptographically recorded — hierarchy is not access.</strong> '
+        + 'Entries marked <em>NO GRANT</em> are firms or individuals present in the org chart who have no active access grant.</div>'
+      : '<div class="caption">Every access grant in this hierarchy is explicitly recorded. '
+        + 'Position alone confers no access — only explicit, cryptographically verified grants do.</div>';
+
+    var html = '<div class="table-wrap"><table>'
+      + '<thead><tr>' + headerCells.join("") + '</tr></thead>'
+      + '<tbody>' + rows.join("") + '</tbody>'
+      + '</table></div>'
+      + captionHtml;
+
+    setEl("rollupContent", html);
+  }
+
+  // ── Audit Trail ─────────────────────────────────────────────────────────────
+
+  function formatTs(val) {
+    if (!val) return "";
+    try {
+      var d = new Date(val);
+      if (isNaN(d.getTime())) return escHtml(String(val));
+      return d.toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+    } catch (e) { return escHtml(String(val)); }
+  }
+
+  function renderAudit(data) {
+    var entries = Array.isArray(data) ? data : (data && Array.isArray(data.entries) ? data.entries : null);
+    if (!entries) { entries = []; }
+
+    if (entries.length === 0) {
+      setEmpty("auditContent", "No audit records yet.");
+      return;
+    }
+
+    var knownKvKeys = ["action", "timestamp", "actor", "created_at", "event", "event_type", "performed_by", "id"];
+
+    var items = entries.map(function (e) {
+      var ts = e.timestamp || e.created_at || "";
+      var action = e.action || e.event || e.event_type || "";
+      var actor = e.actor || e.performed_by || "";
+
+      // Extra keys not in the known set
+      var extraPairs = Object.keys(e)
+        .filter(function (k) { return knownKvKeys.indexOf(k) === -1; })
+        .map(function (k) {
+          var v = e[k];
+          if (v === null || v === undefined) return null;
+          if (typeof v === "object") v = JSON.stringify(v);
+          return '<span class="audit-kv">' + escHtml(k) + ': <span>' + escHtml(String(v)) + '</span></span>';
+        })
+        .filter(Boolean);
+
+      var extraHtml = extraPairs.length
+        ? '<div class="audit-extra">' + extraPairs.join("") + '</div>'
+        : "";
+
+      return '<div class="audit-entry">'
+        + '<div class="audit-row">'
+        + '<span class="audit-ts">' + escHtml(formatTs(ts)) + '</span>'
+        + '<span class="audit-action">' + escHtml(action || "(no action label)") + '</span>'
+        + (actor ? '<span class="audit-actor">' + escHtml(actor) + '</span>' : '')
+        + '</div>'
+        + extraHtml
+        + '</div>';
+    });
+
+    var html = '<div class="audit-list">' + items.join("") + '</div>'
+      + '<div class="caption" style="margin-top:14px">Every approval is backed by a cryptographic record anyone can independently verify.</div>';
+
+    setEl("auditContent", html);
+  }
+
+  // ── Bootstrap ────────────────────────────────────────────────────────────────
+
+  if (!orgId) {
+    ["aarContent", "rollupContent", "auditContent"].forEach(function (id) {
+      setErr(id, "No organisation ID found in session. Complete org onboarding first.", "noOrg");
+    });
+    return;
+  }
+
+  // AAR stats (not org-scoped per spec)
+  fetcher(BASE + "/v1/vat/aar/stats")
+    .then(function (data) { renderAarStats(data); })
+    .catch(function (err) { setErr("aarContent", err.message, err.kind); });
+
+  // Approvals rollup
+  fetcher(BASE + "/v1/orgs/" + encodeURIComponent(orgId) + "/rollup")
+    .then(function (data) { renderRollup(data); })
+    .catch(function (err) { setErr("rollupContent", err.message, err.kind); });
+
+  // Audit trail
+  fetcher(BASE + "/v1/orgs/" + encodeURIComponent(orgId) + "/audit?limit=25")
+    .then(function (data) { renderAudit(data); })
+    .catch(function (err) { setErr("auditContent", err.message, err.kind); });
+
+}());
+</script>
+</body>
+</html>

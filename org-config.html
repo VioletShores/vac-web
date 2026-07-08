@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Org Settings — VAC Protocol</title>
+<link rel="icon" type="image/svg+xml" href="/branding/vac-logo-square-dark.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0D0F17;--surface:#151821;--border:#1E2230;--teal:#2DD4BF;--purple:#6C5CE7;--emerald:#10B981;--coral:#F96167;--amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;--light:#D1D5DB;--mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh}
+
+/* NAV */
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-text .v{color:var(--teal)}.nav-text .p{color:var(--white)}
+.nav-back{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--teal);text-decoration:none;padding:5px 12px;border:1px solid rgba(45,212,191,0.3);border-radius:5px;background:rgba(45,212,191,0.06);transition:background 0.2s}
+.nav-back:hover{background:rgba(45,212,191,0.14)}
+.nav-badge{font-family:var(--mono);font-size:9px;padding:3px 8px;border-radius:4px;letter-spacing:1px;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,0.1)}
+
+/* LAYOUT */
+main{max-width:700px;margin:0 auto;padding:40px 20px 100px}
+.page-head{margin-bottom:36px}
+.page-head h1{font-size:22px;font-weight:700;color:var(--white);margin-bottom:6px}
+.page-head p{font-size:14px;color:var(--muted);line-height:1.6}
+.org-id-pill{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--muted);padding:4px 10px;background:var(--surface);border:1px solid var(--border);border-radius:5px;margin-top:10px;word-break:break-all}
+
+/* SECTION */
+.section{margin-bottom:44px}
+.section-label{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--teal);letter-spacing:2px;margin-bottom:4px;text-transform:uppercase}
+.section-desc{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;margin-bottom:12px}
+
+/* FORM */
+.field{margin-bottom:18px}
+.field:last-child{margin-bottom:0}
+label{display:block;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--light);letter-spacing:0.5px;margin-bottom:7px}
+.helptext{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+input[type=text],select{width:100%;padding:11px 14px;background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--white);font-family:var(--sans);font-size:14px;outline:none;transition:border-color 0.2s}
+input[type=text]:focus,select:focus{border-color:var(--teal)}
+input[type=text]::placeholder{color:var(--muted)}
+select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236B7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+select option{background:var(--surface);color:var(--white)}
+
+/* BUTTONS */
+.btn-save{padding:11px 24px;border-radius:8px;border:none;background:var(--teal);color:#0D0F17;font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:0.5px;cursor:pointer;transition:opacity 0.2s}
+.btn-save:hover{opacity:0.88}
+.btn-save:disabled{opacity:0.4;cursor:not-allowed}
+.btn-danger{padding:7px 14px;border-radius:6px;border:1px solid rgba(249,97,103,0.35);background:rgba(249,97,103,0.07);color:var(--coral);font-family:var(--mono);font-size:11px;font-weight:700;cursor:pointer;transition:background 0.2s}
+.btn-danger:hover{background:rgba(249,97,103,0.15)}
+.btn-danger:disabled{opacity:0.4;cursor:not-allowed}
+.btn-row{display:flex;align-items:center;gap:12px;margin-top:20px}
+
+/* MESSAGES */
+.msg{display:none;border-radius:7px;padding:12px 16px;margin-top:14px;font-family:var(--mono);font-size:12px;line-height:1.6}
+.msg.error{background:rgba(249,97,103,0.08);border:1px solid rgba(249,97,103,0.3);color:var(--coral)}
+.msg.error a{color:var(--teal);text-decoration:underline}
+.msg.success{background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.25);color:var(--emerald)}
+
+/* STATE BOXES */
+.state-box{padding:20px 24px;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center;background:var(--surface)}
+.state-box.error{border-color:rgba(249,97,103,0.3);color:var(--coral);background:rgba(249,97,103,0.04)}
+.state-box.error a{color:var(--teal);text-decoration:underline}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:rgba(30,34,48,0.8)}
+th{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:1.5px;padding:11px 16px;text-align:left;border-bottom:1px solid var(--border)}
+td{padding:10px 16px;border-bottom:1px solid var(--border);color:var(--light);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.role-select{width:120px;padding:6px 10px;font-size:12px}
+
+/* BADGE */
+.badge{display:inline-block;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:0.8px;padding:3px 10px;border-radius:4px}
+.badge-active{background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:var(--emerald)}
+.badge-suspended{background:rgba(249,97,103,0.1);border:1px solid rgba(249,97,103,0.3);color:var(--coral)}
+.badge-pending{background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:var(--amber)}
+
+/* POLICY SECTION */
+.policy-note{background:rgba(108,92,231,0.06);border:1px solid rgba(108,92,231,0.2);border-radius:8px;padding:14px 18px;font-size:13px;color:var(--light);line-height:1.6;margin-bottom:14px}
+.policy-note strong{color:var(--teal)}
+.coming-soon{display:inline-block;font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:1px;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);color:var(--amber);vertical-align:middle;margin-left:8px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <svg width="22" height="22" viewBox="0 0 100 100">
+    <polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="5"/>
+    <polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.1" stroke="#6C5CE7" stroke-width="2.5"/>
+  </svg>
+  <div class="nav-text"><span class="v">VAC</span> <span class="p">PROTOCOL</span></div>
+  <div class="nav-badge">ORG CONFIG</div>
+  <a id="btnBack" class="nav-back" href="/org-console.html">&larr; Console</a>
+</nav>
+
+<main>
+  <div class="page-head">
+    <h1>Organisation Settings</h1>
+    <p>Manage org details, members &amp; roles, and verification policy for this organisation.</p>
+    <div class="org-id-pill" id="orgIdPill">Loading org&hellip;</div>
+  </div>
+
+  <!-- ── SECTION 1: ORG SETTINGS ── -->
+  <div class="section" id="sectionOrgSettings">
+    <div class="section-label">Org Settings</div>
+    <div class="section-desc">Core organisation details. Changes take effect immediately on save.</div>
+
+    <div id="orgSettingsLoading" class="state-box">Loading&hellip;</div>
+    <div id="orgSettingsError" class="state-box error" style="display:none"></div>
+
+    <form id="orgSettingsForm" style="display:none" novalidate autocomplete="off">
+      <div class="card">
+        <div class="field">
+          <label for="orgName">Organisation name</label>
+          <input type="text" id="orgName" name="name" placeholder="Acme Regulatory Group" maxlength="200">
+        </div>
+        <div class="field">
+          <label for="orgStatus">Status</label>
+          <select id="orgStatus" name="status">
+            <option value="active">Active</option>
+            <option value="suspended">Suspended</option>
+            <option value="pending">Pending</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="minAuthFloor">Minimum assurance floor (COPS/PID)</label>
+          <select id="minAuthFloor" name="min_auth_floor">
+            <option value="none">None — no floor enforced</option>
+            <option value="quick">Quick — lightweight liveness check</option>
+            <option value="full">Full — complete biometric verification</option>
+          </select>
+          <div class="helptext">The lowest verification tier any action in this org may use. COPS/PID policy will reject authorisation requests that fall below this floor.</div>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn-save" id="orgSaveBtn">Save changes</button>
+        <span id="orgSaveSpinner" style="font-family:var(--mono);font-size:11px;color:var(--muted);display:none">Saving&hellip;</span>
+      </div>
+      <div id="orgSettingsMsg" class="msg"></div>
+    </form>
+  </div>
+
+  <!-- ── SECTION 2: MEMBERS & ROLES ── -->
+  <div class="section" id="sectionMembers">
+    <div class="section-label">Members &amp; Roles</div>
+    <div class="section-desc">Manage who belongs to this organisation and what role they hold. Only an owner may grant the owner role.</div>
+
+    <div id="membersLoading" class="state-box">Loading members&hellip;</div>
+    <div id="membersError" class="state-box error" style="display:none"></div>
+    <div id="membersEmpty" class="state-box" style="display:none">No members found.</div>
+
+    <div id="membersTableWrap" style="display:none">
+      <div class="table-wrap">
+        <table id="membersTable">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="membersTbody"></tbody>
+        </table>
+      </div>
+      <div id="memberActionMsg" class="msg" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 3: POLICY (COPS/PID) ── -->
+  <div class="section" id="sectionPolicy">
+    <div class="section-label">Policy (COPS/PID)</div>
+    <div class="section-desc">COPS/PID governs which actions require which assurance tier. The minimum assurance floor set in Org Settings is the primary live policy control.</div>
+
+    <div class="policy-note">
+      <strong>Minimum assurance floor</strong> — set above in Org Settings — is the authoritative per-org policy lever. It determines the lowest verification tier (none / quick / full) that COPS/PID will accept for any authorisation request within this organisation.
+      <br><br>
+      Fine-grained per-action policy rules (e.g. binding specific actions to <em>full</em> verification regardless of org floor) are available via the VAC API. <span class="coming-soon">COMING SOON</span> — a policy editor will appear here in a future release.
+    </div>
+
+    <div class="card" style="opacity:0.6;pointer-events:none;user-select:none">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:1px;margin-bottom:12px">ADVANCED POLICY RULES</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.7">
+        Per-action assurance bindings, delegation rules, and custom COPS expressions are configured via the API (<code style="font-family:var(--mono);font-size:12px;color:var(--light)">POST /v1/vat/governance/policy</code>). This UI does not yet expose those controls — changes made here would be illustrative only and are intentionally disabled until the editor is production-ready.
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5">
+      To configure advanced policy now, use the REST API directly with a bearer token that has <code style="font-family:var(--mono);font-size:11px">org:admin</code> scope.
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  function preserveCtx() {
+    var p = new URLSearchParams();
+    var e = localStorage.getItem("vac_email") || new URLSearchParams(location.search).get("email");
+    var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
+    if (e) p.set("email", e);
+    if (t) p.set("token", t);
+    var s = p.toString();
+    return s ? ("?" + s) : "";
+  }
+  document.getElementById("btnBack").href = "/org-console.html" + preserveCtx();
+
+  var BASE = (window.VAC_API || "https://vac-system-production.up.railway.app");
+  var orgId = sessionStorage.getItem("vac_org_id");
+
+  function authHeader() {
+    var t = localStorage.getItem("vac_session_token") || new URLSearchParams(location.search).get("token");
+    return t ? { Authorization: "Bearer " + t } : {};
+  }
+
+  function jsonHeaders() {
+    return Object.assign({ "Content-Type": "application/json" }, authHeader());
+  }
+
+  function show(el) { el.style.display = ""; }
+  function hide(el) { el.style.display = "none"; }
+
+  function showMsg(el, text, type, isHtml) {
+    el.className = "msg " + type;
+    if (isHtml) { el.innerHTML = text; } else { el.textContent = text; }
+    show(el);
+  }
+
+  function clearMsg(el) { el.className = "msg"; el.textContent = ""; hide(el); }
+
+  function humanizeError(status, detail){
+    if(status===404) return "We couldn't find that organisation. The link may be out of date — you can start a new organisation below.";
+    if(status===409) return "An organisation with these details already exists.";
+    if(status===400) return "Some details couldn't be accepted: " + (detail||"") + ". Please check and try again.";
+    if(status>=500) return "Something went wrong on our side (Error " + status + "). Please try again in a moment.";
+    return (detail && detail.length>2) ? detail : ("Error " + status);
+  }
+
+  function handle401() {
+    location.href = "/auth.html?reason=session-expired";
+  }
+
+  function appendStartOrgLink(el) {
+    var a = document.createElement("a");
+    a.href = "/org-onboard.html";
+    a.textContent = "Start a new organisation →";
+    a.style.marginLeft = "6px";
+    el.appendChild(a);
+  }
+
+  /* ── Guard: must have orgId ── */
+  var orgIdPill = document.getElementById("orgIdPill");
+  if (!orgId) {
+    orgIdPill.textContent = "No org selected — return to console";
+    orgIdPill.style.color = "var(--coral)";
+    ["orgSettingsLoading","membersLoading"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) {
+        el.textContent = "No organisation selected. ";
+        el.className = "state-box error";
+        var a = document.createElement("a");
+        a.href = "/org-onboard.html";
+        a.textContent = "Start a new organisation →";
+        el.appendChild(a);
+      }
+    });
+    return;
+  }
+  orgIdPill.textContent = "org_id: " + orgId;
+
+  /* ═══════════════════════════════════════════════
+     SECTION 1 — ORG SETTINGS
+  ═══════════════════════════════════════════════ */
+  var orgSettingsLoading = document.getElementById("orgSettingsLoading");
+  var orgSettingsError   = document.getElementById("orgSettingsError");
+  var orgSettingsForm    = document.getElementById("orgSettingsForm");
+  var orgSaveBtn         = document.getElementById("orgSaveBtn");
+  var orgSaveSpinner     = document.getElementById("orgSaveSpinner");
+  var orgSettingsMsg     = document.getElementById("orgSettingsMsg");
+
+  /* Track what the server returned so we can diff on PATCH */
+  var _serverOrgData = {};
+
+  /* Exposed so section 3 can read the live floor value */
+  function getCurrentFloor() {
+    return document.getElementById("minAuthFloor").value;
+  }
+
+  function populateOrgForm(data) {
+    _serverOrgData = data || {};
+    document.getElementById("orgName").value      = data.name        || "";
+    document.getElementById("orgStatus").value    = data.status      || "active";
+    document.getElementById("minAuthFloor").value = data.min_auth_floor || "none";
+  }
+
+  fetch(BASE + "/v1/orgs/" + encodeURIComponent(orgId), { headers: authHeader() })
+    .then(function (res) {
+      if (res.status === 401) { handle401(); return null; }
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          var detail = (data && (data.detail || data.error || data.message)) || "";
+          var msg = humanizeError(res.status, detail);
+          hide(orgSettingsLoading);
+          orgSettingsError.textContent = msg;
+          if (res.status === 404) appendStartOrgLink(orgSettingsError);
+          show(orgSettingsError);
+          return null;
+        }
+        return data;
+      });
+    })
+    .then(function (data) {
+      if (!data) return;
+      hide(orgSettingsLoading);
+      populateOrgForm(data);
+      show(orgSettingsForm);
+    })
+    .catch(function (err) {
+      hide(orgSettingsLoading);
+      orgSettingsError.textContent = "Network error: " + err.message;
+      show(orgSettingsError);
+    });
+
+  orgSettingsForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearMsg(orgSettingsMsg);
+
+    var name         = document.getElementById("orgName").value.trim();
+    var status       = document.getElementById("orgStatus").value;
+    var minAuthFloor = document.getElementById("minAuthFloor").value;
+
+    /* Build patch body of only changed fields */
+    var patch = {};
+    if (name         !== (_serverOrgData.name         || ""))               patch.name           = name;
+    if (status       !== (_serverOrgData.status        || "active"))         patch.status         = status;
+    if (minAuthFloor !== (_serverOrgData.min_auth_floor || "none"))          patch.min_auth_floor = minAuthFloor;
+
+    if (!Object.keys(patch).length) {
+      showMsg(orgSettingsMsg, "No changes to save.", "success");
+      return;
+    }
+
+    orgSaveBtn.disabled = true;
+    show(orgSaveSpinner);
+
+    fetch(BASE + "/v1/orgs/" + encodeURIComponent(orgId), {
+      method: "PATCH",
+      headers: jsonHeaders(),
+      body: JSON.stringify(patch)
+    })
+      .then(function (res) {
+        if (res.status === 401) { handle401(); return null; }
+        return res.json().then(function (data) {
+          if (!res.ok) {
+            var detail = (data && (data.detail || data.error || data.message)) || "";
+            var msg = humanizeError(res.status, detail);
+            showMsg(orgSettingsMsg, msg, "error");
+            return null;
+          }
+          return data;
+        });
+      })
+      .then(function (data) {
+        if (!data) return;
+        populateOrgForm(data);
+        showMsg(orgSettingsMsg, "Settings saved.", "success");
+      })
+      .catch(function (err) {
+        showMsg(orgSettingsMsg, "Network error: " + err.message, "error");
+      })
+      .finally(function () {
+        orgSaveBtn.disabled = false;
+        hide(orgSaveSpinner);
+      });
+  });
+
+  /* ═══════════════════════════════════════════════
+     SECTION 2 — MEMBERS & ROLES
+  ═══════════════════════════════════════════════ */
+  var membersLoading    = document.getElementById("membersLoading");
+  var membersError      = document.getElementById("membersError");
+  var membersEmpty      = document.getElementById("membersEmpty");
+  var membersTableWrap  = document.getElementById("membersTableWrap");
+  var membersTbody      = document.getElementById("membersTbody");
+  var memberActionMsg   = document.getElementById("memberActionMsg");
+
+  function renderMembersTable(members) {
+    membersTbody.innerHTML = "";
+    members.forEach(function (m) {
+      var email  = m.email || m.user_email || "";
+      var role   = m.role  || "member";
+      var status = m.status || "";
+
+      var tr = document.createElement("tr");
+
+      /* Email */
+      var tdEmail = document.createElement("td");
+      tdEmail.style.fontFamily = "var(--mono)";
+      tdEmail.style.fontSize   = "12px";
+      tdEmail.textContent = email;
+      tr.appendChild(tdEmail);
+
+      /* Role select */
+      var tdRole = document.createElement("td");
+      var sel = document.createElement("select");
+      sel.className = "role-select";
+      ["owner","admin","member"].forEach(function (r) {
+        var opt = document.createElement("option");
+        opt.value = r; opt.textContent = r;
+        if (r === role) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener("change", function () {
+        var newRole = sel.value;
+        sel.disabled = true;
+        clearMsg(memberActionMsg);
+        fetch(BASE + "/v1/orgs/" + encodeURIComponent(orgId) + "/members/" + encodeURIComponent(email), {
+          method: "PATCH",
+          headers: jsonHeaders(),
+          body: JSON.stringify({ role: newRole })
+        })
+          .then(function (res) {
+            if (res.status === 401) { handle401(); return null; }
+            return res.json().then(function (data) {
+              if (!res.ok) {
+                var detail = (data && (data.detail || data.error || data.message)) || "";
+                var msg = humanizeError(res.status, detail);
+                showMsg(memberActionMsg, msg, "error");
+                sel.value = role; /* revert */
+                return null;
+              }
+              return data;
+            });
+          })
+          .then(function (data) {
+            if (!data) return;
+            showMsg(memberActionMsg, email + " role updated to " + newRole + ".", "success");
+            role = newRole; /* update local reference */
+          })
+          .catch(function (err) {
+            showMsg(memberActionMsg, "Network error: " + err.message, "error");
+            sel.value = role;
+          })
+          .finally(function () { sel.disabled = false; });
+      });
+      tdRole.appendChild(sel);
+      tr.appendChild(tdRole);
+
+      /* Status badge */
+      var tdStatus = document.createElement("td");
+      if (status) {
+        var badge = document.createElement("span");
+        badge.className = "badge badge-" + status;
+        badge.textContent = status;
+        tdStatus.appendChild(badge);
+      }
+      tr.appendChild(tdStatus);
+
+      /* Remove button */
+      var tdAction = document.createElement("td");
+      var removeBtn = document.createElement("button");
+      removeBtn.className = "btn-danger";
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener("click", function () {
+        if (!confirm("Remove " + email + " from this organisation?")) return;
+        removeBtn.disabled = true;
+        clearMsg(memberActionMsg);
+        fetch(BASE + "/v1/orgs/" + encodeURIComponent(orgId) + "/members/" + encodeURIComponent(email), {
+          method: "DELETE",
+          headers: authHeader()
+        })
+          .then(function (res) {
+            if (res.status === 401) { handle401(); return null; }
+            /* 204 No Content is success; parse body only if present */
+            if (res.status === 204) return {};
+            return res.json().then(function (data) {
+              if (!res.ok) {
+                var detail = (data && (data.detail || data.error || data.message)) || "";
+                var msg = humanizeError(res.status, detail);
+                showMsg(memberActionMsg, msg, "error");
+                removeBtn.disabled = false;
+                return null;
+              }
+              return data;
+            });
+          })
+          .then(function (data) {
+            if (data === null) return;
+            showMsg(memberActionMsg, email + " removed.", "success");
+            tr.remove();
+            if (!membersTbody.querySelectorAll("tr").length) {
+              hide(membersTableWrap);
+              show(membersEmpty);
+            }
+          })
+          .catch(function (err) {
+            showMsg(memberActionMsg, "Network error: " + err.message, "error");
+            removeBtn.disabled = false;
+          });
+      });
+      tdAction.appendChild(removeBtn);
+      tr.appendChild(tdAction);
+
+      membersTbody.appendChild(tr);
+    });
+  }
+
+  fetch(BASE + "/v1/orgs/" + encodeURIComponent(orgId) + "/members", { headers: authHeader() })
+    .then(function (res) {
+      if (res.status === 401) { handle401(); return null; }
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          var detail = (data && (data.detail || data.error || data.message)) || "";
+          var msg = humanizeError(res.status, detail);
+          hide(membersLoading);
+          membersError.textContent = msg;
+          if (res.status === 404) appendStartOrgLink(membersError);
+          show(membersError);
+          return null;
+        }
+        return data;
+      });
+    })
+    .then(function (data) {
+      if (!data) return;
+      hide(membersLoading);
+      var list = Array.isArray(data) ? data : (data.members || data.items || []);
+      if (!list.length) {
+        show(membersEmpty);
+        return;
+      }
+      renderMembersTable(list);
+      show(membersTableWrap);
+    })
+    .catch(function (err) {
+      hide(membersLoading);
+      membersError.textContent = "Network error: " + err.message;
+      show(membersError);
+    });
+
+}());
+</script>
+</body>
+</html>

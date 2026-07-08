@@ -183,6 +183,22 @@
     {
       "source": "/vat-verify",
       "destination": "/vat-verify.html"
+    },
+    {
+      "source": "/org-onboard",
+      "destination": "/org-onboard.html"
+    },
+    {
+      "source": "/org-invite",
+      "destination": "/org-invite.html"
+    },
+    {
+      "source": "/org-console",
+      "destination": "/org-console.html"
+    },
+    {
+      "source": "/org-config",
+      "destination": "/org-config.html"
     }
   ],
   "redirects": [
