@@ -726,10 +726,26 @@ const _FINGER_GUIDE_LM = [
 // Draw a high-contrast dashed target guide for digit n on an existing 2D context (already sized).
 // Called BEFORE the live skeleton so the solid live hand paints on top.
 // SECURITY: operates on a canvas 2D context only — never called with a captured-frame canvas.
-function _drawFingerTargetGuide(ctx, w, h, n) {
+// lm: live MediaPipe landmarks (21 pts) or null/undefined. When present, guide snaps to the
+// detected hand's cheek side and mirrors to match handedness. Default: screen-right cheek.
+function _drawFingerTargetGuide(ctx, w, h, n, lm) {
     if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 5) return;
     var tmpl = _FINGER_GUIDE_LM[Math.round(n)];
     if (!tmpl) return;
+    // Side from live hand centroid; default screen-right before any detection.
+    // Template natural center x ≈ 0.45 (bbox midpoint). Right: shift +0.30 → guide at ~0.75.
+    // Left: mirror around 0.5 (mirrored center = 0.55) then shift -0.30 → guide at ~0.25.
+    // Both keep the guide off the face-oval (centered at 0.5) and beside the cheek.
+    var _guideRight = true;
+    if (lm && lm.length === 21) {
+        var _lcx = 0;
+        for (var _li = 0; _li < 21; _li++) _lcx += lm[_li].x;
+        _guideRight = (_lcx / 21) >= 0.5;
+    }
+    function _gx(tx) {
+        var x = _guideRight ? (tx + 0.30) : (0.70 - tx);
+        return Math.max(0, Math.min(1, x)) * w;
+    }
     ctx.save();
     try {
     // Dark halo underlay — makes the bright stroke readable on any camera background
@@ -740,8 +756,8 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     for (var _gi = 0; _gi < _AV_HAND_CONN.length; _gi++) {
         var _ga = _AV_HAND_CONN[_gi][0], _gb = _AV_HAND_CONN[_gi][1];
         ctx.beginPath();
-        ctx.moveTo(tmpl[_ga].x * w, tmpl[_ga].y * h);
-        ctx.lineTo(tmpl[_gb].x * w, tmpl[_gb].y * h);
+        ctx.moveTo(_gx(tmpl[_ga].x), tmpl[_ga].y * h);
+        ctx.lineTo(_gx(tmpl[_gb].x), tmpl[_gb].y * h);
         ctx.stroke();
     }
     // Bright yellow dashed outline on top
@@ -753,8 +769,8 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     for (var _gi2 = 0; _gi2 < _AV_HAND_CONN.length; _gi2++) {
         var _ga2 = _AV_HAND_CONN[_gi2][0], _gb2 = _AV_HAND_CONN[_gi2][1];
         ctx.beginPath();
-        ctx.moveTo(tmpl[_ga2].x * w, tmpl[_ga2].y * h);
-        ctx.lineTo(tmpl[_gb2].x * w, tmpl[_gb2].y * h);
+        ctx.moveTo(_gx(tmpl[_ga2].x), tmpl[_ga2].y * h);
+        ctx.lineTo(_gx(tmpl[_gb2].x), tmpl[_gb2].y * h);
         ctx.stroke();
     }
     ctx.setLineDash([]);
@@ -764,18 +780,18 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     var _gr = Math.max(4, w * 0.009);
     for (var _gj = 0; _gj < tmpl.length; _gj++) {
         ctx.beginPath();
-        ctx.arc(tmpl[_gj].x * w, tmpl[_gj].y * h, _gr + 2, 0, 6.283);
+        ctx.arc(_gx(tmpl[_gj].x), tmpl[_gj].y * h, _gr + 2, 0, 6.283);
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fill();
         ctx.beginPath();
-        ctx.arc(tmpl[_gj].x * w, tmpl[_gj].y * h, _gr, 0, 6.283);
+        ctx.arc(_gx(tmpl[_gj].x), tmpl[_gj].y * h, _gr, 0, 6.283);
         ctx.fillStyle = 'rgba(255,214,10,0.95)';
         ctx.fill();
     }
     // Text prompt — bright yellow on dark pill, near the top so the hand outline stays clear
     var _n0 = Math.round(n);
-    var _msg = _n0 === 0 ? 'Make a fist — close all fingers'
-                         : 'Match your hand to the outline — show ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's');
+    var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
+                         : 'Hold your hand up beside your cheek — show ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's');
     var _fs = Math.max(13, Math.round(w * 0.036));
     ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
     ctx.textAlign = 'center';
@@ -822,7 +838,7 @@ function _drawHandSkeletonShared(videoEl, lm, targetN){
     if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
     ctx.clearRect(0,0,cv.width,cv.height);
     // Two-zone guide: draw target BEFORE live skeleton so solid live hand paints on top.
-    try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN); } catch(_){}
+    try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, lm); } catch(_){}
     if(!lm) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
@@ -2130,7 +2146,7 @@ function beginRecording() {
         if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
         ctx.clearRect(0,0,cv.width,cv.height);
         // Two-zone guide: draw target BEFORE live skeleton so solid live hand paints on top.
-        try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN); } catch(_){}
+        try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, lm); } catch(_){}
         if(!lm) return;
         ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
         for(const [a,b] of _HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
