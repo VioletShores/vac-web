@@ -663,7 +663,7 @@ function startAVChecks() {
                         let _ckFin = lm.length === 21;
                         if (_ckFin) { for (let _ci = 0; _ci < 21 && _ckFin; _ci++) { if (!lm[_ci] || !Number.isFinite(lm[_ci].x) || !Number.isFinite(lm[_ci].y)) _ckFin = false; } }
                         if (_ckFin) { setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none'; }
-                        else { setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — keep all fingers in view'; document.getElementById('avHandHint').style.display='block'; }
+                        else { setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
                     }
                 } else {
                     _camBox.classList.remove('hand-in-zone');
@@ -798,23 +798,24 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
                  :             'Hold your hand beside your cheek';
         var _fs = Math.max(13, Math.round(w * 0.036));
         ctx.save();
-        ctx.translate(w, 0);
-        ctx.scale(-1, 1);
-        ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        var _tx = w * 0.5, _ty = Math.max(28, h * 0.055);
-        var _tw = ctx.measureText(_msg).width;
-        var _pad = Math.max(8, w * 0.018);
-        ctx.fillStyle = 'rgba(0,0,0,0.68)';
-        ctx.fillRect((w - _tx) - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
-        ctx.shadowColor = 'rgba(0,0,0,0.85)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 1;
-        ctx.shadowOffsetY = 1;
-        ctx.fillStyle = 'rgba(255,214,10,0.97)';
-        ctx.fillText(_msg, w - _tx, _ty);
-        ctx.restore();
+        try {
+            ctx.translate(w, 0);
+            ctx.scale(-1, 1);
+            ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            var _tx = w * 0.5, _ty = Math.max(28, h * 0.055);
+            var _tw = ctx.measureText(_msg).width;
+            var _pad = Math.max(8, w * 0.018);
+            ctx.fillStyle = 'rgba(0,0,0,0.68)';
+            ctx.fillRect((w - _tx) - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
+            ctx.shadowColor = 'rgba(0,0,0,0.85)';
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 1;
+            ctx.shadowOffsetY = 1;
+            ctx.fillStyle = 'rgba(255,214,10,0.97)';
+            ctx.fillText(_msg, w - _tx, _ty);
+        } finally { ctx.restore(); }
     } finally { ctx.restore(); }
 }
 function _avDrawHand(videoEl, lm){
