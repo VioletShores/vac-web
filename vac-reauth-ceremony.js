@@ -731,75 +731,67 @@ function _guideSide(lm){
     var _sx = 0; for (var _si = 0; _si < lm.length; _si++) _sx += lm[_si].x;
     return (_sx / lm.length) < 0.5 ? 'left' : 'right';
 }
-function _drawFingerTargetGuide(ctx, w, h, n, side) {
-    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 5) return;
-    var tmpl = _FINGER_GUIDE_LM[Math.round(n)];
-    if (!tmpl) return;
-    // Position BESIDE a cheek (clear of the face-oval). 'left'/'right' = screen side of the
-    // user's hand; mirror the template for the left cheek so it reads as that hand. Default right.
-    var _left = (side === 'left');
-    var pts = tmpl.map(function(p){ var nx = _left ? (0.71 - p.x) : (p.x + 0.29); return { x: nx, y: p.y }; });
+// F-755: static purple oval guide — replaces the live hand-skeleton template.
+// Two ovals, one beside each cheek (clear of the face-oval RX=0.32 RY=0.40).
+// lm (optional 6th arg): current MediaPipe landmarks; drives the confident glow when
+// all 21 are finite AND _handNearFaceZone passes. Advisory UX only — no verdict impact.
+function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
+    // Landmark-completeness floor for the confident glow (advisory).
+    var _confident = false;
+    if (lm && lm.length === 21) {
+        var _allFin = true;
+        for (var _li = 0; _li < 21 && _allFin; _li++) {
+            if (!lm[_li] || !Number.isFinite(lm[_li].x) || !Number.isFinite(lm[_li].y)) _allFin = false;
+        }
+        if (_allFin) { try { _confident = _handNearFaceZone(lm); } catch(_){} }
+    }
+    // Two static ovals, one beside each cheek.
+    var _ovals = [
+        { cx: 0.18, side: 'left'  },
+        { cx: 0.82, side: 'right' }
+    ];
+    var _cy = 0.48, _radX = 0.10, _radY = 0.14;
     ctx.save();
     try {
-    // Dark halo underlay — makes the bright stroke readable on any camera background
-    ctx.strokeStyle = 'rgba(0,0,0,0.70)';
-    ctx.lineWidth = Math.max(7, w * 0.014);
-    ctx.setLineDash([9, 7]);
-    ctx.shadowColor = 'transparent';
-    for (var _gi = 0; _gi < _AV_HAND_CONN.length; _gi++) {
-        var _ga = _AV_HAND_CONN[_gi][0], _gb = _AV_HAND_CONN[_gi][1];
-        ctx.beginPath();
-        ctx.moveTo(pts[_ga].x * w, pts[_ga].y * h);
-        ctx.lineTo(pts[_gb].x * w, pts[_gb].y * h);
-        ctx.stroke();
-    }
-    // Bright yellow dashed outline on top
-    ctx.strokeStyle = 'rgba(255,214,10,0.95)';
-    ctx.lineWidth = Math.max(3, w * 0.007);
-    ctx.setLineDash([9, 7]);
-    ctx.shadowColor = 'rgba(255,214,10,0.6)';
-    ctx.shadowBlur = 6;
-    for (var _gi2 = 0; _gi2 < _AV_HAND_CONN.length; _gi2++) {
-        var _ga2 = _AV_HAND_CONN[_gi2][0], _gb2 = _AV_HAND_CONN[_gi2][1];
-        ctx.beginPath();
-        ctx.moveTo(pts[_ga2].x * w, pts[_ga2].y * h);
-        ctx.lineTo(pts[_gb2].x * w, pts[_gb2].y * h);
-        ctx.stroke();
-    }
-    ctx.setLineDash([]);
-    ctx.shadowBlur = 0;
-    ctx.shadowColor = 'transparent';
-    // Joint dots — dark halo then bright yellow fill
-    var _gr = Math.max(4, w * 0.009);
-    for (var _gj = 0; _gj < pts.length; _gj++) {
-        ctx.beginPath();
-        ctx.arc(pts[_gj].x * w, pts[_gj].y * h, _gr + 2, 0, 6.283);
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(pts[_gj].x * w, pts[_gj].y * h, _gr, 0, 6.283);
-        ctx.fillStyle = 'rgba(255,214,10,0.95)';
-        ctx.fill();
-    }
-    // Text prompt — bright yellow on dark pill, near the top so the hand outline stays clear
-    var _n0 = Math.round(n);
-    var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
-                         : 'Hold your hand beside your cheek — show ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's');
-    var _fs = Math.max(13, Math.round(w * 0.036));
-    ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    var _tx = w * 0.5, _ty = Math.max(28, h * 0.055);
-    var _tw = ctx.measureText(_msg).width;
-    var _pad = Math.max(8, w * 0.018);
-    ctx.fillStyle = 'rgba(0,0,0,0.68)';
-    ctx.fillRect(_tx - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
-    ctx.shadowColor = 'rgba(0,0,0,0.85)';
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
-    ctx.fillStyle = 'rgba(255,214,10,0.97)';
-    ctx.fillText(_msg, _tx, _ty);
+        for (var _oi = 0; _oi < _ovals.length; _oi++) {
+            var _ov = _ovals[_oi];
+            var _active = (_ov.side === side);
+            var _glow = _active && _confident;
+            var _cx = _ov.cx * w, _ocx2 = _cy * h;
+            var _rx = _radX * w, _ry = _radY * h;
+            ctx.beginPath();
+            ctx.ellipse(_cx, _ocx2, _rx, _ry, 0, 0, 6.283);
+            ctx.fillStyle = _glow ? 'rgba(108,92,231,0.28)' : 'rgba(108,92,231,0.10)';
+            ctx.shadowColor = _glow ? '#6C5CE7' : 'transparent';
+            ctx.shadowBlur  = _glow ? Math.max(18, w * 0.04) : 0;
+            ctx.fill();
+            ctx.strokeStyle = _glow ? '#6C5CE7' : 'rgba(108,92,231,0.60)';
+            ctx.lineWidth   = _glow ? Math.max(3, w * 0.006) : Math.max(2, w * 0.004);
+            ctx.shadowBlur  = _glow ? Math.max(10, w * 0.02) : 0;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = 'transparent';
+        }
+        // Text prompt
+        var _n0 = (typeof n === 'number' && Number.isFinite(n)) ? Math.round(n) : -1;
+        var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
+                 : _n0 > 0  ? 'Hold ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's') + ' beside your cheek'
+                 :             'Hold your hand beside your cheek';
+        var _fs = Math.max(13, Math.round(w * 0.036));
+        ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        var _tx = w * 0.5, _ty = Math.max(28, h * 0.055);
+        var _tw = ctx.measureText(_msg).width;
+        var _pad = Math.max(8, w * 0.018);
+        ctx.fillStyle = 'rgba(0,0,0,0.68)';
+        ctx.fillRect(_tx - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
+        ctx.shadowColor = 'rgba(0,0,0,0.85)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+        ctx.fillStyle = 'rgba(255,214,10,0.97)';
+        ctx.fillText(_msg, _tx, _ty);
     } finally { ctx.restore(); }
 }
 function _avDrawHand(videoEl, lm){
@@ -830,13 +822,8 @@ function _drawHandSkeletonShared(videoEl, lm, targetN){
     const ctx=cv._ctx;
     if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
     ctx.clearRect(0,0,cv.width,cv.height);
-    // Two-zone guide: draw target BEFORE live skeleton so solid live hand paints on top.
-    try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm)); } catch(_){}
-    if(!lm) return;
-    ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
-    for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
-    const r=Math.max(5, cv.width*0.011);
-    for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
+    // F-755: static oval guide only — live skeleton suppressed.
+    try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm), lm); } catch(_){}
 }
 
 // ── F-671 Phase A: shared capture-feedback presentation. Lifted VERBATIM from
@@ -2138,13 +2125,8 @@ function beginRecording() {
         const ctx=cv._ctx;
         if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
         ctx.clearRect(0,0,cv.width,cv.height);
-        // Two-zone guide: draw target BEFORE live skeleton so solid live hand paints on top.
-        try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm)); } catch(_){}
-        if(!lm) return;
-        ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
-        for(const [a,b] of _HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
-        const r=Math.max(5, cv.width*0.011);
-        for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
+        // F-755: static oval guide only — live skeleton suppressed.
+        try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm), lm); } catch(_){}
     }
 
     let _detLoopFrames = 0;  // telemetry only
@@ -2164,6 +2146,20 @@ function beginRecording() {
         // detected === -1 means no hand in frame; landmarks null otherwise.
         var _handPresent = !!FingerDetector.landmarks;
         var _handNear = _handPresent && _handNearFaceZone(FingerDetector.landmarks);
+        // F-755: per-frame instrumentation (advisory; never fed to server clip).
+        try {
+            var _f755lm = FingerDetector.landmarks;
+            var _f755count = _f755lm ? _f755lm.length : 0;
+            var _f755confident = false;
+            if (_f755lm && _f755count === 21) {
+                var _f755fin = true;
+                for (var _f755i = 0; _f755i < 21 && _f755fin; _f755i++) {
+                    if (!_f755lm[_f755i] || !Number.isFinite(_f755lm[_f755i].x) || !Number.isFinite(_f755lm[_f755i].y)) _f755fin = false;
+                }
+                if (_f755fin) _f755confident = _handNear;
+            }
+            console.debug('[VAC-DBG] f755_frame', { landmark_count: _f755count, hand_near_face: _handNear, confident: _f755confident });
+        } catch(_) {}
         try {
             var _camBox = document.getElementById('cameraBoxRec');
             _camBox.classList.toggle('hand-visible', _handPresent);
