@@ -658,7 +658,13 @@ function startAVChecks() {
                         setAVStatus('hand','warn','Hand: in front of face'); document.getElementById('avHandHint').textContent='✋ Hold your hand up in front of your face'; document.getElementById('avHandHint').style.display='block';
                     } else if (clipped || tooBig) { setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
                     else if (tooSmall) { setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
-                    else { setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none'; }
+                    else {
+                        // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
+                        let _ckFin = lm.length === 21;
+                        if (_ckFin) { for (let _ci = 0; _ci < 21 && _ckFin; _ci++) { if (!lm[_ci] || !Number.isFinite(lm[_ci].x) || !Number.isFinite(lm[_ci].y)) _ckFin = false; } }
+                        if (_ckFin) { setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none'; }
+                        else { setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — keep all fingers in view'; document.getElementById('avHandHint').style.display='block'; }
+                    }
                 } else {
                     _camBox.classList.remove('hand-in-zone');
                     document.getElementById('avHandHint').style.display='block';
@@ -772,12 +778,28 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
         }
-        // Text prompt
+        // F-755b: gated live skeleton — teal lines + purple dots only when 21 finite AND hand near face (same floor as _confident)
+        if (_confident && lm) {
+            ctx.strokeStyle = 'rgba(0,206,201,0.85)';
+            ctx.lineWidth = Math.max(4, w * 0.008);
+            for (var _sci = 0; _sci < _AV_HAND_CONN.length; _sci++) {
+                var _sa = _AV_HAND_CONN[_sci][0], _sb = _AV_HAND_CONN[_sci][1];
+                ctx.beginPath(); ctx.moveTo(lm[_sa].x * w, lm[_sa].y * h); ctx.lineTo(lm[_sb].x * w, lm[_sb].y * h); ctx.stroke();
+            }
+            var _sr = Math.max(5, w * 0.011);
+            for (var _sj = 0; _sj < lm.length; _sj++) {
+                ctx.beginPath(); ctx.arc(lm[_sj].x * w, lm[_sj].y * h, _sr, 0, 7); ctx.fillStyle = '#6C5CE7'; ctx.fill();
+            }
+        }
+        // Text prompt — counter-flip so words read forward (canvas has CSS scaleX(-1); ovals/skeleton stay mirrored)
         var _n0 = (typeof n === 'number' && Number.isFinite(n)) ? Math.round(n) : -1;
         var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
                  : _n0 > 0  ? 'Hold ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's') + ' beside your cheek'
                  :             'Hold your hand beside your cheek';
         var _fs = Math.max(13, Math.round(w * 0.036));
+        ctx.save();
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
         ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -785,13 +807,14 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         var _tw = ctx.measureText(_msg).width;
         var _pad = Math.max(8, w * 0.018);
         ctx.fillStyle = 'rgba(0,0,0,0.68)';
-        ctx.fillRect(_tx - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
+        ctx.fillRect((w - _tx) - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
         ctx.shadowColor = 'rgba(0,0,0,0.85)';
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 1;
         ctx.fillStyle = 'rgba(255,214,10,0.97)';
-        ctx.fillText(_msg, _tx, _ty);
+        ctx.fillText(_msg, w - _tx, _ty);
+        ctx.restore();
     } finally { ctx.restore(); }
 }
 function _avDrawHand(videoEl, lm){
@@ -802,6 +825,12 @@ function _avDrawHand(videoEl, lm){
     if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
     ctx.clearRect(0,0,cv.width,cv.height);
     if(!lm) return;
+    // F-755b: phantom-reject sweep — only draw skeleton when 21 finite landmarks AND hand near face zone; else clear only
+    let _avLmFin = lm.length === 21;
+    if (_avLmFin) { for (let _fi = 0; _fi < 21 && _avLmFin; _fi++) { if (!lm[_fi] || !Number.isFinite(lm[_fi].x) || !Number.isFinite(lm[_fi].y)) _avLmFin = false; } }
+    let _avZone = false;
+    if (_avLmFin) { try { _avZone = _handNearFaceZone(lm); } catch(_) {} }
+    if (!_avLmFin || !_avZone) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
