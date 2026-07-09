@@ -677,6 +677,80 @@ function startAVChecks() {
 
 // S110 (F-559): draw the hand skeleton on the pre-flight camera (the "impress" moment).
 const _AV_HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+// Lane A — two-zone capture: canonical spread-finger pose templates.
+// 21 normalized {x,y} landmarks per count (MediaPipe hand model order, 0=wrist).
+// Fingers are INDEX(5-8), MIDDLE(9-12), RING(13-16), PINKY(17-20), THUMB(1-4).
+// Extended = upward; folded = curled toward palm. All in normalized [0,1] space
+// centered within the hand zone (cx=0.50, cy≈0.50, zone is 64%×80% of the frame).
+// These are DISPLAY-ONLY canvas overlays — never composited into captured frames.
+const _FINGER_GUIDE_LM = [
+    // 0 — fist (all folded)
+    [{x:.50,y:.78},{x:.38,y:.70},{x:.30,y:.70},{x:.36,y:.68},{x:.42,y:.66},
+     {x:.40,y:.61},{x:.42,y:.57},{x:.44,y:.62},{x:.44,y:.65},
+     {x:.48,y:.59},{x:.50,y:.55},{x:.50,y:.61},{x:.50,y:.63},
+     {x:.56,y:.61},{x:.56,y:.56},{x:.56,y:.61},{x:.55,y:.63},
+     {x:.63,y:.64},{x:.62,y:.58},{x:.61,y:.63},{x:.59,y:.65}],
+    // 1 — index only
+    [{x:.50,y:.78},{x:.38,y:.70},{x:.30,y:.70},{x:.36,y:.68},{x:.42,y:.66},
+     {x:.40,y:.61},{x:.37,y:.49},{x:.35,y:.39},{x:.34,y:.30},
+     {x:.48,y:.59},{x:.50,y:.55},{x:.50,y:.61},{x:.50,y:.63},
+     {x:.56,y:.61},{x:.56,y:.56},{x:.56,y:.61},{x:.55,y:.63},
+     {x:.63,y:.64},{x:.62,y:.58},{x:.61,y:.63},{x:.59,y:.65}],
+    // 2 — index + middle
+    [{x:.50,y:.78},{x:.38,y:.70},{x:.30,y:.70},{x:.36,y:.68},{x:.42,y:.66},
+     {x:.40,y:.61},{x:.37,y:.49},{x:.35,y:.39},{x:.34,y:.30},
+     {x:.48,y:.59},{x:.46,y:.46},{x:.45,y:.36},{x:.44,y:.27},
+     {x:.56,y:.61},{x:.56,y:.56},{x:.56,y:.61},{x:.55,y:.63},
+     {x:.63,y:.64},{x:.62,y:.58},{x:.61,y:.63},{x:.59,y:.65}],
+    // 3 — index + middle + ring
+    [{x:.50,y:.78},{x:.38,y:.70},{x:.30,y:.70},{x:.36,y:.68},{x:.42,y:.66},
+     {x:.40,y:.61},{x:.37,y:.49},{x:.35,y:.39},{x:.34,y:.30},
+     {x:.48,y:.59},{x:.46,y:.46},{x:.45,y:.36},{x:.44,y:.27},
+     {x:.56,y:.61},{x:.57,y:.49},{x:.57,y:.39},{x:.58,y:.31},
+     {x:.63,y:.64},{x:.62,y:.58},{x:.61,y:.63},{x:.59,y:.65}],
+    // 4 — index + middle + ring + pinky
+    [{x:.50,y:.78},{x:.38,y:.70},{x:.30,y:.70},{x:.36,y:.68},{x:.42,y:.66},
+     {x:.40,y:.61},{x:.37,y:.49},{x:.35,y:.39},{x:.34,y:.30},
+     {x:.48,y:.59},{x:.46,y:.46},{x:.45,y:.36},{x:.44,y:.27},
+     {x:.56,y:.61},{x:.57,y:.49},{x:.57,y:.39},{x:.58,y:.31},
+     {x:.63,y:.64},{x:.65,y:.54},{x:.67,y:.46},{x:.68,y:.39}],
+    // 5 — all (thumb extended)
+    [{x:.50,y:.78},{x:.38,y:.70},{x:.32,y:.64},{x:.26,y:.57},{x:.22,y:.51},
+     {x:.40,y:.61},{x:.37,y:.49},{x:.35,y:.39},{x:.34,y:.30},
+     {x:.48,y:.59},{x:.46,y:.46},{x:.45,y:.36},{x:.44,y:.27},
+     {x:.56,y:.61},{x:.57,y:.49},{x:.57,y:.39},{x:.58,y:.31},
+     {x:.63,y:.64},{x:.65,y:.54},{x:.67,y:.46},{x:.68,y:.39}],
+];
+
+// Draw the faint dotted target guide for digit n on an existing 2D context (already sized).
+// Called BEFORE the live skeleton so the solid live hand paints on top.
+// SECURITY: operates on a canvas 2D context only — never called with a captured-frame canvas.
+function _drawFingerTargetGuide(ctx, w, h, n) {
+    if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 5) return;
+    var tmpl = _FINGER_GUIDE_LM[Math.round(n)];
+    if (!tmpl) return;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = Math.max(2, w * 0.005);
+    ctx.setLineDash([5, 5]);
+    for (var _gi = 0; _gi < _AV_HAND_CONN.length; _gi++) {
+        var _ga = _AV_HAND_CONN[_gi][0], _gb = _AV_HAND_CONN[_gi][1];
+        ctx.beginPath();
+        ctx.moveTo(tmpl[_ga].x * w, tmpl[_ga].y * h);
+        ctx.lineTo(tmpl[_gb].x * w, tmpl[_gb].y * h);
+        ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    var _gr = Math.max(3, w * 0.006);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for (var _gj = 0; _gj < tmpl.length; _gj++) {
+        ctx.beginPath();
+        ctx.arc(tmpl[_gj].x * w, tmpl[_gj].y * h, _gr, 0, 6.283);
+        ctx.fill();
+    }
+    ctx.restore();
+}
 function _avDrawHand(videoEl, lm){
     const cv=document.getElementById('avHandOverlay');
     if(!cv||!videoEl||!videoEl.videoWidth) return;
@@ -695,7 +769,7 @@ function _avDrawHand(videoEl, lm){
 // so the fast quick-reauth draws the SAME skeleton as the full/seal finger phase (Rob:
 // consistency). Identical to the beginRecording-scoped _drawHandSkeleton, lifted out so
 // beginStillCapture can call it too (it was nested, hence the fast path had no skeleton).
-function _drawHandSkeletonShared(videoEl, lm){
+function _drawHandSkeletonShared(videoEl, lm, targetN){
     // F-671 Phase B1: mount-scoped lookup so the WHOLE fast path is zero-document-global on the
     // embedded fast hosts (tribunal / vat-verify). This drawer is FAST-ONLY (called solely from
     // beginStillCapture); the FULL path uses its own nested _drawHandSkeleton, so this cannot affect it.
@@ -705,6 +779,8 @@ function _drawHandSkeletonShared(videoEl, lm){
     const ctx=cv._ctx;
     if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
     ctx.clearRect(0,0,cv.width,cv.height);
+    // Two-zone guide: draw target BEFORE live skeleton so solid live hand paints on top.
+    try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN); } catch(_){}
     if(!lm) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
@@ -2004,13 +2080,15 @@ function beginRecording() {
     // already used for counting; purely visual.
     const _HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
 
-    function _drawHandSkeleton(videoEl, lm){
+    function _drawHandSkeleton(videoEl, lm, targetN){
         const cv=document.getElementById('handOverlay');
         if(!cv||!videoEl) return;
         if(!cv._ctx) cv._ctx=cv.getContext('2d',{willReadFrequently:false});
         const ctx=cv._ctx;
         if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
         ctx.clearRect(0,0,cv.width,cv.height);
+        // Two-zone guide: draw target BEFORE live skeleton so solid live hand paints on top.
+        try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN); } catch(_){}
         if(!lm) return;
         ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4, cv.width*0.008);
         for(const [a,b] of _HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
@@ -2030,7 +2108,7 @@ function beginRecording() {
         // is the real gate). feedStable reuses the raw value — no second MediaPipe run.
         var _stableDetected = FingerDetector.feedStable(detected);
         if (_stableDetected === null || _stableDetected === undefined) _stableDetected = detected;
-        _drawHandSkeleton(videoEl, FingerDetector.landmarks);
+        _drawHandSkeleton(videoEl, FingerDetector.landmarks, digits[currentDigitIndex]);
         // Hand presence + near-face zone (advisory feedback only; server still gates).
         // detected === -1 means no hand in frame; landmarks null otherwise.
         var _handPresent = !!FingerDetector.landmarks;
@@ -2980,7 +3058,7 @@ async function beginStillCapture() {
                     try { _n = FingerDetector.detect(_gv); } catch(_) {}
                     // F-654: draw the SAME hand skeleton as the full/seal finger phase (consistency,
                     // Rob) via the top-level shared drawer (the beginRecording one is out of scope).
-                    try { if (FingerDetector.landmarks) _drawHandSkeletonShared(_gv, FingerDetector.landmarks); } catch(_) {}
+                    try { if (FingerDetector.landmarks) _drawHandSkeletonShared(_gv, FingerDetector.landmarks, _expectFingers); } catch(_) {}
                     // require the SAME count steady across consecutive ticks (not just presence)
                     if (typeof _n === 'number' && _n >= 0) {
                         if (_n === _lastSeen) _stable++; else _stable = 1;
@@ -4687,9 +4765,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
    that box (no letterboxing). Dashed teal until the hand is inside, then solid-green. */
 .hand-zone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64%; height: 80%; pointer-events: none; display: none; z-index: 5; }
 .camera-container.show-hand-zone .hand-zone { display: block; }
-/* One guide at a time: hide the face oval while the hand guide is active so the user
-   isn't looking at two concentric dotted ellipses during the gesture step. */
-.camera-container.show-hand-zone .face-oval { display: none; }
+/* Lane A two-zone: face oval remains visible alongside the hand guide during the gesture
+   step so the user places face AND hand in their respective zones simultaneously.
+   The purple face oval (inner) + teal hand oval (outer) form the two-zone guide. */
+.camera-container.show-hand-zone .face-oval { display: block; opacity: 0.7; }
 .hand-zone-ring { fill: none; stroke: var(--teal, #00cec9); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
 .camera-container.hand-in-zone .hand-zone-ring { stroke: var(--success); opacity: 0.9; }
 .hand-zone-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; transition: color 0.3s; }
