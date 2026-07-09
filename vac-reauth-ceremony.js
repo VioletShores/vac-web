@@ -723,7 +723,7 @@ const _FINGER_GUIDE_LM = [
      {x:.63,y:.64},{x:.65,y:.54},{x:.67,y:.46},{x:.68,y:.39}],
 ];
 
-// Draw the faint dotted target guide for digit n on an existing 2D context (already sized).
+// Draw a high-contrast dashed target guide for digit n on an existing 2D context (already sized).
 // Called BEFORE the live skeleton so the solid live hand paints on top.
 // SECURITY: operates on a canvas 2D context only — never called with a captured-frame canvas.
 function _drawFingerTargetGuide(ctx, w, h, n) {
@@ -731,9 +731,11 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     var tmpl = _FINGER_GUIDE_LM[Math.round(n)];
     if (!tmpl) return;
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    ctx.lineWidth = Math.max(2, w * 0.005);
-    ctx.setLineDash([5, 5]);
+    // Dark halo underlay — makes the bright stroke readable on any camera background
+    ctx.strokeStyle = 'rgba(0,0,0,0.70)';
+    ctx.lineWidth = Math.max(7, w * 0.014);
+    ctx.setLineDash([9, 7]);
+    ctx.shadowColor = 'transparent';
     for (var _gi = 0; _gi < _AV_HAND_CONN.length; _gi++) {
         var _ga = _AV_HAND_CONN[_gi][0], _gb = _AV_HAND_CONN[_gi][1];
         ctx.beginPath();
@@ -741,14 +743,49 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
         ctx.lineTo(tmpl[_gb].x * w, tmpl[_gb].y * h);
         ctx.stroke();
     }
+    // Bright yellow dashed outline on top
+    ctx.strokeStyle = 'rgba(255,214,10,0.95)';
+    ctx.lineWidth = Math.max(3, w * 0.007);
+    ctx.setLineDash([9, 7]);
+    ctx.shadowColor = 'rgba(255,214,10,0.6)';
+    ctx.shadowBlur = 6;
+    for (var _gi2 = 0; _gi2 < _AV_HAND_CONN.length; _gi2++) {
+        var _ga2 = _AV_HAND_CONN[_gi2][0], _gb2 = _AV_HAND_CONN[_gi2][1];
+        ctx.beginPath();
+        ctx.moveTo(tmpl[_ga2].x * w, tmpl[_ga2].y * h);
+        ctx.lineTo(tmpl[_gb2].x * w, tmpl[_gb2].y * h);
+        ctx.stroke();
+    }
     ctx.setLineDash([]);
-    var _gr = Math.max(3, w * 0.006);
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.shadowBlur = 0;
+    // Joint dots — dark halo then bright yellow fill
+    var _gr = Math.max(4, w * 0.009);
     for (var _gj = 0; _gj < tmpl.length; _gj++) {
         ctx.beginPath();
+        ctx.arc(tmpl[_gj].x * w, tmpl[_gj].y * h, _gr + 2, 0, 6.283);
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fill();
+        ctx.beginPath();
         ctx.arc(tmpl[_gj].x * w, tmpl[_gj].y * h, _gr, 0, 6.283);
+        ctx.fillStyle = 'rgba(255,214,10,0.95)';
         ctx.fill();
     }
+    // Text prompt — bright yellow on dark pill, near the top so the hand outline stays clear
+    var _n0 = Math.round(n);
+    var _msg = 'Match your hand to the outline — show ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's');
+    var _fs = Math.max(13, Math.round(w * 0.036));
+    ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    var _tx = w * 0.5, _ty = Math.max(28, h * 0.055);
+    var _tw = ctx.measureText(_msg).width;
+    var _pad = Math.max(8, w * 0.018);
+    ctx.fillStyle = 'rgba(0,0,0,0.68)';
+    ctx.fillRect(_tx - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = 'rgba(255,214,10,0.97)';
+    ctx.fillText(_msg, _tx, _ty);
     ctx.restore();
 }
 function _avDrawHand(videoEl, lm){
@@ -2706,7 +2743,7 @@ function beginRecording() {
             (function graceDraw(){
                 if (recordingStopped) return;
                 const gv = document.getElementById('videoPreviewRec');
-                try { FingerDetector.detect(gv); _drawHandSkeleton(gv, FingerDetector.landmarks); document.getElementById('cameraBoxRec').classList.toggle('hand-visible', !!FingerDetector.landmarks); } catch(_){}
+                try { FingerDetector.detect(gv); _drawHandSkeleton(gv, FingerDetector.landmarks, digits[currentDigitIndex]); document.getElementById('cameraBoxRec').classList.toggle('hand-visible', !!FingerDetector.landmarks); } catch(_){}
                 _graceDrawRAF = requestAnimationFrame(graceDraw);
             })();
             function renderGrace() {
