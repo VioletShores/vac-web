@@ -731,6 +731,7 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     var tmpl = _FINGER_GUIDE_LM[Math.round(n)];
     if (!tmpl) return;
     ctx.save();
+    try {
     // Dark halo underlay — makes the bright stroke readable on any camera background
     ctx.strokeStyle = 'rgba(0,0,0,0.70)';
     ctx.lineWidth = Math.max(7, w * 0.014);
@@ -758,6 +759,7 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     }
     ctx.setLineDash([]);
     ctx.shadowBlur = 0;
+    ctx.shadowColor = 'transparent';
     // Joint dots — dark halo then bright yellow fill
     var _gr = Math.max(4, w * 0.009);
     for (var _gj = 0; _gj < tmpl.length; _gj++) {
@@ -772,7 +774,8 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     }
     // Text prompt — bright yellow on dark pill, near the top so the hand outline stays clear
     var _n0 = Math.round(n);
-    var _msg = 'Match your hand to the outline — show ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's');
+    var _msg = _n0 === 0 ? 'Make a fist — close all fingers'
+                         : 'Match your hand to the outline — show ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's');
     var _fs = Math.max(13, Math.round(w * 0.036));
     ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
     ctx.textAlign = 'center';
@@ -782,11 +785,13 @@ function _drawFingerTargetGuide(ctx, w, h, n) {
     var _pad = Math.max(8, w * 0.018);
     ctx.fillStyle = 'rgba(0,0,0,0.68)';
     ctx.fillRect(_tx - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
-    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowColor = 'rgba(0,0,0,0.85)';
     ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
     ctx.fillStyle = 'rgba(255,214,10,0.97)';
     ctx.fillText(_msg, _tx, _ty);
-    ctx.restore();
+    } finally { ctx.restore(); }
 }
 function _avDrawHand(videoEl, lm){
     const cv=document.getElementById('avHandOverlay');
