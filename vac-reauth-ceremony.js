@@ -471,12 +471,21 @@ function _ptInHandZone(p) {
     const dx = (p.x - 0.5) / _HAND_ZONE_RX, dy = (p.y - 0.5) / _HAND_ZONE_RY;
     return (dx * dx + dy * dy) <= 1;
 }
+// F-755c: matches the two drawn purple cheek ovals (cx 0.18/0.82, cy 0.48) with a slight
+// margin so the gated skeleton fires when the hand is visually on either oval.
+const _CHEEK_ZONE_RX = 0.16, _CHEEK_ZONE_RY = 0.22;
+function _ptInCheekZone(p) {
+    const dxL = (p.x - 0.18) / _CHEEK_ZONE_RX, dyL = (p.y - 0.48) / _CHEEK_ZONE_RY;
+    if (dxL * dxL + dyL * dyL <= 1) return true;
+    const dxR = (p.x - 0.82) / _CHEEK_ZONE_RX, dyR = (p.y - 0.48) / _CHEEK_ZONE_RY;
+    return dxR * dxR + dyR * dyR <= 1;
+}
 function _handNearFaceZone(lm) {
     if (!lm || lm.length < 21) return false;
-    if (!_ptInHandZone(lm[0])) return false;        // wrist must be inside
+    if (!_ptInCheekZone(lm[0])) return false;       // wrist must be inside either cheek oval
     const tips = [4, 8, 12, 16, 20];                // thumb..pinky fingertips
     let inside = 0;
-    for (const t of tips) { if (_ptInHandZone(lm[t])) inside++; }
+    for (const t of tips) { if (_ptInCheekZone(lm[t])) inside++; }
     return inside >= 3;                             // majority of fingertips inside
 }
 
@@ -2157,6 +2166,25 @@ function beginRecording() {
         ctx.clearRect(0,0,cv.width,cv.height);
         // F-755: static oval guide only — live skeleton suppressed.
         try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm), lm); } catch(_){}
+        // F-755c: always-visible VAD RMS readout (display-only; no threshold change).
+        try {
+            var _rmsVal = _lastVadRms;
+            var _gate = (_rmsVal > vadSpeechThreshold) ? 'voiced'
+                      : (_rmsVal < vadSilenceThreshold) ? 'silent' : 'neither';
+            var _rmsText = 'rms ' + _rmsVal.toFixed(3) + '  voiceMs ' + _lastVoiceMs + '  gate ' + _gate;
+            var _rfsz = Math.max(11, Math.round(cv.width * 0.022));
+            ctx.save();
+            ctx.font = _rfsz + 'px monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            var _rtw = ctx.measureText(_rmsText).width;
+            var _rpad = 6;
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.fillRect(8, cv.height - _rfsz - _rpad * 2, _rtw + _rpad * 2, _rfsz + _rpad * 2);
+            ctx.fillStyle = (_gate === 'voiced') ? '#6C5CE7' : (_gate === 'silent') ? '#aaaaaa' : '#F4D03F';
+            ctx.fillText(_rmsText, 8 + _rpad, cv.height - _rpad);
+            ctx.restore();
+        } catch(_) {}
     }
 
     let _detLoopFrames = 0;  // telemetry only
