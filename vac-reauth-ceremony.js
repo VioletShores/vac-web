@@ -2167,6 +2167,8 @@ function beginRecording() {
         // F-755: static oval guide only — live skeleton suppressed.
         try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm), lm); } catch(_){}
         // F-755c: always-visible VAD RMS readout (display-only; no threshold change).
+        // Counter-flip matches _drawFingerTargetGuide's text — canvas has CSS scaleX(-1)
+        // so un-flipped text would appear mirrored and unreadable.
         try {
             var _rmsVal = _lastVadRms;
             var _gate = (_rmsVal > vadSpeechThreshold) ? 'voiced'
@@ -2174,16 +2176,19 @@ function beginRecording() {
             var _rmsText = 'rms ' + _rmsVal.toFixed(3) + '  voiceMs ' + _lastVoiceMs + '  gate ' + _gate;
             var _rfsz = Math.max(11, Math.round(cv.width * 0.022));
             ctx.save();
-            ctx.font = _rfsz + 'px monospace';
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'bottom';
-            var _rtw = ctx.measureText(_rmsText).width;
-            var _rpad = 6;
-            ctx.fillStyle = 'rgba(0,0,0,0.55)';
-            ctx.fillRect(8, cv.height - _rfsz - _rpad * 2, _rtw + _rpad * 2, _rfsz + _rpad * 2);
-            ctx.fillStyle = (_gate === 'voiced') ? '#6C5CE7' : (_gate === 'silent') ? '#aaaaaa' : '#F4D03F';
-            ctx.fillText(_rmsText, 8 + _rpad, cv.height - _rpad);
-            ctx.restore();
+            try {
+                ctx.translate(cv.width, 0);
+                ctx.scale(-1, 1);
+                ctx.font = _rfsz + 'px monospace';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                var _rtw = ctx.measureText(_rmsText).width;
+                var _rpad = 6;
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillRect(8, cv.height - _rfsz - _rpad * 2, _rtw + _rpad * 2, _rfsz + _rpad * 2);
+                ctx.fillStyle = (_gate === 'voiced') ? '#6C5CE7' : (_gate === 'silent') ? '#aaaaaa' : '#F4D03F';
+                ctx.fillText(_rmsText, 8 + _rpad, cv.height - _rpad);
+            } finally { ctx.restore(); }
         } catch(_) {}
     }
 
