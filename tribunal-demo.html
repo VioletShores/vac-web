@@ -486,7 +486,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     <section class="e2e-rail" style="max-width:900px;margin:46px auto 0;">
       <p class="section-label" style="text-align:center;">The full rail, end to end</p>
       <p style="text-align:center;color:var(--text-secondary);max-width:640px;margin:8px auto 26px;font-size:15px;line-height:1.6;">The identity step you just saw is one link in a chain. In a live deployment a firm sets up its organisation and connects its existing sign-on, delegates bounded authority to its people and agents, and every authority decision lands in a single accountability record it can audit.</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
         <a href="/org-onboard.html" style="text-decoration:none;display:block;background:var(--surface,#0F1620);border:1px solid var(--border,#233040);border-radius:12px;padding:20px;transition:border-color .15s;">
           <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">Set up · your existing sign-on</div>
           <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">How a firm onboards</div>
@@ -498,6 +498,12 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
           <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">The Accountability Console</div>
           <p style="font-size:13.5px;color:var(--text-secondary,#9FB0C4);line-height:1.5;margin:0;">Where every authority decision lands: the signed record of who authorised what, under which rules, and when — plus every refusal. A live, tamper-evident audit trail an auditor or a tribunal can read. Shows real records from the backend.</p>
           <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--teal,#2E9E6B);">Open the console &rarr;</div>
+        </a>
+        <a href="/developers.html" style="text-decoration:none;display:block;background:var(--surface,#0F1620);border:1px solid var(--border,#233040);border-radius:12px;padding:20px;transition:border-color .15s;">
+          <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">Build · for developers &amp; technical teams</div>
+          <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">The API &amp; developer SDK</div>
+          <p style="font-size:13.5px;color:var(--text-secondary,#9FB0C4);line-height:1.5;margin:0;">The same primitives as a developer API — issue scoped authority tokens, authenticate via API key, your SSO, or biometric, delegate human-to-agent, and pull the signed audit record. Ed25519-signed tokens anyone can verify.</p>
+          <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--teal,#2E9E6B);">Open the developer docs &rarr;</div>
         </a>
       </div>
     </section>
