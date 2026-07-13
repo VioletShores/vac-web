@@ -816,16 +816,29 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             var _glow = _active && _confident;
             var _cx = _ov.cx * w, _ocx2 = _cy * h;
             var _rx = _radX * w, _ry = _radY * h;
+            // F-755h2: only ONE oval reads as the target — the active side is bright,
+            // the inactive side is heavily dimmed so it never looks like "use both hands".
             ctx.beginPath();
             ctx.ellipse(_cx, _ocx2, _rx, _ry, 0, 0, 6.283);
-            ctx.fillStyle = _glow ? 'rgba(108,92,231,0.28)' : 'rgba(108,92,231,0.10)';
-            ctx.shadowColor = _glow ? '#6C5CE7' : 'transparent';
-            ctx.shadowBlur  = _glow ? Math.max(18, w * 0.04) : 0;
-            ctx.fill();
-            ctx.strokeStyle = _glow ? '#6C5CE7' : 'rgba(108,92,231,0.60)';
-            ctx.lineWidth   = _glow ? Math.max(3, w * 0.006) : Math.max(2, w * 0.004);
-            ctx.shadowBlur  = _glow ? Math.max(10, w * 0.02) : 0;
-            ctx.stroke();
+            if (_active) {
+                ctx.fillStyle = _glow ? 'rgba(108,92,231,0.28)' : 'rgba(108,92,231,0.12)';
+                ctx.shadowColor = _glow ? '#6C5CE7' : 'transparent';
+                ctx.shadowBlur  = _glow ? Math.max(18, w * 0.04) : 0;
+                ctx.fill();
+                ctx.strokeStyle = _glow ? '#6C5CE7' : 'rgba(108,92,231,0.75)';
+                ctx.lineWidth   = _glow ? Math.max(3, w * 0.006) : Math.max(2, w * 0.005);
+                ctx.shadowBlur  = _glow ? Math.max(10, w * 0.02) : 0;
+                ctx.stroke();
+            } else {
+                // inactive: faint ghost only
+                ctx.fillStyle = 'rgba(108,92,231,0.03)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(108,92,231,0.18)';
+                ctx.lineWidth = Math.max(1, w * 0.002);
+                ctx.setLineDash([Math.max(3, w*0.008), Math.max(3, w*0.008)]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
             ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
         }
@@ -880,14 +893,31 @@ function _avDrawHand(videoEl, lm){
     // Same geometry as _drawFingerTargetGuide (cx 0.18/0.82, cy 0.48, radX 0.10, radY 0.14).
     (function _drawAvCheekOvals(){
         const w=cv.width, h=cv.height;
-        const lw=Math.max(2,w*0.004);
+        // F-755h2: only ONE oval reads as target (never "use both hands").
+        // Pre-flight has no chosen digit-side, so light whichever cheek the hand is nearest;
+        // if no hand yet, both are shown dim-equal so nothing implies "both hands".
+        let _wristX = null;
+        if (lm && lm.length === 21 && lm[0] && Number.isFinite(lm[0].x)) _wristX = lm[0].x;
+        const _nearSide = _wristX === null ? null : (_wristX < 0.5 ? 0.18 : 0.82);
         ctx.save();
-        ctx.strokeStyle='rgba(108,92,231,0.60)'; ctx.lineWidth=lw;
-        ctx.fillStyle='rgba(108,92,231,0.10)';
         for(const cxN of [0.18,0.82]){
+            const _isActive = (_nearSide === null) ? null : (cxN === _nearSide);
             ctx.beginPath();
             ctx.ellipse(cxN*w, 0.48*h, 0.10*w, 0.14*h, 0, 0, Math.PI*2);
-            ctx.fill(); ctx.stroke();
+            if (_isActive === true) {
+                ctx.fillStyle='rgba(108,92,231,0.16)'; ctx.fill();
+                ctx.strokeStyle='rgba(108,92,231,0.80)'; ctx.lineWidth=Math.max(2,w*0.005);
+                ctx.setLineDash([]); ctx.stroke();
+            } else if (_isActive === false) {
+                ctx.fillStyle='rgba(108,92,231,0.03)'; ctx.fill();
+                ctx.strokeStyle='rgba(108,92,231,0.18)'; ctx.lineWidth=Math.max(1,w*0.002);
+                ctx.setLineDash([Math.max(3,w*0.008),Math.max(3,w*0.008)]); ctx.stroke(); ctx.setLineDash([]);
+            } else {
+                // no hand yet — both dim-equal, soft
+                ctx.fillStyle='rgba(108,92,231,0.07)'; ctx.fill();
+                ctx.strokeStyle='rgba(108,92,231,0.45)'; ctx.lineWidth=Math.max(2,w*0.004);
+                ctx.setLineDash([]); ctx.stroke();
+            }
         }
         ctx.restore();
     })();
