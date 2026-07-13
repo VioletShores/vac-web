@@ -19,10 +19,16 @@ let currentStep = 0;
 // otherwise, so the ceremony runs identically on hosts that don't have the overlay.
 const _QA_SHIM = { on:false, onEvent:function(){}, frame:function(){}, cal:function(){} };
 let QA = _QA_SHIM;
-// F-763c: self-enable QA at MODULE INIT from ?qa=1 — set here (not only in run()) so it applies
-// no matter which entry path the host uses (full run, fast direct path, embedded host). Dev-only:
-// real users / Caroline never pass ?qa=1, so the readouts stay hidden in production/demo.
-try { if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('qa') === '1') { QA = { on:true, onEvent:function(){}, frame:function(){}, cal:function(){} }; } } catch(_) {}
+// F-763c/e: self-enable QA at MODULE INIT from ?qa=1. The ceremony runs INSIDE an iframe (#voFrame)
+// whose own URL has no ?qa=1 — the flag is on the PARENT page URL. Check both the iframe's own search
+// AND the parent (same-origin, so window.top is readable). Dev-only; real users never pass ?qa=1.
+try {
+    var _qaFlag = false;
+    try { if (new URLSearchParams(window.location.search).get('qa') === '1') _qaFlag = true; } catch(_) {}
+    try { if (!_qaFlag && window.top && window.top !== window && new URLSearchParams(window.top.location.search).get('qa') === '1') _qaFlag = true; } catch(_) {}
+    try { if (!_qaFlag && document.referrer && document.referrer.indexOf('qa=1') !== -1) _qaFlag = true; } catch(_) {}
+    if (_qaFlag) QA = { on:true, onEvent:function(){}, frame:function(){}, cal:function(){} };
+} catch(_) {}
 
 // Identity for the moved ceremony code (was auth.html's form-reading userData()).
 function userData(){ return (CTX && CTX.identity) || { name:'', email:'', org:'', role:'' }; }
