@@ -452,6 +452,7 @@ let avAudioCtx = null;
 let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
+let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -501,6 +502,7 @@ function startAVChecks() {
     // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _handStableFrames = 0;
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
     setAVStatus('hand', 'checking', 'Hand');
@@ -554,8 +556,10 @@ function startAVChecks() {
         if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
         avAnalyser = avAudioCtx.createAnalyser();
         avAnalyser.fftSize = 256;
-        const avMonitorStream = mediaStream.clone();
-        const source = avAudioCtx.createMediaStreamSource(avMonitorStream);
+        // F-755d: do NOT clone — iOS Safari cloned track is dead (reads flat 0%).
+        // Build source from the original audio track directly.
+        const _atrk = mediaStream.getAudioTracks()[0];
+        const source = avAudioCtx.createMediaStreamSource(_atrk ? new MediaStream([_atrk]) : mediaStream);
         source.connect(avAnalyser);
     } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
 
@@ -585,6 +589,9 @@ function startAVChecks() {
             const pct = document.getElementById('avAudioPct');
             bar.style.width = level + '%';
             pct.textContent = level + '%';
+            // F-755d: always-visible RMS readout in the Mic pill so Rob can see level on iPhone
+            const _rmsEl = document.getElementById('avRmsReadout');
+            if (_rmsEl) _rmsEl.textContent = '(' + level + '%)';
             if (level > 80) { bar.style.background = 'var(--error)'; }
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
@@ -664,17 +671,27 @@ function startAVChecks() {
                     if (!_near) {
                         // Hand visible but OUTSIDE the in-front-of-face zone — the real constraint.
                         // Prompt + keep the Hand pill un-ticked so Start stays gated until it's in.
+                        _handStableFrames = 0;
                         setAVStatus('hand','warn','Hand: in front of face'); document.getElementById('avHandHint').textContent='✋ Hold your hand up in front of your face'; document.getElementById('avHandHint').style.display='block';
-                    } else if (clipped || tooBig) { setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
-                    else if (tooSmall) { setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
+                    } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
+                    else if (tooSmall) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
                     else {
                         // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
+                        // F-755d: stability gate — require 5 consecutive good frames so a flickering
+                        // face-phantom (which resets the counter) never reaches the ✓ tick.
                         let _ckFin = lm.length === 21;
                         if (_ckFin) { for (let _ci = 0; _ci < 21 && _ckFin; _ci++) { if (!lm[_ci] || !Number.isFinite(lm[_ci].x) || !Number.isFinite(lm[_ci].y)) _ckFin = false; } }
-                        if (_ckFin) { setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none'; }
-                        else { setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
+                        if (_ckFin) {
+                            _handStableFrames++;
+                            if (_handStableFrames >= 5) {
+                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none';
+                            } else {
+                                setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
+                            }
+                        } else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
                     }
                 } else {
+                    _handStableFrames = 0;
                     _camBox.classList.remove('hand-in-zone');
                     document.getElementById('avHandHint').style.display='block';
                     document.getElementById('avHandHint').textContent='Hold your hand up — we\u2019ll show you it being tracked';
@@ -4541,7 +4558,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <!-- Status pills — horizontal row -->
         <div style="display: flex; justify-content: space-between; gap: 6px;">
             <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
-            <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span></div>
+            <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span><span id="avRmsReadout" class="av-pill-value"></span></div>
             <div id="avPillHand" class="av-pill"><span id="avHandIcon" class="av-pill-icon spinning"></span><span id="avHandLabel">Hand</span></div>
         </div>
         <div id="avHandHint" style="display:none;text-align:center;font-size:12px;color:var(--teal);margin-top:8px;font-weight:500;">Hold your hand up — we'll show you it being tracked</div>
