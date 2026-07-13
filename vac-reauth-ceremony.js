@@ -689,7 +689,7 @@ function startAVChecks() {
                     const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
                     const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
                     // F-758: on-screen readout so Rob can tune the hand gate from real data (tick-zone vs framing).
-                    try { var _dbg = document.getElementById('vacHandDbg'); if (_dbg) _dbg.textContent = 'tick:'+(_tickNear?'Y':'N')+' size:'+((maxX-minX).toFixed(2))+'×'+((maxY-minY).toFixed(2))+' small:'+(tooSmall?'Y':'N')+' stable:'+_handStableFrames; } catch(_){}
+                    try { if (typeof QA !== 'undefined' && QA && QA.on) { var _dbg = document.getElementById('vacHandDbg'); if (_dbg) _dbg.textContent = 'tick:'+(_tickNear?'Y':'N')+' size:'+((maxX-minX).toFixed(2))+'×'+((maxY-minY).toFixed(2))+' small:'+(tooSmall?'Y':'N')+' stable:'+_handStableFrames; } } catch(_){}
                     if (!_tickNear) {
                         // Hand visible but OUTSIDE the wide tick zone — prompt to move beside cheek.
                         _handStableFrames = 0;
@@ -2266,10 +2266,13 @@ function beginRecording() {
         ctx.clearRect(0,0,cv.width,cv.height);
         // F-755: static oval guide only — live skeleton suppressed.
         try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm), lm); } catch(_){}
-        // F-755c/F-759: always-visible readout (display-only). Counter-flipped so it reads forward
-        // on the scaleX(-1) canvas, enlarged, and now includes the CLIENT finger count so we can see
-        // client-detected vs Gemini-seen (diagnoses the Gemini-saw-[] capture-timing bug).
+        // F-763 (SECURITY): the client finger count / mic readout is a QA-ONLY debug instrument.
+        // Showing real-time fingers:N to a live user hands an attacker a success/fail oracle on the
+        // detector (they can tune a spoof until it reads the target) AND exposes the forgeable client
+        // count. Gemini is the sole authority server-side, so this never gated the verdict — but it
+        // must NOT be visible in production/demo. Gate behind ?qa=1 (QA.on), same as other telemetry.
         try {
+          if (typeof QA !== 'undefined' && QA && QA.on) {
             var _rmsVal = _lastVadRms;
             var _gate = (_rmsVal > vadSpeechThreshold) ? 'voiced'
                       : (_rmsVal < vadSilenceThreshold) ? 'silent' : 'neither';
@@ -2289,6 +2292,7 @@ function beginRecording() {
             ctx.fillStyle = (_gate === 'voiced') ? '#8B7CF7' : (_gate === 'silent') ? '#cccccc' : '#F4D03F';
             ctx.fillText(_rmsText, 8 + _rpad, cv.height - _rpad);
             ctx.restore();
+          }
         } catch(_) {}
     }
 
