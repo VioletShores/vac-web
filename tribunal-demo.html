@@ -1523,7 +1523,12 @@ async function reauthDegrade(why){
     // legitimate-looking outcome). Render an EXPLICIT refusal so it's unmistakable the access was
     // DENIED — the backend rejected the live ceremony (wrong finger / different face → 401/409).
     var _authz = { attested:false, authorized:false, reason:why };
-    var _tier = { state:'failed', ceremony:true, reason:'biometric_not_confirmed' };
+    // F-783b: pass the SPECIFIC denial reason through (the ceremony forwards the server's
+    // rejection code — finger_mismatch / spoken_digit_mismatch / not_cooccurring /
+    // liveness_failed — via onFallback). The old hardcoded 'biometric_not_confirmed'
+    // flattened every failure into an undiagnosable generic (Rob: "not getting through
+    // and no results"). Show what the server actually rejected.
+    var _tier = { state:'failed', ceremony:true, reason:(typeof why === 'string' && why) ? why : 'biometric_not_confirmed' };
     try{ if (typeof vacDebug === 'function') vacDebug('tribunal_degrade_denied', why); }catch(_){}
     renderReauthResult(_authz, _tier);
     const _b = document.getElementById('rdBtn'); if(_b){_b.disabled=false;_b.textContent='Re-authorise again';}

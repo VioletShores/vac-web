@@ -575,7 +575,7 @@ function startAVChecks() {
                     // audio check). The old show-only copy caused live false-denies (Rob showed but
                     // didn't speak). State both halves until the pre-flight can render from the
                     // fetched challenge's bound_instruction (F-654-COMPLETE).
-                    : 'Show your finger(s) beside your cheek and say the number out loud \u2014 confirms it\u2019s still you.';
+                    : 'Quick camera & mic check \u2014 next, you\u2019ll show a number beside your cheek and say it out loud.';
                 _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px';
             }
         }
@@ -1490,11 +1490,11 @@ function goToChallenge() {
         // Gesture-only policy keeps the show-only lead-in. (honesty: L-2150 — say what the policy needs)
         var _leadVoice = (reauthPolicyRequired() || []).some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
         var _instr = _fc.bound_instruction
-                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' beside your cheek' + (_leadVoice ? ' and say the number' : '')) : ('Quick re-verify \u2014 show the number beside your cheek' + (_leadVoice ? ' and say it' : '')));
+                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' beside your cheek and say the number out loud') : ('Quick re-verify \u2014 show the number beside your cheek and say it out loud'));
         var _ctEl = document.getElementById('challengeText');
         if (_ctEl) {
             _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
-                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' beside your cheek' + (_leadVoice ? ' and say the number' : ''))
+                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' beside your cheek and say the number out loud')
                                   : _instr)
                 + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">' + (_leadVoice ? 'Keep your face in the oval — when the count starts, show it and say it together.' : 'Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.') + '</div>';
         }
