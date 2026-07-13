@@ -1627,7 +1627,7 @@ function showChallengeIntro() {
     if (_noVoice) {
         var _n = digits.length;
         if (_hEl) _hEl.innerHTML = 'Show your numbers,<br>one at a time.';
-        if (_bEl) _bEl.innerHTML = 'Say your <strong style="color:var(--text-primary);">' + _n + (_n === 1 ? ' number' : ' numbers') + '</strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it at the same time</strong>, all in one continuous take.<br>We\u2019ll guide you through each step with a <span style="color:#22c55e;font-weight:700;">\u2713</span> as you go.';
+        if (_bEl) _bEl.innerHTML = '<strong style="color:var(--text-primary);">First</strong>, say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it\u2019s you.<br><strong style="color:var(--text-primary);">Then</strong>, on the next step, we\u2019ll show you <strong style="color:var(--text-primary);">' + _n + (_n === 1 ? ' number' : ' numbers') + '</strong> <strong style="color:var(--text-primary);">one at a time</strong> — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it together</strong>.<br>No need to memorise them — we\u2019ll guide you through each one with a <span style="color:#22c55e;font-weight:700;">\u2713</span> before the next.';
     }
     if (_greetEl) {
         var _g;
@@ -4791,8 +4791,9 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
       <div id="challengeIntroHeadline" style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary);">First a greeting,<br>then your numbers.</div>
     </div>
     <div id="challengeIntroBody" style="font-size:clamp(15px,4vw,18px);line-height:1.5;color:var(--text-secondary);">
-      Say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it's you. Then <strong style="color:var(--text-primary);"><span id="challengeIntroCount">3 numbers</span></strong>, one at a time — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it at the same time</strong>, all in one continuous take.<br>
-      We'll guide you through each step with a <span style="color:#22c55e;font-weight:700;">✓</span> as you go.
+      <strong style="color:var(--text-primary);">First</strong>, you'll say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it's you.<br>
+      <strong style="color:var(--text-primary);">Then</strong>, on the next step, we'll show you <strong style="color:var(--text-primary);"><span id="challengeIntroCount">3 numbers</span></strong> <strong style="color:var(--text-primary);">one at a time</strong> — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it together</strong>.<br>
+      No need to memorise them — we'll guide you through each one with a <span style="color:#22c55e;font-weight:700;">✓</span> before the next.
     </div>
     <div id="challengeIntroPreview" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(14px,3vh,20px);">
       <!-- D-INTRO-GREETING-NUMBERS-ASYMMETRY (S114): preview the GREETING too, not just the numbers.
