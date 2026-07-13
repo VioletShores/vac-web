@@ -688,6 +688,8 @@ function startAVChecks() {
                     const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
                     const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
                     const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
+                    // F-758: on-screen readout so Rob can tune the hand gate from real data (tick-zone vs framing).
+                    try { var _dbg = document.getElementById('vacHandDbg'); if (_dbg) _dbg.textContent = 'tick:'+(_tickNear?'Y':'N')+' size:'+((maxX-minX).toFixed(2))+'×'+((maxY-minY).toFixed(2))+' small:'+(tooSmall?'Y':'N')+' stable:'+_handStableFrames; } catch(_){}
                     if (!_tickNear) {
                         // Hand visible but OUTSIDE the wide tick zone — prompt to move beside cheek.
                         _handStableFrames = 0;
@@ -4629,6 +4631,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
             <div id="avPillHand" class="av-pill"><span id="avHandIcon" class="av-pill-icon spinning"></span><span id="avHandLabel">Hand</span></div>
         </div>
         <div id="avHandHint" style="display:none;text-align:center;font-size:12px;color:var(--teal);margin-top:8px;font-weight:500;">Hold your hand up — we'll show you it being tracked</div>
+        <div id="vacHandDbg" style="text-align:center;font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:2px;letter-spacing:0.5px;"></div>
     </div>
     <div class="privacy-statement">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.6 6.8 6 7.5 3.4-.7 6-4 6-7.5V4L8 1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -4910,6 +4913,11 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 /* Sections */
 .step-section { display: none; animation: fadeIn 0.35s ease-out; }
 .step-section.active { display: block; }
+/* F-758: scroll affordance — fade + chevron shown only when content overflows below the fold */
+#vacScrollCue { position: fixed; left: 0; right: 0; bottom: 0; height: 64px; pointer-events: none; z-index: 250; display: none; background: linear-gradient(to top, var(--bg,#0A0F1A) 10%, rgba(10,15,26,0) 100%); }
+#vacScrollCue.show { display: block; }
+#vacScrollCue .chev { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); width: 26px; height: 26px; color: var(--purple); animation: vacScrollBob 1.4s ease-in-out infinite; }
+@keyframes vacScrollBob { 0%,100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(5px); } }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 .header { text-align: center; padding: clamp(4px, 1vh, 12px) 0 clamp(4px, 1vh, 10px); position: relative; }
@@ -4933,10 +4941,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .btn-secondary:hover { border-color: var(--purple); background: var(--purple-bg); }
 
 /* Camera */
-/* D-VERIFY-CHECKS-BELOW-FOLD: cap the feed so the live status row + active-step
-   instruction stay in view on a ~800px laptop viewport (was 40vh/320px, which
-   dominated the fold and pushed the checks off-screen). */
-.camera-container { position: relative; width: 100%; aspect-ratio: 4/3; max-height: clamp(180px, 36vh, 300px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
+/* D-VERIFY-CHECKS-BELOW-FOLD / F-758: cap the feed tighter so the whole pre-flight
+   (header + feed + mic + checks + Start button) fits one ~800px laptop viewport
+   without scrolling. Was 36vh/300px which still pushed Start below the fold. */
+.camera-container { position: relative; width: 100%; aspect-ratio: 4/3; max-height: clamp(150px, 28vh, 250px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
 .camera-container.recording { border-color: var(--error); box-shadow: 0 0 20px rgba(248,81,73,0.15); }
 .camera-container.verified { border-color: var(--success); box-shadow: 0 0 20px rgba(63,185,80,0.15); }
 #videoPreview, #videoPreviewRec { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; background: #000; }
@@ -5162,6 +5170,33 @@ function injectStyles(){
 function renderDOM(){
     injectStyles();
     CTX.mount.innerHTML = CEREMONY_HTML;   // fresh DOM each run (matches the reload "fresh start" discipline)
+    // F-758: scroll affordance — show a fade+chevron when the pre-flight overflows below the fold,
+    // hide once the user scrolls near the bottom. Standard "there's more below" cue.
+    try {
+        if (!document.getElementById('vacScrollCue')) {
+            var _cue = document.createElement('div');
+            _cue.id = 'vacScrollCue';
+            _cue.innerHTML = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+            document.body.appendChild(_cue);
+        }
+        var _scEl = CTX.mount;
+        var _scScroller = null;
+        // find the nearest scrollable ancestor (the mount or a parent with overflow)
+        (function(){ var n = CTX.mount; while (n && n !== document.body) { var oy = getComputedStyle(n).overflowY; if (oy === 'auto' || oy === 'scroll') { _scScroller = n; break; } n = n.parentElement; } })();
+        var _updateCue = function(){
+            try {
+                var cue = document.getElementById('vacScrollCue'); if (!cue) return;
+                var s = _scScroller || document.scrollingElement || document.documentElement;
+                var overflow = s.scrollHeight - s.clientHeight;
+                var atBottom = (s.scrollTop >= overflow - 24);
+                if (overflow > 24 && !atBottom) cue.classList.add('show'); else cue.classList.remove('show');
+            } catch(_) {}
+        };
+        (_scScroller || window).addEventListener('scroll', _updateCue, { passive: true });
+        window.addEventListener('resize', _updateCue, { passive: true });
+        setTimeout(_updateCue, 300); setTimeout(_updateCue, 900);
+        CTX._updateScrollCue = _updateCue;  // callers can re-check after step changes
+    } catch(_) {}
 }
 
 // ===================== public API =====================
