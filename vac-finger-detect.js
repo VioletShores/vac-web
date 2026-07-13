@@ -124,8 +124,8 @@ window.FingerDetector = (function() {
     }
 
     // Canonical thresholds — the live-tested auth.html values. Source of truth.
-    const THUMB_BEND_MAX   = 40;    // thumb joint-angle below this = straight
-    const THUMB_SPREAD_MIN = 0.62;  // thumb tip spread above this = away from palm
+    const THUMB_BEND_MAX   = 45;    // F-766: 40->45° — a naturally-straight thumb (not over-extended) still counts
+    const THUMB_SPREAD_MIN = 0.50;  // F-766: 0.62->0.50 — Rob live: a real 5 read as 4 unless thumb splayed WIDE; the thumb-spread floor was too strict, under-counting a natural open hand (false-deny risk). Loosened so a naturally-open thumb registers as extended.
     const FOUR_FINGER_BEND_MAX = 35; // four-finger bend below this = extended
     const F = [[5,6,8],[9,10,12],[13,14,16],[17,18,20]]; // index..pinky [mcp,pip,tip]
 
