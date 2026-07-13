@@ -560,12 +560,8 @@ function startAVChecks() {
                 var _hasDigit = reauthPolicyHasBoundDigit();
                 _hs.textContent = (_hasDigit === false)
                     ? 'Hold still for a quick face check — one photo confirms it\u2019s you.'
-                    // Residual B: unify the framing to match the challenge copy ("show your finger(s) in
-                    // front of your face") + the re-auth "still you" vocab. Gesture-only (has_phrase:false):
-                    // NO voice mention. The run() subprompt ("show the number… Wait for the ✓") is correct
-                    // and stays. (The _hasDigit===false pure-face branch above is dead for the real fast tier
-                    // — bound_digit is always required — so it keeps its existing copy.)
-                    : 'Show your finger(s) in front of your face \u2014 confirms it\u2019s still you.';
+                    // F-755i: 'beside your cheek' — consistent with the full-flow pre-flight copy.
+                    : 'Show your finger(s) beside your cheek \u2014 confirms it\u2019s still you.';
                 _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px';
             }
         }
@@ -1467,11 +1463,11 @@ function goToChallenge() {
         // Gesture-only policy keeps the show-only lead-in. (honesty: L-2150 — say what the policy needs)
         var _leadVoice = (reauthPolicyRequired() || []).some(function(m){ return /bound_digit|voice|voiceprint|spoken/i.test(String(m)); });
         var _instr = _fc.bound_instruction
-                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : '')) : ('Quick re-verify \u2014 show the number in front of your face' + (_leadVoice ? ' and say it' : '')));
+                   || (_digit != null ? ('Quick re-verify \u2014 show your ' + _digit + ' finger' + (_digit === 1 ? '' : 's') + ' beside your cheek' + (_leadVoice ? ' and say the number' : '')) : ('Quick re-verify \u2014 show the number beside your cheek' + (_leadVoice ? ' and say it' : '')));
         var _ctEl = document.getElementById('challengeText');
         if (_ctEl) {
             _ctEl.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-primary);line-height:1.35;">'
-                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' in front of your face' + (_leadVoice ? ' and say the number' : ''))
+                + (_digit != null ? ('Quick re-verify \u2014 show your <span style="color:var(--purple)">' + _digit + '</span> finger' + (_digit === 1 ? '' : 's') + ' beside your cheek' + (_leadVoice ? ' and say the number' : ''))
                                   : _instr)
                 + '</div><div style="font-size:13px;opacity:0.7;margin-top:8px;">' + (_leadVoice ? 'Keep your face in the oval — when the count starts, show it and say it together.' : 'Keep your face in the oval and hold still — we\u2019ll take one quick photo to confirm it\u2019s you.') + '</div>';
         }
@@ -5237,17 +5233,18 @@ const VACReauth = {
                 if (skipGreeting) {
                     // F-648: name-less seal re-auth — say the NUMBERS only (the per-session anti-replay
                     // anchor); no name, no greeting. Backend phrase is digits-only (scorer core = digits).
-                    if (_hs) _hs.textContent = 'Say your numbers, showing each on your fingers. Wait for the ✓.';
-                    if (_cct) _cct.textContent = 'Say your numbers out loud, then show each on your fingers as you say it — one take. No name or greeting needed; you verified moments ago.';
+                    if (_hs) _hs.textContent = 'Say your numbers, showing each on your fingers beside your cheek. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Say your numbers out loud, then show each on your fingers beside your cheek as you say it — one take. No name or greeting needed; you verified moments ago.';
                 } else if (modeConfig().capture.kind === 'still') {
                     // fast still-capture (vat-verify): genuinely one number, no phrase. F-687 Fix 1: re-verify framing.
-                    if (_hs) _hs.textContent = 'Quick re-verify — show the number in front of your face. Wait for the ✓.';
-                    if (_cct) _cct.textContent = 'Quick re-verify — show the number in front of your face. A quick face + number check; you verified moments ago, so no greeting is needed.';
+                    // F-755i: 'beside your cheek' — consistent with the full-flow pre-flight copy.
+                    if (_hs) _hs.textContent = 'Quick re-verify — show the number beside your cheek. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Quick re-verify — show the number beside your cheek. A quick face + number check; you verified moments ago, so no greeting is needed.';
                 } else {
-                    // Non-still greeting-less (e.g. policy-drops-voice on a full re-auth): keep the prior
-                    // copy BYTE-IDENTICAL — F-687 Fix 1 reframes the fast still path only.
-                    if (_hs) _hs.textContent = 'Show the number in front of your face. Wait for the ✓.';
-                    if (_cct) _cct.textContent = 'Show the number in front of your face — a quick face + number check. You verified moments ago, so no greeting is needed.';
+                    // Non-still greeting-less (e.g. policy-drops-voice on a full re-auth).
+                    // F-755i: 'beside your cheek' — consistent with the full-flow pre-flight copy.
+                    if (_hs) _hs.textContent = 'Show the number beside your cheek. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Show the number beside your cheek — a quick face + number check. You verified moments ago, so no greeting is needed.';
                 }
             } catch(_) {}
         }
