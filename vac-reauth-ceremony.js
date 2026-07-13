@@ -490,6 +490,23 @@ function _handNearFaceZone(lm) {
     for (const t of tips) { if (_ptInCheekZone(lm[t])) inside++; }
     return inside >= 3;                             // majority of fingertips inside
 }
+// F-755h: wider tick-zone (~2x cheek) so the Hand✓ tick fires with a generous target.
+// Glow/class still use _CHEEK_ZONE_RX/RY (tight); tick uses this wider window.
+const _TICK_ZONE_RX = 0.28, _TICK_ZONE_RY = 0.30;
+function _ptInTickZone(p) {
+    const dxL = (p.x - 0.18) / _TICK_ZONE_RX, dyL = (p.y - 0.48) / _TICK_ZONE_RY;
+    if (dxL * dxL + dyL * dyL <= 1) return true;
+    const dxR = (p.x - 0.82) / _TICK_ZONE_RX, dyR = (p.y - 0.48) / _TICK_ZONE_RY;
+    return dxR * dxR + dyR * dyR <= 1;
+}
+function _handInTickZone(lm) {
+    if (!lm || lm.length < 21) return false;
+    if (!_ptInTickZone(lm[0])) return false;
+    const tips = [4, 8, 12, 16, 20];
+    let inside = 0;
+    for (const t of tips) { if (_ptInTickZone(lm[t])) inside++; }
+    return inside >= 3;
+}
 
 function startAVChecks() {
     // F-563 (3): RESET every pre-flight pill to the un-ticked "checking" state on EVERY entry.
@@ -661,7 +678,8 @@ function startAVChecks() {
                 // so the practice screen trains the in-front-of-face constraint.
                 const _camBox = document.getElementById('cameraBox');
                 _camBox.classList.add('show-hand-zone');
-                const _near = !!lm && _handNearFaceZone(lm);   // SHARED check — same as the real screen
+                const _near = !!lm && _handNearFaceZone(lm);   // SHARED check — same as the real screen (glow/class)
+                const _tickNear = !!lm && _handInTickZone(lm); // F-755h: wider zone gates the Hand✓ tick
                 _camBox.classList.toggle('hand-in-zone', _near);
                 if (avChecks.hand) {
                     // Already passed — LATCHED. Keep the skeleton drawing for feedback,
@@ -674,11 +692,10 @@ function startAVChecks() {
                     const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
                     const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
                     const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
-                    if (!_near) {
-                        // Hand visible but OUTSIDE the in-front-of-face zone — the real constraint.
-                        // Prompt + keep the Hand pill un-ticked so Start stays gated until it's in.
+                    if (!_tickNear) {
+                        // Hand visible but OUTSIDE the wide tick zone — prompt to move beside cheek.
                         _handStableFrames = 0;
-                        setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Hold your hand up beside your cheek'; document.getElementById('avHandHint').style.display='block';
+                        setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block';
                     } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
                     else if (tooSmall) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
                     else {
@@ -799,16 +816,29 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             var _glow = _active && _confident;
             var _cx = _ov.cx * w, _ocx2 = _cy * h;
             var _rx = _radX * w, _ry = _radY * h;
+            // F-755h2: only ONE oval reads as the target — the active side is bright,
+            // the inactive side is heavily dimmed so it never looks like "use both hands".
             ctx.beginPath();
             ctx.ellipse(_cx, _ocx2, _rx, _ry, 0, 0, 6.283);
-            ctx.fillStyle = _glow ? 'rgba(108,92,231,0.28)' : 'rgba(108,92,231,0.10)';
-            ctx.shadowColor = _glow ? '#6C5CE7' : 'transparent';
-            ctx.shadowBlur  = _glow ? Math.max(18, w * 0.04) : 0;
-            ctx.fill();
-            ctx.strokeStyle = _glow ? '#6C5CE7' : 'rgba(108,92,231,0.60)';
-            ctx.lineWidth   = _glow ? Math.max(3, w * 0.006) : Math.max(2, w * 0.004);
-            ctx.shadowBlur  = _glow ? Math.max(10, w * 0.02) : 0;
-            ctx.stroke();
+            if (_active) {
+                ctx.fillStyle = _glow ? 'rgba(108,92,231,0.28)' : 'rgba(108,92,231,0.12)';
+                ctx.shadowColor = _glow ? '#6C5CE7' : 'transparent';
+                ctx.shadowBlur  = _glow ? Math.max(18, w * 0.04) : 0;
+                ctx.fill();
+                ctx.strokeStyle = _glow ? '#6C5CE7' : 'rgba(108,92,231,0.75)';
+                ctx.lineWidth   = _glow ? Math.max(3, w * 0.006) : Math.max(2, w * 0.005);
+                ctx.shadowBlur  = _glow ? Math.max(10, w * 0.02) : 0;
+                ctx.stroke();
+            } else {
+                // inactive: faint ghost only
+                ctx.fillStyle = 'rgba(108,92,231,0.03)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(108,92,231,0.18)';
+                ctx.lineWidth = Math.max(1, w * 0.002);
+                ctx.setLineDash([Math.max(3, w*0.008), Math.max(3, w*0.008)]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
             ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
         }
@@ -863,14 +893,31 @@ function _avDrawHand(videoEl, lm){
     // Same geometry as _drawFingerTargetGuide (cx 0.18/0.82, cy 0.48, radX 0.10, radY 0.14).
     (function _drawAvCheekOvals(){
         const w=cv.width, h=cv.height;
-        const lw=Math.max(2,w*0.004);
+        // F-755h2: only ONE oval reads as target (never "use both hands").
+        // Pre-flight has no chosen digit-side, so light whichever cheek the hand is nearest;
+        // if no hand yet, both are shown dim-equal so nothing implies "both hands".
+        let _wristX = null;
+        if (lm && lm.length === 21 && lm[0] && Number.isFinite(lm[0].x)) _wristX = lm[0].x;
+        const _nearSide = _wristX === null ? null : (_wristX < 0.5 ? 0.18 : 0.82);
         ctx.save();
-        ctx.strokeStyle='rgba(108,92,231,0.60)'; ctx.lineWidth=lw;
-        ctx.fillStyle='rgba(108,92,231,0.10)';
         for(const cxN of [0.18,0.82]){
+            const _isActive = (_nearSide === null) ? null : (cxN === _nearSide);
             ctx.beginPath();
             ctx.ellipse(cxN*w, 0.48*h, 0.10*w, 0.14*h, 0, 0, Math.PI*2);
-            ctx.fill(); ctx.stroke();
+            if (_isActive === true) {
+                ctx.fillStyle='rgba(108,92,231,0.16)'; ctx.fill();
+                ctx.strokeStyle='rgba(108,92,231,0.80)'; ctx.lineWidth=Math.max(2,w*0.005);
+                ctx.setLineDash([]); ctx.stroke();
+            } else if (_isActive === false) {
+                ctx.fillStyle='rgba(108,92,231,0.03)'; ctx.fill();
+                ctx.strokeStyle='rgba(108,92,231,0.18)'; ctx.lineWidth=Math.max(1,w*0.002);
+                ctx.setLineDash([Math.max(3,w*0.008),Math.max(3,w*0.008)]); ctx.stroke(); ctx.setLineDash([]);
+            } else {
+                // no hand yet — both dim-equal, soft
+                ctx.fillStyle='rgba(108,92,231,0.07)'; ctx.fill();
+                ctx.strokeStyle='rgba(108,92,231,0.45)'; ctx.lineWidth=Math.max(2,w*0.004);
+                ctx.setLineDash([]); ctx.stroke();
+            }
         }
         ctx.restore();
     })();
