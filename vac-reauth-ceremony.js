@@ -774,14 +774,16 @@ function _guideSide(lm){
 // lm (optional 6th arg): current MediaPipe landmarks; drives the confident glow when
 // all 21 are finite AND _handNearFaceZone passes. Advisory UX only — no verdict impact.
 function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
-    // Landmark-completeness floor for the confident glow (advisory).
+    // _lmComplete: 21 finite landmarks — governs skeleton draw (no zone check).
+    // _confident: adds zone check for the oval glow (advisory only).
+    var _lmComplete = false;
     var _confident = false;
     if (lm && lm.length === 21) {
         var _allFin = true;
         for (var _li = 0; _li < 21 && _allFin; _li++) {
             if (!lm[_li] || !Number.isFinite(lm[_li].x) || !Number.isFinite(lm[_li].y)) _allFin = false;
         }
-        if (_allFin) { try { _confident = _handNearFaceZone(lm); } catch(_){} }
+        if (_allFin) { _lmComplete = true; try { _confident = _handNearFaceZone(lm); } catch(_){} }
     }
     // Two static ovals, one beside each cheek.
     var _ovals = [
@@ -810,8 +812,8 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
         }
-        // F-755b: gated live skeleton — teal lines + purple dots only when 21 finite AND hand near face (same floor as _confident)
-        if (_confident && lm) {
+        // F-755g: skeleton draws whenever 21 finite landmarks are present — zone is a soft oval hint only.
+        if (_lmComplete && lm) {
             ctx.strokeStyle = 'rgba(0,206,201,0.85)';
             ctx.lineWidth = Math.max(4, w * 0.008);
             for (var _sci = 0; _sci < _AV_HAND_CONN.length; _sci++) {
@@ -873,12 +875,13 @@ function _avDrawHand(videoEl, lm){
         ctx.restore();
     })();
     if(!lm) return;
-    // F-755b: phantom-reject sweep — only draw skeleton when 21 finite landmarks AND hand near face zone; else clear only
+    // F-755g: draw skeleton whenever 21 finite landmarks present — zone check removed from draw guard.
+    // (_avZone still computed; Hand✓ tick logic in runAVFrame is untouched.)
     let _avLmFin = lm.length === 21;
     if (_avLmFin) { for (let _fi = 0; _fi < 21 && _avLmFin; _fi++) { if (!lm[_fi] || !Number.isFinite(lm[_fi].x) || !Number.isFinite(lm[_fi].y)) _avLmFin = false; } }
     let _avZone = false;
     if (_avLmFin) { try { _avZone = _handNearFaceZone(lm); } catch(_) {} }
-    if (!_avLmFin || !_avZone) return;
+    if (!_avLmFin) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
