@@ -19,6 +19,10 @@ let currentStep = 0;
 // otherwise, so the ceremony runs identically on hosts that don't have the overlay.
 const _QA_SHIM = { on:false, onEvent:function(){}, frame:function(){}, cal:function(){} };
 let QA = _QA_SHIM;
+// F-763c: self-enable QA at MODULE INIT from ?qa=1 — set here (not only in run()) so it applies
+// no matter which entry path the host uses (full run, fast direct path, embedded host). Dev-only:
+// real users / Caroline never pass ?qa=1, so the readouts stay hidden in production/demo.
+try { if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('qa') === '1') { QA = { on:true, onEvent:function(){}, frame:function(){}, cal:function(){} }; } } catch(_) {}
 
 // Identity for the moved ceremony code (was auth.html's form-reading userData()).
 function userData(){ return (CTX && CTX.identity) || { name:'', email:'', org:'', role:'' }; }
@@ -5266,11 +5270,7 @@ const VACReauth = {
         // greeting:skip = a full ceremony minus the greeting). Either way the static step-2 copy
         // must not tell the user to "say a greeting" — update the header subtitle + how-it-works
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
-        try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
-        // F-763b: if the host didn't wire a QA overlay but the URL has ?qa=1, self-enable QA mode
-        // so the dev readouts (fingers:N, tick/size) show for Rob's testing on any page. Never on
-        // without the explicit flag — real users / Caroline never pass ?qa=1.
-        try { if (new URLSearchParams(window.location.search).get('qa') === '1') { if (QA === _QA_SHIM) QA = Object.assign({}, _QA_SHIM); QA.on = true; } } catch(_) {}
+        try { if (window.QA && !(QA && QA.on)) QA = window.QA; } catch(_) {}   // adopt host overlay unless ?qa=1 already self-enabled (F-763c)
         renderDOM();
         // F-687 Fix 4: context-derived verification heading. Re-auth contexts read "Confirming it's
         // still you"; auth.html's first/main auth (context:'register') keeps "Verifying You're Human".
