@@ -5342,12 +5342,12 @@ const VACReauth = {
                 } else if (modeConfig().capture.kind === 'still') {
                     // fast still-capture (vat-verify): genuinely one number, no phrase. F-687 Fix 1: re-verify framing.
                     // F-755i: 'beside your cheek' — consistent with the full-flow pre-flight copy.
-                    if (_hs) _hs.textContent = 'Quick re-verify — show the number beside your cheek. Wait for the ✓.';
-                    if (_cct) _cct.textContent = 'Quick re-verify — show the number beside your cheek. A quick face + number check; you verified moments ago, so no greeting is needed.';
+                    if (_hs) _hs.textContent = 'Quick re-verify — show the number beside your cheek and say it out loud. Wait for the ✓.';
+                    if (_cct) _cct.textContent = 'Quick re-verify — show the number beside your cheek and say it out loud. A quick face + number check (shown and spoken together); you verified moments ago, so no greeting is needed.';
                 } else {
                     // Non-still greeting-less (e.g. policy-drops-voice on a full re-auth).
                     // F-755i: 'beside your cheek' — consistent with the full-flow pre-flight copy.
-                    if (_hs) _hs.textContent = 'Show the number beside your cheek. Wait for the ✓.';
+                    if (_hs) _hs.textContent = 'Show the number beside your cheek and say it out loud. Wait for the ✓.';
                     if (_cct) _cct.textContent = 'Show the number beside your cheek — a quick face + number check. You verified moments ago, so no greeting is needed.';
                 }
             } catch(_) {}
