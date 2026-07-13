@@ -855,7 +855,11 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         }
         // Text prompt — counter-flip so words read forward (canvas has CSS scaleX(-1); ovals/skeleton stay mirrored)
         var _n0 = (typeof n === 'number' && Number.isFinite(n)) ? Math.round(n) : -1;
+        // F-761: coach the pose for the ambiguous 4↔5 pair — a relaxed hand (thumb close to fingers)
+        // reads as 4-or-5 unreliably. 5 → spread wide; 4 → tuck thumb. Others are visually distinct.
         var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
+                 : _n0 === 5 ? 'Show 5 — spread your fingers WIDE, beside your cheek'
+                 : _n0 === 4 ? 'Show 4 — tuck your thumb in, beside your cheek'
                  : _n0 > 0  ? 'Hold ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's') + ' beside your cheek'
                  :             'Hold your hand beside your cheek';
         var _fs = Math.max(13, Math.min(Math.round(w * 0.036), 26));
