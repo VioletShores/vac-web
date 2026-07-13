@@ -3287,7 +3287,12 @@ async function beginStillCapture() {
                     try { _n = FingerDetector.detect(_gv); } catch(_) {}
                     // F-654: draw the SAME hand skeleton as the full/seal finger phase (consistency,
                     // Rob) via the top-level shared drawer (the beginRecording one is out of scope).
-                    try { if (FingerDetector.landmarks) _drawHandSkeletonShared(_gv, FingerDetector.landmarks, _expectFingers); } catch(_) {}
+                    // F-755j (Rob S133 e2e): draw UNCONDITIONALLY — the guide fn draws the static
+                    // cheek-zone ovals even with no hand up (F-755e), so the user sees WHERE to put
+                    // the hand before raising it, same as the full path. The old
+                    // `if (FingerDetector.landmarks)` gate meant the ovals only appeared once a
+                    // hand was already detected (quick tier inconsistent with full).
+                    try { _drawHandSkeletonShared(_gv, FingerDetector.landmarks || null, _expectFingers); } catch(_) {}
                     // require the SAME count steady across consecutive ticks (not just presence)
                     if (typeof _n === 'number' && _n >= 0) {
                         if (_n === _lastSeen) _stable++; else _stable = 1;
