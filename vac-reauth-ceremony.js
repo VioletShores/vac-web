@@ -858,12 +858,16 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
                  : _n0 > 0  ? 'Hold ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's') + ' beside your cheek'
                  :             'Hold your hand beside your cheek';
-        var _fs = Math.max(13, Math.round(w * 0.036));
+        var _fs = Math.max(13, Math.min(Math.round(w * 0.036), 26));
         ctx.save();
         try {
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
             ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
+            // F-759: shrink to fit — never let the caption exceed ~90% of the canvas width (was squashing)
+            var _maxW = w * 0.9;
+            var _measured = ctx.measureText(_msg).width;
+            if (_measured > _maxW) { _fs = Math.max(11, Math.floor(_fs * _maxW / _measured)); ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif'; }
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             var _tx = w * 0.5, _ty = Math.max(28, h * 0.055);
@@ -1221,9 +1225,9 @@ const CaptureFeedback = {
         if (clipped || tooBig || tooSmall) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
         if (banner) {
             if (ctx.framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
-                banner.textContent = tooSmall ? 'Move your hand closer — fill the oval'
+                banner.textContent = tooSmall ? 'Move your hand closer'
                                   : tooBig    ? 'Move your hand back a little — keep your whole hand in view'
-                                              : 'Center your hand — keep it fully inside the frame';
+                                              : 'Keep your whole hand inside the red border';
                 banner.style.display = 'block';
             } else if (ctx.framingBadFrames === 0) {
                 banner.style.display = 'none';
@@ -1927,6 +1931,7 @@ function beginRecording() {
     let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
     let _speechGateStarted = false;
     let _lastVadRms = 0;             // latest VAD RMS, surfaced to the QA overlay for live calibration
+    let _lastDetectedCount = null;   // F-759: latest client finger count, surfaced to the capture readout
     let _lastVoiceMs = 0;            // R1: current CONTINUOUS voiced-run duration (ms), surfaced to ?qa=1 (vMs) so a tap (never climbs to DIGIT_VOICE_MIN_MS) vs a real digit is visible by eye
     // VAD threshold — client-side energy-RMS (0..1), NOT FolioAI's Deepgram word-confidence
     // (different units entirely). Tuned live (S111, Rob): measured silent floor ~0.074,
@@ -2252,22 +2257,27 @@ function beginRecording() {
         ctx.clearRect(0,0,cv.width,cv.height);
         // F-755: static oval guide only — live skeleton suppressed.
         try { _drawFingerTargetGuide(ctx, cv.width, cv.height, targetN, _guideSide(lm), lm); } catch(_){}
-        // F-755c: always-visible VAD RMS readout (display-only; no threshold change).
+        // F-755c/F-759: always-visible readout (display-only). Counter-flipped so it reads forward
+        // on the scaleX(-1) canvas, enlarged, and now includes the CLIENT finger count so we can see
+        // client-detected vs Gemini-seen (diagnoses the Gemini-saw-[] capture-timing bug).
         try {
             var _rmsVal = _lastVadRms;
             var _gate = (_rmsVal > vadSpeechThreshold) ? 'voiced'
                       : (_rmsVal < vadSilenceThreshold) ? 'silent' : 'neither';
-            var _rmsText = 'rms ' + _rmsVal.toFixed(3) + '  voiceMs ' + _lastVoiceMs + '  gate ' + _gate;
-            var _rfsz = Math.max(11, Math.round(cv.width * 0.022));
+            var _cliN = (typeof _lastDetectedCount !== 'undefined' && _lastDetectedCount != null) ? _lastDetectedCount : '-';
+            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate;
+            var _rfsz = Math.max(15, Math.round(cv.width * 0.030));
             ctx.save();
-            ctx.font = _rfsz + 'px monospace';
+            // counter-flip: cancel the canvas scaleX(-1) so text reads forward
+            ctx.translate(cv.width, 0); ctx.scale(-1, 1);
+            ctx.font = 'bold ' + _rfsz + 'px monospace';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
             var _rtw = ctx.measureText(_rmsText).width;
-            var _rpad = 6;
-            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            var _rpad = 7;
+            ctx.fillStyle = 'rgba(0,0,0,0.72)';
             ctx.fillRect(8, cv.height - _rfsz - _rpad * 2, _rtw + _rpad * 2, _rfsz + _rpad * 2);
-            ctx.fillStyle = (_gate === 'voiced') ? '#6C5CE7' : (_gate === 'silent') ? '#aaaaaa' : '#F4D03F';
+            ctx.fillStyle = (_gate === 'voiced') ? '#8B7CF7' : (_gate === 'silent') ? '#cccccc' : '#F4D03F';
             ctx.fillText(_rmsText, 8 + _rpad, cv.height - _rpad);
             ctx.restore();
         } catch(_) {}
@@ -2278,6 +2288,7 @@ function beginRecording() {
         if (recordingStopped) return;
         const videoEl = document.getElementById('videoPreviewRec');
         const detected = FingerDetector.detect(videoEl);
+        try { _lastDetectedCount = detected; } catch(_){}
         // F-613: smoothed count for STABILITY/TIMING only (absorbs MediaPipe flicker
         // so a steady hold isn't broken by a stray frame — fixes "had to hold still").
         // The RAW `detected` is still what we RECORD + send to the server (capture-on-
