@@ -505,6 +505,7 @@ function startAVChecks() {
     avChecks = { face: false, light: false, mic: false, hand: false };
     _handStableFrames = 0;
     _micLoudFrames = 0;
+    micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
     setAVStatus('hand', 'checking', 'Hand');
