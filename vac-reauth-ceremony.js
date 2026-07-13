@@ -923,11 +923,9 @@ function _avDrawHand(videoEl, lm){
     })();
     if(!lm) return;
     // F-755g: draw skeleton whenever 21 finite landmarks present — zone check removed from draw guard.
-    // (_avZone still computed; Hand✓ tick logic in runAVFrame is untouched.)
+    // F-755h: tick gate in runAVFrame now uses _tickNear (wide zone); _avZone removed (was dead code).
     let _avLmFin = lm.length === 21;
     if (_avLmFin) { for (let _fi = 0; _fi < 21 && _avLmFin; _fi++) { if (!lm[_fi] || !Number.isFinite(lm[_fi].x) || !Number.isFinite(lm[_fi].y)) _avLmFin = false; } }
-    let _avZone = false;
-    if (_avLmFin) { try { _avZone = _handNearFaceZone(lm); } catch(_) {} }
     if (!_avLmFin) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
