@@ -1218,9 +1218,12 @@ const CaptureFeedback = {
         if (!lm) { ctx.framingBadFrames = 0; if (banner) banner.style.display = 'none'; return; }
         let minX=1, maxX=0, minY=1, maxY=0;
         for (const p of lm) { if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
-        const EDGE = 0.04;
+        // F-760: tightened — MediaPipe miscounts by ±1 when the hand is too close OR near a frame edge
+        // (Rob live: showed 2, read 3, close to camera; correct after moving back). Prompt BEFORE the
+        // count degrades, not only when the hand fills/touches the frame.
+        const EDGE = 0.08;   // was 0.04 — edge-degraded miscounts start well before touching
         const clipped = (minX < EDGE || maxX > 1-EDGE || minY < EDGE || maxY > 1-EDGE);
-        const tooBig  = ((maxX-minX) > 0.85 || (maxY-minY) > 0.9);
+        const tooBig  = ((maxX-minX) > 0.72 || (maxY-minY) > 0.78);  // was 0.85/0.9 — too-close miscount starts earlier
         const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
         if (clipped || tooBig || tooSmall) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
         if (banner) {
@@ -4980,6 +4983,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .hand-zone-ring { fill: none; stroke: var(--teal, #00cec9); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
 .camera-container.hand-in-zone .hand-zone-ring { stroke: var(--success); opacity: 0.9; }
 .hand-zone-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; transition: color 0.3s; }
+/* F-760: hide the persistent 'HOLD HAND BESIDE YOUR CHEEK' label on the CAPTURE box — the instruction
+   is already at the top of the screen, and it overlapped the live readout. In-video space is for
+   real-time feedback only (framing prompt + fingers/mic readout). */
+#cameraBoxRec .hand-zone-label { display: none !important; }
 .camera-container.hand-in-zone .hand-zone-label { color: var(--success); }
 
 /* Countdown ring */
