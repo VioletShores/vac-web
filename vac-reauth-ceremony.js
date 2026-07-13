@@ -1627,7 +1627,9 @@ function showChallengeIntro() {
     if (_noVoice) {
         var _n = digits.length;
         if (_hEl) _hEl.innerHTML = 'Show your numbers,<br>one at a time.';
-        if (_bEl) _bEl.innerHTML = '<strong style="color:var(--text-primary);">First</strong>, say a <strong style="color:var(--text-primary);">short greeting</strong> to confirm it\u2019s you.<br><strong style="color:var(--text-primary);">Then</strong>, on the next step, we\u2019ll show you <strong style="color:var(--text-primary);">' + _n + (_n === 1 ? ' number' : ' numbers') + '</strong> <strong style="color:var(--text-primary);">one at a time</strong> — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it together</strong>.<br>No need to memorise them — we\u2019ll guide you through each one with a <span style="color:#22c55e;font-weight:700;">\u2713</span> before the next.';
+        // F-762 / F-654: greeting-less seal flow — NO greeting mention (the flow goes straight to
+        // digits+fingers). Body previews the numbers step only, matching the headline.
+        if (_bEl) _bEl.innerHTML = 'On the next step, we\u2019ll show you <strong style="color:var(--text-primary);">' + _n + (_n === 1 ? ' number' : ' numbers') + '</strong> <strong style="color:var(--text-primary);">one at a time</strong> — for each, <strong style="color:var(--text-primary);">show that many fingers AND say it together</strong>.<br>No need to memorise them — we\u2019ll guide you through each one with a <span style="color:#22c55e;font-weight:700;">\u2713</span> before the next.';
     }
     if (_greetEl) {
         var _g;
