@@ -5203,6 +5203,18 @@ function injectStyles(){
 function renderDOM(){
     injectStyles();
     CTX.mount.innerHTML = CEREMONY_HTML;   // fresh DOM each run (matches the reload "fresh start" discipline)
+    // F-763d (DIAGNOSTIC): visible confirmation that QA mode is active — plain DOM, not canvas, so it
+    // can't be cleared/mirrored. If Rob sees "QA ON" the flag works (readout issue is canvas-side);
+    // if not, the ?qa=1 flag isn't flipping. Remove once the readout is confirmed working.
+    try {
+        if (QA && QA.on && !document.getElementById('vacQaBadge')) {
+            var _qb = document.createElement('div');
+            _qb.id = 'vacQaBadge';
+            _qb.textContent = 'QA ON';
+            _qb.style.cssText = 'position:fixed;top:8px;left:8px;z-index:9999;background:#F4D03F;color:#000;font-family:monospace;font-weight:700;font-size:12px;padding:3px 8px;border-radius:4px;';
+            document.body.appendChild(_qb);
+        }
+    } catch(_) {}
     // F-758: scroll affordance — show a fade+chevron when the pre-flight overflows below the fold,
     // hide once the user scrolls near the bottom. Standard "there's more below" cue.
     try {
