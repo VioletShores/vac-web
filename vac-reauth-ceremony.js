@@ -4033,6 +4033,8 @@ function updateModality(elId, status, score, modName, detail) {
                 if(detail.client_detected_counts)lines.push('[qa] Client counts sent: ['+(detail.client_detected_counts||[]).join(', ')+']');
                 if(detail.sequence_source)lines.push('[qa] Sequence source: '+detail.sequence_source);
                 if(detail.f776_recall_status)lines.push('[qa] F-776 recall: '+detail.f776_recall_status);
+                if(detail.digits_seen_raw)lines.push('[qa] Gemini RAW (pre-zone-filter): ['+(detail.digits_seen_raw||[]).join(', ')+']');
+                if(detail.pose_zones_applied!==undefined)lines.push('[qa] Zone filter applied: '+detail.pose_zones_applied+' | zones: '+JSON.stringify(detail.pose_zones||null)+' | dropped: '+(detail.poses_dropped_out_of_zone!==undefined?detail.poses_dropped_out_of_zone:'?'));
                 if(detail.gemini_video_bytes!==undefined && detail.gemini_video_bytes!==null)lines.push('[qa] Video sent to Gemini: '+(detail.gemini_video_bytes/1048576).toFixed(2)+' MB ('+detail.gemini_video_bytes+' bytes, '+(detail.gemini_video_branch||'?')+')');
               } } catch(_){}
             }
