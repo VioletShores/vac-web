@@ -672,7 +672,7 @@ function startAVChecks() {
                         // Hand visible but OUTSIDE the in-front-of-face zone — the real constraint.
                         // Prompt + keep the Hand pill un-ticked so Start stays gated until it's in.
                         _handStableFrames = 0;
-                        setAVStatus('hand','warn','Hand: in front of face'); document.getElementById('avHandHint').textContent='✋ Hold your hand up in front of your face'; document.getElementById('avHandHint').style.display='block';
+                        setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Hold your hand up beside your cheek'; document.getElementById('avHandHint').style.display='block';
                     } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
                     else if (tooSmall) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
                     else {
@@ -694,7 +694,7 @@ function startAVChecks() {
                     _handStableFrames = 0;
                     _camBox.classList.remove('hand-in-zone');
                     document.getElementById('avHandHint').style.display='block';
-                    document.getElementById('avHandHint').textContent='Hold your hand up — we\u2019ll show you it being tracked';
+                    document.getElementById('avHandHint').textContent='Hold your hand beside your cheek — we’ll show it tracked';
                 }
             }
         } catch(_) { /* hand pre-flight is best-effort; never block */ }
@@ -851,6 +851,21 @@ function _avDrawHand(videoEl, lm){
     const ctx=cv._ctx;
     if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
     ctx.clearRect(0,0,cv.width,cv.height);
+    // F-755e: draw static cheek-zone ovals before the lm-guard so they show even with no hand up.
+    // Same geometry as _drawFingerTargetGuide (cx 0.18/0.82, cy 0.48, radX 0.10, radY 0.14).
+    (function _drawAvCheekOvals(){
+        const w=cv.width, h=cv.height;
+        const lw=Math.max(2,w*0.004);
+        ctx.save();
+        ctx.strokeStyle='rgba(108,92,231,0.60)'; ctx.lineWidth=lw;
+        ctx.fillStyle='rgba(108,92,231,0.10)';
+        for(const cxN of [0.18,0.82]){
+            ctx.beginPath();
+            ctx.ellipse(cxN*w, 0.48*h, 0.10*w, 0.14*h, 0, 0, Math.PI*2);
+            ctx.fill(); ctx.stroke();
+        }
+        ctx.restore();
+    })();
     if(!lm) return;
     // F-755b: phantom-reject sweep — only draw skeleton when 21 finite landmarks AND hand near face zone; else clear only
     let _avLmFin = lm.length === 21;
@@ -1069,7 +1084,7 @@ const CaptureFeedback = {
             setBigNumber(true, N);
             if (vWrap) vWrap.style.display = 'none';
             if (!opts.handNear) {
-                if (subEl) subEl.textContent = '✋ Hold your hand up in front of your face';
+                if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
                 setLamp(gLamp, gWrap, 'pending', '✋');
             } else if (!opts.gestureLive) {
                 if (subEl) subEl.textContent = 'Hand detected — hold steady.';
@@ -1090,7 +1105,7 @@ const CaptureFeedback = {
                 // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
                 // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
                 // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
-                if (subEl) subEl.textContent = '✋ Hold your hand up in front of your face';
+                if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
                 setLamp(gLamp, gWrap, 'pending', '✋');
             } else if (!opts.gestureLive) {
                 // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
@@ -1242,7 +1257,7 @@ function updateAVReady() {
         } else if (!avChecks.mic) {
             guide.textContent = 'Step 2 of ' + _steps + ' — say a few words to test your microphone';
         } else if (!_fastStill && !avChecks.hand) {
-            guide.textContent = 'Step 3 of 3 — hold your hand up in front of your face, inside the oval (you\u2019ll see it tracked)';
+            guide.textContent = 'Step 3 of 3 — hold your hand up beside your cheek, on the marker (you\u2019ll see it tracked)';
         } else if (_fastStill && !_fastDetectorReady) {
             guide.textContent = 'Finishing setup, one moment...';
         } else {
@@ -4523,7 +4538,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
                 <svg viewBox="0 0 180 240" width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;">
                     <ellipse class="hand-zone-ring" cx="90" cy="120" rx="90" ry="120"/>
                 </svg>
-                <div class="hand-zone-label">✋ Hold hand in front of face</div>
+                <div class="hand-zone-label">✋ Hold hand beside your cheek</div>
             </div>
             <div class="camera-label" id="cameraLabel">AWAITING CAMERA</div>
         </div>
@@ -4638,7 +4653,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
                 <svg viewBox="0 0 180 240" width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;">
                     <ellipse class="hand-zone-ring" cx="90" cy="120" rx="90" ry="120"/>
                 </svg>
-                <div class="hand-zone-label" id="handZoneLabel">✋ Hold hand in front of face</div>
+                <div class="hand-zone-label" id="handZoneLabel">✋ Hold hand beside your cheek</div>
             </div>
             <div class="rec-indicator" id="recIndicator" style="display:none;">
                 <span class="rec-dot"></span>REC
