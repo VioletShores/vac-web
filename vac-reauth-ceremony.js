@@ -4023,7 +4023,16 @@ function updateModality(elId, status, score, modName, detail) {
             if (modName==='voiceprint'&&detail.confidence){lines.push('Speech clarity: '+(detail.confidence*100).toFixed(0)+'%');}
             if (modName==='lip_sync'){lines.push('Lip-audio match: '+(detail.matches_audio?'yes':'no'));}
             if (modName==='challenge_response'){if(detail.heard)lines.push('Heard: '+detail.heard);if(detail.expected)lines.push('Expected: '+detail.expected);if(detail.match_ratio!==undefined)lines.push('Match: '+(detail.match_ratio*100).toFixed(0)+'%');}
-            if (modName==='finger_gesture'){if(detail.digits_expected)lines.push('Expected: ['+detail.digits_expected.join(', ')+']');if(detail.digits_seen)lines.push('Gemini saw: ['+detail.digits_seen.join(', ')+']');if(detail.hand_near_face!==undefined)lines.push('Hand near face: '+(detail.hand_near_face?'yes':'no'));}
+            if (modName==='finger_gesture'){if(detail.digits_expected)lines.push('Expected: ['+detail.digits_expected.join(', ')+']');if(detail.digits_seen)lines.push('Gemini saw: ['+detail.digits_seen.join(', ')+']');if(detail.hand_near_face!==undefined)lines.push('Hand near face: '+(detail.hand_near_face?'yes':'no'));
+              // F-769: raw Gemini finger diagnostics (QA only) — WHY is the sequence empty?
+              try { if (typeof QA !== 'undefined' && QA && QA.on) {
+                if(detail.gemini_fingers_detected!==undefined && detail.gemini_fingers_detected!==null)lines.push('[qa] Gemini fingers_detected: '+detail.gemini_fingers_detected);
+                if(detail.gemini_confidence!==undefined && detail.gemini_confidence!==null)lines.push('[qa] Gemini confidence: '+detail.gemini_confidence);
+                if(detail.client_detected_counts)lines.push('[qa] Client counts sent: ['+(detail.client_detected_counts||[]).join(', ')+']');
+                if(detail.sequence_source)lines.push('[qa] Sequence source: '+detail.sequence_source);
+                if(detail.gemini_person_description)lines.push('[qa] Gemini saw in frame: '+detail.gemini_person_description);
+              } } catch(_){}
+            }
             if (modName==='duress'){lines.push('Duress likelihood: '+(detail.duress_likelihood!==undefined?(detail.duress_likelihood*100).toFixed(0)+'%':'0%'));if(detail.indicators&&detail.indicators.length)lines.push('Indicators: '+detail.indicators.join(', '));else lines.push('No distress indicators detected');lines.push('Status: '+(detail.under_duress?'⚠️ ALERT — silent alarm triggered':'✅ Clear — no signs of coercion'));}
             dd.innerHTML = lines.join('<br>');
         }
