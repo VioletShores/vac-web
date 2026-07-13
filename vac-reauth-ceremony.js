@@ -571,7 +571,11 @@ function startAVChecks() {
                 _hs.textContent = (_hasDigit === false)
                     ? 'Hold still for a quick face check — one photo confirms it\u2019s you.'
                     // F-755i: 'beside your cheek' — consistent with the full-flow pre-flight copy.
-                    : 'Show your finger(s) beside your cheek \u2014 confirms it\u2019s still you.';
+                    // F-783a: the fast tier is a BOUND digit (show AND say — the server also runs an
+                    // audio check). The old show-only copy caused live false-denies (Rob showed but
+                    // didn't speak). State both halves until the pre-flight can render from the
+                    // fetched challenge's bound_instruction (F-654-COMPLETE).
+                    : 'Show your finger(s) beside your cheek and say the number out loud \u2014 confirms it\u2019s still you.';
                 _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px';
             }
         }
