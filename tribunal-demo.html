@@ -420,7 +420,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <div class="release-chips">
           <span class="policy-chip">verified human at view-time</span><span class="policy-chip">geo-conditioned</span><span class="policy-chip">attention-gated</span><span class="policy-chip">ephemeral</span><span class="policy-chip">audited open</span>
         </div>
-        <p class="release-diff"><strong>Why this isn't document DRM.</strong> Existing tools (secure data rooms, PDF DRM) bind access to a <em>device, an account, or an email link</em> — anyone holding that device opens the file. VAC binds to a <em>verified living person</em>, checked biometrically at the instant of opening. That is the one thing a DRM vendor cannot copy without a liveness-and-anti-deepfake pipeline — and it is the same rail that signs the receipts in the matters above.</p>
+        <p class="release-diff"><strong>Why this isn't document DRM.</strong> Existing tools — secure data rooms and PDF DRM (Digital Rights Management: the software that locks a file so only an approved device or account can open it) — bind access to a <em>device, an account, or an email link</em>, so anyone holding that device opens the file. VAC binds to a <em>verified living person</em>, checked biometrically at the instant of opening. That is the one thing a DRM vendor cannot copy without a liveness-and-anti-deepfake pipeline — and it is the same rail that signs the receipts in the matters above.</p>
         <p class="release-honest"><strong>Honest status.</strong> The data-release capability — biometric, geo and attention gates — runs today as a working two-party prototype. It is <span class="hil">not yet session-continuous</span> with this walkthrough, so it is shown here as a capability of the rail rather than a wired step in the demo; the location and attention gates are <span class="hil">best-effort and tamper-evident</span> (every open is logged and any circumvention is detectable), not a cryptographic guarantee — which is the honest, and we think the right, claim for legal release conditions. Full integration is the next build with the Law Society.</p>
       </div>
     </section>
@@ -479,6 +479,26 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">Standards &amp; IP — a separate note for your judgment</div>
         <p style="font-size:14px;color:var(--text-secondary,#9FB0C4);line-height:1.55;margin:0 0 12px;">A short, plain-language brief on the standards and intellectual-property decision behind VAC — non-technical, four specific questions I'd value your read on. Separate from the matters above; no need to act on our call, just a read beforehand.</p>
         <a href="/caroline-standards-panel.html" target="_blank" rel="noopener" style="display:inline-block;background:var(--teal,#2E9E6B);color:#04140C;font-weight:700;font-size:14px;text-decoration:none;padding:9px 18px;border-radius:8px;">Open the Standards &amp; IP note &rarr;</a>
+      </div>
+    </section>
+
+    <!-- END-TO-END RAIL: connect the demo to the org onboarding (SSO) + the live Accountability Console (audit dashboard). -->
+    <section class="e2e-rail" style="max-width:900px;margin:46px auto 0;">
+      <p class="section-label" style="text-align:center;">The full rail, end to end</p>
+      <p style="text-align:center;color:var(--text-secondary);max-width:640px;margin:8px auto 26px;font-size:15px;line-height:1.6;">The identity step you just saw is one link in a chain. In a live deployment a firm sets up its organisation and connects its existing sign-on, delegates bounded authority to its people and agents, and every authority decision lands in a single accountability record it can audit.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <a href="/org-onboard.html" style="text-decoration:none;display:block;background:var(--surface,#0F1620);border:1px solid var(--border,#233040);border-radius:12px;padding:20px;transition:border-color .15s;">
+          <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">Set up · your existing sign-on</div>
+          <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">How a firm onboards</div>
+          <p style="font-size:13.5px;color:var(--text-secondary,#9FB0C4);line-height:1.5;margin:0;">Create the organisation and connect your existing single sign-on (Okta, Microsoft Entra, or similar) — VAC rides on the identity you already run, it doesn't replace it. Then invite your people.</p>
+          <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--teal,#2E9E6B);">Open the onboarding &rarr;</div>
+        </a>
+        <a href="/org-console.html" style="text-decoration:none;display:block;background:var(--surface,#0F1620);border:1px solid var(--border,#233040);border-radius:12px;padding:20px;transition:border-color .15s;">
+          <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">Audit · every decision, provable</div>
+          <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">The Accountability Console</div>
+          <p style="font-size:13.5px;color:var(--text-secondary,#9FB0C4);line-height:1.5;margin:0;">Where every authority decision lands: the signed record of who authorised what, under which rules, and when — plus every refusal. A live, tamper-evident audit trail an auditor or a tribunal can read. Shows real records from the backend.</p>
+          <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--teal,#2E9E6B);">Open the console &rarr;</div>
+        </a>
       </div>
     </section>
 
