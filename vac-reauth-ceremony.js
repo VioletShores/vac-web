@@ -5267,6 +5267,10 @@ const VACReauth = {
         // must not tell the user to "say a greeting" — update the header subtitle + how-it-works
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA) QA = window.QA; } catch(_) {}   // adopt the host ?qa=1 overlay if present
+        // F-763b: if the host didn't wire a QA overlay but the URL has ?qa=1, self-enable QA mode
+        // so the dev readouts (fingers:N, tick/size) show for Rob's testing on any page. Never on
+        // without the explicit flag — real users / Caroline never pass ?qa=1.
+        try { if (new URLSearchParams(window.location.search).get('qa') === '1') { if (QA === _QA_SHIM) QA = Object.assign({}, _QA_SHIM); QA.on = true; } } catch(_) {}
         renderDOM();
         // F-687 Fix 4: context-derived verification heading. Re-auth contexts read "Confirming it's
         // still you"; auth.html's first/main auth (context:'register') keeps "Verifying You're Human".
