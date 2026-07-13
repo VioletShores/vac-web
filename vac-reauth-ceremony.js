@@ -3145,6 +3145,15 @@ function _makeQuickReauthVoiceGate(cfg) {
 // in a later lane, where it gets live-tested with a real camera.
 async function beginStillCapture() {
     try { vacDebug('begin_still_capture_called'); } catch(_) {}
+    // F-786a (Rob S133 fail-path e2e — the retry "spiral"): reset the bound-still globals at the
+    // START of every fast run, exactly as beginRecording does for the full path. Without this,
+    // a retry whose fresh capture fails silently falls back (line ~103 / ~3849) to the PREVIOUS
+    // run's still — stale image + stale still_ts_ms → face_mismatch / not_cooccurring on every
+    // retry, which reads as "face suddenly won't match". With the reset, a failed fresh capture
+    // sends an EMPTY still → the server fail-closes explicitly (honest, diagnosable) instead of
+    // verifying against a stale frame.
+    window.__vacFaceStillB64 = '';
+    window.__vacFaceStillTsMs = 0;
     // F-671 Phase B1: ONE mount-scoped resolver for the WHOLE fast path (step2 + step3 reads/writes), so
     // every DOM lookup resolves INSIDE CTX.mount. Fast embeds CEREMONY_HTML into an arbitrary host
     // (tribunal/vat-verify) where a bare document.getElementById could hit a colliding host id; the FULL
