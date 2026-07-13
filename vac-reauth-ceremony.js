@@ -4572,7 +4572,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Mic</div>
-        <div class="header-sub" id="step2HeaderSub">Hold your hand beside your cheek — then say a greeting and show each number. Wait for the ✓ before the next.</div>
+        <div class="header-sub" id="step2HeaderSub">Let&rsquo;s check your camera, mic &amp; light — hold your hand up beside your cheek.<br><span style="opacity:0.7;font-weight:500;">Next step: you&rsquo;ll say a greeting and show a few numbers.</span></div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
