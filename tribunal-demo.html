@@ -352,7 +352,9 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     <section class="hero">
       <div class="eyebrow">A briefing for legal practitioners</div>
       <h1>Who exercised authority — and a sealed receipt that proves it, long after the moment has passed.</h1>
-      <p class="hero-lede">Every matter on this page turns on a question a court or a tribunal may have to answer years later: <span class="pull">did the right person authorise this — or validly delegate it — and can anyone check, independently, that the record has not been altered since?</span> VAC is two primitives for exactly that — <span class="pull">verifiable authority</span> at the moment of the act, and a <span class="pull">sealed, independently-checkable receipt</span> of who did what, under which rules, and when.</p>
+      <p class="moat-spine" style="font-size:clamp(18px,3.2vw,23px);font-weight:700;color:var(--text-primary,#E8EDF4);line-height:1.35;margin:14px 0 4px;border-left:3px solid var(--teal,#2E9E6B);padding-left:16px;">Two competent people, verified live — at the moment of the decision.</p>
+      <p class="moat-spine-sub" style="font-size:clamp(14px,2.4vw,16px);color:var(--text-secondary,#9FB0C4);line-height:1.55;margin:0 0 6px;padding-left:19px;">VAC proves each is <span class="pull">competent</span> (authority), <span class="pull">genuinely present</span> (live biometric), and that <span class="pull">both were there</span> (an immutable audit) — a two-person control built on logins can prove none of that.</p>
+      <p class="hero-lede"><span class="pull">The core value for a firm:</span> narrow, bounded delegation of authority to an AI agent, and a tamper-evident audit of exactly what it did within that scope — professional accountability and an evidentiary trail. The live biometric is the high-assurance step-up at the moment that matters most: the high-stakes seal. Every matter on this page turns on a question a court or a tribunal may have to answer years later: <span class="pull">did the right person authorise this — or validly delegate it — and can anyone check, independently, that the record has not been altered since?</span></p>
 
       <div class="brief">
         <div class="brief-label">Why this is breaking now</div>
@@ -373,8 +375,9 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <div class="id-badge" id="idVerified" hidden>Identity verified · live VAC<span class="idv-name"></span></div>
       <div class="id-pre" id="idPre">
         <div class="eyebrow" style="margin-bottom:10px;">Step one · the live part of this build</div>
-        <h2 class="id-h">Prove a real, present human — live, with VAC.</h2>
-        <p class="id-p">The identity step runs the real VAC verification — face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge — live against the VAC production backend. The cross-modal binding is being hardened, so the biometric is shown here as a live capability rather than the gate that mints the credential; either try it, or continue straight to the matters.</p>
+        <h2 class="id-h">Verified Human Root — prove a real, present human, live.</h2>
+        <p class="id-p" style="font-size:13px;color:var(--text-tertiary,#7C8CA0);margin:-4px 0 10px;font-style:italic;">Verified Human Root ties every agent action to an accountable human. Being advanced toward IETF standardisation.</p>
+        <p class="id-p">In a live deployment the baseline human presence can ride on the firm's existing sign-on (Okta, Entra, FaceID) — VAC integrates rather than replaces it. This bespoke biometric is the <span class="pull">high-assurance step-up</span> reserved for the high-stakes seal: face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge, run live against the VAC production backend. The cross-modal binding is being hardened, so it is shown here as a live capability rather than the gate that mints the credential — either try it, or continue straight to the matters.</p>
         <div class="id-actions">
           <button class="cta-btn" id="idVerifyBtn" type="button">Try the live biometric</button>
           <button class="cta-btn" id="idSkip" type="button" style="background:transparent;border:1px solid var(--amber-border);">Continue to the matters</button>
@@ -467,6 +470,17 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <strong>What's real today vs. what's next.</strong> The cryptographic signing, the authority chain, and the verification are <strong>live and in production now</strong> — the token in the walkthrough is genuinely signed and you can verify it. The trust/tribunal <em>workflow skin</em> over these primitives is what we'd build with the Law Society. Live biometric capture is now wired: the identity step runs the real VAC verification — face liveness, deepfake scan, gesture and voice — against the production backend. The matter workflow over those primitives is the illustrative part, and you can still preview the matters without verifying.
       </div>
     </div><!-- /tab-arch -->
+
+    <!-- CAROLINE STANDARDS CARD (removable — internal for Caroline only; strip before external legal/defence contacts).
+         Placed OUTSIDE the linear matter flow per demo↔standards handover §1. Links to the standalone panel. -->
+    <section id="carolineStandards" class="caroline-standards-wrap" style="max-width:680px;margin:34px auto 0;">
+      <div style="background:linear-gradient(135deg,rgba(30,111,184,0.10),rgba(46,158,107,0.08));border:1px solid var(--teal,#2E9E6B);border-radius:12px;padding:18px 20px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">For Caroline · read, then react on our call</div>
+        <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">Standards &amp; IP — a separate note for your judgment</div>
+        <p style="font-size:14px;color:var(--text-secondary,#9FB0C4);line-height:1.55;margin:0 0 12px;">A short, plain-language brief on the standards and intellectual-property decision behind VAC — non-technical, four specific questions I'd value your read on. Separate from the matters above; no need to act on our call, just a read beforehand.</p>
+        <a href="/caroline-standards-panel.html" target="_blank" rel="noopener" style="display:inline-block;background:var(--teal,#2E9E6B);color:#04140C;font-weight:700;font-size:14px;text-decoration:none;padding:9px 18px;border-radius:8px;">Open the Standards &amp; IP note &rarr;</a>
+      </div>
+    </section>
 
     <section class="more-cases">
       <p class="section-label">The same protocol, other high-stakes domains</p>
