@@ -4708,18 +4708,18 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
          flags (gesture done = _qaGestureLatched; voice done = speechReady[i]) — NO gate change.
          The big current-digit prompt + the two ✓ lamps carry the flow; the small status below is
          now secondary. Hidden until the finger phase begins. -->
-    <div id="vacGuided" style="display:none;margin:0 0 12px;text-align:center;">
-        <div id="vacGuidedNumber" style="display:none;font-size:clamp(56px,18vw,96px);font-weight:800;color:var(--purple,#7c5cfc);line-height:1;margin-bottom:2px;"></div>
-        <div id="vacGuidedPrompt" style="font-size:clamp(20px,5.5vw,28px);font-weight:800;color:var(--text-primary);line-height:1.2;min-height:1.2em;"></div>
-        <div id="vacGuidedSub" style="font-size:clamp(12px,3.2vw,14px);color:var(--text-secondary);margin-top:6px;min-height:1.2em;"></div>
-        <div style="display:flex;justify-content:center;gap:clamp(14px,5vw,28px);margin-top:12px;">
-            <div id="vacGuidedGesture" style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.4;transition:opacity 0.2s;">
-                <span class="vac-lamp" style="display:inline-flex;width:clamp(40px,11vw,52px);height:clamp(40px,11vw,52px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(20px,5.5vw,26px);">✋</span>
-                <span style="font-size:11px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">GESTURE</span>
+    <div id="vacGuided" style="display:none;margin:0 0 8px;text-align:center;">
+        <div id="vacGuidedNumber" style="display:none;font-size:clamp(44px,12vw,72px);font-weight:800;color:var(--purple,#7c5cfc);line-height:1;margin-bottom:2px;"></div>
+        <div id="vacGuidedPrompt" style="font-size:clamp(17px,4.5vw,24px);font-weight:800;color:var(--text-primary);line-height:1.15;min-height:1.15em;"></div>
+        <div id="vacGuidedSub" style="font-size:clamp(12px,3.2vw,14px);color:var(--text-secondary);margin-top:4px;min-height:1.2em;"></div>
+        <div style="display:flex;justify-content:center;gap:clamp(14px,5vw,28px);margin-top:8px;">
+            <div id="vacGuidedGesture" style="display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0.4;transition:opacity 0.2s;">
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(34px,9vw,44px);height:clamp(34px,9vw,44px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(18px,5vw,22px);">✋</span>
+                <span style="font-size:10px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">GESTURE</span>
             </div>
-            <div id="vacGuidedVoice" style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0.4;transition:opacity 0.2s;">
-                <span class="vac-lamp" style="display:inline-flex;width:clamp(40px,11vw,52px);height:clamp(40px,11vw,52px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(20px,5.5vw,26px);">🗣️</span>
-                <span style="font-size:11px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">VOICE</span>
+            <div id="vacGuidedVoice" style="display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0.4;transition:opacity 0.2s;">
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(34px,9vw,44px);height:clamp(34px,9vw,44px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(18px,5vw,22px);">🗣️</span>
+                <span style="font-size:10px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">VOICE</span>
             </div>
         </div>
     </div>
@@ -4980,7 +4980,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
    (header + feed + mic + checks + Start button) fits one ~800px laptop viewport
    without scrolling. Was 36vh/300px which still pushed Start below the fold. */
 .camera-container { position: relative; width: 100%; aspect-ratio: 4/3; max-height: clamp(150px, 28vh, 250px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
-.camera-container.recording { border-color: var(--error); box-shadow: 0 0 20px rgba(248,81,73,0.15); }
+.camera-container.recording { border-color: var(--error); box-shadow: 0 0 20px rgba(248,81,73,0.15); max-height: clamp(220px, 42vh, 400px); }
 .camera-container.verified { border-color: var(--success); box-shadow: 0 0 20px rgba(63,185,80,0.15); }
 #videoPreview, #videoPreviewRec { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; background: #000; }
 
