@@ -4032,6 +4032,8 @@ function updateModality(elId, status, score, modName, detail) {
                 if(detail.gemini_confidence!==undefined && detail.gemini_confidence!==null)lines.push('[qa] Gemini confidence: '+detail.gemini_confidence);
                 if(detail.client_detected_counts)lines.push('[qa] Client counts sent: ['+(detail.client_detected_counts||[]).join(', ')+']');
                 if(detail.sequence_source)lines.push('[qa] Sequence source: '+detail.sequence_source);
+                if(detail.f776_recall_status)lines.push('[qa] F-776 recall: '+detail.f776_recall_status);
+                if(detail.gemini_video_bytes!==undefined && detail.gemini_video_bytes!==null)lines.push('[qa] Video sent to Gemini: '+(detail.gemini_video_bytes/1048576).toFixed(2)+' MB ('+detail.gemini_video_bytes+' bytes, '+(detail.gemini_video_branch||'?')+')');
               } } catch(_){}
             }
             if (modName==='duress'){lines.push('Duress likelihood: '+(detail.duress_likelihood!==undefined?(detail.duress_likelihood*100).toFixed(0)+'%':'0%'));if(detail.indicators&&detail.indicators.length)lines.push('Indicators: '+detail.indicators.join(', '));else lines.push('No distress indicators detected');lines.push('Status: '+(detail.under_duress?'⚠️ ALERT — silent alarm triggered':'✅ Clear — no signs of coercion'));}
