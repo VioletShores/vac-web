@@ -453,6 +453,7 @@ let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
+let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -474,7 +475,7 @@ function _ptInHandZone(p) {
 }
 // F-755c: matches the two drawn purple cheek ovals (cx 0.18/0.82, cy 0.48) with a slight
 // margin so the gated skeleton fires when the hand is visually on either oval.
-const _CHEEK_ZONE_RX = 0.16, _CHEEK_ZONE_RY = 0.22;
+const _CHEEK_ZONE_RX = 0.15, _CHEEK_ZONE_RY = 0.19;  // F-755f: tightened to spec (drawn oval 0.10/0.14 + margin)
 function _ptInCheekZone(p) {
     const dxL = (p.x - 0.18) / _CHEEK_ZONE_RX, dyL = (p.y - 0.48) / _CHEEK_ZONE_RY;
     if (dxL * dxL + dyL * dyL <= 1) return true;
@@ -503,6 +504,7 @@ function startAVChecks() {
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
     _handStableFrames = 0;
+    _micLoudFrames = 0;
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
     setAVStatus('hand', 'checking', 'Hand');
@@ -596,7 +598,10 @@ function startAVChecks() {
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
             else { bar.style.background = 'var(--text-quaternary)'; }
-            if (level > 5 && !avChecks.mic) {
+            // F-755f: require SUSTAINED level (>= 3 consecutive frames above 12%) to avoid
+            // ambient noise falsely ticking "Mic: working" before the user speaks.
+            if (level > 12) { _micLoudFrames++; } else { _micLoudFrames = 0; }
+            if (_micLoudFrames >= 3 && !avChecks.mic) {
                 setAVStatus('mic', 'good', 'Mic: working');
                 avChecks.mic = true;
             }
@@ -4516,7 +4521,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         </button>
         <div class="header-eyebrow">Step 2 of 4</div>
         <div class="header-title">Camera & Mic</div>
-        <div class="header-sub" id="step2HeaderSub">Say a greeting, then show each number as you say it. Wait for the ✓ before the next.</div>
+        <div class="header-sub" id="step2HeaderSub">Hold your hand beside your cheek — then say a greeting and show each number. Wait for the ✓ before the next.</div>
         <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
     </div>
     <div class="camera-container" id="cameraBox">
