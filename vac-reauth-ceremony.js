@@ -452,7 +452,7 @@ let avAudioCtx = null;
 let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
-let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
+let _handStableFrames = 0; // F-755d: consecutive frames where hand passes 21-finite-landmark gate
 let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
