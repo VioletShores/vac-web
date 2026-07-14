@@ -255,6 +255,9 @@ var COPY = {
       btn_retry_upload:      ‘Retry upload →’,
       btn_try_again:         ‘Try again →’,
       btn_continue_full:     ‘Continue to full verification →’,
+      // F-801: step-up result card copy (full ceremony ran instead of quick re-auth)
+      full_step_up_why:      ‘Full tri-modal verification completed — the server required it for this action (step-up from quick re-auth).’,
+      full_step_up_note:     ‘Full tri-modal re-auth ran live: the server blocked the fast tier (require_full_auth) and the full /auth ceremony completed instead. The authorization below uses the freshly minted session token from that ceremony.’,
     },
   },
 
