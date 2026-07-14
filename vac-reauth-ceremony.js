@@ -4504,6 +4504,12 @@ function _dismissNoMic() {
 
 async function retryVerification(auto) {
     if (retryAttempts >= MAX_RETRIES) return;
+    // F-789: if the previous failure was transport-only (the blob never reached the server),
+    // the ceremony was already complete — re-upload without re-recording.
+    if (window.__vacLastVerifyBlob && window.__vacLastVerifyFailWasTransport) {
+        await runRealVerification(window.__vacLastVerifyBlob);
+        return;
+    }
     // Reload to a guaranteed fresh start. Keeps the retry budget; auto-retry (service errors)
     // re-proceeds through the warmed pre-flight after boot (the auto flag rides in the blob).
     VACReauth.reload({ auto: !!auto, keepRetryBudget: true, retryAttempts: retryAttempts });
