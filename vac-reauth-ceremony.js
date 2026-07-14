@@ -3669,6 +3669,7 @@ function renderQuickReauthVerdict(res) {
         spoken_digit_mismatch:  { row:'finger',   act:(_expDigit != null ? ('Say “' + _expDigit + '” clearly as you show it.') : 'Say the number clearly as you show it.') },
         not_cooccurring:        { row:'finger',   act:'Show the number AND say it at the same time.' },
         liveness_failed:        { row:'liveness', act:'Hold still in good, even light and look straight at the camera.' },
+        liveness_unavailable:   { row:'liveness', act:'The liveness provider is temporarily unavailable \u2014 this is not a problem with your face. Use full verification, or try again shortly.' },
     };
     var _fail = _errCode ? _FAIL[_errCode] : null;
     var _failRow = _fail ? _fail.row : null;
