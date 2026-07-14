@@ -3850,6 +3850,10 @@ async function runRealVerification(videoBlob) {
     // Set geolocation as verified immediately (it's browser-side)
     // Geolocation removed from initial auth — reserved for groups/governance
 
+    // F-789: save blob so retryVerification can re-upload without re-recording
+    window.__vacLastVerifyBlob = videoBlob;
+    window.__vacLastVerifyFailWasTransport = false;
+
     try {
         // Build multipart form data
         const formData = new FormData();
@@ -3919,10 +3923,51 @@ async function runRealVerification(videoBlob) {
         // byte-identical to before. (FAST verify goes through runFastVerification instead.)
         const _vCfg = modeConfig().verify;
         const _vBody = _vCfg.buildBody({ formData: formData });
-        const _vOpts = { method: _vCfg.method };
-        if (_vBody instanceof FormData) { _vOpts.body = _vBody; }
-        else if (_vBody != null) { _vOpts.headers = { 'Content-Type': 'application/json' }; _vOpts.body = JSON.stringify(_vBody); }
-        const resp = await fetch(_vCfg.url(), _vOpts);
+        const _vBaseOpts = { method: _vCfg.method };
+        if (_vBody instanceof FormData) { _vBaseOpts.body = _vBody; }
+        else if (_vBody != null) { _vBaseOpts.headers = { 'Content-Type': 'application/json' }; _vBaseOpts.body = JSON.stringify(_vBody); }
+
+        // F-789: transport retry — up to 3 attempts, 3s/6s backoff before attempts 2/3,
+        // 90s stall-guard each. Retry ONLY on network-level failures (TypeError/AbortError/
+        // 502/503/504). 4xx and well-formed verify responses are results, not transport errors.
+        var _UPLOAD_RETRIES = 3;
+        var _UPLOAD_BACKOFF_MS = [0, 0, 3000, 6000];
+        var resp = null;
+        for (var _uAttempt = 1; _uAttempt <= _UPLOAD_RETRIES; _uAttempt++) {
+            if (_uAttempt > 1) {
+                clearInterval(progressTimer); // pause cosmetic animation during backoff wait
+                stepEl.textContent = 'Connection dropped — retrying upload (' + _uAttempt + '/' + _UPLOAD_RETRIES + ')…';
+                detailEl.textContent = 'Waiting before retry…';
+                await sleep(_UPLOAD_BACKOFF_MS[_uAttempt]);
+            }
+            var _uAc = new AbortController();
+            var _uStall = setTimeout(function() { _uAc.abort(); }, 90000);
+            try {
+                resp = await fetch(_vCfg.url(), Object.assign({}, _vBaseOpts, { signal: _uAc.signal }));
+                clearTimeout(_uStall);
+                if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+                    try { vacDebug('verify_upload_attempt', null, { n: _uAttempt, err: 'HTTP ' + resp.status }); } catch(_) {}
+                    if (_uAttempt < _UPLOAD_RETRIES) { resp = null; continue; }
+                    window.__vacLastVerifyFailWasTransport = true;
+                    throw new Error('Upload failed after ' + _UPLOAD_RETRIES + ' attempts (HTTP ' + resp.status + '). Check your connection and try again.');
+                }
+                if (_uAttempt > 1) {
+                    try { vacDebug('verify_upload_recovered', null, { n: _uAttempt }); } catch(_) {}
+                }
+                break;
+            } catch (_uErr) {
+                clearTimeout(_uStall);
+                var _uIsTransport = (_uErr instanceof TypeError || _uErr.name === 'AbortError');
+                if (_uIsTransport) {
+                    try { vacDebug('verify_upload_attempt', null, { n: _uAttempt, err: _uErr.message || String(_uErr) }); } catch(_) {}
+                    if (_uAttempt < _UPLOAD_RETRIES) { resp = null; continue; }
+                    window.__vacLastVerifyFailWasTransport = true;
+                    // Throw structured message so the outer catch shows the connection-specific tip
+                    throw new Error('Upload failed after ' + _UPLOAD_RETRIES + ' attempts (' + (_uErr.name === 'AbortError' ? '90s stall' : 'network error') + '). Check your connection and try again.');
+                }
+                throw _uErr;
+            }
+        }
 
         if (!resp.ok) {
             var errText = await resp.text();
@@ -3936,6 +3981,7 @@ async function runRealVerification(videoBlob) {
 
         authResult = await resp.json();
         authResult._challenge_id = challengeData?.challenge_id || ''; // for copilot mode biometric upgrade
+        window.__vacLastVerifyBlob = null; // F-789: clear saved blob — upload succeeded
         clearInterval(progressTimer);
 
         // Update modality displays with real results
@@ -4018,6 +4064,9 @@ async function runRealVerification(videoBlob) {
             tip = "Speak clearly, keep face and fingers visible. Tap Retry.";
         } else if (msg.indexOf("500")>=0) {
             msg="Servers temporarily busy.";tip="Wait and tap Retry.";
+        } else if (msg.indexOf('Upload failed after') >= 0) {
+            msg = 'Connection dropped during upload.';
+            tip = 'Your recording is saved. Tap Retry to upload it again.';
         } else {
             msg = "Something went wrong during verification.";
             tip = "Tap Retry to try again. Speak clearly and keep your face and fingers visible.";
@@ -4470,6 +4519,18 @@ function _dismissNoMic() {
 
 async function retryVerification(auto) {
     if (retryAttempts >= MAX_RETRIES) return;
+    // F-789: if the previous failure was transport-only (the blob never reached the server),
+    // the ceremony was already complete — re-upload without re-recording.
+    if (window.__vacLastVerifyBlob && window.__vacLastVerifyFailWasTransport) {
+        // Reset error UI before re-uploading: hides retry button (prevents double-tap concurrent
+        // runRealVerification calls) and clears red ring left by the failed attempt.
+        var _rEl = document.getElementById('retrySection');
+        if (_rEl) _rEl.style.display = 'none';
+        var _rRing = document.getElementById('progressRing');
+        if (_rRing) _rRing.style.stroke = '';
+        await runRealVerification(window.__vacLastVerifyBlob);
+        return;
+    }
     // Reload to a guaranteed fresh start. Keeps the retry budget; auto-retry (service errors)
     // re-proceeds through the warmed pre-flight after boot (the auto flag rides in the blob).
     VACReauth.reload({ auto: !!auto, keepRetryBudget: true, retryAttempts: retryAttempts });
@@ -4493,6 +4554,8 @@ function resetBiometricUI(preserveRetryBudget) {
     var nav = document.getElementById('navStatus');
     if (nav) { nav.textContent = 'AUTHENTICATE'; nav.style.color = ''; nav.style.background = ''; nav.style.borderColor = ''; }
     window.__vacAutoProceedChallenge = false;   // clear any stale auto-proceed (retry re-sets it right after; refresh leaves it off)
+    window.__vacLastVerifyBlob = null;           // F-789: clear stale blob so a new ceremony can't re-upload a prior full-tier blob
+    window.__vacLastVerifyFailWasTransport = false;
     // 2. Clear both hand-skeleton canvases so the prior run's overlay doesn't linger
     //    (their clearRect only runs inside the live draw loops, which aren't running yet).
     ['handOverlay', 'avHandOverlay'].forEach(function(id) {
