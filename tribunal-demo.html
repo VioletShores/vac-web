@@ -1377,6 +1377,8 @@ function showReceipt(){
   (function(){
     var _ov=document.getElementById('verifyOverlay');
     if(!_ov||_ov.hidden) return;
+    // Only show when the seal was actually server-authorized — not on refused/error receipts
+    if(!(SEAL_AUTHZ&&SEAL_AUTHZ.authorized)) return;
     var _c=document.getElementById('voContinue');
     if(!_c) return;
     _c.textContent='View sealed decision →';
@@ -1736,8 +1738,8 @@ function renderReauthResult(authz,tier){
   }
   out.innerHTML='<div class="rd-tiers">'+sealCard+viewCard+'</div>'+facts+'<div class="rd-note">'+note+'</div>';
   out.classList.add('show');
-  // F-791: deep-link CTA — only when actually authorized (never on denial/degrade paths)
-  if(authz&&authz.authorized){
+  // F-791: deep-link CTA — only when server-attested AND authorized (D-ATTESTATION-CONSUMER-CONTRACT)
+  if(authz&&authz.attested&&authz.authorized){
     const _m=esc(String((cur&&cur.matter)||''));
     const _a=esc(String((authz&&authz.aar_id)||(tier&&tier.qr_aar_id)||''));
     const _w=document.createElement('div');
