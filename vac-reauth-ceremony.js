@@ -4070,6 +4070,16 @@ async function runRealVerification(videoBlob) {
         } else if (msg.indexOf('Upload failed after') >= 0) {
             msg = 'Connection dropped during upload.';
             tip = 'Your recording is saved. Tap Retry to upload it again.';
+            // F-792 item 2 (Rob field-catch): transport failure = saved blob re-upload, NOT a redo —
+            // button copy must match the tip. Registry key with hard fallback; other states keep
+            // the default "Retry Verification" set in the template.
+            try {
+                var _rb = document.querySelector('#retryTips')
+                    ? document.querySelector('button[onclick="retryVerification()"]') : null;
+                if (_rb) _rb.textContent = (window.VACCopy && VACCopy.resolve)
+                    ? VACCopy.resolve('quick','results','btn_retry_upload')
+                    : 'Retry upload \u2192';
+            } catch (_) {}
         } else {
             msg = "Something went wrong during verification.";
             tip = "Tap Retry to try again. Speak clearly and keep your face and fingers visible.";
