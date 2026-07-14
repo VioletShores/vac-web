@@ -3743,8 +3743,16 @@ function renderQuickReauthVerdict(res) {
     // LIVENESS
     var lv = res.liveness || null;
     var liveOk = lv ? (lv.status === 'verified') : (_failRow === 'liveness' ? false : null);
+    // F-790-QA: on a liveness fail-close, the server's _debug carries didit_status
+    // ('error' = provider/API problem vs 'failed' = genuine liveness decline) + didit_error.
+    // Rendering it distinguishes "the provider erred" from "your face failed" — today's
+    // pattern (Didit err on every run since morning, after clean passes yesterday) points
+    // at provider/quota trouble; this line settles it per-attempt.
+    var _lvDbg = (_failRow === 'liveness' && (_dbg.didit_status || _dbg.didit_error))
+        ? (' <span style="color:var(--text-tertiary);font-size:12px;">[provider status: ' + (_dbg.didit_status || '?') + (_dbg.didit_error ? (' · ' + _dbg.didit_error) : '') + ']</span>')
+        : '';
     var liveDetail = lv ? ('Provider <strong>' + (lv.provider || 'didit') + '</strong>, status <strong>' + (lv.status || '?') + '</strong>' + (lv.score != null ? (', score <strong>' + lv.score + '</strong>') : '') + '.')
-        : (_failRow === 'liveness' ? _fail.act : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a liveness result.'));
+        : (_failRow === 'liveness' ? (_fail.act + _lvDbg) : (_denied ? 'Not reached — an earlier check stopped the verification.' : 'Server did not report a liveness result.'));
 
     var _req = reauthPolicyRequired() || [];
     var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Verification modalities \u2014 tap a row for detail</div>';
