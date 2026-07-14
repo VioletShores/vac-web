@@ -4052,6 +4052,9 @@ async function runRealVerification(videoBlob) {
             tip = "Speak clearly, keep face and fingers visible. Tap Retry.";
         } else if (msg.indexOf("500")>=0) {
             msg="Servers temporarily busy.";tip="Wait and tap Retry.";
+        } else if (msg.indexOf('Upload failed after') >= 0) {
+            msg = 'Connection dropped during upload.';
+            tip = 'Your recording is saved. Tap Retry to upload it again.';
         } else {
             msg = "Something went wrong during verification.";
             tip = "Tap Retry to try again. Speak clearly and keep your face and fingers visible.";
