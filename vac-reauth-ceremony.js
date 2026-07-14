@@ -3411,14 +3411,47 @@ async function beginStillCapture() {
             // descriptor and the still_b64 pixel-identical. We await BEFORE building parts, so
             // buildBody can never read face_embedding before the descriptor resolves (no race).
             if (!_fingerFailReason && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+                // F-787a BEST-OF-N GRAB (S133/S134 telemetry: fast_reauth_embedding_failed:no_face —
+                // ONE instant's frame decided everything; a slightly-turned/occluded face at that
+                // instant fail-closed the whole attempt, so users had to compose like a passport
+                // photo to pass). Resilience WITHOUT touching any threshold: if compute finds no
+                // face in this frame, grab a FRESH frame from the still-live video (~300ms later)
+                // and try again — up to 3 retries. The WINNING frame becomes BOTH the still and
+                // the embedding source (re-encoded from the same canvas: descriptor and still stay
+                // pixel-identical — the F-637c contract). stillTsMs keeps the co-occurrence stamp
+                // (the honest shown+said moment); retries only choose which frame represents the
+                // face, ~0.3-1s later, same person in frame. Single-face enforcement, the identity
+                // euclidean, and every server gate are UNCHANGED.
                 try {
-                    const _EMB_TIMEOUT_MS = 10000;
-                    const r = await Promise.race([
-                        window.VACFaceEmbed.compute(c),
-                        new Promise(function(resolve){ setTimeout(function(){ resolve({ ok:false, reason:'embed_timeout' }); }, _EMB_TIMEOUT_MS); })
-                    ]);
-                    if (r && r.ok) { faceEmbedding = r.embedding; console.log('[VAC] Fast reauth embedding computed (dim ' + r.embedding.length + ')'); }
-                    else { try { vacDebug('fast_reauth_embedding_failed', (r && r.reason) || 'no_result', { faceCount: (r && r.faceCount != null) ? r.faceCount : null }); } catch(_) {} }
+                    const _EMB_TRIES = 4;              // 1 original + 3 fresh grabs
+                    const _EMB_RETRY_GAP_MS = 300;
+                    let _r = null;
+                    for (let _t = 1; _t <= _EMB_TRIES; _t++) {
+                        if (_t > 1) {
+                            await new Promise(function(res){ setTimeout(res, _EMB_RETRY_GAP_MS); });
+                            try {
+                                c.getContext('2d').drawImage(v, 0, 0, cw, ch);   // fresh live frame
+                                const _du = c.toDataURL('image/jpeg', 0.9);
+                                const _cm = _du.indexOf(',');
+                                if (_cm !== -1) stillB64 = _du.slice(_cm + 1);   // winning-frame still
+                            } catch(_) { break; }                                 // video gone: keep last
+                        }
+                        const _EMB_TIMEOUT_MS = (_t === 1) ? 8000 : 2500;         // cold model on try 1
+                        _r = await Promise.race([
+                            window.VACFaceEmbed.compute(c),
+                            new Promise(function(resolve){ setTimeout(function(){ resolve({ ok:false, reason:'embed_timeout' }); }, _EMB_TIMEOUT_MS); })
+                        ]);
+                        if (_r && _r.ok) {
+                            faceEmbedding = _r.embedding;
+                            console.log('[VAC] Fast reauth embedding computed (dim ' + _r.embedding.length + ', grab ' + _t + '/' + _EMB_TRIES + ')');
+                            try { if (_t > 1) vacDebug('fast_reauth_embed_recovered', 'grab_' + _t); } catch(_) {}
+                            break;
+                        }
+                        try { vacDebug('fast_reauth_embed_attempt', (_r && _r.reason) || 'no_result', { grab: _t, faceCount: (_r && _r.faceCount != null) ? _r.faceCount : null }); } catch(_) {}
+                    }
+                    if (!(_r && _r.ok)) {
+                        try { vacDebug('fast_reauth_embedding_failed', (_r && _r.reason) || 'no_result', { faceCount: (_r && _r.faceCount != null) ? _r.faceCount : null, grabs: _EMB_TRIES }); } catch(_) {}
+                    }
                 } catch (ee) { try { vacDebug('fast_reauth_embedding_failed', 'compute_threw'); } catch(_) {} }
             } else {
                 try { vacDebug('fast_reauth_embedding_failed', 'embedder_absent'); } catch(_) {}
