@@ -88,17 +88,39 @@ window.FingerDetector = (function() {
             );
             try { vacDebug('fd_init_wasm_loaded', null, { ms: Math.round(performance.now() - visionStart) }); } catch(_) {}
             const modelStart = performance.now();
-            _detector = await mp.HandLandmarker.createFromOptions(vision, {
-                baseOptions: {
-                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-                    delegate: "GPU"
-                },
+            // F-788: MODEL-SOURCE RESILIENCE. The model previously loaded ONLY from
+            // storage.googleapis.com with NO timeout — on travel/hotel/corporate networks that
+            // fetch stalls forever (live telemetry S134: fd_init_wasm_loaded fired, fd_init_ready
+            // never did, no exception -> createFromOptions hung on the model download; the whole
+            // pre-flight blocked). Order now: (1) same-origin /models/hand_landmarker.task
+            // (self-hosted on vacprotocol.org — immune to third-party blocks; 404s instantly if
+            // not yet vendored), then (2) the Google CDN. Each attempt is timeout-wrapped so a
+            // stalled network FAILS FAST with telemetry instead of hanging the ceremony.
+            const _mkDetector = function(url){ return mp.HandLandmarker.createFromOptions(vision, {
+                baseOptions: { modelAssetPath: url, delegate: "GPU" },
                 numHands: 1,
                 minHandDetectionConfidence: 0.5,
                 minHandPresenceConfidence: 0.5,
                 minTrackingConfidence: 0.5,
                 runningMode: "VIDEO"
-            });
+            }); };
+            const _withTimeout = function(p, ms){ return Promise.race([p, new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('model_load_timeout_' + ms + 'ms')); }, ms); })]); };
+            const _MODEL_SOURCES = [
+                { url: (location.origin || '') + '/models/hand_landmarker.task', ms: 12000, tag: 'same_origin' },
+                { url: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", ms: 20000, tag: 'google_cdn' }
+            ];
+            let _lastErr = null;
+            for (let _mi = 0; _mi < _MODEL_SOURCES.length && !_detector; _mi++) {
+                const _src = _MODEL_SOURCES[_mi];
+                try {
+                    _detector = await _withTimeout(_mkDetector(_src.url), _src.ms);
+                    try { vacDebug('fd_model_source', _src.tag, { ms: Math.round(performance.now() - modelStart) }); } catch(_) {}
+                } catch (me) {
+                    _lastErr = me;
+                    try { vacDebug('fd_model_source_failed', _src.tag + ': ' + ((me && me.message) || String(me))); } catch(_) {}
+                }
+            }
+            if (!_detector) throw (_lastErr || new Error('all_model_sources_failed'));
             _isReady = true;
             try { vacDebug('fd_init_ready', null, { model_ms: Math.round(performance.now() - modelStart), total_ms: Math.round(performance.now() - _initStart) }); } catch(_) {}
             console.log('[VAC] HandLandmarker ready — real-time finger detection active');
