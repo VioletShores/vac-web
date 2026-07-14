@@ -848,6 +848,15 @@ function render(data, verif, budgetData) {
         h += '</div>';
     }
 
+    // F-793c: matter-scoped tokens get a way back to the tribunal matters — the
+    // verify page must not be a dead end for the demo walkthrough. Only shown when
+    // the chain actually carries a matter: scope (standalone/evaluator opens unchanged).
+    try {
+        const _res = (verif && verif.chain || []).flatMap(n => n.scope_resources || []);
+        if (_res.some(r => String(r).startsWith('matter:MATTER-'))) {
+            h += `<div style="text-align:center;margin:26px 0 8px;"><a href="/tribunal-demo.html" style="color:var(--text-tertiary);font-family:var(--mono);font-size:12px;letter-spacing:0.5px;text-decoration:none;border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:9px 16px;display:inline-block;">&#x2190; Back to the matters</a></div>`;
+        }
+    } catch (_) {}
     app.innerHTML = h;
     _useCases = useCases;
     showUseCase();
