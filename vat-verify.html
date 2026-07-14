@@ -94,6 +94,7 @@ body {
 .nav-badge { font-family: var(--mono); font-size: 11px; padding: 4px 10px; border-radius: 20px; letter-spacing: 0.5px; font-weight: 600; }
 .nav-badge.valid { color: var(--success); background: var(--success-bg); border: 1px solid var(--success-border); }
 .nav-badge.invalid { color: var(--error); background: var(--error-bg); border: 1px solid var(--error-border); }
+.nav-badge.expired { color: var(--warning); background: var(--warning-bg); border: 1px solid var(--warning-border); }
 
 /* ─── Page ─── */
 .page { max-width: 600px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
@@ -551,13 +552,22 @@ function render(data, verif, budgetData) {
 
     if (!data) {
         app.innerHTML = '<div class="error-card"><div class="error-title">Token Not Found</div><div class="error-msg">This verification link may have expired or been revoked.<br><br><a href="https://vacprotocol.org">Learn about VAC Protocol \u2192</a></div></div>';
+        const nb = document.getElementById('nav-badge');
+        nb.textContent = 'NOT FOUND';
+        nb.className = 'nav-badge invalid';
         return;
     }
 
     const { chain_display: cd, claim_mapping: cm, verification: v } = data;
     const ok = v.valid;
+    const isExpiry = !ok && Array.isArray(v.errors) && v.errors.length > 0 &&
+        v.errors.every(e => /expired/i.test(String(e))) &&
+        !v.errors.some(e => /signature|tamper/i.test(String(e)));
     const nb = document.getElementById('nav-badge');
-    if (!ok) { nb.textContent = 'INVALID'; nb.className = 'nav-badge invalid'; }
+    if (!ok) {
+        if (isExpiry) { nb.textContent = 'EXPIRED'; nb.className = 'nav-badge expired'; }
+        else { nb.textContent = 'INVALID'; nb.className = 'nav-badge invalid'; }
+    }
 
     const root = cd.find(n => n.is_root);
     const method = root ? root.verification_method : 'multi_modal';
@@ -620,13 +630,26 @@ function render(data, verif, budgetData) {
             <div class="hero-sub">Every agent in this delegation traces back to a biometrically verified person. Vouch to join their trust graph.</div>
         </div>`;
         }
+    } else if (isExpiry) {
+        h += `<div class="hero">
+            <div class="hero-eyebrow" style="color:var(--warning)">Authority Expired</div>
+            <div style="text-align:center;margin:20px 0;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <div class="hero-tagline" style="color:var(--warning)">Authority expired</div>
+            <div class="hero-sub">Signature valid · chain intact · authority expired — authority in VAC is time-bounded by design.</div>
+        </div>`;
     } else {
+        const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const _errList = v.errors && v.errors.length ? v.errors.map(e => `<div style="font-family:var(--mono);font-size:12px;color:var(--error);margin-top:6px;opacity:0.9;">${_esc(e)}</div>`).join('') : '';
+        const _warnList = v.warnings && v.warnings.length ? v.warnings.map(w => `<div style="font-family:var(--mono);font-size:12px;color:var(--warning);margin-top:4px;opacity:0.9;">${_esc(w)}</div>`).join('') : '';
         h += `<div class="hero">
             <div class="hero-eyebrow" style="color:var(--error)">Chain Verification Failed</div>
             <div style="text-align:center;margin:20px 0;">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
             </div>
-            <div class="hero-tagline" style="color:var(--error)">${v.errors.length} error${v.errors.length !== 1 ? 's' : ''} detected</div>
+            <div class="hero-tagline" style="color:var(--error)">${(v.errors||[]).length} error${(v.errors||[]).length !== 1 ? 's' : ''} detected</div>
+            ${_errList}${_warnList}
         </div>`;
     }
 
