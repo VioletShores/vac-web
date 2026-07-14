@@ -3761,8 +3761,8 @@ function renderQuickReauthVerdict(res) {
     var _req = reauthPolicyRequired() || [];
     var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Verification modalities \u2014 tap a row for detail</div>';
     var _btnLabel = !_denied ? 'Continue \u2192'
-        : (_reqFull ? 'Continue to full verification \u2192'
-        : ((_retries == null || _retries > 0) ? 'Try again \u2192' : 'Continue \u2192'));
+        : (_reqFull ? _R('quick','results','btn_continue_full')
+        : ((_retries == null || _retries > 0) ? _R('quick','results','btn_try_again') : 'Continue \u2192'));
     host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _reasonHtml + _label
         + row('face', 'Face match', 'face-api.js 128-D embedding, euclidean distance vs your stored template (server-computed).', faceOk, faceDetail)
         + row('finger', 'Number on fingers', 'MediaPipe HandLandmarker (client) \u2014 the bound digit, shown AND said.', fingerOk, fingerDetail)

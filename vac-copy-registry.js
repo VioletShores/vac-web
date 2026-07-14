@@ -251,6 +251,10 @@ var COPY = {
       face_match_name:       ‘Face match’,
       finger_row_name:       ‘Number on fingers’,
       liveness_row_name:     ‘Passive liveness’,
+      // Item 2 — qrContinueBtn state-keyed labels
+      btn_retry_upload:      ‘Retry upload →’,
+      btn_try_again:         ‘Try again →’,
+      btn_continue_full:     ‘Continue to full verification →’,
     },
   },
 
