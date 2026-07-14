@@ -3841,6 +3841,10 @@ async function runRealVerification(videoBlob) {
     // Set geolocation as verified immediately (it's browser-side)
     // Geolocation removed from initial auth — reserved for groups/governance
 
+    // F-789: save blob so retryVerification can re-upload without re-recording
+    window.__vacLastVerifyBlob = videoBlob;
+    window.__vacLastVerifyFailWasTransport = false;
+
     try {
         // Build multipart form data
         const formData = new FormData();
@@ -3910,10 +3914,48 @@ async function runRealVerification(videoBlob) {
         // byte-identical to before. (FAST verify goes through runFastVerification instead.)
         const _vCfg = modeConfig().verify;
         const _vBody = _vCfg.buildBody({ formData: formData });
-        const _vOpts = { method: _vCfg.method };
-        if (_vBody instanceof FormData) { _vOpts.body = _vBody; }
-        else if (_vBody != null) { _vOpts.headers = { 'Content-Type': 'application/json' }; _vOpts.body = JSON.stringify(_vBody); }
-        const resp = await fetch(_vCfg.url(), _vOpts);
+        const _vBaseOpts = { method: _vCfg.method };
+        if (_vBody instanceof FormData) { _vBaseOpts.body = _vBody; }
+        else if (_vBody != null) { _vBaseOpts.headers = { 'Content-Type': 'application/json' }; _vBaseOpts.body = JSON.stringify(_vBody); }
+
+        // F-789: transport retry — up to 3 attempts, 1s/3s/6s backoff, 90s stall-guard each.
+        // Retry ONLY on network-level failures (TypeError/AbortError/502/503/504).
+        // 4xx and well-formed verify responses are results, not transport errors — no retry.
+        var _UPLOAD_RETRIES = 3;
+        var _UPLOAD_BACKOFF_MS = [0, 1000, 3000, 6000];
+        var resp = null;
+        for (var _uAttempt = 1; _uAttempt <= _UPLOAD_RETRIES; _uAttempt++) {
+            if (_uAttempt > 1) {
+                stepEl.textContent = 'Connection dropped — retrying upload (' + _uAttempt + '/' + _UPLOAD_RETRIES + ')…';
+                detailEl.textContent = 'Waiting before retry…';
+                await sleep(_UPLOAD_BACKOFF_MS[_uAttempt]);
+            }
+            var _uAc = new AbortController();
+            var _uStall = setTimeout(function() { _uAc.abort(); }, 90000);
+            try {
+                resp = await fetch(_vCfg.url(), Object.assign({}, _vBaseOpts, { signal: _uAc.signal }));
+                clearTimeout(_uStall);
+                if (resp.status === 502 || resp.status === 503 || resp.status === 504) {
+                    try { vacDebug('verify_upload_attempt', null, { n: _uAttempt, err: 'HTTP ' + resp.status }); } catch(_) {}
+                    if (_uAttempt < _UPLOAD_RETRIES) { resp = null; continue; }
+                    window.__vacLastVerifyFailWasTransport = true;
+                    throw new Error('Upload failed after ' + _UPLOAD_RETRIES + ' attempts (HTTP ' + resp.status + '). Check your connection and try again.');
+                }
+                if (_uAttempt > 1) {
+                    try { vacDebug('verify_upload_recovered', null, { n: _uAttempt }); } catch(_) {}
+                }
+                break;
+            } catch (_uErr) {
+                clearTimeout(_uStall);
+                var _uIsTransport = (_uErr instanceof TypeError || _uErr.name === 'AbortError');
+                if (_uIsTransport) {
+                    try { vacDebug('verify_upload_attempt', null, { n: _uAttempt, err: _uErr.message || String(_uErr) }); } catch(_) {}
+                    if (_uAttempt < _UPLOAD_RETRIES) { resp = null; continue; }
+                    window.__vacLastVerifyFailWasTransport = true;
+                }
+                throw _uErr;
+            }
+        }
 
         if (!resp.ok) {
             var errText = await resp.text();
@@ -3927,6 +3969,7 @@ async function runRealVerification(videoBlob) {
 
         authResult = await resp.json();
         authResult._challenge_id = challengeData?.challenge_id || ''; // for copilot mode biometric upgrade
+        window.__vacLastVerifyBlob = null; // F-789: clear saved blob — upload succeeded
         clearInterval(progressTimer);
 
         // Update modality displays with real results
