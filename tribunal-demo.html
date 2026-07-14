@@ -1372,6 +1372,26 @@ function showReceipt(){
     (SEAL_TOKEN.minted ? `<div class="fwd-note" style="margin-top:12px;"><strong>What's real here vs. the forward build (for evaluation).</strong> The token above was <em>just minted</em> against the production backend on this authorisation — a real, signed, independently-verifiable Ed25519 credential, not a stored sample. What is <em>illustrative</em> is the matter's encoded conditions: turning a specific matter's legal rules into the token — the release conditions, statutory triggers, any prescribed-witness requirement, and trust-money handling — is precisely the work that would be scoped and built <strong>with the relevant legal authority (e.g. the Law Society / Fair Trading)</strong>, not asserted in a demo. So: the cryptographic authority primitive is live today; the legally-precise matter model over it is the forward path, and the open legal questions are flagged inline on each matter for you to confirm or correct.</div>` : '');
   renderReauthDemo();
   const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
+  // F-791: repurpose voContinue in the auth overlay (stays up per F-784a) as the deep-link CTA
+  // once the receipt is rendered and SEAL_AUTHZ is settled (we're called after authorizeSeal()).
+  (function(){
+    var _ov=document.getElementById('verifyOverlay');
+    if(!_ov||_ov.hidden) return;
+    // Only show when the seal was actually server-authorized — not on refused/error receipts
+    if(!(SEAL_AUTHZ&&SEAL_AUTHZ.authorized)) return;
+    var _c=document.getElementById('voContinue');
+    if(!_c) return;
+    _c.textContent='View sealed decision →';
+    _c.dataset.matter=(cur&&cur.matter)?String(cur.matter):'';
+    _c.dataset.aar=(SEAL_AUTHZ&&SEAL_AUTHZ.aar_id)?String(SEAL_AUTHZ.aar_id):'';
+    _c.hidden=false;
+    _c.onclick=function(){
+      var _f=document.getElementById('voFrame');
+      try{_ov.hidden=true;if(_f)_f.src='about:blank';document.body.style.overflow='';}catch(e){}
+      var _r=document.getElementById('receipt');
+      if(_r)_r.scrollIntoView({behavior:'smooth',block:'center'});
+    };
+  })();
 }
 
 // ---- Proportional re-auth demo (D-FAST-REAUTH-UNREACHABLE-IN-DEMO) ----
@@ -1718,6 +1738,17 @@ function renderReauthResult(authz,tier){
   }
   out.innerHTML='<div class="rd-tiers">'+sealCard+viewCard+'</div>'+facts+'<div class="rd-note">'+note+'</div>';
   out.classList.add('show');
+  // F-791: deep-link CTA — only when server-attested AND authorized (D-ATTESTATION-CONSUMER-CONTRACT)
+  if(authz&&authz.attested&&authz.authorized){
+    const _m=esc(String((cur&&cur.matter)||''));
+    const _a=esc(String((authz&&authz.aar_id)||(tier&&tier.qr_aar_id)||''));
+    const _w=document.createElement('div');
+    _w.style.cssText='margin-top:14px;';
+    _w.innerHTML='<button type="button" class="cta-btn rd-cta" data-matter="'+_m+'" data-aar="'+_a+'" '+
+      'onclick="document.getElementById(\'receipt\').scrollIntoView({behavior:\'smooth\',block:\'center\'})">'+
+      'View sealed decision →</button>';
+    out.appendChild(_w);
+  }
 }
 
 // ---- Live VAC identity step (F-577) ----
