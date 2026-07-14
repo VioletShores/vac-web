@@ -72,6 +72,21 @@ var COPY = {
       uploading:              'Uploading recording…',
       uploading_initial:      'Video + Audio → Gemini + Deepgram',
       reauth_verify_title:    "Confirming it’s still you",
+      // Coaching strings — used in CaptureFeedback and live detection loop
+      say_phrase_label:       ‘SAY THE PHRASE’,
+      coach_nearmiss:         ‘Almost — show your fingers and say it at the same time’,
+      coach_voiceonly:        function(p) { var n = p.digit; return ‘Now show your ‘ + n + ‘ finger’ + (n === 1 ? ‘’ : ‘s’) + ‘ as you say “’ + n + ‘”’; },
+      coach_gestureonly:      function(p) { return ‘Say “’ + p.digit + ‘” out loud while you hold up your fingers’; },
+      coach_lower_rearm:      ‘Lower your hand, then show {{digit}} again’,
+      hold_hand:              ‘✋ Hold your hand up beside your cheek’,
+      hand_detected:          ‘Hand detected — hold steady.’,
+      coach_show_and_say:     ‘Show {{digit}} AND say “{{digit}}” — at the same time’,
+      voice_help_louder:      ‘We can’t hear you — a bit louder’,
+      coach_rest_sub:         ‘together, in one go’,
+      hold_steady_sub:        ‘hold steady’,
+      gesture_progress:       function(p) { return ‘Hold steady ‘ + p.pct + ‘%  (‘ + p.step + ‘/’ + p.total + ‘)’; },
+      live_got_it_beat:       ‘Got it ✓’,
+      live_all_gestures:      ‘All gestures captured ✓’,
     },
     denied: {
       why_it_failed:          'Why it failed',
@@ -94,8 +109,8 @@ var COPY = {
       // challenge_response_tip is tier-overridden — see quick/full/nameless below
       duress_reason:                'Duress check — monitoring for signs of coercion.',
       duress_tip:                   'This runs silently. If you are safe, this will always pass.',
-      finger_gesture_reason:        'Finger count sequence did not match the expected digits.',
-      // finger_gesture_tip is tier-overridden below
+      finger_gesture_reason:        'Hand gesture did not match the expected digit — shown pose not confirmed by server analysis.',
+      // finger_gesture_tip is tier-overridden below; gesture is advisory on-device, validated server-side
       geolocation_reason:           'Location could not be determined.',
       geolocation_tip:              'Allow location access when prompted by your browser.',
     },
@@ -153,6 +168,10 @@ var COPY = {
       challenge_intro_headline:    'First a greeting,\nthen your numbers.',
       step2_title_with_voice:      'Show your fingers and say the number',
       step2_title_no_voice:        'Show your fingers',
+      // Live detection loop coaching — digit co-occurrence (curly quotes match ceremony “/”)
+      voice_help_say_digit:        function(p) { return 'We can’t hear you — say “' + p.digit + '”, or tap below'; },
+      coach_keep_showing:          function(p) { return 'Keep showing ' + p.digit + ' — say “' + p.digit + '”'; },
+      live_show_and_say:           function(p) { var d = p.digit; return 'Show ' + d + ' finger' + (d === 1 ? '' : 's') + ' AND say “' + d + '” — at the same time'; },
     },
     denied: {
       challenge_response_tip:  'Read the challenge phrase exactly as shown — include the greeting and all digits.',
@@ -196,15 +215,20 @@ var COPY = {
     capture: {
       step2_title_with_voice:  'Show your fingers and say the number',
       step2_title_no_voice:    'Show your fingers',
-      show_hold_steady:        'Show [N] — hold steady',
-      hold_hand:               '✋ Hold your hand up beside your cheek',
-      hand_detected:           'Hand detected — hold steady.',
-      show_fingers_hold:       'Show [N] finger(s) — hold steady',
+      show_hold_steady:        'Show {{digit}} — hold steady',
+      show_fingers_hold:       'Show {{digit}} finger(s) — hold steady',
     },
     denied: {
       // Quick tier: user shows one digit on fingers; no full spoken phrase
       challenge_response_tip:  'Show the digit clearly on your fingers beside your face and say it out loud at the same time.',
-      finger_gesture_tip:      'Hold your hand beside your cheek with fingers clearly spread. Keep it steady until the check completes.',
+      // Gesture is advisory on-device; server validates the pose against the recorded digit
+      finger_gesture_tip:      'Hold your hand clearly in view beside your cheek with fingers spread wide. Keep it visible and steady — the gesture is verified in the recording.',
+      face_mismatch_heading:   'Identity not confirmed',
+      face_mismatch_body:      'Face did not match your stored biometric. Full verification provides a stronger identity check.',
+    },
+    escalation: {
+      upgrade_btn:  'Continue with full verification',
+      step_up_info: 'Security step-up — this is protection working. Full verification confirms your identity with a stronger biometric check.',
     },
     results: {
       verify_subtitle_pass:  'Quick re-auth complete — here is what the backend checked.',
