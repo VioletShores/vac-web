@@ -1192,7 +1192,19 @@ function sealReauthGate(onPass, onCancel){
       // vac-auth-success from our own origin (origin already checked above).
       window.__vacVerified={ name:(d.name||'').trim(), email:(d.email||null), session_token:(d.session_token||null), auth_level:(d.auth_level||null) };
       cleanup();
-      try{ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }catch(e){}
+      // F-784a (Rob x3: "the no-greeting auth shows no results"): auth.html's results screen
+      // EXISTS — this teardown was destroying it the instant success posted
+      // (overlay.hidden + frame.src='about:blank'). Keep the overlay up so the user sees the
+      // modality results; the seal proceeds behind it (onPass below). The X — which can no
+      // longer mean cancel (settled/passed) — now dismisses to the sealed receipt.
+      try{
+        if(closeBtn){
+          closeBtn.removeEventListener('click', onClose);
+          closeBtn.addEventListener('click', function(){
+            try{ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }catch(e){}
+          }, { once:true });
+        }
+      }catch(e){}
       onPass();
     }
   }
