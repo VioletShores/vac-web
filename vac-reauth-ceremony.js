@@ -3659,30 +3659,33 @@ function renderQuickReauthVerdict(res) {
     var _dbg = res._debug || {};
     var _expDigit = (challengeData && challengeData.digits && challengeData.digits.length) ? challengeData.digits[0] : null;
     // Map the server error code → which modality row failed + the corrective action the user can take.
+    // Corrective action strings live in the registry (quick.denied.deny_act_*); digit params
+    // interpolated at build-time so the copy matches the CURRENT challenge digit, not a hardcoded literal.
+    var _R = VACCopy.resolve;
     var _FAIL = {
-        face_mismatch:          { row:'face',     act:'Move closer, get even lighting, and face the camera straight on.' },
-        embedding_required:     { row:'face',     act:'We couldn’t read a clear face — move closer / better light and try again.' },
-        no_embedding:           { row:'face',     act:'Full verification is required to enroll your face.' },
-        no_face_reference:      { row:'face',     act:'No face on file — full verification required.' },
-        corrupt_face_reference: { row:'face',     act:'Stored face template is unreadable — full verification required.' },
-        finger_mismatch:        { row:'finger',   act:(_expDigit != null ? ('Show exactly ' + _expDigit + ' finger' + (_expDigit === 1 ? '' : 's') + ' to the camera.') : 'Show the requested number of fingers.') },
-        spoken_digit_mismatch:  { row:'finger',   act:(_expDigit != null ? ('Say “' + _expDigit + '” clearly as you show it.') : 'Say the number clearly as you show it.') },
-        not_cooccurring:        { row:'finger',   act:'Show the number AND say it at the same time.' },
-        liveness_failed:        { row:'liveness', act:'Hold still in good, even light and look straight at the camera.' },
-        liveness_unavailable:   { row:'liveness', act:'The liveness provider is temporarily unavailable \u2014 this is not a problem with your face. Use full verification, or try again shortly.' },
+        face_mismatch:          { row:'face',     act: _R('quick','denied','deny_act_face_mismatch') },
+        embedding_required:     { row:'face',     act: _R('quick','denied','deny_act_embedding_required') },
+        no_embedding:           { row:'face',     act: _R('quick','denied','deny_act_no_embedding') },
+        no_face_reference:      { row:'face',     act: _R('quick','denied','deny_act_no_face_reference') },
+        corrupt_face_reference: { row:'face',     act: _R('quick','denied','deny_act_corrupt_face_reference') },
+        finger_mismatch:        { row:'finger',   act: (_expDigit != null ? _R('quick','denied','deny_act_finger_mismatch',{digit:_expDigit}) : _R('quick','denied','deny_act_finger_mismatch_no_digit')) },
+        spoken_digit_mismatch:  { row:'finger',   act: (_expDigit != null ? _R('quick','denied','deny_act_spoken_digit_mismatch',{digit:_expDigit}) : _R('quick','denied','deny_act_spoken_digit_mismatch_no_digit')) },
+        not_cooccurring:        { row:'finger',   act: _R('quick','denied','deny_act_not_cooccurring') },
+        liveness_failed:        { row:'liveness', act: _R('quick','denied','deny_act_liveness_failed') },
+        liveness_unavailable:   { row:'liveness', act: _R('quick','denied','deny_act_liveness_unavailable') },
     };
     var _fail = _errCode ? _FAIL[_errCode] : null;
     var _failRow = _fail ? _fail.row : null;
     // Red reason banner (message + corrective action + retries) — built here, prepended to the modal below.
     var _reasonHtml = '';
     if (_denied) {
-        var _msg = (typeof res.message === 'string' && res.message) ? res.message : 'The quick check did not confirm your identity.';
+        var _msg = (typeof res.message === 'string' && res.message) ? res.message : _R('quick','denied','deny_default_msg');
         var _act = _fail ? _fail.act : (_reqFull ? 'Full verification is required.' : '');
         var _retTxt = _reqFull ? 'Full verification required'
             : (_retries != null && _retries > 0) ? (_retries + ' ' + (_retries === 1 ? 'try' : 'tries') + ' left')
             : (_retries === 0) ? 'No tries left — full verification required' : '';
         _reasonHtml = '<div style="border:1px solid var(--error);background:rgba(239,68,68,0.10);border-radius:10px;padding:11px 13px;margin-bottom:12px;">'
-            + '<div style="color:var(--error);font-weight:700;font-size:14px;margin-bottom:3px;">Not confirmed</div>'
+            + '<div style="color:var(--error);font-weight:700;font-size:14px;margin-bottom:3px;">' + _R('quick','denied','deny_heading') + '</div>'
             + '<div style="color:var(--text-primary);font-size:13px;line-height:1.4;">' + _msg + '</div>'
             + (_act ? ('<div style="color:var(--text-secondary);font-size:12px;margin-top:6px;">→ ' + _act + '</div>') : '')
             + (_retTxt ? ('<div style="color:var(--text-tertiary);font-family:var(--mono);font-size:11px;letter-spacing:0.5px;margin-top:6px;text-transform:uppercase;">' + _retTxt + '</div>') : '')
@@ -3758,8 +3761,8 @@ function renderQuickReauthVerdict(res) {
     var _req = reauthPolicyRequired() || [];
     var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Verification modalities \u2014 tap a row for detail</div>';
     var _btnLabel = !_denied ? 'Continue \u2192'
-        : (_reqFull ? 'Continue to full verification \u2192'
-        : ((_retries == null || _retries > 0) ? 'Try again \u2192' : 'Continue \u2192'));
+        : (_reqFull ? _R('quick','results','btn_continue_full')
+        : ((_retries == null || _retries > 0) ? _R('quick','results','btn_try_again') : 'Continue \u2192'));
     host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _reasonHtml + _label
         + row('face', 'Face match', 'face-api.js 128-D embedding, euclidean distance vs your stored template (server-computed).', faceOk, faceDetail)
         + row('finger', 'Number on fingers', 'MediaPipe HandLandmarker (client) \u2014 the bound digit, shown AND said.', fingerOk, fingerDetail)
