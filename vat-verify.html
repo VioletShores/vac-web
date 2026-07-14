@@ -648,7 +648,7 @@ function render(data, verif, budgetData) {
             <div style="text-align:center;margin:20px 0;">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
             </div>
-            <div class="hero-tagline" style="color:var(--error)">${v.errors.length} error${v.errors.length !== 1 ? 's' : ''} detected</div>
+            <div class="hero-tagline" style="color:var(--error)">${(v.errors||[]).length} error${(v.errors||[]).length !== 1 ? 's' : ''} detected</div>
             ${_errList}${_warnList}
         </div>`;
     }
