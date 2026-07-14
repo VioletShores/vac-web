@@ -104,17 +104,47 @@ window.FingerDetector = (function() {
                 minTrackingConfidence: 0.5,
                 runningMode: "VIDEO"
             }); };
-            const _withTimeout = function(p, ms){ return Promise.race([p, new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('model_load_timeout_' + ms + 'ms')); }, ms); })]); };
+            // F-788a STALL-AWARE MODEL FETCH (Rob, Gatwick Express: "slow internet users are
+            // real users — should still work"). Fixed total-time timeouts KILL slow-but-working
+            // downloads; the correct failure signal is a STALL (no bytes for _STALL_MS), never
+            // total duration. Stream the model with progress telemetry, then feed
+            // createFromOptions a local blob URL (instant). /models/* is served immutable
+            // (vercel.json) so the 7.5MB costs each browser ONCE, ever.
+            const _fetchModelBlob = async function(url){
+                const _STALL_MS = 12000;
+                const resp = await Promise.race([
+                    fetch(url, { cache: 'force-cache' }),
+                    new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('connect_stall')); }, _STALL_MS); })
+                ]);
+                if (!resp.ok) throw new Error('http_' + resp.status);
+                if (!resp.body || !resp.body.getReader) { return URL.createObjectURL(await resp.blob()); }
+                const reader = resp.body.getReader();
+                const chunks = []; let got = 0; let lastBeat = performance.now();
+                const total = parseInt(resp.headers.get('content-length') || '0', 10) || 0;
+                while (true) {
+                    const r = await Promise.race([
+                        reader.read(),
+                        new Promise(function(_, rej){ setTimeout(function(){ rej(new Error('stall_at_' + got + 'b')); }, _STALL_MS); })
+                    ]);
+                    if (r.done) break;
+                    chunks.push(r.value); got += r.value.length; lastBeat = performance.now();
+                    try { if (FingerDetector.onModelProgress) FingerDetector.onModelProgress(got, total); } catch(_) {}
+                }
+                return URL.createObjectURL(new Blob(chunks));
+            };
             const _MODEL_SOURCES = [
-                { url: (location.origin || '') + '/models/hand_landmarker.task', ms: 12000, tag: 'same_origin' },
-                { url: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", ms: 20000, tag: 'google_cdn' }
+                { url: (location.origin || '') + '/models/hand_landmarker.task', tag: 'same_origin' },
+                { url: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", tag: 'google_cdn' }
             ];
             let _lastErr = null;
             for (let _mi = 0; _mi < _MODEL_SOURCES.length && !_detector; _mi++) {
                 const _src = _MODEL_SOURCES[_mi];
                 try {
-                    _detector = await _withTimeout(_mkDetector(_src.url), _src.ms);
-                    try { vacDebug('fd_model_source', _src.tag, { ms: Math.round(performance.now() - modelStart) }); } catch(_) {}
+                    const _blobUrl = await _fetchModelBlob(_src.url);
+                    try {
+                        _detector = await _mkDetector(_blobUrl);
+                        try { vacDebug('fd_model_source', _src.tag, { ms: Math.round(performance.now() - modelStart) }); } catch(_) {}
+                    } finally { try { URL.revokeObjectURL(_blobUrl); } catch(_) {} }
                 } catch (me) {
                     _lastErr = me;
                     try { vacDebug('fd_model_source_failed', _src.tag + ': ' + ((me && me.message) || String(me))); } catch(_) {}
