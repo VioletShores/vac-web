@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>Violet Shores — a note for Prof. Andrea Danani, IDSIA USI-SUPSI</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0F1A; --panel:#101726; --panel2:#0D1420;
+    --ink:#E8ECF4; --muted:#93A0B4; --faint:#5C6B80;
+    --gold:#C9A227; --teal:#35C4B5;
+    --hair:rgba(201,162,39,.28);
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#0A0F1A}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;font-size:15.5px;line-height:1.62;
+    -webkit-font-smoothing:antialiased}
+  .sheet{max-width:820px;margin:0 auto;padding:52px 26px 72px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
+  h1{font-family:'Fraunces',serif;font-weight:640;font-size:clamp(27px,5.4vw,38px);line-height:1.16;margin:14px 0 10px;letter-spacing:-.01em}
+  .lede{color:var(--muted);font-size:16.5px;max-width:60ch}
+  .who{margin-top:18px;font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .who b{color:var(--muted);font-weight:500}
+
+  /* signature: authority-chain rail */
+  .chain{position:relative;margin-top:44px}
+  .chain::before{content:"";position:absolute;left:11px;top:8px;bottom:8px;width:1px;
+    background:linear-gradient(180deg,var(--gold),rgba(201,162,39,.12))}
+  .link{position:relative;padding:0 0 40px 44px}
+  .link:last-child{padding-bottom:0}
+  .node{position:absolute;left:0;top:2px}
+  h2{font-family:'Fraunces',serif;font-weight:560;font-size:20px;margin-bottom:9px}
+  .link p{color:var(--muted);max-width:62ch}
+  .link p + p{margin-top:9px}
+  .link p b{color:var(--ink);font-weight:600}
+
+  .proof{margin-top:14px;background:var(--panel);border:1px solid var(--hair);border-radius:10px;padding:14px 16px}
+  .proof .plabel{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:7px}
+  .proof a{display:block;font-family:var(--mono);font-size:12.5px;color:var(--teal);text-decoration:none;word-break:break-all;line-height:1.7}
+  .proof .pnote{font-size:12.5px;color:var(--faint);margin-top:7px}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  @media(max-width:620px){.pair{grid-template-columns:1fr}}
+  .card{background:var(--panel2);border:1px solid rgba(147,160,180,.14);border-radius:10px;padding:15px 16px}
+  .card .clabel{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:6px}
+  .card p{font-size:13.5px;color:var(--muted)}
+
+  .fund{margin-top:14px;border-top:1px solid rgba(147,160,180,.14)}
+  .frow{display:grid;grid-template-columns:200px 1fr;gap:14px;padding:12px 0;border-bottom:1px solid rgba(147,160,180,.14)}
+  @media(max-width:620px){.frow{grid-template-columns:1fr;gap:3px}}
+  .frow .fk{font-family:var(--mono);font-size:12px;color:var(--gold)}
+  .frow .fv{font-size:13.5px;color:var(--muted)}
+  .frow .fv b{color:var(--ink);font-weight:600}
+
+  .ask{margin-top:44px;background:var(--panel);border:1px solid var(--hair);border-left:3px solid var(--gold);border-radius:10px;padding:20px 22px}
+  .ask h2{margin-bottom:8px}
+  .ask p{color:var(--muted);max-width:62ch}
+
+  footer{margin-top:46px;padding-top:18px;border-top:1px solid rgba(147,160,180,.14);
+    font-family:var(--mono);font-size:11.5px;color:var(--faint);line-height:2}
+  footer b{color:var(--muted);font-weight:500}
+  @media print{.page-shell{background:#0A0F1A !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+
+  .linkcard{display:block;text-decoration:none;background:var(--panel);border:1px solid var(--hair);
+    border-radius:12px;padding:16px 18px;margin-top:12px}
+  .linkcard .lc-title{font-family:'Inter',sans-serif;font-weight:600;font-size:16px;color:var(--teal)}
+  .linkcard .lc-title .arr{float:right;color:var(--gold)}
+  .linkcard .lc-desc{font-size:13.5px;color:var(--muted);margin-top:4px;line-height:1.5}
+  .linkcard .lc-url{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:8px;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="page-shell">
+  <div class="sheet">
+
+    <div class="eyebrow">Violet Shores · Athena &amp; the Verifiable Authority Chain · prepared for Prof. Andrea Danani, IDSIA USI-SUPSI</div>
+    <h1>Agentic AI has no way to prove a real, present person stands behind a decision. We built one — and it runs in production.</h1>
+    <p class="lede">Two instruments, one question: when an AI system acts, who authorised it, within what bounds, and can anyone check — independently, years later?</p>
+    <div class="who"><b>Rob Zagarella</b> · founder, Violet Shores Pty Ltd (Sydney) · in Lugano this week · introduced by Emmanuel Toniutti</div>
+
+    <div class="chain">
+
+      <div class="link">
+        <svg class="node" width="23" height="23" viewBox="0 0 23 23" fill="none"><circle cx="11.5" cy="11.5" r="8.5" stroke="#C9A227" stroke-width="1.4"/><circle cx="11.5" cy="9" r="2.6" stroke="#C9A227" stroke-width="1.2"/><path d="M6.8 16.2c.9-2.1 2.7-3.2 4.7-3.2s3.8 1.1 4.7 3.2" stroke="#C9A227" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <h2>The gap</h2>
+        <p>As AI becomes agentic, liability follows authorisation — yet no infrastructure links an audited machine decision back to a <b>live, verified natural person</b> with enforceable bounds. Courts already treat this as the question: in Australia, <i>Pintarich v DCT</i> [2018] FCAFC 79 held a computer-generated output is not a valid decision without a human's mental process bound to it; the US agent-access cases now put a clock on the same gap.</p>
+      </div>
+
+      <div class="link">
+        <svg class="node" width="23" height="23" viewBox="0 0 23 23" fill="none"><rect x="4" y="9.5" width="15" height="10" rx="2" stroke="#C9A227" stroke-width="1.4"/><path d="M7.5 9.5V7a4 4 0 0 1 8 0v2.5" stroke="#C9A227" stroke-width="1.4"/><circle cx="11.5" cy="14.5" r="1.7" fill="#C9A227"/></svg>
+        <h2>Live now — the verified human root (VAC Protocol)</h2>
+        <p>A <b>verified human root</b>: multi-modal biometric presence (face embedding, cross-modal spoken-digit binding, passive liveness) seals a decision as an Ed25519-signed, independently verifiable credential. Every AI agent's authority chains to that root, stays bounded by it, and traces back to it. Proportional re-authentication matches ceremony weight to stakes.</p>
+        <div class="proof">
+          <div class="plabel">Proof, not pitch — verify live against the production backend</div>
+          <a class="linkcard" style="margin-top:8px;background:var(--panel2)" href="https://vacprotocol.org/vat-verify.html?token=vat_root_5ded62897d4b">
+        <div class="lc-title">Verify the sealed decision live <span class="arr">&#x2192;</span></div>
+        <div class="lc-desc">Fetches the token from the production backend and checks the Ed25519 signature in your browser — anyone with this link gets the same answer, for 30 days.</div>
+        <div class="lc-url">vacprotocol.org/vat-verify.html?token=vat_root_5ded62897d4b</div>
+      </a>
+          <div class="pnote">Sealed this week from a moving train, on roaming cellular — the ceremony is field-hardened by design.</div>
+      <a class="linkcard" style="margin-top:10px;background:var(--panel2)" href="https://vacprotocol.org/tribunal-demo.html">
+        <div class="lc-title">Walk the live demo end-to-end <span class="arr">&#x2192;</span></div>
+        <div class="lc-desc">The full ceremony: verify a live human, delegate bounded authority, watch a decision get sealed and lodged — every step running against the production backend, built for a legal audience first but domain-neutral underneath.</div>
+        <div class="lc-url">vacprotocol.org/tribunal-demo.html</div>
+      </a>
+        </div>
+        <p style="margin-top:12px">Standards track: two Internet-Drafts at the IETF this week — <b>draft-zagarella-verified-human-root</b> and <b>draft-zagarella-autonomy-governor</b> — positioned to compose with national e-ID infrastructure (swiyu establishes who a person is; ours establishes that a verified person authorised <i>this</i> action). Patent portfolio: 1,000+ claims filed.</p>
+      </div>
+
+      <div class="link">
+        <svg class="node" width="23" height="23" viewBox="0 0 23 23" fill="none"><path d="M4 18.5 9 12l3.5 3.5L19 7.5" stroke="#C9A227" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19" cy="7.5" r="2" stroke="#C9A227" stroke-width="1.2"/><circle cx="9" cy="12" r="2" stroke="#C9A227" stroke-width="1.2"/></svg>
+        <h2>The second instrument — ground-truth harnesses for model selection</h2>
+        <p>Athena runs a <b>known-answer challenge harness</b> across frontier and open models, scoring each per domain and maintaining a calibrated trust graph — so orchestration routes each task to the model the <i>evidence</i> says is best, with provenance for every answer. For computational science this is the reproducibility question in modern dress: which method, for which problem, calibrated against ground truth — the discipline simulation science has always demanded, applied to LLMs.</p>
+        <div class="pair">
+          <div class="card"><div class="clabel">Research surface A</div><p>Trust calibration methodology: per-domain known-answer testing, decay, and cross-model adversarial critique as a publishable evaluation framework.</p></div>
+          <div class="card"><div class="clabel">Research surface B</div><p>Accountable agentic pipelines for science: simulation and ML workflows whose every consequential step is sealed under a bounded human authority — auditable computational provenance.</p></div>
+        </div>
+      </div>
+
+      <div class="link">
+        <svg class="node" width="23" height="23" viewBox="0 0 23 23" fill="none"><path d="M11.5 3.5v16M3.5 11.5h16" stroke="#C9A227" stroke-width="1.4" stroke-linecap="round"/><circle cx="11.5" cy="11.5" r="8" stroke="#C9A227" stroke-width="1.2" stroke-dasharray="2.5 3"/></svg>
+        <h2>Why Lugano — the funding fit</h2>
+        <div class="fund">
+          <div class="frow"><div class="fk">Innosuisse innovation project</div><div class="fv">Swiss company + Swiss research institution; Innosuisse covers the <b>research partner's costs</b> (typ. CHF 150K–3M). IDSIA/SUPSI as research partner on trust-calibration or accountable-agents is the natural vehicle.</div></div>
+          <div class="frow"><div class="fk">Start-up innovation project</div><div class="fv">Direct grant to the start-up, up to <b>CHF 2.5M at 70%</b>, pre-market, all fields; international founders may apply before incorporating, with a Swiss entity required at project start — which aligns with our Swiss structuring plans.</div></div>
+          <div class="frow"><div class="fk">Horizon Europe / EIC</div><div class="fv">Swiss companies participate as <b>full beneficiaries in the EIC Accelerator</b> under the transitional arrangement active since January 2025.</div></div>
+          <div class="frow"><div class="fk">2026 Flagship call</div><div class="fv">"Resilient and Secure Technologies for Defence and Mobility" — verified human authority over autonomous systems sits squarely inside it.</div></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="ask">
+      <h2>The ask</h2>
+      <p>Forty-five minutes at Campus Est while I'm in Lugano (here through Sunday): a live walkthrough of both instruments, your read on where this fits IDSIA's landscape — and, if it earns it, your guidance on who else at USI-SUPSI should see it and which funding vehicle to shape first.</p>
+    </div>
+
+    <div style="margin-top:22px">
+      <div class="plabel" style="font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;">Further material — tap either card, both live</div>
+      <a class="linkcard" href="https://vacprotocol.org/signalrank.html">
+        <div class="lc-title">SignalRank calibration snapshot <span class="arr">&#x2192;</span></div>
+        <div class="lc-desc">Which model to trust, per domain — 440 known-answer questions, 32 domains, 10,791 scored challenges. Includes the open routing problem, stated honestly.</div>
+        <div class="lc-url">vacprotocol.org/signalrank.html</div>
+      </a>
+      <a class="linkcard" href="https://vacprotocol.org/eu-ai-act.html">
+        <div class="lc-title">EU AI Act alignment map <span class="arr">&#x2192;</span></div>
+        <div class="lc-desc">Where the protocol meets the Act, in plain language — Article 14 human oversight made evidentiary, Article 12 records made verifiable, on the post-Omnibus timeline.</div>
+        <div class="lc-url">vacprotocol.org/eu-ai-act.html</div>
+      </a>
+    </div>
+
+    <footer style="margin-top:46px;padding-top:20px;border-top:1px solid rgba(147,160,180,.14)">
+      <a class="linkcard" href="https://vacprotocol.org/origin.html" style="margin-bottom:16px">
+        <div class="lc-title">The origin story <span class="arr">&#x2192;</span></div>
+        <div class="lc-desc">How this emerged from twenty-five years of building trusted infrastructure — smart grid, GE Asia-Pacific, founding NNNCo, the LoRa Alliance board — and from daily building with AI until the missing layer became undeniable.</div>
+        <div class="lc-url">vacprotocol.org/origin.html</div>
+      </a>
+      <div style="font-family:'Inter',sans-serif;font-size:14px;color:var(--muted);line-height:1.7">
+        <b style="color:var(--ink)">Rob Zagarella</b> · Founder, Violet Shores Pty Ltd (Sydney)<br>
+        vacprotocol.org &nbsp;·&nbsp; athenapilot.ai
+      </div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--faint);margin-top:10px;line-height:1.9">
+        VAC Protocol — the Verifiable Authority Chain · patent pending · IETF Internet-Drafts, July 2026
+      </div>
+    </footer>
+
+  </div>
+</div>
+</body>
+</html>
