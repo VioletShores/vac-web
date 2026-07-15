@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>Origin — how a protocol emerged from building, not designing</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0A0F1A;--panel:#101726;--ink:#E8ECF4;--muted:#93A0B4;--faint:#5C6B80;--gold:#C9A227;--teal:#35C4B5;--mono:'IBM Plex Mono',ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#0A0F1A}
+.page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-size:16px;line-height:1.68;-webkit-font-smoothing:antialiased}
+.wrap{max-width:700px;margin:0 auto;padding:54px 24px 76px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
+h1{font-family:'Fraunces',serif;font-weight:640;font-size:clamp(28px,5.6vw,40px);line-height:1.15;margin:14px 0 18px}
+p{color:var(--muted);margin-bottom:16px}
+p b, p strong{color:var(--ink)}
+h2{font-family:'Fraunces',serif;font-weight:560;font-size:21px;margin:40px 0 12px;color:var(--ink)}
+.pull{color:var(--teal)}
+.divider{border:0;border-top:1px solid rgba(147,160,180,.14);margin:36px 0}
+blockquote{border-left:3px solid var(--gold);padding:6px 0 6px 18px;margin:22px 0;color:var(--ink);font-family:'Fraunces',serif;font-size:19px;line-height:1.5}
+.now{background:var(--panel);border:1px solid rgba(201,162,39,.28);border-radius:12px;padding:18px 20px;margin-top:26px}
+.now .nlabel{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--teal);text-transform:uppercase;margin-bottom:8px}
+.now p{font-size:14.5px;margin-bottom:8px}
+.now p:last-child{margin-bottom:0}
+footer{margin-top:48px;padding-top:18px;border-top:1px solid rgba(147,160,180,.14);font-family:var(--mono);font-size:12.5px;color:var(--faint);line-height:2.1}
+a{color:var(--teal)}
+</style>
+</head>
+<body>
+<div class="page-shell"><div class="wrap">
+
+<div class="eyebrow">Violet Shores · the origin</div>
+<h1>A protocol that emerged from building — not from designing.</h1>
+
+<p>Most protocols are designed in whitepapers and then go looking for a problem. This one went the other way: it surfaced, piece by piece, from twenty-five years of making critical infrastructure trustworthy — and from actually building with AI every day until the missing layer became impossible to ignore.</p>
+
+<h2>The builder's arc</h2>
+<p>Rob Zagarella is an engineer before he is anything else. The through-line of his career is a single question asked of different systems: <b>how do you make infrastructure that strangers can rely on?</b> He authored patented smart-grid control technology, led GE's Smart Grid product lines across Asia-Pacific, worked the Silicon Valley chapter at Grid Net — backed by GE Capital, Intel and Cisco — and then founded <b>NNNCo</b>, building it from a Sydney standing start into a global IoT network company deployed across nineteen countries, and serving on the board of the <b>LoRa Alliance</b>, the global standards body for LoRaWAN.</p>
+<p>Utilities, cities, national infrastructure: two and a half decades of systems where "trust me" is never an acceptable answer — where the network has to be able to <i>prove</i> what it did.</p>
+
+<h2>The question that would not go away</h2>
+<p>Building intensively with AI through 2025 and 2026 — orchestrating multiple frontier models on real legal, patent and engineering work every day — two absences kept surfacing.</p>
+<p><b>First:</b> when an AI system acts on something that matters, nothing links that action back to a live, verified human being with enforceable bounds. Logins prove a credential was used, not that a person was present. Courts already treat this as the question — an Australian appellate court held years ago that a computer's output is not a valid decision without a human's mental process bound to it, and the AI-agent cases now arriving put a clock on the same gap.</p>
+<p><b>Second:</b> nobody could say, with evidence, <i>which</i> AI model deserved trust for <i>which</i> kind of question. Every claim was vibes, benchmarks-of-the-week, or marketing.</p>
+
+<blockquote>When AI acts — who authorised it? And which AI should you have asked in the first place? Both questions needed measurable answers.</blockquote>
+
+<h2>Emerged, phase by phase</h2>
+<p>The answers weren't designed; they were forced into existence by daily use. An identity problem (prove a real, present person — not a bot, not a recording) became a <span class="pull">multi-modal biometric root</span>. A trust problem became a <span class="pull">cryptographic authority chain</span> — every agent's power scoped, bounded, and traceable to a verified person, every consequential decision sealed as an independently verifiable record. A reliability problem became a <span class="pull">known-answer challenge harness</span>: hundreds of ground-truth questions, thousands of scored challenges, a per-domain trust calibration across every major model — because "which model is best" should be an empirical claim.</p>
+<p>Then the discovery underneath: these weren't separate tools. Verified human authority at the root, bounded delegation through the chain, evidence-calibrated intelligence at the edge — <b>a protocol, found rather than invented</b>, proven by the only method that counts: using it to build itself. Every patent drafted, every page shipped, every decision sealed runs through the same rails it describes.</p>
+<p>The proving has been deliberately unkind. The biometric ceremony has been field-hardened on moving trains, through Alpine tunnel dropouts, on roaming cellular across borders — every failure mode named, fixed, and made honest. A decision sealed from a train seat, verifiable by anyone, is the standard the system holds itself to.</p>
+
+<div class="now">
+<div class="nlabel">Where it stands</div>
+<p><b>Working end-to-end today:</b> live biometric verification, sealed Ed25519 decisions with independently checkable audit trails, bounded agent delegation, and a calibration corpus of 440 known-answer questions across 32 domains — more than ten thousand scored challenges.</p>
+<p><b>On the record:</b> 1,000+ patent claims filed; two Internet-Drafts before the IETF (a verified-human-root and an autonomy governor); designed to compose with national e-ID infrastructure and to support the EU AI Act's human-oversight and record-keeping obligations.</p>
+</div>
+
+<hr class="divider">
+<p style="font-size:14.5px">The full engineering record — every phase, every failure, every fix — is maintained continuously as the project's technical biography. This page is the short version; the demo is the proof: <a href="/tribunal-demo.html">walk a sealed decision end-to-end</a>, or <a href="/signalrank.html">read the calibration data</a>.</p>
+
+<footer>
+Violet Shores Pty Ltd · Sydney · vacprotocol.org<br>
+VAC Protocol — the Verifiable Authority Chain · patent pending · Athena — evidence-calibrated multi-model intelligence
+</footer>
+
+</div></div>
+</body>
+</html>
