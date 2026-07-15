@@ -500,7 +500,14 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     </section>
 
     <!-- END-TO-END RAIL: connect the demo to the org onboarding (SSO) + the live Accountability Console (audit dashboard). -->
-    <section class="e2e-rail" style="max-width:900px;margin:46px auto 0;">
+    <!-- F-813 GATE: the onboarding/console flow failed Rob's E2E walk (15 Jul — session-expiry context loss,
+         stale auth surface, post-verify dead end, duplicate identities in trust graph). Rail renders only with
+         ?preview=org until the flow-audit fixes land. Display-only gate. -->
+    <section class="e2e-rail" id="e2eRail" style="max-width:900px;margin:46px auto 0;">
+    <script>
+    (function(){ try{ if (new URLSearchParams(location.search).get('preview') !== 'org')
+      document.getElementById('e2eRail').style.display='none'; }catch(_){} })();
+    </script>
       <p class="section-label" style="text-align:center;">The full rail, end to end</p>
       <p style="text-align:center;color:var(--text-secondary);max-width:640px;margin:8px auto 26px;font-size:15px;line-height:1.6;">The identity step you just saw is one link in a chain. In a live deployment a firm sets up its organisation and connects its existing sign-on, delegates bounded authority to its people and agents, and every authority decision lands in a single accountability record it can audit.</p>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
