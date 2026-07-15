@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>EU AI Act alignment — VAC Protocol &amp; Athena</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0A0F1A;--panel:#101726;--ink:#E8ECF4;--muted:#93A0B4;--faint:#5C6B80;--gold:#C9A227;--teal:#35C4B5;--mono:'IBM Plex Mono',ui-monospace,monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:#0A0F1A}
+.page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-size:15px;line-height:1.62;-webkit-font-smoothing:antialiased}
+.wrap{max-width:820px;margin:0 auto;padding:50px 24px 70px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase}
+h1{font-family:'Fraunces',serif;font-weight:640;font-size:clamp(25px,5vw,35px);line-height:1.18;margin:12px 0 10px}
+.lede{color:var(--muted);max-width:64ch}
+.clock{margin:24px 0 8px;background:var(--panel);border:1px solid rgba(201,162,39,.28);border-left:3px solid var(--gold);border-radius:10px;padding:14px 17px;font-size:14px;color:var(--muted);max-width:70ch}
+.clock b{color:var(--ink)}
+.map{margin-top:30px}
+.row{display:grid;grid-template-columns:190px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid rgba(147,160,180,.14)}
+@media(max-width:640px){.row{grid-template-columns:1fr;gap:5px}}
+.art{font-family:var(--mono);font-size:12px;color:var(--gold);line-height:1.5}
+.art b{display:block;color:var(--ink);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;margin-bottom:2px}
+.what{font-size:14px;color:var(--muted);max-width:60ch}
+.what b{color:var(--ink);font-weight:600}
+.disc{margin-top:34px;background:var(--panel);border-radius:10px;padding:16px 18px;font-size:13px;color:var(--faint);max-width:72ch}
+.disc b{color:var(--muted)}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid rgba(147,160,180,.14);font-family:var(--mono);font-size:11.5px;color:var(--faint);line-height:2}
+a{color:var(--teal)}
+</style>
+</head>
+<body>
+<div class="page-shell"><div class="wrap">
+
+<div class="eyebrow">VAC Protocol &amp; Athena · regulatory alignment map</div>
+<h1>The EU AI Act asks for provable human oversight and complete records. That is what this infrastructure produces.</h1>
+<p class="lede">A plain-language map of where the Verifiable Authority Chain and Athena's calibration layer are designed to support the Act's obligations — for deployers, providers, and the assessors who evaluate them.</p>
+
+<div class="clock"><b>Why now:</b> the Act entered into force in August 2024 and applies in stages — prohibitions and AI-literacy duties from February 2025, general-purpose AI obligations from August 2025, and the main body of <b>high-risk system obligations from 2 August 2026</b>. Organisations deploying AI in legal, government, utility and safety contexts are building their evidence layer this year.</div>
+
+<div class="map">
+
+<div class="row">
+  <div class="art"><b>Human oversight</b>Article 14</div>
+  <div class="what">High-risk systems must be designed so natural persons can effectively oversee them. The VAC seal is oversight made <b>evidentiary</b>: a biometrically verified, present person authorises the consequential action, at a ceremony weight proportional to its stakes, producing an independently verifiable record that the oversight actually occurred — not a policy document asserting that it should.</div>
+</div>
+
+<div class="row">
+  <div class="art"><b>Record-keeping &amp; logs</b>Articles 12 &amp; 19</div>
+  <div class="what">High-risk systems must log events automatically and providers must retain them. Every VAC authorisation emits a signed <b>Authority Action Record</b> — who, what, under which conditions, when — lodged to an audit chain any party can verify without trusting the operator. Logging that is cryptographically checkable rather than merely stored.</div>
+</div>
+
+<div class="row">
+  <div class="art"><b>Deployer obligations</b>Article 26</div>
+  <div class="what">Deployers must use systems per instructions, assign competent human oversight, and monitor operation. Bounded delegation is the mechanism: each agent's authority is scoped — purpose, amount, counterparty, time — under a named, verified person, so "who was responsible" has a cryptographic answer, not an organisational shrug.</div>
+</div>
+
+<div class="row">
+  <div class="art"><b>Transparency</b>Articles 13 &amp; 50</div>
+  <div class="what">Systems must be operable with appropriate transparency, and people informed when interacting with AI. The authority chain makes the human-vs-agent provenance of any action <b>inspectable</b>: an action either traces to a verified human seal or to a delegated agent under one — and the record shows which.</div>
+</div>
+
+<div class="row">
+  <div class="art"><b>Accuracy &amp; robustness</b>Article 15 · FRIA Article 27</div>
+  <div class="what">High-risk systems must achieve appropriate accuracy and robustness; public-interest deployers must assess fundamental-rights impact. Athena's known-answer calibration provides <b>measured, per-domain evidence</b> of model performance — 10,000+ scored challenges across 32 domains — the kind of empirical basis accuracy claims and impact assessments are supposed to rest on.</div>
+</div>
+
+</div>
+
+<div class="disc"><b>Language discipline, stated plainly:</b> this page describes how the infrastructure is <b>designed to support compliance with</b> the cited provisions. It is not a claim of certification, conformity assessment, or legal advice; obligations depend on system classification, role, and deployment context, which the deploying organisation must assess. We keep this wording strict because a trust product that overclaims its own compliance posture has failed at its one job.</div>
+
+<footer>
+15 July 2026 · Violet Shores Pty Ltd · <a href="https://vacprotocol.org/tribunal-demo.html">live demo</a> · <a href="https://vacprotocol.org/signalrank.html">SignalRank calibration snapshot</a> · IETF Internet-Drafts: verified-human-root · autonomy-governor
+</footer>
+
+</div></div>
+</body>
+</html>
