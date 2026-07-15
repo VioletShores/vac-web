@@ -37,6 +37,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .hero p{font-size:clamp(14.5px,3.8vw,16px);color:var(--text-secondary);max-width:640px;}
 .hero .pull{color:var(--text-primary);font-weight:600;}
 .hero-lede{font-size:clamp(15px,3.9vw,16.5px);color:var(--text-secondary);max-width:660px;margin-bottom:20px;}
+.hero-cta{display:inline-block;margin-top:6px;background:var(--teal,#2E9E6B);color:#04110B;font-weight:700;font-size:15.5px;border:0;border-radius:10px;padding:13px 22px;cursor:pointer}
+.hero-cta small{display:block;font-weight:500;font-size:11.5px;opacity:.85;margin-top:2px}
 .brief{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:16px 18px;margin-bottom:20px;max-width:680px;}
 .brief-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
 .brief p{font-size:13.5px;color:var(--text-secondary);line-height:1.65;max-width:none;}
@@ -355,6 +357,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <p class="moat-spine" style="font-size:clamp(18px,3.2vw,23px);font-weight:700;color:var(--text-primary,#E8EDF4);line-height:1.35;margin:14px 0 4px;border-left:3px solid var(--teal,#2E9E6B);padding-left:16px;">Two competent people, verified live — at the moment of the decision.</p>
       <p class="moat-spine-sub" style="font-size:clamp(14px,2.4vw,16px);color:var(--text-secondary,#9FB0C4);line-height:1.55;margin:0 0 6px;padding-left:19px;">VAC proves each is <span class="pull">competent</span> (authority), <span class="pull">genuinely present</span> (live biometric), and that <span class="pull">both were there</span> (an immutable audit) — a two-person control built on logins can prove none of that.</p>
       <p class="hero-lede"><span class="pull">The core value for a firm:</span> narrow, bounded delegation of authority to an AI agent, and a tamper-evident audit of exactly what it did within that scope — professional accountability and an evidentiary trail. The live biometric is the high-assurance step-up at the moment that matters most: the high-stakes seal. Every matter on this page turns on a question a court or a tribunal may have to answer years later: <span class="pull">did the right person authorise this — or validly delegate it — and can anyone check, independently, that the record has not been altered since?</span></p>
+      <button class="hero-cta" type="button" onclick="(function(){var b=document.getElementById('idVerifyBtn');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){try{b.focus();b.style.boxShadow='0 0 0 3px rgba(46,158,107,.55)';setTimeout(function(){b.style.boxShadow='';},1800);}catch(_){}} ,650);}})()">Try the live biometric now &#x2192;<small>~60 seconds · runs against the production backend</small></button>
 
       <div class="brief">
         <div class="brief-label">Why this is breaking now</div>
