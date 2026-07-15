@@ -475,6 +475,22 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     <!-- CAROLINE STANDARDS CARD (removable — internal for Caroline only; strip before external legal/defence contacts).
          Placed OUTSIDE the linear matter flow per demo↔standards handover §1. Links to the standalone panel. -->
     <section id="carolineStandards" class="caroline-standards-wrap" style="max-width:680px;margin:34px auto 0;">
+    <script>
+    // F-796-lite: client-brief sections are audience-gated by URL param — the Caroline
+    // standards/IP panel (and its inline expert-input boxes, styled .fb) render only on
+    // links carrying ?for=caroline. Display-only; no data or logic change.
+    (function(){
+      try {
+        var aud = new URLSearchParams(location.search).get('for');
+        if (aud !== 'caroline') {
+          document.getElementById('carolineStandards').style.display = 'none';
+          var st = document.createElement('style');
+          st.textContent = '.fb{display:none !important}';
+          document.head.appendChild(st);
+        }
+      } catch(_) {}
+    })();
+    </script>
       <div style="background:linear-gradient(135deg,rgba(30,111,184,0.10),rgba(46,158,107,0.08));border:1px solid var(--teal,#2E9E6B);border-radius:12px;padding:18px 20px;">
         <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">For Caroline · read, then react on our call</div>
         <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">Standards &amp; IP — a separate note for your judgment</div>
