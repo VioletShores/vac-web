@@ -3615,6 +3615,12 @@ async function runFastVerification(parts) {
                     if (_proceeded) return; _proceeded = true;
                     if (_ok) { _finish(); return; }
                     try { vacDebug('fast_reauth_denied', (authResult && authResult.error) || null); } catch(_) {}
+                    // F-801: require_full_auth → route to full ceremony if the host registered onRequireFull;
+                    // fall back to onFallback so hosts without the handler are never broken.
+                    if (authResult && authResult.require_full_auth === true && CTX && CTX.onRequireFull) {
+                        try { CTX.onRequireFull(CTX.context); } catch(_) {}
+                        return;
+                    }
                     if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth denied: ' + ((authResult && authResult.error) || 'denied'))); } catch(_) {} }
                 };
                 return;  // wait for the user to READ the verdict (pass OR fail) + tap the button
@@ -5388,7 +5394,7 @@ function renderDOM(){
 
 // ===================== public API =====================
 const VACReauth = {
-    // run({email,name,riskLevel,mount,context,onComplete,onFallback,onReauthReload,onBack,onStep,auto,org,role,profile})
+    // run({email,name,riskLevel,mount,context,onComplete,onFallback,onRequireFull,onReauthReload,onBack,onStep,auto,org,role,profile})
     //   profile: optional COPS/PID actuator { num_digits?, required_modalities?, thresholds? }.
     //   Only num_digits is live (→ challenge POST); omit profile entirely for prod-default behaviour.
     run: function(opts){
@@ -5400,6 +5406,7 @@ const VACReauth = {
             context: opts.context || 'register',
             onComplete: opts.onComplete || function(){},
             onFallback: opts.onFallback || function(){},
+            onRequireFull: opts.onRequireFull || null,
             onReauthReload: opts.onReauthReload || null,
             onBack: opts.onBack || null,
             onStep: opts.onStep || null,

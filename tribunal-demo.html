@@ -1584,9 +1584,37 @@ async function reauthDegrade(why){
 // authorizeViewCredential() still fires in onComplete BEFORE the result render,
 // so /v1/vat/authorize writes the AAR exactly as before. authorizeViewCredential,
 // probeReauthTier, reauthDegrade, renderReauthResult are UNCHANGED.
+
+// F-801: set when the server returns require_full_auth / step_up so "Re-authorise again"
+// routes to the full ceremony (relaunching the fast tier is a guaranteed deny once locked).
+var _viewCredStepUpRequired = false;
+
+// F-801: launch the full /auth iframe ceremony for the view_credential action.
+// Reuses sealReauthGate (same VERIFY_SRC iframe + verifyOverlay); the onPass handler
+// authorises view_credential against the freshly minted session instead of sealing a decision.
+function launchFullForViewCredential(btn) {
+  if (!btn) btn = document.getElementById('rdBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Full verification…'; }
+  sealReauthGate(
+    async function() {
+      _viewCredStepUpRequired = false;
+      const authz = await authorizeViewCredential();
+      const tier = { state: 'full', ceremony: true, reauth_tier: 'full_tri_modal', fast_tier_eligible: false };
+      renderReauthResult(authz, tier);
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-authorise again'; }
+    },
+    function() {
+      // User cancelled without completing — leave flag set so next click also routes full.
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-authorise again'; }
+    }
+  );
+}
+
 async function viewCredentialReauth(){
   const btn=document.getElementById('rdBtn');
   if(btn){btn.disabled=true;btn.textContent='Starting quick check…';}
+  // F-801: server locked to require_full_auth on a prior attempt — fast tier is a guaranteed deny.
+  if (_viewCredStepUpRequired) { launchFullForViewCredential(btn); return; }
   resetDemoSurface('fast');   // F-666 #1: clear stale result cards + close the inactive FULL overlay before the FAST ceremony mounts
   if(!cerEmail()) return reauthDegrade('no_session');
   // No camera / non-secure context → the fast face check structurally cannot run. Degrade to the
@@ -1666,6 +1694,14 @@ async function viewCredentialReauth(){
       console.warn('[VAC tribunal] fast reauth fell back:', err && err.message);
       return reauthDegrade('fast_denied');
     },
+    // F-801: server returned require_full_auth/step_up — the button in the verdict modal
+    // routes here instead of onFallback. Close the fast mount and immediately launch the
+    // full /auth ceremony; mark the flag so "Re-authorise again" also routes full.
+    onRequireFull: function(pendingContext) {
+      try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){}
+      _viewCredStepUpRequired = true;
+      launchFullForViewCredential(btn);
+    },
     onBack: function(){ try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){ } if(btn){btn.disabled=false;btn.textContent='View the sealed credential';} },
   });
   // F-666 #2: VACReauth.run() sets mount.style.display='block' (inline) at its tail (ceremony.js
@@ -1693,9 +1729,13 @@ function renderReauthResult(authz,tier){
       '<div class="rd-name">Quick re-auth'+(ceremony?' · done':(tier.degraded?' · eligible (probe)':''))+'</div>'+
       '<div class="rd-why">'+why+'</div></div>';
   }else if(tier.state==='full'){
+    // F-801: distinguish a live step-up full ceremony from a probe-only degrade.
+    var _fullWhy = ceremony
+      ? VACCopy.resolve('quick','results','full_step_up_why')
+      : ('The backend re-assessed this to full tri-modal'+(tier.step_up?(' (step-up: '+esc(String(tier.step_up))+')'):'')+'. Honest degrade — no lighter tier was served.');
     viewCard='<div class="rd-tier rd-full"><div class="rd-act">view_credential · low</div>'+
-      '<div class="rd-name">Full re-auth</div>'+
-      '<div class="rd-why">The backend re-assessed this to full tri-modal'+(tier.step_up?(' (step-up: '+esc(String(tier.step_up))+')'):'')+'. Honest degrade — no lighter tier was served.</div></div>';
+      '<div class="rd-name">Full re-auth'+(ceremony?' · done':'')+'</div>'+
+      '<div class="rd-why">'+_fullWhy+'</div></div>';
   }else{
     const why = tier.state==='failed' ? 'The quick check ran live, but the server did not confirm a match ('+esc(String(tier.reason||'no_match'))+'). Not faking a pass — showing only what the server returned. Try “Re-authorise again”, or use full verification.'
       : tier.state==='no_template' ? 'No enrolled face template for this verified identity, so the quick face check can’t run. The authorisation result below is still live and server-attested.'
@@ -1712,10 +1752,12 @@ function renderReauthResult(authz,tier){
   // Server facts row — authorise verdict + AAR + raw tier field (+ live ceremony result when present).
   const aar=(tier&&tier.qr_aar_id)||(authz&&authz.aar_id)||null;
   const cerOK=(ceremony&&tier.state==='fast');
+  const cerFull=(ceremony&&tier.state==='full');  // F-801: live step-up full ceremony
   let facts;
   if(authz.attested){
     facts='<div class="rd-kv">authorize fired: <span class="'+(authz.authorized?'ok':'warn')+'">'+(authz.authorized?'authorized=true':'authorized=false'+(authz.reason?(' ('+esc(String(authz.reason))+')'):''))+'</span>'+
       (cerOK?' · <span class="ok">quick-reauth authenticated=true</span>':'')+
+      (cerFull?' · <span class="ok">full-reauth authenticated=true</span>':'')+
       (cerOK&&tier.detected!=null?' · <span class="rk">finger '+esc(String(tier.detected))+' (advisory)</span>':'')+
       (aar?(' · <span class="rk">AAR '+esc(String(aar))+'</span>'):'')+
       (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+(typeof tier.fast_tier_eligible==='boolean'?(', fast_tier_eligible='+tier.fast_tier_eligible):'')+'</span>'):'')+
@@ -1723,12 +1765,16 @@ function renderReauthResult(authz,tier){
   }else{
     facts='<div class="rd-kv">authorize: <span class="warn">not server-attested ('+esc(String(authz.reason||'unavailable'))+')</span>'+
       (cerOK?' · <span class="ok">quick-reauth authenticated=true</span>':'')+
+      (cerFull?' · <span class="ok">full-reauth authenticated=true</span>':'')+
       (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+'</span>'):'')+
       '</div>';
   }
   let note;
   if(cerOK){
     note='The quick re-auth ran live against the production backend just now: camera opened, ONE number shown to camera, a face still + the live face embedding POSTed to '+QR_EP+', and the tier read verbatim from the response. Full tri-modal at the seal (~30s) vs one number here (a few seconds) — the proportional tier doing exactly the work the stakes call for. The finger count is advisory; your face-embedding match is the gate.';
+  }else if(ceremony && tier.state==='full'){
+    // F-801: full ceremony ran live as a step-up (fast tier was server-blocked).
+    note=VACCopy.resolve('quick','results','full_step_up_note');
   }else if(ceremony){
     note='The quick re-auth was attempted live; the server did not return a fast-tier pass, so only its verbatim outcome is shown above — no client-side faking.';
   }else if(tier.degraded==='camera_unavailable'){
