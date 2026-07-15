@@ -1872,7 +1872,7 @@ function renderReauthResult(authz,tier){
     }
     beat.hidden=false;
   }
-  function openVerify(){const c=document.getElementById('voContinue');if(c){c.hidden=true;c.onclick=null;}frame.src=VERIFY_SRC;overlay.hidden=false;document.body.style.overflow='hidden';}
+  function openVerify(){const c=document.getElementById('voContinue');if(c){c.hidden=true;c.onclick=null;}const b=document.getElementById('voContinueBar');if(b)b.style.display='none';window.__voOpenedAt=Date.now();frame.src=VERIFY_SRC;overlay.hidden=false;document.body.style.overflow='hidden';}
   function closeVerify(){overlay.hidden=true;frame.src='about:blank';document.body.style.overflow='';}
   document.getElementById('idVerifyBtn').addEventListener('click',openVerify);
   const skip=document.getElementById('idSkip');
@@ -1886,6 +1886,11 @@ function renderReauthResult(authz,tier){
     if(ev.origin!==window.location.origin)return;
     const d=ev.data||{};
     if(d.type==='vac-auth-success'||d.type==='vac-verified'){
+      // Guard (Rob S136): a persisted verified session makes auth.html announce success
+      // the moment the iframe loads — which painted BOTH continue affordances during
+      // Step 2 of a fresh ceremony. A genuine ceremony can't complete in under 8s of
+      // opening, so on-load reposts are ignored; real completions pass.
+      if(window.__voOpenedAt && (Date.now()-window.__voOpenedAt)<8000) return;
       // Option B: keep auth-test's own verified + modality-detail screen visible so
       // Caroline sees HOW she was verified (face liveness, deepfake, speech match).
       // Don't close here — surface a Continue button that closes + shows the credential beat.
