@@ -1199,6 +1199,14 @@ document.getElementById('advance').onclick=()=>{
 // capture UI is factored into a shared module — tracked in F-TRIBUNAL-SEAL-REAUTH-GATE.
 function sealReauthGate(onPass, onCancel){
   resetDemoSurface('full');   // F-666 #1: clear stale result cards + hide the inactive FAST mount before the FULL overlay opens
+  // Rob field-catch 16 Jul 9:23: the post-verify continue affordances (header btn + green
+  // bottom bar) persisted INTO the seal ceremony — a "continue" tap-trap that would abort
+  // the seal. Hide both whenever this gate opens; a fresh success message repaints them.
+  try {
+    const _c=document.getElementById('voContinue'); if(_c){_c.hidden=true;_c.onclick=null;}
+    const _b=document.getElementById('voContinueBar'); if(_b)_b.style.display='none';
+    window.__voOpenedAt=Date.now();
+  } catch(_) {}
   let settled=false;
   const overlay=document.getElementById('verifyOverlay');
   const frame=document.getElementById('voFrame');
