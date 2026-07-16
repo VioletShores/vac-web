@@ -500,7 +500,7 @@ function showReceipt() {
 
   const vv = window.__vacVerified || null;
   const authBy = (tok.liveCeremony && vv && vv.email)
-    ? esc(vv.email) + ' · verified live (VAC)'
+    ? String(vv.email).trim() + ' · verified live (VAC)'
     : 'Verified NOC engineer (representative scenario)';
   const tokStatus = tok.minted
     ? (tok.liveCeremony ? 'Live mint — minted under this live session' : 'Live mint — freshly signed')
