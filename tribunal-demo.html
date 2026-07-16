@@ -1646,6 +1646,16 @@ function launchFullForViewCredential(btn) {
       const tier = { state: 'full', ceremony: true, reauth_tier: 'full_tri_modal', fast_tier_eligible: false };
       renderReauthResult(authz, tier);
       if (btn) { btn.disabled = false; btn.textContent = 'Re-authorise again'; }
+      // Rob UX law (16 Jul): the user asked for an AUTHORISATION — deliver them to it.
+      // The step-up overlay must close itself on success and land the user on the result
+      // card, not leave them inside ceremony scaffolding to discover the X.
+      try {
+        const _ov = document.getElementById('verifyOverlay');
+        if (_ov) { _ov.hidden = true; const _fr = document.getElementById('voFrame'); if (_fr) _fr.src = 'about:blank'; document.body.style.overflow = ''; }
+        const _res = document.getElementById('rdResult');
+        if (_res) { _res.scrollIntoView({behavior:'smooth', block:'center'});
+          _res.style.boxShadow = '0 0 0 3px rgba(46,158,107,.5)'; setTimeout(function(){ _res.style.boxShadow=''; }, 2200); }
+      } catch(_) {}
     },
     function() {
       _settled = true; clearTimeout(_watch);
