@@ -1198,6 +1198,7 @@ document.getElementById('advance').onclick=()=>{
 // selection, branch s116-reauth-freshness-signal) is the planned upgrade once that
 // capture UI is factored into a shared module — tracked in F-TRIBUNAL-SEAL-REAUTH-GATE.
 function sealReauthGate(onPass, onCancel){
+  window.__vacGateActive = true;   // F-801b: silence the walkthrough handler while the gate runs
   resetDemoSurface('full');   // F-666 #1: clear stale result cards + hide the inactive FAST mount before the FULL overlay opens
   // Rob field-catch 16 Jul 9:23: the post-verify continue affordances (header btn + green
   // bottom bar) persisted INTO the seal ceremony — a "continue" tap-trap that would abort
@@ -1210,7 +1211,7 @@ function sealReauthGate(onPass, onCancel){
   let settled=false;
   const overlay=document.getElementById('verifyOverlay');
   const frame=document.getElementById('voFrame');
-  function cleanup(){ window.removeEventListener('message', onMsg); }
+  function cleanup(){ window.removeEventListener('message', onMsg); window.__vacGateActive = false; }
   function onMsg(ev){
     if(ev.origin!==window.location.origin) return;
     const d=ev.data||{};
@@ -1629,8 +1630,17 @@ var _viewCredStepUpRequired = false;
 function launchFullForViewCredential(btn) {
   if (!btn) btn = document.getElementById('rdBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Full verification…'; }
+  // F-801b: settle-watchdog — if neither pass nor cancel fires (gate wedged), recover the
+  // button so the user is never stranded without a path forward.
+  let _settled = false;
+  const _watch = setTimeout(function(){
+    if (_settled) return;
+    window.__vacGateActive = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Try full verification again'; }
+  }, 90000);
   sealReauthGate(
     async function() {
+      _settled = true; clearTimeout(_watch);
       _viewCredStepUpRequired = false;
       const authz = await authorizeViewCredential();
       const tier = { state: 'full', ceremony: true, reauth_tier: 'full_tri_modal', fast_tier_eligible: false };
@@ -1638,6 +1648,7 @@ function launchFullForViewCredential(btn) {
       if (btn) { btn.disabled = false; btn.textContent = 'Re-authorise again'; }
     },
     function() {
+      _settled = true; clearTimeout(_watch);
       // User cancelled without completing — leave flag set so next click also routes full.
       if (btn) { btn.disabled = false; btn.textContent = 'Re-authorise again'; }
     }
@@ -1893,7 +1904,12 @@ function renderReauthResult(authz,tier){
   window.addEventListener('message',ev=>{
     if(ev.origin!==window.location.origin)return;
     const d=ev.data||{};
-    if(d.type==='vac-auth-success'||d.type==='vac-verified'){
+    // F-801b: while a seal/step-up GATE owns the overlay, this walkthrough handler must
+    // stand down entirely — it was closing the overlay under the gate's feet when the
+    // vouch-poll heartbeat ('vac-verified', no payload) ticked mid-ceremony.
+    if(window.__vacGateActive) return;
+    // And completion here requires the payload-bearing success message only.
+    if(d.type==='vac-auth-success'){
       // Guard (Rob S136): a persisted verified session makes auth.html announce success
       // the moment the iframe loads — which painted BOTH continue affordances during
       // Step 2 of a fresh ceremony. A genuine ceremony can't complete in under 8s of

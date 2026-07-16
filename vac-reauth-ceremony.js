@@ -2022,6 +2022,16 @@ function beginRecording() {
         try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
         challengeEl.textContent = 'Processing\u2026';
+        // F-815 (Rob, 16 Jul pre-meeting run): entering processing must not keep coaching the
+        // user — the live coach line ('Keep showing N — say N') was persisting under
+        // 'Processing…', giving an instruction and a wait-state simultaneously. Clear it,
+        // hide the REC chip, and after the recording tail freeze the preview: a live camera
+        // under 'Processing' reads oddly against the recording-already-ended privacy note.
+        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
+        try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        setTimeout(function(){
+            try { var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video'); if (v && !v.paused) v.pause(); } catch(_) {}
+        }, 1700);
         // S110 detection<->recording sync fix: detection can race ahead of the
         // recorded video (Gemini saw only the first digit of [2,3,5]). Keep the
         // recorder running a tail buffer AFTER the last digit so the video
