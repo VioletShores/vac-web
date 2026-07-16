@@ -498,15 +498,23 @@ function showReceipt() {
   const now = new Date();
   const ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' AEST';
 
+  const vv = window.__vacVerified || null;
+  const authBy = (tok.liveCeremony && vv && vv.email)
+    ? esc(vv.email) + ' · verified live (VAC)'
+    : 'Verified NOC engineer (representative scenario)';
+  const tokStatus = tok.minted
+    ? (tok.liveCeremony ? 'Live mint — minted under this live session' : 'Live mint — freshly signed')
+    : 'Reference token — pre-minted';
+
   const kvPairs = [
     ['Scenario', 'District 14 — Northside DMA · Digital twin Stage 1 pressure reduction'],
     ['What-if accepted', 'Reduce DMA inlet pressure by 12% · hold 30 min · water-loss reduction scenario'],
-    ['Authorised by', 'Verified NOC engineer (representative scenario)'],
+    ['Authorised by', authBy],
     ['Authority scope', 'District 14 DMA network operations'],
     ['Policy basis', 'Min night-flow anomaly > threshold · high confidence · fixed-network smart metering'],
     ['Sealed at', ts],
     ['Token (JTI)', tok.jti],
-    ['Token status', tok.minted ? 'Live mint — freshly signed' : 'Reference token — pre-minted'],
+    ['Token status', tokStatus],
     ['Signature', 'Ed25519 · VAC production backend']
   ];
 
@@ -531,7 +539,9 @@ function showReceipt() {
   // Add verify link
   const verifyDiv = document.createElement('div');
   verifyDiv.style.marginTop = '14px';
-  if (tok.minted) {
+  if (tok.minted && tok.liveCeremony) {
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Minted under this live session — human_ref derived from the verified ceremony identity.</div>`;
+  } else if (tok.minted) {
     verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
   } else {
     verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
