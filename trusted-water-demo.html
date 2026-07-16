@@ -366,6 +366,11 @@ const REAL_TOKEN = {
 let SEAL_TOKEN = REAL_TOKEN;
 
 async function mintWaterToken() {
+  // F-819: if a live ceremony ran, bind its verified identity to the mint
+  const vv = window.__vacVerified || null;
+  const cerEmail = (vv && vv.email) ? String(vv.email).trim() : '';
+  const cerSession = (vv && vv.session_token) ? vv.session_token : null;
+
   const constraints = {
     _demo: true,
     _conditions_are_illustrative: true,
@@ -381,7 +386,7 @@ async function mintWaterToken() {
     release_condition: 'authorised_engineer_within_operational_bounds'
   };
   const body = {
-    human_identity: 'noc-engineer@waternetwork.demo',
+    human_identity: cerEmail || 'noc-engineer@waternetwork.demo',
     agent_id: 'trusted-water-demo',
     resources: ['water:district14:pressure'],
     actions: ['authorise_network_action', 'view_credential'],
@@ -394,6 +399,8 @@ async function mintWaterToken() {
       authorised_at: new Date().toISOString()
     }
   };
+  if (cerSession) body.authorising_session_token = cerSession;
+
   try {
     const r = await fetch(API_BASE + '/v1/vat/issue', {
       method: 'POST',
@@ -408,12 +415,13 @@ async function mintWaterToken() {
       jti: data.jti,
       trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
       verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify',
-      minted: true
+      minted: true,
+      liveCeremony: !!(cerEmail && cerSession)
     };
     return true;
   } catch (e) {
     console.warn('[water-demo] live mint failed:', e && e.message, '— using reference token');
-    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false });
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false, liveCeremony: false });
     return false;
   }
 }
