@@ -4,51 +4,52 @@
 <meta charset="utf-8">
 <title>VAC · Standards &amp; IP — for Caroline</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#F5F8FC">
+<meta name="theme-color" content="#0A0F1A">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  .page-shell{background:#F1F5FB !important;min-height:100vh;color:#243244;font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:16px;line-height:1.6}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:#C6CDDB;font-family:'Inter',-apple-system,system-ui,sans-serif;font-size:16px;line-height:1.6}
   .wrap{max-width:680px;margin:0 auto;padding:22px 18px 70px}
-  .banner{font-size:12px;font-weight:600;letter-spacing:.02em;color:#8A6D1B;background:#FBF3DA;border:1px solid #EAD9A0;border-radius:8px;padding:9px 13px;margin-bottom:18px;text-align:center}
-  .card{background:#FFFFFF;border:1px solid #E1E8F2;border-radius:12px;padding:20px 20px;box-shadow:0 1px 2px rgba(20,40,80,.04);margin-bottom:14px}
+  .banner{font-size:12px;font-weight:600;letter-spacing:.02em;color:#D4AF6A;background:rgba(212,175,106,.08);border:1px solid rgba(212,175,106,.35);border-radius:8px;padding:9px 13px;margin-bottom:18px;text-align:center}
+  .card{background:#111827;border:1px solid #1E2635;border-radius:12px;padding:20px 20px;margin-bottom:14px}
   .hdr{display:flex;align-items:center;gap:11px;margin-bottom:4px}
   .dot{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#1E6FB8,#2E9E6B);flex:0 0 auto}
-  .brand{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#1E6FB8}
-  .brandsub{font-size:12px;color:#6B7A8D;margin-top:1px}
-  h1{font-size:22px;font-weight:700;color:#182534;margin:16px 0 10px;letter-spacing:-.01em}
-  h2{font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#2E9E6B;margin:2px 0 9px}
-  p{margin:0 0 12px;color:#39485B}
-  b{color:#182534;font-weight:600}
-  .lead{background:#EAF3FB;border-left:4px solid #1E6FB8;border-radius:0 10px 10px 0;padding:14px 16px}
-  .gloss{background:#F5F9F5;border:1px solid #D8EADD;border-radius:10px;padding:13px 15px}
-  .gloss dt{font-weight:700;color:#1E6FB8;font-size:14px;margin-top:8px}
+  .brand{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#6FA8DC}
+  .brandsub{font-size:12px;color:#8A93A6;margin-top:1px}
+  h1{font-size:22px;font-weight:700;color:#F2F4F8;margin:16px 0 10px;letter-spacing:-.01em}
+  h2{font-size:13px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:#3FBF8C;margin:2px 0 9px}
+  p{margin:0 0 12px;color:#B8C0D0}
+  b{color:#F2F4F8;font-weight:600}
+  .lead{background:#10182A;border-left:4px solid #6FA8DC;border-radius:0 10px 10px 0;padding:14px 16px}
+  .gloss{background:#0F1622;border:1px solid #1E2A3A;border-radius:10px;padding:13px 15px}
+  .gloss dt{font-weight:700;color:#6FA8DC;font-size:14px;margin-top:8px}
   .gloss dt:first-child{margin-top:0}
-  .gloss dd{color:#4A5A6E;font-size:14px;margin:1px 0 0}
-  .q{border:1px solid #E1E8F2;border-left:4px solid #2E9E6B;border-radius:0 10px 10px 0;padding:12px 15px;margin-bottom:9px;background:#FFFFFF}
-  .qn{font-size:12px;font-weight:700;color:#2E9E6B;letter-spacing:.02em}
-  .qt{font-size:15.5px;color:#182534;font-weight:600;margin:3px 0 2px}
-  .qd{font-size:13.5px;color:#5A6A7D}
+  .gloss dd{color:#9FB0C4;font-size:14px;margin:1px 0 0}
+  .q{border:1px solid #1E2A3A;border-left:4px solid #3FBF8C;border-radius:0 10px 10px 0;padding:12px 15px;margin-bottom:9px;background:#0F1622}
+  .qn{font-size:12px;font-weight:700;color:#3FBF8C;letter-spacing:.02em}
+  .qt{font-size:15.5px;color:#F2F4F8;font-weight:600;margin:3px 0 2px}
+  .qd{font-size:13.5px;color:#9FB0C4}
+  .done{border:1px solid #1E2A3A;border-left:4px solid #D4AF6A;border-radius:0 10px 10px 0;padding:12px 15px;margin-bottom:9px;background:#141C2C}
+  .dn{font-size:12px;font-weight:700;color:#D4AF6A;letter-spacing:.02em}
   .stand{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
-  .pill{font-size:12.5px;font-weight:600;color:#134A7E;background:#E4F0FA;border:1px solid #C4DDF1;border-radius:20px;padding:4px 11px}
+  .pill{font-size:12.5px;font-weight:600;color:#9CC3E8;background:rgba(111,168,220,.10);border:1px solid rgba(111,168,220,.35);border-radius:20px;padding:4px 11px}
   .foot{font-size:12.5px;color:#7488A0;line-height:1.6;margin-top:6px}
-  em{color:#1E6FB8;font-style:normal;font-weight:600}
+  em{color:#6FA8DC;font-style:normal;font-weight:600}
 </style>
 </head>
 <body>
 <div class="page-shell"><div class="wrap">
-  <div class="banner">Internal note for Caroline — remove before sharing with external contacts if not relevant</div>
+  <div class="banner">Prepared for Caroline Parker — private link, please don't circulate</div>
 
   <div class="card">
-    <div class="hdr"><div class="dot"></div><div><div class="brand">Violet Shores · VAC</div><div class="brandsub">Standards &amp; intellectual-property visibility — a note for your read</div></div></div>
-    <div style="border-left:4px solid #1E6FB8;background:#EAF3FB;border-radius:0 10px 10px 0;padding:14px 16px;margin:0 0 16px">
-      <div style="font-size:18px;font-weight:700;color:#182534;margin-bottom:5px">Two competent people, verified live — at the moment of the decision.</div>
-      <div style="color:#33485B;font-size:14.5px">VAC proves each is <b>competent</b> (authority), <b>genuinely present</b> (live biometric), and that <b>both were there</b> (immutable audit). A two-person control built on logins can prove none of that.</div>
+    <div class="hdr"><div class="dot"></div><div><div class="brand">Violet Shores · VAC</div><div class="brandsub">Standards &amp; intellectual-property — a note for your read</div></div></div>
+    <div style="border-left:4px solid #6FA8DC;background:#10182A;border-radius:0 10px 10px 0;padding:14px 16px;margin:0 0 16px">
+      <div style="font-size:18px;font-weight:700;color:#F2F4F8;margin-bottom:5px">Two competent people, verified live — at the moment of the decision.</div>
+      <div style="color:#B8C0D0;font-size:14.5px">VAC proves each is <b>competent</b> (authority), <b>genuinely present</b> (live biometric), and that <b>both were there</b> (immutable audit). A two-person control built on logins can prove none of that.</div>
     </div>
-    <h1>The standards question, in plain terms</h1>
-    <p>You're seeing the working demo. Separately, there's a decision I'd value your judgment on — it's as much an intellectual-property and commercial call as a technical one, and you'll have far better context now that you've seen what the product actually does.</p>
+    <h1>The standards move, in plain terms</h1>
     <div class="lead">
-      <p style="margin-bottom:0"><b>The short version.</b> The idea at the heart of VAC — proving <em>which real, accountable person</em> stands behind an AI system's actions — lines up with an active effort by the global body that writes the internet's technical rulebooks to create a shared standard for recording what AI agents do. That effort has an obvious gap that our idea fills. Being the party who helps shape how that gap gets filled is valuable. But putting our approach out publicly too early — before we've signed customers — could also hand a roadmap to much larger competitors.</p>
+      <p style="margin-bottom:0"><b>The short version.</b> The idea at the heart of VAC — proving <em>which real, accountable person</em> stands behind an AI system's actions — lines up with an active effort by the global body that writes the internet's technical rulebooks to create shared standards for what AI agents do. That effort has an obvious gap our idea fills. <b>We are moving on it now:</b> two draft documents describing the <em>outward interface</em> — deliberately not the inner workings — are finalised and being submitted this week, timed to the body's meeting in Vienna (which I'm attending). The interface goes public to shape the field; the mechanisms stay protected by the patent filings.</p>
     </div>
   </div>
 
@@ -64,23 +65,22 @@
   </div>
 
   <div class="card">
-    <h2>Where things stand today</h2>
-    <p>Two provisional patent applications are filed (references <b>AU 2026906147</b> and <b>AU 2026906148</b>), covering how the technology works. Two IETF draft documents describing the <em>outward interface</em> — deliberately not the inner workings — are written but <b>not yet submitted</b>. My working recommendation is to <b>stage</b>: establish a light presence in the standards conversation now, but hold formal publication until we have a committed customer and your sign-off on the IP position. <b>This demo is the trigger for both.</b></p>
+    <h2>Where things stand this week</h2>
+    <p>Two provisional patent applications are filed (references <b>AU 2026906147</b> and <b>AU 2026906148</b>), covering how the technology works. Two Internet-Drafts covering only the <em>outward interface</em> are being submitted to the IETF this week, and I'll be at the IETF's Vienna meeting where the agent-protocols conversation is happening. The posture is <b>compose, don't contest</b>: a constructive presence that positions our work as the missing accountability layer alongside what others are building — while the mechanism patents stay private and separately licensable.</p>
+    <div class="done"><div class="dn">Decided · for your awareness</div><div class="qt">Why publish now rather than wait for a signed customer</div><div class="qd">The calculus flipped: the agent-standards conversation is happening <em>this week</em>, with or without us. The drafts disclose only the interface (which we want adopted), never the mechanisms (which the filings protect) — so absence now costs field-shaping influence and credibility, while adding little protection. If anything in this reasoning worries you legally, I genuinely want to hear it on our call.</div></div>
   </div>
 
   <div class="card">
-    <h2>What I'd value your read on — happy to walk through on a call</h2>
-    <div class="q"><div class="qn">Question 1 · IP position</div><div class="qt">The licensing statement for an eventual IETF submission.</div><div class="qd">The IETF requires us to disclose relevant patent applications and say how we'd license them. We'd want a statement that keeps the <em>interface</em> free-to-use and open (which drives adoption and suits the Foundation), while the <em>underlying mechanism</em> patents stay separately licensable (Violet Shores revenue). Does that split hold up, and how should the statement read?</div></div>
-    <div class="q"><div class="qn">Question 2 · timing</div><div class="qt">Publish into the standard now, or wait until we've a customer?</div><div class="qd">Your read on the trade-off: shaping the field early versus accelerating better-resourced competitors before we have protection beyond a provisional filing.</div></div>
-    <div class="q"><div class="qn">Question 3 · a short message to the group</div><div class="qt">Are you comfortable with me sending a brief question into the standards discussion?</div><div class="qd">No specification and no drafts — simply raising a design question. Because even that counts as a formal "contribution" under the IETF's rules, I wanted your awareness before it goes out.</div></div>
-    <div class="q"><div class="qn">Question 4 · patent conversion</div><div class="qt">Timing the provisional-to-full patent conversions (due Feb/Mar 2027) against any publication.</div><div class="qd">Which claims to convert and broaden, and whether that should happen before we go public.</div></div>
+    <h2>The two live questions for your judgment</h2>
+    <div class="q"><div class="qn">Question 1 · IP position (now live, not hypothetical)</div><div class="qt">The licensing statement that accompanies the IETF submission.</div><div class="qd">The IETF requires us to disclose relevant patent applications and say how we'd license them. The intent: keep the <em>interface</em> free-to-use and open (drives adoption, suits the Foundation), while the <em>underlying mechanism</em> patents stay separately licensable (Violet Shores revenue). Does that split hold up, and how should the statement read?</div></div>
+    <div class="q"><div class="qn">Question 2 · patent conversion</div><div class="qt">Timing the provisional-to-full conversions (due Feb/Mar 2027) now that the interface is public.</div><div class="qd">Which claims to convert and broaden, and how the public interface documents change that calculus.</div></div>
   </div>
 
   <div class="card">
     <h2>Relevant to your world</h2>
     <p style="margin-bottom:8px">This isn't only an EU idea. <b>Australia's own AI guidance</b> (AI Adoption / "AI6", Practice 3) requires meaningful human oversight for high-stakes decisions — "rubber-stamping is not oversight" — and since June 2026 government bodies must name an <b>accountable human</b> for every AI use (tribunals are public bodies). The <b>EU AI Act</b> legislates it directly — Article 14 (human oversight, two-person verification) and Article 12 (record-keeping) — for high-risk systems from 2 December 2027. New Zealand and the Five Eyes agencies point the same way. VAC is built to evidence exactly this.</p>
     <div class="stand"><span class="pill">AU · AI6 human oversight</span><span class="pill">AU gov · accountable owner (binding)</span><span class="pill">EU Art 14 · two-person</span><span class="pill">EU Art 12 · records</span></div>
-    <p class="foot" style="margin-top:14px">This panel is standalone and removable. It exists so you have a specific written summary to react to inside the demo, rather than picking it up cold on a call. None of it needs to be shown to your legal or defence contacts — entirely your call whether any part is useful context for them.</p>
+    <p class="foot" style="margin-top:14px">This note is standalone and private to you. It exists so you have something written to react to inside the demo rather than picking it up cold on a call. Whether any of it is useful context for your legal or defence contacts is entirely your call.</p>
   </div>
 </div></div>
 </html>
