@@ -595,7 +595,7 @@ document.getElementById('reset').onclick = reset;
   var overlay=document.getElementById('verifyOverlay');
   var frame=document.getElementById('voFrame');
   var openedAt=0;
-  window.waterOpenVerify=function(){ openedAt=Date.now(); frame.src='/auth.html'; overlay.hidden=false; document.body.style.overflow='hidden'; };
+  window.waterOpenVerify=function(){ openedAt=Date.now(); frame.src='/auth'; overlay.hidden=false; document.body.style.overflow='hidden'; };
   function close(){ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }
   document.getElementById('voClose').addEventListener('click', close);
   window.addEventListener('message', function(ev){
