@@ -1094,6 +1094,18 @@ function showSuccess() {
                 // Only attach the credential when posting to our OWN origin.
                 if (_sess) { _msg.session_token = _sess; _msg.auth_level = _level; }
                 window.parent.postMessage(_msg, window.location.origin);
+                // F-819 Plan C (additive, same-origin): mirror the success signal into localStorage so a
+                // launcher TAB (not iframe) can receive completion via the 'storage' event. The session
+                // token is already persisted by this page's own session store; no new exposure class.
+                try { localStorage.setItem('vac_last_verified', JSON.stringify({ email: d.email||null, name: d.name||null, session_token: _sess||null, ts: Date.now() })); } catch(e) {}
+            }
+            // Plan C also for STANDALONE tab completions (window.parent === window): same mirror.
+            if (window.parent === window) {
+                try {
+                    var _so = (authResult && authResult.session) ? authResult.session : null;
+                    var _st = (authResult && authResult.session_token) ? authResult.session_token : (_so && _so.token) ? _so.token : null;
+                    localStorage.setItem('vac_last_verified', JSON.stringify({ email: d.email||null, name: d.name||null, session_token: _st, ts: Date.now() }));
+                } catch(e) {}
             }
         } catch(e) {}
         // Start polling for vouches to unlock messaging

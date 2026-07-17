@@ -595,7 +595,28 @@ document.getElementById('reset').onclick = reset;
   var overlay=document.getElementById('verifyOverlay');
   var frame=document.getElementById('voFrame');
   var openedAt=0;
-  window.waterOpenVerify=function(){ openedAt=Date.now(); frame.src='/auth'; overlay.hidden=false; document.body.style.overflow='hidden'; };
+  window.waterOpenVerify=function(){
+    openedAt=Date.now();
+    // F-819 Plan C: launch the PROVEN standalone auth surface in a new tab (the framed path
+    // renders blank on some macOS/iOS environments — D-WATER-IFRAME-BLANK). Completion arrives
+    // via the same-origin localStorage 'storage' event mirrored by auth.html.
+    try { localStorage.removeItem('vac_last_verified'); } catch(e){}
+    var w = window.open('/auth', '_blank');
+    if (!w) { frame.src='/auth'; overlay.hidden=false; document.body.style.overflow='hidden'; return; } // popup blocked -> old overlay fallback
+    var chipMsg=document.getElementById('waterBioChip');
+    if(chipMsg){ chipMsg.style.display='block'; chipMsg.textContent='Verification opened in a new tab — complete it there, then return to this tab.'; chipMsg.scrollIntoView({behavior:'smooth', block:'center'}); }
+  };
+  window.addEventListener('storage', function(ev){
+    if(ev.key!=='vac_last_verified' || !ev.newValue) return;
+    try {
+      var v=JSON.parse(ev.newValue);
+      if(!v || (Date.now()-(v.ts||0))>120000) return; // stale mirror: ignore >2min old
+      window.__vacVerified={ name:(v.name||'').trim(), email:(v.email||null), session_token:(v.session_token||null) };
+      localStorage.removeItem('vac_last_verified');
+      var chip=document.getElementById('waterBioChip');
+      if(chip){ chip.style.display='block'; chip.textContent='Identity verified live — your seal will be minted under this session.'; chip.scrollIntoView({behavior:'smooth', block:'center'}); }
+    } catch(e){}
+  });
   function close(){ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }
   document.getElementById('voClose').addEventListener('click', close);
   window.addEventListener('message', function(ev){
