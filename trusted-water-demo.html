@@ -366,6 +366,11 @@ const REAL_TOKEN = {
 let SEAL_TOKEN = REAL_TOKEN;
 
 async function mintWaterToken() {
+  // F-819: if a live ceremony ran, bind its verified identity to the mint
+  const vv = window.__vacVerified || null;
+  const cerEmail = (vv && vv.email) ? String(vv.email).trim() : '';
+  const cerSession = (vv && vv.session_token) ? vv.session_token : null;
+
   const constraints = {
     _demo: true,
     _conditions_are_illustrative: true,
@@ -381,7 +386,7 @@ async function mintWaterToken() {
     release_condition: 'authorised_engineer_within_operational_bounds'
   };
   const body = {
-    human_identity: 'noc-engineer@waternetwork.demo',
+    human_identity: cerEmail || 'noc-engineer@waternetwork.demo',
     agent_id: 'trusted-water-demo',
     resources: ['water:district14:pressure'],
     actions: ['authorise_network_action', 'view_credential'],
@@ -394,6 +399,8 @@ async function mintWaterToken() {
       authorised_at: new Date().toISOString()
     }
   };
+  if (cerSession) body.authorising_session_token = cerSession;
+
   try {
     const r = await fetch(API_BASE + '/v1/vat/issue', {
       method: 'POST',
@@ -408,12 +415,13 @@ async function mintWaterToken() {
       jti: data.jti,
       trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
       verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify',
-      minted: true
+      minted: true,
+      liveCeremony: !!(cerEmail && cerSession)
     };
     return true;
   } catch (e) {
     console.warn('[water-demo] live mint failed:', e && e.message, '— using reference token');
-    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false });
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false, liveCeremony: false });
     return false;
   }
 }
@@ -490,15 +498,23 @@ function showReceipt() {
   const now = new Date();
   const ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' AEST';
 
+  const vv = window.__vacVerified || null;
+  const authBy = (tok.liveCeremony && vv && vv.email)
+    ? String(vv.email).trim() + ' · verified live (VAC)'
+    : 'Verified NOC engineer (representative scenario)';
+  const tokStatus = tok.minted
+    ? (tok.liveCeremony ? 'Live mint — minted under this live session' : 'Live mint — freshly signed')
+    : 'Reference token — pre-minted';
+
   const kvPairs = [
     ['Scenario', 'District 14 — Northside DMA · Digital twin Stage 1 pressure reduction'],
     ['What-if accepted', 'Reduce DMA inlet pressure by 12% · hold 30 min · water-loss reduction scenario'],
-    ['Authorised by', 'Verified NOC engineer (representative scenario)'],
+    ['Authorised by', authBy],
     ['Authority scope', 'District 14 DMA network operations'],
     ['Policy basis', 'Min night-flow anomaly > threshold · high confidence · fixed-network smart metering'],
     ['Sealed at', ts],
     ['Token (JTI)', tok.jti],
-    ['Token status', tok.minted ? 'Live mint — freshly signed' : 'Reference token — pre-minted'],
+    ['Token status', tokStatus],
     ['Signature', 'Ed25519 · VAC production backend']
   ];
 
@@ -523,7 +539,9 @@ function showReceipt() {
   // Add verify link
   const verifyDiv = document.createElement('div');
   verifyDiv.style.marginTop = '14px';
-  if (tok.minted) {
+  if (tok.minted && tok.liveCeremony) {
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Minted under this live session — human_ref derived from the verified ceremony identity.</div>`;
+  } else if (tok.minted) {
     verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
   } else {
     verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
@@ -586,6 +604,8 @@ document.getElementById('reset').onclick = reset;
     if(d.type==='vac-auth-success'){
       if(Date.now()-openedAt < 8000) return;
       close();
+      // F-819: capture verified identity so mintWaterToken can bind the live session
+      window.__vacVerified={ name:(d.name||'').trim(), email:(d.email||null), session_token:(d.session_token||null) };
       var chip=document.getElementById('waterBioChip');
       if(chip){ chip.style.display='block'; chip.scrollIntoView({behavior:'smooth', block:'center'}); }
     }
