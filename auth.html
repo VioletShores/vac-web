@@ -339,7 +339,21 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <script src="/vac-reauth-ceremony.js"></script>
 </head>
 <body>
-<div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#2DD4BF'" onmouseout="this.style.color='#6B7280'">← Back to VAC Protocol</a></div><script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
+<div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#2DD4BF'" onmouseout="this.style.color='#6B7280'">← Back to VAC Protocol</a></div><script>
+(function(){
+  var bar=document.getElementById("vacBackBar");
+  if(window.parent===window) bar.style.display="block";
+  try{
+    var r=new URLSearchParams(location.search).get("return");
+    // sanitize: same-origin path only — must start with single "/", no "//", no ":"
+    if(r && /^\/(?!\/)[A-Za-z0-9_\-.\/?=&%]*$/.test(r) && r.indexOf(":")===-1){
+      window.__vacReturnPath=r;
+      var a=bar.querySelector("a"); a.href=r; a.textContent="\u2190 Back to the demo";
+      bar.style.display="block";
+    }
+  }catch(e){}
+})();
+</script>
 
 <!-- NAV -->
 <div class="nav">
@@ -490,7 +504,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
     <!-- Enter full app -->
     <div style="margin-top:20px;text-align:center;">
-        <a id="enterAppBtn" href="#" onclick="enterApp()" style="display:inline-block;background:var(--purple);color:white;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;">Enter VAC Protocol →</a>
+        <a id="returnDemoBtn" href="#" style="display:none;background:var(--teal,#2DD4BF);color:#06251F;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;margin-right:10px;">Return to the demo →</a><script>(function(){var b=document.getElementById("returnDemoBtn"); if(window.__vacReturnPath){ b.href=window.__vacReturnPath; b.style.display="inline-block"; }})();</script><a id="enterAppBtn" href="#" onclick="enterApp()" style="display:inline-block;background:var(--purple);color:white;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;">Enter VAC Protocol →</a>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:8px;">Messages · Agents · Governance</div>
         <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
             <a href="#" onclick="refreshVerification()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Refresh verification</a>
