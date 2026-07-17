@@ -500,6 +500,7 @@ async function advance() {
 }
 
 function showReceipt() {
+  try{ sessionStorage.setItem('waterWalkDone','1'); }catch(e){}
   const tok = SEAL_TOKEN;
   const now = new Date();
   const ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' AEST';
@@ -620,10 +621,21 @@ document.getElementById('reset').onclick = reset;
       var chip=document.getElementById('waterBioChip');
       if(chip){
         chip.style.display='block';
+        var walkDone=false; try{ walkDone = sessionStorage.getItem('waterWalkDone')==='1'; }catch(e){}
+        var actionLabel = walkDone ? 'Seal it under your live session →' : 'Now walk the decision and seal it →';
         chip.innerHTML='Identity verified live — your seal will be minted under this session.'
-          + '<br><a href="#" id="chipGoSeal" style="display:inline-block;margin-top:10px;background:var(--purple,#7C6FF0);color:#fff;font-weight:600;font-size:13px;padding:10px 18px;border-radius:8px;text-decoration:none;">Now walk the decision and seal it →</a>';
+          + '<br><a href="#" id="chipGoSeal" style="display:inline-block;margin-top:10px;background:var(--purple,#7C6FF0);color:#fff;font-weight:600;font-size:13px;padding:10px 18px;border-radius:8px;text-decoration:none;">'+actionLabel+'</a>';
         var go=document.getElementById('chipGoSeal');
-        if(go){ go.onclick=function(ev){ ev.preventDefault();
+        if(go){ go.onclick=async function(ev){ ev.preventDefault();
+          if(walkDone){
+            // direct re-seal under the freshly verified session — same mint + receipt path, no re-walking
+            go.textContent='Sealing under your live session...';
+            try { await mintWaterToken(); showReceipt();
+              var rc=document.getElementById('receipt'); if(rc){ rc.scrollIntoView({behavior:'smooth', block:'start'}); }
+              go.textContent='Sealed — receipt below ↓';
+            } catch(e){ go.textContent='Seal failed — try the walkthrough'; }
+            return;
+          }
           var adv=document.getElementById('advance');
           if(adv){ adv.scrollIntoView({behavior:'smooth', block:'center'});
             adv.style.transition='box-shadow .3s'; adv.style.boxShadow='0 0 0 3px rgba(124,111,240,.8)';
