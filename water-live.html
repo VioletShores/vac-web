@@ -607,10 +607,7 @@ document.getElementById('reset').onclick = reset;
     // renders blank on some macOS/iOS environments — D-WATER-IFRAME-BLANK). Completion arrives
     // via the same-origin localStorage 'storage' event mirrored by auth.html.
     try { localStorage.removeItem('vac_last_verified'); } catch(e){}
-    var w = window.open('/auth', '_blank');
-    if (!w) { location.assign('/auth'); return; } // popup blocked -> SAME-TAB navigation; completion consumed on return via pageshow
-    var chipMsg=document.getElementById('waterBioChip');
-    if(chipMsg){ chipMsg.style.display='block'; chipMsg.textContent='Verification opened in a new tab — complete it there, then return to this tab.'; chipMsg.scrollIntoView({behavior:'smooth', block:'center'}); }
+    location.assign('/auth'); // same-tab always (Chrome can suppress window.open tabs while returning success); completion consumed on Back via pageshow
   };
   function consumeVerifiedMirror(){
     try {
