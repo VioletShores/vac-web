@@ -483,14 +483,28 @@ function _ptInHandZone(p) {
     const dx = (p.x - 0.5) / _HAND_ZONE_RX, dy = (p.y - 0.5) / _HAND_ZONE_RY;
     return (dx * dx + dy * dy) <= 1;
 }
-// F-755c: matches the two drawn purple cheek ovals (cx 0.18/0.82, cy 0.48) with a slight
-// margin so the gated skeleton fires when the hand is visually on either oval.
-const _CHEEK_ZONE_RX = 0.15, _CHEEK_ZONE_RY = 0.19;  // F-755f: tightened to spec (drawn oval 0.10/0.14 + margin)
+// L-2299: single source of truth for gesture zone geometry.
+// Detector acceptance gate, coaching trigger, and canvas overlay ALL read from this spec.
+// rx/ry: acceptance radii = drawn oval radii so the ring IS the gate (no mismatch).
+// Widened from prior 0.15/0.19 so a natural spread-finger beside-cheek pose at normal
+// phone/laptop distance is inside (old 0.15/0.19 only passed when the hand was far back
+// and landmarks were compressed — the inversion bug described in D-GESTURE-ZONE-2026-07-18).
+const GESTURE_ZONE_SPEC = Object.freeze({
+    ovals: [
+        { cx: 0.18, cy: 0.48, side: 'left'  },
+        { cx: 0.82, cy: 0.48, side: 'right' },
+    ],
+    rx: 0.20,          // acceptance + draw radii — unified (was acceptance 0.15 / draw 0.10)
+    ry: 0.26,          // acceptance + draw radii — unified (was acceptance 0.19 / draw 0.14)
+    minTipsInside: 3,  // wrist + majority (3 of 5) fingertips must be inside
+});
 function _ptInCheekZone(p) {
-    const dxL = (p.x - 0.18) / _CHEEK_ZONE_RX, dyL = (p.y - 0.48) / _CHEEK_ZONE_RY;
-    if (dxL * dxL + dyL * dyL <= 1) return true;
-    const dxR = (p.x - 0.82) / _CHEEK_ZONE_RX, dyR = (p.y - 0.48) / _CHEEK_ZONE_RY;
-    return dxR * dxR + dyR * dyR <= 1;
+    const rx = GESTURE_ZONE_SPEC.rx, ry = GESTURE_ZONE_SPEC.ry;
+    for (const o of GESTURE_ZONE_SPEC.ovals) {
+        const dx = (p.x - o.cx) / rx, dy = (p.y - o.cy) / ry;
+        if (dx * dx + dy * dy <= 1) return true;
+    }
+    return false;
 }
 function _handNearFaceZone(lm) {
     if (!lm || lm.length < 21) return false;
@@ -498,10 +512,9 @@ function _handNearFaceZone(lm) {
     const tips = [4, 8, 12, 16, 20];                // thumb..pinky fingertips
     let inside = 0;
     for (const t of tips) { if (_ptInCheekZone(lm[t])) inside++; }
-    return inside >= 3;                             // majority of fingertips inside
+    return inside >= GESTURE_ZONE_SPEC.minTipsInside;
 }
-// F-755h: wider tick-zone (~2x cheek) so the Hand✓ tick fires with a generous target.
-// Glow/class still use _CHEEK_ZONE_RX/RY (tight); tick uses this wider window.
+// F-755h: wider tick-zone for Hand✓ pre-flight tick — separate from acceptance gate.
 const _TICK_ZONE_RX = 0.28, _TICK_ZONE_RY = 0.30;
 function _ptInTickZone(p) {
     const dxL = (p.x - 0.18) / _TICK_ZONE_RX, dyL = (p.y - 0.48) / _TICK_ZONE_RY;
@@ -701,15 +714,14 @@ function startAVChecks() {
                     for (const p of lm){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
                     const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
                     const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
-                    const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
+                    // L-2299: tooSmall replaced by zone check — coaching is position-correct, not just distance.
                     // F-758: on-screen readout so Rob can tune the hand gate from real data (tick-zone vs framing).
-                    try { if (typeof QA !== 'undefined' && QA && QA.on) { var _dbg = document.getElementById('vacHandDbg'); if (_dbg) _dbg.textContent = 'tick:'+(_tickNear?'Y':'N')+' size:'+((maxX-minX).toFixed(2))+'×'+((maxY-minY).toFixed(2))+' small:'+(tooSmall?'Y':'N')+' stable:'+_handStableFrames; } } catch(_){}
+                    try { if (typeof QA !== 'undefined' && QA && QA.on) { var _dbg = document.getElementById('vacHandDbg'); if (_dbg) _dbg.textContent = 'tick:'+(_tickNear?'Y':'N')+' size:'+((maxX-minX).toFixed(2))+'×'+((maxY-minY).toFixed(2))+' stable:'+_handStableFrames; } } catch(_){}
                     if (!_tickNear) {
                         // Hand visible but OUTSIDE the wide tick zone — prompt to move beside cheek.
                         _handStableFrames = 0;
                         setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block';
                     } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
-                    else if (tooSmall) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
                     else {
                         // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
                         // F-755d: stability gate — require 5 consecutive good frames so a flickering
@@ -814,12 +826,9 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         }
         if (_allFin) { _lmComplete = true; try { _confident = _handNearFaceZone(lm); } catch(_){} }
     }
-    // Two static ovals, one beside each cheek.
-    var _ovals = [
-        { cx: 0.18, side: 'left'  },
-        { cx: 0.82, side: 'right' }
-    ];
-    var _cy = 0.48, _radX = 0.10, _radY = 0.14;
+    // Two static ovals, one beside each cheek — geometry from GESTURE_ZONE_SPEC.
+    var _ovals = GESTURE_ZONE_SPEC.ovals;
+    var _cy = 0.48, _radX = GESTURE_ZONE_SPEC.rx, _radY = GESTURE_ZONE_SPEC.ry;
     ctx.save();
     try {
         for (var _oi = 0; _oi < _ovals.length; _oi++) {
@@ -910,7 +919,7 @@ function _avDrawHand(videoEl, lm){
     if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
     ctx.clearRect(0,0,cv.width,cv.height);
     // F-755e: draw static cheek-zone ovals before the lm-guard so they show even with no hand up.
-    // Same geometry as _drawFingerTargetGuide (cx 0.18/0.82, cy 0.48, radX 0.10, radY 0.14).
+    // Geometry from GESTURE_ZONE_SPEC — matches acceptance gate and _drawFingerTargetGuide exactly.
     (function _drawAvCheekOvals(){
         const w=cv.width, h=cv.height;
         // F-755h2: only ONE oval reads as target (never "use both hands").
@@ -919,11 +928,12 @@ function _avDrawHand(videoEl, lm){
         let _wristX = null;
         if (lm && lm.length === 21 && lm[0] && Number.isFinite(lm[0].x)) _wristX = lm[0].x;
         const _nearSide = _wristX === null ? null : (_wristX < 0.5 ? 0.18 : 0.82);
+        const _gzRx = GESTURE_ZONE_SPEC.rx, _gzRy = GESTURE_ZONE_SPEC.ry;
         ctx.save();
         for(const cxN of [0.18,0.82]){
             const _isActive = (_nearSide === null) ? null : (cxN === _nearSide);
             ctx.beginPath();
-            ctx.ellipse(cxN*w, 0.48*h, 0.10*w, 0.14*h, 0, 0, Math.PI*2);
+            ctx.ellipse(cxN*w, 0.48*h, _gzRx*w, _gzRy*h, 0, 0, Math.PI*2);
             if (_isActive === true) {
                 ctx.fillStyle='rgba(108,92,231,0.16)'; ctx.fill();
                 ctx.strokeStyle='rgba(108,92,231,0.80)'; ctx.lineWidth=Math.max(2,w*0.005);
@@ -1239,16 +1249,18 @@ const CaptureFeedback = {
         // F-760: tightened — MediaPipe miscounts by ±1 when the hand is too close OR near a frame edge
         // (Rob live: showed 2, read 3, close to camera; correct after moving back). Prompt BEFORE the
         // count degrades, not only when the hand fills/touches the frame.
+        // L-2299: zone membership check replaces the old independent tooSmall gate. Coaching fires
+        // only when the hand is OUTSIDE the acceptance zone; advice is directionally correct
+        // relative to GESTURE_ZONE_SPEC ("beside your cheek", not just "closer").
         const EDGE = 0.08;   // was 0.04 — edge-degraded miscounts start well before touching
         const clipped = (minX < EDGE || maxX > 1-EDGE || minY < EDGE || maxY > 1-EDGE);
         const tooBig  = ((maxX-minX) > 0.72 || (maxY-minY) > 0.78);  // was 0.85/0.9 — too-close miscount starts earlier
-        const tooSmall = ((maxX-minX) < 0.28 && (maxY-minY) < 0.28); // tooSmall threshold ~0.28, tunable
-        if (clipped || tooBig || tooSmall) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
+        const outsideZone = !_handNearFaceZone(lm);  // replaces tooSmall — zone-aware position coaching
+        if (clipped || tooBig || outsideZone) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
         if (banner) {
             if (ctx.framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
-                banner.textContent = tooSmall ? 'Move your hand closer'
-                                  : tooBig    ? 'Move your hand back a little — keep your whole hand in view'
-                                              : 'Keep your whole hand inside the red border';
+                banner.textContent = (clipped || tooBig) ? 'Move your hand back — keep your whole hand in view'
+                                                         : 'Hold your hand beside your cheek';
                 banner.style.display = 'block';
             } else if (ctx.framingBadFrames === 0) {
                 banner.style.display = 'none';
