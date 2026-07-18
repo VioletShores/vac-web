@@ -2003,6 +2003,8 @@ function beginRecording() {
     // F-662: DIGIT_COOCCUR_MS / DIGIT_COOCCUR_MAX_MS moved to module scope (ONE source, shared with the
     // FAST tier via _cooccurAdvanceDecision). Same values; the inline gate below now calls that helper.
     const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
+    const VAD_ONSET_SUSTAIN_MS = 180; // S139: onset gate — must stay CONTINUOUSLY above threshold for this long before onset is confirmed. Percussive taps are <50ms broadband transients; they drop to neither/silence before 180ms elapses, resetting the pre-onset timer. Real speech holds above threshold for 300-500ms.
+    const VAD_VOICE_BAND_FRAC = 0.20; // S139: crude spectral sanity — voice-band energy (0–3.5kHz) must be >= this fraction of total. Broadband tap transients spread energy flat across all bins (~14% in voice band at fftSize=256/48kHz); voice concentrates energy low. Applied at onset-start frame only; same buf already read — zero latency.
     const COACH_DEBOUNCE_MS = 600;   // F-599: a coaching candidate must persist this long continuously before it shows — so the hint appears AFTER a genuine failed attempt, not mid-gesture. 'none' clears instantly (no lag on advance/correction).
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
     // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
@@ -2010,6 +2012,8 @@ function beginRecording() {
     // that gesture (no pre-satisfaction). Reusable per-digit unit for F-562 quick re-auth.
     let _sawSilence = false;         // observed real silence since THIS digit's window opened?
     let _voiceOnsetAt = 0;           // performance.now() when the current fresh voiced run began
+    let _preOnsetStart = 0;          // S139: perf.now() when continuous above-threshold pre-onset accumulation began; 0 = not accumulating. Resets on any non-above-threshold frame.
+    let _rejectedTransients = 0;     // S139: count of onset attempts killed by the onset sustain gate (taps that dropped before 180ms)
 
     function finishFingerPhase() {
         if (recordingStopped) return;
@@ -2099,6 +2103,7 @@ function beginRecording() {
                     // beat / grace). A real pause there arms the next digit, so a fresh utterance
                     // that OVERLAPS the window-open still counts (codex), while continuous
                     // carry-over (no pause since the last accept) stays rejected.
+                    if (_preOnsetStart) { _rejectedTransients++; _preOnsetStart = 0; }  // S139: silence aborts pre-onset
                     _sawSilence = true;
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
                 } else if (rms > vadSpeechThreshold) {
@@ -2107,11 +2112,34 @@ function beginRecording() {
                     // the duration bar (codex: don't clamp the onset to window-open). The run only STARTS
                     // after a real silence (_sawSilence = fresh onset, rejects carry-over/greeting-tail).
                     if (voiced === 0) {
-                        // A run STARTS only after a fresh in-window silence (_sawSilence) — the SUPP-7
-                        // per-digit binding. A sustained neither-band dip KILLS the run (below), so the
-                        // ONLY way to (re)start is a real silence→voice onset; spaced taps in elevated
-                        // ambient can't re-onset without one.
-                        if (_sawSilence) { _voiceOnsetAt = _now; voiceMin = rms; voiceMax = rms; voiced = 1; }
+                        // S139 onset gate: require SUSTAINED above-threshold energy for VAD_ONSET_SUSTAIN_MS
+                        // (continuously, no gaps) before confirming onset. A percussive tap (<50ms) drops
+                        // back to neither/silence before 180ms, resetting _preOnsetStart — it cannot trigger.
+                        // Real speech holds above threshold for 300-500ms and passes easily.
+                        if (_sawSilence) {
+                            if (_preOnsetStart === 0) {
+                                // First frame of potential onset. Spectral sanity check (same buf, zero latency):
+                                // voice-band energy (0-3.5kHz) should dominate. Broadband tap transients
+                                // spread energy flat (~14% in voice band); voice concentrates energy low.
+                                var _sr = (audioAnalyser.context && audioAnalyser.context.sampleRate) || 48000;
+                                var _vbEnd = Math.floor(3500 * audioAnalyser.fftSize / _sr);
+                                var _vbSum = 0, _totSum = 1;
+                                for (var _si = 0; _si < buf.length; _si++) { _totSum += buf[_si]; if (_si <= _vbEnd) _vbSum += buf[_si]; }
+                                if (_vbSum / _totSum >= VAD_VOICE_BAND_FRAC) {
+                                    _preOnsetStart = _now;  // spectrum is voice-like; begin sustain window
+                                } else {
+                                    _rejectedTransients++;  // broadband transient rejected at first frame
+                                }
+                            } else if (_now - _preOnsetStart >= VAD_ONSET_SUSTAIN_MS) {
+                                // Pre-onset confirmed: continuously above threshold for >=180ms.
+                                // Backdate _voiceOnsetAt to when pre-onset began so the 350ms DIGIT_VOICE_MIN_MS
+                                // measures from actual onset, not confirmation moment.
+                                _voiceOnsetAt = _preOnsetStart;
+                                voiceMin = rms; voiceMax = rms; voiced = 1;
+                                _preOnsetStart = 0;
+                            }
+                            // else: still accumulating within the sustain window
+                        }
                         // else: voice with no preceding in-window silence (carry-over) → ignore
                     } else {
                         voiced++;   // continuing run (a brief dip < DIGIT_VOICE_GAP_MS was tolerated)
@@ -2129,17 +2157,19 @@ function beginRecording() {
                         _markSpeech('vad', rms, _voiceOnsetAt);
                         voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
                     }
-                }
-                else if (voiced > 0) {
-                    // session silence..speech band (neither), mid-run: an OBSERVED dip. Time it; if it
-                    // stays here past DIGIT_VOICE_GAP_MS the voicing wasn't continuous (spaced taps in
-                    // elevated ambient) → KILL the run. Re-arming then needs a real silence→voice onset
-                    // (the _sawSilence guard above), NOT a re-onset here — so taps can't accumulate and
-                    // the fresh-silence per-digit binding holds. _sawSilence is left untouched (a
-                    // neither-band dip is not a real pause). rAF jank observes no neither frames, so it
-                    // can't trip this — a real digit survives a stall.
-                    if (!_voiceDipStart) _voiceDipStart = _now;
-                    else if (_now - _voiceDipStart > DIGIT_VOICE_GAP_MS) { voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; }
+                } else {
+                    // neither band (between silence and speech thresholds)
+                    if (_preOnsetStart) { _rejectedTransients++; _preOnsetStart = 0; }  // S139: any non-above-threshold frame breaks the pre-onset sustain window
+                    if (voiced > 0) {
+                        // mid-run dip: time it; if it stays here past DIGIT_VOICE_GAP_MS the voicing
+                        // wasn't continuous (spaced taps in elevated ambient) → KILL the run. Re-arming
+                        // then needs a real silence→voice onset (_sawSilence guard above), NOT a re-onset
+                        // here — so taps can't accumulate and the fresh-silence per-digit binding holds.
+                        // _sawSilence is left untouched (a neither-band dip is not a real pause).
+                        // rAF jank observes no neither frames, so it can't trip this — a real digit survives.
+                        if (!_voiceDipStart) _voiceDipStart = _now;
+                        else if (_now - _voiceDipStart > DIGIT_VOICE_GAP_MS) { voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; }
+                    }
                 }
                 _lastVoiceMs = (voiced > 0) ? Math.round(_now - _voiceOnsetAt) : 0;   // R1: surface continuous voiced-run ms to ?qa=1
             } catch(_) {}
@@ -2301,7 +2331,9 @@ function beginRecording() {
             var _gate = (_rmsVal > vadSpeechThreshold) ? 'voiced'
                       : (_rmsVal < vadSilenceThreshold) ? 'silent' : 'neither';
             var _cliN = (typeof _lastDetectedCount !== 'undefined' && _lastDetectedCount != null) ? _lastDetectedCount : '-';
-            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate;
+            var _preMs = (typeof _preOnsetStart !== 'undefined' && _preOnsetStart) ? Math.round(performance.now() - _preOnsetStart) : 0;
+            var _rejN = (typeof _rejectedTransients !== 'undefined') ? _rejectedTransients : 0;
+            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate + (_preMs ? '  pre:' + _preMs + 'ms' : '') + '  rejTap:' + _rejN;
             var _rfsz = Math.max(15, Math.round(cv.width * 0.030));
             ctx.save();
             // counter-flip: cancel the canvas scaleX(-1) so text reads forward
@@ -3099,11 +3131,14 @@ const FAST_VAD_SILENCE_RMS = 0.085;  // silence threshold (rms below this = sile
 const FAST_DIGIT_VOICE_MIN_MS = 350; // CONTINUOUS voiced duration a real spoken digit clears (~300-500ms); a ~100ms tap can't. Mirrors DIGIT_VOICE_MIN_MS.
 const FAST_DIGIT_MOD_DELTA = 0.030;  // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy. Mirrors DIGIT_MOD_DELTA.
 const FAST_DIGIT_VOICE_GAP_MS = 200; // max sustained OBSERVED dip within one voiced run before the run breaks (spaced taps). Mirrors DIGIT_VOICE_GAP_MS.
+const FAST_VAD_ONSET_SUSTAIN_MS = 180; // S139: mirrors VAD_ONSET_SUSTAIN_MS — onset requires >=180ms CONTINUOUS above-threshold before firing. Tap transients (<50ms) reset the timer on first non-above-threshold frame.
+const FAST_VAD_VOICE_BAND_FRAC = 0.20; // S139: mirrors VAD_VOICE_BAND_FRAC — voice-band spectral fraction gate at onset start.
 function _makeQuickReauthVoiceGate(cfg) {
     var speechThr = cfg.speechThr, silenceThr = cfg.silenceThr;
     var voiceMinMs = cfg.voiceMinMs, modDelta = cfg.modDelta, gapMs = cfg.gapMs;
     var _armed = false, _firedAt = 0, _windowStart = 0, _raf = null, _stopped = false;
     var voiced = 0, vMin = 1, vMax = 0, dipStart = 0, onsetAt = 0, sawSilence = false;
+    var preOnsetStart = 0;  // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
     function _loop(analyser, buf) {
         if (_stopped) { _raf = null; return; }
         try {
@@ -3112,10 +3147,28 @@ function _makeQuickReauthVoiceGate(cfg) {
             rms = Math.sqrt(rms / buf.length) / 255;
             var now = performance.now();
             if (rms < silenceThr) {
+                preOnsetStart = 0;  // S139: silence aborts pre-onset
                 sawSilence = true; voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
             } else if (rms > speechThr) {
                 if (voiced === 0) {
-                    if (sawSilence) { onsetAt = now; vMin = rms; vMax = rms; voiced = 1; }   // a run STARTS only after a fresh in-window silence (binding)
+                    // S139 onset gate: require SUSTAINED above-threshold for FAST_VAD_ONSET_SUSTAIN_MS.
+                    if (sawSilence) {
+                        if (preOnsetStart === 0) {
+                            // Spectral sanity at first frame (same buf, zero latency).
+                            var _fsr = (analyser.context && analyser.context.sampleRate) || 48000;
+                            var _fvbEnd = Math.floor(3500 * analyser.fftSize / _fsr);
+                            var _fvbSum = 0, _ftotSum = 1;
+                            for (var _fsi = 0; _fsi < buf.length; _fsi++) { _ftotSum += buf[_fsi]; if (_fsi <= _fvbEnd) _fvbSum += buf[_fsi]; }
+                            if (_fvbSum / _ftotSum >= FAST_VAD_VOICE_BAND_FRAC) {
+                                preOnsetStart = now;  // voice-like spectrum; start sustain window
+                            }
+                            // else: broadband transient — don't start pre-onset
+                        } else if (now - preOnsetStart >= FAST_VAD_ONSET_SUSTAIN_MS) {
+                            onsetAt = preOnsetStart;  // backdate to actual start
+                            vMin = rms; vMax = rms; voiced = 1;
+                            preOnsetStart = 0;
+                        }
+                    }
                 } else {
                     voiced++; if (rms < vMin) vMin = rms; if (rms > vMax) vMax = rms;
                 }
@@ -3125,9 +3178,13 @@ function _makeQuickReauthVoiceGate(cfg) {
                     _armed = true; _firedAt = now;                              // sustained + modulated → FIRE
                     voiced = 0; vMin = 1; vMax = 0; sawSilence = false;         // consumed; a NEW silence re-arms
                 }
-            } else if (voiced > 0) {
-                if (!dipStart) dipStart = now;
-                else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; }  // sustained dip kills the run
+            } else {
+                // neither band
+                preOnsetStart = 0;  // S139: any gap resets pre-onset sustain window
+                if (voiced > 0) {
+                    if (!dipStart) dipStart = now;
+                    else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; }  // sustained dip kills the run
+                }
             }
         } catch(_) {}
         _raf = requestAnimationFrame(function(){ _loop(analyser, buf); });
