@@ -494,8 +494,8 @@ const GESTURE_ZONE_SPEC = Object.freeze({
         { cx: 0.18, cy: 0.48, side: 'left'  },
         { cx: 0.82, cy: 0.48, side: 'right' },
     ],
-    rx: 0.20,          // acceptance + draw radii — unified (was acceptance 0.15 / draw 0.10)
-    ry: 0.26,          // acceptance + draw radii — unified (was acceptance 0.19 / draw 0.14)
+    rx: 0.17,          // acceptance + draw radii — unified (S139 Rob live-tune: 0.15→0.20 overshot, →0.17)
+    ry: 0.22,          // acceptance + draw radii — unified (S139 Rob live-tune: 0.19→0.26 overshot, →0.22)
     minTipsInside: 3,  // wrist + majority (3 of 5) fingertips must be inside
 });
 function _ptInCheekZone(p) {
