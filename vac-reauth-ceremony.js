@@ -2015,8 +2015,8 @@ function beginRecording() {
     // F-662: DIGIT_COOCCUR_MS / DIGIT_COOCCUR_MAX_MS moved to module scope (ONE source, shared with the
     // FAST tier via _cooccurAdvanceDecision). Same values; the inline gate below now calls that helper.
     const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
-    const VAD_ONSET_SUSTAIN_MS = 180; // S139: onset gate — must stay CONTINUOUSLY above threshold for this long before onset is confirmed. Percussive taps are <50ms broadband transients; they drop to neither/silence before 180ms elapses, resetting the pre-onset timer. Real speech holds above threshold for 300-500ms.
-    const VAD_VOICE_BAND_FRAC = 0.20; // S139: crude spectral sanity — voice-band energy (0–3.5kHz) must be >= this fraction of total. Broadband tap transients spread energy flat across all bins (~14% in voice band at fftSize=256/48kHz); voice concentrates energy low. Applied at onset-start frame only; same buf already read — zero latency.
+    const VAD_ONSET_SUSTAIN_MS = 250; // S139-v2: raised 180→250ms — floor = shortest voiced digit "one/uno" (~250ms phonation). The previous 180ms was vulnerable to two quick desk-taps ~100-150ms apart: the smoothed analyser envelope stayed above threshold continuously across both taps, so the pre-onset timer never reset between them.
+    const VAD_VOICE_BAND_FRAC = 0.35; // S139-v2: mid-band 300-3500Hz energy fraction, raised 0.20→0.35. Band narrowed from 0-3.5kHz to exclude LF thump (<300Hz). Desk-tap thumps are sub-200Hz (excluded from mid-band window); voice concentrates formants F1/F2 in 300-3000Hz. Flat-broadband baseline in a 17-bin mid window = ~13.3%, so 0.35 rejects any non-voice signal. Checked at onset-start AND mid-window frames.
     const COACH_DEBOUNCE_MS = 600;   // F-599: a coaching candidate must persist this long continuously before it shows — so the hint appears AFTER a genuine failed attempt, not mid-gesture. 'none' clears instantly (no lag on advance/correction).
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
     // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
@@ -2025,7 +2025,9 @@ function beginRecording() {
     let _sawSilence = false;         // observed real silence since THIS digit's window opened?
     let _voiceOnsetAt = 0;           // performance.now() when the current fresh voiced run began
     let _preOnsetStart = 0;          // S139: perf.now() when continuous above-threshold pre-onset accumulation began; 0 = not accumulating. Resets on any non-above-threshold frame.
-    let _rejectedTransients = 0;     // S139: count of onset attempts killed by the onset sustain gate (taps that dropped before 180ms)
+    let _preOnsetMidChecked = false; // S139-v2: true once the mid-window spectral re-check has run in the current pre-onset window; reset when _preOnsetStart resets.
+    let _rejectedTransients = 0;     // S139: count of onset attempts killed by the onset sustain gate (taps that dropped before 250ms)
+    let _lastRejectReason = '';      // S139-v2: 'spec' (spectral mid-band check) | 'sust' (sustain dip/silence); surfaced in the QA debug readout
 
     function finishFingerPhase() {
         if (recordingStopped) return;
@@ -2115,7 +2117,7 @@ function beginRecording() {
                     // beat / grace). A real pause there arms the next digit, so a fresh utterance
                     // that OVERLAPS the window-open still counts (codex), while continuous
                     // carry-over (no pause since the last accept) stays rejected.
-                    if (_preOnsetStart) { _rejectedTransients++; _preOnsetStart = 0; }  // S139: silence aborts pre-onset
+                    if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; }  // S139: silence aborts pre-onset
                     _sawSilence = true;
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
                 } else if (rms > vadSpeechThreshold) {
@@ -2130,27 +2132,42 @@ function beginRecording() {
                         // Real speech holds above threshold for 300-500ms and passes easily.
                         if (_sawSilence) {
                             if (_preOnsetStart === 0) {
-                                // First frame of potential onset. Spectral sanity check (same buf, zero latency):
-                                // voice-band energy (0-3.5kHz) should dominate. Broadband tap transients
-                                // spread energy flat (~14% in voice band); voice concentrates energy low.
+                                // First frame of potential onset. Mid-band spectral check (same buf, zero latency):
+                                // 300-3500Hz energy must dominate. Desk-tap thumps are sub-200Hz LF (bins 0-1,
+                                // excluded from the 300Hz lower cut); voice concentrates formants F1/F2 in mid-band.
                                 var _sr = (audioAnalyser.context && audioAnalyser.context.sampleRate) || 48000;
-                                var _vbEnd = Math.floor(3500 * audioAnalyser.fftSize / _sr);
-                                var _vbSum = 0, _totSum = 1;
-                                for (var _si = 0; _si < buf.length; _si++) { _totSum += buf[_si]; if (_si <= _vbEnd) _vbSum += buf[_si]; }
-                                if (_vbSum / _totSum >= VAD_VOICE_BAND_FRAC) {
-                                    _preOnsetStart = _now;  // spectrum is voice-like; begin sustain window
+                                var _mbStart = Math.ceil(300 * audioAnalyser.fftSize / _sr);
+                                var _mbEnd   = Math.floor(3500 * audioAnalyser.fftSize / _sr);
+                                var _mbSum = 0, _totSum = 1;
+                                for (var _si = 0; _si < buf.length; _si++) { _totSum += buf[_si]; if (_si >= _mbStart && _si <= _mbEnd) _mbSum += buf[_si]; }
+                                if (_mbSum / _totSum >= VAD_VOICE_BAND_FRAC) {
+                                    _preOnsetStart = _now; _preOnsetMidChecked = false;  // voice-like mid-band; begin sustain window
                                 } else {
-                                    _rejectedTransients++;  // broadband transient rejected at first frame
+                                    _rejectedTransients++; _lastRejectReason = 'spec';  // LF-heavy tap rejected at onset frame
                                 }
                             } else if (_now - _preOnsetStart >= VAD_ONSET_SUSTAIN_MS) {
-                                // Pre-onset confirmed: continuously above threshold for >=180ms.
+                                // Pre-onset confirmed: continuously above threshold for >=250ms.
                                 // Backdate _voiceOnsetAt to when pre-onset began so the 350ms DIGIT_VOICE_MIN_MS
                                 // measures from actual onset, not confirmation moment.
                                 _voiceOnsetAt = _preOnsetStart;
                                 voiceMin = rms; voiceMax = rms; voiced = 1;
-                                _preOnsetStart = 0;
+                                _preOnsetStart = 0; _preOnsetMidChecked = false;
+                            } else if (!_preOnsetMidChecked && (_now - _preOnsetStart) >= VAD_ONSET_SUSTAIN_MS * 0.5) {
+                                // Mid-window spectral re-check (~125ms in): a second desk-tap mid-window
+                                // shifts energy to LF-broadband — a re-check here catches it before the
+                                // sustain window confirms. Runs once per pre-onset window.
+                                var _sr2 = (audioAnalyser.context && audioAnalyser.context.sampleRate) || 48000;
+                                var _mb2Start = Math.ceil(300 * audioAnalyser.fftSize / _sr2);
+                                var _mb2End   = Math.floor(3500 * audioAnalyser.fftSize / _sr2);
+                                var _mb2Sum = 0, _tot2Sum = 1;
+                                for (var _si2 = 0; _si2 < buf.length; _si2++) { _tot2Sum += buf[_si2]; if (_si2 >= _mb2Start && _si2 <= _mb2End) _mb2Sum += buf[_si2]; }
+                                if (_mb2Sum / _tot2Sum >= VAD_VOICE_BAND_FRAC) {
+                                    _preOnsetMidChecked = true;  // mid-window passed; continue accumulating
+                                } else {
+                                    _rejectedTransients++; _lastRejectReason = 'spec'; _preOnsetStart = 0; _preOnsetMidChecked = false;  // broadband double-tap mid-window — abort onset
+                                }
                             }
-                            // else: still accumulating within the sustain window
+                            // else: accumulating within the sustain window
                         }
                         // else: voice with no preceding in-window silence (carry-over) → ignore
                     } else {
@@ -2171,7 +2188,7 @@ function beginRecording() {
                     }
                 } else {
                     // neither band (between silence and speech thresholds)
-                    if (_preOnsetStart) { _rejectedTransients++; _preOnsetStart = 0; }  // S139: any non-above-threshold frame breaks the pre-onset sustain window
+                    if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; }  // S139: any non-above-threshold frame breaks the pre-onset sustain window
                     if (voiced > 0) {
                         // mid-run dip: time it; if it stays here past DIGIT_VOICE_GAP_MS the voicing
                         // wasn't continuous (spaced taps in elevated ambient) → KILL the run. Re-arming
@@ -2345,7 +2362,8 @@ function beginRecording() {
             var _cliN = (typeof _lastDetectedCount !== 'undefined' && _lastDetectedCount != null) ? _lastDetectedCount : '-';
             var _preMs = (typeof _preOnsetStart !== 'undefined' && _preOnsetStart) ? Math.round(performance.now() - _preOnsetStart) : 0;
             var _rejN = (typeof _rejectedTransients !== 'undefined') ? _rejectedTransients : 0;
-            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate + (_preMs ? '  pre:' + _preMs + 'ms' : '') + '  rejTap:' + _rejN;
+            var _rejReason = (typeof _lastRejectReason !== 'undefined' && _lastRejectReason) ? '(' + _lastRejectReason + ')' : '';
+            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate + (_preMs ? '  pre:' + _preMs + 'ms' : '') + '  rejTap:' + _rejN + _rejReason;
             var _rfsz = Math.max(15, Math.round(cv.width * 0.030));
             ctx.save();
             // counter-flip: cancel the canvas scaleX(-1) so text reads forward
@@ -3143,14 +3161,15 @@ const FAST_VAD_SILENCE_RMS = 0.085;  // silence threshold (rms below this = sile
 const FAST_DIGIT_VOICE_MIN_MS = 350; // CONTINUOUS voiced duration a real spoken digit clears (~300-500ms); a ~100ms tap can't. Mirrors DIGIT_VOICE_MIN_MS.
 const FAST_DIGIT_MOD_DELTA = 0.030;  // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy. Mirrors DIGIT_MOD_DELTA.
 const FAST_DIGIT_VOICE_GAP_MS = 200; // max sustained OBSERVED dip within one voiced run before the run breaks (spaced taps). Mirrors DIGIT_VOICE_GAP_MS.
-const FAST_VAD_ONSET_SUSTAIN_MS = 180; // S139: mirrors VAD_ONSET_SUSTAIN_MS — onset requires >=180ms CONTINUOUS above-threshold before firing. Tap transients (<50ms) reset the timer on first non-above-threshold frame.
-const FAST_VAD_VOICE_BAND_FRAC = 0.20; // S139: mirrors VAD_VOICE_BAND_FRAC — voice-band spectral fraction gate at onset start.
+const FAST_VAD_ONSET_SUSTAIN_MS = 250; // S139-v2: mirrors VAD_ONSET_SUSTAIN_MS — raised 180→250ms (shortest voiced digit "one/uno"). See full-path constant comment.
+const FAST_VAD_VOICE_BAND_FRAC = 0.35; // S139-v2: mirrors VAD_VOICE_BAND_FRAC — mid-band 300-3500Hz fraction >= 0.35; band narrowed from 0-3.5kHz to exclude LF tap thump. See full-path constant comment.
 function _makeQuickReauthVoiceGate(cfg) {
     var speechThr = cfg.speechThr, silenceThr = cfg.silenceThr;
     var voiceMinMs = cfg.voiceMinMs, modDelta = cfg.modDelta, gapMs = cfg.gapMs;
     var _armed = false, _firedAt = 0, _windowStart = 0, _raf = null, _stopped = false;
     var voiced = 0, vMin = 1, vMax = 0, dipStart = 0, onsetAt = 0, sawSilence = false;
-    var preOnsetStart = 0;  // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
+    var preOnsetStart = 0;       // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
+    var preOnsetMidChecked = false;  // S139-v2: true once the mid-window spectral re-check has run in this pre-onset window
     function _loop(analyser, buf) {
         if (_stopped) { _raf = null; return; }
         try {
@@ -3159,26 +3178,41 @@ function _makeQuickReauthVoiceGate(cfg) {
             rms = Math.sqrt(rms / buf.length) / 255;
             var now = performance.now();
             if (rms < silenceThr) {
-                preOnsetStart = 0;  // S139: silence aborts pre-onset
+                preOnsetStart = 0; preOnsetMidChecked = false;  // S139: silence aborts pre-onset
                 sawSilence = true; voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
             } else if (rms > speechThr) {
                 if (voiced === 0) {
                     // S139 onset gate: require SUSTAINED above-threshold for FAST_VAD_ONSET_SUSTAIN_MS.
                     if (sawSilence) {
                         if (preOnsetStart === 0) {
-                            // Spectral sanity at first frame (same buf, zero latency).
+                            // First frame: mid-band 300-3500Hz spectral check (same buf, zero latency).
+                            // LF tap thumps (sub-200Hz) are excluded from the mid-band window.
                             var _fsr = (analyser.context && analyser.context.sampleRate) || 48000;
-                            var _fvbEnd = Math.floor(3500 * analyser.fftSize / _fsr);
-                            var _fvbSum = 0, _ftotSum = 1;
-                            for (var _fsi = 0; _fsi < buf.length; _fsi++) { _ftotSum += buf[_fsi]; if (_fsi <= _fvbEnd) _fvbSum += buf[_fsi]; }
-                            if (_fvbSum / _ftotSum >= FAST_VAD_VOICE_BAND_FRAC) {
-                                preOnsetStart = now;  // voice-like spectrum; start sustain window
+                            var _fmbStart = Math.ceil(300 * analyser.fftSize / _fsr);
+                            var _fmbEnd   = Math.floor(3500 * analyser.fftSize / _fsr);
+                            var _fmbSum = 0, _ftotSum = 1;
+                            for (var _fsi = 0; _fsi < buf.length; _fsi++) { _ftotSum += buf[_fsi]; if (_fsi >= _fmbStart && _fsi <= _fmbEnd) _fmbSum += buf[_fsi]; }
+                            if (_fmbSum / _ftotSum >= FAST_VAD_VOICE_BAND_FRAC) {
+                                preOnsetStart = now; preOnsetMidChecked = false;  // voice-like mid-band; start sustain window
                             }
-                            // else: broadband transient — don't start pre-onset
+                            // else: LF-heavy transient — don't start pre-onset
                         } else if (now - preOnsetStart >= FAST_VAD_ONSET_SUSTAIN_MS) {
                             onsetAt = preOnsetStart;  // backdate to actual start
                             vMin = rms; vMax = rms; voiced = 1;
-                            preOnsetStart = 0;
+                            preOnsetStart = 0; preOnsetMidChecked = false;
+                        } else if (!preOnsetMidChecked && (now - preOnsetStart) >= FAST_VAD_ONSET_SUSTAIN_MS * 0.5) {
+                            // Mid-window spectral re-check (~125ms in): catches a second desk-tap
+                            // that arrives mid-window and shifts energy to LF-broadband.
+                            var _fsr2 = (analyser.context && analyser.context.sampleRate) || 48000;
+                            var _fmb2Start = Math.ceil(300 * analyser.fftSize / _fsr2);
+                            var _fmb2End   = Math.floor(3500 * analyser.fftSize / _fsr2);
+                            var _fmb2Sum = 0, _ftot2Sum = 1;
+                            for (var _fsi2 = 0; _fsi2 < buf.length; _fsi2++) { _ftot2Sum += buf[_fsi2]; if (_fsi2 >= _fmb2Start && _fsi2 <= _fmb2End) _fmb2Sum += buf[_fsi2]; }
+                            if (_fmb2Sum / _ftot2Sum >= FAST_VAD_VOICE_BAND_FRAC) {
+                                preOnsetMidChecked = true;  // mid-window passed; continue accumulating
+                            } else {
+                                preOnsetStart = 0; preOnsetMidChecked = false;  // broadband double-tap — abort onset (no _rejectedTransients in fast path)
+                            }
                         }
                     }
                 } else {
@@ -3192,7 +3226,7 @@ function _makeQuickReauthVoiceGate(cfg) {
                 }
             } else {
                 // neither band
-                preOnsetStart = 0;  // S139: any gap resets pre-onset sustain window
+                preOnsetStart = 0; preOnsetMidChecked = false;  // S139: any gap resets pre-onset sustain window
                 if (voiced > 0) {
                     if (!dipStart) dipStart = now;
                     else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; }  // sustained dip kills the run
@@ -4766,6 +4800,7 @@ function startAudioMonitor() {
         // fail-opening on a null analyser.
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
+        audioAnalyser.smoothingTimeConstant = 0.15;  // S139-v2: low smoothing so inter-tap dips register; default 0.8 kept two ~100ms taps' residual above threshold continuously, defeating the 250ms sustain gate
         const monitorStream = mediaStream.clone();
         const source = audioContext.createMediaStreamSource(monitorStream);
         source.connect(audioAnalyser);
