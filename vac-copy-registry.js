@@ -81,6 +81,8 @@ var COPY = {
       hold_hand:              '✋ Hold your hand up beside your cheek',
       hand_detected:          'Hand detected — hold steady.',
       coach_show_and_say:     'Show {{digit}} AND say “{{digit}}” — at the same time',
+      gate_meter_background:  'background',
+      gate_meter_noisy_hint:  'It is noisy here — speak past the line',
       voice_help_louder:      'We can’t hear you — a bit louder',
       coach_rest_sub:         'together, in one go',
       hold_steady_sub:        'hold steady',

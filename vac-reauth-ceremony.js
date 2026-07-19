@@ -1999,6 +1999,10 @@ function beginRecording() {
         liveLevel: 0,                           // latest frame RMS
         noisy: false                            // floor above AGS_NOISY_FLOOR → noisy env hint
     };
+    // S139-GM: display-only smoothing state (L-2303: separate from gate reads)
+    let _gmDisplayLevel = 0;   // smoothed display copy — visual bar only, never the gate
+    let _gmPeakLevel = 0;      // peak-hold level for the 1px decay tick
+    let _gmPeakTs = 0;         // timestamp of last peak capture
     const AGS_SNR_FACTOR = 2.8;                 // threshold = max(ABS_MIN, floor × SNR_FACTOR)
     const AGS_ABS_MIN_THR = 0.060;              // absolute minimum threshold (can't go below even in silence)
     const AGS_MIN_FLOOR = 0.020;               // clamp ambient floor to sane minimum
@@ -2287,69 +2291,208 @@ function beginRecording() {
         } else if (note) { note.remove(); }
     }
 
-    // S139-NF: Visible audio gate meter — three-layer horizontal bar showing ambient floor zone,
-    // threshold tick, and live level. Lives in challengePanel during the digit phase.
-    // Scale: 0 → AGS_METER_SCALE (full width). Users see exactly where their voice must clear.
+    // S139-GM: Design-grade SVG gate meter. Scale: 0 → AGS_METER_SCALE (full width).
+    // L-2303 contract: gate tick X reads AudioGateState.requiredThreshold (unsmoothed);
+    // visual bar reads _gmDisplayLevel (rAF-smoothed, display only, never used for gating).
     const AGS_METER_SCALE = 0.45;  // RMS 0.45 → 100% width (covers all practical voice levels)
+
+    function _buildGateMeterSvg() {
+        var old = document.getElementById('vacGateMeter');
+        if (old) old.remove();
+        var bgCopy = (window.VACCopy && VACCopy.resolve)
+            ? VACCopy.resolve('_common', 'capture', 'gate_meter_background')
+            : 'background';
+        var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var ns = 'http://www.w3.org/2000/svg';
+        var wrap = document.createElement('div');
+        wrap.id = 'vacGateMeter';
+        wrap.style.cssText = 'width:100%;padding:0;margin:0 0 2px;line-height:0;';
+        var svg = document.createElementNS(ns, 'svg');
+        svg.id = 'vacGMSvg';
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '22');
+        svg.setAttribute('role', 'meter');
+        svg.setAttribute('aria-valuemin', '0');
+        svg.setAttribute('aria-valuemax', '100');
+        svg.setAttribute('aria-valuenow', '0');
+        svg.setAttribute('aria-label', 'Microphone level');
+        svg.style.overflow = 'visible';
+        // defs: two hatch patterns (normal / noisy-warm)
+        var defs = document.createElementNS(ns, 'defs');
+        var mkPatt = function(id, stroke) {
+            var p = document.createElementNS(ns, 'pattern');
+            p.setAttribute('id', id); p.setAttribute('width', '6'); p.setAttribute('height', '6');
+            p.setAttribute('patternUnits', 'userSpaceOnUse');
+            p.setAttribute('patternTransform', 'rotate(45)');
+            var ln = document.createElementNS(ns, 'line');
+            ln.setAttribute('x1', '0'); ln.setAttribute('y1', '0');
+            ln.setAttribute('x2', '0'); ln.setAttribute('y2', '6');
+            ln.setAttribute('stroke', stroke); ln.setAttribute('stroke-width', '1');
+            p.appendChild(ln); return p;
+        };
+        defs.appendChild(mkPatt('vacGMHatch',  '#2A2E42'));
+        defs.appendChild(mkPatt('vacGMHatchN', '#4A3A60'));
+        svg.appendChild(defs);
+        // Track background (y=12, h=8)
+        var trackBg = document.createElementNS(ns, 'rect');
+        trackBg.setAttribute('x', '0'); trackBg.setAttribute('y', '12');
+        trackBg.setAttribute('width', '100%'); trackBg.setAttribute('height', '8');
+        trackBg.setAttribute('fill', '#0E1525');
+        svg.appendChild(trackBg);
+        // Ambient floor zone fill (#1E2536 quiet / #3A3350 noisy)
+        var floorFill = document.createElementNS(ns, 'rect');
+        floorFill.id = 'vacGMFloor';
+        floorFill.setAttribute('x', '0'); floorFill.setAttribute('y', '12');
+        floorFill.setAttribute('width', '0%'); floorFill.setAttribute('height', '8');
+        floorFill.setAttribute('fill', '#1E2536');
+        svg.appendChild(floorFill);
+        // Ambient floor 45° hatch overlay
+        var floorH = document.createElementNS(ns, 'rect');
+        floorH.id = 'vacGMFloorH';
+        floorH.setAttribute('x', '0'); floorH.setAttribute('y', '12');
+        floorH.setAttribute('width', '0%'); floorH.setAttribute('height', '8');
+        floorH.setAttribute('fill', 'url(#vacGMHatch)');
+        svg.appendChild(floorH);
+        // 'background' label inside floor zone (shown when zone > 18%)
+        var bgLbl = document.createElementNS(ns, 'text');
+        bgLbl.id = 'vacGMBgLbl';
+        bgLbl.setAttribute('x', '4'); bgLbl.setAttribute('y', '20');
+        bgLbl.setAttribute('font-family', "'JetBrains Mono', 'Courier New', monospace");
+        bgLbl.setAttribute('font-size', '9');
+        bgLbl.setAttribute('fill', '#8B8FA3');
+        bgLbl.setAttribute('visibility', 'hidden');
+        bgLbl.textContent = bgCopy;
+        svg.appendChild(bgLbl);
+        // Level bar 4px inset (y=14, h=4) — reads _gmDisplayLevel (smoothed display only)
+        var lvlBar = document.createElementNS(ns, 'rect');
+        lvlBar.id = 'vacGMLvl';
+        lvlBar.setAttribute('x', '0'); lvlBar.setAttribute('y', '14');
+        lvlBar.setAttribute('width', '0%'); lvlBar.setAttribute('height', '4');
+        lvlBar.setAttribute('fill', '#8B8FA3');
+        svg.appendChild(lvlBar);
+        // Peak-hold tick (1px #E8E4D8, opacity 1→0 over 1.5s)
+        var peakTk = document.createElementNS(ns, 'rect');
+        peakTk.id = 'vacGMPeak';
+        peakTk.setAttribute('x', '0%'); peakTk.setAttribute('y', '12');
+        peakTk.setAttribute('width', '1'); peakTk.setAttribute('height', '8');
+        peakTk.setAttribute('fill', '#E8E4D8');
+        peakTk.setAttribute('opacity', '0');
+        svg.appendChild(peakTk);
+        // SIGNATURE ELEMENT: 'gate' label (9px mono, #C9A227) above the tick
+        var gateLbl = document.createElementNS(ns, 'text');
+        gateLbl.id = 'vacGMGateLbl';
+        gateLbl.setAttribute('x', '0%'); gateLbl.setAttribute('y', '9');
+        gateLbl.setAttribute('font-family', "'JetBrains Mono', 'Courier New', monospace");
+        gateLbl.setAttribute('font-size', '9');
+        gateLbl.setAttribute('fill', '#C9A227');
+        gateLbl.setAttribute('text-anchor', 'middle');
+        gateLbl.textContent = 'gate';
+        svg.appendChild(gateLbl);
+        // SIGNATURE ELEMENT: gate tick (2px gold, y=11..22, spans track + 1px above)
+        var gateTk = document.createElementNS(ns, 'rect');
+        gateTk.id = 'vacGMGateTick';
+        gateTk.setAttribute('x', '0%'); gateTk.setAttribute('y', '11');
+        gateTk.setAttribute('width', '2'); gateTk.setAttribute('height', '11');
+        gateTk.setAttribute('fill', '#C9A227');
+        if (!reducedMotion) gateTk.setAttribute('class', 'vac-gm-gate-in');
+        svg.appendChild(gateTk);
+        wrap.appendChild(svg);
+        // Noisy hint line (hidden until AudioGateState.noisy)
+        var hint = document.createElement('div');
+        hint.id = 'vacNoisyHint';
+        hint.style.cssText = 'display:none;text-align:center;margin-top:3px;font-family:var(--mono);font-size:11px;color:#8B8FA3;letter-spacing:0.3px;line-height:1.4;';
+        wrap.appendChild(hint);
+        // Place: right after cameraBoxRec (video frame footer, full camera width)
+        var camRec = document.getElementById('cameraBoxRec');
+        if (camRec) {
+            camRec.insertAdjacentElement('afterend', wrap);
+        } else if (challengeEl && challengeEl.parentElement) {
+            challengeEl.parentElement.insertBefore(wrap, challengeEl.parentElement.firstChild);
+        }
+    }
+
     function _renderGateMeter() {
         if (_speechMode === 'off') return;
-        var meter = document.getElementById('vacGateMeter');
-        if (!meter) {
-            meter = document.createElement('div');
-            meter.id = 'vacGateMeter';
-            meter.style.cssText = 'position:relative;width:100%;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:visible;margin-top:7px;';
-            var floorZone = document.createElement('div');
-            floorZone.id = 'vacGMFloor';
-            floorZone.style.cssText = 'position:absolute;left:0;top:0;height:100%;background:rgba(251,191,36,0.18);border-radius:5px 0 0 5px;';
-            var thrTick = document.createElement('div');
-            thrTick.id = 'vacGMThr';
-            thrTick.style.cssText = 'position:absolute;top:-2px;width:2px;height:calc(100% + 4px);background:#fbbf24;border-radius:1px;';
-            var levelBar = document.createElement('div');
-            levelBar.id = 'vacGMLevel';
-            levelBar.style.cssText = 'position:absolute;left:0;top:0;height:100%;border-radius:5px 0 0 5px;transition:width 0.05s,background 0.05s;';
-            meter.appendChild(floorZone);
-            meter.appendChild(levelBar);
-            meter.appendChild(thrTick);  // tick on top so it's always visible
-            if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(meter);
+        // L-2303: read raw (unsmoothed) level for gate decision; smooth only for display
+        var raw = AudioGateState.liveLevel;
+        var alpha = raw > _gmDisplayLevel ? 0.284 : 0.054;  // attack ~50ms / release ~300ms @ 60fps
+        _gmDisplayLevel += alpha * (raw - _gmDisplayLevel);
+        // Peak hold
+        var now = Date.now();
+        if (_gmDisplayLevel >= _gmPeakLevel) {
+            _gmPeakLevel = _gmDisplayLevel;
+            _gmPeakTs = now;
+        } else if (now - _gmPeakTs > 1500) {
+            _gmPeakLevel = 0;
         }
-        var floorPct  = Math.min(100, AudioGateState.ambientFloor / AGS_METER_SCALE * 100);
-        var thrPct    = Math.min(98,  AudioGateState.requiredThreshold / AGS_METER_SCALE * 100);
-        var levelPct  = Math.min(100, AudioGateState.liveLevel / AGS_METER_SCALE * 100);
-        var voiced    = AudioGateState.liveLevel > AudioGateState.requiredThreshold;
-        var floorEl = document.getElementById('vacGMFloor');
-        var thrEl   = document.getElementById('vacGMThr');
-        var lvlEl   = document.getElementById('vacGMLevel');
-        if (floorEl) floorEl.style.width = floorPct.toFixed(1) + '%';
-        if (thrEl)   thrEl.style.left   = thrPct.toFixed(1) + '%';
-        if (lvlEl) {
-            lvlEl.style.width = levelPct.toFixed(1) + '%';
-            lvlEl.style.background = voiced ? '#8B7CF7' : 'rgba(139,124,247,0.30)';
+        var floorPct = Math.min(100, AudioGateState.ambientFloor / AGS_METER_SCALE * 100);
+        var thrPct   = Math.min(98,  AudioGateState.requiredThreshold / AGS_METER_SCALE * 100);
+        var lvlPct   = Math.min(100, _gmDisplayLevel / AGS_METER_SCALE * 100);
+        var peakPct  = Math.min(100, _gmPeakLevel / AGS_METER_SCALE * 100);
+        var voiced   = raw > AudioGateState.requiredThreshold;  // gate reads RAW (L-2303)
+        var noisy    = AudioGateState.noisy;
+        var reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var svg = document.getElementById('vacGMSvg');
+        if (!svg) { _buildGateMeterSvg(); return; }  // built next frame
+        svg.setAttribute('aria-valuenow', Math.round(lvlPct));
+        var fp = floorPct.toFixed(1) + '%';
+        var tp = thrPct.toFixed(1) + '%';
+        var lp = lvlPct.toFixed(1) + '%';
+        var pp = peakPct.toFixed(1) + '%';
+        var floorFill = document.getElementById('vacGMFloor');
+        var floorH    = document.getElementById('vacGMFloorH');
+        var bgLbl     = document.getElementById('vacGMBgLbl');
+        var lvlBar    = document.getElementById('vacGMLvl');
+        var peakTk    = document.getElementById('vacGMPeak');
+        var gateLbl   = document.getElementById('vacGMGateLbl');
+        var gateTk    = document.getElementById('vacGMGateTick');
+        if (floorFill) {
+            floorFill.setAttribute('width', fp);
+            floorFill.setAttribute('fill', noisy ? '#3A3350' : '#1E2536');
         }
+        if (floorH) {
+            floorH.setAttribute('width', fp);
+            floorH.setAttribute('fill', noisy ? 'url(#vacGMHatchN)' : 'url(#vacGMHatch)');
+        }
+        if (bgLbl) bgLbl.setAttribute('visibility', floorPct > 18 ? 'visible' : 'hidden');
+        if (lvlBar) {
+            lvlBar.setAttribute('width', lp);
+            lvlBar.setAttribute('fill', voiced ? '#34D399' : '#8B8FA3');
+        }
+        if (peakTk) {
+            peakTk.setAttribute('x', pp);
+            if (!reducedMotion && _gmPeakLevel > 0.001) {
+                var age = now - _gmPeakTs;
+                peakTk.setAttribute('opacity', age < 1500 ? Math.max(0, 1 - age / 1500).toFixed(2) : '0');
+            } else {
+                peakTk.setAttribute('opacity', '0');
+            }
+        }
+        if (gateLbl) gateLbl.setAttribute('x', tp);
+        if (gateTk)  gateTk.setAttribute('x', tp);
         // Mirror into vacSayGateMeter (inside the say-view overlay)
         var sgmFloor = document.getElementById('vacSGMFloor');
         var sgmThr   = document.getElementById('vacSGMThr');
         var sgmLvl   = document.getElementById('vacSGMLevel');
-        if (sgmFloor) sgmFloor.style.width = floorPct.toFixed(1) + '%';
-        if (sgmThr)   sgmThr.style.left   = thrPct.toFixed(1) + '%';
+        if (sgmFloor) { sgmFloor.style.width = fp; sgmFloor.style.background = noisy ? '#3A3350' : '#1E2536'; }
+        if (sgmThr)   sgmThr.style.left = tp;
         if (sgmLvl) {
-            sgmLvl.style.width = levelPct.toFixed(1) + '%';
-            sgmLvl.style.background = voiced ? '#8B7CF7' : 'rgba(139,124,247,0.30)';
+            sgmLvl.style.width = lp;
+            sgmLvl.style.background = voiced ? '#34D399' : '#8B8FA3';
         }
     }
 
-    // S139-NF: coaching hint for noisy environments — show once the adaptive floor is reliably above
-    // the quiet-room baseline, so the user understands WHY the threshold sits high.
+    // S139-GM: coaching hint for noisy environments (L-2303: copy via registry, two keys).
     function _updateNoisyHint() {
+        var hintCopy = (window.VACCopy && VACCopy.resolve)
+            ? VACCopy.resolve('_common', 'capture', 'gate_meter_noisy_hint')
+            : 'It is noisy here — speak past the line';
         var hint = document.getElementById('vacNoisyHint');
-        if (AudioGateState.noisy && _speechMode === 'vad' && !recordingStopped) {
-            if (!hint) {
-                hint = document.createElement('div');
-                hint.id = 'vacNoisyHint';
-                hint.style.cssText = 'text-align:center;margin-top:4px;font-family:var(--mono);font-size:11px;color:#fbbf24;letter-spacing:0.4px;';
-                hint.textContent = 'It is noisy here — speak up clearly';
-                if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(hint);
-            }
-        } else if (hint) { hint.remove(); }
+        var showHint = AudioGateState.noisy && _speechMode === 'vad' && !recordingStopped;
+        if (hint) {
+            hint.textContent = showHint ? hintCopy : '';
+            hint.style.display = showHint ? 'block' : 'none';
+        }
         // Mirror hint into vacSayHint when the say-view is active (it overlays the camera panel)
         var sayHint = document.getElementById('vacSayHint');
         if (sayHint) {
@@ -2358,8 +2501,8 @@ function beginRecording() {
             if (AudioGateState.noisy && _speechMode === 'vad' && sayVisible && !recordingStopped) {
                 if (!sayHint.dataset.noisySet) {
                     sayHint.dataset.noisySet = '1';
-                    sayHint.style.color = '#fbbf24';
-                    sayHint.textContent = 'It is noisy here — speak up clearly';
+                    sayHint.style.color = '#8B8FA3';
+                    sayHint.textContent = hintCopy;
                 }
             } else if (sayHint.dataset.noisySet) {
                 delete sayHint.dataset.noisySet;
@@ -5145,11 +5288,11 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
             <div id="vacSayWord" style="font-size:clamp(40px,14vw,72px);font-weight:800;color:#fbbf24;line-height:1;"></div>
             <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening 🎙️</div>
             <div id="vacSayEq" class="vac-eq" style="display:flex;justify-content:center;align-items:flex-end;gap:5px;height:36px;margin-top:6px;"><span></span><span></span><span></span><span></span><span></span></div>
-            <!-- S139-NF: gate meter in say-view mirrors the one in challengePanel (floor/thr/level) -->
-            <div id="vacSayGateMeter" style="position:relative;width:200px;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:visible;margin-top:4px;">
-                <div id="vacSGMFloor"  style="position:absolute;left:0;top:0;height:100%;background:rgba(251,191,36,0.18);border-radius:5px 0 0 5px;"></div>
-                <div id="vacSGMLevel"  style="position:absolute;left:0;top:0;height:100%;border-radius:5px 0 0 5px;transition:width 0.05s,background 0.05s;"></div>
-                <div id="vacSGMThr"    style="position:absolute;top:-2px;width:2px;height:calc(100% + 4px);background:#fbbf24;border-radius:1px;"></div>
+            <!-- S139-GM: gate meter mirror in say-view (tracks main meter via _renderGateMeter) -->
+            <div id="vacSayGateMeter" style="position:relative;width:200px;height:8px;background:#0E1525;border-radius:0;overflow:visible;margin-top:4px;">
+                <div id="vacSGMFloor"  style="position:absolute;left:0;top:0;height:100%;background:#1E2536;"></div>
+                <div id="vacSGMLevel"  style="position:absolute;left:0;top:2px;height:4px;background:#8B8FA3;transition:width 0.05s,background 0.05s;"></div>
+                <div id="vacSGMThr"    style="position:absolute;top:-1px;width:2px;height:calc(100% + 2px);background:#C9A227;"></div>
             </div>
             <div id="vacSayHint" style="font-size:12px;color:var(--text-tertiary);min-height:1.2em;"></div>
         </div>
@@ -5581,6 +5724,16 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .transcript-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 .transcript-text { font-size: 14px; color: var(--text-primary); font-style: italic; }
 .transcript-match { font-family: var(--mono); font-size: 11px; margin-top: 6px; }
+/* S139-GM: gate tick draw-in (150ms scaleY from track baseline) */
+@keyframes vacGMGateIn {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.vac-gm-gate-in {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: vacGMGateIn 150ms ease-out forwards;
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }`;
