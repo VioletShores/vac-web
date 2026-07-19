@@ -1991,6 +1991,20 @@ function beginRecording() {
     // fallback; the greeting phase replaces them with values tuned to this mic+room (A2/A3 below).
     let vadSpeechThreshold = VAD_SPEECH_RMS_FALLBACK;
     let vadSilenceThreshold = VAD_SILENCE_RMS_FALLBACK;
+    // S139-NF: single shared state consumed by the gate, visible meter, and coaching — no
+    // independent reads of vadSpeechThreshold from those consumers (L-2299 contract).
+    const AudioGateState = {
+        ambientFloor: 0.035,                    // rolling ambient estimate (non-speech frames only)
+        requiredThreshold: VAD_SPEECH_RMS_FALLBACK,  // adaptive speech gate level
+        liveLevel: 0,                           // latest frame RMS
+        noisy: false                            // floor above AGS_NOISY_FLOOR → noisy env hint
+    };
+    const AGS_SNR_FACTOR = 2.8;                 // threshold = max(ABS_MIN, floor × SNR_FACTOR)
+    const AGS_ABS_MIN_THR = 0.060;              // absolute minimum threshold (can't go below even in silence)
+    const AGS_MIN_FLOOR = 0.020;               // clamp ambient floor to sane minimum
+    const AGS_NOISY_FLOOR = 0.055;             // floor above this = loud environment → coaching hint
+    const AGS_RISE_ALPHA = 0.9975;             // EMA α for slow floor rise (~10s τ at ~60fps non-speech)
+    const AGS_FALL_ALPHA = 0.940;              // EMA α for fast floor fall (~0.3s τ)
     // F-595 calibration sampling state. _floorSamples = leading near-silent greeting frames
     // (the room's noise floor); _speechSamples = the voiced greeting run (this user speaking).
     // Both medians (robust to a cough/click) feed the threshold at phraseSpoke. Function-scoped,
@@ -2057,6 +2071,8 @@ function beginRecording() {
         // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
         try { _stopSpeechGate(); } catch(_){}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
+        try { var _gm=document.getElementById('vacGateMeter'); if(_gm) _gm.remove(); } catch(_){}
+        try { var _nh=document.getElementById('vacNoisyHint'); if(_nh) _nh.remove(); } catch(_){}
         _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
         setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
     }
@@ -2112,6 +2128,21 @@ function beginRecording() {
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
                 const _now = performance.now();
+                // S139-NF: update AudioGateState every frame; floor adapts only on non-speech frames.
+                AudioGateState.liveLevel = rms;
+                if (rms < AudioGateState.requiredThreshold) {
+                    var _af = AudioGateState.ambientFloor;
+                    AudioGateState.ambientFloor = Math.max(AGS_MIN_FLOOR,
+                        rms < _af ? (_af * AGS_FALL_ALPHA + rms * (1 - AGS_FALL_ALPHA))   // quick fall
+                                  : (_af * AGS_RISE_ALPHA + rms * (1 - AGS_RISE_ALPHA))); // slow rise
+                    AudioGateState.requiredThreshold = Math.max(
+                        AGS_ABS_MIN_THR,
+                        AudioGateState.ambientFloor * AGS_SNR_FACTOR,
+                        vadSilenceThreshold + 0.012   // always above silence threshold
+                    );
+                    AudioGateState.noisy = (AudioGateState.ambientFloor > AGS_NOISY_FLOOR);
+                    vadSpeechThreshold = AudioGateState.requiredThreshold;  // keep QA overlay in sync
+                }
                 if (rms < vadSilenceThreshold) {
                     // Track silence ALWAYS — even while the window is closed (during the confirm
                     // beat / grace). A real pause there arms the next digit, so a fresh utterance
@@ -2120,7 +2151,7 @@ function beginRecording() {
                     if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; }  // S139: silence aborts pre-onset
                     _sawSilence = true;
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
-                } else if (rms > vadSpeechThreshold) {
+                } else if (rms > AudioGateState.requiredThreshold) {
                     // Accumulate the voiced run from its TRUE onset — even if it starts during the
                     // grace/beat BEFORE the window opens — so a digit begun slightly early still reaches
                     // the duration bar (codex: don't clamp the onset to window-open). The run only STARTS
@@ -2256,6 +2287,88 @@ function beginRecording() {
         } else if (note) { note.remove(); }
     }
 
+    // S139-NF: Visible audio gate meter — three-layer horizontal bar showing ambient floor zone,
+    // threshold tick, and live level. Lives in challengePanel during the digit phase.
+    // Scale: 0 → AGS_METER_SCALE (full width). Users see exactly where their voice must clear.
+    const AGS_METER_SCALE = 0.45;  // RMS 0.45 → 100% width (covers all practical voice levels)
+    function _renderGateMeter() {
+        if (_speechMode === 'off') return;
+        var meter = document.getElementById('vacGateMeter');
+        if (!meter) {
+            meter = document.createElement('div');
+            meter.id = 'vacGateMeter';
+            meter.style.cssText = 'position:relative;width:100%;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:visible;margin-top:7px;';
+            var floorZone = document.createElement('div');
+            floorZone.id = 'vacGMFloor';
+            floorZone.style.cssText = 'position:absolute;left:0;top:0;height:100%;background:rgba(251,191,36,0.18);border-radius:5px 0 0 5px;';
+            var thrTick = document.createElement('div');
+            thrTick.id = 'vacGMThr';
+            thrTick.style.cssText = 'position:absolute;top:-2px;width:2px;height:calc(100% + 4px);background:#fbbf24;border-radius:1px;';
+            var levelBar = document.createElement('div');
+            levelBar.id = 'vacGMLevel';
+            levelBar.style.cssText = 'position:absolute;left:0;top:0;height:100%;border-radius:5px 0 0 5px;transition:width 0.05s,background 0.05s;';
+            meter.appendChild(floorZone);
+            meter.appendChild(levelBar);
+            meter.appendChild(thrTick);  // tick on top so it's always visible
+            if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(meter);
+        }
+        var floorPct  = Math.min(100, AudioGateState.ambientFloor / AGS_METER_SCALE * 100);
+        var thrPct    = Math.min(98,  AudioGateState.requiredThreshold / AGS_METER_SCALE * 100);
+        var levelPct  = Math.min(100, AudioGateState.liveLevel / AGS_METER_SCALE * 100);
+        var voiced    = AudioGateState.liveLevel > AudioGateState.requiredThreshold;
+        var floorEl = document.getElementById('vacGMFloor');
+        var thrEl   = document.getElementById('vacGMThr');
+        var lvlEl   = document.getElementById('vacGMLevel');
+        if (floorEl) floorEl.style.width = floorPct.toFixed(1) + '%';
+        if (thrEl)   thrEl.style.left   = thrPct.toFixed(1) + '%';
+        if (lvlEl) {
+            lvlEl.style.width = levelPct.toFixed(1) + '%';
+            lvlEl.style.background = voiced ? '#8B7CF7' : 'rgba(139,124,247,0.30)';
+        }
+        // Mirror into vacSayGateMeter (inside the say-view overlay)
+        var sgmFloor = document.getElementById('vacSGMFloor');
+        var sgmThr   = document.getElementById('vacSGMThr');
+        var sgmLvl   = document.getElementById('vacSGMLevel');
+        if (sgmFloor) sgmFloor.style.width = floorPct.toFixed(1) + '%';
+        if (sgmThr)   sgmThr.style.left   = thrPct.toFixed(1) + '%';
+        if (sgmLvl) {
+            sgmLvl.style.width = levelPct.toFixed(1) + '%';
+            sgmLvl.style.background = voiced ? '#8B7CF7' : 'rgba(139,124,247,0.30)';
+        }
+    }
+
+    // S139-NF: coaching hint for noisy environments — show once the adaptive floor is reliably above
+    // the quiet-room baseline, so the user understands WHY the threshold sits high.
+    function _updateNoisyHint() {
+        var hint = document.getElementById('vacNoisyHint');
+        if (AudioGateState.noisy && _speechMode === 'vad' && !recordingStopped) {
+            if (!hint) {
+                hint = document.createElement('div');
+                hint.id = 'vacNoisyHint';
+                hint.style.cssText = 'text-align:center;margin-top:4px;font-family:var(--mono);font-size:11px;color:#fbbf24;letter-spacing:0.4px;';
+                hint.textContent = 'It is noisy here — speak up clearly';
+                if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(hint);
+            }
+        } else if (hint) { hint.remove(); }
+        // Mirror hint into vacSayHint when the say-view is active (it overlays the camera panel)
+        var sayHint = document.getElementById('vacSayHint');
+        if (sayHint) {
+            var sayView = document.getElementById('vacSayView');
+            var sayVisible = sayView && sayView.style.display !== 'none';
+            if (AudioGateState.noisy && _speechMode === 'vad' && sayVisible && !recordingStopped) {
+                if (!sayHint.dataset.noisySet) {
+                    sayHint.dataset.noisySet = '1';
+                    sayHint.style.color = '#fbbf24';
+                    sayHint.textContent = 'It is noisy here — speak up clearly';
+                }
+            } else if (sayHint.dataset.noisySet) {
+                delete sayHint.dataset.noisySet;
+                sayHint.style.color = '';
+                sayHint.textContent = '';
+            }
+        }
+    }
+
     // Timer fallback — used if HandLandmarker unavailable or too slow. Respects SPEED_CONFIG.digit.
     // W4.1 (D-VAC-GESTURE-REALTIME-DETECTION): the OLD fallback auto-advanced
     // through digits on a clock regardless of what the user showed — the bug Rob
@@ -2357,13 +2470,17 @@ function beginRecording() {
         try {
           if (typeof QA !== 'undefined' && QA && QA.on) {
             var _rmsVal = _lastVadRms;
-            var _gate = (_rmsVal > vadSpeechThreshold) ? 'voiced'
+            var _gate = (_rmsVal > AudioGateState.requiredThreshold) ? 'voiced'
                       : (_rmsVal < vadSilenceThreshold) ? 'silent' : 'neither';
             var _cliN = (typeof _lastDetectedCount !== 'undefined' && _lastDetectedCount != null) ? _lastDetectedCount : '-';
             var _preMs = (typeof _preOnsetStart !== 'undefined' && _preOnsetStart) ? Math.round(performance.now() - _preOnsetStart) : 0;
             var _rejN = (typeof _rejectedTransients !== 'undefined') ? _rejectedTransients : 0;
             var _rejReason = (typeof _lastRejectReason !== 'undefined' && _lastRejectReason) ? '(' + _lastRejectReason + ')' : '';
-            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate + (_preMs ? '  pre:' + _preMs + 'ms' : '') + '  rejTap:' + _rejN + _rejReason;
+            // S139-NF: include adaptive floor/threshold in QA debug readout (P-SG process variables)
+            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate
+                + '  fl:' + AudioGateState.ambientFloor.toFixed(3) + '  thr:' + AudioGateState.requiredThreshold.toFixed(3)
+                + (AudioGateState.noisy ? '  [NOISY]' : '')
+                + (_preMs ? '  pre:' + _preMs + 'ms' : '') + '  rejTap:' + _rejN + _rejReason;
             var _rfsz = Math.max(15, Math.round(cv.width * 0.030));
             ctx.save();
             // counter-flip: cancel the canvas scaleX(-1) so text reads forward
@@ -2745,6 +2862,8 @@ function beginRecording() {
         if (_waitingVoice && _gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS) { _ensureVoiceEscape(); }
         else { _removeVoiceEscape(); }
         _renderVoiceOffNote();
+        try { _renderGateMeter(); } catch(_) {}    // S139-NF: three-layer audio gate meter
+        try { _updateNoisyHint(); } catch(_) {}    // S139-NF: noisy-environment coaching
         // D2: once the gesture is confirmed and we're only waiting on voice, the 8s
         // "hold hand closer" hint is wrong here — suppress it.
         CaptureFeedback.renderFingerPhase(ctx, hintShown && !_waitingVoice, currentDigitIndex);
@@ -2799,6 +2918,11 @@ function beginRecording() {
             // fallback pair (already the current values), same graceful-degrade spirit as no-mic.
             _calIsFallback = true;
         }
+        // S139-NF: seed the adaptive gate from this session's calibrated values so the digit
+        // phase starts at an environment-aware threshold, not the fixed fallback constant.
+        AudioGateState.ambientFloor = Math.max(AGS_MIN_FLOOR, _calNoiseFloor != null ? _calNoiseFloor : 0.035);
+        AudioGateState.requiredThreshold = Math.max(AGS_ABS_MIN_THR, vadSpeechThreshold);
+        AudioGateState.noisy = (AudioGateState.ambientFloor > AGS_NOISY_FLOOR);
         try { vacDebug('vad_calibrated', null, { floor: _calNoiseFloor == null ? null : Number(_calNoiseFloor.toFixed(3)), speech: _calSpeechRms == null ? null : Number(_calSpeechRms.toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, floor_n: _floorSamples.length, speech_n: _speechSamples.length }); } catch(_) {}
         try { QA.cal({ floor: _calNoiseFloor, speech: _calSpeechRms, thr: vadSpeechThreshold, sil: vadSilenceThreshold, fallback: _calIsFallback }); } catch(_) {}
     }
@@ -5021,6 +5145,12 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
             <div id="vacSayWord" style="font-size:clamp(40px,14vw,72px);font-weight:800;color:#fbbf24;line-height:1;"></div>
             <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening 🎙️</div>
             <div id="vacSayEq" class="vac-eq" style="display:flex;justify-content:center;align-items:flex-end;gap:5px;height:36px;margin-top:6px;"><span></span><span></span><span></span><span></span><span></span></div>
+            <!-- S139-NF: gate meter in say-view mirrors the one in challengePanel (floor/thr/level) -->
+            <div id="vacSayGateMeter" style="position:relative;width:200px;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:visible;margin-top:4px;">
+                <div id="vacSGMFloor"  style="position:absolute;left:0;top:0;height:100%;background:rgba(251,191,36,0.18);border-radius:5px 0 0 5px;"></div>
+                <div id="vacSGMLevel"  style="position:absolute;left:0;top:0;height:100%;border-radius:5px 0 0 5px;transition:width 0.05s,background 0.05s;"></div>
+                <div id="vacSGMThr"    style="position:absolute;top:-2px;width:2px;height:calc(100% + 4px);background:#fbbf24;border-radius:1px;"></div>
+            </div>
             <div id="vacSayHint" style="font-size:12px;color:var(--text-tertiary);min-height:1.2em;"></div>
         </div>
     </div>
