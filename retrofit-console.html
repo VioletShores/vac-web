@@ -202,6 +202,24 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
 /* Living document stamp */
 .living-stamp{position:fixed;bottom:9px;right:13px;font-family:var(--mono);font-size:10px;color:var(--quiet);opacity:.65;letter-spacing:.04em;pointer-events:none;}
 
+/* Info marker button */
+.info-btn{display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;padding:2px;cursor:pointer;vertical-align:middle;opacity:.75;transition:opacity .15s;flex:0 0 auto;margin-left:6px;}
+.info-btn:hover{opacity:1;}
+
+/* Info popover */
+.info-pop{position:fixed;z-index:800;background:var(--card-raised);border:1px solid var(--gold-border);border-radius:9px;padding:13px 15px;max-width:260px;font-size:12.5px;color:var(--dim);line-height:1.58;box-shadow:0 8px 32px rgba(0,0,0,.65);}
+.info-pop[hidden]{display:none;}
+.info-pop-art{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px;}
+
+/* Act summary mapping rows */
+.act-map-grid{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin-bottom:16px;}
+.act-art{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.04em;white-space:nowrap;padding-top:1px;}
+.act-desc{font-size:13px;color:var(--dim);line-height:1.5;}
+
+/* Act / SDK button */
+.act-link-btn{display:inline-flex;align-items:center;gap:7px;font-family:var(--font);font-size:13px;font-weight:600;color:var(--gold);text-decoration:none;border:1.5px solid var(--gold-border);background:var(--gold-bg);border-radius:8px;padding:9px 16px;transition:all .15s;}
+.act-link-btn:hover{background:var(--gold);color:#0A0F1A;border-color:var(--gold);}
+
 /* Responsive */
 @media(max-width:540px){
   .top-row{flex-direction:column;align-items:flex-start;}
@@ -309,7 +327,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <div class="step-head">
       <div>
         <div class="step-num">Step 3 of 5</div>
-        <h2 id="step3-title">Assurance tiers</h2>
+        <h2 id="step3-title" style="display:flex;align-items:center;">Assurance tiers<button class="info-btn" type="button" onclick="showInfoPop(this,'art14')" aria-label="Art. 14 — effective oversight"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
     </div>
@@ -328,7 +346,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <div class="step-head">
       <div>
         <div class="step-num">Step 4 of 5</div>
-        <h2 id="step4-title">Authority</h2>
+        <h2 id="step4-title" style="display:flex;align-items:center;">Authority<button class="info-btn" type="button" onclick="showInfoPop(this,'art26')" aria-label="Art. 26 — competence and authority"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
     </div>
@@ -361,7 +379,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <div class="rails-row">
       <input type="checkbox" class="rails-check" id="railEuAiAct" checked readonly onclick="return false;">
       <div class="rails-body">
-        <div class="rails-title">EU AI Act compliance pack v1</div>
+        <div class="rails-title" style="display:flex;align-items:center;">EU AI Act compliance pack v1<button class="info-btn" type="button" onclick="showInfoPop(this,'art50')" aria-label="Art. 50 — regulation as configuration"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></div>
         <div class="rails-sub">Pack ID: eu-ai-act-pack-v1-2026-08 &middot; Art 50 Aug-2026 &middot; Annex III risk classification</div>
       </div>
     </div>
@@ -390,11 +408,29 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <!-- (a) Manifest card -->
     <div class="dash-card" id="manifestCard">
       <div class="dash-card-head">
-        <div class="dash-card-title">Deployment manifest</div>
+        <div class="dash-card-title" style="display:flex;align-items:center;">Deployment manifest<button class="info-btn" type="button" onclick="showInfoPop(this,'art12')" aria-label="Art. 12 — record-keeping"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></div>
         <span class="dash-card-badge badge-preview">Preview manifest &middot; not yet submitted</span>
       </div>
       <div class="manifest-json" id="manifestJson"></div>
       <div class="manifest-note">Sealed on issue &mdash; each token minted against this manifest inherits the version stamp and regulatory pack reference.</div>
+    </div>
+
+    <!-- (act) EU AI Act mapping summary -->
+    <div class="dash-card">
+      <div class="dash-card-head">
+        <div class="dash-card-title">EU AI Act mapping</div>
+        <span class="dash-card-badge badge-real">4 articles covered</span>
+      </div>
+      <div class="act-map-grid">
+        <span class="act-art">Art.&nbsp;12</span><span class="act-desc">Record-keeping — every sealed token references the manifest by ID for independent traceability.</span>
+        <span class="act-art">Art.&nbsp;14</span><span class="act-desc">Effective oversight — assurance tiers encode the minimum ceremony required at each decision point.</span>
+        <span class="act-art">Art.&nbsp;26</span><span class="act-desc">Competence and authority — named delegates prove a qualified person can intervene or override.</span>
+        <span class="act-art">Art.&nbsp;50</span><span class="act-desc">Transparency — the compliance pack is version-stamped and sealed into every token at issue time.</span>
+      </div>
+      <a class="act-link-btn" href="/eu-ai-act.html">
+        Read the EU AI Act mapping
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1.5 1.5h4V3H3V7h4V5.5H8.5V9h-7V1.5z" fill="currentColor"/><path d="M5.5 1.5h3v3H7V3.5L4 6.5 3 5.5 6 2.5h-.5V1.5z" fill="currentColor"/></svg>
+      </a>
     </div>
 
     <!-- (b) Integration card -->
@@ -407,6 +443,21 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
         Three calls wire your system to VAC. The manifest id and action names below are drawn from your selections above.
       </p>
       <div class="api-group" id="apiGroup"></div>
+    </div>
+
+    <!-- (sdk) SDK/API card -->
+    <div class="dash-card">
+      <div class="dash-card-head">
+        <div class="dash-card-title">Developers: API and SDK</div>
+        <span class="dash-card-badge badge-real">Developer docs</span>
+      </div>
+      <p style="font-size:13.5px;color:var(--dim);margin-bottom:16px;line-height:1.65;">
+        Wire VAC into your pipeline using the REST API or the <code style="font-family:var(--mono);font-size:12px;color:var(--teal);">@vacprotocol/verify</code> SDK. Issue, authorize, and verify in three calls.
+      </p>
+      <a class="act-link-btn" href="/developers">
+        Developers: API and SDK
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1.5 1.5h4V3H3V7h4V5.5H8.5V9h-7V1.5z" fill="currentColor"/><path d="M5.5 1.5h3v3H7V3.5L4 6.5 3 5.5 6 2.5h-.5V1.5z" fill="currentColor"/></svg>
+      </a>
     </div>
 
     <!-- (c) Evidence card -->
@@ -481,6 +532,12 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <button class="vo-close-btn" onclick="closeVerify()">Close</button>
   </div>
   <iframe id="voFrame" src="about:blank" allow="camera;microphone" title="VAC verification ceremony"></iframe>
+</div>
+
+<!-- Shared info popover -->
+<div id="infoPop" class="info-pop" hidden role="tooltip" aria-live="polite">
+  <div class="info-pop-art" id="infoPopArt"></div>
+  <div id="infoPopBody"></div>
 </div>
 
 <div class="living-stamp">living document &middot; updated 19 Jul 2026</div>
@@ -857,6 +914,62 @@ window.addEventListener('message', async function(e) {
     errEl.textContent = 'Authorize call failed: ' + err.message;
     receipt.innerHTML = '';
     receipt.appendChild(errEl);
+  }
+});
+
+// ── Info popovers ─────────────────────────────────────────────────────────────
+
+var INFO_CONTENT = {
+  art14: {
+    art: 'EU AI Act — Art. 14',
+    text: 'Article 14 — effective oversight. Each assurance tier encodes the minimum ceremony that satisfies effective oversight: Tier 2 for operational acceptance, Tier 3 for safety-critical actuation. The tier you assign is sealed into the manifest and verified at every token mint.',
+  },
+  art26: {
+    art: 'EU AI Act — Art. 26',
+    text: 'Article 26 — competence and authority. Mapping named delegates — not just roles — demonstrates that a specific, qualified person holds the authority to intervene or override at each decision point. This roster is ingested from your SSO in production.',
+  },
+  art50: {
+    art: 'EU AI Act — Art. 50',
+    text: 'Regulation as configuration. The EU AI Act compliance pack is sealed into every token, not referenced by link. Article 50 transparency obligations apply from August 2026. The pack version records exactly which requirements governed this deployment at issue time.',
+  },
+  art12: {
+    art: 'EU AI Act — Art. 12',
+    text: 'Article 12 — record-keeping and logging. This manifest is the traceability anchor: every sealed token references it by ID. Regulators can reconstruct the full authority chain — decision points, ceremony tiers, named delegates — without requiring system access.',
+  },
+};
+
+var _activePopKey = null;
+
+function showInfoPop(el, key) {
+  var pop = document.getElementById('infoPop');
+  var c = INFO_CONTENT[key];
+  if (!c) return;
+  if (_activePopKey === key && !pop.hidden) { hideInfoPop(); return; }
+  _activePopKey = key;
+  document.getElementById('infoPopArt').textContent = c.art;
+  document.getElementById('infoPopBody').textContent = c.text;
+  pop.hidden = false;
+  var r = el.getBoundingClientRect();
+  var pw = 262;
+  var left = r.right + 10;
+  var top = r.top - 4;
+  if (left + pw > window.innerWidth - 10) left = r.left - pw - 10;
+  if (left < 10) left = 10;
+  var ph = pop.offsetHeight || 140;
+  if (top + ph > window.innerHeight - 10) top = window.innerHeight - ph - 10;
+  if (top < 10) top = 10;
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+}
+
+function hideInfoPop() {
+  document.getElementById('infoPop').hidden = true;
+  _activePopKey = null;
+}
+
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.info-btn') && !e.target.closest('#infoPop')) {
+    hideInfoPop();
   }
 });
 
