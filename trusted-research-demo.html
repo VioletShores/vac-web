@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>VAC — Trusted Research Workflow (Preview)</title>
+<style>
+:root{
+  --bg:#0D1117; --surface:#161B22; --surface-raised:#1C2128; --border:#30363D; --border-light:#3D444D;
+  --text-primary:#F0F6FC; --text-secondary:#C9D1D9; --text-tertiary:#8B949E; --text-quaternary:#6E7681;
+  --purple:#6C5CE7; --purple-dim:#5A4BD1; --purple-bg:rgba(108,92,231,0.08); --purple-border:rgba(108,92,231,0.25);
+  --teal:#00CEC9; --teal-bg:rgba(0,206,201,0.08); --teal-border:rgba(0,206,201,0.2);
+  --success:#3FB950; --success-bg:rgba(63,185,80,0.08); --success-border:rgba(63,185,80,0.2);
+  --amber:#D29922; --amber-bg:rgba(210,153,34,0.08); --amber-border:rgba(210,153,34,0.25);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+.page-shell{background:var(--bg);min-height:100vh;color:var(--text-secondary);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px;}
+.wrap{max-width:880px;margin:0 auto;padding:0 clamp(16px,4vw,24px);}
+
+.preview-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:10px 24px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;}
+
+header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.mark{width:34px;height:34px;flex:0 0 34px;}
+.brand-name{font-weight:700;color:var(--text-primary);font-size:17px;letter-spacing:-0.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1px;}
+.nav-mode{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);}
+
+.hero{margin-bottom:40px;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+.hero h1{font-size:clamp(24px,5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:720px;}
+.hero-lede{font-size:clamp(14.5px,3.8vw,16px);color:var(--text-secondary);max-width:680px;margin-bottom:20px;}
+.hero-lede .pull{color:var(--text-primary);font-weight:600;}
+.brief{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;margin-bottom:20px;max-width:720px;}
+.brief-label{font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.brief p{font-size:13.5px;color:var(--text-secondary);line-height:1.65;}
+.brief p+p{margin-top:10px;}
+.brief .pull{color:var(--text-primary);font-weight:600;}
+.brief .scenario-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:2px 7px;display:inline-block;margin-bottom:10px;}
+
+.section-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px;}
+
+.stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:clamp(16px,4.5vw,28px);margin-bottom:24px;}
+.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.stage-head h2{font-size:clamp(17px,4.5vw,19px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;}
+.stage-badge{font-family:var(--mono);font-size:10px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:2px 8px;letter-spacing:1px;}
+.anchor-line{background:linear-gradient(135deg,var(--purple-bg),var(--surface-raised));border:1px solid var(--purple-border);border-radius:8px;padding:14px 16px;margin-bottom:22px;}
+.anchor-line p{font-size:clamp(13.5px,3.7vw,15px);color:var(--text-secondary);font-style:italic;line-height:1.6;}
+.anchor-line .pull{color:var(--text-primary);font-weight:600;font-style:normal;}
+
+.steps{display:flex;flex-direction:column;gap:0;}
+.step{display:flex;gap:16px;padding:0 0 4px;position:relative;}
+.step-rail{display:flex;flex-direction:column;align-items:center;flex:0 0 28px;}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-light);background:var(--surface-raised);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--text-quaternary);transition:all .3s;flex:0 0 28px;}
+.step-dot.active{border-color:var(--purple);color:var(--purple);box-shadow:0 0 10px rgba(108,92,231,0.35);}
+.step-dot.done{border-color:var(--success);background:var(--success-bg);color:var(--success);}
+.step-conn{width:2px;flex:1;background:var(--border);min-height:18px;margin:2px 0;}
+.step-conn.done{background:var(--success);}
+.step-body{padding-bottom:22px;flex:1;min-width:0;}
+.step-body h3{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:3px;}
+.step-meta{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
+.step-detail{font-size:13.5px;color:var(--text-secondary);margin-top:8px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:6px;padding:11px 13px;display:none;overflow-wrap:break-word;line-height:1.65;}
+.step.revealed .step-detail{display:block;}
+.step.hero-step .step-detail{border-left-color:var(--teal);}
+.step.seal-step .step-detail{border-left-color:var(--amber);}
+.step.receipt-step .step-detail{border-left-color:var(--success);}
+.policy-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.amber-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.hil{color:var(--amber);font-weight:600;}
+.hil-teal{color:var(--teal);font-weight:600;}
+
+.controls{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
+.btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:7px;padding:11px 20px;cursor:pointer;border:1px solid transparent;transition:all .15s;}
+.btn-primary{background:var(--purple);color:#fff;}
+.btn-primary:hover{background:var(--purple-dim);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{background:transparent;border-color:var(--border-light);color:var(--text-secondary);}
+.btn-ghost:hover{border-color:var(--text-tertiary);color:var(--text-primary);}
+
+.receipt{margin-top:20px;background:var(--surface-raised);border:1px solid var(--success-border);border-radius:10px;padding:20px;display:none;}
+.receipt.show{display:block;animation:fade .35s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.receipt-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.receipt-head .seal{width:30px;height:30px;flex:0 0 30px;}
+.receipt-head h3{color:var(--success);font-size:15px;font-weight:700;}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 14px;font-size:13px;}
+.kv dt{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:.5px;}
+.kv dd{font-family:var(--mono);font-size:12px;color:var(--text-secondary);word-break:break-all;}
+.kv dd.hl{color:var(--text-primary);}
+.audit{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+.audit-line{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);padding:3px 0;display:flex;gap:10px;}
+.audit-line .t{color:var(--teal);flex:0 0 auto;}
+.verify-link{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--teal);text-decoration:none;border:1.5px solid var(--teal);background:var(--teal-bg);border-radius:8px;padding:10px 16px;margin-top:14px;transition:all .15s;cursor:pointer;}
+.verify-link:hover{background:var(--teal);color:#0A0F1A;border-color:var(--teal);box-shadow:0 2px 12px -2px var(--teal);}
+.real-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;letter-spacing:.5px;margin-left:8px;}
+
+.fwd-note{margin:0 0 22px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--text-secondary);overflow-wrap:break-word;}
+.fwd-note strong{color:var(--text-primary);}
+
+.ai-rec{background:var(--surface-raised);border:1px solid var(--border-light);border-left:2px solid var(--purple);border-radius:8px;padding:14px 16px;margin-bottom:14px;}
+.ai-rec-label{font-family:var(--mono);font-size:10px;color:var(--purple);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.ai-rec-body{font-size:13.5px;color:var(--text-secondary);line-height:1.65;}
+.ai-rec-body strong{color:var(--text-primary);}
+
+.model-panel{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
+.model-contrib{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+.model-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.model-tag{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:4px;letter-spacing:.5px;font-weight:600;}
+.model-tag-purple{color:var(--purple);background:var(--purple-bg);border:1px solid var(--purple-border);}
+.model-tag-amber{color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);}
+.model-tag-teal{color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);}
+.model-route{font-family:var(--mono);font-size:10px;color:var(--text-quaternary);}
+.model-finding{font-size:13px;color:var(--text-secondary);line-height:1.6;}
+.model-finding strong{color:var(--text-primary);}
+.model-evid{font-family:var(--mono);font-size:10.5px;color:var(--teal);margin-top:6px;}
+
+.cand-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px;}
+.cand-table th{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1px;text-transform:uppercase;padding:6px 10px;border-bottom:1px solid var(--border);text-align:left;}
+.cand-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--text-secondary);font-family:var(--mono);font-size:12px;}
+.cand-table tr.top-rank td{color:var(--text-primary);}
+.cand-table tr.top-rank td:nth-child(2){color:var(--teal);}
+.rank-n{display:inline-block;width:20px;height:20px;border-radius:50%;background:var(--purple-bg);border:1px solid var(--purple-border);color:var(--purple);font-family:var(--mono);font-size:10px;text-align:center;line-height:20px;}
+.rank-n.r1{background:var(--teal-bg);border-color:var(--teal-border);color:var(--teal);}
+
+.wp2-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:3px 9px;letter-spacing:1px;text-transform:uppercase;margin-bottom:14px;}
+.bench-wrap{overflow-x:auto;margin:12px 0;}
+.bench-table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:540px;}
+.bench-table th{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:.8px;text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;}
+.bench-table td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text-secondary);vertical-align:top;}
+.bench-table td.ans{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
+.mark-correct{color:var(--success);font-family:var(--mono);font-size:13px;font-weight:700;}
+.mark-wrong{color:#FF6B6B;font-family:var(--mono);font-size:13px;font-weight:700;}
+.mark-partial{color:var(--amber);font-family:var(--mono);font-size:13px;}
+
+.domains-cta{margin-top:40px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:clamp(16px,4.5vw,22px) clamp(16px,5vw,24px);display:block;}
+.domains-cta-text .cta-h{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.domains-cta-text .cta-d{font-size:13.5px;color:var(--text-secondary);margin-bottom:2px;}
+.cta-btn{font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;border:none;cursor:pointer;display:inline-block;margin:14px 8px 4px 0;}
+.cta-btn:hover{background:var(--purple-dim);}
+
+.foot{margin-top:48px;border-top:1px solid var(--border);padding-top:24px;font-size:13px;color:var(--text-tertiary);}
+.foot strong{color:var(--text-secondary);}
+.foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--text-quaternary);}
+.foot-link{color:var(--teal);text-decoration:none;}
+.foot-link:hover{text-decoration:underline;}
+
+.vo{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.92);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);}
+.vo[hidden]{display:none;}
+.vo-card{display:flex;flex-direction:column;width:min(680px,100%);height:min(900px,96vh);background:var(--surface,#101726);border:1px solid rgba(147,160,180,.25);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.vo-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(147,160,180,.18);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--teal,#35C4B5);}
+.vo-close{background:transparent;border:none;color:#93A0B4;font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}
+.vo-frame{flex:1 1 auto;width:100%;border:none;background:#0A0F1A;}
+.bio-verified-chip{display:none;margin-top:10px;font-family:var(--mono);font-size:12px;color:#22c55e;border:1px solid rgba(34,197,94,.45);border-radius:8px;padding:8px 12px;}
+
+@media(max-width:560px){
+  .kv{grid-template-columns:1fr;}
+  .step{gap:12px;}
+  .cand-table{font-size:11px;}
+  .vo{padding:0;}
+  .vo-card{width:100%;height:100%;border-radius:0;border:none;}
+}
+</style>
+</head>
+<body>
+<div class="page-shell">
+  <div class="preview-banner">This is a research-workflow demonstration with synthetic data &mdash; not a medical device, not clinical advice &middot; Seal and receipt mechanics are real VAC system output</div>
+
+  <header class="top"><div class="wrap"><div class="top-row">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="#6C5CE7" stroke-width="1.5"/><path d="M20 8 L20 32 M11 14 L29 26 M29 14 L11 26" stroke="#00CEC9" stroke-width="1.2" opacity="0.55"/><circle cx="20" cy="20" r="4.5" fill="#6C5CE7"/></svg>
+      <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
+    </div>
+    <span class="nav-mode">RESEARCH WORKFLOW &middot; PREVIEW</span>
+  </div></div></header>
+
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">Computational biophysics &middot; siRNA delivery candidate selection</div>
+      <h1>The model ranks the candidates. The PI decides. VAC seals who accepted the recommendation &mdash; and proves it, years after the selection was made.</h1>
+      <p class="hero-lede">When a molecular-dynamics screen produces a ranked shortlist of dendrimer candidates for siRNA delivery, the scientific and institutional question is not <span class="pull">what the models ranked</span> &mdash; it is <span class="pull">who held authority to accept a model-generated recommendation for lab follow-up, under what conditions, and whether that record has been altered since.</span> VAC is the trust layer on top of the computational workflow: <span class="pull">the platform seals WHO ACCEPTED a model-generated scientific recommendation and under what authority</span>, producing a sealed record the institution can query independently, years after the decision was made.</p>
+
+      <div class="brief">
+        <div class="scenario-label">Synthetic representative scenario</div>
+        <div class="brief-label">Computational Nanomedicine Study &middot; In Silico Phase &middot; 09:12 UTC</div>
+        <p>A molecular-dynamics simulation screens a library of generation-4 PAMAM dendrimers for siRNA delivery potential. Three candidates emerge: <span class="pull">GPE-4A, GPE-4B, and GPE-4C</span> &mdash; ranked by binding affinity, projected delivery efficiency, and an aggregated MD score. The results are then routed through the SignalRank multi-LLM analysis layer, which selects specialist models for structural analysis, toxicity screening, and literature synthesis, and presents a consolidated recommendation for PI review.</p>
+        <p>The Principal Investigator reviews the ranked candidates, the multi-model analysis, and the supporting MD trajectories, then accepts GPE-4C for lab follow-up. VAC seals <span class="pull">which candidate was accepted, by whom, under what institutional authority, and at exactly what time</span> &mdash; producing a sealed record that a funding body, ethics board, or institutional auditor can verify against the production backend, without needing to trust VAC's word for it.</p>
+      </div>
+
+      <p class="section-label" style="margin-bottom:0;">Walk through the decision, step by step</p>
+    </section>
+
+    <section class="stage" id="stage">
+      <div class="stage-head">
+        <h2>Sealed acceptance walkthrough</h2>
+        <span class="stage-badge">LIVE SEAL MECHANICS</span>
+      </div>
+
+      <div class="anchor-line">
+        <p><span class="pull">"The models rank. The PI decides. Neither operates the seal."</span> The MD simulation that ranked the candidates does not authorise the selection. The PI who accepts does not operate the seal. The auditor who reviews holds a receipt that neither party can alter after the fact.</p>
+      </div>
+
+      <div class="steps" id="steps">
+
+        <!-- Step 1: Screen -->
+        <div class="step hero-step" id="step-1">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-1">1</div>
+            <div class="step-conn" id="conn-1"></div>
+          </div>
+          <div class="step-body">
+            <h3>Screen &mdash; MD simulation ranks three dendrimer candidates</h3>
+            <div class="step-meta">Molecular-dynamics simulation &middot; automated computational screen &middot; no human authority at this stage</div>
+            <div class="step-detail" id="detail-1">
+              <div class="ai-rec">
+                <div class="ai-rec-label">MD simulation output &middot; 09:12:44 UTC &middot; automated</div>
+                <div class="ai-rec-body">
+                  <strong>Generation-4 PAMAM dendrimer library screen &mdash; siRNA delivery candidates.</strong><br><br>
+                  Simulation parameters: AMBER ff14SB + GAFF2 force field &middot; explicit TIP3P solvent &middot; 200 ns production run per candidate &middot; pH 7.4 physiological conditions &middot; N/P ratio 8:1.<br><br>
+                  <strong>Ranked candidates (binding affinity + delivery efficiency + RMSD stability):</strong>
+                </div>
+              </div>
+              <table class="cand-table">
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Candidate</th>
+                    <th>Binding affinity</th>
+                    <th>Delivery efficiency</th>
+                    <th>MD score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="top-rank">
+                    <td><span class="rank-n r1">1</span></td>
+                    <td>GPE-4C (PEG C-terminus)</td>
+                    <td>&minus;12.4 kcal/mol</td>
+                    <td>0.87</td>
+                    <td>0.91</td>
+                  </tr>
+                  <tr>
+                    <td><span class="rank-n">2</span></td>
+                    <td>GPE-4A (NH<sub>2</sub> surface)</td>
+                    <td>&minus;11.1 kcal/mol</td>
+                    <td>0.79</td>
+                    <td>0.83</td>
+                  </tr>
+                  <tr>
+                    <td><span class="rank-n">3</span></td>
+                    <td>GPE-4B (acetylated)</td>
+                    <td>&minus;9.7 kcal/mol</td>
+                    <td>0.82</td>
+                    <td>0.78</td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>The MD output is a computational artefact &mdash; no authority is exercised here. Authority begins the moment the Principal Investigator reviews the ranked shortlist and decides to accept a candidate for lab follow-up. That decision is what VAC seals.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">force field: AMBER ff14SB + GAFF2</span>
+                <span class="policy-chip">run: 200 ns &times; 3</span>
+                <span class="policy-chip">N/P: 8:1</span>
+                <span class="amber-chip">pending multi-LLM analysis</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Analysis -->
+        <div class="step" id="step-2">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-2">2</div>
+            <div class="step-conn" id="conn-2"></div>
+          </div>
+          <div class="step-body">
+            <h3>Analysis &mdash; SignalRank routes to three specialist models</h3>
+            <div class="step-meta">Multi-LLM layer &middot; SignalRank v2 routing &middot; structural &middot; toxicity &middot; literature</div>
+            <div class="step-detail" id="detail-2">
+              <div class="ai-rec">
+                <div class="ai-rec-label">SignalRank v2 &middot; routing complete &middot; 09:14:07 UTC</div>
+                <div class="ai-rec-body">Query signature matched three specialist model categories. Confidence-weighted contributions follow. No single model output is surfaced to the PI without provenance &mdash; each contribution carries its model identity, routing rationale, and supporting evidence reference.</div>
+              </div>
+              <div class="model-panel">
+                <div class="model-contrib">
+                  <div class="model-head">
+                    <span class="model-tag model-tag-purple">SR-BioStructure-v2</span>
+                    <span class="model-route">Routing: binding-affinity pattern matched &middot; confidence 0.91</span>
+                  </div>
+                  <div class="model-finding"><strong>GPE-4C shows highest binding affinity (&minus;12.4 kcal/mol) driven by PEG C-terminus flexibility increasing siRNA surface contact area.</strong> Hydrogen-bond count at equilibrium: 18.3 (SD 2.1) versus 14.7 for GPE-4A. RMSD stable at 2.1 &Aring; over final 50 ns &mdash; consistent with productive complexation. Concern: elevated counterion condensation at N/P &gt; 10 may reduce endosomal release efficiency. Recommend wet-lab confirmation at N/P 6:1 and 10:1.</div>
+                  <div class="model-evid">Evidence ref: SR-BS-2024-114 &middot; MD trajectory digest GPE-4C-T3-run2</div>
+                </div>
+                <div class="model-contrib">
+                  <div class="model-head">
+                    <span class="model-tag model-tag-amber">SR-Tox-Screen-v1</span>
+                    <span class="model-route">Routing: cytotoxicity-profile pattern matched &middot; confidence 0.88</span>
+                  </div>
+                  <div class="model-finding"><strong>GPE-4C projected IC<sub>50</sub> &gt; 45 &mu;M in murine hepatic model &mdash; within acceptable pre-clinical bounds (threshold &gt; 12 &mu;M, ISO 10993-5).</strong> Surface charge density lower than GPE-4A, correlating with reduced membrane disruption at equivalent N/P. Off-target binding to serum albumin estimated at 8% &mdash; below the 15% flag threshold. No predicted haematotoxicity signals in the blood-contact panel.</div>
+                  <div class="model-evid">Evidence ref: SR-TX-2024-038 &middot; cytotox panel GPE-4C-HepG2</div>
+                </div>
+                <div class="model-contrib">
+                  <div class="model-head">
+                    <span class="model-tag model-tag-teal">SR-LitSynth-v3</span>
+                    <span class="model-route">Routing: literature-synthesis pattern matched &middot; confidence 0.85</span>
+                  </div>
+                  <div class="model-finding"><strong>GPE-4C structural class (PEGylated G4 PAMAM, cationic core) consistent with literature precedent: 18 of 23 comparable siRNA delivery studies show in-vivo efficacy when IC<sub>50</sub> &gt; 40 &mu;M and binding affinity &lt; &minus;11 kcal/mol.</strong> Five discordant studies used non-physiological pH or truncated run times (&lt; 100 ns) &mdash; flagged as low comparability. Literature supports proceeding to wet-lab with GPE-4C as primary candidate.</div>
+                  <div class="model-evid">Evidence ref: SR-LS-2024-207 &middot; corpus: PubMed nanomedicine 2019&ndash;2024 (n=23)</div>
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <span class="policy-chip">models: 3 specialist</span>
+                <span class="policy-chip">SignalRank: v2</span>
+                <span class="policy-chip">consensus: GPE-4C</span>
+                <span class="amber-chip">pending PI decision</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Decision -->
+        <div class="step" id="step-3">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-3">3</div>
+            <div class="step-conn" id="conn-3"></div>
+          </div>
+          <div class="step-body">
+            <h3>Decision &mdash; PI reviews the multi-model analysis and accepts GPE-4C</h3>
+            <div class="step-meta">Human decision &middot; identity not yet verified &middot; authority not yet sealed</div>
+            <div class="step-detail" id="detail-3">
+              <p>The Principal Investigator reviews the MD-ranked shortlist and the three specialist model contributions &mdash; cross-checking the structural analysis against the toxicity profile, the literature synthesis against the institutional research protocol, and the MD trajectories against the study's predefined selection criteria.</p>
+              <p style="margin-top:10px;">The PI accepts <strong style="color:var(--text-primary);">GPE-4C (Generation-4 PEG C-terminus dendrimer)</strong> as the primary candidate for wet-lab follow-up. At this point a scientific decision has been made &mdash; but <span class="hil">no authority has been verified and no record has been sealed.</span> If the decision were logged only in the study management system, the audit trail would rest on that system's integrity. VAC replaces that assumption with a cryptographic proof: not just who clicked accept, but who held institutional authority to accept this class of recommendation, under what conditions, at what time.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">candidate: GPE-4C</span>
+                <span class="policy-chip">basis: MD rank + 3-model consensus</span>
+                <span class="amber-chip">identity not yet verified</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Seal -->
+        <div class="step seal-step" id="step-4">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-4">4</div>
+            <div class="step-conn" id="conn-4"></div>
+          </div>
+          <div class="step-body">
+            <h3>Seal &mdash; VAC verifies the PI and seals the acceptance</h3>
+            <div class="step-meta">Ed25519 signed token &middot; live production backend &middot; independently verifiable</div>
+            <div class="step-detail" id="detail-4">
+              <p>VAC checks that the PI is:</p>
+              <ul style="margin:10px 0 10px 18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-secondary);">
+                <li>A <strong style="color:var(--text-primary);">verified, present human</strong> &mdash; not a bot, not a replay, confirmed by live biometric at the moment of acceptance.</li>
+                <li>Holding <strong style="color:var(--text-primary);">institutional research authority</strong> for the study protocol and candidate class covered by this selection (encoded in the PI's VAC credential, not asserted by the study system).</li>
+                <li>Acting within <strong style="color:var(--text-primary);">permitted conditions</strong> &mdash; candidate class, study scope, and selection criteria all within the encoded research governance rules for this protocol.</li>
+              </ul>
+              <p>VAC mints a signed token (Ed25519 + JWT) binding together: the verified PI identity, the specific candidate accepted (GPE-4C), the SignalRank routing record (which models contributed and why), the institutional authority conditions, and the immutable timestamp. <span class="hil">No party &mdash; not the PI, not the study system, not VAC &mdash; can alter this record after the fact without the signature failing verification.</span> The platform seals WHO ACCEPTED a model-generated scientific recommendation and under what authority.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">algorithm: Ed25519</span>
+                <span class="policy-chip">format: JWT</span>
+                <span class="policy-chip">binds: PI + candidate + analysis provenance</span>
+                <span class="amber-chip">sealing now...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Record -->
+        <div class="step receipt-step" id="step-5">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-5">5</div>
+          </div>
+          <div class="step-body">
+            <h3>Record &mdash; Sealed acceptance record, queryable by JTI</h3>
+            <div class="step-meta">Live token &middot; verifiable by JTI &middot; tamper-evident</div>
+            <div class="step-detail" id="detail-5">
+              <p>The sealed record is queryable by anyone who holds the JTI &mdash; a funding body, an ethics board, an institutional auditor &mdash; against the live VAC backend. No trust in VAC required: the Ed25519 signature either verifies or it does not.</p>
+              <p style="margin-top:10px;"><strong style="color:var(--text-primary);">What a research audit looks like with this record:</strong> the auditor queries the JTI &mdash; months or years after the candidate was selected. The backend returns the signed token. The auditor verifies the signature against VAC's public key. The token's claims show the verified PI identity, which candidate was accepted, the SignalRank routing record showing which models contributed and why, the institutional authority conditions, and the immutable timestamp. No internal study management system access required. The models ranked; the record proves who accepted, and under what authority.</p>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /steps -->
+
+      <div class="controls">
+        <button class="btn btn-primary" id="advance" type="button">Begin walkthrough</button>
+        <button class="btn btn-ghost" id="reset" type="button">Reset</button>
+      </div>
+
+      <div class="receipt" id="receipt">
+        <div class="receipt-head">
+          <svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3>Acceptance sealed &amp; lodged</h3>
+        </div>
+        <dl class="kv" id="receiptKv"></dl>
+        <div class="audit" id="auditLog"></div>
+      </div>
+    </section>
+
+    <div class="fwd-note">
+      <strong>Honest scope.</strong> The scenario above &mdash; GPE-4C, the MD trajectories, the SignalRank model routing, the PI identity &mdash; is synthetic and labeled as such. The seal and receipt mechanics are real VAC system output: the token is genuinely minted, Ed25519-signed, and independently verifiable at the URL shown in the receipt. The institutional authority and study conditions encoded in this token are illustrative placeholders; encoding the actual research governance policy and PI authority hierarchy for a specific institution is the integration build done with that institution's research and compliance teams. The same protocol powers the water network demo on this site: the domain differs &mdash; pressure reduction versus candidate selection &mdash; the trust primitive is identical.
+    </div>
+
+    <!-- WP2 teaser -->
+    <section class="stage" id="wp2-teaser">
+      <div class="stage-head">
+        <h2>WP2: Seed-quality benchmarking</h2>
+        <span class="stage-badge">OPTIONAL RESEARCH DIRECTION</span>
+      </div>
+      <div class="wp2-badge">Seed-quality example &mdash; WP2 proposed research</div>
+      <p style="font-size:13.5px;color:var(--text-secondary);margin-bottom:16px;line-height:1.65;">Six known-answer questions drawn from computational-nanomedicine literature &mdash; evaluated across three SignalRank specialist models. The product of the proposed WP2 research is making such benchmark scores <em>certifiable</em>: a sealed, independently-verifiable benchmark record that proves which model answered which question correctly, under what conditions, without relying on the platform's word for it. These scores are illustrative for this seed-quality example; certified benchmark records are what WP2 is designed to produce.</p>
+      <div class="bench-wrap">
+        <table class="bench-table">
+          <thead>
+            <tr>
+              <th style="width:36%">Question (known answer)</th>
+              <th style="width:24%">Reference answer</th>
+              <th>SR-BioStruct</th>
+              <th>SR-ToxScreen</th>
+              <th>SR-LitSynth</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Optimal PAMAM generation for siRNA transfection efficiency?</td>
+              <td class="ans">G4 / NH<sub>2</sub> surface (GPE-4A class)</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-partial">~</td>
+              <td class="mark-correct">&#10003;</td>
+            </tr>
+            <tr>
+              <td>LD<sub>50</sub> threshold, cationic dendrimer, murine hepatic model?</td>
+              <td class="ans">&gt; 12 &mu;g/mL (ISO 10993-5)</td>
+              <td class="mark-partial">~</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-correct">&#10003;</td>
+            </tr>
+            <tr>
+              <td>Force field for PAMAM&ndash;siRNA MD complex simulation?</td>
+              <td class="ans">AMBER ff14SB + GAFF2</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-wrong">&#10007;</td>
+              <td class="mark-correct">&#10003;</td>
+            </tr>
+            <tr>
+              <td>Structural feature enabling dendrimer endosomal escape?</td>
+              <td class="ans">Protonatable amines (proton-sponge effect)</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-correct">&#10003;</td>
+            </tr>
+            <tr>
+              <td>Standard in vitro assay for nanoparticle cytotoxicity?</td>
+              <td class="ans">MTT assay (ISO 10993-5)</td>
+              <td class="mark-partial">~</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-correct">&#10003;</td>
+            </tr>
+            <tr>
+              <td>Typical siRNA encapsulation efficiency, G4-PAMAM, N/P 8:1?</td>
+              <td class="ans">78&ndash;92%</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-correct">&#10003;</td>
+              <td class="mark-partial">~</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">&#10003; correct &nbsp;&nbsp; ~ partial or qualified &nbsp;&nbsp; &#10007; incorrect &nbsp;&middot;&nbsp; Correctness marks are illustrative for this seed-quality example &mdash; not certified benchmark output. WP2 proposes making such records sealed and independently verifiable.</div>
+    </section>
+
+    <section class="domains-cta">
+      <div class="domains-cta-text">
+        <div class="cta-h">Regulatory context &mdash; the EU AI Act and high-risk research applications</div>
+        <div class="cta-d">AI systems that inform medical device development, clinical-adjacent research, or regulated trial protocols fall within the EU AI Act's high-risk scope. Human oversight and provenance documentation requirements apply &mdash; and the transparency obligations carry live exposure from <strong>2 August 2026</strong>. VAC's sealed acceptance record maps directly to those provisions and retrofits: the computational pipeline stays exactly as it is, and provable oversight adds at the decision points through simple APIs.</div>
+        <a class="cta-btn" href="/eu-ai-act.html">The Act, mapped &rarr;</a>
+      </div>
+      <div style="height:22px"></div>
+      <div>
+        <div class="cta-h">The identity gate &mdash; try it yourself, live</div>
+        <div class="cta-d">The PI in this scenario doesn't type a password &mdash; they pass a live multi-modal biometric ceremony: face match, passive liveness, and a spoken-and-shown number challenge, run against the VAC production backend. This is the same gate, live, on your device (~60 seconds; the recording is analysed in real time and discarded &mdash; no photos or video retained). In a research deployment, the session this ceremony mints is what binds the PI's acceptance to the sealed token.</div>
+        <a class="cta-btn" href="#" id="resBioBtn" onclick="resOpenVerify();return false;">Try the live biometric &rarr;</a>
+        <div class="bio-verified-chip" id="resBioChip">&#10003; Verified, live, against production &mdash; in a deployment, this session now signs the acceptance</div>
+      </div>
+      <div style="height:22px"></div>
+      <div>
+        <div class="cta-h">See how VAC applies across critical infrastructure operations</div>
+        <div class="cta-d">The same two primitives &mdash; verified human authority and a sealed, auditable decision trail &mdash; applied to a Smart Water Management digital twin: an anomaly is flagged, the twin runs the what-if, and a human operator accepts. Different domain, identical trust mechanics.</div>
+        <a class="cta-btn" href="/trusted-water-demo">See the water network demo &rarr;</a>
+      </div>
+    </section>
+
+    <div class="foot">
+      <strong>What the seal proves:</strong> a verified, living PI held institutional research authority and accepted a specific model-generated candidate recommendation at a specific time &mdash; with a tamper-evident record the funding body or ethics board can query independently, years after the selection was made.
+      <div class="posture">Honest scope &middot; This is a research-workflow demonstration with synthetic data &mdash; not a medical device, not clinical advice. VAC is the trust layer on top of the computational workflow: it proves acceptance, authority, and provenance. It does not run the molecular-dynamics simulation, operate the SignalRank routing layer, or conduct laboratory follow-up. The platform seals WHO ACCEPTED a model-generated scientific recommendation and under what authority. Cryptographic seal = tamper-evident provenance + audit-grade decision record, not scientific validation of the underlying models.</div>
+    </div>
+  </div>
+</div>
+
+<div class="vo" id="verifyOverlay" hidden>
+  <div class="vo-card">
+    <div class="vo-head"><span>Live VAC identity verification</span><button class="vo-close" id="voClose" type="button" aria-label="Close verification">&times;</button></div>
+    <iframe class="vo-frame" id="voFrame" title="VAC live identity verification" allow="camera; microphone; fullscreen"></iframe>
+  </div>
+</div>
+
+<script>
+var API_BASE = 'https://vac-system-production.up.railway.app';
+
+var REAL_TOKEN = {
+  jti: 'vat_root_5582446f85d6',
+  trust: 0.95,
+  verify: '/vat/verify/vat_root_5582446f85d6?intent=verify',
+  minted: false
+};
+
+var SEAL_TOKEN = REAL_TOKEN;
+
+async function mintResearchToken() {
+  var vv = window.__vacVerified || null;
+  var cerEmail = (vv && vv.email) ? String(vv.email).trim() : '';
+  var cerSession = (vv && vv.session_token) ? vv.session_token : null;
+
+  var constraints = {
+    _demo: true,
+    _conditions_are_illustrative: true,
+    _note_for_evaluator: 'Token is real and verifiable. Scenario conditions (candidate identities, PI authority, institutional scope) are synthetic. Encoding actual research governance policy is the integration build with the institution.',
+    scenario: 'computational_nanomedicine_candidate_selection',
+    study_domain: 'siRNA_dendrimer_delivery',
+    candidates_screened: 3,
+    candidate_accepted: 'GPE-4C',
+    ai_models_routed: 3,
+    signalrank_version: 'v2',
+    human_in_the_loop: true,
+    release_condition: 'authorised_pi_within_institutional_research_scope'
+  };
+  var body = {
+    human_identity: cerEmail || 'pi-researcher@biophysics.demo',
+    agent_id: 'trusted-research-demo',
+    resources: ['research:nanomedicine:candidate-selection'],
+    actions: ['authorise_research_decision', 'view_credential'],
+    verification_method: 'multi_modal',
+    sensitivity: 'high',
+    constraints: constraints,
+    context: {
+      surface: 'trusted-research-demo',
+      scenario: 'siRNA dendrimer candidate selection — synthetic representative scenario',
+      authorised_at: new Date().toISOString()
+    }
+  };
+  if (cerSession) body.authorising_session_token = cerSession;
+
+  try {
+    var r = await fetch(API_BASE + '/v1/vat/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('issue ' + r.status);
+    var data = await r.json();
+    if (!data || !data.jti) throw new Error('no jti');
+    var verifyUrl = data.verify_url || ('/vat/verify/' + data.jti);
+    SEAL_TOKEN = {
+      jti: data.jti,
+      trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
+      verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify',
+      minted: true,
+      liveCeremony: !!(cerEmail && cerSession)
+    };
+    return true;
+  } catch (e) {
+    console.warn('[research-demo] live mint failed:', e && e.message, '— using reference token');
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false, liveCeremony: false });
+    return false;
+  }
+}
+
+var STEP_BTN_LABELS = [
+  'See the MD candidate ranking',
+  'Review the multi-LLM analysis',
+  'PI reviews and decides',
+  'Seal the acceptance',
+  'View the sealed record'
+];
+
+var stepIdx = -1;
+var sealing = false;
+
+function dot(n) { return document.getElementById('dot-' + n); }
+function conn(n) { return document.getElementById('conn-' + n); }
+function stepEl(n) { return document.getElementById('step-' + n); }
+
+function renderStep(n) {
+  stepEl(n).classList.add('revealed');
+  dot(n).classList.add('active');
+}
+
+function completeStep(n) {
+  dot(n).classList.remove('active');
+  dot(n).classList.add('done');
+  if (n < 5) { conn(n).classList.add('done'); }
+}
+
+async function advance() {
+  var btn = document.getElementById('advance');
+  if (sealing) return;
+
+  stepIdx++;
+
+  if (stepIdx < 5) {
+    renderStep(stepIdx + 1);
+    if (stepIdx > 0) completeStep(stepIdx);
+
+    if (stepIdx === 3) {
+      sealing = true;
+      btn.disabled = true;
+      btn.textContent = 'Sealing...';
+      await mintResearchToken();
+      sealing = false;
+      btn.disabled = false;
+    }
+
+    if (stepIdx < 4) {
+      btn.textContent = STEP_BTN_LABELS[stepIdx + 1];
+    } else if (stepIdx === 4) {
+      completeStep(5);
+      showReceipt();
+      btn.style.display = 'none';
+    }
+  }
+}
+
+function showReceipt() {
+  try { sessionStorage.setItem('resWalkDone', '1'); } catch(e) {}
+  var tok = SEAL_TOKEN;
+  var now = new Date();
+  var ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+
+  var vv = window.__vacVerified || null;
+  var authBy = (tok.liveCeremony && vv && vv.email)
+    ? String(vv.email).trim() + ' · verified live (VAC)'
+    : 'Verified principal investigator (synthetic scenario)';
+  var tokStatus = tok.minted
+    ? (tok.liveCeremony ? 'Live mint — minted under this live session' : 'Live mint — freshly signed')
+    : 'Reference token — pre-minted';
+
+  var kvPairs = [
+    ['Scenario', 'Computational nanomedicine — siRNA dendrimer delivery candidate screen'],
+    ['Candidate accepted', 'GPE-4C (Generation-4 PEGylated C-terminus dendrimer)'],
+    ['Basis', 'MD rank #1 + SignalRank v2 consensus (BioStructure · ToxScreen · LitSynth)'],
+    ['Accepted by', authBy],
+    ['Authority scope', 'Institutional research authority — nanomedicine study protocol'],
+    ['Multi-LLM routing', 'SignalRank v2 — 3 specialist models assigned and recorded'],
+    ['Sealed at', ts],
+    ['Token (JTI)', tok.jti],
+    ['Token status', tokStatus],
+    ['Signature', 'Ed25519 · VAC production backend']
+  ];
+
+  var kvEl = document.getElementById('receiptKv');
+  kvEl.innerHTML = kvPairs.map(function(pair) {
+    var k = pair[0], v = pair[1];
+    return '<dt>' + k + '</dt><dd' + (['Token (JTI)', 'Token status', 'Signature'].indexOf(k) >= 0 ? ' class="hl"' : '') + '>' + esc(v) + '</dd>';
+  }).join('');
+
+  var auditEl = document.getElementById('auditLog');
+  var auditLines = [
+    { t: '09:12:44', e: 'MD simulation complete — 3 dendrimer candidates ranked (GPE-4C #1, affinity −12.4 kcal/mol)' },
+    { t: '09:14:07', e: 'SignalRank v2 routing complete — 3 specialist models assigned to candidate analysis' },
+    { t: '09:14:22', e: 'SR-BioStructure-v2 analysis complete — GPE-4C highest binding affinity, 18.3 H-bonds at equilibrium' },
+    { t: '09:14:31', e: 'SR-Tox-Screen-v1 analysis complete — GPE-4C IC50 > 45 μM, within pre-clinical bounds' },
+    { t: '09:14:38', e: 'SR-LitSynth-v3 analysis complete — GPE-4C consistent with 18/23 comparable literature studies' },
+    { t: '09:16:02', e: 'PI opened candidate analysis for review' },
+    { t: '09:17:49', e: 'PI accepted GPE-4C for lab follow-up — VAC identity gate initiated' },
+    { t: '09:17:51', e: 'VAC authority verified — PI identity confirmed, research scope within institutional bounds' },
+    { t: now.toISOString().replace('T', ' ').slice(0, 19), e: 'Acceptance sealed — JTI: ' + tok.jti }
+  ];
+  auditEl.innerHTML = auditLines.map(function(l) {
+    return '<div class="audit-line"><span class="t">' + esc(l.t) + '</span><span>' + esc(l.e) + '</span></div>';
+  }).join('');
+
+  var verifyDiv = document.createElement('div');
+  verifyDiv.style.marginTop = '14px';
+  if (tok.minted && tok.liveCeremony) {
+    verifyDiv.innerHTML = '<a class="verify-link" href="' + esc(safeHref(tok.verify)) + '" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Minted under this live session &mdash; human_ref derived from the verified ceremony identity.</div>';
+  } else if (tok.minted) {
+    verifyDiv.innerHTML = '<a class="verify-link" href="' + esc(safeHref(tok.verify)) + '" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>';
+  } else {
+    verifyDiv.innerHTML = '<a class="verify-link" href="' + esc(safeHref(tok.verify)) + '" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable &mdash; showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>';
+  }
+  auditEl.appendChild(verifyDiv);
+
+  document.getElementById('receipt').classList.add('show');
+}
+
+function reset() {
+  stepIdx = -1;
+  sealing = false;
+  for (var n = 1; n <= 5; n++) {
+    var d = dot(n); if (d) { d.classList.remove('active', 'done'); }
+    var c = conn(n); if (c) { c.classList.remove('done'); }
+    var el = stepEl(n); if (el) { el.classList.remove('revealed'); }
+  }
+  var receipt = document.getElementById('receipt');
+  receipt.classList.remove('show');
+  receipt.innerHTML = '<div class="receipt-head"><svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Acceptance sealed &amp; lodged</h3></div><dl class="kv" id="receiptKv"></dl><div class="audit" id="auditLog"></div>';
+  var btn = document.getElementById('advance');
+  btn.style.display = '';
+  btn.disabled = false;
+  btn.textContent = 'Begin walkthrough';
+  SEAL_TOKEN = REAL_TOKEN;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function safeHref(url) {
+  var s = String(url);
+  return /^(https?:\/\/|\/)/.test(s) ? s : '#';
+}
+
+document.getElementById('advance').onclick = advance;
+document.getElementById('reset').onclick = reset;
+</script>
+
+<script>
+(function(){
+  var overlay = document.getElementById('verifyOverlay');
+  var frame = document.getElementById('voFrame');
+  var openedAt = 0;
+  window.resOpenVerify = function() {
+    openedAt = Date.now();
+    try { localStorage.removeItem('vac_last_verified'); } catch(e) {}
+    location.assign('/auth?return=/trusted-research-demo');
+  };
+  function consumeVerifiedMirror() {
+    try {
+      var raw = localStorage.getItem('vac_last_verified');
+      if (!raw) return false;
+      var v = JSON.parse(raw);
+      if (!v || (Date.now() - (v.ts || 0)) > 300000) return false;
+      window.__vacVerified = { name: (v.name || '').trim(), email: (v.email || null), session_token: (v.session_token || null) };
+      localStorage.removeItem('vac_last_verified');
+      var chip = document.getElementById('resBioChip');
+      if (chip) {
+        chip.style.display = 'block';
+        var walkDone = false;
+        try { walkDone = sessionStorage.getItem('resWalkDone') === '1'; } catch(e) {}
+        var actionLabel = walkDone ? 'Seal it under your live session →' : 'Now walk the decision and seal it →';
+        chip.innerHTML = 'Identity verified live — your seal will be minted under this session.'
+          + '<br><a href="#" id="chipGoSeal" style="display:inline-block;margin-top:10px;background:var(--purple,#7C6FF0);color:#fff;font-weight:600;font-size:13px;padding:10px 18px;border-radius:8px;text-decoration:none;">' + actionLabel + '</a>';
+        var go = document.getElementById('chipGoSeal');
+        if (go) {
+          go.onclick = async function(ev) {
+            ev.preventDefault();
+            if (walkDone) {
+              go.textContent = 'Sealing under your live session...';
+              try {
+                await mintResearchToken();
+                showReceipt();
+                var rc = document.getElementById('receipt');
+                if (rc) { rc.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+                go.textContent = 'Sealed — receipt below ↓';
+              } catch(e) { go.textContent = 'Seal failed — try the walkthrough'; }
+              return;
+            }
+            var adv = document.getElementById('advance');
+            if (adv) {
+              adv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              adv.style.transition = 'box-shadow .3s';
+              adv.style.boxShadow = '0 0 0 3px rgba(124,111,240,.8)';
+              setTimeout(function() { adv.style.boxShadow = 'none'; }, 2600);
+            }
+          };
+        }
+        chip.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return true;
+    } catch(e) { return false; }
+  }
+  window.addEventListener('storage', function(ev) { if (ev.key === 'vac_last_verified' && ev.newValue) consumeVerifiedMirror(); });
+  window.addEventListener('pageshow', function() { consumeVerifiedMirror(); });
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) consumeVerifiedMirror(); });
+  function closeOverlay() { overlay.hidden = true; frame.src = 'about:blank'; document.body.style.overflow = ''; }
+  document.getElementById('voClose').addEventListener('click', closeOverlay);
+  window.addEventListener('message', function(ev) {
+    if (ev.origin !== window.location.origin) return;
+    var d = ev.data || {};
+    if (d.type === 'vac-auth-success') {
+      if (Date.now() - openedAt < 8000) return;
+      closeOverlay();
+      window.__vacVerified = { name: (d.name || '').trim(), email: (d.email || null), session_token: (d.session_token || null) };
+      var chip = document.getElementById('resBioChip');
+      if (chip) { chip.style.display = 'block'; chip.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
+  });
+})();
+</script>
+<div style="position:fixed;bottom:6px;right:8px;z-index:2000;font-family:monospace;font-size:10px;color:#3a4658;pointer-events:none;">build c3-1615</div>
+<script>try{navigator.sendBeacon&&navigator.sendBeacon('https://api.athenapilot.ai/v1/telemetry/view',JSON.stringify({page:location.pathname}))}catch(e){}</script>
+</body>
+</html>
