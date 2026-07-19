@@ -852,7 +852,11 @@ window.addEventListener('message', async function(e) {
     btn.innerHTML = 'Run a sealed acceptance now &mdash; LIVE';
     const receipt = document.getElementById('sealReceipt');
     receipt.classList.add('show');
-    receipt.innerHTML = `<div style="font-family:var(--mono);font-size:12px;color:var(--amber);">Authorize call failed: ${err.message}</div>`;
+    const errEl = document.createElement('div');
+    errEl.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--amber)';
+    errEl.textContent = 'Authorize call failed: ' + err.message;
+    receipt.innerHTML = '';
+    receipt.appendChild(errEl);
   }
 });
 
