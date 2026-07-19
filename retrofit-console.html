@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>VAC — Governance Console v1 (Preview)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0F1A;
+  --card:#0F1524;
+  --card-raised:#141A2E;
+  --border:#1E2536;
+  --border-light:#2A3352;
+  --gold:#C9A227;
+  --gold-bg:rgba(201,162,39,0.08);
+  --gold-border:rgba(201,162,39,0.22);
+  --teal:#2DD4BF;
+  --teal-bg:rgba(45,212,191,0.07);
+  --teal-border:rgba(45,212,191,0.2);
+  --green:#34D399;
+  --green-bg:rgba(52,211,153,0.07);
+  --green-border:rgba(52,211,153,0.2);
+  --amber:#D9A441;
+  --amber-bg:rgba(217,164,65,0.08);
+  --amber-border:rgba(217,164,65,0.22);
+  --red:#F87171;
+  --red-bg:rgba(248,113,113,0.07);
+  --ink:#E8E4D8;
+  --dim:#8B8FA3;
+  --quiet:#5A5F75;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --serif:'Fraunces',Georgia,serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:16px;}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh;}
+.wrap{max-width:860px;margin:0 auto;padding:0 clamp(16px,4vw,28px);}
+
+/* Preview banner */
+.preview-banner{background:var(--gold-bg);border-bottom:1px solid var(--gold-border);padding:9px 20px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase;}
+
+/* Header */
+header.top{border-bottom:1px solid var(--border);padding:18px 0;margin-bottom:36px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-name{font-weight:700;color:var(--ink);font-size:16px;letter-spacing:-.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.1em;}
+.nav-badge{font-family:var(--mono);font-size:10px;padding:3px 9px;border-radius:4px;letter-spacing:.05em;font-weight:600;color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-border);}
+
+/* Hero */
+.hero{margin-bottom:36px;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.18em;text-transform:uppercase;margin-bottom:12px;}
+.hero h1{font-family:var(--serif);font-weight:650;font-size:clamp(23px,4.4vw,33px);line-height:1.16;color:var(--ink);margin-bottom:14px;max-width:680px;}
+.hero-lede{font-size:clamp(14px,3.5vw,16px);color:var(--dim);max-width:660px;line-height:1.7;}
+.hero-lede strong{color:var(--ink);}
+
+/* Wizard shell */
+.wizard{margin-bottom:0;}
+.wizard-progress{display:flex;align-items:center;gap:0;margin-bottom:32px;}
+.wdot{width:30px;height:30px;border-radius:50%;border:2px solid var(--border-light);background:var(--card);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--quiet);transition:all .3s;flex:0 0 30px;position:relative;z-index:1;}
+.wdot.active{border-color:var(--gold);color:var(--gold);box-shadow:0 0 10px rgba(201,162,39,0.3);}
+.wdot.done{border-color:var(--green);background:var(--green-bg);color:var(--green);}
+.wline{flex:1;height:2px;background:var(--border);transition:background .3s;}
+.wline.done{background:var(--green);}
+
+/* Step cards */
+.step-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:clamp(18px,4.5vw,28px);margin-bottom:20px;display:none;}
+.step-card.active{display:block;animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+.step-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+.step-num{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px;}
+.step-head h2{font-family:var(--serif);font-weight:650;font-size:clamp(17px,4vw,21px);color:var(--ink);line-height:1.2;}
+.preview-chip{font-family:var(--mono);font-size:10px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:2px 8px;letter-spacing:.04em;white-space:nowrap;}
+
+/* Form controls */
+label.field-label{display:block;font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;margin-top:18px;}
+label.field-label:first-of-type{margin-top:0;}
+select.vac-select{width:100%;background:var(--card-raised);border:1px solid var(--border-light);border-radius:7px;color:var(--ink);font-family:var(--font);font-size:14px;padding:10px 14px;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238B8FA3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg);}
+
+/* Multi-select checklist */
+.check-group{display:flex;flex-direction:column;gap:8px;}
+.check-row{display:flex;align-items:flex-start;gap:10px;background:var(--card-raised);border:1px solid var(--border);border-radius:7px;padding:11px 14px;cursor:pointer;transition:border-color .15s;}
+.check-row:hover{border-color:var(--border-light);}
+.check-row input[type=checkbox]{width:16px;height:16px;flex:0 0 16px;accent-color:var(--gold);cursor:pointer;margin-top:2px;}
+.check-row .check-label{font-size:14px;color:var(--ink);line-height:1.45;}
+.check-row .check-note{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:2px;}
+.extract-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin-bottom:10px;letter-spacing:.04em;}
+
+/* Tier rows */
+.tier-group{display:flex;flex-direction:column;gap:14px;}
+.tier-row{background:var(--card-raised);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+.tier-decision{font-size:13.5px;color:var(--ink);font-weight:600;margin-bottom:8px;}
+.tier-select-wrap{position:relative;}
+.tier-req{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:8px;min-height:16px;transition:color .2s;}
+.tier-req.t2{color:var(--teal);}
+.tier-req.t3{color:var(--amber);}
+.tier-req.tf{color:var(--gold);}
+
+/* Authority rows */
+.authority-group{display:flex;flex-direction:column;gap:12px;}
+.authority-row{background:var(--card-raised);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+.authority-role{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
+.authority-note{font-family:var(--mono);font-size:10.5px;color:var(--quiet);margin-top:6px;}
+
+/* Rails step */
+.rails-row{background:var(--card-raised);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;}
+.rails-check{width:18px;height:18px;accent-color:var(--green);flex:0 0 18px;margin-top:2px;}
+.rails-body{flex:1;}
+.rails-title{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:3px;}
+.rails-sub{font-family:var(--mono);font-size:11px;color:var(--dim);}
+.rails-caption{font-family:var(--mono);font-size:11px;color:var(--gold);font-style:italic;margin-top:14px;padding-top:12px;border-top:1px solid var(--border);}
+
+/* Nav buttons */
+.step-nav{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap;}
+.btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:7px;padding:11px 20px;cursor:pointer;border:1px solid transparent;transition:all .15s;line-height:1;}
+.btn-primary{background:var(--gold);color:#0A0F1A;}
+.btn-primary:hover{background:#D4AA30;}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed;}
+.btn-ghost{background:transparent;border-color:var(--border-light);color:var(--dim);}
+.btn-ghost:hover{border-color:var(--dim);color:var(--ink);}
+
+/* Dashboard */
+#dashboard{display:none;margin-top:8px;}
+#dashboard.show{display:block;animation:fadein .3s ease;}
+.dash-eyebrow{font-family:var(--mono);font-size:11px;color:var(--green);letter-spacing:.18em;text-transform:uppercase;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+.dash-eyebrow::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);}
+.dash-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:clamp(18px,4.5vw,26px);margin-bottom:20px;}
+.dash-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+.dash-card-title{font-family:var(--serif);font-weight:650;font-size:17px;color:var(--ink);}
+.dash-card-badge{font-family:var(--mono);font-size:10px;border-radius:4px;padding:2px 8px;letter-spacing:.04em;}
+.badge-preview{color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);}
+.badge-real{color:var(--green);background:var(--green-bg);border:1px solid var(--green-border);}
+.badge-live{color:var(--red);background:var(--red-bg);border:1px solid rgba(248,113,113,0.25);}
+
+/* Manifest JSON block */
+.manifest-json{background:#070B12;border:1px solid var(--border);border-radius:8px;padding:16px;font-family:var(--mono);font-size:12px;line-height:1.7;color:var(--dim);overflow-x:auto;white-space:pre;}
+.manifest-json .key{color:#79B8FF;}
+.manifest-json .str{color:#9ECBFF;}
+.manifest-json .num{color:#B3D9C5;}
+.manifest-json .bool{color:var(--gold);}
+.manifest-json .ver{color:var(--green);}
+.manifest-note{font-family:var(--mono);font-size:11px;color:var(--quiet);margin-top:8px;}
+
+/* API snippets */
+.api-group{display:flex;flex-direction:column;gap:14px;}
+.api-block{background:#070B12;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+.api-block-head{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.api-method{font-family:var(--mono);font-size:11px;font-weight:500;padding:2px 7px;border-radius:3px;}
+.method-post{color:#E8B86D;background:rgba(232,184,109,0.1);border:1px solid rgba(232,184,109,0.2);}
+.method-get{color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);}
+.api-path{font-family:var(--mono);font-size:12px;color:var(--dim);}
+.api-curl{padding:14px;font-family:var(--mono);font-size:11.5px;line-height:1.75;color:var(--dim);overflow-x:auto;white-space:pre;}
+.api-curl .cmd{color:#79B8FF;}
+.api-curl .flag{color:var(--gold);}
+.api-curl .str{color:#9ECBFF;}
+.api-curl .comment{color:var(--quiet);font-style:italic;}
+
+/* Evidence card */
+.evidence-link{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:13px;font-weight:500;color:var(--teal);text-decoration:none;border:1.5px solid var(--teal-border);background:var(--teal-bg);border-radius:8px;padding:10px 16px;transition:all .15s;margin-bottom:12px;}
+.evidence-link:hover{background:var(--teal);color:#0A0F1A;border-color:var(--teal);}
+.evidence-note{font-size:13.5px;color:var(--dim);line-height:1.65;}
+
+/* Live action */
+.live-action-wrap{margin-top:4px;}
+.live-warn{font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:6px;padding:10px 14px;margin-bottom:14px;line-height:1.55;}
+.btn-live{background:#0A0F1A;border:2px solid var(--gold);color:var(--gold);font-family:var(--font);font-size:15px;font-weight:700;border-radius:8px;padding:14px 26px;cursor:pointer;transition:all .2s;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;}
+.btn-live:hover{background:var(--gold);color:#0A0F1A;box-shadow:0 0 24px rgba(201,162,39,0.35);}
+.btn-live .live-dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:pulse 1.6s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* Verify overlay */
+#verifyOverlay{position:fixed;inset:0;background:rgba(10,15,26,0.96);z-index:900;display:flex;flex-direction:column;align-items:stretch;}
+#verifyOverlay[hidden]{display:none;}
+.vo-bar{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--card);}
+.vo-bar-label{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;}
+.vo-bar-note{font-family:var(--mono);font-size:10px;color:var(--dim);}
+.vo-close-btn{font-family:var(--mono);font-size:12px;color:var(--dim);background:transparent;border:1px solid var(--border);border-radius:5px;padding:5px 12px;cursor:pointer;}
+.vo-close-btn:hover{color:var(--ink);border-color:var(--border-light);}
+#voFrame{flex:1;width:100%;border:none;background:var(--bg);}
+
+/* Seal receipt */
+.seal-receipt{background:var(--card-raised);border:1px solid var(--green-border);border-radius:10px;padding:20px;margin-top:16px;display:none;}
+.seal-receipt.show{display:block;animation:fadein .3s ease;}
+.seal-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.seal-icon{flex:0 0 28px;}
+.seal-title{color:var(--green);font-size:15px;font-weight:700;}
+.kv{display:grid;grid-template-columns:clamp(120px,30%,160px) 1fr;gap:5px 12px;}
+.kv dt{font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.04em;padding-top:1px;}
+.kv dd{font-family:var(--mono);font-size:12px;color:var(--dim);word-break:break-all;}
+.kv dd.hl{color:var(--ink);}
+.verify-link-btn{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--teal);text-decoration:none;border:1.5px solid var(--teal-border);background:var(--teal-bg);border-radius:7px;padding:9px 15px;margin-top:14px;transition:all .15s;cursor:pointer;}
+.verify-link-btn:hover{background:var(--teal);color:#0A0F1A;border-color:var(--teal);}
+
+/* Footer */
+.foot{margin-top:52px;padding:24px 0 16px;border-top:1px solid var(--border);font-size:13px;color:var(--quiet);}
+.foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--quiet);line-height:1.65;}
+
+/* Living document stamp */
+.living-stamp{position:fixed;bottom:9px;right:13px;font-family:var(--mono);font-size:10px;color:var(--quiet);opacity:.65;letter-spacing:.04em;pointer-events:none;}
+
+/* Responsive */
+@media(max-width:540px){
+  .top-row{flex-direction:column;align-items:flex-start;}
+  .step-nav{flex-direction:column;}
+  .btn{width:100%;text-align:center;justify-content:center;}
+  .kv{grid-template-columns:1fr;}
+  .kv dt{color:var(--quiet);font-size:10px;}
+}
+</style>
+</head>
+<body>
+
+<div class="preview-banner">Console preview &middot; illustrative extraction &middot; the seal action is live production</div>
+
+<div class="wrap" style="padding-top:0;">
+  <header class="top">
+    <div class="top-row">
+      <div class="brand">
+        <svg class="mark" width="34" height="34" viewBox="0 0 34 34" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="34" height="34" rx="8" fill="#0F1524"/>
+          <path d="M17 6L28 12.5V21.5L17 28L6 21.5V12.5L17 6Z" stroke="#C9A227" stroke-width="1.5" fill="none"/>
+          <path d="M17 10L24 14V22L17 26L10 22V14L17 10Z" fill="#C9A227" fill-opacity="0.12"/>
+          <circle cx="17" cy="17" r="3" fill="#C9A227"/>
+        </svg>
+        <div>
+          <div class="brand-name">VAC</div>
+          <div class="brand-sub">VERIFIED AUTHORITY CHAIN</div>
+        </div>
+      </div>
+      <div class="nav-badge">GOVERNANCE CONSOLE PREVIEW</div>
+    </div>
+  </header>
+
+  <div class="hero">
+    <div class="eyebrow">F-865 &middot; Configuration framework demo</div>
+    <h1>Your system.<br>Your decision points.<br>Your authority chain.</h1>
+    <p class="hero-lede">
+      This console shows how VAC maps from <strong>your operational SOPs</strong> to a versioned
+      deployment manifest &mdash; decision point by decision point, role by role, regulation by regulation.
+      The wizard is illustrative; the seal it produces is <strong>live production</strong>.
+    </p>
+  </div>
+
+  <!-- Wizard progress bar -->
+  <div class="wizard-progress" id="wizardProgress" aria-label="Wizard progress">
+    <div class="wdot active" id="wdot-1" title="Your system">1</div>
+    <div class="wline" id="wline-1"></div>
+    <div class="wdot" id="wdot-2" title="Decision points">2</div>
+    <div class="wline" id="wline-2"></div>
+    <div class="wdot" id="wdot-3" title="Assurance tiers">3</div>
+    <div class="wline" id="wline-3"></div>
+    <div class="wdot" id="wdot-4" title="Authority">4</div>
+    <div class="wline" id="wline-4"></div>
+    <div class="wdot" id="wdot-5" title="Rails">5</div>
+  </div>
+
+  <!-- STEP 1: Your system -->
+  <div class="step-card active" id="step-1" role="region" aria-labelledby="step1-title">
+    <div class="step-head">
+      <div>
+        <div class="step-num">Step 1 of 5</div>
+        <h2 id="step1-title">Your system</h2>
+      </div>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:18px;line-height:1.65;">
+      Select the operational system VAC will sit alongside. This seeds the decision-point library for step 2.
+    </p>
+    <label class="field-label" for="systemSelect">System type</label>
+    <select class="vac-select" id="systemSelect" onchange="onSystemChange()">
+      <option value="">Select your system&hellip;</option>
+      <option value="water">Water digital twin (AQP-class)</option>
+      <option value="scada">SCADA-ADMS</option>
+      <option value="case">Case management</option>
+      <option value="custom">Custom</option>
+    </select>
+    <div id="systemDesc" style="margin-top:14px;font-family:var(--mono);font-size:12px;color:var(--dim);line-height:1.65;min-height:20px;"></div>
+    <div class="step-nav">
+      <button class="btn btn-primary" id="step1Next" onclick="goTo(2)" disabled>Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Decision points -->
+  <div class="step-card" id="step-2" role="region" aria-labelledby="step2-title">
+    <div class="step-head">
+      <div>
+        <div class="step-num">Step 2 of 5</div>
+        <h2 id="step2-title">Decision points</h2>
+      </div>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:14px;line-height:1.65;">
+      Select which decisions in your workflow require a verified human authority seal.
+    </p>
+    <span class="extract-badge">Example extraction &mdash; the product does this from your SOPs</span>
+    <div class="check-group" id="decisionChecks"></div>
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goTo(1)">&larr; Back</button>
+      <button class="btn btn-primary" id="step2Next" onclick="goTo(3)" disabled>Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Assurance tiers -->
+  <div class="step-card" id="step-3" role="region" aria-labelledby="step3-title">
+    <div class="step-head">
+      <div>
+        <div class="step-num">Step 3 of 5</div>
+        <h2 id="step3-title">Assurance tiers</h2>
+      </div>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:18px;line-height:1.65;">
+      Assign an assurance template to each selected decision point. The tier encodes what the verification ceremony requires.
+    </p>
+    <div class="tier-group" id="tierGroup"></div>
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goTo(2)">&larr; Back</button>
+      <button class="btn btn-primary" onclick="goTo(4)">Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: Authority -->
+  <div class="step-card" id="step-4" role="region" aria-labelledby="step4-title">
+    <div class="step-head">
+      <div>
+        <div class="step-num">Step 4 of 5</div>
+        <h2 id="step4-title">Authority</h2>
+      </div>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:18px;line-height:1.65;">
+      Map operational roles to delegates who may seal decisions. In production, this roster is ingested from your SSO (SCIM).
+    </p>
+    <div class="authority-group" id="authorityGroup"></div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--quiet);margin-top:14px;padding:10px 14px;background:var(--card-raised);border:1px solid var(--border);border-radius:6px;">
+      Production: delegate roster ingested from your SSO via SCIM. Identity verified per ceremony tier.
+    </div>
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goTo(3)">&larr; Back</button>
+      <button class="btn btn-primary" onclick="goTo(5)">Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- STEP 5: Rails -->
+  <div class="step-card" id="step-5" role="region" aria-labelledby="step5-title">
+    <div class="step-head">
+      <div>
+        <div class="step-num">Step 5 of 5</div>
+        <h2 id="step5-title">Rails</h2>
+      </div>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:18px;line-height:1.65;">
+      Select the regulatory rails that govern this deployment. Each pack is version-stamped and included in every sealed record.
+    </p>
+
+    <div class="rails-row">
+      <input type="checkbox" class="rails-check" id="railEuAiAct" checked readonly onclick="return false;">
+      <div class="rails-body">
+        <div class="rails-title">EU AI Act compliance pack v1</div>
+        <div class="rails-sub">Pack ID: eu-ai-act-pack-v1-2026-08 &middot; Art 50 Aug-2026 &middot; Annex III risk classification</div>
+      </div>
+    </div>
+
+    <label class="field-label" for="jurisdictionSelect" style="margin-top:16px;">Jurisdiction</label>
+    <select class="vac-select" id="jurisdictionSelect">
+      <option value="au">Australia (AIML Reg 2025)</option>
+      <option value="eu" selected>European Union (EU AI Act)</option>
+      <option value="uk">United Kingdom (AI Regulation Bill)</option>
+      <option value="us-ca">United States &mdash; California (AB 302)</option>
+      <option value="nz">New Zealand (AIEA Draft 2026)</option>
+    </select>
+
+    <div class="rails-caption">Regulation as configuration &mdash; the pack is sealed into every token, not referenced by link.</div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goTo(4)">&larr; Back</button>
+      <button class="btn btn-primary" onclick="buildDashboard()">Build deployment manifest &rarr;</button>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard">
+    <div class="dash-eyebrow">Deployment manifest generated</div>
+
+    <!-- (a) Manifest card -->
+    <div class="dash-card" id="manifestCard">
+      <div class="dash-card-head">
+        <div class="dash-card-title">Deployment manifest</div>
+        <span class="dash-card-badge badge-preview">Preview manifest &middot; not yet submitted</span>
+      </div>
+      <div class="manifest-json" id="manifestJson"></div>
+      <div class="manifest-note">Sealed on issue &mdash; each token minted against this manifest inherits the version stamp and regulatory pack reference.</div>
+    </div>
+
+    <!-- (b) Integration card -->
+    <div class="dash-card">
+      <div class="dash-card-head">
+        <div class="dash-card-title">Integration</div>
+        <span class="dash-card-badge badge-real">Real endpoints &middot; illustrative manifest ids</span>
+      </div>
+      <p style="font-size:13.5px;color:var(--dim);margin-bottom:16px;line-height:1.65;">
+        Three calls wire your system to VAC. The manifest id and action names below are drawn from your selections above.
+      </p>
+      <div class="api-group" id="apiGroup"></div>
+    </div>
+
+    <!-- (c) Evidence card -->
+    <div class="dash-card">
+      <div class="dash-card-head">
+        <div class="dash-card-title">Regulatory evidence</div>
+        <span class="dash-card-badge badge-real">Live document</span>
+      </div>
+      <a class="evidence-link" href="/eu-ai-act" target="_blank">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h4v1.5H3.5v7h7V9H12v4H2V2z" fill="currentColor"/><path d="M8 2h4v4h-1.5V4.06L6.03 8.53 4.97 7.47 9.44 3H8V2z" fill="currentColor"/></svg>
+        EU AI Act evidence page
+      </a>
+      <p class="evidence-note">
+        Each VAC deployment generates a living evidence page that records: the regulatory pack version applied,
+        the decision points covered, the ceremony tiers configured, and a queryable sealed-token audit trail.
+        Regulators can verify independently without system access.
+      </p>
+    </div>
+
+    <!-- (d) Live action card -->
+    <div class="dash-card">
+      <div class="dash-card-head">
+        <div class="dash-card-title">Run a sealed acceptance</div>
+        <span class="dash-card-badge badge-live">LIVE PRODUCTION</span>
+      </div>
+      <div class="live-action-wrap">
+        <div class="live-warn">
+          This button opens the <strong>live VAC verification ceremony</strong> against the production backend.
+          The seal it produces is a real, cryptographically signed token &mdash; verifiable by JTI, independently,
+          years after the event. Not a demo seal.
+        </div>
+        <button class="btn-live" id="liveActionBtn" onclick="openLiveCeremony()">
+          <span class="live-dot"></span>
+          Run a sealed acceptance now &mdash; LIVE
+        </button>
+        <div id="sealReceipt" class="seal-receipt">
+          <div class="seal-head">
+            <svg class="seal-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <circle cx="14" cy="14" r="13" stroke="#34D399" stroke-width="1.5"/>
+              <path d="M8 14l4 4 8-8" stroke="#34D399" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="seal-title">Sealed &mdash; live production</div>
+          </div>
+          <dl class="kv" id="sealKv"></dl>
+          <a class="verify-link-btn" id="sealVerifyLink" href="#" target="_blank">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 1h4v1.5H2.5v6h6V8H10v4H1V1z" fill="currentColor"/><path d="M7 1h4v4H9.5V3.06L5.03 7.53 3.97 6.47 8.44 2H7V1z" fill="currentColor"/></svg>
+            Verify this token
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <strong style="color:var(--dim);">Console preview &middot; the seal is production.</strong>
+    <div class="posture">
+      This wizard illustrates how VAC ingests your SOPs, extracts decision points, and generates a versioned deployment manifest.
+      The configuration mapping is the product; the curl snippets above call the real VAC backend.
+      The live ceremony seal is cryptographically bound to a verified human authority &mdash; tamper-evident,
+      regulator-grade, independently verifiable by JTI.
+    </div>
+  </div>
+</div>
+
+<!-- Verify overlay (reuses trusted-water-demo pattern) -->
+<div id="verifyOverlay" hidden role="dialog" aria-modal="true" aria-label="VAC live verification ceremony">
+  <div class="vo-bar">
+    <div>
+      <div class="vo-bar-label">Live production &mdash; VAC verification ceremony</div>
+      <div class="vo-bar-note">Face match &middot; liveness &middot; spoken number challenge &middot; real backend</div>
+    </div>
+    <button class="vo-close-btn" onclick="closeVerify()">Close</button>
+  </div>
+  <iframe id="voFrame" src="about:blank" allow="camera;microphone" title="VAC verification ceremony"></iframe>
+</div>
+
+<div class="living-stamp">living document &middot; updated 19 Jul 2026</div>
+
+<script>
+const API_BASE = 'https://vac-system-production.up.railway.app';
+const VERIFY_SRC = '/auth.html';
+
+// ── Decision point library ────────────────────────────────────────────────────
+
+const DECISION_POINTS = {
+  water: [
+    { id:'pressure_reduction', label:'Accept Stage-1 pressure reduction', note:'DMA pressure delta &gt;8%, network-model confirmed' },
+    { id:'meter_anomaly', label:'Approve meter-anomaly response', note:'AMI anomaly score &gt;0.85, field dispatch authorised' },
+    { id:'valve_actuation', label:'Authorise valve actuation', note:'Isolation valve, critical main, written SOP required' },
+    { id:'network_model', label:'Sign off network-model change', note:'Calibration update, demand-zone boundary shift' },
+  ],
+  scada: [
+    { id:'load_shed', label:'Approve load-shed sequence', note:'Grid contingency, non-firm customer roster' },
+    { id:'switching_order', label:'Authorise switching order', note:'HV switching, authorised person sign-off' },
+    { id:'set_point', label:'Accept set-point override', note:'EMS set-point outside auto-band, manual authority required' },
+    { id:'protection_bypass', label:'Sign off protection bypass', note:'Temporary bypass, time-limited, written scope' },
+  ],
+  case: [
+    { id:'financial_approval', label:'Approve financial disbursement', note:'Payment above threshold, dual-authority required' },
+    { id:'case_close', label:'Authorise case closure', note:'Statutory deadline, compliance officer sign-off' },
+    { id:'record_amend', label:'Sign off record amendment', note:'Immutable audit record change, regulated data class' },
+    { id:'access_grant', label:'Grant elevated data access', note:'PII / restricted dataset, time-scoped authority' },
+  ],
+  custom: [
+    { id:'custom_1', label:'Decision point A', note:'Define in your SOP document' },
+    { id:'custom_2', label:'Decision point B', note:'Define in your SOP document' },
+    { id:'custom_3', label:'Decision point C', note:'Define in your SOP document' },
+  ],
+};
+
+const SYSTEM_DESCS = {
+  water: 'Water digital twin (AQP-class) &mdash; smart water management, pressure zone modelling, field dispatch workflows.',
+  scada: 'SCADA-ADMS &mdash; supervisory control and energy management systems, HV switching, grid contingency operations.',
+  case: 'Case management &mdash; regulated case workflows, financial disbursements, statutory record management.',
+  custom: 'Custom system &mdash; define your own decision points from your existing SOPs.',
+};
+
+const AUTHORITY_ROLES = [
+  { role:'NOC engineer', key:'noc_engineer', delegates:['A. Rahman', 'J. Park', 'S. Okonkwo'] },
+  { role:'Duty manager', key:'duty_manager', delegates:['M. Brennan', 'L. Torres', 'K. Singh'] },
+  { role:'Compliance officer', key:'compliance_officer', delegates:['P. Vasquez', 'R. Nakamura'] },
+];
+
+const TIER_TEMPLATES = [
+  { value:'t2', label:'Operational acceptance (Tier 2 &mdash; verified person)', req:'Face match + liveness + spoken number challenge. Single authority. Ed25519 sealed token.' },
+  { value:'t3', label:'Safety-critical actuation (Tier 3 &mdash; step-up + dual option)', req:'Tier 2 ceremony + step-up re-auth at action time. Dual-authority available. Time-scoped token with actuation fingerprint.' },
+  { value:'tf', label:'Financial approval (Tier 2 + threshold step-up)', req:'Tier 2 base. If amount exceeds configured threshold: automatic step-up to Tier 3 + second authority required.' },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+let state = {
+  system: '',
+  selectedDecisions: new Set(),
+  tiers: {},        // decision id → tier value
+  authority: {},    // role key → delegate name
+  jurisdiction: 'eu',
+};
+
+// ── Step 1 ────────────────────────────────────────────────────────────────────
+
+function onSystemChange() {
+  const v = document.getElementById('systemSelect').value;
+  state.system = v;
+  state.selectedDecisions = new Set();
+  document.getElementById('systemDesc').innerHTML = v ? SYSTEM_DESCS[v] : '';
+  document.getElementById('step1Next').disabled = !v;
+}
+
+// ── Step 2 ────────────────────────────────────────────────────────────────────
+
+function buildDecisionChecks() {
+  const pts = DECISION_POINTS[state.system] || [];
+  const wrap = document.getElementById('decisionChecks');
+  wrap.innerHTML = pts.map(p => `
+    <label class="check-row" for="dp-${p.id}">
+      <input type="checkbox" id="dp-${p.id}" value="${p.id}"
+        ${state.selectedDecisions.has(p.id) ? 'checked' : ''}
+        onchange="onDecisionChange('${p.id}', this.checked)">
+      <div>
+        <div class="check-label">${p.label}</div>
+        <div class="check-note">${p.note}</div>
+      </div>
+    </label>
+  `).join('');
+  updateStep2Next();
+}
+
+function onDecisionChange(id, checked) {
+  if (checked) state.selectedDecisions.add(id);
+  else state.selectedDecisions.delete(id);
+  updateStep2Next();
+}
+
+function updateStep2Next() {
+  document.getElementById('step2Next').disabled = state.selectedDecisions.size === 0;
+}
+
+// ── Step 3 ────────────────────────────────────────────────────────────────────
+
+function buildTierRows() {
+  const pts = (DECISION_POINTS[state.system] || []).filter(p => state.selectedDecisions.has(p.id));
+  const wrap = document.getElementById('tierGroup');
+  wrap.innerHTML = pts.map(p => {
+    const current = state.tiers[p.id] || 't2';
+    const opts = TIER_TEMPLATES.map(t =>
+      `<option value="${t.value}" ${current === t.value ? 'selected' : ''}>${t.label}</option>`
+    ).join('');
+    return `
+    <div class="tier-row">
+      <div class="tier-decision">${p.label}</div>
+      <div class="tier-select-wrap">
+        <select class="vac-select" onchange="onTierChange('${p.id}', this.value)">
+          ${opts}
+        </select>
+      </div>
+      <div class="tier-req ${current}" id="tier-req-${p.id}">${getTierReq(current)}</div>
+    </div>`;
+  }).join('');
+}
+
+function onTierChange(id, val) {
+  state.tiers[id] = val;
+  const el = document.getElementById(`tier-req-${id}`);
+  if (el) { el.className = `tier-req ${val}`; el.textContent = getTierReq(val); }
+}
+
+function getTierReq(val) {
+  const t = TIER_TEMPLATES.find(x => x.value === val);
+  return t ? t.req.replace(/&mdash;/g, '—') : '';
+}
+
+// ── Step 4 ────────────────────────────────────────────────────────────────────
+
+function buildAuthorityRows() {
+  const wrap = document.getElementById('authorityGroup');
+  wrap.innerHTML = AUTHORITY_ROLES.map(r => {
+    const current = state.authority[r.key] || r.delegates[0];
+    const opts = r.delegates.map(d =>
+      `<option value="${d}" ${current === d ? 'selected' : ''}>${d}</option>`
+    ).join('');
+    return `
+    <div class="authority-row">
+      <div class="authority-role">${r.role}</div>
+      <select class="vac-select" onchange="state.authority['${r.key}']=this.value">
+        ${opts}
+      </select>
+      <div class="authority-note">Sample delegate &mdash; production: ingested from your SSO (SCIM)</div>
+    </div>`;
+  }).join('');
+  AUTHORITY_ROLES.forEach(r => {
+    if (!state.authority[r.key]) state.authority[r.key] = r.delegates[0];
+  });
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+function goTo(n) {
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById(`step-${i}`).classList.toggle('active', i === n);
+    const dot = document.getElementById(`wdot-${i}`);
+    dot.classList.remove('active', 'done');
+    if (i < n) dot.classList.add('done');
+    else if (i === n) dot.classList.add('active');
+    if (i < 5) {
+      document.getElementById(`wline-${i}`).classList.toggle('done', i < n);
+    }
+  }
+  if (n === 2) buildDecisionChecks();
+  if (n === 3) buildTierRows();
+  if (n === 4) buildAuthorityRows();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+function buildDashboard() {
+  // Mark all wizard dots done
+  for (let i = 1; i <= 5; i++) {
+    const dot = document.getElementById(`wdot-${i}`);
+    dot.classList.remove('active');
+    dot.classList.add('done');
+    if (i < 5) document.getElementById(`wline-${i}`).classList.add('done');
+  }
+  // Hide all step cards
+  for (let i = 1; i <= 5; i++) {
+    document.getElementById(`step-${i}`).classList.remove('active');
+  }
+
+  state.jurisdiction = document.getElementById('jurisdictionSelect').value;
+
+  const manifestId = 'vac-manifest-' + pseudoId();
+  const pts = (DECISION_POINTS[state.system] || []).filter(p => state.selectedDecisions.has(p.id));
+  const firstAction = pts[0] ? pts[0].id : 'decision_point_1';
+
+  // (a) Manifest JSON
+  const manifest = {
+    manifest_id: manifestId,
+    schema_version: 'vac/manifest/v1',
+    system: state.system,
+    generated: '2026-07-19T00:00:00Z',
+    decision_points: pts.map(p => ({
+      action: p.id,
+      label: p.label,
+      tier: state.tiers[p.id] || 't2',
+      ceremony: getTierCeremonyShort(state.tiers[p.id] || 't2'),
+    })),
+    authority: Object.entries(state.authority).map(([role, delegate]) => ({ role, delegate })),
+    rails: {
+      eu_ai_act: 'eu-ai-act-pack-v1-2026-08',
+      jurisdiction: state.jurisdiction,
+    },
+    sealed_on_issue: true,
+  };
+
+  const json = jsonColorize(JSON.stringify(manifest, null, 2));
+  document.getElementById('manifestJson').innerHTML = json;
+
+  // (b) API snippets
+  const apiHtml = `
+    <div class="api-block">
+      <div class="api-block-head">
+        <div><span class="api-method method-post">POST</span> <span class="api-path">/v1/vat/issue</span></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--dim);">Mint a session-bound token</span>
+      </div>
+      <div class="api-curl"><span class="cmd">curl</span> <span class="flag">-X</span> POST <span class="str">'${API_BASE}/v1/vat/issue'</span> \\
+  <span class="flag">-H</span> <span class="str">'Content-Type: application/json'</span> \\
+  <span class="flag">-d</span> <span class="str">'{
+    "email": "engineer@utility.org",
+    "action": "${firstAction}",
+    "manifest_id": "${manifestId}",
+    "conditions": {
+      "manifest_id": "${manifestId}",
+      "action": "${firstAction}",
+      "rails": "eu-ai-act-pack-v1-2026-08"
+    }
+  }'</span></div>
+    </div>
+    <div class="api-block">
+      <div class="api-block-head">
+        <div><span class="api-method method-post">POST</span> <span class="api-path">/v1/vat/authorize</span></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--dim);">Seal a decision against verified identity</span>
+      </div>
+      <div class="api-curl"><span class="cmd">curl</span> <span class="flag">-X</span> POST <span class="str">'${API_BASE}/v1/vat/authorize'</span> \\
+  <span class="flag">-H</span> <span class="str">'Content-Type: application/json'</span> \\
+  <span class="flag">-d</span> <span class="str">'{
+    "session_token": "&lt;session_token_from_ceremony&gt;",
+    "action": "seal_decision",
+    "actions": ["${firstAction}"],
+    "manifest_id": "${manifestId}",
+    "note": "Sealed via governance console walkthrough"
+  }'</span></div>
+    </div>
+    <div class="api-block">
+      <div class="api-block-head">
+        <div><span class="api-method method-get">GET</span> <span class="api-path">/vat/verify/:jti</span></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--dim);">Verify a sealed token by JTI</span>
+      </div>
+      <div class="api-curl"><span class="cmd">curl</span> <span class="str">'${API_BASE}/vat/verify/&lt;jti&gt;?intent=verify'</span>
+<span class="comment"># Returns signed token + verification status. No auth required &mdash; publicly verifiable.</span></div>
+    </div>`;
+  document.getElementById('apiGroup').innerHTML = apiHtml;
+
+  // Set live button action label with first decision point
+  document.getElementById('liveActionBtn').setAttribute('data-action', firstAction);
+  document.getElementById('liveActionBtn').setAttribute('data-manifest', manifestId);
+
+  const dash = document.getElementById('dashboard');
+  dash.classList.add('show');
+  setTimeout(() => dash.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+}
+
+function getTierCeremonyShort(val) {
+  const map = {
+    t2: 'face_match + liveness + spoken_challenge',
+    t3: 'tier_2 + step_up + dual_authority_option',
+    tf: 'tier_2 + threshold_step_up',
+  };
+  return map[val] || 'tier_2';
+}
+
+function jsonColorize(str) {
+  return str
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"([^"]+)":/g, '<span class="key">"$1"</span>:')
+    .replace(/: "([^"]*)"/g, ': <span class="str">"$1"</span>')
+    .replace(/: (\d+\.?\d*)/g, ': <span class="num">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="bool">$1</span>')
+    .replace(/"(vac\/manifest\/v1|eu-ai-act-pack-v1-2026-08)"/g, '<span class="ver">"$1"</span>');
+}
+
+function pseudoId() {
+  // Deterministic-looking id from page load time; not crypto random
+  const n = (performance.now() * 1000 | 0).toString(16).padStart(8, '0');
+  return n.slice(0, 4) + n.slice(4);
+}
+
+// ── Live ceremony (reuses trusted-water-demo pattern) ─────────────────────────
+
+function openLiveCeremony() {
+  const overlay = document.getElementById('verifyOverlay');
+  const frame = document.getElementById('voFrame');
+  const qs = new URLSearchParams({
+    return_mode: 'postMessage',
+    context: 'governance_console',
+    action: document.getElementById('liveActionBtn').getAttribute('data-action') || 'seal_decision',
+  });
+  frame.src = VERIFY_SRC + '?' + qs.toString();
+  overlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+  window.__voOpenedAt = Date.now();
+}
+
+function closeVerify() {
+  const overlay = document.getElementById('verifyOverlay');
+  document.getElementById('voFrame').src = 'about:blank';
+  overlay.hidden = true;
+  document.body.style.overflow = '';
+}
+
+// Listen for auth.html postMessage pass signal (same pattern as tribunal-demo)
+window.addEventListener('message', async function(e) {
+  if (!e.data) return;
+  const d = e.data;
+  if (d.type !== 'vac_verified' && d.type !== 'VAC_VERIFIED') return;
+
+  window.__vacVerified = d;
+  closeVerify();
+
+  const btn = document.getElementById('liveActionBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="opacity:.6">Sealing&hellip;</span>';
+
+  try {
+    const manifestId = btn.getAttribute('data-manifest');
+    const action = btn.getAttribute('data-action') || 'seal_decision';
+
+    const r = await fetch(API_BASE + '/v1/vat/authorize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_token: d.session_token,
+        action: 'seal_decision',
+        actions: [action],
+        manifest_id: manifestId,
+        note: 'Sealed via governance console walkthrough',
+        _demo: true,
+      }),
+    });
+
+    const j = await r.json();
+    const jti = j.jti || j.token?.jti || '';
+    const trust = j.trust_score || j.trust || 0;
+    const verifyPath = jti
+      ? `${API_BASE}/vat/verify/${jti}?intent=verify`
+      : null;
+
+    showSealReceipt({ jti, trust, verifyPath, action, email: d.email });
+
+    btn.innerHTML = '<span style="color:var(--green)">Sealed</span>';
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = 'Run a sealed acceptance now &mdash; LIVE';
+    const receipt = document.getElementById('sealReceipt');
+    receipt.classList.add('show');
+    receipt.innerHTML = `<div style="font-family:var(--mono);font-size:12px;color:var(--amber);">Authorize call failed: ${err.message}</div>`;
+  }
+});
+
+function showSealReceipt({ jti, trust, verifyPath, action, email }) {
+  const receipt = document.getElementById('sealReceipt');
+  const kv = document.getElementById('sealKv');
+
+  kv.innerHTML = [
+    ['JTI', jti || '(not returned)', jti ? 'hl' : ''],
+    ['Action sealed', action, 'hl'],
+    ['Identity', email || '(verified)', ''],
+    ['Trust score', trust ? trust.toFixed(3) : '—', ''],
+    ['Backend', 'vac-system-production.up.railway.app', ''],
+  ].map(([k, v, cls]) =>
+    `<dt>${k}</dt><dd class="${cls}">${v}</dd>`
+  ).join('');
+
+  const vl = document.getElementById('sealVerifyLink');
+  if (verifyPath && jti) {
+    vl.href = verifyPath;
+    vl.style.display = '';
+  } else {
+    vl.style.display = 'none';
+  }
+
+  receipt.classList.add('show');
+  receipt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>

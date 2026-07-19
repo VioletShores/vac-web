@@ -199,6 +199,10 @@
     {
       "source": "/org-config",
       "destination": "/org-config.html"
+    },
+    {
+      "source": "/retrofit-console",
+      "destination": "/retrofit-console.html"
     }
   ],
   "redirects": [
