@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>VAC — Clinical Decision Authority (Preview)</title>
+<style>
+:root{
+  --bg:#0D1117; --surface:#161B22; --surface-raised:#1C2128; --border:#30363D; --border-light:#3D444D;
+  --text-primary:#F0F6FC; --text-secondary:#C9D1D9; --text-tertiary:#8B949E; --text-quaternary:#6E7681;
+  --purple:#6C5CE7; --purple-dim:#5A4BD1; --purple-bg:rgba(108,92,231,0.08); --purple-border:rgba(108,92,231,0.25);
+  --teal:#00CEC9; --teal-bg:rgba(0,206,201,0.08); --teal-border:rgba(0,206,201,0.2);
+  --success:#3FB950; --success-bg:rgba(63,185,80,0.08); --success-border:rgba(63,185,80,0.2);
+  --amber:#D29922; --amber-bg:rgba(210,153,34,0.08); --amber-border:rgba(210,153,34,0.25);
+  --red:#F85149; --red-bg:rgba(248,81,73,0.08); --red-border:rgba(248,81,73,0.25);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+.page-shell{background:var(--bg)!important;min-height:100vh;color:var(--text-secondary);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px;}
+.wrap{max-width:880px;margin:0 auto;padding:0 clamp(16px,4vw,24px);}
+
+/* simulation banner — honesty on first paint */
+.preview-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:10px 24px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;}
+
+header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.mark{width:34px;height:34px;flex:0 0 34px;}
+.brand-name{font-weight:700;color:var(--text-primary);font-size:17px;letter-spacing:-0.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1px;}
+.nav-mode{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);}
+
+.hero{margin-bottom:44px;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+.hero h1{font-size:clamp(24px,5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:680px;}
+.hero-lede{font-size:clamp(15px,3.9vw,16.5px);color:var(--text-secondary);max-width:660px;margin-bottom:20px;}
+.hero-lede .pull{color:var(--text-primary);font-weight:600;}
+.brief{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:16px 18px;margin-bottom:20px;max-width:680px;}
+.brief-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.brief p{font-size:13.5px;color:var(--text-secondary);line-height:1.65;max-width:none;}
+.brief p+p{margin-top:10px;}
+.brief .pull{color:var(--text-primary);font-weight:600;}
+.hero-foot{font-size:clamp(14px,3.7vw,15px);color:var(--text-tertiary);max-width:660px;}
+.hero-foot .pull{color:var(--text-secondary);font-weight:600;}
+
+.section-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px;}
+
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:28px;flex-wrap:wrap;}
+.tab{font-family:var(--font);font-size:clamp(13px,3.5vw,14px);font-weight:600;color:var(--text-tertiary);background:transparent;border:none;border-bottom:2px solid transparent;padding:10px clamp(10px,3vw,16px);cursor:pointer;transition:all .15s;margin-bottom:-1px;}
+.tab:hover{color:var(--text-secondary);}
+.tab.sel{color:var(--purple);border-bottom-color:var(--purple);}
+
+/* case card */
+.cases{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:14px;}
+.case-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(14px,3.5vw,18px) clamp(14px,4vw,20px);cursor:pointer;transition:border-color .15s,background .15s;text-align:left;width:100%;font-family:var(--font);}
+.case-card:hover{border-color:var(--purple-border);background:var(--surface-raised);}
+.case-card.sel{border-color:var(--purple);background:var(--purple-bg);}
+.case-top{display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;}
+.case-n{font-family:var(--mono);font-size:11px;color:var(--purple);border:1px solid var(--purple-border);border-radius:5px;padding:2px 7px;flex:0 0 auto;}
+.case-title{font-weight:600;color:var(--text-primary);font-size:15px;}
+.ai-chip{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--purple);background:var(--purple-bg);border:1px solid var(--purple-border);border-radius:4px;padding:1px 7px;margin-left:4px;letter-spacing:.3px;}
+.case-desc{font-size:13.5px;color:var(--text-tertiary);padding-left:42px;}
+
+/* stage */
+.stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:clamp(16px,4.5vw,28px);margin-top:24px;display:none;}
+.stage.show{display:block;animation:fade .3s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;flex-wrap:wrap;}
+.stage-head h2{font-size:clamp(17px,4.5vw,19px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;}
+.stage-ref{font-family:var(--mono);font-size:11px;color:var(--teal);}
+.stage-sub{font-size:14px;color:var(--text-tertiary);margin-bottom:24px;}
+
+/* steps */
+.steps{display:flex;flex-direction:column;gap:0;}
+.step{display:flex;gap:16px;padding:0 0 4px;position:relative;}
+.step-rail{display:flex;flex-direction:column;align-items:center;flex:0 0 28px;}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-light);background:var(--surface-raised);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--text-quaternary);transition:all .3s;flex:0 0 28px;}
+.step-dot.active{border-color:var(--purple);color:var(--purple);box-shadow:0 0 10px rgba(108,92,231,0.35);}
+.step-dot.done{border-color:var(--success);background:var(--success-bg);color:var(--success);}
+.step-conn{width:2px;flex:1;background:var(--border);min-height:18px;margin:2px 0;}
+.step-conn.done{background:var(--success);}
+.step-body{padding-bottom:22px;flex:1;min-width:0;}
+.step-body h3{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:3px;}
+.step-meta{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
+.step-detail{font-size:13.5px;color:var(--text-secondary);margin-top:8px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:6px;padding:11px 13px;display:none;overflow-wrap:break-word;}
+.step.revealed .step-detail{display:block;}
+.policy-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.hil{color:var(--amber);font-weight:600;}
+
+/* AI advisory block — purple tint, never a diagnosis */
+.ai-block{background:var(--purple-bg);border:1px solid var(--purple-border);border-radius:8px;padding:13px 15px;margin-top:10px;}
+.ai-block-label{font-family:var(--mono);font-size:10px;color:var(--purple);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.ai-block p{font-size:13px;color:var(--text-secondary);line-height:1.65;margin-top:6px;}
+.ai-block p:first-of-type{margin-top:0;}
+.ai-not-claim{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:10px;border-top:1px dashed var(--purple-border);padding-top:8px;line-height:1.55;}
+
+/* pre-seal safety checklist */
+.checklist{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+.check-item{display:flex;align-items:flex-start;gap:10px;background:var(--surface-raised);border:1px solid var(--border);border-radius:6px;padding:10px 12px;cursor:pointer;transition:border-color .15s,background .15s;user-select:none;}
+.check-item:hover{border-color:var(--border-light);}
+.check-item.checked{border-color:var(--success-border);background:var(--success-bg);}
+.check-box{width:18px;height:18px;border-radius:4px;border:2px solid var(--border-light);background:transparent;flex:0 0 18px;display:flex;align-items:center;justify-content:center;transition:all .2s;margin-top:2px;}
+.check-item.checked .check-box{background:var(--success);border-color:var(--success);}
+.check-mark{display:none;}
+.check-item.checked .check-mark{display:block;}
+.check-text{font-size:13px;color:var(--text-secondary);line-height:1.5;}
+.check-text strong{color:var(--text-primary);}
+.check-tally{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-top:8px;}
+.check-tally .ok{color:var(--success);}
+
+/* decision paths */
+.decision-paths{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+.dp-btn{background:var(--surface-raised);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:left;cursor:pointer;transition:border-color .15s,background .15s;font-family:var(--font);}
+.dp-btn:hover{border-color:var(--purple-border);background:var(--purple-bg);}
+.dp-btn.sel{border-color:var(--purple);background:var(--purple-bg);}
+.dp-btn.dp-reject:hover,.dp-btn.dp-reject:focus{border-color:var(--red-border);background:var(--red-bg);}
+.dp-btn.dp-reject.sel{border-color:var(--red);background:var(--red-bg);}
+.dp-label{font-family:var(--mono);font-size:10px;letter-spacing:.8px;text-transform:uppercase;margin-bottom:5px;}
+.dp-name{font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:4px;}
+.dp-desc{font-size:12px;color:var(--text-tertiary);line-height:1.5;}
+.dp-note{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-top:10px;}
+
+/* controls */
+.controls{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
+.btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:7px;padding:11px 20px;cursor:pointer;border:1px solid transparent;transition:all .15s;}
+.btn-primary{background:var(--purple);color:#fff;}
+.btn-primary:hover{background:var(--purple-dim);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{background:transparent;border-color:var(--border-light);color:var(--text-secondary);}
+.btn-ghost:hover{border-color:var(--text-tertiary);color:var(--text-primary);}
+
+/* forward-path honesty note */
+.fwd-note{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--text-secondary);overflow-wrap:break-word;margin-bottom:22px;}
+.fwd-note strong{color:var(--text-primary);}
+
+/* sealed receipt */
+.receipt{margin-top:8px;background:var(--surface-raised);border:1px solid var(--success-border);border-radius:10px;padding:20px;display:none;}
+.receipt.show{display:block;animation:fade .35s ease;}
+.receipt-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.receipt-head .seal{width:30px;height:30px;flex:0 0 30px;}
+.receipt-head h3{color:var(--success);font-size:15px;font-weight:700;}
+.kv{display:grid;grid-template-columns:172px 1fr;gap:6px 14px;font-size:13px;}
+.kv dt{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:.5px;}
+.kv dd{font-family:var(--mono);font-size:12px;color:var(--text-secondary);word-break:break-all;}
+.kv dd.hl{color:var(--text-primary);}
+.kv dd.ai-adv{color:var(--purple);}
+.kv dd.asserted{color:var(--amber);}
+.kv dd.independent{color:var(--teal);}
+.kv dd.reject-path{color:var(--red);}
+.audit{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+.audit-line{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);padding:3px 0;display:flex;gap:10px;}
+.audit-line .t{color:var(--teal);flex:0 0 56px;}
+.receipt-note{margin-top:12px;font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);line-height:1.55;border-top:1px dashed var(--border);padding-top:10px;}
+
+/* architecture */
+.arch{display:flex;flex-direction:column;gap:14px;}
+.arch-row{display:flex;align-items:stretch;gap:14px;}
+.arch-row.single{justify-content:stretch;}
+.arch-node{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(14px,3.5vw,18px);position:relative;min-width:0;}
+.arch-node.wide{flex:1;border-color:var(--success-border);background:linear-gradient(180deg,var(--success-bg),var(--surface));}
+.arch-node.hil-node{border-color:var(--amber-border);background:linear-gradient(180deg,var(--amber-bg),var(--surface));}
+.arch-node.ai-node{border-color:var(--purple-border);background:linear-gradient(180deg,var(--purple-bg),var(--surface));}
+.an-n{font-family:var(--mono);font-size:11px;color:var(--purple);border:1px solid var(--purple-border);border-radius:5px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+.an-n.teal{color:var(--teal);border-color:var(--teal-border);}
+.an-n.amber{color:var(--amber);border-color:var(--amber-border);}
+.an-t{font-weight:600;color:var(--text-primary);font-size:14.5px;margin-bottom:6px;}
+.an-d{font-size:13px;color:var(--text-secondary);margin-bottom:10px;line-height:1.55;}
+.an-d em{color:var(--teal);font-style:normal;}
+.an-d .purple{color:var(--purple);}
+.an-d .amber{color:var(--amber);}
+.an-tech{font-family:var(--mono);font-size:10.5px;color:var(--text-tertiary);letter-spacing:.3px;border-top:1px solid var(--border);padding-top:8px;}
+.arch-arrow{display:flex;align-items:center;color:var(--text-quaternary);font-size:20px;flex:0 0 auto;}
+.arch-note{margin-top:20px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;font-size:13.5px;color:var(--text-secondary);}
+.arch-note strong{color:var(--text-primary);}
+.arch-summary{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(16px,4vw,22px);}
+.arch-summary-lede{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px;}
+.arch-summary-list{list-style:none;display:flex;flex-direction:column;gap:12px;margin:0 0 20px;}
+.arch-summary-list li{position:relative;padding-left:20px;font-size:14px;line-height:1.6;color:var(--text-secondary);}
+.arch-summary-list li::before{content:"";position:absolute;left:2px;top:9px;width:6px;height:6px;border-radius:50%;background:var(--teal);}
+.arch-summary-list strong{color:var(--text-primary);font-weight:600;}
+.arch-summary-list em{color:var(--teal);font-style:normal;}
+.arch-summary-cta{display:inline-block;}
+
+/* more cases + CTA */
+.more-cases{margin-top:52px;}
+.more-intro{font-size:14.5px;color:var(--text-secondary);max-width:660px;margin-bottom:22px;}
+.more-intro .pull{color:var(--text-primary);font-weight:600;}
+.case-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.more-case{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.more-case-t{font-weight:600;color:var(--text-primary);font-size:14px;margin-bottom:8px;}
+.more-case-d{font-size:12.5px;color:var(--text-tertiary);line-height:1.55;}
+.cta{margin-top:18px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:clamp(16px,4.5vw,22px) clamp(16px,5vw,24px);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.cta-h{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.cta-d{font-size:13.5px;color:var(--text-secondary);max-width:520px;}
+.cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;border:none;cursor:pointer;}
+.cta-btn:hover{background:var(--purple-dim);}
+
+.foot{margin-top:48px;border-top:1px solid var(--border);padding-top:24px;font-size:13px;color:var(--text-tertiary);}
+.foot strong{color:var(--text-secondary);}
+.foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--text-quaternary);}
+
+@media(max-width:560px){
+  .kv{grid-template-columns:1fr;}
+  .case-desc{padding-left:0;}
+  .arch-row{flex-direction:column;}
+  .arch-arrow{transform:rotate(90deg);justify-content:center;}
+  .case-grid{grid-template-columns:1fr;}
+  .cta{flex-direction:column;align-items:flex-start;}
+  .step{gap:12px;}
+  .preview-banner{padding:10px 16px;}
+  .decision-paths{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+<div class="page-shell">
+
+  <!-- SIMULATION BANNER — honesty, visible on first paint -->
+  <div class="preview-banner">Simulation — patient case and AI assessments are illustrative; no real clinical data; biometric seal runs against the VAC production backend.</div>
+
+  <header class="top"><div class="wrap"><div class="top-row">
+    <div class="brand">
+      <!-- VAC medical mark: plus/cross with circuit overlay -->
+      <svg class="mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#6C5CE7" stroke-width="1.5"/>
+        <rect x="16.5" y="10" width="7" height="20" rx="2.5" fill="none" stroke="#00CEC9" stroke-width="1.3" opacity="0.75"/>
+        <rect x="10" y="16.5" width="20" height="7" rx="2.5" fill="none" stroke="#00CEC9" stroke-width="1.3" opacity="0.75"/>
+        <circle cx="20" cy="20" r="3.5" fill="#6C5CE7"/>
+        <circle cx="20" cy="20" r="1.5" fill="#00CEC9"/>
+      </svg>
+      <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
+    </div>
+    <span class="nav-mode">CLINICAL AUTHORITY · PREVIEW</span>
+  </div></div></header>
+
+  <div class="wrap">
+
+    <section class="hero">
+      <div class="eyebrow">A briefing for clinical AI and health technology teams</div>
+      <h1>The AI flagged it. The clinician decided. A sealed record that proves both — and keeps them separate.</h1>
+
+      <p style="font-size:clamp(18px,3.2vw,23px);font-weight:700;color:var(--text-primary);line-height:1.35;margin:14px 0 4px;border-left:3px solid var(--teal);padding-left:16px;">A verified clinician, at the moment of the decision — not a log entry reconstructed later.</p>
+      <p style="font-size:clamp(14px,2.4vw,16px);color:var(--text-secondary);line-height:1.55;margin:0 0 20px;padding-left:19px;">VAC proves each clinician is <strong style="color:var(--text-primary);">present and verified</strong> (live biometric), that the AI output was <strong style="color:var(--text-primary);">advisory and not the decision</strong>, and that a <strong style="color:var(--text-primary);">specific, accountable human</strong> made the call — a sealed receipt that survives years of scrutiny.</p>
+
+      <p class="hero-lede"><span class="pull">The core accountability gap:</span> when an AI module recommends a clinical action and a clinician acts on it, the record usually captures the outcome — not whether the AI's suggestion was reviewed, whether the clinician formed an independent judgment, or who exactly signed off. <span class="pull">That gap matters</span> when a patient outcome is questioned, when Medicare or a health insurer audits, or when a medical board examines whether a registered practitioner made an independent decision or rubber-stamped an AI output.</p>
+
+      <div class="brief">
+        <div class="brief-label">Why this matters now</div>
+        <p>Ahpra's position statement on AI in healthcare is explicit: AI tools are assistants; the <span class="pull">registered practitioner remains responsible for every clinical decision</span> and must be able to demonstrate independent judgment. That statement was issued without a mechanism for proving it — no standard exists for cryptographically binding a registered clinician's independent decision to an AI advisory output, at the moment the decision was made.</p>
+        <p>The TGA (Therapeutic Goods Administration) now requires Software as a Medical Device (SaMD) to document clinical decision pathways. And the liability exposure is not theoretical: in a 2025 UK coroner's inquiry, a hospital trust faced scrutiny over whether a clinician's discharge decision was genuinely independent or AI-influenced, with no audit trail distinguishing the AI recommendation from the clinician's documented intent. The inquest ran for three months over a case that a sealed decision receipt would have resolved in an afternoon.</p>
+        <p>VAC's contribution is narrow and specific: a verified clinician, a decision documented as <span class="pull">explicitly independent of the AI suggestion</span>, a sealed cryptographic receipt — and an audit trail that makes the chain of authority answerable, long after the clinical moment has passed.</p>
+      </div>
+
+      <p class="hero-foot">The scenario below is a single bounded dermatology step-up case: an AI-flagged finding, five decision paths a clinician can take, a pre-seal safety checklist, and a sealed receipt that binds the clinician's <span class="pull">independent judgment</span> to the AI advisory output without conflating the two. Pick the case to walk through it.</p>
+    </section>
+
+    <div class="tabs">
+      <button class="tab sel" data-tab="walk">Walkthrough</button>
+      <button class="tab" data-tab="arch">How it works end-to-end</button>
+    </div>
+
+    <!-- ===================== WALKTHROUGH TAB ===================== -->
+    <div id="tab-walk">
+
+      <div class="fwd-note">
+        <strong>Honest scope of this walkthrough.</strong> The patient case and AI assessment are simulated — not real clinical data, not a real patient. The AI module shown is illustrative and is not a registered medical device. The VAC biometric seal runs against the live production backend and mints a genuinely signed token. Registration numbers are asserted by the clinician and are not independently verified by VAC against Ahpra or any medical board registry.
+      </div>
+
+      <p class="section-label">Choose a case</p>
+      <div class="cases">
+        <button class="case-card" id="caseBtn" onclick="selectCase()">
+          <div class="case-top">
+            <span class="case-n">C-01</span>
+            <span class="case-title">Pigmented lesion — AI-flagged, urgent review</span>
+            <span class="ai-chip">AI advisory</span>
+          </div>
+          <div class="case-desc">A teledermatology review has produced an AI observation flagging a patient's pigmented lesion for urgent clinical attention. The clinician must review the assessment, form an independent judgment, and seal their decision with a verified authority record.</div>
+        </button>
+      </div>
+
+      <!-- ======= WALKTHROUGH STAGE ======= -->
+      <section class="stage" id="stage">
+        <div class="stage-head">
+          <h2>Pigmented lesion — AI-flagged step-up</h2>
+          <span class="stage-ref">CASE-DERM-2026-0847</span>
+        </div>
+        <p class="stage-sub">An AI-assisted assessment has flagged a pigmented lesion for urgent clinical review. Walk through the clinician's decision process — from AI advisory output to sealed independent decision.</p>
+
+        <div class="steps" id="steps">
+
+          <!-- Step 1: AI assessment received -->
+          <div class="step" id="s1">
+            <div class="step-rail">
+              <div class="step-dot" id="d1">1</div>
+              <div class="step-conn" id="c1"></div>
+            </div>
+            <div class="step-body">
+              <h3>AI assessment received</h3>
+              <div class="step-meta">Athena Dermatology Module · advisory output · not a diagnosis</div>
+              <div class="step-detail">
+                <div class="ai-block">
+                  <div class="ai-block-label">AI Advisory Output — Athena Derm Module · CASE-DERM-2026-0847</div>
+                  <p><strong style="color:var(--text-primary);">Patient reference:</strong> PT-2026-4471 · Female, 54 · Referred via teledermatology portal</p>
+                  <p><strong style="color:var(--text-primary);">Lesion site:</strong> Left forearm · Approximate dimensions 8×6 mm · Submitted image: 2 photos</p>
+                  <p><strong style="color:var(--text-primary);">Reported history:</strong> Colour change over approximately 4 weeks per patient self-report. No prior clinical assessment of this lesion.</p>
+                  <p><strong style="color:var(--text-primary);">AI observation:</strong> Asymmetric pigmentation with irregular border pattern noted on submitted image. Multiple colour zones present. Urgency flag: <span style="color:var(--amber);font-weight:700;">URGENT REVIEW RECOMMENDED</span></p>
+                  <div class="ai-not-claim">AI advisory output only — this is not a diagnosis, not a clinical recommendation, and not the output of a registered medical device. Image quality and full clinical context are not fully accessible to the AI module. The clinician's independent assessment governs. No clinical decision should be based on this output alone.</div>
+                </div>
+                <p style="margin-top:10px;">The AI module has flagged this case and routed it to the clinician review queue. <span class="policy-chip">ai_flag=urgent_review</span><span class="policy-chip">advisory_only=true</span><span class="policy-chip">diagnosis=false</span></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Clinician reviews -->
+          <div class="step" id="s2">
+            <div class="step-rail">
+              <div class="step-dot" id="d2">2</div>
+              <div class="step-conn" id="c2"></div>
+            </div>
+            <div class="step-body">
+              <h3>Clinician reviews imaging and clinical history</h3>
+              <div class="step-meta">Independent clinical review · not informed by AI output alone</div>
+              <div class="step-detail">
+                <p>The clinician independently reviews all available clinical information — the submitted imaging, the patient history, and the relevant risk profile. The AI advisory output is one input, not a governing determination.</p>
+                <p style="margin-top:8px;"><span class="policy-chip">full_clinical_history</span><span class="policy-chip">imaging_reviewed_independently</span><span class="policy-chip">risk_factors_assessed</span><span class="policy-chip">current_medications</span></p>
+                <p style="margin-top:10px;"><strong style="color:var(--text-primary);">Relevant clinical history (illustrative):</strong> No prior skin excisions or treated skin lesions on record. No immunosuppression or systemic disease noted. Occupational outdoor sun exposure for approximately 15 years. No family history of melanoma on current record. Skin phototype II. Current medications: nil relevant to this assessment.</p>
+                <p style="margin-top:10px;"><span class="hil">The clinician's review is independent of the AI suggestion.</span> The AI flagging is one piece of information; the clinical decision must reflect the clinician's own judgment formed on the complete clinical picture — including factors the AI module cannot access.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Step-up triggered -->
+          <div class="step" id="s3">
+            <div class="step-rail">
+              <div class="step-dot" id="d3">3</div>
+              <div class="step-conn" id="c3"></div>
+            </div>
+            <div class="step-body">
+              <h3>Step-up triggered — verified clinician authority required</h3>
+              <div class="step-meta">High-stakes clinical decision · VAC biometric gate · policy-driven</div>
+              <div class="step-detail">
+                <p>This case is classified as a high-stakes clinical decision. Before the decision is sealed, the clinician must be verified as a live, present human — ruling out delegated data entry, AI-generated sign-off, or unattended authorisation.</p>
+                <p style="margin-top:10px;"><span class="policy-chip">decision_class=high_stakes</span><span class="policy-chip">biometric_required=true</span><span class="policy-chip">seal_gate=clinician_verified</span><span class="policy-chip">step_up=full_modal</span></p>
+                <p style="margin-top:10px;">In a live deployment, the step-up threshold is policy-driven: routine follow-up correspondence may need only standard platform authentication; a referral decision for a suspicious lesion, an authority for a procedure, or a high-risk clinical pathway triggers the biometric gate. The clinician's verified liveness becomes the cryptographic root of the sealed receipt.</p>
+                <p style="margin-top:10px;"><span class="hil">This is the accountability binding Ahpra's position statement points to — a verified person, at a verified moment, making a decision recorded as theirs and not attributed to an AI.</span></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Pre-seal safety checklist -->
+          <div class="step" id="s4">
+            <div class="step-rail">
+              <div class="step-dot" id="d4">4</div>
+              <div class="step-conn" id="c4"></div>
+            </div>
+            <div class="step-body">
+              <h3>Pre-seal clinical safety checklist</h3>
+              <div class="step-meta">Clinician confirms · all 6 items required before proceeding</div>
+              <div class="step-detail">
+                <p style="margin-bottom:10px;">Confirm each item. The checklist is sealed as part of the decision record — a bound statement that the clinician completed these confirmations before making the call.</p>
+                <div class="checklist" id="checklist">
+
+                  <div class="check-item" onclick="toggleCheck(this)">
+                    <div class="check-box">
+                      <svg class="check-mark" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L4 7.5L8.5 2.5" stroke="#3FB950" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="check-text"><strong>Patient identity confirmed</strong> — I have verified the patient reference matches the clinical record I reviewed.</div>
+                  </div>
+
+                  <div class="check-item" onclick="toggleCheck(this)">
+                    <div class="check-box">
+                      <svg class="check-mark" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L4 7.5L8.5 2.5" stroke="#3FB950" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="check-text"><strong>All available images reviewed personally</strong> — I have reviewed the submitted imaging myself, not relied on the AI's characterisation of it.</div>
+                  </div>
+
+                  <div class="check-item" onclick="toggleCheck(this)">
+                    <div class="check-box">
+                      <svg class="check-mark" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L4 7.5L8.5 2.5" stroke="#3FB950" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="check-text"><strong>Clinical history and risk factors considered</strong> — I have reviewed the relevant clinical history, risk factors, and current medications independently of the AI assessment.</div>
+                  </div>
+
+                  <div class="check-item" onclick="toggleCheck(this)">
+                    <div class="check-box">
+                      <svg class="check-mark" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L4 7.5L8.5 2.5" stroke="#3FB950" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="check-text"><strong>Differential considered</strong> — I have formed a differential and my decision reflects my clinical reasoning, not a mechanical adoption of the AI suggestion.</div>
+                  </div>
+
+                  <div class="check-item" onclick="toggleCheck(this)">
+                    <div class="check-box">
+                      <svg class="check-mark" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L4 7.5L8.5 2.5" stroke="#3FB950" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="check-text"><strong>Decision is my independent clinical judgment</strong> — The decision I am about to seal reflects my professional judgment as a registered clinician, not the AI's suggestion.</div>
+                  </div>
+
+                  <div class="check-item" onclick="toggleCheck(this)">
+                    <div class="check-box">
+                      <svg class="check-mark" width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.5 5L4 7.5L8.5 2.5" stroke="#3FB950" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="check-text"><strong>AI assessment reviewed, not adopted</strong> — I have noted the AI advisory output. My decision may align with or differ from it; the sealed record will show both explicitly and separately.</div>
+                  </div>
+
+                </div>
+                <div class="check-tally" id="checkTally">0 of 6 confirmed — complete all items before proceeding</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 5: Decision path selection -->
+          <div class="step" id="s5">
+            <div class="step-rail">
+              <div class="step-dot" id="d5">5</div>
+              <div class="step-conn" id="c5"></div>
+            </div>
+            <div class="step-body">
+              <h3>Select decision path</h3>
+              <div class="step-meta">Clinician's independent clinical judgment · five paths including REJECT</div>
+              <div class="step-detail">
+                <p style="margin-bottom:12px;">Select the path that reflects your independent clinical judgment. This will be sealed alongside the AI advisory output — both are recorded; neither is attributed to the other.</p>
+                <div class="decision-paths" id="decisionPaths">
+
+                  <button class="dp-btn" data-path="urgent_refer" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--amber);">Path A — Urgent</div>
+                    <div class="dp-name">Urgent specialist referral</div>
+                    <div class="dp-desc">Refer for specialist review and/or biopsy within 2 business days. Priority clinical action indicated by independent assessment.</div>
+                  </button>
+
+                  <button class="dp-btn" data-path="routine_refer" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--teal);">Path B — Routine</div>
+                    <div class="dp-name">Routine specialist referral</div>
+                    <div class="dp-desc">Schedule elective specialist review within 4–6 weeks. Actionable but non-urgent per independent clinical assessment.</div>
+                  </button>
+
+                  <button class="dp-btn" data-path="clinical_watch" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--success);">Path C — Watch</div>
+                    <div class="dp-name">Watchful waiting</div>
+                    <div class="dp-desc">Document watchful waiting with a confirmed follow-up interval and clinical reasoning on record.</div>
+                  </button>
+
+                  <button class="dp-btn" data-path="request_info" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--purple);">Path D — Defer</div>
+                    <div class="dp-name">Request additional information</div>
+                    <div class="dp-desc">Hold decision pending additional history, dermoscopy, or imaging before a definitive path is sealed.</div>
+                  </button>
+
+                  <button class="dp-btn dp-reject" data-path="reject_ai" onclick="selectPath(this)" style="grid-column:1/-1;">
+                    <div class="dp-label" style="color:var(--red);">Path E — Reject AI suggestion</div>
+                    <div class="dp-name">Independent finding — AI urgency flag not supported</div>
+                    <div class="dp-desc">Clinician's independent assessment does not support the AI's urgency classification. This path explicitly documents the clinician's independent finding and the reasons the AI suggestion is not adopted. The AI advisory output and the clinician's independent finding are both sealed separately in the record.</div>
+                  </button>
+
+                </div>
+                <p class="dp-note" id="pathNote">No path selected yet.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 6: Sealed -->
+          <div class="step" id="s6">
+            <div class="step-rail">
+              <div class="step-dot" id="d6">6</div>
+            </div>
+            <div class="step-body">
+              <h3>Decision sealed &amp; lodged</h3>
+              <div class="step-meta">VAC biometric step-up · Ed25519 signed · independently verifiable</div>
+              <div class="step-detail">
+                <p>The clinician's verified biometric is the seal gate. The AI advisory output, the clinician's independent decision, and the six safety checklist confirmations are all sealed together in one tamper-evident record — answerable to a medical board, insurer, or regulator years later.</p>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /steps -->
+
+        <div class="controls">
+          <button class="btn btn-primary" id="advance">Begin</button>
+          <button class="btn btn-ghost" id="reset">Reset</button>
+        </div>
+
+        <!-- Sealed receipt -->
+        <div class="receipt" id="receipt">
+          <div class="receipt-head">
+            <svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h3>Clinical decision sealed &amp; lodged</h3>
+          </div>
+          <dl class="kv" id="receiptKv"></dl>
+          <div class="receipt-note" id="receiptNote"></div>
+          <div class="audit" id="auditLog"></div>
+        </div>
+
+      </section>
+
+    </div><!-- /tab-walk -->
+
+    <!-- ===================== ARCHITECTURE TAB ===================== -->
+    <div id="tab-arch" style="display:none;">
+      <p class="section-label">End-to-end architecture — clinical AI governance</p>
+      <div class="arch-summary">
+        <p class="arch-summary-lede">In order, end to end:</p>
+        <ul class="arch-summary-list">
+          <li>A <strong>patient case</strong> arrives — imaging, history, context — and an AI module produces an <em>advisory observation only</em>. The AI output is never the clinical decision.</li>
+          <li>The case routes to a <strong>verified, registered clinician</strong>. Before the decision is sealed, a biometric step-up confirms a live human is present — not a bot, a recording, a delegated entry, or an AI-generated sign-off.</li>
+          <li>A <strong>pre-seal safety checklist</strong> of six clinician confirmations is sealed into the same record: that images were reviewed independently, that the AI output was noted but not adopted, that the decision is the clinician's own professional judgment.</li>
+          <li>The clinician selects a <strong>decision path</strong> (five available, including explicit rejection of the AI suggestion). Both the AI advisory and the clinician's independent decision are sealed in the same record — <em>explicitly separated, never conflated</em>.</li>
+          <li>A <strong>sealed, independently-verifiable receipt</strong> (Ed25519) records who decided, what was decided, and the explicit separation from the AI advisory — answerable to Ahpra, a Medicare audit, an insurer, or a regulator years later.</li>
+        </ul>
+        <a href="/architecture" class="cta-btn arch-summary-cta">See the full VAC architecture →</a>
+      </div>
+
+      <div class="arch" style="margin-top:20px;">
+        <div class="arch-row">
+          <div class="arch-node ai-node">
+            <div class="an-n">A</div>
+            <div class="an-t">AI Assessment Module</div>
+            <div class="an-d"><em>Advisory only</em> — image analysis, pattern observation, urgency flag. <span class="purple">Not a diagnosis. Not a clinical decision. Not a registered medical device in this preview.</span> Output is one input to the clinical review queue; it does not govern any clinical action.</div>
+            <div class="an-tech">output: advisory_flag · urgency_level · diagnosis=false · decision=false</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-node">
+            <div class="an-n">B</div>
+            <div class="an-t">Clinician Review Queue</div>
+            <div class="an-d">Case routed to a qualified clinician. AI advisory is one input; the clinician's independent review is the governing step. <em>No automated decision path from AI output to clinical action</em> — the clinician gate is mandatory.</div>
+            <div class="an-tech">human_review_required=true · ai_output=advisory_input_only · gate=clinician</div>
+          </div>
+        </div>
+        <div class="arch-row">
+          <div class="arch-node hil-node">
+            <div class="an-n amber">C</div>
+            <div class="an-t">VAC Biometric Step-Up</div>
+            <div class="an-d">High-stakes decision triggers verified identity gate: face liveness, deepfake scan, cross-modal gesture and voice challenge. Confirms a <em>live, present clinician</em> — not a bot, a recording, or a delegated entry. <span class="amber">The biometric is the cryptographic root of the sealed receipt.</span></div>
+            <div class="an-tech">face_liveness · deepfake_scan · cross_modal · verified_human_root · session_bound</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-node">
+            <div class="an-n">D</div>
+            <div class="an-t">Pre-Seal Safety Gate</div>
+            <div class="an-d">Six clinician confirmations — patient identity, imaging reviewed independently, history considered, differential formed, decision is independent, AI noted but not adopted — <em>all sealed into the same record as the decision</em>. Checklist completion is a precondition for sealing.</div>
+            <div class="an-tech">checklist_complete=required · confirmations=6 · sealed_with_decision=true</div>
+          </div>
+        </div>
+        <div class="arch-row single">
+          <div class="arch-node wide">
+            <div class="an-n teal">E</div>
+            <div class="an-t">Sealed Clinical Receipt — Ed25519 · independently verifiable</div>
+            <div class="an-d">One tamper-evident record: <em>the AI advisory output</em> (advisory, not a decision), <em>the clinician's independent decision</em> (explicitly stated as independent), the safety checklist confirmations, the verified clinician identity (liveness-checked), the registration number (<span class="amber">asserted by clinician — not independently verified by VAC</span>), and the sealed timestamp. The AI suggestion and the clinical decision are <em>explicitly separated</em> — neither attributed to the other. Anyone can verify the token against the VAC backend.</div>
+            <div class="an-tech">ai_suggestion=sealed · clinician_decision=independent · registration=asserted · seal=Ed25519 · verifiable=true</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-note">
+        <strong>What's real today vs. what's next.</strong> The cryptographic signing, biometric verification, and authority chain are <strong>live and in production</strong> — the token in the walkthrough is genuinely signed and independently verifiable against the VAC backend. The clinical AI governance <em>workflow</em> — the safety checklist, decision-path structure, registration assertion field — is what would be built with a clinical partner: a hospital system, telehealth platform, or health insurer's audit infrastructure. The AI assessment module shown is illustrative; it is not a deployed clinical system and not a TGA-registered medical device. This demonstration does not constitute clinical advice and produces no real clinical records.
+      </div>
+    </div><!-- /tab-arch -->
+
+    <!-- ===================== MORE CASES ===================== -->
+    <section class="more-cases">
+      <p class="section-label">The same authority chain, other clinical contexts</p>
+      <p class="more-intro">Verified clinician authority, an explicit separation of AI advisory and human decision, and a sealed audit trail are not specific to dermatology. The same primitives apply wherever <span class="pull">who made the clinical call — and that it was independent of the AI</span> — has to be provable after the fact.</p>
+      <div class="case-grid">
+        <div class="more-case">
+          <div class="more-case-t">Radiology AI — independent reporting</div>
+          <div class="more-case-d">AI-assisted imaging analysis flags findings. The radiologist reviews and reports independently. VAC seals the radiologist's verified identity, confirms independent review, and records the difference between AI observation and the official clinical report — a sealed record for the referrer, insurer, and regulator.</div>
+        </div>
+        <div class="more-case">
+          <div class="more-case-t">Emergency triage — AI-assisted priority</div>
+          <div class="more-case-d">An AI triage module assigns a priority category. The triaging clinician independently confirms or overrides it. The clinician's authority is sealed at the triage moment — a verifiable record if the outcome is later questioned, with the AI classification and the clinician's independent judgment explicitly separated.</div>
+        </div>
+        <div class="more-case">
+          <div class="more-case-t">Prescribing authority — high-risk medication classes</div>
+          <div class="more-case-d">AI-assisted prescribing support suggests a medication class or dosing range. The prescribing clinician's independent judgment is sealed before the prescription is generated — confirming a verified, registered human made an independent call, not a relay of the AI suggestion. Drug specifics stay at guideline class level in the sealed record.</div>
+        </div>
+        <div class="more-case" style="border-left:2px solid var(--teal);">
+          <div class="more-case-t">Legal &amp; tribunal — verified authority chain</div>
+          <div class="more-case-d">The same VAC primitives that seal clinical decisions seal legal authorities: trust distributions, estate administration, power of attorney attestation. A sealed, independently-verifiable receipt that a specific human authorised a specific action, under specific conditions, at a specific moment. <a href="/tribunal-demo" style="color:var(--teal);text-decoration:none;font-weight:600;display:inline-block;margin-top:8px;">Walk through the legal scenario &rarr;</a></div>
+        </div>
+      </div>
+      <div class="cta">
+        <div>
+          <div class="cta-h">Deploying clinical AI and need the authority trail?</div>
+          <div class="cta-d">If you're building AI-assisted clinical tools and need to cryptographically separate the AI advisory from the clinician's decision — and make that separation provable — we'd value the conversation.</div>
+        </div>
+        <a class="cta-btn" href="mailto:enterprise@vacprotocol.org?subject=VAC%20Clinical%20AI%20Governance%20%E2%80%94%20inquiry" target="_blank" rel="noopener">Start a conversation</a>
+      </div>
+    </section>
+
+    <div class="foot">
+      <strong>What this preview shows:</strong> the shape of a clinical AI governance flow, built on VAC primitives that already exist — verified identity, a biometric seal gate, a pre-seal safety checklist bound to the record, and a sealed receipt that separates the AI advisory from the clinician's independent decision.
+      <div class="posture">Honest scope · This is not a medical device, does not constitute clinical advice, and produces no real clinical records. The AI assessment is illustrative. VAC verifies liveness and identity; it does not verify clinical registration against Ahpra or any medical board registry — registration is asserted by the clinician and recorded as asserted. A person authorises every outcome — the protocol provides the verification and sealed audit rail; it does not make clinical decisions.</div>
+    </div>
+
+  </div><!-- /wrap -->
+</div><!-- /page-shell -->
+
+<script>
+/* tab switching */
+document.querySelectorAll('.tab').forEach(function(t){
+  t.onclick=function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('sel');});
+    t.classList.add('sel');
+    var show=t.dataset.tab;
+    document.getElementById('tab-walk').style.display=show==='walk'?'block':'none';
+    document.getElementById('tab-arch').style.display=show==='arch'?'block':'none';
+  };
+});
+
+/* case selection */
+function selectCase(){
+  document.getElementById('caseBtn').classList.add('sel');
+  var stage=document.getElementById('stage');
+  stage.classList.add('show');
+  stage.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* stepper state */
+var stepIdx=-1;
+var TOTAL_STEPS=6;
+var checkedCount=0;
+var allChecked=false;
+var selectedPath=null;
+
+var DOT_IDS=['d1','d2','d3','d4','d5','d6'];
+var CONN_IDS=['c1','c2','c3','c4','c5'];
+var STEP_IDS=['s1','s2','s3','s4','s5','s6'];
+
+function updateAdvanceBtn(){
+  var btn=document.getElementById('advance');
+  if(stepIdx<0){btn.textContent='Begin';btn.disabled=false;return;}
+  if(stepIdx>=TOTAL_STEPS-1){btn.textContent='Sealing...';btn.disabled=true;return;}
+  if(stepIdx===3&&!allChecked){btn.textContent='Complete checklist to proceed';btn.disabled=true;return;}
+  if(stepIdx===4&&!selectedPath){btn.textContent='Select a decision path';btn.disabled=true;return;}
+  if(stepIdx===4&&selectedPath){btn.textContent='Seal decision';btn.disabled=false;return;}
+  btn.textContent='Next';btn.disabled=false;
+}
+
+document.getElementById('advance').onclick=function(){
+  if(stepIdx<0){
+    stepIdx=0;
+    activateStep(0);
+    updateAdvanceBtn();
+    return;
+  }
+  if(stepIdx===3&&!allChecked) return;
+  if(stepIdx===4&&!selectedPath) return;
+  if(stepIdx===4&&selectedPath){
+    markDone(4);
+    stepIdx=5;
+    activateStep(5);
+    sealDecision();
+    return;
+  }
+  markDone(stepIdx);
+  stepIdx++;
+  activateStep(stepIdx);
+  updateAdvanceBtn();
+};
+
+document.getElementById('reset').onclick=function(){
+  stepIdx=-1;
+  checkedCount=0;allChecked=false;selectedPath=null;
+  DOT_IDS.forEach(function(id,i){
+    var d=document.getElementById(id);d.className='step-dot';d.textContent=i+1;
+  });
+  CONN_IDS.forEach(function(id){document.getElementById(id).className='step-conn';});
+  STEP_IDS.forEach(function(id){document.getElementById(id).classList.remove('revealed');});
+  document.getElementById('receipt').classList.remove('show');
+  document.querySelectorAll('.check-item').forEach(function(el){el.classList.remove('checked');});
+  document.getElementById('checkTally').innerHTML='0 of 6 confirmed — complete all items before proceeding';
+  document.querySelectorAll('.dp-btn').forEach(function(el){el.classList.remove('sel');});
+  document.getElementById('pathNote').textContent='No path selected yet.';
+  var btn=document.getElementById('advance');
+  btn.textContent='Begin';btn.disabled=false;btn.style.display='';
+  SEAL_TOKEN=REAL_TOKEN;
+};
+
+function activateStep(i){
+  var dot=document.getElementById(DOT_IDS[i]);
+  dot.className='step-dot active';
+  document.getElementById(STEP_IDS[i]).classList.add('revealed');
+}
+function markDone(i){
+  var dot=document.getElementById(DOT_IDS[i]);
+  dot.className='step-dot done';dot.textContent='✓';
+  if(CONN_IDS[i]) document.getElementById(CONN_IDS[i]).className='step-conn done';
+}
+
+/* checklist */
+function toggleCheck(el){
+  el.classList.toggle('checked');
+  checkedCount=document.querySelectorAll('.check-item.checked').length;
+  allChecked=checkedCount===6;
+  var ct=document.getElementById('checkTally');
+  if(allChecked){
+    ct.innerHTML='<span class="ok">6 of 6 confirmed ✓</span> — ready to proceed';
+  }else{
+    ct.innerHTML=checkedCount+' of 6 confirmed — '+(6-checkedCount)+' remaining before proceeding';
+  }
+  updateAdvanceBtn();
+}
+
+/* decision paths */
+var PATH_INFO={
+  urgent_refer:{
+    label:'URGENT REFER',col:'var(--amber)',
+    desc:'Urgent specialist referral — target: 2 business days',
+    receiptClass:'independent'
+  },
+  routine_refer:{
+    label:'ROUTINE REFER',col:'var(--teal)',
+    desc:'Routine specialist referral — target: 4–6 weeks',
+    receiptClass:'independent'
+  },
+  clinical_watch:{
+    label:'CLINICAL WATCH',col:'var(--success)',
+    desc:'Watchful waiting — documented follow-up interval',
+    receiptClass:'independent'
+  },
+  request_info:{
+    label:'REQUEST ADDITIONAL INFO',col:'var(--purple)',
+    desc:'Decision deferred — additional history or imaging required',
+    receiptClass:'independent'
+  },
+  reject_ai:{
+    label:'REJECT AI SUGGESTION',col:'var(--red)',
+    desc:'Independent clinical finding — AI urgency flag not supported by clinician assessment',
+    receiptClass:'reject-path'
+  }
+};
+
+function selectPath(btn){
+  document.querySelectorAll('.dp-btn').forEach(function(el){el.classList.remove('sel');});
+  btn.classList.add('sel');
+  selectedPath=btn.dataset.path;
+  var info=PATH_INFO[selectedPath];
+  document.getElementById('pathNote').innerHTML=
+    '<strong style="color:'+info.col+'">'+esc(info.label)+'</strong> selected — '+esc(info.desc);
+  updateAdvanceBtn();
+}
+
+/* sealing */
+var API_BASE='https://vac-backend-production.up.railway.app';
+var REAL_TOKEN={jti:'vat_root_c1e665235203',trust:0.95,verify:'/vat/verify/vat_root_c1e665235203?intent=verify',minted:false};
+var SEAL_TOKEN=REAL_TOKEN;
+
+async function sealDecision(){
+  await mintToken();
+  showReceipt();
+}
+
+async function mintToken(){
+  try{
+    var r=await fetch(API_BASE+'/v1/vat/issue',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        human_identity:'medical-demo@vacprotocol.org',
+        agent_id:'medical-demo-clinician',
+        resources:['case:CASE-DERM-2026-0847'],
+        actions:['seal_clinical_decision'],
+        verification_method:'multi_modal',
+        sensitivity:'high',
+        constraints:{
+          _demo:true,
+          _conditions_are_illustrative:true,
+          case_ref:'CASE-DERM-2026-0847',
+          ai_suggestion:'urgent_review_advisory_only',
+          clinician_decision:selectedPath,
+          decision_independent:true,
+          checklist_complete:true,
+          registration_asserted:true
+        },
+        context:{
+          surface:'medical-demo',
+          decision_path:selectedPath,
+          ai_advisory:'urgent_review_advisory_only',
+          sealed_at:new Date().toISOString()
+        }
+      })
+    });
+    if(!r.ok) throw new Error('status '+r.status);
+    var d=await r.json();
+    if(!d||!d.jti) throw new Error('no jti');
+    var vurl=d.verify_url||('/vat/verify/'+d.jti);
+    vurl+=vurl.indexOf('?')>=0?'&intent=verify':'?intent=verify';
+    SEAL_TOKEN={
+      jti:d.jti,
+      trust:(d.claims&&d.claims.vac_trust_score!=null)?d.claims.vac_trust_score:0.85,
+      verify:vurl,
+      minted:true
+    };
+  }catch(e){
+    SEAL_TOKEN=Object.assign({},REAL_TOKEN,{minted:false});
+  }
+}
+
+function showReceipt(){
+  var info=PATH_INFO[selectedPath];
+  var now=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC';
+
+  var kvRows=[
+    ['CASE REF','CASE-DERM-2026-0847','hl'],
+    ['PATIENT REF','PT-2026-4471 · anonymised',''],
+    ['AI SUGGESTION','urgent_review — advisory only · not a diagnosis · not the decision','ai-adv'],
+    ['CLINICIAN DECISION',info.label+' — INDEPENDENT CLINICAL JUDGMENT',info.receiptClass],
+    ['DECISION BASIS','Clinician\'s own review: imaging, history, differential. AI advisory noted and explicitly not adopted as the decision.','independent'],
+    ['REGISTRATION','ASSERTED by clinician — not independently verified by VAC Protocol against Ahpra or any medical board registry','asserted'],
+    ['CHECKLIST','6 of 6 pre-seal confirmations sealed with this record',''],
+    ['AI ≠ DECISION','Explicit: the AI advisory output and the clinician\'s decision are sealed separately and are not conflated',''],
+    ['SEALED AT',now,''],
+    ['TOKEN',SEAL_TOKEN.jti,'hl'],
+    ['TRUST SCORE',String(SEAL_TOKEN.trust),''],
+    ['VERIFY',SEAL_TOKEN.verify,''],
+  ];
+
+  var kv=document.getElementById('receiptKv');
+  kv.innerHTML=kvRows.map(function(row){
+    var k=row[0],v=row[1],cls=row[2];
+    return '<dt>'+esc(k)+'</dt><dd'+(cls?' class="'+cls+'"':'')+'>'+esc(v)+'</dd>';
+  }).join('');
+
+  document.getElementById('receiptNote').textContent=
+    'This sealed record documents: (1) the AI advisory output — advisory only, not a clinical decision or diagnosis; (2) the clinician\'s independent professional judgment — explicitly recorded as independent of the AI suggestion; (3) the six pre-seal safety checklist confirmations bound to this decision. The registration number is ASSERTED by the clinician and has not been independently verified by VAC Protocol. This record is a demonstration; it does not constitute a clinical record or medical advice.';
+
+  var auditLines=[
+    ['−0:05','case CASE-DERM-2026-0847 opened · ai_suggestion=urgent_review_advisory_only · advisory_only=true'],
+    ['−0:04','clinician review initiated · independent_review=true · ai_output=one_input_only'],
+    ['−0:03','step-up triggered · decision_class=high_stakes · biometric_required=true'],
+    ['−0:02','safety checklist completed · 6/6 confirmations · sealed_with_decision=true'],
+    ['−0:01','decision path selected · '+selectedPath+' · independent_clinical_judgment=true'],
+    ['  now ','decision sealed Ed25519 · ai_suggestion≠clinician_decision (explicitly separated) · lodged to audit chain'],
+  ];
+
+  document.getElementById('auditLog').innerHTML=auditLines.map(function(row){
+    return '<div class="audit-line"><span class="t">'+esc(row[0])+'</span><span>'+esc(row[1])+'</span></div>';
+  }).join('');
+
+  document.getElementById('receipt').classList.add('show');
+  document.getElementById('advance').style.display='none';
+
+  document.getElementById('receipt').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+var esc=function(s){
+  return String(s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+};
+
+updateAdvanceBtn();
+</script>
+</body>
+</html>
