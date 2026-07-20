@@ -181,6 +181,10 @@
       "destination": "/trusted-water-demo.html"
     },
     {
+      "source": "/medical-demo",
+      "destination": "/medical-demo.html"
+    },
+    {
       "source": "/vat-verify",
       "destination": "/vat-verify.html"
     },
