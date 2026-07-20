@@ -737,7 +737,7 @@ function selectPath(btn){
   selectedPath=btn.dataset.path;
   var info=PATH_INFO[selectedPath];
   document.getElementById('pathNote').innerHTML=
-    '<strong style="color:'+info.col+'">'+esc(info.label)+'</strong> selected — '+esc(info.desc);
+    '<strong style="color:'+esc(info.col)+'">'+esc(info.label)+'</strong> selected — '+esc(info.desc);
   updateAdvanceBtn();
 }
 
@@ -784,7 +784,10 @@ async function mintToken(){
     if(!r.ok) throw new Error('status '+r.status);
     var d=await r.json();
     if(!d||!d.jti) throw new Error('no jti');
-    var vurl=d.verify_url||('/vat/verify/'+d.jti);
+    var rawVurl=d.verify_url;
+    var vurl=(rawVurl&&typeof rawVurl==='string'&&/^https?:\/\//i.test(rawVurl))
+      ?rawVurl
+      :('/vat/verify/'+d.jti);
     vurl+=vurl.indexOf('?')>=0?'&intent=verify':'?intent=verify';
     SEAL_TOKEN={
       jti:d.jti,
@@ -808,7 +811,7 @@ function showReceipt(){
     ['CLINICIAN DECISION',info.label+' — INDEPENDENT CLINICAL JUDGMENT',info.receiptClass],
     ['DECISION BASIS','Clinician\'s own review: imaging, history, differential. AI advisory noted and explicitly not adopted as the decision.','independent'],
     ['REGISTRATION','ASSERTED by clinician — not independently verified by VAC Protocol against Ahpra or any medical board registry','asserted'],
-    ['CHECKLIST','6 of 6 pre-seal confirmations sealed with this record',''],
+    ['CHECKLIST',(document.querySelectorAll('.check-item.checked').length)+' of 6 pre-seal confirmations sealed with this record',''],
     ['AI ≠ DECISION','Explicit: the AI advisory output and the clinician\'s decision are sealed separately and are not conflated',''],
     ['SEALED AT',now,''],
     ['TOKEN',SEAL_TOKEN.jti,'hl'],
