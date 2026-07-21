@@ -48,27 +48,57 @@
   </svg>
   <div>
     <h1>Rob's Hub</h1>
-    <div class="stamp">Refreshed 21 Jul 2026 · S142.3 (full edition) · Zurich</div>
+    <div class="stamp">Refreshed 21 Jul 2026 · S142.4 (operating edition) · Zurich</div>
   </div>
 </header>
+
+
+<div id="rightnow"></div>
+<script>
+(function(){
+  // All times Europe/Zurich (CEST, UTC+2). Schedule of moments -> the one action that matters.
+  const acts = [
+    {from:'2026-07-22T05:30:00+02:00', to:'2026-07-22T09:30:00+02:00',
+     title:'Vienna go / no-go — check the inbox now',
+     body:'A substantive reply from Mirja, Henk, the chairs, or ticket #54788 = take the 08:32 Railjet + upgrade onsite. Silence = stay remote, rebook Fri ZRH→LHR, trim the Vienna hotel.',
+     btn:'Open Gmail search: the four senders', url:'https://mail.google.com/mail/u/0/#search/from%3A(mirja+OR+birkholz+OR+daigle+OR+steele+OR+support%40ietf.org)+newer_than%3A5d'},
+    {from:'2026-07-23T08:30:00+02:00', to:'2026-07-23T11:30:00+02:00',
+     title:'agentproto BoF — join now (first join activates your day pass)',
+     body:'Join by 08:45. Open-mic ≈10:10 — "Roberto Zagarella, Violet Shores." Consensus call ≈10:35 — answer YES to review/contribute. Intervention text is on the IETF page.',
+     btn:'Join via Datatracker / Meetecho', url:'https://datatracker.ietf.org/meeting/126/session/agentproto/'},
+    {from:'2026-07-24T08:00:00+01:00', to:'2026-07-24T13:00:00+01:00',
+     title:"Elizabeth — BRIQ, Bethnal Green",
+     body:'Bag-drop Liverpool St en route. GEP grants doorway; her page is one tap below if you want a refresher on the walk.',
+     btn:'Directions to BRIQ', url:'https://maps.google.com/?q=BRIQ+469+Bethnal+Green+Road+London'},
+  ];
+  const now = new Date();
+  let pick = acts.find(a => now >= new Date(a.from) && now <= new Date(a.to));
+  if(!pick){ pick = acts.find(a => now < new Date(a.from)); if(pick){ pick = Object.assign({}, pick, {title:'Next up: '+pick.title}); } }
+  if(!pick) return;
+  const el = document.getElementById('rightnow');
+  el.innerHTML = '<h2>Right Now</h2><div class="card urgent"><h3>'+pick.title+'</h3><p>'+pick.body+'</p><a class="btn" href="'+pick.url+'">'+pick.btn+'</a></div>';
+})();
+</script>
 
 <h2>Next 48 Hours</h2>
 
 <div class="card urgent">
   <h3>Wed 07:30 — Vienna go/no-go</h3>
   <p>Check inbox: Mirja, Henk, the BoF chairs, support ticket #54788. A confirmed substantive meeting = take the 08:32 Railjet and upgrade to onsite. Silence = stay remote for Thursday, rebook Friday Zurich→London early, cancel the Vienna hotel remainder.</p>
+  <a class="btn" href="https://mail.google.com/mail/u/0/#search/from%3A(mirja+OR+birkholz+OR+daigle+OR+steele+OR+support%40ietf.org)+newer_than%3A5d">One-tap inbox check (the four senders)</a> <a class="btn" href="https://www.oebb.at/en/">ÖBB (08:32 Railjet)</a>
 </div>
 
 <div class="card urgent">
   <h3>Thu 09:00 CEST — agentproto BoF (remote, Meetecho)</h3>
   <p>Join ~08:45. One-day pass activates on <strong>first</strong> session join — don't join anything else before. Open-mic window ≈10:10; consensus call ≈10:35 — answer <strong>YES</strong> to "who will review/contribute". At the mic: "Roberto Zagarella, Violet Shores."</p>
   <p class="dim" style="margin-top:6px">Fresh intel from today's scan: three related sessions this week (agentproto + DAWN forming groups, DMSC diagnostic); the CHEQ human-confirmation draft has quietly <strong>expired</strong> — the runtime-confirmation lane is now charter territory, and the root-of-authority lane stays wide open for us. A new complementary draft (Bu, "principal binding") argues authority claims need separate verifiers — quotable support for our line.</p>
-  <a class="btn" href="https://vacprotocol.org/p/ietf-brief-4e6123b6f1bb.html">Open the full IETF command page</a>
+  <a class="btn" href="https://datatracker.ietf.org/meeting/126/session/agentproto/">Join the session (Meetecho)</a> <a class="btn" href="https://vacprotocol.org/p/ietf-brief-4e6123b6f1bb.html">Full command page</a>
 </div>
 
 <div class="card">
   <h3>Fri ~11:00 UK — Elizabeth, BRIQ (469 Bethnal Green Rd)</h3>
   <p class="dim">Time nudge to 11:00 still awaiting her reply. Bag-drop at Liverpool St en route.</p>
+  <a class="btn" href="https://maps.google.com/?q=BRIQ+469+Bethnal+Green+Road+London">Directions</a> <a class="btn" href="https://vacprotocol.org/p/eliz-2ed8f504b2ab.html">Her page</a>
 </div>
 
 
@@ -88,28 +118,28 @@
 <div class="card">
   <ul style="margin-left:0;list-style:none">
     <li><strong>Product readiness</strong> (P-SA) <span class="pill wait">ROLLING</span> <span class="dim">— the umbrella: three blockers were template / language / memory; two down pending your Italian test, memory building tonight</span></li>
-    <li><strong>Language & Italian</strong> (P-SB) <span class="pill wait">AWAITING YOUR TEST</span> <span class="dim">— fix merged to production; one Italian WhatsApp message from you closes it</span></li>
+    <li><a href="https://wa.me/447404843156?text=Ciao%20Athena%2C%20come%20va%3F%20Rispondi%20in%20italiano%20per%20favore."><strong>Language & Italian</strong> (P-SB)</a> <span class="pill wait">ONE TAP CLOSES IT</span> <span class="dim">— tap to open WhatsApp with the Italian test message pre-filled; send it, check the reply is Italian</span></li>
     <li><strong>Language test harness</strong> (P-SBH) <span class="pill q">RESEARCH</span> <span class="dim">— automated multilingual regression tests; pattern reused for every future harness</span></li>
-    <li><strong>Memory & context</strong> (P-SC) <span class="pill run">BUILDING TONIGHT</span> <span class="dim">— plan shipped + gate-hardened today; three build lanes queued</span></li>
+    <li><a href="https://vacprotocol.org/p/psc-memory-6e7bd1c565c2.html"><strong>Memory & context</strong> (P-SC)</a> <span class="pill run">BUILDING TONIGHT</span> <span class="dim">— tap for the plan; build lanes below</span></li>
     <li><strong>Infrastructure P0s</strong> (P-SD) <span class="pill q">PLANNED</span> <span class="dim">— next: honest heartbeat (report real scan age, not just scheduler pulse)</span></li>
     <li><strong>Biometric burn-down</strong> (P-SE) <span class="pill q">QUEUED ×5</span> <span class="dim">— finger-capture instrumentation, server-side counting, deny legibility, voice-spoof posture audit</span></li>
-    <li><strong>Coding SignalRank</strong> (P-SF) <span class="pill wait">VERDICT NEEDED</span> <span class="dim">— research done: 100-question, 90%-execution-verified corpus across five coding skills; your go launches the build → feeds the public Engine page (F-879)</span></li>
+    <li><a href="https://vacprotocol.org/p/coding-research-72db4c7e39ee.html"><strong>Coding SignalRank</strong> (P-SF)</a> <span class="pill wait">YOUR VERDICT NEEDED</span> <span class="dim">— tap to read the research (corpus design, costs, which K3 claims we can verify); reply "go coding build" in chat to launch</span></li>
     <li><strong>Assurance loop</strong> (P-SG) <span class="pill q">PLANNED</span> <span class="dim">— extend the measure→control→prove loop beyond routing into every process variable</span></li>
   </ul>
-  <p class="dim" style="margin-top:8px">Stage detail lives in the repo streams register; this board is refreshed each session.</p>
+  <p class="dim" style="margin-top:8px">Tap any stream with a link; full register: <a href="https://github.com/VioletShores/athena/blob/main/docs/strategic/STREAMS-L0.md">STREAMS-L0.md on GitHub</a>.</p>
 </div>
 
 <h2>Revenue & Relationships — the pipeline</h2>
 <div class="card">
   <ul>
-    <li><strong>Caroline</strong> (legal/tribunal + defence intros) — staged email goes Friday morning from Lugano-time; tribunal demo is the flagship; standards one-pager stays in her private package.</li>
-    <li><strong>Antonio / AQP</strong> (water) — reconnect sent 17 Jul with the live water-demo link; WhatsApp nudge due <strong>~Wed 22</strong> if no reply (check link telemetry first); Sicily in-person offer 2–9 Aug on the table; CIO Paolo Lanza is the second door.</li>
-    <li><strong>Elizabeth / GEP</strong> — Friday in person (BRIQ); UK grants doorway (Green Light portable).</li>
-    <li><strong>Justin</strong> (Burges Salmon) — one-pager ready, ship-blocked only on the finance/medical demo links (building tonight).</li>
+    <li><a href="https://vacprotocol.org/tribunal-demo"><strong>Caroline</strong></a> (legal/tribunal + defence intros) — staged email goes Friday morning from Lugano-time; tribunal demo is the flagship; standards one-pager stays in her private package.</li>
+    <li><a href="https://vacprotocol.org/trusted-water-demo"><strong>Antonio / AQP</strong></a> (water) — reconnect sent 17 Jul with the live water-demo link; WhatsApp nudge due <strong>~Wed 22</strong> if no reply (check link telemetry first); Sicily in-person offer 2–9 Aug on the table; CIO Paolo Lanza is the second door.</li>
+    <li><a href="https://vacprotocol.org/p/eliz-2ed8f504b2ab.html"><strong>Elizabeth / GEP</strong></a> — Friday in person (BRIQ); UK grants doorway (Green Light portable).</li>
+    <li><a href="https://vacprotocol.org/p/justin-4858d584cec0.html"><strong>Justin</strong></a> (Burges Salmon) — one-pager ready, ship-blocked only on the finance/medical demo links (building tonight).</li>
     <li><strong>Tee Ganbold / FrontierOne</strong> (via Justin) — sovereign-AI factories angle; VAC as the sovereign chain-of-command layer; intro + call week of 28 Jul.</li>
     <li><strong>Sam / Blue Water Digital</strong> — first design partner; deliberately onboards <em>last</em>, on hardened infra.</li>
-    <li><strong>Anthony / Regatta Club</strong> — first dogfood user; live dashboard linked below.</li>
-    <li><strong>Andrea / IDSIA-SUPSI</strong> — research collaboration; the memory plan now carries five research questions written for that partnership.</li>
+    <li><a href="https://vacprotocol.org/athena-regatta-club-copilot"><strong>Anthony / Regatta Club</strong></a> — first dogfood user; live dashboard linked below.</li>
+    <li><a href="https://vacprotocol.org/p/andrea-70b7aba54c57.html"><strong>Andrea / IDSIA-SUPSI</strong></a> — research collaboration; the memory plan now carries five research questions written for that partnership.</li>
   </ul>
   <p class="dim" style="margin-top:8px"><strong>Funding lanes:</strong> UK (GEP · ARIA · Sovereign AI) · EU (StandICT · Horizon) · plus investment conversations as demo links complete. Every stream above ladders to one of these or a signed customer.</p>
 </div>
@@ -129,11 +159,11 @@
 
 <div class="card">
   <ul style="margin-left:0;list-style:none">
-    <li>Finance demo rebuild <span class="pill run">RUNNING</span> <span class="dim">— chunk-writing this time; watch for 5–6 commits, not one death</span></li>
-    <li>Medical demo quality gate <span class="pill run">RUNNING</span> <span class="dim">— the build itself is already done</span></li>
-    <li>Kimi K3 benchmark run <span class="pill q">QUEUED</span> <span class="dim">— $10 hard cap, stays suspended from routing</span></li>
-    <li>Grok 4.5 benchmark run <span class="pill q">QUEUED</span> <span class="dim">— same; admission is your call on evidence</span></li>
-    <li>Memory week-one build ×3 <span class="pill q">QUEUED</span> <span class="dim">— envelope + remember/forget + language preference</span></li>
+    <li><a href="https://github.com/VioletShores/vac-web/commits/task-s142-finance-demo">Finance demo rebuild</a> <span class="pill run">RUNNING</span> <span class="dim">— tap to watch commits land live</span></li>
+    <li><a href="https://github.com/VioletShores/vac-web/commits/task-s140-medical-demo">Medical demo quality gate</a> <span class="pill run">RUNNING</span> <span class="dim">— build already done; tap for the branch</span></li>
+    <li><a href="https://github.com/VioletShores/athena/commits/task-s140-judge-diversity">Kimi K3 benchmark run</a> <span class="pill q">RERUN PENDING</span> <span class="dim">— last run reported done but pushed nothing (under investigation); tap for the branch</span></li>
+    <li><a href="https://github.com/VioletShores/athena/commits/task-s141-grok45-onboard">Grok 4.5 benchmark run</a> <span class="pill run">RUNNING</span> <span class="dim">— tap for the branch; admission stays your call</span></li>
+    <li><a href="https://github.com/VioletShores/athena/branches/all?query=task-s142-memory">Memory week-one build ×3</a> <span class="pill run">RUNNING</span> <span class="dim">— envelope + remember/forget + language preference; tap for branches</span></li>
   </ul>
   <p class="dim" style="margin-top:10px">When the two demos land and merge, the Justin one-pager unblocks and the three outreach demo links (Caroline · Antonio · Elizabeth) come into reach.</p>
 </div>
@@ -146,15 +176,15 @@
 
 <h2>Honest Ledger</h2>
 <div class="card">
-  <p>Open execution-debt items remain in the ledger — the top three right now: the task-runner anomaly from last night (one "completed" run produced no results — under investigation before anything is re-reported), the pre-merge security-gate batch owed on several branches, and the biometric burn-down queue. Nothing on this page claims done without a commit or a live check behind it.</p>
+  <p>Open execution-debt items remain in the ledger — the top three right now: the task-runner anomaly from last night (one "completed" run produced no results — under investigation before anything is re-reported), the pre-merge security-gate batch owed on several branches, and the biometric burn-down queue. Nothing on this page claims done without a commit or a live check behind it. <a href="https://github.com/VioletShores/athena/blob/main/docs/EXECUTION-DEBT.md">Open the full ledger</a>.</p>
 </div>
 
 <h2>Your Open Actions</h2>
 <div class="card">
   <ul>
-    <li><strong>Italian live-test</strong> to AthenaPilot WhatsApp (+44 7404 843156) — flips the language-bug blocker; also feeds the memory acceptance tests.</li>
-    <li><strong>Wed 07:30 inbox check</strong> (above).</li>
-    <li>Orvieto Underground tour: confirm 28 Jul, 9am BST.</li>
+    <li><a href="https://wa.me/447404843156?text=Ciao%20Athena%2C%20come%20va%3F%20Rispondi%20in%20italiano%20per%20favore."><strong>Italian live-test</strong></a> — one tap opens WhatsApp with the message pre-filled; send it, expect an Italian reply.</li>
+    <li><a href="https://mail.google.com/mail/u/0/#search/from%3A(mirja+OR+birkholz+OR+daigle+OR+steele+OR+support%40ietf.org)+newer_than%3A5d"><strong>Wed 07:30 inbox check</strong></a> — one tap runs the search across the four senders.</li>
+    <li><a href="https://www.orvietounderground.it/en/"><strong>Orvieto Underground tour</strong></a> — confirm 28 Jul, 9am BST (provisional: Wed 12 Aug 4:15pm).</li>
   </ul>
 </div>
 

@@ -1,0 +1,519 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="theme-color" content="#0A0F1A"><meta name="robots" content="noindex,nofollow"><title>Coding SignalRank — Research</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#fff;font-family:Inter,sans-serif}.page-shell{background:#0A0F1A !important;min-height:100vh;color:#E8EDF5;padding:30px 0 70px}.wrap{max-width:860px;margin:0 auto;padding:0 20px}h1{font-size:22px;margin-bottom:6px}.stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:#93A1B8;margin-bottom:20px}pre{font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:#C6D2E4;background:#101827;border:1px solid #1E2A3D;border-radius:10px;padding:20px}</style></head><body><div class="page-shell"><div class="wrap"><h1>Coding SignalRank — Research Report</h1><div class="stamp">F-848 · research complete, awaiting build verdict · internal working doc, rendered verbatim</div><pre># Coding SignalRank — L0 Research Phase
+**Feature:** F-848 | **Sprint:** S139 | **Date:** 2026-07-18
+**Author:** Athena (autonomous research, no benchmark runs, no spend)
+**Status:** RESEARCH COMPLETE — awaiting NEED VERDICT + implement approval
+
+---
+
+## 1. Market-Standard Coding Benchmark Landscape
+
+### 1.1 Established Benchmarks
+
+| Benchmark | What It Tests | Ground Truth | Reproducible By Us? |
+|---|---|---|---|
+| **SWE-bench Verified** | Real GitHub issues from 12 OSS Python repos; apply patch, run repo test suite | Binary: tests pass/fail | **Yes** — public dataset (500 verified tasks), Docker images available, MIT-adjacent license |
+| **LiveCodeBench** | Competitive programming problems from Codeforces/LeetCode/AtCoder (rolling window; no contamination) | Execute code, check output | **Yes** — open source, Python-heavy, JSON corpus downloadable |
+| **Aider Polyglot** | Code editing across 6 languages (Python, JS, Rust, Go, Java, C++) via diff-apply + test | Repo test suite pass/fail | **Yes** — open source (Aider project), ~225 exercises from Exercism |
+| **HumanEval / MBPP** | Function synthesis from docstring | Execute + compare outputs | **Yes** — classic, widely cloned, but saturated (GPT-class all &gt;90%) |
+| **Terminal-Bench** | Long-horizon terminal agent tasks (filesystem ops, scripts, CLI pipelines) | State diff + file assertions | **Mostly** — paper published, original harness open source, requires sandbox |
+| **BigCodeBench** | 1140 coding tasks requiring library/API usage (real-world complexity) | Execute + assert | **Yes** — HuggingFace dataset, Apache 2.0 |
+
+### 1.2 What Kimi K3 Just Published Against (July 2026)
+
+Moonshot AI released **Kimi K3** (claimed 236B MoE, 32B activated) with numbers on:
+
+| Benchmark | Kimi K3 Score | Context |
+|---|---|---|
+| **Terminal-Bench 2.1** | 74.9% | Terminal agent benchmark; Kimi framing: &quot;best agentic coding&quot; |
+| **SWE-Marathon** | 46.3% | Extended SWE-bench variant with harder/longer-horizon tasks |
+| **ProgramBench** | 71.8% | Multi-language program synthesis; Kimi internal benchmark (not yet public) |
+| SWE-bench Verified | 65.8% | Standard verified split — competitive with o3 (71.7%), Claude Opus 4.8 (72.5%) |
+| LiveCodeBench v6 | 67.2% | Competitive programming; below o3 (~80%) but strong for price point |
+
+**Marketing vs reproducible split:**
+
+| Claim | Reproducible by us? | Notes |
+|---|---|---|
+| Terminal-Bench 2.1 — 74.9% | **Partial** — TB 2.1 schema is published but full task set requires their Docker sandbox; feasible to run subset (~30 tasks) | Kimi used their own infra; exact task list not confirmed public |
+| SWE-Marathon — 46.3% | **No (yet)** — SWE-Marathon is Moonshot&#x27;s internal extension; not separately released as of 2026-07-18 | Treat as marketing number |
+| ProgramBench — 71.8% | **No** — internal benchmark, no public dataset | Marketing number only |
+| SWE-bench Verified — 65.8% | **Yes** — fully reproducible via public 500-task split | Most trustworthy K3 claim |
+| LiveCodeBench v6 — 67.2% | **Yes** — public rolling corpus | Reproducible |
+
+**Bottom line on Kimi K3:** The SWE-bench Verified number (65.8%) is the only one we can independently verify cheaply. Terminal-Bench 2.1 is feasible at subset scale. SWE-Marathon and ProgramBench are marketing-tier claims — do not include in our trust graph without independent runs.
+
+Kimi K3 is available via OpenRouter as `moonshotai/kimi-k3` (not yet confirmed in registry as of this writing — K2.5 is registered). API cost: $1.00/M input, $3.00/M output (substantially cheaper than K2.5 at $2/$8).
+
+---
+
+## 2. Continuous Coding Corpus Design
+
+### 2.1 Design Principles
+
+Mirror the `athena_challenge` pattern (test_harness.py `SEED_CORPUS`) exactly:
+- Every question has `question`, `known_answer`, `scoring_criteria`, `domain`, `knowledge_type`, `difficulty`, `source`
+- Coding domain uses `knowledge_type: PROCEDURAL` with execution-verified scoring where possible
+- Questions are **self-contained** (no external repo state required) for synchronous evaluation
+- Questions with **executable ground truth** are flagged `&quot;executable&quot;: True` — harness runs the model&#x27;s code and checks output, no LLM judge needed
+
+### 2.2 Five Task Classes + Question Schema
+
+#### Class 1: Bugfix
+```python
+{
+    &quot;domain&quot;: &quot;coding_bugfix&quot;,
+    &quot;knowledge_type&quot;: &quot;PROCEDURAL&quot;,
+    &quot;executable&quot;: True,
+    &quot;question&quot;: &quot;The following Python function has a bug. Fix it so all test cases pass.\n\n&lt;code&gt;...&lt;/code&gt;\n\nTest cases: [...]&quot;,
+    &quot;known_answer&quot;: &quot;&lt;corrected_code&gt;&quot;,
+    &quot;test_cases&quot;: [{&quot;input&quot;: ..., &quot;expected&quot;: ...}, ...],   # harness executes
+    &quot;scoring_criteria&quot;: &quot;Code must pass all N test cases when executed. Partial credit: K/N passing tests.&quot;,
+    &quot;difficulty&quot;: &quot;easy|medium|hard&quot;,
+    &quot;source&quot;: &quot;internal|leetcode|exercism|real-codebase&quot;,
+}
+```
+**Scoring:** Execute model output → run test cases → score = passing_tests / total_tests. No LLM judge needed. Maps to `KnowledgeType.PROCEDURAL` with execution path.
+
+#### Class 2: Greenfield (Code Generation)
+```python
+{
+    &quot;domain&quot;: &quot;coding_greenfield&quot;,
+    &quot;knowledge_type&quot;: &quot;PROCEDURAL&quot;,
+    &quot;executable&quot;: True,
+    &quot;question&quot;: &quot;Write a function that... [spec with examples]&quot;,
+    &quot;known_answer&quot;: &quot;&lt;reference_implementation&gt;&quot;,
+    &quot;test_cases&quot;: [...],    # harness executes model output
+    &quot;scoring_criteria&quot;: &quot;...&quot;,
+}
+```
+
+#### Class 3: Refactor
+```python
+{
+    &quot;domain&quot;: &quot;coding_refactor&quot;,
+    &quot;knowledge_type&quot;: &quot;CAUSAL&quot;,
+    &quot;executable&quot;: False,   # output is structurally judged
+    &quot;question&quot;: &quot;Refactor this function to [goal]. Preserve behavior.&quot;,
+    &quot;known_answer&quot;: &quot;&lt;refactored_version_with_rationale&gt;&quot;,
+    &quot;scoring_criteria&quot;: &quot;Must: (1) preserve external API, (2) achieve stated goal, (3) no regressions. LLM judge + optional execution.&quot;,
+    &quot;check_equivalence&quot;: True,   # harness calls both old + new on sample inputs, diffs outputs
+}
+```
+
+#### Class 4: Test Writing
+```python
+{
+    &quot;domain&quot;: &quot;coding_tests&quot;,
+    &quot;knowledge_type&quot;: &quot;PROCEDURAL&quot;,
+    &quot;executable&quot;: True,
+    &quot;question&quot;: &quot;Write pytest tests for this function. It must catch: [bug list]&quot;,
+    &quot;known_answer&quot;: &quot;&lt;test_suite&gt;&quot;,
+    &quot;ground_truth_bugs&quot;: [&lt;buggy_versions&gt;],   # harness runs model&#x27;s tests against buggy code; tests pass iff bugs caught
+    &quot;scoring_criteria&quot;: &quot;Score = bugs_caught / total_bugs. Bonus: minimal false positives on clean code.&quot;,
+}
+```
+**Scoring is inverted:** good tests catch bugs (fail on buggy code, pass on clean code).
+
+#### Class 5: Terminal Ops
+```python
+{
+    &quot;domain&quot;: &quot;coding_terminal&quot;,
+    &quot;knowledge_type&quot;: &quot;PROCEDURAL&quot;,
+    &quot;executable&quot;: True,    # harness runs command in sandbox
+    &quot;question&quot;: &quot;Write a bash/python one-liner to [task]. Input: [description]. Output: [expected format].&quot;,
+    &quot;known_answer&quot;: &quot;&lt;command&gt;&quot;,
+    &quot;sandbox&quot;: &quot;bash&quot;,    # executor: subprocess in restricted tmpdir
+    &quot;test_inputs&quot;: [...],
+    &quot;expected_outputs&quot;: [...],
+    &quot;scoring_criteria&quot;: &quot;Execute command on each test input, compare output exactly or regex.&quot;,
+}
+```
+
+### 2.3 Corpus Scale (first calibration batch)
+
+| Domain | Q Count (initial) | Difficulty Mix | Executable? |
+|---|---|---|---|
+| coding_bugfix | 25 | 10 easy / 10 med / 5 hard | 100% |
+| coding_greenfield | 25 | 8 easy / 12 med / 5 hard | 100% |
+| coding_refactor | 15 | 5 easy / 7 med / 3 hard | 50% (equivalence check) |
+| coding_tests | 15 | 5 easy / 7 med / 3 hard | 100% (inverted) |
+| coding_terminal | 20 | 10 easy / 8 med / 2 hard | 100% |
+| **TOTAL** | **100** | | **~90% executable** |
+
+90%+ executable = 90%+ of coding scores require zero LLM judge. This is the key upgrade over the current `code` domain (which uses pure LLM judging).
+
+### 2.4 Harness Changes Required
+
+The existing `test_harness.py` runs `PROCEDURAL` scoring via LLM judge only. Two additions:
+
+1. **`execute_code(code: str, test_cases: list, sandbox: str) -&gt; ScoringResult`** — subprocess with restricted env, 10s timeout per test, returns pass/fail per case.
+2. **`DOMAIN_TYPE_DEFAULTS` extension** — add `coding_bugfix`, `coding_greenfield`, `coding_refactor`, `coding_tests`, `coding_terminal` with `PROCEDURAL` type + `executable=True` flag.
+
+Existing cross-model judging still runs as fallback for non-executable items (coding_refactor partial).
+
+### 2.5 Trust Score Destination
+
+Each of the 5 coding sub-domains gets an independent per-model trust score in the trust graph, exactly like the existing domains (`medical`, `financial`, etc.). The router can then select the best model for &quot;coding_bugfix&quot; separately from &quot;coding_terminal&quot; — this is the sub-domain granularity gap called out in the North Star doc (limitation #3).
+
+---
+
+## 3. Candidate Substrates + Per-Solve Cost Model
+
+### 3.1 Current Registry (from orchestrator.py)
+
+| Provider | Model | Tier | Input $/M | Output $/M | Notes |
+|---|---|---|---|---|---|
+| Anthropic | claude-fable-5 | flagship | 15.00 | 75.00 | Highest quality; expensive for code bulk |
+| Anthropic | claude-opus-4-8 | flagship | 15.00 | 75.00 | |
+| Anthropic | claude-opus-4-7 | legacy | 15.00 | 75.00 | |
+| Anthropic | claude-sonnet-4-6 | balanced | 3.00 | 15.00 | Current best cost/quality for code |
+| Anthropic | claude-haiku-4-5 | fast | 0.80 | 4.00 | Good for easy bugfix / terminal ops |
+| OpenAI | gpt-5.6-sol | flagship | 5.00 | 30.00 | |
+| OpenAI | gpt-5.6-terra | balanced | 2.50 | 15.00 | |
+| OpenAI | gpt-5.5 | flagship | 5.00 | 30.00 | |
+| OpenAI | gpt-5.4 | legacy | 2.50 | 10.00 | Previously top code domain score (92%) |
+| OpenAI | gpt-5-mini | fast | 0.15 | 0.60 | |
+| Google | gemini-2.5-pro | flagship | 1.25 | 10.00 | |
+| Google | gemini-2.5-flash | fast | 0.15 | 0.60 | |
+| xAI | grok-4 | flagship | est. 3.00 | est. 15.00 | |
+| xAI | grok-4-fast | balanced | est. 1.50 | est. 7.50 | |
+| DeepSeek | deepseek-reasoner (R1) | flagship | 0.55 | 2.19 | Exceptional coding value |
+| DeepSeek | deepseek-chat (V3) | balanced | 0.14 | 0.28 | Extremely cheap for greenfield |
+| Groq | llama-3.3-70b-versatile | balanced | est. 0.05 | est. 0.08 | |
+| OpenRouter | moonshotai/kimi-k2.5-0127 | flagship | 2.00 | 8.00 | Already registered |
+
+### 3.2 Kimi K3 Addition (New)
+
+| Model ID | Provider | Tier | Input $/M | Output $/M | Via |
+|---|---|---|---|---|---|
+| `moonshotai/kimi-k3` | OpenRouter | flagship | 1.00 | 3.00 | OpenRouter (same KEY as K2.5) |
+
+K3 has no new API key requirement — it routes through the existing OpenRouter integration. Register in `PROVIDERS[&quot;openrouter&quot;][&quot;models&quot;]` alongside K2.5. **No infrastructure change.**
+
+K3 SWE-bench Verified score (65.8%) puts it between GPT-5.4 range and Claude Opus 4.8 at ~3× cheaper cost than Sonnet 4.6 on output. Strong candidate for the coding domain value tier.
+
+### 3.3 Per-Solve Cost Model
+
+Assumptions:
+- **Code question prompt:** ~800 tokens input (question + context + instructions)
+- **Code answer:** ~600 tokens output (function body + brief explanation)
+- **Judge pass** (for non-executable items): +400 in + 200 out per judge model × N judges
+
+| Model | Input cost/Q | Output cost/Q | Judge cost (if needed) | Total / solve |
+|---|---|---|---|---|
+| claude-fable-5 | $0.012 | $0.045 | $0.009/$0.015 | **$0.057–$0.081** |
+| claude-sonnet-4-6 | $0.0024 | $0.009 | $0.0018/$0.003 | **$0.011–$0.015** |
+| claude-haiku-4-5 | $0.00064 | $0.0024 | $0.00032/$0.0008 | **$0.003–$0.004** |
+| gpt-5.6-sol | $0.004 | $0.018 | $0.003/$0.006 | **$0.022–$0.028** |
+| gpt-5.4 | $0.002 | $0.006 | $0.0016/$0.004 | **$0.008–$0.012** |
+| gpt-5-mini | $0.00012 | $0.00036 | $0.0001/$0.0001 | **$0.001** |
+| gemini-2.5-pro | $0.001 | $0.006 | $0.0008/$0.003 | **$0.007–$0.010** |
+| gemini-2.5-flash | $0.00012 | $0.00036 | $0.0001/$0.0001 | **$0.001** |
+| deepseek-reasoner | $0.00044 | $0.00131 | $0.0003/$0.0007 | **$0.002–$0.003** |
+| deepseek-chat | $0.000112 | $0.000168 | $0.0001/$0.0001 | **$0.0004** |
+| kimi-k3 (new) | $0.0008 | $0.0018 | $0.0006/$0.0012 | **$0.003–$0.005** |
+| kimi-k2.5 | $0.0016 | $0.0048 | $0.0012/$0.0024 | **$0.006–$0.009** |
+
+Note: Judge cost only applies to non-executable questions (≈10% of corpus). For executable questions (≈90%), judge cost = 0.
+
+### 3.4 Expected Spend — First Calibration Run (SPEND-GATED)
+
+**Scope:** 100 questions × 18 models (current roster + kimi-k3) × 1 attempt each.
+**Executable items (90q):** no judge cost.
+**Non-executable items (10q):** each answer judged by 3 other models.
+
+| Model | Cost for 100q | Notes |
+|---|---|---|
+| claude-fable-5 | ~$5.70 | Biggest line item |
+| claude-opus-4-8 | ~$5.70 | |
+| claude-opus-4-7 | ~$5.70 | |
+| claude-sonnet-4-6 | ~$1.10 | |
+| claude-haiku-4-5 | ~$0.30 | |
+| gpt-5.6-sol | ~$2.20 | |
+| gpt-5.6-terra | ~$1.10 | |
+| gpt-5.5 | ~$2.20 | |
+| gpt-5.4 | ~$0.80 | |
+| gpt-5-mini | ~$0.10 | |
+| gemini-2.5-pro | ~$0.70 | |
+| gemini-2.5-flash | ~$0.10 | |
+| grok-4 | ~$1.50 | (estimated) |
+| grok-4-fast | ~$0.75 | (estimated) |
+| deepseek-reasoner | ~$0.20 | |
+| deepseek-chat | ~$0.04 | |
+| kimi-k3 | ~$0.30 | |
+| kimi-k2.5 | ~$0.60 | |
+| **Judge cost (10q × 3 judges × avg)** | **~$0.30** | amortized across all non-exec |
+| **TOTAL** | **~$28.40** | |
+
+**Recommended first run (minimal viable calibration):**
+Exclude the 3 legacy/redundant Anthropic models (opus-4-7, opus-4-6) and run only active-tier models = 14 models.
+
+| Scenario | Models | Est. Spend |
+|---|---|---|
+| Full roster (18 models) | All above | ~$28.40 |
+| **Active-tier only (14 models)** | Exclude opus-4-7, opus-4-6, gpt-5.4 (legacy), gpt-5.5 | **~$14.80** |
+| Budget run (8 models) | Haiku, Sonnet, gpt-5-mini, flash, deepseek-chat, deepseek-reasoner, kimi-k3, gemini-pro | **~$3.80** |
+
+**Rob approves spend before any run is executed.** These are estimates; actual cost ±20% depending on model verbosity.
+
+---
+
+## 4. Local Substrate Sidebar — M4 Pro Mini 64GB
+
+### 4.1 What Actually Fits
+
+The Mac Mini M4 Pro has 64GB unified memory (shared CPU/GPU/Neural Engine). Quantized LLMs use 4–8 bits/param via llama.cpp/MLX.
+
+| Model | Params | Q4 VRAM | Q8 VRAM | Fits 64GB? | Inference Speed (tok/s) |
+|---|---|---|---|---|---|
+| Qwen2.5-Coder-7B | 7B | ~4.5 GB | ~8 GB | **Yes** | ~60–80 tok/s MLX |
+| Qwen2.5-Coder-14B | 14B | ~9 GB | ~16 GB | **Yes** | ~35–50 tok/s MLX |
+| Qwen2.5-Coder-32B | 32B | ~20 GB | ~36 GB | **Yes (Q4)** | ~15–25 tok/s MLX |
+| DeepSeek-Coder-V2-Lite | 16B (MoE, 2.4B active) | ~10 GB | ~18 GB | **Yes** | ~40–60 tok/s MLX |
+| Codestral 22B (Mistral) | 22B | ~14 GB | ~25 GB | **Yes (Q4/Q6)** | ~20–35 tok/s MLX |
+| DeepSeek-R1-Distill-Qwen-32B | 32B | ~20 GB | ~36 GB | **Yes (Q4)** | ~12–18 tok/s MLX |
+| Llama-3.3-70B | 70B | ~42 GB | **OOM** | **Q4 only, tight** | ~8–12 tok/s |
+| Qwen2.5-Coder-72B | 72B | ~44 GB | **OOM** | **Q4 only, marginal** | ~6–10 tok/s |
+| Devstral (Mistral, 24B) | 24B | ~15 GB | ~27 GB | **Yes** | ~18–28 tok/s |
+
+**Sweet spot for this Mini:** Qwen2.5-Coder-32B Q4 (20 GB; leaves 44 GB for OS + batch). This model is specifically fine-tuned for code and competitive with GPT-3.5-class on HumanEval.
+
+### 4.2 Honest Quality Expectations
+
+| Model | HumanEval Pass@1 | SWE-bench Verified | Practical ceiling |
+|---|---|---|---|
+| Qwen2.5-Coder-7B | ~78% | ~15–20% | Easy bugfix, greenfield; misses subtle logic |
+| Qwen2.5-Coder-14B | ~85% | ~25–30% | Good greenfield; weak on complex refactor |
+| **Qwen2.5-Coder-32B** | **~91%** | **~35–40%** | **Near GPT-4-Turbo class; viable for medium tasks** |
+| Codestral 22B | ~88% | ~30–35% | Strong for Python/JS; weaker on rare languages |
+| Devstral 24B | ~86% | ~32–38% | Agentic coding focus; good terminal ops |
+| DeepSeek-R1-Distill-32B | ~89% | ~38–42% | Best reasoning/refactor; slower (CoT) |
+
+**Realistic expectations vs frontier:**
+- Local 32B Q4 ≈ GPT-4-Turbo vintage (mid-2024 API quality)
+- Local models are **1–2 years behind frontier** on hard benchmarks
+- For EASY bugfix + greenfield: local is genuinely competitive (&gt;85%)
+- For HARD refactor + complex algorithms: expect 30–40% quality vs frontier 65–75%
+
+### 4.3 Zero-Marginal Lane Value
+
+Local models are valuable not for quality parity but for:
+1. **Zero API cost** — run 1000 calibration questions without budget approval
+2. **Speed without quota** — no rate limits, no 429s
+3. **Data privacy** — no external API call for sensitive internal corpus questions
+4. **Baseline anchor** — establishes a free quality floor; routing to API only when local can&#x27;t solve
+
+**Recommended local setup:** Ollama (already common on Mac Mini) + `qwen2.5-coder:32b-instruct-q4_K_M`. MLX-LM if you want Apple Silicon native speed (+20–30% over llama.cpp for Metal-accelerated shapes).
+
+**Cost to add to harness:** Add `&quot;ollama&quot;` as a provider in `orchestrator.py` with `call_ollama()` function (HTTP to localhost:11434). No new API key. Local models show cost=$0.000 in the cost model.
+
+---
+
+## 5. Developer Product Shape — SignalRank-for-Code API
+
+### 5.1 Current API Surface (relevant)
+
+```
+GET  /v1/trust-graph/recommend?task_type=code&amp;domain=code&amp;priority=quality
+GET  /v1/performance/rankings
+POST /v1/harness/challenge          ← runs calibration
+```
+
+`/compare` on vacprotocol.org is the SignalRank demo page — currently shows Athena routing vs raw models across general domains.
+
+### 5.2 Proposed New Endpoints (next to @vacprotocol/verify)
+
+```
+# Model recommendation for a coding task
+GET  /v1/code/recommend
+     ?task=bugfix|greenfield|refactor|test_writing|terminal_ops
+     ?difficulty=easy|medium|hard
+     ?language=python|js|go|rust|...
+     → { recommended_model, trust_score, alternatives[3], cost_estimate_per_solve }
+
+# Ranked leaderboard for coding sub-domains  
+GET  /v1/code/leaderboard
+     ?domain=coding_bugfix|coding_greenfield|...
+     → { models: [{model_id, rank, trust_score, solve_rate, avg_cost}] }
+
+# Submit a solve for trust graph update (webhook from your CI)
+POST /v1/code/solve-feedback
+     { model_id, task_class, passed: bool, tokens_used, latency_ms }
+     → { trust_updated: bool, new_trust_score }
+```
+
+### 5.3 SDK / Integration Shape
+
+```typescript
+// @vacprotocol/verify SDK — proposed code extension
+import { verify, codeRecommend } from &#x27;@vacprotocol/verify&#x27;
+
+// Existing: identity verification
+const proof = await verify({ email, action: &#x27;approve_payment&#x27; })
+
+// New: get the best model for a coding task (uses SignalRank trust graph)
+const rec = await codeRecommend({
+  task: &#x27;bugfix&#x27;,
+  language: &#x27;python&#x27;,
+  difficulty: &#x27;medium&#x27;,
+})
+// → { model: &#x27;deepseek-reasoner&#x27;, trust: 0.84, estimatedCost: &#x27;$0.003/solve&#x27; }
+```
+
+**Positioning:** &quot;The same trust graph that routes AI agent decisions now routes your code generation tasks. Every recommendation is backed by empirically calibrated execution-verified scores — not marketing benchmarks.&quot;
+
+### 5.4 /compare Page Extension
+
+The existing `/compare` page (Athena/SignalRank demo on vacprotocol.org) should gain a **Coding tab** showing the 5 task classes with real-time leaderboard from the trust graph. This is a product design decision for Rob — not implementing here, just scoping.
+
+---
+
+## NEED VERDICT
+
+**Build Coding SignalRank? YES.**
+
+Reasons:
+1. **Fills the single most visible gap** in the trust graph: &quot;code&quot; is one blob, execution-verified scoring is blocked (see North Star gap #1, #3).
+2. **Kimi K3 as forcing function** — K3&#x27;s SWE-bench Verified score (65.8%) at $1/$3 pricing makes the coding domain the highest ROI place to add a new model. Without coding-specific trust scores, K3 just enters the general pool.
+3. **Zero infrastructure change for K3** — existing OpenRouter key, just add `kimi-k3` to the registry.
+4. **Local substrate is viable** — Qwen2.5-Coder-32B Q4 fits comfortably, adds a zero-cost lane.
+5. **~$15–28 to calibrate** — lowest-ever cost-to-first-signal for a new domain (execution scoring = fewer judging passes).
+
+**Not building (this phase):** SWE-bench Verified integration (requires Docker + repo cloning); that&#x27;s Phase 2 after trust scores prove the model ranking hypothesis.
+
+---
+
+## Implement Packet (Follow-up Dispatch Executes Without Human Input)
+
+**Scope: Corpus + Runner only. No benchmark RUN. Spend-gated.**
+
+### File 1: `docs/harness-corpus/coding_seed.py`
+New file. Contains 100 known-answer questions across 5 coding sub-domains following the schema in §2.2. Questions sourced from: Exercism exercises (public domain), internal known patterns from codebase, and canonical algorithm problems.
+
+Structure mirrors `digital_marketing_seed.py` exactly:
+```python
+CODING_SEED = [
+    {
+        &quot;domain&quot;: &quot;coding_bugfix&quot;,
+        &quot;knowledge_type&quot;: &quot;PROCEDURAL&quot;,
+        &quot;executable&quot;: True,
+        &quot;question&quot;: &quot;...&quot;,
+        &quot;known_answer&quot;: &quot;...&quot;,
+        &quot;test_cases&quot;: [...],
+        &quot;scoring_criteria&quot;: &quot;...&quot;,
+        &quot;difficulty&quot;: &quot;medium&quot;,
+        &quot;source&quot;: &quot;exercism/python/allergies&quot;,
+        &quot;corpus_author&quot;: &quot;athena-exec&quot;,
+    },
+    ...  # 99 more
+]
+```
+
+### File 2: `backend/code_executor.py`
+New file. Isolated execution sandbox for evaluating model code answers.
+
+```python
+def execute_code_answer(
+    code: str,
+    test_cases: list[dict],
+    language: str = &quot;python&quot;,
+    timeout_s: float = 10.0,
+) -&gt; dict:
+    &quot;&quot;&quot;
+    Execute model-generated code against test_cases.
+    Returns {&quot;passed&quot;: int, &quot;total&quot;: int, &quot;errors&quot;: list[str]}.
+    Runs in subprocess with restricted builtins (no os, subprocess, socket).
+    &quot;&quot;&quot;
+```
+
+### File 3: `backend/test_harness.py` — patch
+Add to `_DOMAIN_TYPE_DEFAULTS`:
+```python
+&quot;coding_bugfix&quot;:     KnowledgeType.PROCEDURAL,
+&quot;coding_greenfield&quot;: KnowledgeType.PROCEDURAL,
+&quot;coding_refactor&quot;:   KnowledgeType.CAUSAL,
+&quot;coding_tests&quot;:      KnowledgeType.PROCEDURAL,
+&quot;coding_terminal&quot;:   KnowledgeType.PROCEDURAL,
+```
+
+Add execution path in `score_response()`:
+```python
+if question.get(&quot;executable&quot;) and language == &quot;python&quot;:
+    exec_result = execute_code_answer(response_text, question[&quot;test_cases&quot;])
+    score = exec_result[&quot;passed&quot;] / exec_result[&quot;total&quot;]
+    return ScoringResult(score=score, method=&quot;execution&quot;, details=exec_result)
+```
+
+### File 4: `backend/orchestrator.py` — patch
+Add Kimi K3 to `PROVIDERS[&quot;openrouter&quot;][&quot;models&quot;]`:
+```python
+&quot;moonshotai/kimi-k3&quot;: {
+    &quot;name&quot;: &quot;Kimi K3 (236B MoE)&quot;,
+    &quot;tier&quot;: &quot;flagship&quot;,
+    &quot;input_cost_per_m&quot;: 1.00,
+    &quot;output_cost_per_m&quot;: 3.00,
+},
+```
+
+Add Ollama provider (optional, for local substrate):
+```python
+&quot;ollama&quot;: {
+    &quot;models&quot;: {
+        &quot;qwen2.5-coder:32b-instruct-q4_K_M&quot;: {
+            &quot;name&quot;: &quot;Qwen2.5-Coder 32B (local Q4)&quot;,
+            &quot;tier&quot;: &quot;local&quot;,
+            &quot;input_cost_per_m&quot;: 0.0,
+            &quot;output_cost_per_m&quot;: 0.0,
+        }
+    },
+    &quot;base_url&quot;: &quot;http://localhost:11434/v1&quot;,
+    &quot;default_model&quot;: &quot;qwen2.5-coder:32b-instruct-q4_K_M&quot;,
+}
+```
+
+### Corpus Writing Guidance (for follow-up dispatch)
+
+| Domain | Source pool | Count | Executable via |
+|---|---|---|---|
+| coding_bugfix | Python Exercism defect variants, internal codebase bugs | 25 | test_cases array |
+| coding_greenfield | Exercism problem specs, HumanEval-subset (non-saturated), LeetCode Easy/Medium | 25 | test_cases array |
+| coding_refactor | Internal patterns (FastAPI route ordering, EMA formula, dict vs list perf) | 15 | check_equivalence |
+| coding_tests | Buggy function pairs from bugfix pool | 15 | ground_truth_bugs |
+| coding_terminal | bash/python one-liners: file ops, JSON parsing, CSV transforms, git ops | 20 | subprocess stdin/stdout |
+
+**Estimated corpus write time:** 4–6 hours of focused corpus authoring. Mostly mechanical once first 5 examples per class are written (LLM-assisted is fine; each question manually verified against known_answer before commit).
+
+### Tests Required Before Commit
+
+```bash
+# Confirm code_executor imports cleanly
+python3 -c &quot;from code_executor import execute_code_answer; print(&#x27;OK&#x27;)&quot;
+
+# Confirm harness loads coding domains
+python3 -c &quot;from test_harness import SEED_CORPUS; print([q for q in SEED_CORPUS if &#x27;coding&#x27; in q[&#x27;domain&#x27;]][:2])&quot;
+
+# Confirm kimi-k3 registers correctly
+python3 -c &quot;from orchestrator import PROVIDERS; print(PROVIDERS[&#x27;openrouter&#x27;][&#x27;models&#x27;][&#x27;moonshotai/kimi-k3&#x27;])&quot;
+```
+
+---
+
+## Appendix: Benchmarks Not Recommended for Our Use
+
+| Benchmark | Why Skip |
+|---|---|
+| MMLU-Pro (coding subset) | Multiple-choice; doesn&#x27;t test code generation |
+| APPS (competitive programming) | Oversaturated; many models have trained on test set |
+| CodeXGLUE | Outdated (2021); models score &gt;90%, no signal |
+| AlphaCode 2 | Google proprietary; not reproducible |
+| HumanEval | Saturated (GPT-class all &gt;90%); use BigCodeBench instead for signal |
+| SWE-Marathon | Moonshot proprietary; not public |
+| ProgramBench | Moonshot proprietary; not public |
+
+---
+
+*Research by Athena autonomous dispatch — F-848, S139*
+*No API calls made. No spend incurred. All cost figures are estimates from published pricing.*
+</pre></div></div></body></html>
