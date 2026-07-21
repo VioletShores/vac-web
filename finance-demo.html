@@ -845,17 +845,18 @@ function showReceipt(){
   document.getElementById('receiptNote').textContent=
     'This sealed record is provenance — not a guarantee of correctness or legal compliance. It documents: (1) the AI advisory recommendation — advisory only, not a credit decision; (2) the officer\'s independent credit judgment — explicitly recorded as independent of the AI recommendation; (3) the delegated authority confirmation, credit policy version, and evidence-bundle hash bound to this decision; (4) reason codes sealed with the record. Authority to make this decision comes from the institution\'s delegation framework — not from the biometric itself. The biometric proves WHO sealed; the delegation determines whether they had authority to do so. This record is a demonstration; it does not constitute a credit product or financial advice.';
 
+  var DOT='·';
   var auditLines=[
-    ['−0:05','case CASE-FIN-2026-0391 opened \xb7 ai_recommendation=approve_standard \xb7 advisory_only=true \xb7 model=athena_credit_v2.4.1'],
-    ['−0:04','officer independent review initiated \xb7 evidence_bundle=reviewed \xb7 ai_output=one_input_only'],
-    ['−0:03','delegated authority check \xb7 facility=$180,000 \xb7 limit=$250,000 \xb7 within_limit=true \xb7 policy=CP-2026-v3.1'],
-    ['−0:02','decision path selected \xb7 '+selectedPath+(selectedRCs.length?' \xb7 reason_codes='+selectedRCs.join(','):'')],
-    ['−0:01','biometric step-up \xb7 officer verified \xb7 liveness=pass \xb7 deepfake=pass \xb7 cross_modal=pass'],
-    ['  now  ','decision sealed Ed25519 \xb7 ai_recommendation≠officer_decision (explicitly separated) \xb7 lodged to audit chain'],
+    ['-0:05','case CASE-FIN-2026-0391 opened '+DOT+' ai_recommendation=approve_standard '+DOT+' advisory_only=true '+DOT+' model=athena_credit_v2.4.1'],
+    ['-0:04','officer independent review initiated '+DOT+' evidence_bundle=reviewed '+DOT+' ai_output=one_input_only'],
+    ['-0:03','delegated authority check '+DOT+' facility=$180,000 '+DOT+' limit=$250,000 '+DOT+' within_limit=true '+DOT+' policy=CP-2026-v3.1'],
+    ['-0:02','decision path selected '+DOT+' '+selectedPath+(selectedRCs.length?' '+DOT+' reason_codes='+selectedRCs.join(','):'')],
+    ['-0:01','biometric step-up '+DOT+' officer verified '+DOT+' liveness=pass '+DOT+' deepfake=pass '+DOT+' cross_modal=pass'],
+    ['  now ','decision sealed Ed25519 '+DOT+' ai_recommendation!=officer_decision (explicitly separated) '+DOT+' lodged to audit chain'],
   ];
 
   document.getElementById('auditLog').innerHTML=auditLines.map(function(row){
-    return '<div class="audit-line"><span class="t">'+esc(row[0])+'</span><span>'+row[1]+'</span></div>';
+    return '<div class="audit-line"><span class="t">'+esc(row[0])+'</span><span>'+esc(row[1])+'</span></div>';
   }).join('');
 
   document.getElementById('receipt').classList.add('show');
