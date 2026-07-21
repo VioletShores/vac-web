@@ -34,7 +34,7 @@
   .foot{font-size:11.5px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
 </style>
 </head>
-<body>
+<body data-build="S142.5">
 <div class="page-shell">
 <div class="wrap">
 
@@ -48,7 +48,7 @@
   </svg>
   <div>
     <h1>Rob's Hub</h1>
-    <div class="stamp">Refreshed 21 Jul 2026 · S142.4 (operating edition) · Zurich</div>
+    <div class="stamp">Refreshed 21 Jul 2026 · S142.5 (self-refreshing) · Zurich</div>
   </div>
 </header>
 
@@ -240,5 +240,23 @@
 
 </div>
 </div>
+<script>
+(function(){
+  // Self-refresh: whenever the pinned page is (re)opened, silently check the server
+  // for a newer build and reload once if found. Keeps the home-screen pin always current.
+  var checking=false;
+  function check(){
+    if(checking) return; checking=true;
+    fetch(location.pathname,{cache:'no-store'}).then(function(r){return r.text();}).then(function(t){
+      var m=t.match(/data-build="([^"]+)"/);
+      var mine=document.body.getAttribute('data-build');
+      if(m&&mine&&m[1]!==mine){ location.reload(); }
+      checking=false;
+    }).catch(function(){checking=false;});
+  }
+  window.addEventListener('pageshow',check);
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) check(); });
+})();
+</script>
 </body>
 </html>
