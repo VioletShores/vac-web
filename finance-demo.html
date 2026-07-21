@@ -235,14 +235,43 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 <body>
 <div class="page-shell">
 
-  <!-- SECTION: PREVIEW BANNER (3a) -->
+  <div class="preview-banner">Preview — credit approval workflow is illustrative; the AI scoring and application data are simulated; the VAC biometric seal runs against the production backend.</div>
 
-  <!-- SECTION: HEADER (3a) -->
+  <header class="top"><div class="wrap"><div class="top-row">
+    <div class="brand">
+      <!-- VAC finance mark: shield with circuit nodes -->
+      <svg class="mark" viewBox="0 0 40 40" fill="none">
+        <circle cx="20" cy="20" r="18" stroke="#6C5CE7" stroke-width="1.5"/>
+        <path d="M20 9 L29 13.5 L29 21 C29 25.5 25 29 20 31 C15 29 11 25.5 11 21 L11 13.5 Z" fill="none" stroke="#00CEC9" stroke-width="1.2" opacity="0.7"/>
+        <circle cx="20" cy="20" r="4.5" fill="#6C5CE7"/>
+        <circle cx="20" cy="20" r="2" fill="#00CEC9"/>
+      </svg>
+      <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
+    </div>
+    <span class="nav-mode">CREDIT AUTHORITY · PREVIEW</span>
+  </div></div></header>
 
   <div class="wrap">
 
-    <!-- SECTION: HERO (3a) -->
-    <section class="hero"></section>
+    <section class="hero">
+      <div class="eyebrow">A briefing for lending and credit risk teams</div>
+      <h1>The AI scored it. The officer decided. A sealed record that proves the authority — and survives the audit.</h1>
+
+      <p style="font-size:clamp(18px,3.2vw,23px);font-weight:700;color:var(--text-primary);line-height:1.35;margin:14px 0 4px;border-left:3px solid var(--teal);padding-left:16px;">A verified credit officer, exercising delegated lending authority — at the moment of the decision.</p>
+      <p style="font-size:clamp(14px,2.4vw,16px);color:var(--text-secondary);line-height:1.55;margin:0 0 20px;padding-left:19px;">VAC proves the officer is <strong style="color:var(--text-primary);">present and authorised</strong> (live biometric + delegation record), that the AI output was <strong style="color:var(--text-primary);">advisory and not the decision</strong>, and that a <strong style="color:var(--text-primary);">specific, accountable human</strong> made the call — a sealed receipt that binds authority, identity, and decision in one tamper-evident record.</p>
+
+      <p class="hero-lede"><span class="pull">The core accountability gap:</span> when an AI credit scoring model recommends approval and an officer acts on it, the record usually captures the outcome — not whether the model's recommendation was reviewed, whether the officer formed an independent judgment, or whether the amount fell within that officer's delegated lending mandate. <span class="pull">That gap matters</span> when a loan defaults and credit policy compliance is audited, when a regulator examines whether AI-driven decisions were subject to meaningful human oversight, or when a lending institution needs to demonstrate that its credit process meets governance and accountability expectations.</p>
+
+      <div class="brief">
+        <div class="brief-label">Why governance frameworks are pressing on this now</div>
+        <p>FINMA Guidance 08/2024 on Artificial Intelligence is explicit: Swiss supervised institutions using AI in decision-relevant processes must maintain meaningful human oversight and a clear audit trail of who made what decision under which authority. The guidance specifically calls out credit assessment and scoring as a domain where AI-driven processes require documented human accountability — not AI-as-endorser, but AI-as-input with a human as the accountable decision-maker.</p>
+        <p>At EU level, the AI Act classifies creditworthiness assessment as a high-risk application (Annex III); Article 14 mandates effective human oversight and requires that the natural person exercising oversight understands the AI system's outputs and can override them. Where EU law applies — including for cross-border EU operations — the authority trail VAC produces is <span class="pull">relevant to demonstrating that human oversight obligation was met</span>. DORA (Digital Operational Resilience Act) adds a further layer for EU financial entities: third-party AI tools used in lending workflows are in scope for ICT risk management and operational continuity requirements.</p>
+        <p>VAC's contribution is narrow and specific: a verified credit officer, a decision documented as <span class="pull">explicitly independent of the AI scoring recommendation</span>, a sealed cryptographic receipt binding the officer's delegated mandate to their identity and their actual decision — and an audit trail that makes the full chain answerable, long after the credit moment has passed.</p>
+        <p><span class="pull">Careful framing:</span> this demonstration shows an auditable human-authorisation pattern that may support governance, oversight and accountability controls aligned to expectations such as FINMA Guidance 08/2024 on AI, and relevant to EU AI Act high-risk creditworthiness assessment where applicable (Art. 14 human oversight). It is not a compliance tool, not certified, and not regulator-approved. No VAC seal constitutes a guarantee of legal compliance.</p>
+      </div>
+
+      <p class="hero-foot">The scenario below is a single bounded SME credit-approval case: an AI-scored application, four decision paths with reason codes, a delegated-authority check that shows both within-limit and over-limit logic, and a sealed receipt that binds the officer's <span class="pull">independent decision</span> to the AI advisory output without conflating the two. Select the case to walk through it.</p>
+    </section>
 
     <div class="tabs">
       <button class="tab sel" data-tab="walk">Walkthrough</button>
@@ -252,7 +281,21 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     <!-- WALKTHROUGH TAB -->
     <div id="tab-walk">
 
-      <!-- SECTION: FWD NOTE + CASE SELECTION (3a) -->
+      <div class="fwd-note">
+        <strong>Honest scope of this walkthrough.</strong> The credit application, business financials, and AI scoring output are simulated — not real applicant data, not a real credit decision. The AI model shown is illustrative and is not a deployed lending system. The VAC biometric seal runs against the live production backend and mints a genuinely signed token. Delegation authority is asserted by the officer for demonstration purposes; in a live deployment it is managed by the institution's entitlement system and bound to the sealed record at issue time.
+      </div>
+
+      <p class="section-label">Choose a case</p>
+      <div class="cases">
+        <button class="case-card" id="caseBtn" onclick="selectCase()">
+          <div class="case-top">
+            <span class="case-n">F-01</span>
+            <span class="case-title">SME working capital facility — AI-scored, officer review required</span>
+            <span class="ai-chip">AI advisory</span>
+          </div>
+          <div class="case-desc">A small-to-medium enterprise has applied for a $180,000 working capital facility. An AI credit scoring model has assessed the application and produced an advisory recommendation. The Authorised Credit Officer must review independently, confirm the amount falls within delegated lending authority, select a decision path with reason codes, and seal the outcome.</div>
+        </button>
+      </div>
 
       <!-- WALKTHROUGH STAGE -->
       <section class="stage" id="stage">
