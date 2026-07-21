@@ -181,6 +181,10 @@
       "destination": "/trusted-water-demo.html"
     },
     {
+      "source": "/finance-demo",
+      "destination": "/finance-demo.html"
+    },
+    {
       "source": "/vat-verify",
       "destination": "/vat-verify.html"
     },
