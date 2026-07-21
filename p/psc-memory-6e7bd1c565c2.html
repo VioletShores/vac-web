@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>Memory &amp; Context Plan — AthenaPilot (P-SC) — 21 Jul 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0F1A; --panel:#101827; --panel2:#0D1420; --line:#1E2A3D;
+    --ink:#E8EDF5; --ink-dim:#93A1B8; --gold:#D4A94E; --gold-dim:#8A7233;
+    --green:#5FB87A; --red:#D9705F; --blue:#6FA8DC;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#fff}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);padding:0 0 80px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 28px}
+  header{padding:56px 0 36px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;color:var(--gold);text-transform:uppercase;margin-bottom:14px}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:34px;line-height:1.2;margin-bottom:12px}
+  .sub{color:var(--ink-dim);font-size:15.5px;line-height:1.6;max-width:720px}
+  h2{font-family:'Fraunces',serif;font-weight:600;font-size:23px;margin:52px 0 16px;color:var(--gold)}
+  h3{font-size:15px;font-weight:600;margin:26px 0 8px;letter-spacing:.02em}
+  p,li{font-size:14.5px;line-height:1.65;color:var(--ink)}
+  p{margin-bottom:12px}
+  .dim{color:var(--ink-dim)}
+  ul,ol{margin:0 0 14px 20px}
+  li{margin-bottom:7px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}
+  .panel.gold{border-color:var(--gold-dim)}
+  pre{font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;color:#B9C6DA;margin:14px 0}
+  code{font-family:'JetBrains Mono',monospace;font-size:12.5px;background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--gold)}
+  .tag{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;border:1px solid var(--line);color:var(--ink-dim);margin-right:6px}
+  .tag.go{border-color:var(--green);color:var(--green)}
+  .tag.hold{border-color:var(--red);color:var(--red)}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
+  th{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);text-align:left;padding:8px 10px;border-bottom:1px solid var(--gold-dim)}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.5}
+  .owl{display:block;margin:0 0 18px}
+  .footnote{font-size:12.5px;color:var(--ink-dim);border-top:1px solid var(--line);margin-top:56px;padding-top:18px;line-height:1.6}
+  .kicker{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-dim);letter-spacing:.08em}
+</style>
+</head>
+<body>
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <svg class="owl" width="54" height="54" viewBox="0 0 54 54" fill="none">
+    <circle cx="27" cy="27" r="25" stroke="#D4A94E" stroke-width="1.3" opacity="0.5"/>
+    <circle cx="18" cy="22" r="4.5" stroke="#D4A94E" stroke-width="1.3"/>
+    <circle cx="36" cy="22" r="4.5" stroke="#D4A94E" stroke-width="1.3"/>
+    <circle cx="18" cy="22" r="1.4" fill="#D4A94E"/>
+    <circle cx="36" cy="22" r="1.4" fill="#D4A94E"/>
+    <path d="M25 29 L27 32 L29 29" stroke="#D4A94E" stroke-width="1.3" stroke-linecap="round"/>
+    <circle cx="10" cy="10" r="1" fill="#D4A94E" opacity="0.7"/>
+    <circle cx="45" cy="8" r="1" fill="#D4A94E" opacity="0.5"/>
+    <circle cx="48" cy="42" r="1" fill="#D4A94E" opacity="0.6"/>
+  </svg>
+  <div class="eyebrow">Memory &amp; Context Stream (P-SC) · Plan · S142 · 21 July 2026</div>
+  <h1>How AthenaPilot Remembers People</h1>
+  <p class="sub">Today, AthenaPilot forgets who you are between conversations. Tell it your name or "reply in Italian" and tomorrow it starts blank. This is the third of three blockers stopping real users from being invited onto the product. This plan defines what gets remembered, how it's stored, how it travels, how it's deleted — and the smallest cut that ships in one week.</p>
+</header>
+
+<h2>What the cross-model gate changed (read this first)</h2>
+<p>The original plan (from the constellation-digest feature F-701 and the three-tier memory feature F-150) was: build the full packet metadata envelope first, then the memory tiers, then a ~1KB portable digest carried in every packet. That plan was put through a multi-model challenge gate <span class="dim">— run through AthenaPilot's own orchestration engine (<code>/v1/orchestrate</code>, challenge mode), which is itself proof the product works —</span> and the gate rejected the sequencing and found seven failure classes the plan missed. The verdicts below are adopted as binding (the L-2312 rule: when independent models converge on a weakness, it's a fix, not an opinion).</p>
+
+<div class="panel gold">
+  <h3 style="margin-top:0">Gate verdicts adopted</h3>
+  <ul>
+    <li><strong>Don't build the full envelope first.</strong> Only a <em>thin</em> envelope (identity, message id, conversation id, consent flag, memory version) is on the critical path. Cost, trust scores, stage timestamps come later.</li>
+    <li><strong>"Immutable" hot facts are wrong.</strong> Names and preferences change. Every fact needs status (active / superseded / deleted), a source message id, confidence, and a timestamp. Deletion works by tombstone, not erasure of history.</li>
+    <li><strong>A post-conversation digest job fails on WhatsApp</strong> — conversations don't cleanly end. Explicit facts ("call me Rob", "reply in Italian") must be written <em>immediately</em>, on the message that states them.</li>
+    <li><strong>Conflict order must be explicit:</strong> current user instruction beats stored fact beats summary beats old history. Without this, memory becomes sticky and wrong.</li>
+    <li><strong>1KB is a profile card, not a memory.</strong> Hot facts with source-ids fit in 1KB; episodic history with provenance does not. The digest is a <em>cache</em>; the central store is the source of truth — otherwise "forget me" can never be honoured (digests copied into logs, queues, traces).</li>
+    <li><strong>v1 write policy, hard rules:</strong> first-party facts only, stated explicitly by the sender, in 1:1 chats. No third-party facts, no group chats, no assistant inferences, no summary-derived "facts".</li>
+    <li><strong>User controls ship on day one:</strong> "what do you remember about me?", "forget my language preference", "forget me".</li>
+  </ul>
+</div>
+
+<h2>The system, in one diagram</h2>
+<p class="dim">Read path (every message) on the left; write path (explicit facts) on the right. The digest is compiled from the store, never the reverse.</p>
+<pre>
+        READ PATH (every message)                WRITE PATH (explicit facts only)
+        ------------------------                --------------------------------
+  WhatsApp msg in                                 user states a fact
+        |                                         "call me Rob" / "in italiano"
+        v                                                  |
+  user_id = hash(sender)                                   v
+        |                                         rule/classifier extraction
+        v                                         (high-confidence, first-party,
+  MEMORY STORE  ---- hot facts ---+                1:1 only; injection-guarded)
+  (source of truth,               |                        |
+   tombstones, versions)          |                        v
+        |                         v                idempotent write
+        |                 context builder          (user_id + msg_id + key)
+        |                 [profile block]                  |
+        |                 [conflict rule]                  v
+        |                 [history]                MEMORY STORE (same box)
+        |                 [language rule]                  |
+        |                         |                        v
+        v                         v                tombstone on "forget"
+  1KB PROFILE DIGEST ------> LLM reply
+  (cache, versioned,
+   expiring — travels in
+   thin packet envelope)
+
+  ERROR PATHS: extraction below confidence -> no write (silent)
+               concurrent writes -> newest source_timestamp wins
+               digest stale vs store -> store wins, digest recompiled
+               "forget me" -> tombstone all + digest version bump + cache expiry
+</pre>
+
+<h2>Revised sequencing (replaces envelope-first)</h2>
+<table>
+  <tr><th>Step</th><th>What ships</th><th>Surface / size</th><th>Unblocks</th></tr>
+  <tr><td><strong>1. Thin envelope + identity</strong></td><td>user_id, message_id, conversation_id, surface, consent flag, memory version on every packet. Nothing else.</td><td>Mini · Small</td><td>Everything below</td></tr>
+  <tr><td><strong>2. Hot memory + controls</strong></td><td><code>user_memory</code> table (key, value, confidence, source ids, status, sensitivity, TTL) + explicit-only extraction + immediate writes + profile-block injection + "what do you remember / forget X / forget me".</td><td>Mini · Medium</td><td><strong>THE user gate</strong> — preference today, honoured tomorrow</td></tr>
+  <tr><td><strong>3. Language as a controlled field</strong></td><td>preferred_language stored as a hot fact; wires the already-built-but-unwired <code>parse_lang_set_command</code>; explicit conflict rule replaces prompt-ordering tricks. Closes the loop on the Chinese context-bleed bug class.</td><td>Mini · Small</td><td>Italian test durable; Antonio-facing polish</td></tr>
+  <tr><td><strong>4. Warm summaries</strong></td><td>Per-topic episodic summaries, retrieved selectively (never auto-injected wholesale), never promoted to hot facts.</td><td>Mini · Medium</td><td>Richer continuity</td></tr>
+  <tr><td><strong>5. Full envelope</strong></td><td>Cost, resources-used, trust provenance, stage timestamps, outcome — the sentinel telemetry layer (the patent Claim-449 dual-layer structure), with payload-derived sensitivity labels so sentinels reading envelopes aren't blind.</td><td>Mini · Medium</td><td>Sentinel wave, Engine Room</td></tr>
+  <tr><td><strong>6. Digest transport</strong></td><td>~1KB hot-facts-only profile digest, versioned + expiring, carried in the envelope as a cache. Any surface reconstitutes context; central store stays authoritative for deletion.</td><td>Mini · Medium</td><td>Cross-surface memory (web, app), the portable-memory story (F-701)</td></tr>
+</table>
+
+<h2>The one-week cut <span class="tag go">SHIP FIRST</span></h2>
+<p>Steps 1–3 only. Four memory keys to start: <code>preferred_name</code>, <code>preferred_language</code>, <code>communication_style</code>, <code>hard_constraints</code>. Explicit statements only. No summarisation, no warm tier, no digest.</p>
+
+<div class="panel">
+  <h3 style="margin-top:0">Acceptance tests (all five must pass, live on WhatsApp)</h3>
+  <ol>
+    <li><strong>Core:</strong> "Call me Rob, reply in Italian" today → a brand-new conversation tomorrow greets Rob in Italian.</li>
+    <li><strong>Correction:</strong> "actually, English from now on" → new conversation uses English.</li>
+    <li><strong>Deletion:</strong> "forget my language preference" → new conversation makes no language assumption.</li>
+    <li><strong>No contamination:</strong> "my brother speaks French" → French is <em>not</em> stored as the user's language.</li>
+    <li><strong>No inference:</strong> an assistant guess ("sounds like you're vegetarian?") never becomes a stored fact.</li>
+  </ol>
+  <p class="dim" style="margin:8px 0 0">Plus explainability: asked "why Italian?", the bot answers "you told me yesterday" and internal debug shows the source message id.</p>
+</div>
+
+<h2>Research questions for the IDSIA collaboration</h2>
+<p class="dim">Candidate topics for the Andrea Danani / SUPSI-IDSIA work packages — where AthenaPilot's memory becomes a live research testbed rather than just product plumbing.</p>
+<ul>
+  <li><strong>Trust-calibrated memory.</strong> Extraction confidence is a calibration problem: can the same trust-scoring machinery that ranks models (SignalRank) score <em>memory writes</em> — and can miscalibration be measured against user-correction events as ground truth?</li>
+  <li><strong>Forgetting as a control problem.</strong> TTLs, supersession, and confidence decay form a control loop. What decay policy minimises both staleness errors and unnecessary re-asking?</li>
+  <li><strong>Provenance-auditable memory vs. retrieval.</strong> Every stored fact here carries a source message id — memory as an audit chain. How does answer quality and user trust compare against retrieval-only (RAG) baselines with no provenance?</li>
+  <li><strong>Contamination detection benchmarks.</strong> The gate enumerated contamination classes (assistant-inference, summary-to-fact, third-party, injection, language bleed). These are a labelable benchmark: can a payload-aware classifier catch them at write time, and what's the precision floor before real users?</li>
+  <li><strong>Privacy-preserving portable digests.</strong> When the digest travels cross-surface, what's the minimum disclosure design (source-ids not provenance, hot-only, expiring versions) that preserves utility — and can deletion propagation be formally verified?</li>
+</ul>
+
+<h2>Why this ladders to revenue</h2>
+<p>Memory is blocker three of three for inviting real users (after the message template, done, and the language fix, pending your Italian test). The first invitees — Anthony's Regatta Club staff, Sam at Blue Water Digital — experience the product as trustworthy precisely when it remembers them correctly <em>and</em> can prove why. "You told me yesterday", with a traceable source, is the consumer face of the same auditable-authority story being sold to Caroline and Antonio. Nothing here is research for its own sake: steps 1–3 are the minimum that turns AthenaPilot from a demo into something a stranger can use twice.</p>
+
+<h2>Patent posture (one line each)</h2>
+<ul>
+  <li>The dual-layer packet (payload + telemetry envelope) is already claimed (Claim 449); this plan is its first shipped instance.</li>
+  <li>The digest correction sharpens the F-701 mechanism claim: a <em>versioned, expiring, tombstone-propagating profile cache</em> carried in packet metadata — with the central store authoritative — is the defensible mechanism, and should be checked in the next Athena supplement audit.</li>
+</ul>
+
+<div class="footnote">
+  <span class="kicker">GATE RECORD</span> — Multi-model challenge run 21 Jul 2026 via <code>api.athenapilot.ai/v1/orchestrate</code> (job orchestrate_20260721_135109), challenge mode, multi-provider panel incl. Anthropic Sonnet 4.6; 19.8K-char critique; verdicts adopted per the convergence rule (L-2312). Fulfils the mandatory plan-critique gate (L-499 rule 2). Source features: F-150 (three-tier memory), F-701 (constellation digest), Claim 449 (packet envelope). Stream: P-SC (Memory &amp; Context). Costs: plan chat-side (zero marginal); one-week cut = three Mini subscription dispatches (Small + Medium + Small); no API spend.
+</div>
+
+</div>
+</div>
+</body>
+</html>
