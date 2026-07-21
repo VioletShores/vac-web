@@ -468,8 +468,38 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
             </div>
           </div>
 
-          <!-- SECTION: STEP 5 biometric (3c) -->
-          <!-- SECTION: STEP 6 seal (3c) -->
+          <!-- Step 5: VAC biometric step-up -->
+          <div class="step" id="s5">
+            <div class="step-rail">
+              <div class="step-dot" id="d5">5</div>
+              <div class="step-conn" id="c5"></div>
+            </div>
+            <div class="step-body">
+              <h3>VAC biometric step-up — verified credit officer</h3>
+              <div class="step-meta">High-stakes decision gate · live biometric · delegated authority bound to identity</div>
+              <div class="step-detail">
+                <p>Before the credit decision is sealed, the Authorised Credit Officer must be verified as a live, present human — ruling out delegated data entry, AI-generated sign-off, or unattended authorisation. This is the binding that makes the delegation provable: the officer's delegated authority, their verified identity, and their independent decision are sealed together in a single tamper-evident record.</p>
+                <p style="margin-top:10px;"><span class="policy-chip">decision_class=high_stakes</span><span class="policy-chip">biometric_required=true</span><span class="policy-chip">seal_gate=officer_verified</span><span class="policy-chip">step_up=full_modal</span></p>
+                <p style="margin-top:10px;font-size:13.5px;color:var(--text-secondary);line-height:1.6;">In a live deployment, the step-up threshold is policy-driven. A routine documentation task may require only the institution's standard SSO. A credit decision — particularly one at or near the officer's delegated limit, or involving a policy exception — triggers the biometric gate. The VAC step-up confirms: this specific human, alive, at this moment, exercised this delegated authority. That confirmation is the cryptographic root of the sealed receipt.</p>
+                <p style="margin-top:10px;"><span class="hil">The biometric proves WHO sealed the decision. The authority to make that decision comes from the institution's delegation framework — the mandate, the credit policy version, and the officer's role. Neither element substitutes for the other; both are required and both are sealed.</span></p>
+                <p style="margin-top:10px;font-size:13px;color:var(--text-tertiary);">The biometric step-up (face liveness, deepfake scan, cross-modal gesture and voice challenge) is the same one used in the VAC production backend for all high-stakes seal events. Registration numbers are asserted by the officer for demo purposes; in a live deployment they are managed by the institution's entitlement and role management system.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 6: Decision sealed -->
+          <div class="step" id="s6">
+            <div class="step-rail">
+              <div class="step-dot" id="d6">6</div>
+            </div>
+            <div class="step-body">
+              <h3>Credit decision sealed &amp; lodged</h3>
+              <div class="step-meta">VAC biometric step-up · Ed25519 signed · independently verifiable · audit chain lodged</div>
+              <div class="step-detail">
+                <p>The officer's verified biometric is the seal gate. The AI scoring recommendation, the officer's independent credit decision, the delegated authority confirmation, the reason codes, and the evidence-bundle hash are all sealed together in one tamper-evident record — answerable to a credit committee, compliance team, or regulator years later.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="controls">
@@ -477,8 +507,15 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
           <button class="btn btn-ghost" id="reset">Reset</button>
         </div>
 
-        <!-- SECTION: RECEIPT (3d) -->
-        <div class="receipt" id="receipt"></div>
+        <div class="receipt" id="receipt">
+          <div class="receipt-head">
+            <svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <h3>Credit decision sealed &amp; lodged</h3>
+          </div>
+          <dl class="kv" id="receiptKv"></dl>
+          <div class="receipt-note" id="receiptNote"></div>
+          <div class="audit" id="auditLog"></div>
+        </div>
 
       </section>
     </div><!-- /tab-walk -->
