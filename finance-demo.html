@@ -520,20 +520,356 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       </section>
     </div><!-- /tab-walk -->
 
-    <!-- ARCHITECTURE TAB (3d) -->
-    <div id="tab-arch" style="display:none;"></div>
+    <!-- ARCHITECTURE TAB -->
+    <div id="tab-arch" style="display:none;">
+      <p class="section-label">End-to-end architecture — credit AI governance</p>
+      <div class="arch-summary">
+        <p class="arch-summary-lede">In order, end to end:</p>
+        <ul class="arch-summary-list">
+          <li>A <strong>credit application</strong> is received and an AI credit scoring module produces an <em>advisory recommendation only</em>. The AI output is never the credit decision.</li>
+          <li>An <strong>Authorised Credit Officer</strong> reviews the complete evidence bundle independently. The AI recommendation is one input; the officer's independent judgment is the governing step. <em>No automated path from AI recommendation to credit outcome</em> — the officer gate is mandatory.</li>
+          <li>A <strong>delegated authority check</strong> confirms whether the amount falls within the officer's bounded lending mandate or requires escalation to dual-control or credit committee. The mandate version is locked to the decision record.</li>
+          <li>The officer selects a <strong>decision path</strong> (four available) and <em>reason codes</em> — both sealed into the same record as the AI advisory output, explicitly separated from it.</li>
+          <li>A <strong>VAC biometric step-up</strong> confirms a live, present officer — not a bot, a delegated entry, or an AI-generated sign-off. The biometric is the cryptographic root of the sealed receipt.</li>
+          <li>A <strong>sealed, independently-verifiable receipt</strong> (Ed25519) records who decided, under what mandate, what was decided, what the AI recommended, and the reason codes — <em>answerable to a credit committee, regulator, or auditor years later</em>.</li>
+        </ul>
+        <a href="/architecture" class="cta-btn arch-summary-cta">See the full VAC architecture →</a>
+      </div>
+
+      <div class="arch" style="margin-top:20px;">
+        <div class="arch-row">
+          <div class="arch-node ai-node">
+            <div class="an-n">A</div>
+            <div class="an-t">AI Credit Scoring Module</div>
+            <div class="an-d"><em>Advisory only</em> — probability of default, risk tier, facility recommendation. <span class="purple">Not a credit decision. Not a substitute for independent officer review.</span> Output is one input to the officer review queue; it does not govern any lending outcome.</div>
+            <div class="an-tech">output: risk_score · pd_estimate · recommendation · model_version · advisory_only=true</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-node">
+            <div class="an-n">B</div>
+            <div class="an-t">Officer Independent Review</div>
+            <div class="an-d">Complete evidence bundle review — financials, security, sector, director. AI output is one input; officer's independent assessment governs. <em>No automated decision path from AI output to approval</em> — officer review is mandatory at every step.</div>
+            <div class="an-tech">evidence_bundle=reviewed · ai_output=advisory_input_only · independent_review=true</div>
+          </div>
+        </div>
+        <div class="arch-row">
+          <div class="arch-node hil-node">
+            <div class="an-n amber">C</div>
+            <div class="an-t">Delegated Authority Check</div>
+            <div class="an-d">Facility amount is checked against the officer's bounded mandate — version-locked to the active credit policy. <em>Within limit:</em> officer may decide unilaterally. <span class="amber">Over limit: automatic escalation trigger — dual-control or credit committee required.</span> Mandate and policy version are sealed in every record.</div>
+            <div class="an-tech">delegated_limit=officer_bound · policy_version=sealed · escalation=auto_trigger_over_limit</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-node">
+            <div class="an-n">D</div>
+            <div class="an-t">VAC Biometric Step-Up</div>
+            <div class="an-d">High-stakes decision triggers verified identity gate: face liveness, deepfake scan, cross-modal gesture and voice challenge. Confirms a <em>live, present officer</em> — not a bot, a recording, or a delegated entry. The biometric is the cryptographic root of the sealed receipt — it proves WHO sealed, not that the decision was correct.</div>
+            <div class="an-tech">face_liveness · deepfake_scan · cross_modal · verified_human_root · session_bound</div>
+          </div>
+        </div>
+        <div class="arch-row single">
+          <div class="arch-node wide">
+            <div class="an-n teal">E</div>
+            <div class="an-t">Sealed Credit Receipt — Ed25519 · independently verifiable</div>
+            <div class="an-d">One tamper-evident record: <em>the AI advisory output</em> (risk score, recommendation, model version — advisory, not a decision), <em>the officer's independent credit decision</em> (explicitly stated as independent), the decision path, reason codes, delegated authority confirmation, evidence-bundle hash, officer identity (liveness-checked), officer role and mandate version, and the sealed timestamp. The AI suggestion and the credit decision are <em>explicitly separated</em> — neither attributed to the other. Anyone can verify the token against the VAC backend. <span class="amber">The receipt is provenance — who decided, what was proposed, what was decided, under which policy. It is not a guarantee of correctness or compliance.</span></div>
+            <div class="an-tech">ai_recommendation=sealed · officer_decision=independent · mandate=version_locked · reason_codes=sealed · evidence_hash=sealed · seal=Ed25519</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-note">
+        <strong>What's real today vs. what's next.</strong> The cryptographic signing, biometric verification, and authority chain are <strong>live and in production</strong> — the token in the walkthrough is genuinely signed and independently verifiable against the VAC backend. The credit AI governance <em>workflow skin</em> — the delegated-authority check, decision-path structure, reason codes, evidence-bundle hash — is what would be built with a lending institution or fintech partner. The AI scoring module shown is illustrative; it is not a deployed credit system. This demonstration does not constitute a credit decision and produces no real lending records.
+      </div>
+    </div><!-- /tab-arch -->
 
     <!-- MORE CASES (STEP 4) -->
-    <section class="more-cases"></section>
+    <section class="more-cases">
+      <p class="section-label">The same authority chain, other credit and governance contexts</p>
+      <p class="more-intro">Verified officer authority, an explicit separation of AI advisory and human decision, and a sealed audit trail are not specific to SME working capital. The same primitives apply wherever <span class="pull">who made the credit call — and that it was independent of the AI — has to be provable after the fact.</span></p>
+      <div class="case-grid">
+        <div class="more-case">
+          <div class="more-case-t">Retail mortgage — AI pre-qualification</div>
+          <div class="more-case-d">An AI pre-qualification model produces a serviceability estimate. A credit officer independently assesses the full application — income verification, liability position, property valuation. The officer's decision is sealed separately from the model output, with the mandate version and reason codes bound to the receipt for responsible lending audit.</div>
+        </div>
+        <div class="more-case">
+          <div class="more-case-t">Trade finance — documentary credit authority</div>
+          <div class="more-case-d">An AI document checking module flags exceptions in a letter-of-credit presentation. A trade finance officer independently reviews the documents, makes an accept/refuse/waive call within their delegated trade authority, and seals the decision with a verified identity record — the audit trail for UCP 600 compliance and correspondent bank disputes.</div>
+        </div>
+        <div class="more-case">
+          <div class="more-case-t">Credit committee escalation — dual-control</div>
+          <div class="more-case-d">An application exceeds the referring officer's single-signatory limit. VAC routes to a two-officer sealed approval: each officer verifies biometrically, each decision is sealed independently, and the dual-authority record is generated from both seals — a tamper-evident trail for large-exposure governance and board credit policy compliance.</div>
+        </div>
+        <div class="more-case" style="border-left:2px solid var(--teal);">
+          <div class="more-case-t">Legal &amp; tribunal — verified authority chain</div>
+          <div class="more-case-d">The same VAC primitives that seal credit decisions seal legal authorities: trust distributions, estate administration, power of attorney attestation. A sealed, independently-verifiable receipt that a specific human authorised a specific action, under specific conditions, at a specific moment. <a href="/tribunal-demo" style="color:var(--teal);text-decoration:none;font-weight:600;display:inline-block;margin-top:8px;">Walk through the legal scenario &rarr;</a></div>
+        </div>
+      </div>
+      <div class="cta">
+        <div>
+          <div class="cta-h">Building AI-assisted lending and need the authority trail?</div>
+          <div class="cta-d">If you're deploying AI credit tools and need to cryptographically separate the model's recommendation from the officer's decision — and make that separation provable to regulators, auditors, and credit committees — we'd value the conversation.</div>
+        </div>
+        <a class="cta-btn" href="mailto:enterprise@vacprotocol.org?subject=VAC%20Credit%20Governance%20%E2%80%94%20inquiry" target="_blank" rel="noopener">Start a conversation</a>
+      </div>
+    </section>
 
-    <!-- FOOTER (3d) -->
-    <div class="foot"></div>
+    <div class="foot">
+      <strong>What this preview shows:</strong> the shape of a credit AI governance flow, built on VAC primitives that already exist — verified identity, a biometric seal gate, a delegated-authority check, reason codes, and a sealed receipt that separates the AI recommendation from the officer's independent decision.
+      <div class="posture">Honest scope · This is not a credit product, does not constitute financial advice, and produces no real lending records. The AI credit scoring output is illustrative. VAC verifies liveness and identity; it does not verify an officer's delegation against any institutional mandate system — authority is asserted for demonstration purposes and recorded as asserted. A person authorises every outcome — the protocol provides the verification and sealed audit rail; it does not make credit decisions. This demonstration is aligned to the governance and accountability pattern described in FINMA Guidance 08/2024 on AI and relevant to EU AI Act Art. 14 human oversight obligations; it is not a compliance tool, not certified, and not regulator-approved.</div>
+    </div>
 
   </div><!-- /wrap -->
 </div><!-- /page-shell -->
 
 <script>
-/* JS: step 3d */
+/* tab switching */
+document.querySelectorAll('.tab').forEach(function(t){
+  t.onclick=function(){
+    document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('sel');});
+    t.classList.add('sel');
+    var show=t.dataset.tab;
+    document.getElementById('tab-walk').style.display=show==='walk'?'block':'none';
+    document.getElementById('tab-arch').style.display=show==='arch'?'block':'none';
+  };
+});
+
+/* case selection */
+function selectCase(){
+  document.getElementById('caseBtn').classList.add('sel');
+  var stage=document.getElementById('stage');
+  stage.classList.add('show');
+  stage.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* stepper state */
+var stepIdx=-1;
+var TOTAL_STEPS=6;
+var selectedPath=null;
+var selectedRCs=[];
+
+var DOT_IDS=['d1','d2','d3','d4','d5','d6'];
+var CONN_IDS=['c1','c2','c3','c4','c5'];
+var STEP_IDS=['s1','s2','s3','s4','s5','s6'];
+
+function rcRequired(){
+  return selectedPath==='decline'||selectedPath==='escalate';
+}
+
+function updateAdvanceBtn(){
+  var btn=document.getElementById('advance');
+  if(stepIdx<0){btn.textContent='Begin';btn.disabled=false;return;}
+  if(stepIdx>=TOTAL_STEPS-1){btn.textContent='Sealing...';btn.disabled=true;return;}
+  if(stepIdx===3&&!selectedPath){btn.textContent='Select a decision path';btn.disabled=true;return;}
+  if(stepIdx===3&&rcRequired()&&selectedRCs.length===0){btn.textContent='Select at least one reason code';btn.disabled=true;return;}
+  if(stepIdx===3&&selectedPath){btn.textContent='Proceed to biometric seal';btn.disabled=false;return;}
+  if(stepIdx===4){btn.textContent='Seal decision';btn.disabled=false;return;}
+  btn.textContent='Next';btn.disabled=false;
+}
+
+document.getElementById('advance').onclick=function(){
+  if(stepIdx<0){
+    stepIdx=0;activateStep(0);updateAdvanceBtn();return;
+  }
+  if(stepIdx===3&&!selectedPath) return;
+  if(stepIdx===3&&rcRequired()&&selectedRCs.length===0) return;
+  if(stepIdx===3&&selectedPath){
+    markDone(3);stepIdx=4;activateStep(4);updateAdvanceBtn();return;
+  }
+  if(stepIdx===4){
+    markDone(4);stepIdx=5;activateStep(5);sealDecision();return;
+  }
+  markDone(stepIdx);stepIdx++;activateStep(stepIdx);updateAdvanceBtn();
+};
+
+document.getElementById('reset').onclick=function(){
+  stepIdx=-1;selectedPath=null;selectedRCs=[];
+  DOT_IDS.forEach(function(id,i){
+    var d=document.getElementById(id);d.className='step-dot';d.textContent=i+1;
+  });
+  CONN_IDS.forEach(function(id){document.getElementById(id).className='step-conn';});
+  STEP_IDS.forEach(function(id){document.getElementById(id).classList.remove('revealed');});
+  document.getElementById('receipt').classList.remove('show');
+  document.querySelectorAll('.dp-btn').forEach(function(el){el.classList.remove('sel');});
+  document.getElementById('pathNote').textContent='No path selected yet.';
+  document.getElementById('reasonCodes').classList.remove('show');
+  document.querySelectorAll('.rc-btn').forEach(function(el){el.classList.remove('sel');});
+  document.getElementById('rcNote').textContent='No reason codes selected.';
+  var btn=document.getElementById('advance');
+  btn.textContent='Begin';btn.disabled=false;btn.style.display='';
+  SEAL_TOKEN=REAL_TOKEN;
+};
+
+function activateStep(i){
+  var dot=document.getElementById(DOT_IDS[i]);
+  dot.className='step-dot active';
+  document.getElementById(STEP_IDS[i]).classList.add('revealed');
+}
+function markDone(i){
+  var dot=document.getElementById(DOT_IDS[i]);
+  dot.className='step-dot done';dot.textContent='✓';
+  if(CONN_IDS[i]) document.getElementById(CONN_IDS[i]).className='step-conn done';
+}
+
+/* decision paths */
+var PATH_INFO={
+  approve:{
+    label:'APPROVE — STANDARD CONDITIONS',col:'var(--success)',
+    desc:'Approved within delegated authority · standard facility conditions',
+    receiptClass:'officer-dec'
+  },
+  approve_conditions:{
+    label:'APPROVE WITH CONDITIONS',col:'var(--teal)',
+    desc:'Approved subject to specified conditions',
+    receiptClass:'conditions-path'
+  },
+  decline:{
+    label:'DECLINE',col:'var(--red)',
+    desc:'Application declined — officer independent assessment does not support approval',
+    receiptClass:'decline-path'
+  },
+  escalate:{
+    label:'ESCALATE — DUAL-CONTROL / CREDIT COMMITTEE',col:'var(--amber)',
+    desc:'Decision referred to dual-control or credit committee',
+    receiptClass:'escalate-path'
+  }
+};
+
+function selectPath(btn){
+  document.querySelectorAll('.dp-btn').forEach(function(el){el.classList.remove('sel');});
+  btn.classList.add('sel');
+  selectedPath=btn.dataset.path;
+  var info=PATH_INFO[selectedPath];
+  document.getElementById('pathNote').innerHTML=
+    '<strong style="color:'+esc(info.col)+'">'+esc(info.label)+'</strong> — '+esc(info.desc);
+  var rcBlock=document.getElementById('reasonCodes');
+  if(rcRequired()){rcBlock.classList.add('show');}else{rcBlock.classList.remove('show');selectedRCs=[];document.querySelectorAll('.rc-btn').forEach(function(el){el.classList.remove('sel');});document.getElementById('rcNote').textContent='No reason codes selected.';}
+  updateAdvanceBtn();
+}
+
+function toggleRC(btn){
+  btn.classList.toggle('sel');
+  selectedRCs=Array.from(document.querySelectorAll('.rc-btn.sel')).map(function(el){return el.dataset.rc;});
+  document.getElementById('rcNote').textContent=selectedRCs.length>0?('Selected: '+selectedRCs.join(', ')):'No reason codes selected.';
+  updateAdvanceBtn();
+}
+
+/* sealing */
+var API_BASE='https://vac-backend-production.up.railway.app';
+var REAL_TOKEN={jti:'vat_root_c1e665235203',trust:0.95,verify:'/vat/verify/vat_root_c1e665235203?intent=verify',minted:false};
+var SEAL_TOKEN=REAL_TOKEN;
+
+async function sealDecision(){
+  await mintToken();
+  showReceipt();
+}
+
+async function mintToken(){
+  try{
+    var r=await fetch(API_BASE+'/v1/vat/issue',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        human_identity:'finance-demo@vacprotocol.org',
+        agent_id:'finance-demo-credit-officer',
+        resources:['case:CASE-FIN-2026-0391'],
+        actions:['seal_credit_decision'],
+        verification_method:'multi_modal',
+        sensitivity:'high',
+        constraints:{
+          _demo:true,
+          _conditions_are_illustrative:true,
+          case_ref:'CASE-FIN-2026-0391',
+          ai_recommendation:'approve_standard_advisory_only',
+          officer_decision:selectedPath,
+          decision_independent:true,
+          delegated_limit:'$250,000',
+          within_limit:true,
+          reason_codes:selectedRCs,
+          credit_policy:'CP-2026-v3.1'
+        },
+        context:{
+          surface:'finance-demo',
+          decision_path:selectedPath,
+          ai_recommendation:'approve_standard_advisory_only',
+          sealed_at:new Date().toISOString()
+        }
+      })
+    });
+    if(!r.ok) throw new Error('status '+r.status);
+    var d=await r.json();
+    if(!d||!d.jti) throw new Error('no jti');
+    var rawVurl=d.verify_url;
+    var vurl=(rawVurl&&typeof rawVurl==='string'&&/^https?:\/\//i.test(rawVurl))
+      ?rawVurl
+      :('/vat/verify/'+d.jti);
+    vurl+=vurl.indexOf('?')>=0?'&intent=verify':'?intent=verify';
+    SEAL_TOKEN={
+      jti:d.jti,
+      trust:(d.claims&&d.claims.vac_trust_score!=null)?d.claims.vac_trust_score:0.85,
+      verify:vurl,
+      minted:true
+    };
+  }catch(e){
+    SEAL_TOKEN=Object.assign({},REAL_TOKEN,{minted:false});
+  }
+}
+
+function showReceipt(){
+  var info=PATH_INFO[selectedPath];
+  var now=new Date().toISOString().replace('T',' ').slice(0,19)+' UTC';
+  var rcStr=selectedRCs.length>0?selectedRCs.join(' · '):'(no reason codes — approve path)';
+
+  var kvRows=[
+    ['CASE REF','CASE-FIN-2026-0391','hl'],
+    ['APPLICANT','Meridian Fabrications Pty Ltd · ACN 612 447 891',''],
+    ['FACILITY REQUESTED','$180,000 · 24-month working capital · variable rate',''],
+    ['EVIDENCE BUNDLE','SHA-256: 7e4f2a1b9c3d8e0f5a6b7c2d3e4f5a6b (illustrative hash of reviewed documents)',''],
+    ['AI RECOMMENDATION','B2 · PD 2.8% · approve standard — ADVISORY ONLY · model: athena_credit_v2.4.1','ai-adv'],
+    ['OFFICER DECISION',info.label+' — INDEPENDENT CREDIT JUDGMENT',info.receiptClass],
+    ['DECISION BASIS','Officer\'s independent review: full evidence bundle, financials, security, sector context. AI advisory noted and not adopted as the decision.','officer-dec'],
+    ['DELEGATED AUTHORITY','Within limit · officer mandate $250,000 · credit policy CP-2026-v3.1 · dual-control not required',''],
+    ['REASON CODES',rcStr,''],
+    ['AI ≠ DECISION','Explicit: AI advisory recommendation and officer\'s independent decision are sealed separately and are not conflated',''],
+    ['SEALED AT',now,''],
+    ['TOKEN',SEAL_TOKEN.jti,'hl'],
+    ['TRUST SCORE',String(SEAL_TOKEN.trust),''],
+    ['VERIFY',SEAL_TOKEN.verify,''],
+  ];
+
+  var kv=document.getElementById('receiptKv');
+  kv.innerHTML=kvRows.map(function(row){
+    var k=row[0],v=row[1],cls=row[2];
+    return '<dt>'+esc(k)+'</dt><dd'+(cls?' class="'+esc(cls)+'"':'')+'>'+esc(v)+'</dd>';
+  }).join('');
+
+  document.getElementById('receiptNote').textContent=
+    'This sealed record is provenance — not a guarantee of correctness or legal compliance. It documents: (1) the AI advisory recommendation — advisory only, not a credit decision; (2) the officer\'s independent credit judgment — explicitly recorded as independent of the AI recommendation; (3) the delegated authority confirmation, credit policy version, and evidence-bundle hash bound to this decision; (4) reason codes sealed with the record. Authority to make this decision comes from the institution\'s delegation framework — not from the biometric itself. The biometric proves WHO sealed; the delegation determines whether they had authority to do so. This record is a demonstration; it does not constitute a credit product or financial advice.';
+
+  var auditLines=[
+    ['−0:05','case CASE-FIN-2026-0391 opened \xb7 ai_recommendation=approve_standard \xb7 advisory_only=true \xb7 model=athena_credit_v2.4.1'],
+    ['−0:04','officer independent review initiated \xb7 evidence_bundle=reviewed \xb7 ai_output=one_input_only'],
+    ['−0:03','delegated authority check \xb7 facility=$180,000 \xb7 limit=$250,000 \xb7 within_limit=true \xb7 policy=CP-2026-v3.1'],
+    ['−0:02','decision path selected \xb7 '+selectedPath+(selectedRCs.length?' \xb7 reason_codes='+selectedRCs.join(','):'')],
+    ['−0:01','biometric step-up \xb7 officer verified \xb7 liveness=pass \xb7 deepfake=pass \xb7 cross_modal=pass'],
+    ['  now  ','decision sealed Ed25519 \xb7 ai_recommendation≠officer_decision (explicitly separated) \xb7 lodged to audit chain'],
+  ];
+
+  document.getElementById('auditLog').innerHTML=auditLines.map(function(row){
+    return '<div class="audit-line"><span class="t">'+esc(row[0])+'</span><span>'+row[1]+'</span></div>';
+  }).join('');
+
+  document.getElementById('receipt').classList.add('show');
+  document.getElementById('advance').style.display='none';
+  document.getElementById('receipt').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+var esc=function(s){
+  return String(s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+};
+
+updateAdvanceBtn();
 </script>
 </body>
 </html>
