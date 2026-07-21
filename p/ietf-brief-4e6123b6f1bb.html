@@ -1,112 +1,96 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="robots" content="noindex, nofollow">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#0A0F1A">
-<title>IETF 126 Vienna — Meeting Brief</title>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0A0F1A"><title>IETF 126 — Thursday Command Page (Remote Edition)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#E8E4D8;--dim:#8B8FA3;--line:#1E2536;--gold:#C9A227;--card:#0F1524;--red:#E06C60;--green:#34D399}
-*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif;color:var(--ink)}
-.page-shell{background:#0A0F1A !important;min-height:100vh;padding:26px 18px 56px}
-.wrap{max-width:760px;margin:0 auto}
-.eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase}
-h1{font-family:'Fraunces',serif;font-weight:650;font-size:clamp(22px,4.4vw,29px);margin:8px 0 6px}
-.posture{background:var(--card);border-left:3px solid var(--gold);padding:10px 14px;font-size:13.5px;line-height:1.55;color:#B9BDCB;margin:12px 0 4px}
-.posture b{color:var(--ink)}
-h2{font-family:'Fraunces',serif;font-size:16.5px;margin:26px 0 10px}
-.person{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 15px;margin-bottom:12px}
-.person h3{font-size:14px;font-weight:600;margin-bottom:2px}
-.person h3 span{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:.1em;display:block;margin-bottom:3px}
-.person p{font-size:12.5px;line-height:1.55;color:#B9BDCB;margin-top:7px}
-.person p b{color:var(--ink);font-weight:600}
-.zip{border-left:2px solid var(--red);padding:6px 0 6px 12px;margin-top:9px}
-.zip p{margin-top:0;font-size:12.5px}
-.zip .zl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--red);letter-spacing:.12em}
-.win{border-left:2px solid var(--green);padding:6px 0 6px 12px;margin-top:9px}
-.win .wl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--green);letter-spacing:.12em}
-.win p{margin-top:0;font-size:12.5px}
-ul{list-style:none;margin-top:6px}
-li{font-size:12.5px;line-height:1.55;color:#B9BDCB;padding:6px 0 6px 12px;border-left:2px solid var(--line)}
-li b{color:var(--ink)}
-li.hot{border-left-color:var(--red)}
-li.hot b{color:var(--red)}
-.logi{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px 15px;margin-top:14px;font-size:12.5px;line-height:1.6;color:#B9BDCB}
-.logi b{color:var(--ink)}
-.foot{margin-top:30px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--dim)}
-code{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--gold)}
+:root{--ink:#0A0F1A;--panel:#111827;--line:#26324a;--text:#DCE3F0;--dim:#8b97ad;--gold:#D4A94E}
+*{box-sizing:border-box;margin:0}html,body{background:var(--ink)}
+.page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--text);font:400 15px/1.6 Inter,system-ui,sans-serif;padding:0 18px 60px}
+.wrap{max-width:840px;margin:0 auto}
+h1{font:650 clamp(26px,5vw,38px)/1.15 Fraunces,serif;padding-top:26px}
+.sub{color:var(--gold);font:500 12px/1.5 "JetBrains Mono",monospace;letter-spacing:.08em;margin:8px 0 26px}
+h2{font:600 12px/1 "JetBrains Mono",monospace;letter-spacing:.13em;text-transform:uppercase;color:var(--gold);margin:30px 0 12px;border-top:1px solid var(--line);padding-top:22px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:12px}
+.card b{color:var(--text)} .card .why{color:var(--dim);font-size:13.5px}
+a{color:var(--gold);text-decoration:none} a:hover{text-decoration:underline}
+.mono{font:400 12.5px/1.7 "JetBrains Mono",monospace}
+.intervention{border-left:3px solid var(--gold);background:#0d1524;border-radius:8px;padding:16px 18px;font-size:15.5px;line-height:1.65}
+.intervention .final{color:var(--gold);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td:first-child{color:var(--gold);white-space:nowrap;font:500 12px "JetBrains Mono",monospace}
+.tag{display:inline-block;font:500 10.5px/1 "JetBrains Mono",monospace;letter-spacing:.08em;padding:4px 8px;border:1px solid var(--gold);border-radius:20px;color:var(--gold);margin-right:6px}
+ul{padding-left:18px;color:var(--dim)} ul b{color:var(--text)} li{margin-bottom:7px}
+.done{color:#7fbf7f}
 </style></head><body><div class="page-shell"><div class="wrap">
 
-<div class="eyebrow">IETF 126 Vienna · Thursday 23 July · AGENTPROTO BoF day</div>
-<h1>Meeting brief</h1>
-<div class="posture"><b>Your posture in one line:</b> a builder with running code and two individual drafts, here to learn where they compose — not a vendor, not a challenger.</div>
+<h1>IETF 126 — Thursday Command Page</h1>
+<div class="sub">REMOTE EDITION · BoF Thu 23 Jul · 09:00–11:00 (Zurich = Vienna time) · Conf R939VNS5 · updated 21 Jul</div>
 
-<h2>The people</h2>
-
-<div class="person">
-<h3><span>PRIMARY TARGET · RATS / SCITT</span>Henk Birkholz</h3>
-<p><b>Who:</b> Fraunhofer SIT; leads in Remote ATtestation (RATS) and Supply Chain Integrity, Transparency &amp; Trust (SCITT) — the IETF's evidence-and-audit heartland.</p>
-<p><b>Big-picture fit:</b> your AAR chain is architecturally a SCITT-shaped transparency structure; your ceremony produces RATS-shaped evidence about a <b>human</b> instead of a device. If VAC's audit layer composes with their patterns, your drafts inherit a decade of IETF trust-model credibility.</p>
-<p><b>Get across:</b> "Working implementation producing tamper-evident accountability records rooted in a verified natural person. Before I post to any list, where does this genuinely compose with RATS/SCITT — and where would I be duplicating?" Ask HIS view on the right home (AUDIT vs SPICE vs independent stream).</p>
-<div class="win"><span class="wl">WIN</span><p>He names the venue + you can cite the conversation in the eventual AUDIT post ("following a conversation with Henk at 126…").</p></div>
-<div class="zip"><span class="zl">ZIP IT</span><p>No product pitch, no pricing, no customers, no patent portfolio. Don't propose a new WG — the classic newcomer misstep.</p></div>
-<p><b>Read before Thursday (his canon):</b> <a href="https://datatracker.ietf.org/doc/rfc9334/" style="color:#C9A227">RFC 9334 — RATS Architecture</a> · <a href="https://datatracker.ietf.org/doc/draft-ietf-scitt-architecture/" style="color:#C9A227">SCITT Architecture</a> · <a href="https://datatracker.ietf.org/doc/draft-ietf-scitt-scrapi/" style="color:#C9A227">SCITT Reference APIs (SCRAPI)</a></p>
+<h2>Join — the four tabs to have open at 08:45</h2>
+<div class="card mono">
+SESSION (Meetecho, first join activates day pass): <a href="https://datatracker.ietf.org/meeting/126/session/agentproto/">datatracker.ietf.org/meeting/126/session/agentproto/</a><br>
+ZULIP (live chat / fallback for the one-liner): <a href="https://zulip.ietf.org/#narrow/stream/126-agentproto">zulip.ietf.org · #126-agentproto</a><br>
+NOTES (live minutes): <a href="https://notes.ietf.org/notes-ietf-126-agentproto">notes.ietf.org/notes-ietf-126-agentproto</a><br>
+GROUP / CHARTER: <a href="https://datatracker.ietf.org/group/agentproto/about">datatracker.ietf.org/group/agentproto/about</a><br>
+Headset in · own mic+cam OFF unless speaking · state name when called.
 </div>
 
-<div class="person">
-<h3><span>BACKGROUND · THE TWO PATTERNS IN ONE BREATH</span>RATS &amp; SCITT — and where you fit</h3>
-<p><b>RATS</b> (Remote ATtestation): entities generate cryptographic <b>evidence</b> about their state; verifiers appraise it without taking their word. Built for devices proving what they are.</p>
-<p><b>SCITT</b> (Supply Chain Integrity, Transparency &amp; Trust): signed <b>statements</b> registered with a transparency service, returning <b>receipts</b> that prove the record is immutable — nobody can deny, alter, or backdate. Born from SolarWinds-class attacks.</p>
-<p><b>Your mapping:</b> the ceremony is RATS-shaped (live evidence about a <i>human</i>, not a chip); the AAR chain is SCITT-shaped (sealed statements, independently verifiable receipts). <b>Hallway line: "RATS attests machines; SCITT attests artifacts; my drafts attest the human holding the authority — same trust pattern, one layer up."</b></p>
-<div class="win"><span class="wl">THE DEEP-COMPOSE QUESTION</span><p>Ask whether AAR receipts should adopt SCITT's receipt format outright — legal-grade evidence verifiable with his community's own tooling. Caroline's tribunal story hardens with every step toward it.</p></div>
+<h2>The intervention (open-mic window ≈ minute 70–95)</h2>
+<div class="intervention">
+"Roberto Zagarella, Violet Shores. The framework's building blocks include confirmation and evidence requirements, and fine-grained behavior-driven scopes. In a multi-hop session, is the intention that authorization context — the originating human mandate and its narrowing through delegation — travels as part of the session context this group defines, or does the session only reference evidence defined in WIMSE or OAuth? <span class="final">Task lineage tells us what a subtask belongs to; authority lineage tells us whether a participant is still authorized to perform it.</span>"
+</div>
+<p class="why" style="color:var(--dim);font-size:13px;margin-top:8px">If the queue runs out: paste the final gold sentence into Zulip — it enters the record. During CONSENSUS CALLS (≈ minute 95+): answer <b style="color:var(--text)">YES to "who will review / contribute"</b> — the signal the chairs are counting. Governor, if it ever comes up, enters ONLY through their carve-out: "mitigating impact via protocol-level user confirmation is in scope." At the mic ask questions about mechanisms — do not describe your patented mechanisms (Note Well / IPR discipline; formal disclosures are filed separately this week).</p>
+
+<h2>Run of show (from the chairs' deck)</h2>
+<div class="card"><table>
+<tr><td>09:00</td><td>Intro, administrivia, relations to other work — chairs (15 min)</td></tr>
+<tr><td>09:15</td><td>Proponents: motivations → requirements · multimodal · session · framework (~42 min) — listen for authority-gap moments (their "cancel the hotel, keep the flight" slide has no who-authorised answer)</td></tr>
+<tr><td>~09:57</td><td>Clarifying questions (13 min) — clarifying ONLY, hold the intervention</td></tr>
+<tr><td>~10:10</td><td><b>OPEN MIC — scope &amp; charter (25 min). Your window. Join queue early in the block.</b></td></tr>
+<tr><td>~10:35</td><td><b>WG-forming consensus calls (18 min) — hum/poll YES + volunteer to review/contribute</b></td></tr>
+<tr><td>~10:53</td><td>Wrap-up. Discussion continues on agent2agent@ietf.org — the Day-3 post goes THERE</td></tr>
+</table></div>
+
+<h2>People — updated to the real room</h2>
+<div class="card"><b>Orie Steele — co-chair</b> <span class="tag">NEW PRIORITY</span><br><span class="why">SCITT / COSE / verifiable-credentials world — the person who can answer the evidence-vs-signed-statement-vs-credential boundary AND route VHR. Chairs note (sent, no ask, contributor pledge) is your introduction; his reaction to the authority-lineage question is Thursday's most valuable data.</span></div>
+<div class="card"><b>Leslie Daigle — co-chair</b><br><span class="why">Long-standing IETF architecture figure (former IAB chair era). Process-true, allergic to product pitches; the composing-not-contesting posture is precisely right for her room.</span></div>
+<div class="card"><b>Charles Eckel — responsible AD (ART)</b><br><span class="why">No outreach — ADs watch who behaves like a contributor. The consensus-call YES is the message.</span></div>
+<div class="card"><b>Cullen Jennings — proponent (multimodal/session)</b><br><span class="why">Presenting, not chairing. CHEQ-adjacent human-in-loop thinking lives here: his checkpoints ask WHEN to ask a human; VHR answers WHICH verified human with WHAT provable authority. Compose, never contest.</span></div>
+<div class="card"><b>Henk Birkholz · Mirja Kühlewind · Jari Arkko</b><br><span class="why">Emails out (Henk re-sent to ietf.contact; Mirja followed up). No chasing during meeting week — replies flip the Wednesday 07:30 gate; silence means the mailing list is the road. Jari: only if a natural opening appears on-list later.</span></div>
+
+<h2>Pre-read — prioritised, ~2h total</h2>
+<div class="card"><b>Tier 1 — non-negotiable (~45 min)</b><ul>
+<li><b class="done">BoF slide deck ✓</b> — done today; re-skim the framework + out-of-scope slides Thursday 08:30. <span class="mono"><a href="https://datatracker.ietf.org/meeting/126/session/agentproto/">official materials page</a> · repo copy: docs/standards/slides-126-agentproto-00.pdf</span></li>
+<li><b>Charter text + about page</b> (5 min) — the exact text consensus is called on; know its deliverables (session protocol + framework) and out-of-scope list cold.</li>
+<li><b>agentproto FAQ</b> (10 min) — <a href="https://github.com/sureshkrishnan/agentproto-faq/blob/main/agentproto-faq.md">github FAQ</a> — the proponents' own answers to likely objections; don't ask something it already answers.</li>
+<li><b>Your own two drafts, re-skim</b> (15 min) — be fluent in your section numbers if Orie-class people engage; you wrote them ten days ago at speed.</li>
+<li><b>Both strategy reviews</b> ✓ read today — <span class="mono">docs/standards/REVIEW-GPT56-IETF-DRAFTS + REVIEW-GPT-AGENTPROTO-BOF</span> — reread only §"best intervention" + terminology cautions Thursday morning.</li></ul></div>
+<div class="card"><b>Tier 2 — high value (~60 min, Wednesday train or café)</b><ul>
+<li><b>SCITT architecture</b> (30 min, core concepts) — the transparency-service model: signed statements from issuers, append-only registries, receipts proving registration. WHY: Orie chairs your room; Henk's question ("evidence vs attestation result vs signed statement vs outside") is answered in SCITT's own vocabulary, and a VHR assertion registered as a signed statement with a receipt is one plausible -01 shape. Search "draft-ietf-scitt-architecture" on the Datatracker for the current text.</li>
+<li><b>WIMSE architecture</b> (20 min, skim) — workload identity across trust domains; the framework slide names WIMSE as the identity block agentproto will consume. WHY: your strongest positioning sentence — "VHR composes above WIMSE: workload identity says which agent; authority lineage says on whose mandate" — should be said with their architecture actually skimmed.</li>
+<li><b>RATS overview</b> (10 min, roles only — RFC 9334 intro) — evidence / attester / verifier / relying party vocabulary, so Henk's frame is native if he replies.</li></ul></div>
+<div class="card"><b>Tier 3 — optional (30 min, only if the week allows)</b><ul>
+<li><b>EAT (Entity Attestation Token)</b> claims-token shape — a candidate encoding for the -01 assertion object.</li>
+<li><b>DAWN + DMSC BoF pages</b> — the week's adjacent rooms (discovery; dynamic multi-agent secured collaboration); map only, no pass implications.</li>
+<li><b>OAuth delegation refresher</b> — only the concept of narrowed scopes on re-delegation; the drafts' attenuation story should echo it.</li></ul></div>
+
+<h2>Materials shelf — everything, one place</h2>
+<div class="card mono">
+Your drafts: <a href="https://datatracker.ietf.org/doc/draft-zagarella-verified-human-root/">verified-human-root</a> · <a href="https://datatracker.ietf.org/doc/draft-zagarella-autonomy-governor/">autonomy-governor</a><br>
+BoF slides: <a href="https://datatracker.ietf.org/meeting/126/session/agentproto/">official materials</a> · repo docs/standards/slides-126-agentproto-00.pdf<br>
+Strategy: repo docs/standards/REVIEW-GPT56-IETF-DRAFTS-2026-07-21.md · REVIEW-GPT-AGENTPROTO-BOF-2026-07-21.md<br>
+Lists: agent2agent@ietf.org (post-BoF home) · AUDIT (Mirja question pending)<br>
+Outreach ledger: Mirja ✓ · Henk (ietf.contact) ✓ · Chairs ✓ · Support #54788 ✓ · Registration R939VNS5 ✓<br>
+Post-BoF Day-3: narrow authority-lineage post → agent2agent list, room vocabulary · then -01 work (assertion object · quorum/role root · processing rules · Governor→pre-action assurance profile)
 </div>
 
-<div class="person">
-<h3><span>THE ROOM YOU'RE IN · AGENTPROTO BoF</span>Jonathan Rosenberg &amp; Cullen Jennings</h3>
-<p><b>Who:</b> SIP-era royalty (Rosenberg wrote SIP; Jennings, Cisco / former IETF leadership). Driving agent-protocol work incl. CHEQ-style human-in-the-loop checkpoints.</p>
-<p><b>Big-picture fit:</b> CHEQ answers <b>when</b> to ask a human but does not root in a verified natural person — your layer sits <b>under</b> theirs. They are the door to the agent-protocol community; adversaries only if you make them so.</p>
-<p><b>Get across (hallway, one sentence):</b> "CHEQ answers when to ask a human; my drafts answer <b>which verified human, with what provable authority</b> — I think they compose." Gauge interest, offer to send the drafts. Done.</p>
-<div class="zip"><span class="zl">ZIP IT</span><p>Never contest their scope at the mic. In the BoF: listen; at most one genuinely curious question. You are measuring the room, not working it.</p></div>
-</div>
+<h2>Zip-it list (unchanged, doubly true on a recorded session)</h2>
+<div class="card"><ul>
+<li>No NXZEN / exit / acquirer. No customer names — "working system running end-to-end, pilot users" is the ceiling.</li>
+<li>Never "this is patented" in an IETF room; question-form at the mic; IPR disclosures via the proper form this week.</li>
+<li>Compose, don't contest — no criticism of CHEQ, MCP, A2A, or the proponents' gaps beyond the one question.</li>
+<li>No standardisation-timeline promises. No WG proposals from the new guy.</li></ul></div>
 
-<div class="person">
-<h3><span>PROCESS ORACLE · ARCHITECTURE</span>Mirja Kühlewind</h3>
-<p><b>Who:</b> Ericsson; years on the Internet Architecture Board; deeply respected navigator of how new work actually succeeds at IETF.</p>
-<p><b>Get across (ask, don't tell):</b> "Individual drafts, running code, evidence/audit shaped — if it were your work, where would you take it, and what would you avoid?"</p>
-<div class="zip"><span class="zl">ZIP IT</span><p>No technology deep-dive unless she pulls. Her value is navigation, not review.</p></div>
-</div>
-
-<div class="person">
-<h3><span>IF FORTUNE ALLOWS · ELDER STATESMAN</span>Jari Arkko</h3>
-<p><b>Who:</b> Ericsson, former IETF Chair; thinks in internet-architecture decades.</p>
-<p><b>Get across (one breath):</b> "Agents are getting protocols; humans-with-authority don't have one. I've built and drafted one."</p>
-<div class="zip"><span class="zl">ZIP IT</span><p>Ask for nothing. A five-minute impression that you're serious is the whole win.</p></div>
-</div>
-
-<h2>Universal message notes</h2>
-<ul>
-<li><b>Lead with running code.</b> "Working implementation, production pilots, drafts written from what's built" — the most respected sentence in that building.</li>
-<li><b>Compose, don't contest.</b> Where does this FIT — never why others fall short.</li>
-<li><b>Presence-first.</b> List posts come ~25th, after the meeting, ideally citing these conversations.</li>
-<li><b>The ask everywhere is guidance, not adoption.</b> "Where does this belong?" opens doors; "please adopt this" closes them.</li>
-</ul>
-
-<h2>Hard zip-it list — whole trip</h2>
-<ul>
-<li class="hot"><b>Patents &amp; the Note Well.</b> Formal contributions (mic statements, list posts, presented drafts) covering your patented tech trigger IPR-disclosure obligations. Hallway chat is fine; at the mic, ask questions rather than describing your mechanisms; when the I-Ds are formally presented later, we file disclosures properly. Never say "this is patented" in an IETF room — it reads exactly wrong there.</li>
-<li class="hot"><b>No NXZEN, no exit, no acquirer</b> — to anyone, at all.</li>
-<li class="hot"><b>No customer names</b> — "production pilots" is the ceiling.</li>
-<li class="hot"><b>No production-scale claims</b> — "working system running end-to-end with pilot users," nothing bigger.</li>
-<li class="hot"><b>No standardisation timeline promises</b> — you don't control IETF clocks.</li>
-<li class="hot"><b>Never criticise CHEQ/AGENTPROTO</b> — the community is small and everything gets back.</li>
-</ul>
-
-<div class="logi"><b>Logistics:</b> One-Day Pass Thursday 23 — register at <code>registration.ietf.org</code> (buy today). AGENTPROTO BoF = anchor session; hallway targets around it. Your posted drafts (LIVE 19 Jul): <a href="https://datatracker.ietf.org/doc/draft-zagarella-verified-human-root/" style="color:#C9A227">verified-human-root</a> · <a href="https://datatracker.ietf.org/doc/draft-zagarella-autonomy-governor/" style="color:#C9A227">autonomy-governor</a> · Birkholz emailed 19 Jul ✔-pending-reply. AUDIT list post: held until ~25th.</div>
-
-<div class="foot">Private brief · Prepared for Rob Zagarella · updates land on this URL as the trip evolves</div>
-</div></div><div style="position:fixed;bottom:8px;right:12px;font:10px monospace;color:#8B8FA3;opacity:.7">living document · updated 19 Jul 2026, evening</div>
-<script>try{navigator.sendBeacon&&navigator.sendBeacon('https://api.athenapilot.ai/v1/telemetry/view',JSON.stringify({page:location.pathname}))}catch(e){}</script>
-<script>(function(){var l=Date.now();function fr(){if(Date.now()-l>9e5){location.reload();}}document.addEventListener('visibilitychange',function(){if(!document.hidden)fr()});window.addEventListener('pageshow',function(e){if(e.persisted)fr()})})()</script>
-</body></html>
+</div></div></body></html>
