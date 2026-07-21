@@ -306,7 +306,168 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <p class="stage-sub">An AI-assisted credit assessment has scored the application and produced a recommendation. Walk through the credit officer's independent review — from AI advisory output to sealed credit decision.</p>
 
         <div class="steps" id="steps">
-          <!-- SECTION: STEPS 1-4 (3b) -->
+          <!-- Step 1: AI credit assessment received -->
+          <div class="step" id="s1">
+            <div class="step-rail">
+              <div class="step-dot" id="d1">1</div>
+              <div class="step-conn" id="c1"></div>
+            </div>
+            <div class="step-body">
+              <h3>AI credit assessment received</h3>
+              <div class="step-meta">Athena Credit Scoring Module · advisory output · not a credit decision</div>
+              <div class="step-detail">
+                <div class="ai-score-block">
+                  <div class="ai-score-label">AI Advisory Output — Athena Credit Module · CASE-FIN-2026-0391 · Model v2.4.1</div>
+                  <p style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;"><strong style="color:var(--text-primary);">Applicant:</strong> Meridian Fabrications Pty Ltd · ACN 612 447 891 · 7-year trading entity · Manufacturing sector</p>
+                  <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;"><strong style="color:var(--text-primary);">Facility requested:</strong> $180,000 working capital · 24-month term · Variable rate · Security: PPSR registered debenture over business assets</p>
+                  <div class="ai-score-grid">
+                    <div class="ai-score-item">
+                      <div class="ai-score-item-label">RISK SCORE</div>
+                      <div class="ai-score-item-value risk-med">B2</div>
+                    </div>
+                    <div class="ai-score-item">
+                      <div class="ai-score-item-label">PD ESTIMATE</div>
+                      <div class="ai-score-item-value risk-med">2.8%</div>
+                    </div>
+                    <div class="ai-score-item">
+                      <div class="ai-score-item-label">AI RECOMMENDATION</div>
+                      <div class="ai-score-item-value" style="font-size:12px;">APPROVE · STANDARD CONDITIONS</div>
+                    </div>
+                  </div>
+                  <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><strong style="color:var(--text-primary);">Model inputs considered:</strong> 3 years audited financials · DSCR 1.42x · Current ratio 1.18 · Outstanding facility with ANZ (current, $95k) · No adverse credit events on file · Seasonal revenue pattern noted (Q2/Q3 peaks).</p>
+                  <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-top:6px;"><strong style="color:var(--text-primary);">Model limitations:</strong> Assessment does not incorporate current-period management accounts, director personal financial position, or market conditions for the applicant's sector. Collateral valuation is based on declared book value.</p>
+                  <div class="ai-not-claim">AI advisory output only — this is not a credit decision and must not be treated as one. The model's recommendation is one input to the officer's independent review; it does not substitute for that review. The credit officer's independent judgment governs the outcome. No decision should be made by adopting the model recommendation without independent assessment.</div>
+                </div>
+                <p style="margin-top:10px;"><span class="policy-chip">ai_recommendation=approve_standard</span><span class="policy-chip">advisory_only=true</span><span class="policy-chip">credit_decision=false</span><span class="policy-chip">model=athena_credit_v2.4.1</span></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Credit officer independent review -->
+          <div class="step" id="s2">
+            <div class="step-rail">
+              <div class="step-dot" id="d2">2</div>
+              <div class="step-conn" id="c2"></div>
+            </div>
+            <div class="step-body">
+              <h3>Credit officer independent review</h3>
+              <div class="step-meta">Authorised Credit Officer · independent assessment · not informed by AI recommendation alone</div>
+              <div class="step-detail">
+                <p>The Authorised Credit Officer reviews the complete application evidence bundle independently — the applicant's financial statements, security position, sector context, and the AI advisory output. The AI recommendation is one input, not a governing determination.</p>
+                <p style="margin-top:8px;"><span class="policy-chip">evidence_bundle=reviewed</span><span class="policy-chip">financials=3yr_audited</span><span class="policy-chip">security=ppsr_debenture</span><span class="policy-chip">independent_review=true</span></p>
+                <p style="margin-top:10px;"><strong style="color:var(--text-primary);">Evidence bundle reviewed (illustrative):</strong></p>
+                <ul style="margin:8px 0 10px;padding-left:18px;font-size:13px;color:var(--text-secondary);line-height:1.7;list-style-type:disc;">
+                  <li>FY2024 and FY2023 audited financial statements — P&amp;L, balance sheet, cash flow</li>
+                  <li>ATO tax portal confirmation — no outstanding liabilities or payment plans</li>
+                  <li>ANZ facility statement — current, $95,000 drawn, 18 months remaining</li>
+                  <li>PPSR search — debenture position confirmed, no prior-ranking security</li>
+                  <li>Director background — no adverse ASIC findings; 7-year track record with entity</li>
+                  <li>Sector intelligence — manufacturing PMI trend, sector credit conditions current</li>
+                </ul>
+                <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;"><span class="hil">The officer's review is independent of the AI suggestion.</span> The credit decision must reflect the officer's own judgment formed on the complete evidence bundle — including factors the scoring model cannot access or weight correctly for this specific applicant.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Delegated authority check -->
+          <div class="step" id="s3">
+            <div class="step-rail">
+              <div class="step-dot" id="d3">3</div>
+              <div class="step-conn" id="c3"></div>
+            </div>
+            <div class="step-body">
+              <h3>Delegated lending authority check</h3>
+              <div class="step-meta">Institutional mandate · officer-bound · policy-version locked</div>
+              <div class="step-detail">
+                <p>The requested facility amount is checked against the officer's current delegated lending mandate. Authority to approve is not inherent in the officer's role — it is an explicit, bounded delegation from the institution, versioned to a specific credit policy, and sealed into every decision record.</p>
+                <div class="delegated-check">
+                  <div class="del-label">Delegated authority — WITHIN LIMIT</div>
+                  <div class="del-grid">
+                    <div class="del-item">
+                      <div class="del-item-label">FACILITY REQUESTED</div>
+                      <div class="del-item-value">$180,000</div>
+                    </div>
+                    <div class="del-item">
+                      <div class="del-item-label">OFFICER DELEGATED LIMIT</div>
+                      <div class="del-item-value">$250,000</div>
+                    </div>
+                    <div class="del-item">
+                      <div class="del-item-label">HEADROOM</div>
+                      <div class="del-item-value" style="color:var(--success);">$70,000</div>
+                    </div>
+                    <div class="del-item">
+                      <div class="del-item-label">DUAL-CONTROL REQUIRED</div>
+                      <div class="del-item-value" style="color:var(--success);">NO</div>
+                    </div>
+                  </div>
+                  <p class="del-verdict"><span class="ok">Within delegated limit.</span> The officer may approve, approve with conditions, or decline unilaterally. No escalation to dual-control or credit committee is required for this amount.</p>
+                </div>
+                <p style="margin-top:12px;font-size:13px;color:var(--text-tertiary);line-height:1.6;"><strong style="color:var(--text-secondary);">Over-limit path (illustrative):</strong> if the requested amount exceeded the officer's delegated limit (e.g. $320,000 against a $250,000 mandate), the decision path would automatically show Escalate as the required outcome — the officer cannot approve unilaterally and must route to a second authorised officer or credit committee. Both the escalation trigger and the limit at the time of the decision are sealed in the receipt.</p>
+                <p style="margin-top:10px;"><span class="policy-chip">credit_policy=CP-2026-v3.1</span><span class="policy-chip">delegated_limit=$250,000</span><span class="policy-chip">within_limit=true</span><span class="policy-chip">dual_control=not_required</span></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4: Decision path selection -->
+          <div class="step" id="s4">
+            <div class="step-rail">
+              <div class="step-dot" id="d4">4</div>
+              <div class="step-conn" id="c4"></div>
+            </div>
+            <div class="step-body">
+              <h3>Select decision path and reason codes</h3>
+              <div class="step-meta">Officer's independent credit judgment · four paths · reason codes sealed with decision</div>
+              <div class="step-detail">
+                <p style="margin-bottom:12px;">Select the path that reflects the officer's independent credit judgment. This will be sealed alongside the AI advisory output — both are recorded; neither is attributed to the other. Reason codes are sealed as part of the decision record for audit and policy review.</p>
+                <div class="decision-paths" id="decisionPaths">
+
+                  <button class="dp-btn" data-path="approve" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--success);">Path A — Approve</div>
+                    <div class="dp-name">Approve — standard conditions</div>
+                    <div class="dp-desc">Application approved within delegated authority. Standard facility conditions apply. Officer's independent assessment supports approval.</div>
+                  </button>
+
+                  <button class="dp-btn" data-path="approve_conditions" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--teal);">Path B — Conditional</div>
+                    <div class="dp-name">Approve with conditions</div>
+                    <div class="dp-desc">Approved subject to specified conditions — e.g. additional security, quarterly covenant review, drawdown tranche structure, or updated financial information before first drawdown.</div>
+                  </button>
+
+                  <button class="dp-btn dp-decline" data-path="decline" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--red);">Path C — Decline</div>
+                    <div class="dp-name">Decline</div>
+                    <div class="dp-desc">Application declined. Officer's independent assessment does not support approval. Reason codes required — sealed in the decision record for adverse action and audit purposes.</div>
+                  </button>
+
+                  <button class="dp-btn dp-escalate" data-path="escalate" onclick="selectPath(this)">
+                    <div class="dp-label" style="color:var(--amber);">Path D — Escalate</div>
+                    <div class="dp-name">Escalate — dual-control or credit committee</div>
+                    <div class="dp-desc">Decision referred to a second Authorised Credit Officer or credit committee. Use when: amount approaches delegated limit, policy exception required, or officer assessment produces a split outcome not resolvable unilaterally.</div>
+                  </button>
+
+                </div>
+
+                <!-- Reason codes — shown for decline and escalate paths -->
+                <div class="reason-codes" id="reasonCodes">
+                  <div class="rc-label">Reason codes — select all that apply</div>
+                  <div class="rc-grid">
+                    <button class="rc-btn" data-rc="RC-101" onclick="toggleRC(this)">RC-101 · DSCR below threshold</button>
+                    <button class="rc-btn" data-rc="RC-102" onclick="toggleRC(this)">RC-102 · Collateral shortfall</button>
+                    <button class="rc-btn" data-rc="RC-103" onclick="toggleRC(this)">RC-103 · Over delegated limit</button>
+                    <button class="rc-btn" data-rc="RC-104" onclick="toggleRC(this)">RC-104 · Policy exception required</button>
+                    <button class="rc-btn" data-rc="RC-105" onclick="toggleRC(this)">RC-105 · Insufficient trading history</button>
+                    <button class="rc-btn" data-rc="RC-106" onclick="toggleRC(this)">RC-106 · Adverse credit event</button>
+                    <button class="rc-btn" data-rc="RC-107" onclick="toggleRC(this)">RC-107 · Sector concentration limit</button>
+                    <button class="rc-btn" data-rc="RC-108" onclick="toggleRC(this)">RC-108 · Director / security concerns</button>
+                  </div>
+                  <div class="rc-note" id="rcNote">No reason codes selected.</div>
+                </div>
+
+                <p class="dp-note" id="pathNote">No path selected yet.</p>
+              </div>
+            </div>
+          </div>
+
           <!-- SECTION: STEP 5 biometric (3c) -->
           <!-- SECTION: STEP 6 seal (3c) -->
         </div>
