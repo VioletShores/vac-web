@@ -64,6 +64,12 @@ h1{font-size:22px;color:var(--text-primary);font-weight:700;margin-bottom:6px;}
 .note strong{color:var(--text-secondary);}
 .tune{margin-top:14px;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:12px;color:var(--text-tertiary);}
 .tune input{flex:1;}
+.zone-readout{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:10px;padding:14px 18px;}
+.zone-readout h3{font-size:12px;font-family:var(--mono);color:var(--text-tertiary);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;}
+.zone-row{font-family:var(--mono);font-size:12px;color:var(--text-tertiary);padding:3px 0;line-height:1.5;}
+.zone-row .val{color:var(--text-secondary);}
+.zone-row .in{color:var(--success);font-weight:600;}
+.zone-row .out{color:var(--text-quaternary);}
 </style>
 <!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
 <script src="/vac-finger-detect.js"></script>
@@ -99,6 +105,14 @@ h1{font-size:22px;color:var(--text-primary);font-weight:700;margin-bottom:6px;}
     <span>Straight-angle threshold: <span id="thVal">35</span>°</span>
     <input type="range" id="thresh" min="15" max="60" value="35">
     <span style="color:var(--text-quaternary)">lower = stricter</span>
+  </div>
+
+  <div class="zone-readout" id="zoneReadout">
+    <h3>Zone geometry (live) — drawn oval = acceptance gate</h3>
+    <div class="zone-row">Spec: ovals at <span class="val">cx=[0.18, 0.82]</span> cy=<span class="val" id="zoneSpecCy">—</span> rx=<span class="val" id="zoneSpecRx">—</span> ry=<span class="val" id="zoneSpecRy">—</span> · need wrist + ≥<span class="val" id="zoneMinTips">—</span> tips inside</div>
+    <div class="zone-row">Wrist: (<span class="val" id="zWristX">—</span>, <span class="val" id="zWristY">—</span>) → <span id="zWristIn" class="out">no hand</span></div>
+    <div class="zone-row">Tips in zone: <span class="val" id="zTipsIn">—</span>/5</div>
+    <div class="zone-row">Hand in zone: <span id="zHandIn" class="out">—</span></div>
   </div>
 
   <div class="controls">
@@ -138,13 +152,82 @@ function countFingers(lm){
   return FingerDetector.countDetailed(lm, threshold);
 }
 
-function drawLandmarks(lm){
+// Populate static zone spec labels once (they don't change per frame).
+(function initZoneReadout(){
+  const spec = FingerDetector.zoneSpec;
+  if (!spec) return;
+  document.getElementById('zoneSpecCy').textContent   = spec.ovals[0].cy;
+  document.getElementById('zoneSpecRx').textContent   = spec.rx;
+  document.getElementById('zoneSpecRy').textContent   = spec.ry;
+  document.getElementById('zoneMinTips').textContent  = spec.minTipsInside;
+})();
+
+// Draw the two cheek-zone ovals derived from FingerDetector.zoneSpec.
+// inZone: whether the current hand passes the acceptance gate (same spec).
+// activeSide: 'left'|'right'|null — brightens only the nearest oval.
+// This function is the SINGLE place both the drawn ring and the accept zone
+// read their geometry from; they cannot diverge.
+function drawZoneOvals(inZone, activeSide){
+  const spec = FingerDetector.zoneSpec;
+  const w = overlay.width, h = overlay.height;
+  for (const o of spec.ovals) {
+    const isActive = (o.side === activeSide);
+    const glow     = isActive && inZone;
+    ctx.beginPath();
+    ctx.ellipse(o.cx*w, o.cy*h, spec.rx*w, spec.ry*h, 0, 0, Math.PI*2);
+    if (isActive) {
+      ctx.fillStyle   = glow ? 'rgba(63,185,80,0.10)' : 'rgba(108,92,231,0.08)';
+      ctx.strokeStyle = glow ? 'rgba(63,185,80,0.90)' : 'rgba(108,92,231,0.75)';
+      ctx.lineWidth   = Math.max(2, w * 0.005);
+      ctx.setLineDash([]);
+    } else {
+      ctx.fillStyle   = 'rgba(108,92,231,0.03)';
+      ctx.strokeStyle = 'rgba(108,92,231,0.25)';
+      ctx.lineWidth   = Math.max(1, w * 0.003);
+      ctx.setLineDash([Math.max(4, w*0.008), Math.max(4, w*0.008)]);
+    }
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawLandmarks(lm, inZone, activeSide){
   overlay.width=video.videoWidth; overlay.height=video.videoHeight;
   ctx.clearRect(0,0,overlay.width,overlay.height);
+  // Drawn zone from the SAME spec as the acceptance gate — one source of truth.
+  drawZoneOvals(inZone, activeSide);
   const CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
   ctx.strokeStyle='rgba(0,206,201,0.6)'; ctx.lineWidth=3;
   CONN.forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(lm[a].x*overlay.width,lm[a].y*overlay.height);ctx.lineTo(lm[b].x*overlay.width,lm[b].y*overlay.height);ctx.stroke();});
   lm.forEach(p=>{ctx.beginPath();ctx.arc(p.x*overlay.width,p.y*overlay.height,4,0,7);ctx.fillStyle='#6C5CE7';ctx.fill();});
+}
+
+// Update the per-frame zone readout below the controls.
+function updateZoneReadout(lm, inZone){
+  const spec = FingerDetector.zoneSpec;
+  if (!lm) {
+    document.getElementById('zWristX').textContent    = '—';
+    document.getElementById('zWristY').textContent    = '—';
+    const wIn = document.getElementById('zWristIn');
+    wIn.textContent = 'no hand'; wIn.className = 'out';
+    document.getElementById('zTipsIn').textContent   = '—';
+    const hIn = document.getElementById('zHandIn');
+    hIn.textContent = '—'; hIn.className = 'out';
+    return;
+  }
+  const wrist = lm[0];
+  const wristInZone = FingerDetector.ptInCheekZone(wrist);
+  const tipsIn = [4,8,12,16,20].filter(t => FingerDetector.ptInCheekZone(lm[t])).length;
+  document.getElementById('zWristX').textContent = wrist.x.toFixed(3);
+  document.getElementById('zWristY').textContent = wrist.y.toFixed(3);
+  const wIn = document.getElementById('zWristIn');
+  wIn.textContent = wristInZone ? 'IN ZONE ✓' : 'out of zone';
+  wIn.className   = wristInZone ? 'in' : 'out';
+  document.getElementById('zTipsIn').textContent = tipsIn;
+  const hIn = document.getElementById('zHandIn');
+  hIn.textContent = inZone ? 'YES ✓' : 'no';
+  hIn.className   = inZone ? 'in' : 'out';
 }
 
 function loop(){
@@ -154,7 +237,11 @@ function loop(){
     const res=landmarker.detectForVideo(video, now);
     if(res.landmarks && res.landmarks.length){
       const lm=res.landmarks[0];
-      drawLandmarks(lm);
+      // Zone check uses FingerDetector.handNearFaceZone — same spec as drawn ovals.
+      const inZone     = FingerDetector.handNearFaceZone(lm);
+      const activeSide = FingerDetector.nearestCheek(lm[0]);
+      drawLandmarks(lm, inZone, activeSide);
+      updateZoneReadout(lm, inZone);
       const {count,states}=countFingers(lm);
       countNum.textContent=count;
       states.forEach((s,i)=>{
@@ -168,7 +255,11 @@ function loop(){
       if(hitFrames>=4){tickEl.classList.add('show');const b=document.querySelectorAll('.digit-btn')[target];if(b)b.classList.add('hit');}
       else{tickEl.classList.remove('show');}
     }else{
-      ctx.clearRect(0,0,overlay.width,overlay.height);countNum.textContent='–';tickEl.classList.remove('show');hitFrames=0;
+      overlay.width=video.videoWidth||overlay.width; overlay.height=video.videoHeight||overlay.height;
+      ctx.clearRect(0,0,overlay.width,overlay.height);
+      drawZoneOvals(false, null); // always show zone guide, even with no hand
+      updateZoneReadout(null, false);
+      countNum.textContent='–';tickEl.classList.remove('show');hitFrames=0;
     }
   }
   if(now-lastT>0){fpsEl.textContent=Math.round(1000/(now-lastT))+' fps';}

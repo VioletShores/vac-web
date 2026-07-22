@@ -319,6 +319,51 @@ window.FingerDetector = (function() {
         // four-finger threshold; angle()/countFingers() mirror the live values.
         angle: _angle,
         countFingers: _countFingers,
-        countDetailed: _countDetailed
+        countDetailed: _countDetailed,
+
+        // ── Zone geometry — single source of truth for draw AND accept ────────────
+        // Canonical "beside your cheek" zone: two small ovals, one per cheek.
+        // cx/cy/rx/ry are normalized to frame dimensions (landmarks are also [0,1]).
+        // Matches GESTURE_ZONE_SPEC in vac-reauth-ceremony.js (S139 live-tune).
+        // Both the drawn overlay and the acceptance gate MUST derive from here so
+        // zone visual = zone logic (no drift between draw and accept).
+        zoneSpec: Object.freeze({
+            ovals: [
+                { cx: 0.18, cy: 0.48, side: 'left'  },
+                { cx: 0.82, cy: 0.48, side: 'right' },
+            ],
+            rx: 0.17,           // acceptance + draw radius (unified — S139 live-tune)
+            ry: 0.22,           // acceptance + draw radius (unified — S139 live-tune)
+            minTipsInside: 3,   // wrist + at least 3 of 5 fingertips must be inside
+        }),
+
+        // Point-in-zone: returns true if normalized point p is inside either cheek oval.
+        ptInCheekZone(p) {
+            const spec = this.zoneSpec;
+            for (const o of spec.ovals) {
+                const dx = (p.x - o.cx) / spec.rx, dy = (p.y - o.cy) / spec.ry;
+                if (dx * dx + dy * dy <= 1) return true;
+            }
+            return false;
+        },
+
+        // Full hand-in-zone gate: wrist (lm[0]) plus ≥minTipsInside fingertips.
+        // Mirrors vac-reauth-ceremony.js _handNearFaceZone — call this from the
+        // drawn-zone renderer so draw and accept share ONE path.
+        handNearFaceZone(lm) {
+            if (!lm || lm.length < 21) return false;
+            if (!this.ptInCheekZone(lm[0])) return false;
+            const tips = [4, 8, 12, 16, 20];
+            let inside = 0;
+            for (const t of tips) { if (this.ptInCheekZone(lm[t])) inside++; }
+            return inside >= this.zoneSpec.minTipsInside;
+        },
+
+        // Nearest cheek oval for a given wrist landmark (lm[0]): 'left' | 'right'.
+        // Use to highlight only the active side in the drawn overlay.
+        nearestCheek(wristLm) {
+            if (!wristLm) return null;
+            return wristLm.x < 0.5 ? 'left' : 'right';
+        },
     };
 })();
