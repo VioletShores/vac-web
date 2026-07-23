@@ -2115,7 +2115,7 @@ function beginRecording() {
     // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
     // duration AND modulation. Shorter than the greeting's 1.4s (a single digit < a multi-word
     // greeting). PACING ONLY — Gemini server-side stays the authoritative voice check. LIVE-TUNE.
-    const DIGIT_VOICE_MIN_MS = 350;  // CONTINUOUS voiced duration a real spoken digit clears (~300-500ms); a ~100ms tap can't. Proven live (Rob's clean one-take PASSED at 350ms).
+    const DIGIT_VOICE_MIN_MS = 270;  // S145j live-tune (Rob, hotel e2e): 350 rejected a briskly-said 'two' (bar clearly over threshold, duration under floor — slow retry passed). 270 admits a natural quick monosyllable (~250-300ms) while keeping ~2.5x margin over a ~100ms tap; modulation + hysteresis + Gemini server-side remain the real anti-tap guards.
     const DIGIT_VOICE_GAP_MS = 200;  // R1: max sustained OBSERVED dip (neither-band frames) within one voiced run. A real intra-word dip is brief; spaced taps leave a long neither-band gap between them. Gated on OBSERVED dip frames (not a bare inter-frame time delta) so rAF jank — a skipped frame — can't fake a gap and false-reject a real digit (adversarial-review F1).
     // F-662: DIGIT_COOCCUR_MS / DIGIT_COOCCUR_MAX_MS moved to module scope (ONE source, shared with the
     // FAST tier via _cooccurAdvanceDecision). Same values; the inline gate below now calls that helper.
