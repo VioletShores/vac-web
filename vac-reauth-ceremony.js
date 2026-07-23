@@ -2853,6 +2853,17 @@ function beginRecording() {
             audioAnalyser.getByteFrequencyData(_buf);
             let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
             _rms = Math.sqrt(_rms / _buf.length) / 255;
+            // S145c: same Mic-pill instrument during the GREETING — the user sees their level while
+            // calibration listens, so they settle to the line and F-595 learns their NORMAL voice
+            // (kills the loud-greeting → high-threshold feedback loop). Line here = the greeting
+            // gate (fallback constant); after calibration the digit gate shows its own line.
+            try {
+                window.__vacGateArmed = true;
+                var _gmf = document.getElementById('avMicBarFill');
+                if (_gmf) { var _gw = Math.min(100, Math.round((_rms / (VAD_SPEECH_RMS_FALLBACK * 2.5)) * 100)); _gmf.style.width = _gw + '%'; _gmf.style.background = (_rms > VAD_SPEECH_RMS_FALLBACK) ? '#43d692' : '#8b97ad'; }
+                var _gmr = document.getElementById('avRmsReadout');
+                if (_gmr) _gmr.textContent = _rms.toFixed(2) + '/' + VAD_SPEECH_RMS_FALLBACK.toFixed(2) + ' g';
+            } catch(_) {}
             // (a) CONNECTED-BUT-SILENT mic detector: sustained genuine near-silence with NO voiced
             // energy → the mic is present but too quiet to ever satisfy the gate. Surface the "we
             // can't hear you" recovery rather than silently holding to the hard cap (Finding/silent-mic).
