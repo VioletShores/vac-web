@@ -2023,6 +2023,23 @@ function beginRecording() {
     function _micPillDraw(rms, thr, tag) {
         try {
             window.__vacMicThr = thr;  // S145e: published for the always-on monitor fallback
+            // S145g: the pill row lives ONLY on the preflight screen — the ceremony STEP view
+            // (greeting/digits, where the user actually speaks) replaces it (Rob screenshot,
+            // hotel run). So while a speech gate is armed, ALSO maintain a compact fixed meter
+            // bottom-center: same bar, same gold line, same numbers. Removed at gate-off.
+            if (window.__vacGateArmed) {
+                var _ov = document.getElementById('vacStepVU');
+                if (!_ov) {
+                    _ov = document.createElement('div');
+                    _ov.id = 'vacStepVU';
+                    _ov.style.cssText = 'position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(260px,76vw);z-index:99999;pointer-events:none;font-family:-apple-system,system-ui,sans-serif;';
+                    _ov.innerHTML = '<div style="height:9px;border-radius:5px;background:rgba(10,15,26,.8);border:1px solid rgba(255,255,255,.28);position:relative;overflow:visible;">'
+                      + '<div id="vacStepVUfill" style="height:100%;width:0%;background:#8b97ad;border-radius:5px;transition:width 50ms linear;"></div>'
+                      + '<div style="position:absolute;top:-4px;bottom:-4px;left:40%;width:2px;background:#fbbf24;border-radius:1px;"></div></div>'
+                      + '<div id="vacStepVUtxt" style="text-align:center;font-size:11px;color:#c9d4e8;margin-top:3px;text-shadow:0 1px 2px rgba(0,0,0,.85);"></div>';
+                    document.body.appendChild(_ov);
+                }
+            }
             _micBarDisp = (rms > _micBarDisp) ? rms : Math.max(rms, _micBarDisp * 0.86);
             if (!_micBarVoiced && rms > thr) _micBarVoiced = true;
             else if (_micBarVoiced && rms < thr * 0.85) _micBarVoiced = false;
@@ -2030,6 +2047,9 @@ function beginRecording() {
             if (_mf) { var _w = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _mf.style.width = _w + '%'; _mf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
             var _mr = document.getElementById('avRmsReadout');
             if (_mr) _mr.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag;
+            var _sf = document.getElementById('vacStepVUfill'), _st = document.getElementById('vacStepVUtxt');
+            if (_sf) { var _w2 = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _sf.style.width = _w2 + '%'; _sf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
+            if (_st) _st.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — speak past the gold line';
         } catch(_) {}
     }
     try { window.__vacMicPillDraw = _micPillDraw; } catch(_) {}
@@ -2274,7 +2294,7 @@ function beginRecording() {
         })();
     }
     function _speechGateOff(reason) {
-        try { window.__vacGateArmed = false; var _mf0 = document.getElementById('avMicBarFill'); if (_mf0) _mf0.style.width = '0%'; } catch(_) {}
+        try { window.__vacGateArmed = false; var _mf0 = document.getElementById('avMicBarFill'); if (_mf0) _mf0.style.width = '0%'; var _sv0 = document.getElementById('vacStepVU'); if (_sv0) _sv0.remove(); } catch(_) {}
         _speechMode = 'off';           // _speechOk becomes true → gesture-only advance, with a visible note
         _acceptArmed = true;           // Option 2: let the currently-held gesture advance now (escape/degrade), not after a re-show
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
