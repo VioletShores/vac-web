@@ -1001,7 +1001,17 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
 // S145 finding 3 (THIN-329b): consecutive-frame streak gating the AV pre-flight skeleton
 // DRAW (separate from _handStableFrames, which gates the Hand✓ readiness pill). One bad
 // frame — incomplete landmarks or an implausible wrist — clears it back to zero.
-let _avDrawStreak = 0;
+// S145 finding 4 (THIN-329d): the streak above is CANDIDATE-BLIND — it counts any
+// plausible frame regardless of WHERE the wrist is, so with numHands:1 flipping
+// frame-to-frame between a lingering phantom and a freshly-raised real hand, the
+// phantom's long-held streak keeps winning the draw even once the real hand starts
+// appearing. Track the streak PER candidate position (wrist proximity = same hand);
+// a challenger must build a streak >= the incumbent's before it takes over — a
+// stable real hand displaces a lingering phantom instead of flickering against it.
+let _avActiveWrist = null, _avActiveStreak = 0;
+let _avChallengerWrist = null, _avChallengerStreak = 0;
+const _AV_CANDIDATE_DIST = 0.15; // normalized-coord radius treated as "the same hand"
+function _avDist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
 function _avDrawHand(videoEl, lm){
     const cv=document.getElementById('avHandOverlay');
     if(!cv||!videoEl||!videoEl.videoWidth) return;
@@ -1042,7 +1052,7 @@ function _avDrawHand(videoEl, lm){
         }
         ctx.restore();
     })();
-    if(!lm) { _avDrawStreak = 0; return; }
+    if(!lm) { _avActiveWrist = null; _avActiveStreak = 0; _avChallengerWrist = null; _avChallengerStreak = 0; return; }
     // F-755g: draw skeleton whenever 21 finite landmarks present — zone check removed from draw guard.
     // (_avZone still computed; Hand✓ tick logic in runAVFrame is untouched.)
     let _avLmFin = lm.length === 21;
@@ -1058,8 +1068,31 @@ function _avDrawHand(videoEl, lm){
     // (incomplete landmarks or an implausible wrist) clears the streak back to zero.
     const _avWrist = _avLmFin ? lm[0] : null;
     const _avWristPlausible = !!_avWrist && _avWrist.y >= (1 / 3) && _avWrist.x >= 0.04 && _avWrist.x <= 0.96;
-    _avDrawStreak = (_avLmFin && _avWristPlausible) ? (_avDrawStreak + 1) : 0;
-    if (!_avLmFin || _avDrawStreak < 4) return;
+    if (!_avLmFin || !_avWristPlausible) {
+        _avActiveWrist = null; _avActiveStreak = 0;
+        _avChallengerWrist = null; _avChallengerStreak = 0;
+        return;
+    }
+    // THIN-329d selection: same position as the incumbent extends it (challenger lapses);
+    // same position as the challenger grows it, promoting it once it catches the incumbent;
+    // an unrecognized position starts a fresh challenger (incumbent holds, still drawn).
+    if (_avActiveWrist && _avDist(_avActiveWrist, _avWrist) < _AV_CANDIDATE_DIST) {
+        _avActiveWrist = _avWrist; _avActiveStreak++;
+        _avChallengerWrist = null; _avChallengerStreak = 0;
+    } else if (_avChallengerWrist && _avDist(_avChallengerWrist, _avWrist) < _AV_CANDIDATE_DIST) {
+        _avChallengerWrist = _avWrist; _avChallengerStreak++;
+        if (_avChallengerStreak >= _avActiveStreak) {
+            _avActiveWrist = _avChallengerWrist; _avActiveStreak = _avChallengerStreak;
+            _avChallengerWrist = null; _avChallengerStreak = 0;
+        }
+    } else if (!_avActiveWrist) {
+        _avActiveWrist = _avWrist; _avActiveStreak = 1;
+    } else {
+        _avChallengerWrist = _avWrist; _avChallengerStreak = 1;
+    }
+    // Only draw when THIS frame belongs to the current winning candidate — a
+    // still-building challenger doesn't flash onto the overlay before it has won.
+    if (_avActiveStreak < 4 || _avDist(_avActiveWrist, _avWrist) >= _AV_CANDIDATE_DIST) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
