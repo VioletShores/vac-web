@@ -259,6 +259,56 @@ let audioContext = null;
 let audioAnalyser = null;
 let audioAnimFrame = null;
 
+// F-755e (1): adaptive mic threshold — the FAST tier's voice gate (_makeQuickReauthVoiceGate)
+// previously read the FIXED FAST_VAD_SPEECH_RMS constant with NO calibration ("no greeting
+// calibration in the fast tier" — unlike the FULL tier's F-595 per-session calibration, which
+// derives from the spoken GREETING and is untouched here). This samples the room's ambient
+// noise floor for ~1000ms right after the mic opens (_calibrateAmbientMic, called from
+// requestCamera) and derives speech/silence thresholds from that floor + a margin, so a quiet
+// room + normal speaking volume reliably clears the gate without Rob's OLD hand-tuned constant.
+// Falls back to FAST_VAD_SPEECH_RMS/FAST_VAD_SILENCE_RMS if calibration never completes.
+let _micAmbientFloor = null;
+let _micAdaptiveSpeechThreshold = null;
+let _micAdaptiveSilenceThreshold = null;
+const AMBIENT_CAL_MS = 1000;      // sampling window after mic open (task spec: "first ~1000ms")
+const AMBIENT_SPEECH_MARGIN = 0.05;  // speech threshold sits this far above the sampled floor — clears a quiet-room floor (~0.02-0.05) while staying well below normal speaking rms (Rob's measured ~0.175-0.242, S111)
+const AMBIENT_SILENCE_MARGIN = 0.02; // silence threshold sits this far above the floor (< speech margin) — keeps floor < silence < speech ordering true by construction, whatever the sampled floor is
+function _calibrateAmbientMic(stream) {
+    try {
+        const tracks = stream && stream.getAudioTracks ? stream.getAudioTracks() : [];
+        if (!tracks.length) return;
+        const calCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const calSrc = calCtx.createMediaStreamSource(new MediaStream([tracks[0]]));
+        const calAnalyser = calCtx.createAnalyser();
+        calAnalyser.fftSize = 256;
+        calSrc.connect(calAnalyser);
+        const buf = new Uint8Array(calAnalyser.frequencyBinCount);
+        const samples = [];
+        const startedAt = performance.now();
+        (function _sampleTick() {
+            calAnalyser.getByteFrequencyData(buf);
+            let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+            rms = Math.sqrt(rms / buf.length) / 255;
+            samples.push(rms);
+            if (performance.now() - startedAt < AMBIENT_CAL_MS) {
+                requestAnimationFrame(_sampleTick);
+                return;
+            }
+            const sorted = samples.slice().sort(function(a, b) { return a - b; });
+            const floor = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
+            _micAmbientFloor = floor;
+            _micAdaptiveSpeechThreshold = Math.min(0.30, Math.max(0.06, floor + AMBIENT_SPEECH_MARGIN));
+            _micAdaptiveSilenceThreshold = Math.min(_micAdaptiveSpeechThreshold - 0.005, floor + AMBIENT_SILENCE_MARGIN);
+            const _calLog = { floor: Number(floor.toFixed(3)), threshold: Number(_micAdaptiveSpeechThreshold.toFixed(3)), silence: Number(_micAdaptiveSilenceThreshold.toFixed(3)), samples: samples.length };
+            console.debug('[VAC-DBG] mic_ambient_calibrated', _calLog);
+            try { vacDebug('mic_ambient_calibrated', null, _calLog); } catch(_) {}
+            try { calCtx.close(); } catch(_) {}
+        })();
+    } catch (e) {
+        console.warn('[VAC][AUDIO] ambient mic calibration failed (non-fatal — fast tier falls back to fixed FAST_VAD_SPEECH_RMS):', e);
+    }
+}
+
 
 
 // ========== FAIL_REASONS ==========
@@ -315,12 +365,18 @@ async function requestCamera() {
     try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
-            audio: true,
+            // F-755e (1): explicit audio constraints (were an unadorned `true`) — the browser's
+            // own AGC/NS/AEC front-end feeds a cleaner signal into the RMS-energy VAD gate below.
+            audio: { autoGainControl: true, noiseSuppression: true, echoCancellation: true },
         });
         // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
         mediaStream.getTracks().forEach(function(t) {
             t.onended = function() { try { vacDebug('track_ended', null, { kind: t.kind, label: t.label }); } catch(_) {} };
         });
+        // F-755e (1): kick off ambient noise-floor sampling right as the mic opens (~1000ms),
+        // independent of the FULL tier's greeting-phase F-595 calibration — feeds the FAST tier's
+        // voice gate (beginStillCapture / _makeQuickReauthVoiceGate), which had no calibration at all.
+        try { _calibrateAmbientMic(mediaStream); } catch(_) {}
         const vid = document.getElementById('videoPreview');
         vid.srcObject = mediaStream;
         vid.muted = true;
@@ -1445,10 +1501,12 @@ function retryAVSetup() {
     document.getElementById('avAudioPct').textContent = '0%';
     updateAVReady();
     // Re-request camera/mic
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+    // F-755e (1): explicit audio constraints (were an unadorned `true`) — matches requestCamera's gUM call.
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: { autoGainControl: true, noiseSuppression: true, echoCancellation: true } })
         .then(stream => {
             video.srcObject = stream;
             video.play();
+            try { _calibrateAmbientMic(stream); } catch(_) {}
             startAVChecks();
         })
         .catch(err => {
@@ -3369,8 +3427,13 @@ async function beginStillCapture() {
         try {
             startAudioMonitor();
             if (audioAnalyser) {
+                // F-755e (1): prefer the ambient-calibrated thresholds (_calibrateAmbientMic, sampled
+                // ~1000ms after mic open in requestCamera) over the fixed FAST_VAD_* fallback constants.
+                var _fastSpeechThr = (_micAdaptiveSpeechThreshold != null) ? _micAdaptiveSpeechThreshold : FAST_VAD_SPEECH_RMS;
+                var _fastSilenceThr = (_micAdaptiveSilenceThreshold != null) ? _micAdaptiveSilenceThreshold : FAST_VAD_SILENCE_RMS;
+                try { vacDebug('fast_reauth_voice_gate_thr', null, { speechThr: Number(_fastSpeechThr.toFixed(3)), silenceThr: Number(_fastSilenceThr.toFixed(3)), adaptive: _micAdaptiveSpeechThreshold != null }); } catch(_) {}
                 _voiceGate = _makeQuickReauthVoiceGate({
-                    speechThr: FAST_VAD_SPEECH_RMS, silenceThr: FAST_VAD_SILENCE_RMS,
+                    speechThr: _fastSpeechThr, silenceThr: _fastSilenceThr,
                     voiceMinMs: FAST_DIGIT_VOICE_MIN_MS, modDelta: FAST_DIGIT_MOD_DELTA, gapMs: FAST_DIGIT_VOICE_GAP_MS
                 });
                 _voiceGate.start(audioAnalyser);
