@@ -470,19 +470,9 @@ let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustaine
 // does NOT relax the constraint, and is NOT in any advance gate). Shared by BOTH the pre-flight
 // hand test (runAVFrame) and the real gesture step (runDetectionLoop) so the user practises the
 // SAME constraint they'll be held to — one source of truth, no drift.
-// ZONE: a central ellipse centered at (0.5,0.5) with normalized radii RX x RY that EXACTLY
-// match the drawn .hand-zone guide (div 64% x 80% of frame => radii 0.32 x 0.40, svg
-// preserveAspectRatio="none" so the ring maps 1:1). Mirror-invariant (centered), so the
-// scaleX(-1) preview is fine.
-// TEST: the old centroid-of-21-landmarks average let a hand visibly OUTSIDE the oval still read
-// inside (the average sat near center even with the hand off to the side). Now require the hand
-// to be GENUINELY inside: the wrist AND a majority of fingertips must each fall inside the
-// ellipse, so a hand outside the drawn oval reliably yields false and the prompt fires.
-const _HAND_ZONE_RX = 0.32, _HAND_ZONE_RY = 0.40;   // === the .hand-zone div (64% x 80%)
-function _ptInHandZone(p) {
-    const dx = (p.x - 0.5) / _HAND_ZONE_RX, dy = (p.y - 0.5) / _HAND_ZONE_RY;
-    return (dx * dx + dy * dy) <= 1;
-}
+// F-755d: _HAND_ZONE_RX/_HAND_ZONE_RY/_ptInHandZone removed (pre-S139 centre-oval dead code).
+// Acceptance gate is now GESTURE_ZONE_SPEC (two cheek ovals) via _handNearFaceZone below.
+// Drawn guide is canvas-drawn from GESTURE_ZONE_SPEC in _avDrawHand/_drawFingerTargetGuide.
 // L-2299: single source of truth for gesture zone geometry.
 // Detector acceptance gate, coaching trigger, and canvas overlay ALL read from this spec.
 // rx/ry: acceptance radii = drawn oval radii so the ring IS the gate (no mismatch).
@@ -909,6 +899,26 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             ctx.fillStyle = 'rgba(255,214,10,0.97)';
             ctx.fillText(_msg, w - _tx, _ty);
         } finally { ctx.restore(); }
+        // F-755d: per-frame zone readout — Rob's iPhone visual verification
+        if (lm && lm.length >= 1 && lm[0] && Number.isFinite(lm[0].x)) {
+            ctx.save();
+            try {
+                ctx.translate(w, 0); ctx.scale(-1, 1);
+                var _zfs = Math.max(10, Math.min(Math.round(w * 0.028), 15));
+                ctx.font = 'bold ' + _zfs + 'px monospace';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                var _zm = _confident ? 'ZONE: IN ✓' : 'ZONE: OUT';
+                var _wsub = 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
+                var _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width) + 8;
+                ctx.fillStyle = 'rgba(0,0,0,0.65)';
+                ctx.fillRect(6, h - _zfs * 2.6 - 6, _mw, _zfs * 2.6 + 4);
+                ctx.fillStyle = _confident ? '#00b894' : '#dfe6e9';
+                ctx.fillText(_zm, 8, h - _zfs * 1.3 - 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.55)';
+                ctx.fillText(_wsub, 8, h - 4);
+            } finally { ctx.restore(); }
+        }
     } finally { ctx.restore(); }
 }
 function _avDrawHand(videoEl, lm){
@@ -963,6 +973,27 @@ function _avDrawHand(videoEl, lm){
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
     for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
+    // F-755d: per-frame zone readout — Rob's iPhone visual verification
+    if (lm[0] && Number.isFinite(lm[0].x)) {
+        const _zw = cv.width, _zh = cv.height;
+        ctx.save();
+        try {
+            ctx.translate(_zw, 0); ctx.scale(-1, 1);
+            const _zfs = Math.max(10, Math.min(Math.round(_zw * 0.028), 15));
+            ctx.font = 'bold ' + _zfs + 'px monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            const _zm = _avZone ? 'ZONE: IN ✓' : 'ZONE: OUT';
+            const _wsub = 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
+            const _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width) + 8;
+            ctx.fillStyle = 'rgba(0,0,0,0.65)';
+            ctx.fillRect(6, _zh - _zfs * 2.6 - 6, _mw, _zfs * 2.6 + 4);
+            ctx.fillStyle = _avZone ? '#00b894' : '#dfe6e9';
+            ctx.fillText(_zm, 8, _zh - _zfs * 1.3 - 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.55)';
+            ctx.fillText(_wsub, 8, _zh - 4);
+        } finally { ctx.restore(); }
+    }
 }
 
 // F-654: TOP-LEVEL shared hand-skeleton drawer for the RECORDING camera box (handOverlay),
@@ -4879,10 +4910,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
                  recording container, so the practice screen prepares the user for the same
                  in-front-of-face constraint. Shown via show-hand-zone on #cameraBox. -->
             <div class="hand-zone" id="handZonePreflight">
-                <svg viewBox="0 0 180 240" width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;">
-                    <ellipse class="hand-zone-ring" cx="90" cy="120" rx="90" ry="120"/>
-                </svg>
-                <div class="hand-zone-label">✋ Hold hand beside your cheek</div>
+                <div class="hand-zone-label">Hold hand beside your cheek</div>
             </div>
             <div class="camera-label" id="cameraLabel">AWAITING CAMERA</div>
         </div>
@@ -4995,10 +5023,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
                  WHERE to hold the hand (in front of the face) — the same near-face zone
                  the server enforces for the hand_near_face anti-spoof property. -->
             <div class="hand-zone" id="handZone">
-                <svg viewBox="0 0 180 240" width="100%" height="100%" preserveAspectRatio="none" style="overflow:visible;">
-                    <ellipse class="hand-zone-ring" cx="90" cy="120" rx="90" ry="120"/>
-                </svg>
-                <div class="hand-zone-label" id="handZoneLabel">✋ Hold hand beside your cheek</div>
+                <div class="hand-zone-label" id="handZoneLabel">Hold hand beside your cheek</div>
             </div>
             <div class="rec-indicator" id="recIndicator" style="display:none;">
                 <span class="rec-dot"></span>REC
@@ -5245,13 +5270,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .face-oval-ring { fill: none; stroke: var(--purple); stroke-width: 2; stroke-dasharray: 8 4; opacity: 0.6; transition: all 0.3s; }
 .camera-container.face-detected .face-oval-ring { stroke: var(--success); stroke-dasharray: none; opacity: 0.8; }
 .face-oval-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; }
-/* Hand-capture guide — shows WHERE to hold the hand during the gesture step (in front
-   of the face, the server-side hand_near_face anti-spoof zone). The div is EXACTLY the
-   zone box: width 64% = 2*RX, height 80% = 2*RY of the frame, so its inscribed ellipse
-   has normalized radii 0.32 x 0.40 — identical to the _handNearFaceZone() check. The
-   SVG uses preserveAspectRatio="none" + overflow:visible so the drawn ring maps 1:1 to
-   that box (no letterboxing). Dashed teal until the hand is inside, then solid-green. */
-.hand-zone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64%; height: 80%; pointer-events: none; display: none; z-index: 5; }
+/* F-755d: .hand-zone container — label only. Stale pre-S139 centre-oval SVG removed.
+   Drawn guide lives on canvas (avHandOverlay / handOverlay, z-index:4) from GESTURE_ZONE_SPEC.
+   z-index:3 keeps container below the canvas so the live drawn guide is unobscured. */
+.hand-zone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64%; height: 80%; pointer-events: none; display: none; z-index: 3; }
 .camera-container.show-hand-zone .hand-zone { display: block; }
 /* Lane A two-zone: face oval remains visible alongside the hand guide during the gesture
    step so the user places face AND hand in their respective zones simultaneously.
