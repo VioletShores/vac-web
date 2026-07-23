@@ -14,3 +14,11 @@ Evidence: S145-restaurant-preflight-phantom-evidence.png (screenshot, one frame 
    handedness/selection issue; real hand loses to the hallucination.
 Environment note: restaurant noise + restaurant lighting = the adversarial preflight case; quiet-hotel passes were
 necessary but insufficient. Both environments now in the test matrix.
+
+## Environmental correlation (Rob, hotel re-test ~21:45): skeleton jitter ABSENT in the quiet hotel room
+Confirms the phantom driver is VISUAL scene complexity, not audio: restaurant = cluttered background, other
+diners' real hands, warm dim light (face-shadows read as finger edges); hotel = plain wall, even light. The
+restaurant attacked both channels at once — audio noise → mic-pill false ✓ (finding 2), visual noise → phantom
+skeleton (findings 1/3/4). Quiet-room absence is NOT evidence of fixed. TEST MATRIX now three axes: quiet/plain ·
+noisy-audio · BUSY-VISUAL scene (the deployment reality: cafés, offices, tribunal waiting rooms). Task 329's
+stability/confidence/plausibility gating must be verified against a busy-visual scene, not just the hotel wall.
