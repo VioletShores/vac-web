@@ -30,6 +30,29 @@ try {
     if (_qaFlag) QA = { on:true, onEvent:function(){}, frame:function(){}, cal:function(){} };
 } catch(_) {}
 
+// F-755e (2): ?debug=1 gates the ZONE:/wrist-coords + mic-RMS readout in _drawFingerTargetGuide /
+// _avDrawHand — separate flag from ?qa=1 (the fingers/mic overlay above; F-763 SECURITY still
+// applies: never visible without an explicit debug param). Same own-URL / parent-URL / referrer
+// checks as the ?qa=1 self-enable above, so the flag also works from the host's parent page URL
+// when the ceremony runs inside #voFrame.
+let DEBUG_ON = false;
+try {
+    if (new URLSearchParams(window.location.search).get('debug') === '1') DEBUG_ON = true;
+    if (!DEBUG_ON && window.top && window.top !== window && new URLSearchParams(window.top.location.search).get('debug') === '1') DEBUG_ON = true;
+    if (!DEBUG_ON && document.referrer && document.referrer.indexOf('debug=1') !== -1) DEBUG_ON = true;
+} catch(_) {}
+// Live mic RMS, read fresh off the shared analyser — used only by the ?debug=1 readout below.
+function _liveMicRmsPct() {
+    try {
+        if (!audioAnalyser) return null;
+        var buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+        audioAnalyser.getByteFrequencyData(buf);
+        var rms = 0; for (var i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+        rms = Math.sqrt(rms / buf.length) / 255;
+        return Math.round(rms * 100);
+    } catch(_) { return null; }
+}
+
 // Identity for the moved ceremony code (was auth.html's form-reading userData()).
 function userData(){ return (CTX && CTX.identity) || { name:'', email:'', org:'', role:'' }; }
 
@@ -955,24 +978,35 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             ctx.fillStyle = 'rgba(255,214,10,0.97)';
             ctx.fillText(_msg, w - _tx, _ty);
         } finally { ctx.restore(); }
-        // F-755d: per-frame zone readout — Rob's iPhone visual verification
-        if (lm && lm.length >= 1 && lm[0] && Number.isFinite(lm[0].x)) {
+        // F-755d/F-755e (2): per-frame zone readout — Rob's iPhone visual verification.
+        // Gated behind ?debug=1 (was always-on): illegible tiny text at full-camera-quality
+        // is fine for a wired-up desktop test, but hands a live camera user a permanent
+        // on-screen debug HUD. Fixed mobile-legible font (>=16 CSS px once the backing-store
+        // canvas is scaled down to its on-screen CSS size) + live mic RMS% added below.
+        if (DEBUG_ON && lm && lm.length >= 1 && lm[0] && Number.isFinite(lm[0].x)) {
             ctx.save();
             try {
                 ctx.translate(w, 0); ctx.scale(-1, 1);
-                var _zfs = Math.max(10, Math.min(Math.round(w * 0.028), 15));
+                var _cssW = (ctx.canvas && ctx.canvas.clientWidth) || w;
+                var _zfs = Math.max(16, Math.round(16 * (w / _cssW)));
                 ctx.font = 'bold ' + _zfs + 'px monospace';
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'bottom';
                 var _zm = _confident ? 'ZONE: IN ✓' : 'ZONE: OUT';
                 var _wsub = 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
-                var _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width) + 8;
+                var _micPct = _liveMicRmsPct();
+                var _micSub = 'mic: ' + (_micPct == null ? '--' : _micPct + '%');
+                var _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width, ctx.measureText(_micSub).width) + 8;
+                var _lineH = _zfs * 1.3;
+                var _boxH = _lineH * 3 + 4;
                 ctx.fillStyle = 'rgba(0,0,0,0.65)';
-                ctx.fillRect(6, h - _zfs * 2.6 - 6, _mw, _zfs * 2.6 + 4);
+                ctx.fillRect(6, h - _boxH - 2, _mw, _boxH);
                 ctx.fillStyle = _confident ? '#00b894' : '#dfe6e9';
-                ctx.fillText(_zm, 8, h - _zfs * 1.3 - 2);
+                ctx.fillText(_zm, 8, h - _lineH * 2 - 2);
                 ctx.fillStyle = 'rgba(255,255,255,0.55)';
-                ctx.fillText(_wsub, 8, h - 4);
+                ctx.fillText(_wsub, 8, h - _lineH - 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                ctx.fillText(_micSub, 8, h - 4);
             } finally { ctx.restore(); }
         }
     } finally { ctx.restore(); }
@@ -1029,25 +1063,34 @@ function _avDrawHand(videoEl, lm){
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
     for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
-    // F-755d: per-frame zone readout — Rob's iPhone visual verification
-    if (lm[0] && Number.isFinite(lm[0].x)) {
+    // F-755d/F-755e (2): per-frame zone readout — Rob's iPhone visual verification. Gated
+    // behind ?debug=1 (was always-on) + fixed mobile-legible font + live mic RMS% (mirrors
+    // the identical fix in _drawFingerTargetGuide — see that comment for the rationale).
+    if (DEBUG_ON && lm[0] && Number.isFinite(lm[0].x)) {
         const _zw = cv.width, _zh = cv.height;
         ctx.save();
         try {
             ctx.translate(_zw, 0); ctx.scale(-1, 1);
-            const _zfs = Math.max(10, Math.min(Math.round(_zw * 0.028), 15));
+            const _cssW = (ctx.canvas && ctx.canvas.clientWidth) || _zw;
+            const _zfs = Math.max(16, Math.round(16 * (_zw / _cssW)));
             ctx.font = 'bold ' + _zfs + 'px monospace';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
             const _zm = _avZone ? 'ZONE: IN ✓' : 'ZONE: OUT';
             const _wsub = 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
-            const _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width) + 8;
+            const _micPct = _liveMicRmsPct();
+            const _micSub = 'mic: ' + (_micPct == null ? '--' : _micPct + '%');
+            const _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width, ctx.measureText(_micSub).width) + 8;
+            const _lineH = _zfs * 1.3;
+            const _boxH = _lineH * 3 + 4;
             ctx.fillStyle = 'rgba(0,0,0,0.65)';
-            ctx.fillRect(6, _zh - _zfs * 2.6 - 6, _mw, _zfs * 2.6 + 4);
+            ctx.fillRect(6, _zh - _boxH - 2, _mw, _boxH);
             ctx.fillStyle = _avZone ? '#00b894' : '#dfe6e9';
-            ctx.fillText(_zm, 8, _zh - _zfs * 1.3 - 2);
+            ctx.fillText(_zm, 8, _zh - _lineH * 2 - 2);
             ctx.fillStyle = 'rgba(255,255,255,0.55)';
-            ctx.fillText(_wsub, 8, _zh - 4);
+            ctx.fillText(_wsub, 8, _zh - _lineH - 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.75)';
+            ctx.fillText(_micSub, 8, _zh - 4);
         } finally { ctx.restore(); }
     }
 }
