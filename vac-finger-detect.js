@@ -24,6 +24,12 @@ window.FingerDetector = (function() {
     let _framesProcessed = 0;
     let _consecutiveSlowFrames = 0;
     let _lastLandmarks = null;
+    // D-PREFLIGHT-PHANTOM-INTEGRITY (4): every candidate hand this frame, {landmarks, confidence}.
+    // _lastLandmarks/_lastConfidence stay the detector's own top pick (unchanged contract for
+    // existing callers); zone-aware callers (e.g. the reauth preflight) can pick among allHands
+    // instead of losing a raised real hand to a lingering phantom in slot 0.
+    let _lastAllHands = [];
+    let _lastConfidence = null;
     // Mobile first-frame cost (GPU shader compile, WASM JIT warmup) can spike
     // to 800-1500ms. Give it a warm-up grace period and require *sustained*
     // slowness before giving up — not a single bad frame.
@@ -96,9 +102,15 @@ window.FingerDetector = (function() {
             // (self-hosted on vacprotocol.org — immune to third-party blocks; 404s instantly if
             // not yet vendored), then (2) the Google CDN. Each attempt is timeout-wrapped so a
             // stalled network FAILS FAST with telemetry instead of hanging the ceremony.
+            // D-PREFLIGHT-PHANTOM-INTEGRITY (4): numHands 1->2. With only one slot, a single ROI
+            // that first locked onto a phantom (a non-hand region reading as hand-shaped) had no
+            // way to be displaced by a real hand raised afterward — the tracker just kept refining
+            // the one slot it had. A second slot lets a genuinely raised hand get its OWN candidate
+            // instead of losing to whatever the tracker committed to first; callers that need to
+            // pick among candidates use the new allHands getter (see detect() below).
             const _mkDetector = function(url){ return mp.HandLandmarker.createFromOptions(vision, {
                 baseOptions: { modelAssetPath: url, delegate: "GPU" },
-                numHands: 1,
+                numHands: 2,
                 minHandDetectionConfidence: 0.5,
                 minHandPresenceConfidence: 0.5,
                 minTrackingConfidence: 0.5,
@@ -235,8 +247,13 @@ window.FingerDetector = (function() {
                 _consecutiveSlowFrames = 0;
             }
         }
-        if (!results.landmarks || results.landmarks.length === 0) { _lastLandmarks = null; return -1; } // no hand in frame
+        if (!results.landmarks || results.landmarks.length === 0) { _lastLandmarks = null; _lastAllHands = []; _lastConfidence = null; return -1; } // no hand in frame
+        _lastAllHands = results.landmarks.map(function(hlm, i) {
+            var hd = results.handednesses && results.handednesses[i] && results.handednesses[i][0];
+            return { landmarks: hlm, confidence: (hd && typeof hd.score === 'number') ? hd.score : null };
+        });
         _lastLandmarks = results.landmarks[0];
+        _lastConfidence = _lastAllHands[0] ? _lastAllHands[0].confidence : null;
         return _countFingers(results.landmarks[0]);
     }
 
@@ -292,6 +309,10 @@ window.FingerDetector = (function() {
         // run/digit starts clean — no stale committed count bleeding across).
         resetHysteresis() { _hystCommitted = null; _hystCandidate = null; _hystStreak = 0; },
         get landmarks() { return _lastLandmarks; },
+        // D-PREFLIGHT-PHANTOM-INTEGRITY (4): detector's own top-pick confidence (handedness
+        // score) for _lastLandmarks, and every candidate hand this frame — see detect() above.
+        get confidence() { return _lastConfidence; },
+        get allHands() { return _lastAllHands; },
         get ready() { return _isReady; },
         get failed() { return _hasFailed; },
         // S110 fix: clear the slow-frame latch so a 2nd auth attempt re-engages
@@ -303,6 +324,8 @@ window.FingerDetector = (function() {
             _consecutiveSlowFrames = 0;
             _framesProcessed = 0;
             _lastLandmarks = null;
+            _lastAllHands = [];
+            _lastConfidence = null;
             // F-613: also clear the hysteresis filter so a new attempt starts clean.
             _hystCommitted = null; _hystCandidate = null; _hystStreak = 0;
         },

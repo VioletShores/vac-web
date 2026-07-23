@@ -462,8 +462,25 @@ let avAudioCtx = null;
 let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
-let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
-let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
+// D-PREFLIGHT-PHANTOM-INTEGRITY: the Hand✓ / Mic✓ pills must be CONTINUOUSLY re-evaluated, not
+// latched once true — S145 restaurant evidence showed both pills stuck ✓ (phantom hand on the
+// face, mic at ambient) long after the condition that earned the tick had stopped holding.
+// _handGoodStreak/_handBadStreak (and the mic equivalents below) replace the old one-way latch
+// with a streak on BOTH sides — good sustained -> ready, bad sustained -> regress to pending.
+let _handGoodStreak = 0;   // consecutive frames passing the full accept test (zone+geometry+confidence)
+let _handBadStreak = 0;    // consecutive frames failing it, while avChecks.hand is latched true
+let _handDrawStableFrames = 0; // consecutive confident+plausible frames — gates the SKELETON DRAW, separate from the readiness tick
+const HAND_MIN_CONFIDENCE = 0.70;  // detector handedness score floor for the pill (above the model's own 0.5 internal floor) — LIVE-TUNE candidate
+const HAND_STABLE_FRAMES = 5;      // consecutive accepted frames before Hand✓ latches (unchanged from the prior F-755d tuning)
+const HAND_REGRESS_FRAMES = 5;     // consecutive failed frames before a latched Hand✓ regresses to pending
+const HAND_DRAW_STABLE_FRAMES = 3; // consecutive confident+plausible frames before the skeleton renders at all — no first-frame draw
+let _micLoudFrames = 0;    // consecutive frames CLEARING the ambient-relative margin during the prompt window
+let _micQuietFrames = 0;   // consecutive frames NOT clearing it while avChecks.mic is latched true (drives regression)
+let _micAmbientBaseline = null; // slow EMA of the room's frequency-rms floor — sampled continuously, never dragged up by a voice spike
+const MIC_SPIKE_MULT = 1.6;   // a frame counts as "ambient" (feeds the baseline) only while <= baseline * this; a real voice spike sits above it
+const MIC_MIN_DELTA = 0.05;   // absolute floor on the margin, so a near-silent room still needs a genuine rise, not a multiplicative no-op
+const MIC_SUSTAIN_FRAMES = 3; // consecutive frames clearing the margin before Mic✓ latches (unchanged cadence from the old F-755f bar)
+const MIC_REGRESS_FRAMES = 60; // consecutive frames failing to clear the margin before a latched Mic✓ regresses to pending (~1s at 60fps — outlasts a normal pause between words)
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -504,21 +521,55 @@ function _handNearFaceZone(lm) {
     for (const t of tips) { if (_ptInCheekZone(lm[t])) inside++; }
     return inside >= GESTURE_ZONE_SPEC.minTipsInside;
 }
-// F-755h: wider tick-zone for Hand✓ pre-flight tick — separate from acceptance gate.
-const _TICK_ZONE_RX = 0.28, _TICK_ZONE_RY = 0.30;
-function _ptInTickZone(p) {
-    const dxL = (p.x - 0.18) / _TICK_ZONE_RX, dyL = (p.y - 0.48) / _TICK_ZONE_RY;
-    if (dxL * dxL + dyL * dyL <= 1) return true;
-    const dxR = (p.x - 0.82) / _TICK_ZONE_RX, dyR = (p.y - 0.48) / _TICK_ZONE_RY;
-    return dxR * dxR + dyR * dyR <= 1;
+// D-PREFLIGHT-PHANTOM-INTEGRITY (1): the old F-755h "wider tick-zone" (a more forgiving oval
+// than GESTURE_ZONE_SPEC, used ONLY to gate the Hand✓ pill) is REMOVED — S145 restaurant
+// evidence showed the pill latched ✓ while the wrist read outside even that wider zone, and
+// finding 1 explicitly calls for reusing the SAME _handNearFaceZone/GESTURE_ZONE_SPEC the real
+// gesture step enforces, not a separate leniency. See _selectHandCandidate/_handGeometryPlausible.
+
+// D-PREFLIGHT-PHANTOM-INTEGRITY (3): plausibility check for a raw MediaPipe hand read. A
+// phantom detected on a non-hand region (face, glasses edge, background clutter) can still
+// produce 21 finite landmarks — passing the old "completeness" check — but with degenerate hand
+// geometry: a near-zero palm scale, or fingertips sitting an implausible multiple of that scale
+// from the wrist. A genuine hand keeps its fingertip/palm-scale ratios in a known band regardless
+// of hand size or camera distance (the ratios are scale-invariant), so this catches the phantom
+// shape without needing a hand size/distance calibration.
+const _HAND_TIP_IDX = [4, 8, 12, 16, 20];
+const HAND_MIN_TIP_RATIO = 0.8;  // fingertip distance / palm scale, lower bound — rejects a collapsed/curled cluster
+const HAND_MAX_TIP_RATIO = 6.0;  // upper bound — rejects a warped/stretched cluster
+const HAND_MIN_BBOX = 0.03;      // landmark bounding box must span at least this fraction of the frame — rejects a pinpoint cluster
+function _handGeometryPlausible(lm) {
+    if (!lm || lm.length !== 21) return false;
+    const wrist = lm[0];
+    const palmScale = Math.hypot(lm[9].x - wrist.x, lm[9].y - wrist.y);
+    if (!(palmScale > 0.01)) return false;
+    for (const t of _HAND_TIP_IDX) {
+        const ratio = Math.hypot(lm[t].x - wrist.x, lm[t].y - wrist.y) / palmScale;
+        if (!(ratio >= HAND_MIN_TIP_RATIO && ratio <= HAND_MAX_TIP_RATIO)) return false;
+    }
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    for (const p of lm) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }
+    if ((maxX - minX) < HAND_MIN_BBOX || (maxY - minY) < HAND_MIN_BBOX) return false;
+    return true;
 }
-function _handInTickZone(lm) {
-    if (!lm || lm.length < 21) return false;
-    if (!_ptInTickZone(lm[0])) return false;
-    const tips = [4, 8, 12, 16, 20];
-    let inside = 0;
-    for (const t of tips) { if (_ptInTickZone(lm[t])) inside++; }
-    return inside >= 3;
+
+// D-PREFLIGHT-PHANTOM-INTEGRITY (4): FingerDetector can now report up to two hand candidates
+// per frame (vac-finger-detect.js numHands 1->2). Pick the one that's actually plausible AND
+// in the acceptance zone — a raised real hand must beat a lingering phantom, not lose to
+// whichever candidate the detector happened to place first. Ties (or the zone-agnostic case,
+// e.g. positioning coaching before the hand reaches the zone) break on detector confidence.
+function _selectHandCandidate(hands) {
+    if (!hands || !hands.length) return null;
+    let best = null, bestScore = -1;
+    for (const h of hands) {
+        if (!h || !h.landmarks) continue;
+        const geomOk = _handGeometryPlausible(h.landmarks);
+        const zoneOk = geomOk && _handNearFaceZone(h.landmarks);
+        const conf = typeof h.confidence === 'number' ? h.confidence : 0;
+        const score = (zoneOk ? 20 : (geomOk ? 10 : 0)) + conf;
+        if (score > bestScore) { bestScore = score; best = h; }
+    }
+    return best;
 }
 
 function startAVChecks() {
@@ -533,8 +584,12 @@ function startAVChecks() {
     // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
-    _handStableFrames = 0;
+    _handGoodStreak = 0;
+    _handBadStreak = 0;
+    _handDrawStableFrames = 0;
     _micLoudFrames = 0;
+    _micQuietFrames = 0;
+    _micAmbientBaseline = null;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
@@ -618,21 +673,23 @@ function startAVChecks() {
                 if (dev > maxDev) maxDev = dev;
             }
             const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            // MUST be the SAME quantity the VAD gates measure: FREQUENCY-spectrum rms
+            // (getByteFrequencyData, sqrt-mean/255) — the scale every threshold is tuned in.
+            // D-PREFLIGHT-PHANTOM-INTEGRITY (2): computed every frame now (not only when the
+            // shared monitor drawer is active) — the ambient-baseline tracker below needs a
+            // reading every frame regardless of which other phase/drawer is active.
+            const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
+            avAnalyser.getByteFrequencyData(_fbuf);
+            let _frms = 0;
+            for (let i = 0; i < _fbuf.length; i++) _frms += _fbuf[i] * _fbuf[i];
+            _frms = Math.sqrt(_frms / _fbuf.length) / 255;
             // S145e (Rob): the Mic-pill VU must run in EVERY phase — greeting included — regardless
             // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
             // does, with rms computed the same way the VAD measures it (so the gold line means the
             // same thing all ceremony). Tag m = monitor-driven.
             try {
                 if (!window.__vacGateArmed && window.__vacMicPillDraw) {
-                    // MUST be the SAME quantity the VAD gates measure: FREQUENCY-spectrum rms
-                    // (getByteFrequencyData, sqrt-mean/255) — the scale every threshold is tuned in.
-                    // The first cut used time-domain rms (~4x smaller for speech) → bar looked dead.
-                    const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
-                    avAnalyser.getByteFrequencyData(_fbuf);
-                    let _mrms = 0;
-                    for (let i = 0; i < _fbuf.length; i++) _mrms += _fbuf[i] * _fbuf[i];
-                    _mrms = Math.sqrt(_mrms / _fbuf.length) / 255;
-                    window.__vacMicPillDraw(_mrms, window.__vacMicThr || 0.115, 'm');
+                    window.__vacMicPillDraw(_frms, window.__vacMicThr || 0.115, 'm');
                 }
             } catch(_) {}
             const bar = document.getElementById('avAudioLevel');
@@ -646,12 +703,32 @@ function startAVChecks() {
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
             else { bar.style.background = 'var(--text-quaternary)'; }
-            // F-755f: require SUSTAINED level (>= 3 consecutive frames above 12%) to avoid
-            // ambient noise falsely ticking "Mic: working" before the user speaks.
-            if (level > 12) { _micLoudFrames++; } else { _micLoudFrames = 0; }
-            if (_micLoudFrames >= 3 && !avChecks.mic) {
+            // D-PREFLIGHT-PHANTOM-INTEGRITY (2): "Mic: working" must mean the USER was heard, not
+            // that the room is loud. S145 restaurant evidence — ambient noise alone crossed the old
+            // ABSOLUTE >12% bar and latched ✓ with the user silent. Fix: track a slow-adapting
+            // ambient-floor EMA (it only drifts toward frames that AREN'T a spike, so a spoken
+            // burst can't drag the floor up to meet itself), then require a RELATIVE margin above
+            // that floor, sustained, and only while the guided sequence is actually on the mic step
+            // (avChecks.light true — the "Speak now" prompt window, not the earlier lighting step).
+            // A restaurant's steady noise floor becomes ITS OWN baseline, so it no longer
+            // self-passes — only a voice spike above that floor can. Regressable: a sustained loss
+            // of the margin un-ticks a latched ✓ instead of holding it forever.
+            if (_micAmbientBaseline === null) {
+                _micAmbientBaseline = _frms;
+            } else if (_frms <= _micAmbientBaseline * MIC_SPIKE_MULT) {
+                _micAmbientBaseline = _micAmbientBaseline * 0.95 + _frms * 0.05;
+            }
+            const _micMargin = Math.max(_micAmbientBaseline * MIC_SPIKE_MULT, _micAmbientBaseline + MIC_MIN_DELTA);
+            const _inMicPromptWindow = avChecks.light === true;
+            if (_inMicPromptWindow && _frms > _micMargin) { _micLoudFrames++; _micQuietFrames = 0; }
+            else { _micLoudFrames = 0; if (_inMicPromptWindow) _micQuietFrames++; }
+            if (_micLoudFrames >= MIC_SUSTAIN_FRAMES && !avChecks.mic) {
                 setAVStatus('mic', 'good', 'Mic: working');
                 avChecks.mic = true;
+            } else if (avChecks.mic && _micQuietFrames >= MIC_REGRESS_FRAMES) {
+                avChecks.mic = false; // REGRESS — no permanent latch
+                micWaitStart = 0;
+                setAVStatus('mic', 'warn', 'Mic: say a few words');
             }
         }
 
@@ -701,54 +778,77 @@ function startAVChecks() {
             // startAVChecks (runAVFrame is its closure).
             if (!_fastStill && FingerDetector.ready) {
                 const pv = document.getElementById('videoPreview');
-                const n = FingerDetector.detect(pv);          // warms the model + gives landmarks
-                const lm = FingerDetector.landmarks;
-                _avDrawHand(pv, lm);
+                FingerDetector.detect(pv);          // warms the model + gives landmarks
+                // D-PREFLIGHT-PHANTOM-INTEGRITY (4): consider ALL candidates the detector reports
+                // this frame (up to 2 — see vac-finger-detect.js) and pick the plausible/zone-fit
+                // one; falls back to the single landmarks getter for an older/failed detector.
+                const _cands = (FingerDetector.allHands && FingerDetector.allHands.length)
+                    ? FingerDetector.allHands
+                    : (FingerDetector.landmarks ? [{ landmarks: FingerDetector.landmarks, confidence: FingerDetector.confidence }] : []);
+                const _picked = _selectHandCandidate(_cands);
+                const lm = _picked ? _picked.landmarks : null;
+                const _conf = _picked ? _picked.confidence : null;
+                const _geomOk = !!lm && _handGeometryPlausible(lm);       // (3) not a phantom shape
+                const _near = !!lm && _geomOk && _handNearFaceZone(lm);   // (1) SAME acceptance zone the real gesture step enforces
+                const _confOk = (_conf === null || _conf >= HAND_MIN_CONFIDENCE); // (1) min detector confidence when available
+
+                // (3) SKELETON DRAW STABILITY: render only after HAND_DRAW_STABLE_FRAMES of a
+                // confident+plausible read — no first-frame draw — and un-draw the instant it
+                // degrades (the counter resets below, so a lost frame drops straight to 0).
+                const _drawOk = !!lm && _geomOk && _confOk;
+                _handDrawStableFrames = _drawOk ? (_handDrawStableFrames + 1) : 0;
+                _avDrawHand(pv, _handDrawStableFrames >= HAND_DRAW_STABLE_FRAMES ? lm : null);
+
                 // Show the SAME wider dotted oval the real gesture step uses (hides #faceOval),
                 // so the practice screen trains the in-front-of-face constraint.
                 const _camBox = document.getElementById('cameraBox');
                 _camBox.classList.add('show-hand-zone');
-                const _near = !!lm && _handNearFaceZone(lm);   // SHARED check — same as the real screen (glow/class)
-                const _tickNear = !!lm && _handInTickZone(lm); // F-755h: wider zone gates the Hand✓ tick
                 _camBox.classList.toggle('hand-in-zone', _near);
-                if (avChecks.hand) {
-                    // Already passed — LATCHED. Keep the skeleton drawing for feedback,
-                    // but don't nag the user to re-show their hand once they've proven it.
-                    document.getElementById('avHandHint').style.display='none';
-                } else if (lm) {
-                    // well-framed? (reuse the same edge logic as the in-challenge guard)
-                    let minX=1,maxX=0,minY=1,maxY=0;
-                    for (const p of lm){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
-                    const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
-                    const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
-                    // L-2299: tooSmall replaced by zone check — coaching is position-correct, not just distance.
-                    // F-758: on-screen readout so Rob can tune the hand gate from real data (tick-zone vs framing).
-                    try { if (typeof QA !== 'undefined' && QA && QA.on) { var _dbg = document.getElementById('vacHandDbg'); if (_dbg) _dbg.textContent = 'tick:'+(_tickNear?'Y':'N')+' size:'+((maxX-minX).toFixed(2))+'×'+((maxY-minY).toFixed(2))+' stable:'+_handStableFrames; } } catch(_){}
-                    if (!_tickNear) {
-                        // Hand visible but OUTSIDE the wide tick zone — prompt to move beside cheek.
-                        _handStableFrames = 0;
-                        setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block';
-                    } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
-                    else {
-                        // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
-                        // F-755d: stability gate — require 5 consecutive good frames so a flickering
-                        // face-phantom (which resets the counter) never reaches the ✓ tick.
-                        let _ckFin = lm.length === 21;
-                        if (_ckFin) { for (let _ci = 0; _ci < 21 && _ckFin; _ci++) { if (!lm[_ci] || !Number.isFinite(lm[_ci].x) || !Number.isFinite(lm[_ci].y)) _ckFin = false; } }
-                        if (_ckFin) {
-                            _handStableFrames++;
-                            if (_handStableFrames >= 5) {
-                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none';
-                            } else {
-                                setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
-                            }
-                        } else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
+
+                // (1) HAND-READY GATE: accept requires zone-ACCEPTED detection (GESTURE_ZONE_SPEC,
+                // same as the real gesture step) + plausible geometry + min confidence, sustained
+                // HAND_STABLE_FRAMES. On failure the streak resets immediately; a LATCHED ✓ only
+                // regresses after HAND_REGRESS_FRAMES of sustained failure (small — false-ready is
+                // the security defect, so this favors fast regression over UI stability).
+                const _accept = _near && _confOk;
+                try { if (typeof QA !== 'undefined' && QA && QA.on) { var _dbg = document.getElementById('vacHandDbg'); if (_dbg) _dbg.textContent = 'zone:'+(_near?'Y':'N')+' geom:'+(_geomOk?'Y':'N')+' conf:'+(_conf!=null?_conf.toFixed(2):'-')+' good:'+_handGoodStreak+' bad:'+_handBadStreak; } } catch(_){}
+
+                if (_accept) {
+                    _handBadStreak = 0;
+                    _handGoodStreak++;
+                    if (_handGoodStreak >= HAND_STABLE_FRAMES) {
+                        setAVStatus('hand', 'good', 'Hand ✓');
+                        avChecks.hand = true;
+                        document.getElementById('avHandHint').style.display = 'none';
+                    } else if (!avChecks.hand) {
+                        setAVStatus('hand', 'warn', 'Hold steady…');
+                        document.getElementById('avHandHint').textContent = 'Hold steady…';
+                        document.getElementById('avHandHint').style.display = 'block';
                     }
                 } else {
-                    _handStableFrames = 0;
-                    _camBox.classList.remove('hand-in-zone');
-                    document.getElementById('avHandHint').style.display='block';
-                    document.getElementById('avHandHint').textContent='Hold your hand beside your cheek — we’ll show it tracked';
+                    _handGoodStreak = 0;
+                    _handBadStreak = avChecks.hand ? (_handBadStreak + 1) : 0;
+                    if (avChecks.hand && _handBadStreak >= HAND_REGRESS_FRAMES) {
+                        avChecks.hand = false; // REGRESS — no permanent latch
+                    }
+                    if (!avChecks.hand) {
+                        _camBox.classList.remove('hand-in-zone');
+                        let _hint = 'Hold your hand beside your cheek — we’ll show it tracked';
+                        if (lm && !_geomOk) {
+                            _hint = 'Spread your fingers — make sure all are clearly visible';
+                        } else if (lm && _geomOk) {
+                            let minX=1,maxX=0,minY=1,maxY=0;
+                            for (const p of lm){ if(p.x<minX)minX=p.x; if(p.x>maxX)maxX=p.x; if(p.y<minY)minY=p.y; if(p.y>maxY)maxY=p.y; }
+                            const clipped = (minX<0.04||maxX>0.96||minY<0.04||maxY>0.96);
+                            const tooBig = ((maxX-minX)>0.85||(maxY-minY)>0.9);
+                            if (clipped || tooBig) _hint = 'Move your hand back — keep the whole hand in view';
+                            else if (!_near) _hint = '✋ Move your hand beside your cheek';
+                            else if (!_confOk) _hint = 'Hold steady…';
+                        }
+                        setAVStatus('hand', 'warn', 'Hand');
+                        document.getElementById('avHandHint').textContent = _hint;
+                        document.getElementById('avHandHint').style.display = 'block';
+                    }
                 }
             }
         } catch(_) { /* hand pre-flight is best-effort; never block */ }
