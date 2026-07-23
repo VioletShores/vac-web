@@ -28,3 +28,12 @@ The fast credential-view ceremony (one spoken digit) runs a speech gate on a cod
 _micPillDraw and apparently isn't covered by the always-on monitor drive. Locate that flow's VAD/say gate in
 vac-reauth-ceremony.js, set __vacGateArmed + call _micPillDraw(rms, activeThr, tag 'q') there — same instrument,
 every speaking surface (F-922 tier lock-step: a tier WITH a voice check must SHOW the voice instrument).
+
+## Finding 6 (Rob, ~22:35): quick-auth failure screen carries NO client-gate evidence
+When the quick-auth client pre-gate fails, the result screen says only "an earlier check stopped the
+verification" — unlike full-auth's per-modality detail. The user can't self-correct and the diagnostic is lost
+(tonight's 3-failure mystery required a manual ?qa=1 ask). FIX: the client gate records per-attempt evidence
+{stage_that_stopped, detected_finger_count, expected_count, zone IN/OUT, attempt#} and the failure screen renders
+it in the same row style as full-auth ("Fingers: saw 1, needed 3 — zone OUT on attempts 2,3"). Security-safe:
+the challenge digit is already displayed in-session. Composes F-921 (the system narrates its own evidence) and
+directly converts every future field failure into a self-reporting diagnostic.
