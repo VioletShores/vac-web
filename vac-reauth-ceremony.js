@@ -465,6 +465,10 @@ let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
 let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
+let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
+let _micRunLevels = [];    // T-329c: levels making up the CURRENT sustained >12% run
+let _micRunStartT = 0;     // T-329c: performance.now() when the current run began
+let _micLastQualifyT = 0;  // T-329c: last time a qualifying (ambient-relative) run occurred — drives 10s regression
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -537,6 +541,10 @@ function startAVChecks() {
     _handStableFrames = 0;
     _handUnstableFrames = 0;
     _micLoudFrames = 0;
+    _micLevelHistory = [];
+    _micRunLevels = [];
+    _micRunStartT = 0;
+    _micLastQualifyT = 0;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
@@ -649,12 +657,43 @@ function startAVChecks() {
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
             else { bar.style.background = 'var(--text-quaternary)'; }
-            // F-755f: require SUSTAINED level (>= 3 consecutive frames above 12%) to avoid
-            // ambient noise falsely ticking "Mic: working" before the user speaks.
-            if (level > 12) { _micLoudFrames++; } else { _micLoudFrames = 0; }
-            if (_micLoudFrames >= 3 && !avChecks.mic) {
-                setAVStatus('mic', 'good', 'Mic: working');
-                avChecks.mic = true;
+            // T-329c (S145 Finding 2): "Mic: working" must mean the USER's speech was heard during
+            // the speak-now prompt, clear of the ambient floor — not just "12% crossed at some
+            // point" (restaurant ambient alone latched the old absolute-only F-755f bar). Require a
+            // SUSTAINED run (still >= 3 consecutive frames above 12%) whose median level beats 2x
+            // the median of the preceding 2s of levels (ambient-relative, not absolute). A ticked
+            // pill can also regress back to pending if 10s pass with no fresh qualifying run.
+            const _nowT = performance.now();
+            _micLevelHistory.push({ t: _nowT, level });
+            while (_micLevelHistory.length && _micLevelHistory[0].t < _nowT - 2000) _micLevelHistory.shift();
+            if (level > 12) {
+                if (_micLoudFrames === 0) _micRunStartT = _nowT;
+                _micLoudFrames++;
+                _micRunLevels.push(level);
+            } else {
+                _micLoudFrames = 0;
+                _micRunLevels = [];
+            }
+            if (_micLoudFrames >= 3) {
+                const _ambient = _micLevelHistory.filter(e => e.t < _micRunStartT).map(e => e.level).sort((a, b) => a - b);
+                const _ambientMedian = _ambient.length ? _ambient[Math.floor(_ambient.length / 2)] : 0;
+                const _run = _micRunLevels.slice().sort((a, b) => a - b);
+                const _runMedian = _run[Math.floor(_run.length / 2)];
+                if (_runMedian > 2 * _ambientMedian) {
+                    _micLastQualifyT = _nowT;
+                    if (!avChecks.mic) {
+                        setAVStatus('mic', 'good', 'Mic: working');
+                        avChecks.mic = true;
+                    }
+                }
+            }
+            if (avChecks.mic && _nowT - _micLastQualifyT > 10000) {
+                avChecks.mic = false;
+                _micLastQualifyT = 0;
+                setAVStatus('mic', 'checking', 'Mic');
+                const _mpt = document.getElementById('avMicPromptText');
+                if (_mpt) _mpt.textContent = 'Speak now to test your microphone';
+                micWaitStart = 0;
             }
         }
 
@@ -1479,6 +1518,11 @@ function retryAVSetup() {
     // Stop existing checks
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _micLoudFrames = 0;
+    _micLevelHistory = [];
+    _micRunLevels = [];
+    _micRunStartT = 0;
+    _micLastQualifyT = 0;
     // Stop existing stream
     const video = document.getElementById('videoPreview');
     if (video && video.srcObject) {
