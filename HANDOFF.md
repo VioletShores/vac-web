@@ -1,3 +1,26 @@
+# VAC Web — HANDOFF (F-917 Phase 1, 23 Jul 2026)
+
+## F-917 PHASE 1 — hub-cards.js COMPLETE (branch: task-s144-hub-cards)
+
+### What was built
+- **p/components/hub-cards.js** — component library, hub-cards v1
+  - `reviewCard()`: throws at call time if `next_action` absent (L-2330 structurally enforced)
+  - `decisionCard()`: throws at call time if `seal_transport` absent (L-2351 enforced)
+  - WhatsApp seal transport: wa.me/61418409944?text=F-755d+APPROVE
+  - Chat seal transport: renders phrase to say
+  - `cfg.accent` allowlisted to {green, clay, blue, gold} (review fix)
+- **p/dev-review-s144.html** — regenerated from hub-cards v1, all 7 cards with next_action
+- **p/decision-f755d-fix.html** — regenerated as decisionCard with WhatsApp seal
+- **docs/strategic/F917-WORKFLOW-SURFACE-ENGINE.md** — spec for general engine (not built)
+
+### Do NOT merge — Rob eyeballs the regenerated pages first
+Branch preview: https://github.com/VioletShores/vac-web/tree/task-s144-hub-cards
+
+### Note: origin/main has commit c4c3c43 (IETF brief OAuth block) not on this branch
+Safe to merge — git 3-way merge will preserve both. No conflict on ietf-brief.
+
+---
+
 # VAC Web — HANDOFF (Session 17 → Session 18)
 > Updated: 15 March 2026 ~4:30pm AEDT
 
