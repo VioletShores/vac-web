@@ -2036,7 +2036,11 @@ function beginRecording() {
                     // S145h (Rob): anchored INSIDE the camera frame — a viewport-fixed meter floated
                     // over page text on scroll. Inside the video wrapper it scrolls with the ceremony
                     // and covers nothing. Fallback to fixed only if no video host exists.
-                    var _vp = document.getElementById('videoPreview');
+                    // S145i: b9 anchored to #videoPreview — the PREFLIGHT video, hidden in the
+                    // step view, so the bar drew inside a display:none box. Anchor to whichever
+                    // video is VISIBLE right now instead.
+                    var _vp = null;
+                    document.querySelectorAll('video').forEach(function(v){ if (!_vp && v.offsetWidth > 0 && v.offsetParent !== null) _vp = v; });
                     var _host = (_vp && _vp.parentElement) ? _vp.parentElement : null;
                     if (_host) {
                         try { if (getComputedStyle(_host).position === 'static') _host.style.position = 'relative'; } catch(_) {}
@@ -2058,6 +2062,9 @@ function beginRecording() {
             if (_mf) { var _w = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _mf.style.width = _w + '%'; _mf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
             var _mr = document.getElementById('avRmsReadout');
             if (_mr) _mr.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag;
+            // S145i: if the view swapped and our host got hidden, remove — next armed frame recreates in the visible host.
+            var _svp = document.getElementById('vacStepVU');
+            if (_svp && _svp.offsetParent === null) { try { _svp.remove(); } catch(_) {} }
             var _sf = document.getElementById('vacStepVUfill'), _st = document.getElementById('vacStepVUtxt');
             if (_sf) { var _w2 = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _sf.style.width = _w2 + '%'; _sf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
             if (_st) _st.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — speak past the gold line';
