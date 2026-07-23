@@ -2142,6 +2142,10 @@ function beginRecording() {
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
+                // S145: REAL say-step level bar (the vacSayEq above is decorative). Fill = rms on a
+                // 0..2.5x-threshold scale, so the gold tick at 40% IS vadSpeechThreshold whatever
+                // calibration set it to. Green = above threshold = this frame counts as voice.
+                try { var _lf = document.getElementById('vacSayLevelFill'); if (_lf) { var _w = Math.min(100, Math.round((rms / (vadSpeechThreshold * 2.5)) * 100)); _lf.style.width = _w + '%'; _lf.style.background = (rms > vadSpeechThreshold) ? '#43d692' : '#8b97ad'; } } catch(_) {}
                 const _now = performance.now();
                 if (rms < vadSilenceThreshold) {
                     // Track silence ALWAYS — even while the window is closed (during the confirm
@@ -5046,6 +5050,11 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
             <div id="vacSayWord" style="font-size:clamp(40px,14vw,72px);font-weight:800;color:#fbbf24;line-height:1;"></div>
             <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening 🎙️</div>
             <div id="vacSayEq" class="vac-eq" style="display:flex;justify-content:center;align-items:flex-end;gap:5px;height:36px;margin-top:6px;"><span></span><span></span><span></span><span></span><span></span></div>
+            <div id="vacSayLevelTrack" style="width:min(240px,70%);height:8px;border-radius:4px;background:rgba(255,255,255,.14);margin-top:10px;position:relative;overflow:visible;">
+                <div id="vacSayLevelFill" style="height:100%;width:0%;background:#8b97ad;border-radius:4px;transition:width 60ms linear;"></div>
+                <div style="position:absolute;top:-3px;bottom:-3px;width:2px;background:#fbbf24;left:40%;border-radius:1px;"></div>
+            </div>
+            <div style="font-size:11px;color:#8b97ad;margin-top:4px;">speak so the bar passes the line</div>
             <div id="vacSayHint" style="font-size:12px;color:var(--text-tertiary);min-height:1.2em;"></div>
         </div>
     </div>
