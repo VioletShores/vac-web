@@ -1232,7 +1232,7 @@ const CaptureFeedback = {
             // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
             // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
             // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
-            if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” — at the same time'; promptEl.style.color = 'var(--text-primary)'; }
+            if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” clearly — give it a full beat'; promptEl.style.color = 'var(--text-primary)'; }  // S145k interim coaching: sustained-voice gate rewards an unhurried digit; soften/remove once F-923 voice-band shape lands
             setBigNumber(true, N);
             setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
             if (!opts.handNear) {
@@ -1280,7 +1280,7 @@ const CaptureFeedback = {
         if (ctx.voiceless) {
             _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' — hold steady') : 'Show the next number';
         } else {
-            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
+            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” clearly — a full beat') : 'Show the next number';
         }
         ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
     },
