@@ -622,12 +622,19 @@ function startAVChecks() {
             // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
             // does, with rms computed the same way the VAD measures it (so the gold line means the
             // same thing all ceremony). Tag m = monitor-driven.
-            if (!window.__vacGateArmed && window.__vacMicPillDraw) {
-                let _mrms = 0;
-                for (let i = 0; i < dataArray.length; i++) { const d = (dataArray[i] - 128) / 128; _mrms += d * d; }
-                _mrms = Math.sqrt(_mrms / dataArray.length);
-                window.__vacMicPillDraw(_mrms, window.__vacMicThr || 0.115, 'm');
-            }
+            try {
+                if (!window.__vacGateArmed && window.__vacMicPillDraw) {
+                    // MUST be the SAME quantity the VAD gates measure: FREQUENCY-spectrum rms
+                    // (getByteFrequencyData, sqrt-mean/255) — the scale every threshold is tuned in.
+                    // The first cut used time-domain rms (~4x smaller for speech) → bar looked dead.
+                    const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
+                    avAnalyser.getByteFrequencyData(_fbuf);
+                    let _mrms = 0;
+                    for (let i = 0; i < _fbuf.length; i++) _mrms += _fbuf[i] * _fbuf[i];
+                    _mrms = Math.sqrt(_mrms / _fbuf.length) / 255;
+                    window.__vacMicPillDraw(_mrms, window.__vacMicThr || 0.115, 'm');
+                }
+            } catch(_) {}
             const bar = document.getElementById('avAudioLevel');
             const pct = document.getElementById('avAudioPct');
             bar.style.width = level + '%';
