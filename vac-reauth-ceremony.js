@@ -2010,7 +2010,7 @@ function beginRecording() {
     // FALLBACK (used until the greeting phase calibrates, or if calibration can't run). The DIGIT
     // gate reads the per-session vadSpeechThreshold / vadSilenceThreshold derived from THIS user's
     // measured noise floor + greeting loudness. NO per-device constant is shipped.
-    const VAD_SPEECH_RMS_FALLBACK = 0.14;     // voiced threshold fallback (rms above this = voice)
+    const VAD_SPEECH_RMS_FALLBACK = 0.115;   // voiced threshold fallback (rms above this = voice). S145 live-tune (Rob, quiet hotel room, iPhone+MacBook): 0.14 forced a raised voice on BOTH mics — lowered to 0.115; the 350ms sustained + modulation + hysteresis gates (and Gemini server-side) remain the real guards, so the smaller neither-band (0.03) is safe.
     const VAD_SILENCE_RMS_FALLBACK = 0.085;   // SILENCE threshold fallback (rms below this = silence). Hysteresis gap = "neither", so a fresh utterance must cross from real silence UP through voice — greeting-tail / continuous talk (no preceding in-window silence) can't pre-satisfy a digit.
     // R1 (S114): the digit sustained-voice gate is TIME-based, not a frame count. The old
     // `voiced >= VAD_SPEECH_FRAMES(6)` measured rAF FRAMES, whose wall-clock varies by display
@@ -2031,7 +2031,7 @@ function beginRecording() {
     const _CAL_FLOOR_MAX = 8;        // cap leading-silence collection at 8 samples (up to ~1.6s at TICK_MS=200, but collection stops the moment the user starts speaking, so usually fewer) — enough for a stable median, never blocks the flow
     const _CAL_MIN_FLOOR = 3;        // need >=3 floor samples for a trustworthy median, else keep fallback
     const _CAL_SPEECH_MAX = 40;      // cap voiced-run collection (a normal greeting is ~7-20 voiced ticks; this bounds a pathologically long one) — symmetry with _floorSamples, median stays representative
-    const _CAL_K = 0.40;             // speech threshold sits 40% of the way from floor to speech (sensitive but clear of noise)
+    const _CAL_K = 0.32;             // speech threshold sits 32% of the way from floor to speech (S145: 0.40 still demanded a raised voice when calibration ran — normal conversational level must clear it; noise floor is guarded by the hysteresis silence gate below)
     const _CAL_SIL_K = 0.30;         // silence threshold sits 30% of the way from floor to the SPEECH THRESHOLD (not to speech) — anchoring to floor↔thr makes floor < silence < speech provably true regardless of the constants, so the "neither" hysteresis band can never invert
     const _CAL_MIN_SPAN = 0.04;      // reject a degenerate sample (speech median barely above floor, e.g. a contaminated floor) → keep fallback rather than calibrate off noise
     function _calMedian(a) { if (!a.length) return null; const s = a.slice().sort(function(x,y){return x-y;}); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; }
