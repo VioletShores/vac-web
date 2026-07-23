@@ -1997,6 +1997,24 @@ function beginRecording() {
     let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
     let _speechGateStarted = false;
     let _lastVadRms = 0;             // latest VAD RMS, surfaced to the QA overlay for live calibration
+
+    // S145d: shared Mic-pill VU drawer — fast attack (voice snaps the bar up), slow release
+    // (decay 0.86/frame ≈ smooth fall), and color hysteresis (green at thr, back to grey only
+    // below 0.85*thr) so the bar reads calm instead of jittering at the line. Display-only —
+    // gates everywhere still read the RAW rms.
+    let _micBarDisp = 0, _micBarVoiced = false;
+    function _micPillDraw(rms, thr, tag) {
+        try {
+            window.__vacGateArmed = true;
+            _micBarDisp = (rms > _micBarDisp) ? rms : Math.max(rms, _micBarDisp * 0.86);
+            if (!_micBarVoiced && rms > thr) _micBarVoiced = true;
+            else if (_micBarVoiced && rms < thr * 0.85) _micBarVoiced = false;
+            var _mf = document.getElementById('avMicBarFill');
+            if (_mf) { var _w = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _mf.style.width = _w + '%'; _mf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
+            var _mr = document.getElementById('avRmsReadout');
+            if (_mr) _mr.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag;
+        } catch(_) {}
+    }
     let _lastDetectedCount = null;   // F-759: latest client finger count, surfaced to the capture readout
     let _lastVoiceMs = 0;            // R1: current CONTINUOUS voiced-run duration (ms), surfaced to ?qa=1 (vMs) so a tap (never climbs to DIGIT_VOICE_MIN_MS) vs a real digit is visible by eye
     // VAD threshold — client-side energy-RMS (0..1), NOT FolioAI's Deepgram word-confidence
@@ -2142,17 +2160,7 @@ function beginRecording() {
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
-                // S145c (Rob direction): ONE instrument — the existing top Mic pill, expanded.
-                // Bar scale = 0..2.5x active threshold, so the gold tick at 40% IS the threshold
-                // (calibrated or preset). Green fill = this frame counts as voice. Readout shows
-                // the live numbers so tuning runs on data: "rms/thr p|c".
-                try {
-                    window.__vacGateArmed = true;
-                    var _mf = document.getElementById('avMicBarFill');
-                    if (_mf) { var _w = Math.min(100, Math.round((rms / (vadSpeechThreshold * 2.5)) * 100)); _mf.style.width = _w + '%'; _mf.style.background = (rms > vadSpeechThreshold) ? '#43d692' : '#8b97ad'; }
-                    var _mr = document.getElementById('avRmsReadout');
-                    if (_mr) _mr.textContent = rms.toFixed(2) + '/' + vadSpeechThreshold.toFixed(2) + (_calIsFallback ? ' p' : ' c');
-                } catch(_) {}
+                _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
                 const _now = performance.now();
                 if (rms < vadSilenceThreshold) {
                     // Track silence ALWAYS — even while the window is closed (during the confirm
@@ -2853,17 +2861,7 @@ function beginRecording() {
             audioAnalyser.getByteFrequencyData(_buf);
             let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
             _rms = Math.sqrt(_rms / _buf.length) / 255;
-            // S145c: same Mic-pill instrument during the GREETING — the user sees their level while
-            // calibration listens, so they settle to the line and F-595 learns their NORMAL voice
-            // (kills the loud-greeting → high-threshold feedback loop). Line here = the greeting
-            // gate (fallback constant); after calibration the digit gate shows its own line.
-            try {
-                window.__vacGateArmed = true;
-                var _gmf = document.getElementById('avMicBarFill');
-                if (_gmf) { var _gw = Math.min(100, Math.round((_rms / (VAD_SPEECH_RMS_FALLBACK * 2.5)) * 100)); _gmf.style.width = _gw + '%'; _gmf.style.background = (_rms > VAD_SPEECH_RMS_FALLBACK) ? '#43d692' : '#8b97ad'; }
-                var _gmr = document.getElementById('avRmsReadout');
-                if (_gmr) _gmr.textContent = _rms.toFixed(2) + '/' + VAD_SPEECH_RMS_FALLBACK.toFixed(2) + ' g';
-            } catch(_) {}
+            _micPillDraw(_rms, VAD_SPEECH_RMS_FALLBACK, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)
             // (a) CONNECTED-BUT-SILENT mic detector: sustained genuine near-silence with NO voiced
             // energy → the mic is present but too quiet to ever satisfy the gate. Surface the "we
             // can't hear you" recovery rather than silently holding to the hard cap (Finding/silent-mic).
