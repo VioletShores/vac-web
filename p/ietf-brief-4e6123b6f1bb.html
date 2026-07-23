@@ -26,7 +26,7 @@ ul{padding-left:18px;color:var(--dim)} ul b{color:var(--text)} li{margin-bottom:
 </style></head><body data-build="S142-selfrefresh"><div class="page-shell"><div class="wrap">
 
 <h1>IETF 126 — Thursday Command Page</h1>
-<div class="sub">ONSITE · BoF Thu 23 Jul · 09:00–11:00 (Zurich = Vienna time) · Conf R939VNS5 · registered ONSITE ✓ · LAST UPDATED 23 Jul 2026 · 11:11 (Vienna)</div>
+<div class="sub">ONSITE · BoF Thu 23 Jul · 09:00–11:00 (Zurich = Vienna time) · Conf R939VNS5 · registered ONSITE ✓ · LAST UPDATED 23 Jul 2026 · 13:17 (Vienna)</div>
 
 <h2>CHEQ vs your two drafts — the distinction that matters</h2>
 <div class="card"><b>CHEQ</b> (Rosenberg/Jennings) <span class="why">confirms a <b style="color:#DCE3F0">specific action before it happens</b> — a Confirmation Server shows the user the pending action, they approve, it signs a "CHEQ object". Per-action, real-time, in MCP/A2A. Stops LLM hallucinations causing unwanted actions.</span></div>
@@ -48,6 +48,30 @@ ul{padding-left:18px;color:var(--dim)} ul b{color:var(--text)} li{margin-bottom:
 <b style="color:#D4A94E">THE WINDOW:</b> charter revision happens on that list BEFORE IESG approval. That is a real, time-boxed opening. Once the IESG approves, it closes for a long time.<br>
 <b style="color:#D4A94E">YOUR SLOT:</b> the "Use Cases, Gap Analysis and Requirements" deliverable ALREADY EXISTS and was just endorsed — so you're not asking them to add scope, you're contributing to work they've agreed to do. Post the USE CASE (a decision three hops out must resolve to an accountable person) + the GAP (nothing verifies who's at the head of the chain). Cite CHEQ §4.2's own disclaimer as evidence the gap is acknowledged.<br><br>
 <span style="color:#8b97ad">Note: 128 volunteered to help — most won't follow through. Concrete beats enthusiastic. Also: missing the Meetecho poll does NOT limit participation — IETF has no membership; contribution is by doing the work on the list.</span></span></div>
+
+<h2>★ OAUTH SESSION — Thu 14:00 Grand KLIMT Hall 2 (verified)</h2>
+<div class="card" style="border-left:4px solid #D4A94E"><b>THE CHAIRS (email these two, per Orie's protocol):</b><br><span class="why">
+• <b style="color:#DCE3F0">Rifaat Shekh-Yusef</b> — rifaat.ietf@gmail.com (long-time co-chair; runs the session logistics; posted the Vienna call-for-topics)<br>
+• <b style="color:#DCE3F0">Hannes Tschofenig</b> — long-time co-chair<br>
+• Area Director: <b style="color:#DCE3F0">Deb Cooley</b> (Security AD)<br><br>
+<b style="color:#DCE3F0">TWO SESSIONS, not one:</b> Thu 14:00-16:00 AND <b>Fri 09:00-11:00</b>. (You're in London Friday — Thursday is your one shot in the room; Friday follows via list/minutes.)<br><br>
+<b style="color:#DCE3F0">BONUS INTEL:</b> the WG was RECHARTERED 4 Jun 2026. The new charter explicitly coordinates with <b>WIMSE</b> (token exchange/DPoP for multi-hop workload identity) and mentions <b>identity chaining</b> (draft-ietf-oauth-identity-chaining nearing completion — cross-domain context preservation through service chains). <b style="color:#D4A94E">Identity chaining is the closest existing OAuth work to your authority lineage — READ IT before posting to the list.</b> Richer is active this cycle (proposing HTTP Message Signatures as a deployment option alongside DPoP/MTLS).</span></div>
+
+<div class="card" style="border-left:3px solid #7fbf7f"><b>YOUR PREP FOR THIS ROOM (next 15 min + in session):</b><br><span class="why">
+1. <b style="color:#DCE3F0">Sign in via the QR code / Datatracker when you sit down</b> (standard session practice — it's how attendance is recorded).<br>
+2. Join Meetecho lite (no audio) for the queue/polls/chat.<br>
+3. LISTEN for: identity-chaining discussion, anything agent-related, Richer's message-signatures topic. Note who speaks on delegation.<br>
+4. Spot: Richer (datatracker photo: fair hair, long beard — possibly shaved), Aaron Parecki (Okta), the two chairs at the front.<br>
+5. Do NOT raise your drafts in-session — this room's agenda is set. Corridor + email + list is your path.</span></div>
+
+<div class="card" style="border-left:3px solid #9B8AE6"><b>UPDATED MESSAGING (use L-2349 framing everywhere):</b><br><span class="why">
+<b style="color:#DCE3F0">Never</b> "verify the human" → <b style="color:#DCE3F0">always</b> "delegation of authority FROM the human." (This flipped Richer in one sentence.)<br>
+<b style="color:#DCE3F0">The one-liner for this room:</b> "OAuth is delegation all the way down — but the chain starts from an authenticated account, not a verified person. I work on the authority root under the chain, and I have it running."<br>
+<b style="color:#DCE3F0">If identity-chaining comes up:</b> "identity chaining preserves context across domains — the piece I keep hitting is what the chain is ROOTED in. That's what my drafts + implementation cover."<br>
+<b style="color:#DCE3F0">Truthful implementation claim (per task-305 verification):</b> "per-action risk-graded policy with a PID-tuned autonomy threshold, every decision receipted — the mid-workflow human escalate/resume cycle is specified and in build."<br>
+<b style="color:#D9705F">Never:</b> patents · competing with CHEQ · "verify humans."</span></div>
+
+<div class="card"><b>CHAIRS EMAIL (send TONIGHT, before any list post — Orie's protocol):</b><br><span class="why">To rifaat.ietf@gmail.com + Hannes · Subject: "New participant — delegation of authority from the human (running implementation)" · 4 sentences: first IETF; attended agentproto + OAuth Thu; working implementation of delegated authority rooted in a verified person (charter routes agent authz to OAuth; three participants incl. Justin Richer pointed me here); is the list the right place to introduce it, and is there anything I should read first beyond identity-chaining? <b style="color:#DCE3F0">Chat-Claude drafts it tonight.</b></span></div>
 
 <h2>WHAT TO SAY — one card per person</h2>
 <div class="card" style="border-left:3px solid #D4A94E"><b>JONATHAN ROSENBERG</b> — Five9 CTO · wrote <b>RFC 3261 (SIP)</b> · <span class="tag" style="border-color:#D4A94E;color:#D4A94E">HANDLE WITH CARE</span><br><span class="why"><b style="color:#DCE3F0">Why him:</b> co-author (with Cullen Jennings, Cisco) of the framework draft this whole BoF is built on. He pushed the chairs to run today's polls. IETF royalty — SIP is why the room defers to him.<br>
