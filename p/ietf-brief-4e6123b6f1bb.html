@@ -26,7 +26,7 @@ ul{padding-left:18px;color:var(--dim)} ul b{color:var(--text)} li{margin-bottom:
 </style></head><body data-build="S142-selfrefresh"><div class="page-shell"><div class="wrap">
 
 <h1>IETF 126 — Thursday Command Page</h1>
-<div class="sub">ONSITE · BoF Thu 23 Jul · 09:00–11:00 (Zurich = Vienna time) · Conf R939VNS5 · registered ONSITE ✓ · LAST UPDATED 23 Jul 2026 · 15:20 (Vienna)</div>
+<div class="sub">ONSITE · BoF Thu 23 Jul · 09:00–11:00 (Zurich = Vienna time) · Conf R939VNS5 · registered ONSITE ✓ · LAST UPDATED 23 Jul 2026 · 15:38 (Vienna)</div>
 
 <h2>CHEQ vs your two drafts — the distinction that matters</h2>
 <div class="card"><b>CHEQ</b> (Rosenberg/Jennings) <span class="why">confirms a <b style="color:#DCE3F0">specific action before it happens</b> — a Confirmation Server shows the user the pending action, they approve, it signs a "CHEQ object". Per-action, real-time, in MCP/A2A. Stops LLM hallucinations causing unwanted actions.</span></div>
@@ -48,6 +48,27 @@ ul{padding-left:18px;color:var(--dim)} ul b{color:var(--text)} li{margin-bottom:
 <b style="color:#D4A94E">THE WINDOW:</b> charter revision happens on that list BEFORE IESG approval. That is a real, time-boxed opening. Once the IESG approves, it closes for a long time.<br>
 <b style="color:#D4A94E">YOUR SLOT:</b> the "Use Cases, Gap Analysis and Requirements" deliverable ALREADY EXISTS and was just endorsed — so you're not asking them to add scope, you're contributing to work they've agreed to do. Post the USE CASE (a decision three hops out must resolve to an accountable person) + the GAP (nothing verifies who's at the head of the chain). Cite CHEQ §4.2's own disclaimer as evidence the gap is acknowledged.<br><br>
 <span style="color:#8b97ad">Note: 128 volunteered to help — most won't follow through. Concrete beats enthusiastic. Also: missing the Meetecho poll does NOT limit participation — IETF has no membership; contribution is by doing the work on the list.</span></span></div>
+
+<h2>★ TONIGHT — AAUTH SIDE MEETING · 17:00–19:00 · Grand Klimt Hall 3 (one hall over, one hour after OAuth ends)</h2>
+<div class="card" style="border-left:4px solid #D9705F"><b>WHY YOU'RE GOING (Hardt's own deck, slides 23-25):</b><span class="why"><br>
+His gap: authorization must move from "the operation" to "the operation IN CONTEXT" (deleteDatabase: scratch=fine / production=catastrophe / production-after-verified-migration=CORRECT — same op, different context, NO SCOPE SEPARATES THESE). His proposed answer: <b style="color:#DCE3F0">"Not the doing agent's own judgment — a SEPARATE AI that evaluates context. A GOVERNANCE AGENT."</b> Mission · context · control.<br>
+<b style="color:#D4A94E">That is architecturally your governor. And his 27 slides never say: whose AUTHORITY the governance agent enforces, how autonomy is EARNED/bounded/revoked, or how its decisions are PROVABLE afterwards. The gap survives, one layer up.</b></span></div>
+
+<div class="card" style="border-left:3px solid #7fbf7f"><b>IN THE SIDE MEETING — your conduct:</b><span class="why"><br>
+1. <b style="color:#DCE3F0">Listen for the first stretch.</b> Side meetings are working sessions — learn what AAuth's actual open questions are before saying anything.<br>
+2. <b style="color:#DCE3F0">Introduce yourself when invited / when intros happen:</b> "Rob Zagarella, Violet Shores — first IETF. I've been working on exactly this layer: a governance controller that risk-grades each action in context, with the authority rooted in a verified person. I have it running end to end, and two individual drafts posted. Here to learn how AAuth is framing it."<br>
+3. <b style="color:#DCE3F0">Your ONE contribution if the discussion opens (pick the moment):</b> "One question I keep hitting in implementation: the governance agent decides — but under WHOSE authority does it enforce, and when it approves something consequential, what's the evidentiary record? A tribunal or regulator asks 'who answers for this' — the governance agent needs an anchor and a receipt, whatever protocol carries it."<br>
+4. <b style="color:#DCE3F0">Offer, don't push:</b> "Happy to contribute implementation experience — and the escalate-to-human/resume-autonomous cycle is something we've specified and are building; I can share how it behaves in practice."<br>
+<b style="color:#D9705F">NEVER:</b> contest AAuth-vs-OAuth (his BEV/ICE framing is his ground) · mention patents · position against CHEQ · overclaim (the truthful line: per-action risk-graded policy, PID-tuned threshold, every decision receipted; escalate/resume is specified and in build).</span></div>
+
+<div class="card" style="border-left:3px solid #D4A94E"><b>IF YOU GET HARDT 1:1 (he's Hellō founder, wrote OAuth 2.0, dick.hardt@gmail.com):</b><span class="why"><br>
+<b style="color:#DCE3F0">OPEN (his deck, genuinely):</b> "Your scratch-vs-production-vs-after-migration slide is the best articulation of the context problem I've seen — that's the exact unit our controller grades."<br>
+<b style="color:#DCE3F0">THEN THE QUESTION (this is the conversation):</b> "The piece I'd love your read on: when the governance agent makes the call — 'so could AI', as you said — someone still ANSWERS for it afterwards. Where do you see the accountable authority living? We've rooted it in a verified person with delegation that's earned and bounded — autonomy expands with track record, regresses on failure — and every decision receipted. That's what makes it deployable in regulated markets."<br>
+<b style="color:#DCE3F0">THEN LISTEN.</b> His answer tells you whether AAuth sees the anchor as in-scope, out-of-scope, or unconsidered — each is useful.<br>
+<b style="color:#DCE3F0">CLOSE:</b> "I'll follow AAuth closely — happy to bring implementation experience. And if you ever want the two-minute live version, say the word." (Demo offer LEFT HANGING — same rule as Richer: if he says now, "shipping a UI improvement tonight, I'll send the link tomorrow" is true and fine.)<br>
+<b style="color:#DCE3F0">The self-driving-car turn if it flows:</b> "The car analogy carries further than the slide: cars have a licensed driver or a certified operator — a legally accountable party, insurance, a black box. Self-driving software needs its equivalents: the verified root, earned bounds, and the receipt trail. That's the layer I build."</span></div>
+
+<div class="card"><b>LOGISTICS:</b><span class="why">OAuth ends 16:00 → coffee/corridor (Richer second-touch, Chen biweekly if not done in-room) → <b style="color:#DCE3F0">17:00 Grand Klimt Hall 3</b> → ends 19:00 → New Participants' Social (Lenz, 18:45) = arrive late or skip; the side meeting outranks it → Mini sitting after (merges 300/307/Lane 2 + demo walk + send the two emails).</span></div>
 
 <h2>OAUTH SESSION NOTES — live from Grand Klimt Hall 2 (Thu 14:00)</h2>
 <div class="card" style="border-left:4px solid #6FA8DC"><b>SESSION LINKS (tap):</b><span class="why"><br>
