@@ -92,7 +92,7 @@
    *   title:          string  — plain-English card title
    *   status?:        string  — short status label (DONE, RUNNING, REVIEW NEEDED, …)
    *   accent?:        'green'|'clay'|'blue'|'gold'  — left-border accent colour
-   *   summary_html:   string  — body HTML (may include tables, <b>, <pre>)
+   *   summary_html:   string  — trusted HTML (may include tables, <b>, <pre>). Never pass user input here.
    *   evidence_links: [{label, url}]  — REQUIRED, at least one
    *   next_action:    {label, how?}   — REQUIRED (L-2330: no dead-ends)
    * }
@@ -113,7 +113,8 @@
     }
     _injectStyles();
 
-    var accentClass = cfg.accent ? ' hc-' + cfg.accent : '';
+    var _VALID_ACCENTS = { green: 1, clay: 1, blue: 1, gold: 1 };
+    var accentClass = (cfg.accent && _VALID_ACCENTS[cfg.accent]) ? ' hc-' + cfg.accent : '';
 
     var headHTML = '<div class="hc-head"><span class="hc-title">' + _esc(cfg.title) + '</span>';
     if (cfg.status) {
@@ -149,7 +150,7 @@
    * cfg: {
    *   id:                string   — unique id
    *   title:             string   — plain-English decision question
-   *   evidence_html:     string   — full evidence HTML (root-cause, diagrams, proposed fix, …)
+   *   evidence_html:     string   — trusted HTML (root-cause, diagrams, proposed fix, …). Never pass user input here.
    *   options?:          [{label, verb}]  — choices to display (e.g. Approve / Hold)
    *   input_placeholder?: string  — optional freetext input for Rob's notes
    *   seal_transport:    one of:
