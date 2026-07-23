@@ -22,3 +22,9 @@ restaurant attacked both channels at once — audio noise → mic-pill false ✓
 skeleton (findings 1/3/4). Quiet-room absence is NOT evidence of fixed. TEST MATRIX now three axes: quiet/plain ·
 noisy-audio · BUSY-VISUAL scene (the deployment reality: cafés, offices, tribunal waiting rooms). Task 329's
 stability/confidence/plausibility gating must be verified against a busy-visual scene, not just the hotel wall.
+
+## Finding 5 (Rob e2e, ~22:25): QUICK-AUTH single-digit flow has NO mic bar
+The fast credential-view ceremony (one spoken digit) runs a speech gate on a code path that never calls
+_micPillDraw and apparently isn't covered by the always-on monitor drive. Locate that flow's VAD/say gate in
+vac-reauth-ceremony.js, set __vacGateArmed + call _micPillDraw(rms, activeThr, tag 'q') there — same instrument,
+every speaking surface (F-922 tier lock-step: a tier WITH a voice check must SHOW the voice instrument).
