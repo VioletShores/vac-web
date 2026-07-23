@@ -1,5 +1,18 @@
-# VAC Web — HANDOFF (Session 17 → Session 18)
-> Updated: 15 March 2026 ~4:30pm AEDT
+# VAC Web — HANDOFF (Session 18 → Session 19)
+> Updated: 23 July 2026 — S144 F-755d fix shipped to branch
+
+## S144 F-755d ZONE FIX — AWAITING ROB IPHONE TEST (L-2173)
+
+**Branch:** `task-s144-f755d-fix` (NOT merged — Rob must live-test first)  
+**Gate doc:** `docs/gates/GATE-S144-F755D-FIX.md`  
+**What changed:** Removed stale pre-S139 centre-oval SVG guide from both camera boxes. Canvas draw functions (`_avDrawHand` + `_drawFingerTargetGuide`) already drew correct cheek ovals from `GESTURE_ZONE_SPEC` but were hidden behind the stale SVG (z-index:5 vs canvas z-index:4). Fix: SVG removed, z-index lowered to 3. Dead code (`_HAND_ZONE_RX/_HAND_ZONE_RY/_ptInHandZone`) also deleted.  
+**Visual test aid:** Both canvases now show `ZONE: IN ✓` (green) or `ZONE: OUT` (grey) + `wrist(x,y)` in the bottom-left corner so Rob can verify geometry on iPhone.  
+**Live test URL:** https://vacprotocol.org/auth.html (deploys when Rob merges to main)  
+
+---
+
+# VAC Web — PRIOR HANDOFF (Session 17)
+> (preserved below)
 
 ## PAGES STATUS
 
