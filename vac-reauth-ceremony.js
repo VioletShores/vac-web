@@ -3388,6 +3388,9 @@ function _makeQuickReauthVoiceGate(cfg) {
             analyser.getByteFrequencyData(buf);
             var rms = 0; for (var i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
             rms = Math.sqrt(rms / buf.length) / 255;
+            // S145 finding 5 (F-922 lock-step): the fast/quick-auth single-digit tier runs this
+            // VAD but never showed the mic instrument. Arm the same overlay every speaking surface uses.
+            window.__vacGateArmed = true; _micPillDraw(rms, speechThr, 'q');
             var now = performance.now();
             if (rms < silenceThr) {
                 preOnsetStart = 0; preOnsetMidChecked = false;  // S139: silence aborts pre-onset
