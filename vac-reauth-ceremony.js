@@ -623,6 +623,7 @@ function startAVChecks() {
             // does, with rms computed the same way the VAD measures it (so the gold line means the
             // same thing all ceremony). Tag m = monitor-driven.
             try {
+                if (!window.__vacGateArmed) { var _svx = document.getElementById('vacStepVU'); if (_svx) _svx.remove(); }
                 if (!window.__vacGateArmed && window.__vacMicPillDraw) {
                     // MUST be the SAME quantity the VAD gates measure: FREQUENCY-spectrum rms
                     // (getByteFrequencyData, sqrt-mean/255) — the scale every threshold is tuned in.
@@ -2032,12 +2033,22 @@ function beginRecording() {
                 if (!_ov) {
                     _ov = document.createElement('div');
                     _ov.id = 'vacStepVU';
-                    _ov.style.cssText = 'position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(260px,76vw);z-index:99999;pointer-events:none;font-family:-apple-system,system-ui,sans-serif;';
+                    // S145h (Rob): anchored INSIDE the camera frame — a viewport-fixed meter floated
+                    // over page text on scroll. Inside the video wrapper it scrolls with the ceremony
+                    // and covers nothing. Fallback to fixed only if no video host exists.
+                    var _vp = document.getElementById('videoPreview');
+                    var _host = (_vp && _vp.parentElement) ? _vp.parentElement : null;
+                    if (_host) {
+                        try { if (getComputedStyle(_host).position === 'static') _host.style.position = 'relative'; } catch(_) {}
+                        _ov.style.cssText = 'position:absolute;left:50%;bottom:8px;transform:translateX(-50%);width:min(240px,72%);z-index:60;pointer-events:none;font-family:-apple-system,system-ui,sans-serif;';
+                    } else {
+                        _ov.style.cssText = 'position:fixed;left:50%;bottom:12px;transform:translateX(-50%);width:min(260px,76vw);z-index:99999;pointer-events:none;font-family:-apple-system,system-ui,sans-serif;';
+                    }
                     _ov.innerHTML = '<div style="height:9px;border-radius:5px;background:rgba(10,15,26,.8);border:1px solid rgba(255,255,255,.28);position:relative;overflow:visible;">'
                       + '<div id="vacStepVUfill" style="height:100%;width:0%;background:#8b97ad;border-radius:5px;transition:width 50ms linear;"></div>'
                       + '<div style="position:absolute;top:-4px;bottom:-4px;left:40%;width:2px;background:#fbbf24;border-radius:1px;"></div></div>'
                       + '<div id="vacStepVUtxt" style="text-align:center;font-size:11px;color:#c9d4e8;margin-top:3px;text-shadow:0 1px 2px rgba(0,0,0,.85);"></div>';
-                    document.body.appendChild(_ov);
+                    (_host || document.body).appendChild(_ov);
                 }
             }
             _micBarDisp = (rms > _micBarDisp) ? rms : Math.max(rms, _micBarDisp * 0.86);
