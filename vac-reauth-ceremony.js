@@ -624,7 +624,7 @@ function startAVChecks() {
             pct.textContent = level + '%';
             // F-755d: always-visible RMS readout in the Mic pill so Rob can see level on iPhone
             const _rmsEl = document.getElementById('avRmsReadout');
-            if (_rmsEl) _rmsEl.textContent = '(' + level + '%)';
+            if (_rmsEl && !window.__vacGateArmed) _rmsEl.textContent = '(' + level + '%)';
             if (level > 80) { bar.style.background = 'var(--error)'; }
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
@@ -2142,25 +2142,16 @@ function beginRecording() {
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
-                // S145b: FIXED mic level overlay — pinned to document.body so NO view switch can
-                // hide it (the first attempt lived inside vacSayView, which this flow never shows).
-                // Shows live rms vs the ACTIVE threshold (calibrated or fallback) + both numbers,
-                // so tuning runs on data. Created lazily on first VAD tick, removed at gate-off.
+                // S145c (Rob direction): ONE instrument — the existing top Mic pill, expanded.
+                // Bar scale = 0..2.5x active threshold, so the gold tick at 40% IS the threshold
+                // (calibrated or preset). Green fill = this frame counts as voice. Readout shows
+                // the live numbers so tuning runs on data: "rms/thr p|c".
                 try {
-                    var _ov = document.getElementById('vacLevelBarFixed');
-                    if (!_ov) {
-                        _ov = document.createElement('div');
-                        _ov.id = 'vacLevelBarFixed';
-                        _ov.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:min(280px,80vw);z-index:99999;pointer-events:none;font-family:-apple-system,system-ui,sans-serif;';
-                        _ov.innerHTML = '<div style="height:10px;border-radius:5px;background:rgba(10,15,26,.75);border:1px solid rgba(255,255,255,.25);position:relative;overflow:visible;">'
-                          + '<div id="vacLBFfill" style="height:100%;width:0%;background:#8b97ad;border-radius:5px;transition:width 50ms linear;"></div>'
-                          + '<div style="position:absolute;top:-4px;bottom:-4px;left:40%;width:2px;background:#fbbf24;border-radius:1px;"></div></div>'
-                          + '<div id="vacLBFtxt" style="text-align:center;font-size:11px;color:#c9d4e8;margin-top:3px;text-shadow:0 1px 2px rgba(0,0,0,.8);">mic — speak past the gold line · s145b</div>';
-                        document.body.appendChild(_ov);
-                    }
-                    var _f = document.getElementById('vacLBFfill'), _t = document.getElementById('vacLBFtxt');
-                    if (_f) { var _w = Math.min(100, Math.round((rms / (vadSpeechThreshold * 2.5)) * 100)); _f.style.width = _w + '%'; _f.style.background = (rms > vadSpeechThreshold) ? '#43d692' : '#8b97ad'; }
-                    if (_t) { _t.textContent = 'mic ' + rms.toFixed(3) + ' / line ' + vadSpeechThreshold.toFixed(3) + (_calIsFallback ? ' (preset)' : ' (calibrated)') + ' · s145b'; }
+                    window.__vacGateArmed = true;
+                    var _mf = document.getElementById('avMicBarFill');
+                    if (_mf) { var _w = Math.min(100, Math.round((rms / (vadSpeechThreshold * 2.5)) * 100)); _mf.style.width = _w + '%'; _mf.style.background = (rms > vadSpeechThreshold) ? '#43d692' : '#8b97ad'; }
+                    var _mr = document.getElementById('avRmsReadout');
+                    if (_mr) _mr.textContent = rms.toFixed(2) + '/' + vadSpeechThreshold.toFixed(2) + (_calIsFallback ? ' p' : ' c');
                 } catch(_) {}
                 const _now = performance.now();
                 if (rms < vadSilenceThreshold) {
@@ -2257,7 +2248,7 @@ function beginRecording() {
         })();
     }
     function _speechGateOff(reason) {
-        try { var _lbf = document.getElementById('vacLevelBarFixed'); if (_lbf) _lbf.remove(); } catch(_) {}
+        try { window.__vacGateArmed = false; var _mf0 = document.getElementById('avMicBarFill'); if (_mf0) _mf0.style.width = '0%'; } catch(_) {}
         _speechMode = 'off';           // _speechOk becomes true → gesture-only advance, with a visible note
         _acceptArmed = true;           // Option 2: let the currently-held gesture advance now (escape/degrade), not after a re-show
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
@@ -4966,7 +4957,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <!-- Status pills — horizontal row -->
         <div style="display: flex; justify-content: space-between; gap: 6px;">
             <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
-            <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span><span id="avRmsReadout" class="av-pill-value"></span></div>
+            <div id="avPillMic" class="av-pill" style="flex:1.6;"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span><span id="avMicBar" style="display:inline-block;width:64px;height:8px;border-radius:4px;background:rgba(255,255,255,.10);position:relative;margin:0 3px;overflow:visible;flex:0 0 auto;"><span id="avMicBarFill" style="display:block;height:100%;width:0%;background:#8b97ad;border-radius:4px;transition:width 50ms linear;"></span><span style="position:absolute;top:-3px;bottom:-3px;left:40%;width:2px;background:#fbbf24;border-radius:1px;"></span></span><span id="avRmsReadout" class="av-pill-value"></span></div>
             <div id="avPillHand" class="av-pill"><span id="avHandIcon" class="av-pill-icon spinning"></span><span id="avHandLabel">Hand</span></div>
         </div>
         <div id="avHandHint" style="display:none;text-align:center;font-size:12px;color:var(--teal);margin-top:8px;font-weight:500;">Hold your hand up — we'll show you it being tracked</div>
