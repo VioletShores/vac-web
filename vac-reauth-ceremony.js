@@ -2142,10 +2142,26 @@ function beginRecording() {
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
-                // S145: REAL say-step level bar (the vacSayEq above is decorative). Fill = rms on a
-                // 0..2.5x-threshold scale, so the gold tick at 40% IS vadSpeechThreshold whatever
-                // calibration set it to. Green = above threshold = this frame counts as voice.
-                try { var _lf = document.getElementById('vacSayLevelFill'); if (_lf) { var _w = Math.min(100, Math.round((rms / (vadSpeechThreshold * 2.5)) * 100)); _lf.style.width = _w + '%'; _lf.style.background = (rms > vadSpeechThreshold) ? '#43d692' : '#8b97ad'; } } catch(_) {}
+                // S145b: FIXED mic level overlay — pinned to document.body so NO view switch can
+                // hide it (the first attempt lived inside vacSayView, which this flow never shows).
+                // Shows live rms vs the ACTIVE threshold (calibrated or fallback) + both numbers,
+                // so tuning runs on data. Created lazily on first VAD tick, removed at gate-off.
+                try {
+                    var _ov = document.getElementById('vacLevelBarFixed');
+                    if (!_ov) {
+                        _ov = document.createElement('div');
+                        _ov.id = 'vacLevelBarFixed';
+                        _ov.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);width:min(280px,80vw);z-index:99999;pointer-events:none;font-family:-apple-system,system-ui,sans-serif;';
+                        _ov.innerHTML = '<div style="height:10px;border-radius:5px;background:rgba(10,15,26,.75);border:1px solid rgba(255,255,255,.25);position:relative;overflow:visible;">'
+                          + '<div id="vacLBFfill" style="height:100%;width:0%;background:#8b97ad;border-radius:5px;transition:width 50ms linear;"></div>'
+                          + '<div style="position:absolute;top:-4px;bottom:-4px;left:40%;width:2px;background:#fbbf24;border-radius:1px;"></div></div>'
+                          + '<div id="vacLBFtxt" style="text-align:center;font-size:11px;color:#c9d4e8;margin-top:3px;text-shadow:0 1px 2px rgba(0,0,0,.8);">mic — speak past the gold line · s145b</div>';
+                        document.body.appendChild(_ov);
+                    }
+                    var _f = document.getElementById('vacLBFfill'), _t = document.getElementById('vacLBFtxt');
+                    if (_f) { var _w = Math.min(100, Math.round((rms / (vadSpeechThreshold * 2.5)) * 100)); _f.style.width = _w + '%'; _f.style.background = (rms > vadSpeechThreshold) ? '#43d692' : '#8b97ad'; }
+                    if (_t) { _t.textContent = 'mic ' + rms.toFixed(3) + ' / line ' + vadSpeechThreshold.toFixed(3) + (_calIsFallback ? ' (preset)' : ' (calibrated)') + ' · s145b'; }
+                } catch(_) {}
                 const _now = performance.now();
                 if (rms < vadSilenceThreshold) {
                     // Track silence ALWAYS — even while the window is closed (during the confirm
@@ -2241,6 +2257,7 @@ function beginRecording() {
         })();
     }
     function _speechGateOff(reason) {
+        try { var _lbf = document.getElementById('vacLevelBarFixed'); if (_lbf) _lbf.remove(); } catch(_) {}
         _speechMode = 'off';           // _speechOk becomes true → gesture-only advance, with a visible note
         _acceptArmed = true;           // Option 2: let the currently-held gesture advance now (escape/degrade), not after a re-show
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
