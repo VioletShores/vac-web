@@ -1,0 +1,40 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0A0F1A"><meta name="robots" content="noindex"><title>Decision — F-755d zone fix</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>:root{--bg:#0A0F1A;--panel:#101827;--line:#1E2A3D;--gold:#D4A94E;--gold-dim:#8A7233;--text:#E8EDF5;--muted:#93A1B8;--green:#5FB87A;--clay:#D9705F}
+*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif}
+.page-shell{background:#0A0F1A !important;min-height:100vh;padding:22px 16px 60px}.wrap{max-width:760px;margin:0 auto}
+.eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold-dim)}
+h1{font-family:'Fraunces',serif;font-weight:600;font-size:22px;margin:4px 0 2px}
+.stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gold)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px 16px;margin:12px 0;font-size:13px;line-height:1.6;color:var(--muted)}
+.card b{color:var(--text)}.g{border-left:3px solid var(--green)}.r{border-left:3px solid var(--clay)}
+pre{background:#070B12;border-radius:8px;padding:10px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#B8C4D8;overflow-x:auto;line-height:1.5}
+textarea{width:100%;min-height:56px;background:#0D1420;border:1px solid var(--line);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:10px}
+.seal{font-size:13px;font-weight:600;color:var(--bg);background:var(--green);border:none;border-radius:8px;padding:10px 18px;cursor:pointer;margin-top:10px}
+.alt{background:transparent;color:var(--muted);border:1px solid var(--line);margin-left:8px}
+</style></head><body><div class="page-shell"><div class="wrap">
+<div class="eyebrow">Rob's Hub · decision card · F-755d</div>
+<h1>Biometric zone fix — approve the fix lane?</h1>
+<div class="stamp">Diagnosis complete (task 303) · LAST UPDATED 23 Jul 2026 · 12:34 (Vienna)</div>
+
+<div class="card r"><b>ROOT CAUSE (evidence-based, task 303):</b> the on-screen hand guide is a STALE REMNANT. Pre-S139 the system accepted a hand in ONE centre oval (rx 0.32, ry 0.40) and the drawn CSS guide matched it exactly. The S139 migration moved acceptance to TWO small cheek ovals (centres 0.18/0.82, rx 0.17, ry 0.22) — but the drawn guide was never updated. Worse: the stale guide renders at z-index 5, ON TOP of the correct canvas overlay at z-index 4. <b>The user is literally shown the old geometry, telling them to put their hand where the new test rejects it.</b></div>
+
+<div class="card"><b>The divergence:</b><pre>DRAWN (what you see)      ACCEPT (what the code tests)
+┌──────────────────┐      ┌──────────────────┐
+│   ┌──────────┐   │      │ ░░            ░░ │
+│   │ big      │   │      │░░░░  two    ░░░░│
+│   │ centre   │   │      │ ░░  cheek    ░░ │
+│   │ oval     │   │      │     ovals        │
+│   └──────────┘   │      │                  │
+└──────────────────┘      └──────────────────┘
+Hand centred in the guide = REJECTED.
+Hand on a cheek = accepted but looks out-of-bounds.</pre></div>
+
+<div class="card g"><b>PROPOSED FIX (single source of truth):</b> both the accept test AND the drawn guide derive from GESTURE_ZONE_SPEC — the drawn overlay is generated from the same two cheek ovals the code tests, mirror-aware. Remove/repurpose the stale .hand-zone centre div (or drop it below the canvas z-index). Add the on-screen readout (bounds + centroid-inside flag) so the fix is visually verifiable on your iPhone before merge.<br><br><b>Scope:</b> one file (vac-reauth-ceremony.js) + CSS touch. Gated /codex + /browse. NOT merged until you live-test.</div>
+
+<div class="card"><b>Your input (optional — edits the lane intent):</b><textarea id="fb" placeholder="e.g. also make the label say 'beside your cheek' only when cheek zones active"></textarea>
+<button class="seal" onclick="this.textContent='✓ APPROVED — tell Claude: fire the F-755d fix lane';this.disabled=true">APPROVE FIX LANE</button>
+<button class="seal alt" onclick="this.textContent='✗ held';this.disabled=true">HOLD</button></div>
+
+<div class="card"><span style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A7233">Honest note: this page cannot dispatch by itself — no daemon. Sealing records your decision visually; say "fire the F-755d fix" in chat (or at next boot) and the lane dispatches with your input included. Wiring seals to auto-dispatch = F-910 steps 1+5.</span></div>
+</div></div></body></html>
