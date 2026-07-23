@@ -618,6 +618,16 @@ function startAVChecks() {
                 if (dev > maxDev) maxDev = dev;
             }
             const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            // S145e (Rob): the Mic-pill VU must run in EVERY phase — greeting included — regardless
+            // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
+            // does, with rms computed the same way the VAD measures it (so the gold line means the
+            // same thing all ceremony). Tag m = monitor-driven.
+            if (!window.__vacGateArmed && window.__vacMicPillDraw) {
+                let _mrms = 0;
+                for (let i = 0; i < dataArray.length; i++) { const d = (dataArray[i] - 128) / 128; _mrms += d * d; }
+                _mrms = Math.sqrt(_mrms / dataArray.length);
+                window.__vacMicPillDraw(_mrms, window.__vacMicThr || 0.115, 'm');
+            }
             const bar = document.getElementById('avAudioLevel');
             const pct = document.getElementById('avAudioPct');
             bar.style.width = level + '%';
@@ -2005,7 +2015,7 @@ function beginRecording() {
     let _micBarDisp = 0, _micBarVoiced = false;
     function _micPillDraw(rms, thr, tag) {
         try {
-            window.__vacGateArmed = true;
+            window.__vacMicThr = thr;  // S145e: published for the always-on monitor fallback
             _micBarDisp = (rms > _micBarDisp) ? rms : Math.max(rms, _micBarDisp * 0.86);
             if (!_micBarVoiced && rms > thr) _micBarVoiced = true;
             else if (_micBarVoiced && rms < thr * 0.85) _micBarVoiced = false;
@@ -2015,6 +2025,7 @@ function beginRecording() {
             if (_mr) _mr.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag;
         } catch(_) {}
     }
+    try { window.__vacMicPillDraw = _micPillDraw; } catch(_) {}
     let _lastDetectedCount = null;   // F-759: latest client finger count, surfaced to the capture readout
     let _lastVoiceMs = 0;            // R1: current CONTINUOUS voiced-run duration (ms), surfaced to ?qa=1 (vMs) so a tap (never climbs to DIGIT_VOICE_MIN_MS) vs a real digit is visible by eye
     // VAD threshold — client-side energy-RMS (0..1), NOT FolioAI's Deepgram word-confidence
@@ -2160,7 +2171,7 @@ function beginRecording() {
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
-                _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
+                window.__vacGateArmed = true; _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
                 const _now = performance.now();
                 if (rms < vadSilenceThreshold) {
                     // Track silence ALWAYS — even while the window is closed (during the confirm
@@ -2861,7 +2872,7 @@ function beginRecording() {
             audioAnalyser.getByteFrequencyData(_buf);
             let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
             _rms = Math.sqrt(_rms / _buf.length) / 255;
-            _micPillDraw(_rms, VAD_SPEECH_RMS_FALLBACK, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)
+            window.__vacGateArmed = true; _micPillDraw(_rms, VAD_SPEECH_RMS_FALLBACK, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)
             // (a) CONNECTED-BUT-SILENT mic detector: sustained genuine near-silence with NO voiced
             // energy → the mic is present but too quiet to ever satisfy the gate. Surface the "we
             // can't hear you" recovery rather than silently holding to the hard cap (Finding/silent-mic).
