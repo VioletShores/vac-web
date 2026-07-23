@@ -3496,6 +3496,7 @@ async function beginStillCapture() {
     try { var _pc0 = document.querySelector('#step3 .progress-container'); if (_pc0 && _pc0.__qrOrigHTML != null) { _pc0.innerHTML = _pc0.__qrOrigHTML; } } catch(_) {}
     let detectedFingers = null;
     let _fingerFailReason = null;   // F-672: set when NO valid finger count could be captured → fail-closed (never POST detected_fingers:null)
+    let _gateEvidence = [];   // S145 finding 6: per-attempt {stage, detected_finger_count, expected_count, zone_in, attempt_n} — rendered on a client pre-gate fail-close so the user (and Rob) can see WHY, instead of a silent drop to onFallback
     let stillB64 = '';
     // F-637 (L-2224 scope fix): these are STAMPED inside the nested gesture-poll block but READ
     // below at capture time (outside that block). Declared at function scope so the reads resolve.
@@ -3685,6 +3686,18 @@ async function beginStillCapture() {
               if (typeof _polled === 'number' && _polled >= 0) { break; }   // co-occurrence advance confirmed → capture; _pollDetectedFingers stamped at advance (F-637)
               // no advance this window — classify via a raw read (camera still live, pre-teardown).
               var _rawFc = null; try { _rawFc = FingerDetector.detect(_gv); } catch(_) { _rawFc = null; }
+              // S145 finding 6: record this attempt's evidence BEFORE deciding fail-close vs retry, so
+              // a retry that also fails still leaves a trail (every attempt, not just the last one).
+              try {
+                  var _evLm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
+                  _gateEvidence.push({
+                      stage: (_rawFc === null ? 'detector_down' : (_rawFc < 0 ? 'no_hand' : 'unstable')),
+                      detected_finger_count: _rawFc,
+                      expected_count: _expectFingers,
+                      zone_in: !!_evLm && _handNearFaceZone(_evLm),
+                      attempt_n: _fAttempt + 1
+                  });
+              } catch(_) {}
               if (_rawFc === null || (typeof FingerDetector !== 'undefined' && FingerDetector.failed)) { _fingerFailReason = 'finger_detector_down'; break; }   // null → detector down: retry can't recover → fail-closed, NO retry
               if (_fAttempt >= _FINGER_MAX_RETRY) { _fingerFailReason = 'no_finger_after_retry'; break; }   // -1 no hand, retries exhausted → fail-closed
               try { CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: false, handNear: false, gestureLive: false, coachKey: '', voiceHelp: false }); } catch(_) {}   // coachable retry via the shared feedback (camera live) → re-poll
@@ -3840,6 +3853,22 @@ async function beginStillCapture() {
     if (_fingerFailReason || detectedFingers == null) {
         var _ffr = _fingerFailReason || 'no_finger_captured';
         try { vacDebug('fast_reauth_failed', _ffr); } catch(_) {}
+        // S145 finding 6: this is a CLIENT pre-gate stop — the request never reached the server,
+        // so renderQuickReauthVerdict (server-denial path) never runs and the user was previously
+        // dropped straight to onFallback's generic screen with no evidence. Render the same
+        // self-reporting evidence line per attempt, THEN wait for the user to read it before
+        // handing off — mirrors the server-denial Continue-button pattern above.
+        var _rendered = false;
+        try { _rendered = renderClientGateFailure(_ffr, _gateEvidence); } catch(_) { _rendered = false; }
+        if (_rendered) {
+            var _cgBtn = document.getElementById('qrContinueBtn');
+            if (_cgBtn) {
+                _cgBtn.onclick = function(){
+                    if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: ' + _ffr)); } catch(_) {} }
+                };
+                return;
+            }
+        }
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: ' + _ffr)); } catch(_) {} }
         return;
     }
@@ -4121,6 +4150,49 @@ function renderQuickReauthVerdict(res) {
             if (c) c.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
         });
     }
+}
+
+// S145 finding 6: the quick-auth CLIENT pre-gate (beginStillCapture's finger-detection retries)
+// can fail-closed before any POST reaches the server, so renderQuickReauthVerdict above (which
+// only renders SERVER-reported verdicts) never runs. Previously that silently dropped the user
+// straight to CTX.onFallback's generic screen — no evidence, no way to self-correct (Rob: a
+// 3-failure mystery in the field needed a manual ?qa=1 ask to explain). This renders the SAME
+// evidence-card visual style as the modality rows above, one compact line per client attempt:
+// {stage, detected_finger_count, expected_count, zone_in, attempt_n}. Client-side only — the
+// challenge digit is already shown in-session, so no new security surface. Returns true if it
+// rendered into a live host (caller falls back to the direct onFallback handoff otherwise).
+function renderClientGateFailure(reason, evidence) {
+    var host = document.querySelector('#step3 .progress-container')
+        || document.getElementById('challengeText') || document.getElementById('vacGuided');
+    if (!host) return false;
+    if (host.__qrOrigHTML == null) { try { host.__qrOrigHTML = host.innerHTML; } catch(_) {} }
+    try { var _mr = document.getElementById('modalityResults'); if (_mr) _mr.style.display = 'none'; } catch(_) {}
+    try { var _uh = document.getElementById('underHoodContainer'); if (_uh) _uh.style.display = 'none'; } catch(_) {}
+    try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = 'Quick re-auth was not confirmed — here is what this device checked.'; } catch(_) {}
+    var _reasonMsg = (reason === 'finger_detector_down') ? 'The hand detector could not start on this device.'
+        : (reason === 'no_finger_after_retry') ? "We couldn't get a steady reading of your fingers."
+        : (reason === 'finger_lost_at_capture') ? 'Your hand moved out of frame right at capture.'
+        : "We couldn't confirm your fingers.";
+    var _reasonHtml = '<div style="border:1px solid var(--error);background:rgba(239,68,68,0.10);border-radius:10px;padding:11px 13px;margin-bottom:12px;">'
+        + '<div style="color:var(--error);font-weight:700;font-size:14px;margin-bottom:3px;">Not confirmed — full verification required</div>'
+        + '<div style="color:var(--text-primary);font-size:13px;line-height:1.4;">' + _reasonMsg + '</div>'
+        + '</div>';
+    var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Client check evidence — what this device saw, per attempt</div>';
+    var _rows = '';
+    (evidence || []).forEach(function(ev){
+        var _saw = (ev.detected_finger_count == null) ? 'nothing (detector down)' : (ev.detected_finger_count < 0 ? '0' : String(ev.detected_finger_count));
+        var _needed = (ev.expected_count != null) ? String(ev.expected_count) : '?';
+        var _zoneTxt = ev.zone_in ? 'zone IN' : 'zone OUT';
+        _rows += '<div class="qr-mod-row" style="border:1px solid var(--border);border-radius:10px;padding:9px 13px;margin-bottom:6px;background:var(--surface);">'
+            + '<span style="color:var(--text-tertiary);font-family:var(--mono);font-size:10px;letter-spacing:0.5px;text-transform:uppercase;margin-right:8px;">Attempt ' + ev.attempt_n + '</span>'
+            + '<span style="font-size:13px;color:var(--text-primary);">Fingers: saw ' + _saw + ', needed ' + _needed + ' — ' + _zoneTxt + '</span>'
+            + '</div>';
+    });
+    if (!_rows) { _rows = '<div style="color:var(--text-tertiary);font-size:12px;margin-bottom:8px;">No per-attempt evidence was captured for this run.</div>'; }
+    host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _reasonHtml + _label + _rows
+        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Continue →</button>'
+        + '</div>';
+    return true;
 }
 
 async function onRecordingComplete() {
