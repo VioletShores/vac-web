@@ -463,6 +463,7 @@ let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
+let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
 let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
@@ -534,6 +535,7 @@ function startAVChecks() {
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
     _handStableFrames = 0;
+    _handUnstableFrames = 0;
     _micLoudFrames = 0;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
@@ -713,9 +715,25 @@ function startAVChecks() {
                 const _tickNear = !!lm && _handInTickZone(lm); // F-755h: wider zone gates the Hand✓ tick
                 _camBox.classList.toggle('hand-in-zone', _near);
                 if (avChecks.hand) {
-                    // Already passed — LATCHED. Keep the skeleton drawing for feedback,
-                    // but don't nag the user to re-show their hand once they've proven it.
-                    document.getElementById('avHandHint').style.display='none';
+                    // T-329a (S145 finding 1): LATCHED is no longer permanent. Ready must stay
+                    // backed by zone-ACCEPTED detection (_handNearFaceZone, the real acceptance
+                    // gate — not the wider tick zone). Sustained loss (>=10 consecutive frames
+                    // without _near) regresses back to pending, so a phantom/dropped-hand can't
+                    // ride a stale ✓ (the "All set" false-ready finding).
+                    if (_near) {
+                        _handUnstableFrames = 0;
+                        document.getElementById('avHandHint').style.display='none';
+                    } else {
+                        _handUnstableFrames++;
+                        if (_handUnstableFrames >= 10) {
+                            avChecks.hand = false;
+                            _handStableFrames = 0;
+                            _handUnstableFrames = 0;
+                            setAVStatus('hand','warn','Hand: beside your cheek');
+                            document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek';
+                            document.getElementById('avHandHint').style.display='block';
+                        }
+                    }
                 } else if (lm) {
                     // well-framed? (reuse the same edge logic as the in-challenge guard)
                     let minX=1,maxX=0,minY=1,maxY=0;
@@ -732,18 +750,20 @@ function startAVChecks() {
                     } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
                     else {
                         // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
-                        // F-755d: stability gate — require 5 consecutive good frames so a flickering
-                        // face-phantom (which resets the counter) never reaches the ✓ tick.
+                        // F-755d/T-329a: stability gate — require 5 consecutive frames that are BOTH
+                        // complete AND zone-ACCEPTED (_near, the real _handNearFaceZone gate — not just
+                        // the wider tick zone) so a flickering face-phantom never reaches the ✓ tick.
                         let _ckFin = lm.length === 21;
                         if (_ckFin) { for (let _ci = 0; _ci < 21 && _ckFin; _ci++) { if (!lm[_ci] || !Number.isFinite(lm[_ci].x) || !Number.isFinite(lm[_ci].y)) _ckFin = false; } }
-                        if (_ckFin) {
+                        if (_ckFin && _near) {
                             _handStableFrames++;
                             if (_handStableFrames >= 5) {
-                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none';
+                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; _handUnstableFrames = 0; document.getElementById('avHandHint').style.display='none';
                             } else {
                                 setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
                             }
-                        } else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
+                        } else if (_ckFin) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block'; }
+                        else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
                     }
                 } else {
                     _handStableFrames = 0;
