@@ -959,6 +959,10 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         }
     } finally { ctx.restore(); }
 }
+// S145 finding 3 (THIN-329b): consecutive-frame streak gating the AV pre-flight skeleton
+// DRAW (separate from _handStableFrames, which gates the Hand✓ readiness pill). One bad
+// frame — incomplete landmarks or an implausible wrist — clears it back to zero.
+let _avDrawStreak = 0;
 function _avDrawHand(videoEl, lm){
     const cv=document.getElementById('avHandOverlay');
     if(!cv||!videoEl||!videoEl.videoWidth) return;
@@ -999,14 +1003,24 @@ function _avDrawHand(videoEl, lm){
         }
         ctx.restore();
     })();
-    if(!lm) return;
+    if(!lm) { _avDrawStreak = 0; return; }
     // F-755g: draw skeleton whenever 21 finite landmarks present — zone check removed from draw guard.
     // (_avZone still computed; Hand✓ tick logic in runAVFrame is untouched.)
     let _avLmFin = lm.length === 21;
     if (_avLmFin) { for (let _fi = 0; _fi < 21 && _avLmFin; _fi++) { if (!lm[_fi] || !Number.isFinite(lm[_fi].x) || !Number.isFinite(lm[_fi].y)) _avLmFin = false; } }
     let _avZone = false;
     if (_avLmFin) { try { _avZone = _handNearFaceZone(lm); } catch(_) {} }
-    if (!_avLmFin) return;
+    // S145 finding 3 (THIN-329b): a phantom detection jitters frame to frame and often lands
+    // in the face band (top third of frame) — landmarks reaching this file already cleared the
+    // model's own mid confidence floor (minHandDetectionConfidence/minHandPresenceConfidence
+    // 0.5 in vac-finger-detect.js), so the residual signal available here is completeness +
+    // wrist plausibility. Require the wrist inside the lower two-thirds of the frame, clear of
+    // the edge margins, for >=4 consecutive frames before drawing at all; any single bad frame
+    // (incomplete landmarks or an implausible wrist) clears the streak back to zero.
+    const _avWrist = _avLmFin ? lm[0] : null;
+    const _avWristPlausible = !!_avWrist && _avWrist.y >= (1 / 3) && _avWrist.x >= 0.04 && _avWrist.x <= 0.96;
+    _avDrawStreak = (_avLmFin && _avWristPlausible) ? (_avDrawStreak + 1) : 0;
+    if (!_avLmFin || _avDrawStreak < 4) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
