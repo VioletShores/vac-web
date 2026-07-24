@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<meta name="robots" content="noindex,nofollow">
+<title>Feedback Board</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--panel:#101827;--line:#1E2A3D;--ink:#E8EDF5;--dim:#93A1B8;--gold:#D4A94E;--gold-dim:#8A7233;--green:#5FB87A;--blue:#6FA8DC}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#fff}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);padding:0 0 70px}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
+  header{padding:34px 0 22px;border-bottom:1px solid var(--line)}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:24px}
+  .stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:.05em;margin-top:3px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0}
+  .card h3{font-size:15px;font-weight:600;margin-bottom:6px}
+  .card p{font-size:13.5px;line-height:1.55}
+  .card .dim{color:var(--dim);font-size:12.5px}
+  .meta{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.05em;color:var(--gold-dim);margin-bottom:8px}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;padding:2px 8px;border-radius:14px;border:1px solid var(--line);color:var(--dim);margin-left:6px;vertical-align:middle}
+  .pill.short{border-color:var(--gold-dim);color:var(--gold)}
+  .pill.build{border-color:var(--green);color:var(--green)}
+  a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(212,169,78,.4);text-underline-offset:3px}
+  .foot{font-size:11.5px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
+</style>
+</head>
+<body data-build="FB-S147.1">
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <h1>Feedback Board</h1>
+  <div class="stamp">Every chip submission, tracked to its outcome · Fri 24 Jul 2026 · S147</div>
+</header>
+
+<div class="card">
+  <div class="meta">#1 · MONEY section · 06:59 today · classified SHORT (sprint)</div>
+  <h3>Spend visibility + budget rail <span class="pill short">F-936 · queued</span></h3>
+  <p>"Are you linked to email connectors to see when money is spent? Right now I don't know how much I'm spending."</p>
+  <p class="dim">Becomes: Gmail spend-email sensing → real running totals per provider on the hub Money section → budget caps as a policy rail → breach alerts to WhatsApp. Queued behind the sentinel envelope work.</p>
+</div>
+
+<div class="card">
+  <div class="meta">#2 + #3 · COUNTERPART ACTIVITY section · 07:29 + 08:25 today · classified SHORT→MEDIUM</div>
+  <h3>Admin usage dashboard — who's using it, what worked, what failed <span class="pill short">F-940 · queued, priority reinforced</span></h3>
+  <p>"I'd really like to see who is using it and admin-level summaries — what worked / what failed." · "What is status on a user dashboard so I can see where my users are at."</p>
+  <p class="dim">Becomes: per-user sessions, ceremonies attempted/passed/failed with reasons, pages opened, last seen — daily rollup by the dreams brief job. Builds on live page beacons + ceremony outcomes already in the product database + the half-built identity rollup. Asked twice in one morning — priority raised accordingly.</p>
+</div>
+
+<div class="card">
+  <h3>How this board works</h3>
+  <p class="dim">Today: your chip messages land in the product's feedback store with their section context; I sweep them each session, classify the horizon (immediate / short / medium / long), and update this page by hand. Target: the nightly dreams triage job does the sweep and classification, and this page regenerates itself — sentinel-authored, honest stamps. If the stamp above looks old, the sweep hasn't run.</p>
+</div>
+
+<div class="foot">Back to <a href="https://vacprotocol.org/p/rob-hub-0f17c4a9ab36.html">Morning Command</a>. Submit more: any "+ feedback" chip on any hub section.</div>
+
+</div></div>
+</body>
+</html>
