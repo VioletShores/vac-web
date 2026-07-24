@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<meta name="robots" content="noindex,nofollow">
+<title>L0 Protocol — Dev Status</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--panel:#101827;--line:#1E2A3D;--ink:#E8EDF5;--dim:#93A1B8;--gold:#D4A94E;--gold-dim:#8A7233;--green:#5FB87A;--red:#D9705F;--blue:#6FA8DC}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#fff}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);padding:0 0 70px}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
+  header{padding:34px 0 22px;border-bottom:1px solid var(--line)}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:24px}
+  .stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:.05em;margin-top:3px}
+  h2{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:30px 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px}
+  .card h3{font-size:15px;font-weight:600;margin-bottom:6px}
+  .card p,.card li{font-size:13.5px;line-height:1.55}
+  .card ul{margin:6px 0 0 18px}
+  .card li{margin-bottom:6px}
+  .card .dim{color:var(--dim);font-size:12.5px}
+  a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(212,169,78,.4);text-underline-offset:3px}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;padding:2px 8px;border-radius:14px;border:1px solid var(--line);color:var(--dim);margin-left:6px;vertical-align:middle}
+  .pill.done{border-color:var(--green);color:var(--green)}
+  .pill.now{border-color:var(--gold);color:var(--gold)}
+  .pill.gap{border-color:var(--red);color:var(--red)}
+  .pill.dec{border-color:var(--blue);color:var(--blue)}
+  .foot{font-size:11.5px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
+</style>
+</head>
+<body data-build="L0-S147.1">
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <h1>L0 Protocol — Dev Status</h1>
+  <div class="stamp">Standing hub page · Fri 24 Jul 2026 · S147 · read from the migration plan + live lanes</div>
+</header>
+
+<div class="card">
+  <p><strong>In one line:</strong> L0 is the unit of work for the whole system — every task runs as a structured packet (planned, executed, verified, sealed), and sentinels are the packet type that never stops: always running, watching, and acting, with a compressed "North Star" of what matters linked across the constellation of all packets.</p>
+</div>
+
+<h2>Complete — the machinery that exists</h2>
+<div class="card">
+  <ul>
+    <li><strong>The packet core</strong> <span class="pill done">complete</span> — the full L0 lifecycle lives in the product; the eight known gaps in it were closed and the closure audited.</li>
+    <li><strong>Dispatch rail</strong> <span class="pill done">live</span> — the product itself can launch build tasks on the Mini (this morning's lanes all rode it).</li>
+    <li><strong>Scheduler</strong> <span class="pill done">live</span> — the daily heartbeat has fired 15,000+ times from production.</li>
+    <li><strong>Memory</strong> <span class="pill done">week-1 shipped</span> — session context read/write plus the hot-facts memory layer, tested 16/16.</li>
+    <li><strong>Messaging</strong> <span class="pill done">approved</span> — WhatsApp send with the approved brief template.</li>
+    <li><strong>Data plane</strong> <span class="pill done">live</span> — routing decisions, attestations, calibration all in the product database.</li>
+  </ul>
+</div>
+
+<h2>The gaps — in build order</h2>
+<div class="card">
+  <h3>1 · North Star envelope into the packet core <span class="pill now">step 1 building today</span></h3>
+  <p>The header that lets a packet run unattended and stay accountable: who authorised it, under which policy, with what budget, and its compressed link into the constellation's shared awareness. Step 1 (structure + tests) is in a lane right now; wiring and the runner follow. This is the single gate for sentinel firing, the dreams cycle, and the sentinel page — three features converged on it today.</p>
+</div>
+<div class="card">
+  <h3>2 · Repo capability <span class="pill dec">decision pending — yours</span></h3>
+  <p>Sentinels can't yet write to the repo, so they can't maintain the boards and watch entries themselves. Design is done: a tightly scoped credential, append-only paths, distinct sentinel identity, CI-enforced. <strong>Open decision for you:</strong> credential held directly by the product (travel-resilient, works when the Mini is off — recommended) versus routing repo writes through the Mini (couples the dailies to Mini uptime).</p>
+</div>
+<div class="card">
+  <h3>3 · Sentinel runner <span class="pill gap">not built</span></h3>
+  <p>The scheduler graduates from firing bare jobs to executing full packets — plan, execute, verify, seal, remember — with every run linked into the constellation. The dreams cycle's five job types (stitch, compress, triage, scan, brief) all execute here.</p>
+</div>
+<div class="card">
+  <h3>4 · Migrate the dailies <span class="pill gap">after runner</span></h3>
+  <p>Heartbeat v2, the nightly standards/market scan (finally honest — no chat ritual), the routing-integrity audit, and the strategic review each become a sentinel packet with a receipt.</p>
+</div>
+<div class="card">
+  <h3>5 · Command surface <span class="pill gap">last</span></h3>
+  <p>You reply on WhatsApp — approve, re-prioritise, dispatch, "brief me on X" — and the product parses and acts. Authority rule stands: sentinels recommend; only your reply or a policy rail changes priorities.</p>
+</div>
+
+<h2>The gate — when daily ops moves to AthenaPilot</h2>
+<div class="card">
+  <p>Measurable, no vibes: <strong>seven consecutive days</strong> where every brief you receive was produced by sentinel packets with honest stamps, <strong>plus</strong> at least one successful WhatsApp command round-trip per day, <strong>plus</strong> the Engine Room green on sentinel commit discipline. Then chat becomes deep-work only.</p>
+</div>
+
+<div class="foot">Back to <a href="https://vacprotocol.org/p/rob-hub-0f17c4a9ab36.html">Morning Command</a>. Sources: the sentinel migration plan (20 Jul), the L0 readiness roadmap, and today's live lane state.</div>
+
+</div></div>
+</body>
+</html>
