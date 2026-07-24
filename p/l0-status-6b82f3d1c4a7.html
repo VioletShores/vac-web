@@ -32,7 +32,7 @@
   .foot{font-size:11.5px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
 </style>
 </head>
-<body data-build="L0-S147.1">
+<body data-build="L0-S147.2">
 <div class="page-shell">
 <div class="wrap">
 
@@ -63,8 +63,8 @@
   <p>The header that lets a packet run unattended and stay accountable: who authorised it, under which policy, with what budget, and its compressed link into the constellation's shared awareness. Step 1 (structure + tests) is in a lane right now; wiring and the runner follow. This is the single gate for sentinel firing, the dreams cycle, and the sentinel page — three features converged on it today.</p>
 </div>
 <div class="card">
-  <h3>2 · Repo capability <span class="pill dec">decision pending — yours</span></h3>
-  <p>Sentinels can't yet write to the repo, so they can't maintain the boards and watch entries themselves. Design is done: a tightly scoped credential, append-only paths, distinct sentinel identity, CI-enforced. <strong>Open decision for you:</strong> credential held directly by the product (travel-resilient, works when the Mini is off — recommended) versus routing repo writes through the Mini (couples the dailies to Mini uptime).</p>
+  <h3>2 · Repo capability <span class="pill now">DECIDED + deploying</span></h3>
+  <p>You decided (product-held credential, Mini-independent) and minted the scoped token from the airport; the commit helper passed security review and is merged — the current deploy activates it. Enforcement is double: the code refuses any path outside the sentinel's append-only lane (traversal-safe), and a CI guard fails the build if a sentinel-authored commit ever lands outside it anyway. Your visible proof, coming soon: commits authored by <em>athena-sentinel</em> appearing in the repo history.</p>
 </div>
 <div class="card">
   <h3>3 · Sentinel runner <span class="pill gap">not built</span></h3>
