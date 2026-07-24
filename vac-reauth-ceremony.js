@@ -1118,6 +1118,11 @@ function _avDrawHand(videoEl, lm){
     // THIN-329d selection: same position as the incumbent extends it (challenger lapses);
     // same position as the challenger grows it, promoting it once it exceeds the incumbent;
     // an unrecognized position starts a fresh challenger (incumbent holds, still drawn).
+    // RE-GATE-352 finding 4 residual: an unrecognized position used to hard-overwrite an
+    // EXISTING challenger to streak 1, so an actively-jittering phantom re-appearing at a
+    // new stray spot every frame kept resetting a real hand's challenger streak before it
+    // could out-build the incumbent. Give the challenger slot the same grace as the
+    // incumbent: decay it by 1 on a miss and only evict (replace) it once it hits 0.
     if (_avActiveWrist && _avDist(_avActiveWrist, _avWrist) < _AV_CANDIDATE_DIST) {
         _avActiveWrist = _avWrist; _avActiveStreak = Math.min(_AV_INCUMBENT_STREAK_CAP, _avActiveStreak + 1);
         _avChallengerWrist = null; _avChallengerStreak = 0;
@@ -1129,6 +1134,9 @@ function _avDrawHand(videoEl, lm){
         }
     } else if (!_avActiveWrist) {
         _avActiveWrist = _avWrist; _avActiveStreak = 1;
+    } else if (_avChallengerWrist) {
+        _avChallengerStreak = Math.max(0, _avChallengerStreak - 1);
+        if (_avChallengerStreak === 0) { _avChallengerWrist = _avWrist; _avChallengerStreak = 1; }
     } else {
         _avChallengerWrist = _avWrist; _avChallengerStreak = 1;
     }
