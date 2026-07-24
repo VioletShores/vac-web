@@ -44,7 +44,7 @@
   .stampline{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold-dim);margin-top:8px;letter-spacing:.05em}
 </style>
 </head>
-<body data-build="S147.6">
+<body data-build="S147.7">
 <div class="page-shell">
 <div class="wrap">
 
@@ -70,15 +70,15 @@
   const acts = [
     {from:'2026-07-24T06:00:00+01:00', to:'2026-07-24T10:00:00+01:00',
      title:'One action before the meetings: reply to Justin',
-     body:'He confirmed lunch — "1pm at The Natural Kitchen, right by our office." Reply link-free now (his thread, one tap below). The linked follow-up goes only after tonight\u2019s walk-test passes. Bag-drop Liverpool St before Elizabeth.',
-     btn:'Open Justin\u2019s email', url:'https://mail.google.com/mail/u/0/#inbox/19f8e74d902a760c'},
+     body:'He confirmed lunch — "1pm at The Natural Kitchen, right by our office." Reply link-free now (his thread, one tap below). The linked follow-up goes only after tonight’s walk-test passes. Bag-drop Liverpool St before Elizabeth.',
+     btn:'Open Justin’s email', url:'https://mail.google.com/mail/u/0/#inbox/19f8e74d902a760c'},
     {from:'2026-07-24T10:00:00+01:00', to:'2026-07-24T12:15:00+01:00',
      title:'Elizabeth — BRIQ, 469 Bethnal Green Rd, ~10:30\u201311:00',
      body:'GEP grants doorway. In person, verbal-only on traction. Her refresher page is in Boards below if you want it on the walk.',
      btn:'Directions to BRIQ', url:'https://maps.google.com/?q=BRIQ+469+Bethnal+Green+Road+London'},
     {from:'2026-07-24T12:15:00+01:00', to:'2026-07-24T15:00:00+01:00',
      title:'Justin Barrow — 1pm, The Natural Kitchen',
-     body:'In-person demo from your phone is the plan (his office is next door). Revenue frame: one-pager ships once demo links are live \u2014 tonight\u2019s merge decision feeds this.',
+     body:'In-person demo from your phone is the plan (his office is next door). Revenue frame: one-pager ships once demo links are live — tonight’s merge decision feeds this.',
      btn:'The Natural Kitchen', url:'https://maps.google.com/?q=The+Natural+Kitchen+London'},
     {from:'2026-07-24T17:00:00+01:00', to:'2026-07-24T23:00:00+01:00',
      title:'Evening walk-test: preflight fixes + quick-auth regression',
@@ -90,7 +90,7 @@
   if(!pick){ pick = acts.find(a => now < new Date(a.from)); if(pick){ pick = Object.assign({}, pick, {title:'Next: '+pick.title}); } }
   if(!pick) return;
   const el = document.getElementById('rightnow');
-  el.innerHTML = '<h2>Today <span class="sub">Fri 24 Jul \u00b7 London revenue day</span></h2><div class="card urgent"><h3>'+pick.title+'</h3><p>'+pick.body+'</p><a class="btn" href="'+pick.url+'">'+pick.btn+'</a></div>';
+  el.innerHTML = '<h2>Today <span class="sub">Fri 24 Jul · London revenue day</span></h2><div class="card urgent"><h3>'+pick.title+'</h3><p>'+pick.body+'</p><a class="btn" href="'+pick.url+'">'+pick.btn+'</a></div>';
 })();
 </script>
 <div class="card">
@@ -103,13 +103,13 @@
 <h2>Taps owed <span class="sub">sensor-swept 08:05 — only real items shown</span></h2>
 <div class="card urgent">
   <h3>Reply to Justin — link-free confirm</h3>
-  <p class="dim">Sensor note: your Gmail drafts aren\u2019t readable from this tooling, so I can\u2019t confirm Wednesday\u2019s staged draft. If it\u2019s not there, this reply works: <em>"Perfect \u2014 see you at 1 at The Natural Kitchen. I\u2019ll bring the working system on my phone. Rob"</em></p>
+  <p class="dim">Sensor note: your Gmail drafts aren’t readable from this tooling, so I can’t confirm Wednesday’s staged draft. If it’s not there, this reply works: <em>"Perfect — see you at 1 at The Natural Kitchen. I’ll bring the working system on my phone. Rob"</em></p>
   <a class="btn" href="https://mail.google.com/mail/u/0/#inbox/19f8e74d902a760c">Open his thread</a>
 </div>
 <div class="card">
   <h3>Scheduled, not owed today</h3>
   <ul>
-    <li>OAuth list post — <strong>Wed 29 Jul, 9:00am UK</strong>. Locked with the chair\u2019s blessing (Rifaat replied in 11 minutes; you acked). Calendar reminders set. Weekend prep: read the identity-chaining draft, resolve the one [VERIFY] sentence.</li>
+    <li>OAuth list post — <strong>Wed 29 Jul, 9:00am UK</strong>. Locked with the chair’s blessing (Rifaat replied in 11 minutes; you acked). Calendar reminders set. Weekend prep: read the identity-chaining draft, resolve the one [VERIFY] sentence.</li>
     <li>Merge decision — waits on the last build lane + re-review, then your walk-test tonight.</li>
   </ul>
 </div>
@@ -118,23 +118,23 @@
 <h2>Overnight build <span class="sub">as of 08:05 · lanes + gates read from source</span></h2>
 <div class="card">
   <h3>Camera/mic pre-check honesty fixes <span class="pill run">3 of 3 gap-fixes landed</span></h3>
-  <p><strong>What:</strong> the six fixes for the "false-ready ✓" problem (a phantom hand or noisy room ticking the checks green) were built overnight and put through two independent reviews. The adversarial review found three real gaps; all three gap-fixes are now pushed: the mic check seeds itself from ambient noise so a loud room can\u2019t self-pass, a stuck phantom hand now decays and loses to a real hand, and the quick-auth meter cleans up after itself.</p>
-  <p style="margin-top:6px"><strong>Means:</strong> the pre-check panel should now tell the truth in the restaurant scene that caught it. <strong>Strategy:</strong> this is the trust surface Caroline and Justin see first — an honest "ready" light is the product\u2019s first promise.</p>
+  <p><strong>What:</strong> the six fixes for the "false-ready ✓" problem (a phantom hand or noisy room ticking the checks green) were built overnight and put through two independent reviews. The adversarial review found three real gaps; all three gap-fixes are now pushed: the mic check seeds itself from ambient noise so a loud room can’t self-pass, a stuck phantom hand now decays and loses to a real hand, and the quick-auth meter cleans up after itself.</p>
+  <p style="margin-top:6px"><strong>Means:</strong> the pre-check panel should now tell the truth in the restaurant scene that caught it. <strong>Strategy:</strong> this is the trust surface Caroline and Justin see first — an honest "ready" light is the product’s first promise.</p>
 </div>
 <div class="card">
   <h3>Security read (independent reviewer) <span class="pill wait">concerns, not blockers</span></h3>
-  <p>Confirmed nothing in the branch touches the server\u2019s actual accept/reject decision — the server stays the authority. Two flagged items: the new voice-frequency filter could wrongly reject very quiet or deep voices (the floor is tunable and now visible in the test overlay — check on tonight\u2019s walk), and a leftover-meter bug that one of this morning\u2019s fixes already addressed.</p>
+  <p>Confirmed nothing in the branch touches the server’s actual accept/reject decision — the server stays the authority. Two flagged items: the new voice-frequency filter could wrongly reject very quiet or deep voices (the floor is tunable and now visible in the test overlay — check on tonight’s walk), and a leftover-meter bug that one of this morning’s fixes already addressed.</p>
 </div>
 <div class="card">
   <h3>MERGED — live on the demo <span class="pill run">deployed + byte-verified</span></h3>
-  <p>Your call, done: the six pre-check honesty fixes plus all three review gap-fixes are merged and serving on the live demo. The re-review cleared two of three outright; the third (a jittering phantom can still briefly delay a real hand — a delay, never a false pass) has a one-change finisher building now, plus the voice-frequency filter on a bigger turn budget. Tonight\u2019s walk-test: quiet AND busy-visual scenes, quick-auth finger check, and note if the Mic tick feels slow when you talk immediately.</p>
+  <p>Your call, done: the six pre-check honesty fixes plus all three review gap-fixes are merged and serving on the live demo. The re-review cleared two of three outright; the third (a jittering phantom can still briefly delay a real hand — a delay, never a false pass) has a one-change finisher building now, plus the voice-frequency filter on a bigger turn budget. Tonight’s walk-test: quiet AND busy-visual scenes, quick-auth finger check, and note if the Mic tick feels slow when you talk immediately.</p>
 </div>
 
 <!-- 4 · COUNTERPART ACTIVITY -->
 <h2>Counterpart activity <span class="sub">who opened what</span></h2>
 <div class="card">
-  <p>Visit beacons are live on all six persona pages and the pipeline is proven — you were visitor #1 from Austria on Wednesday night. The programmatic feed isn\u2019t returning data yet (this morning\u2019s API read came back empty), so the Vercel dashboard is the view for now. Identity-level outcomes (who passed/failed a ceremony) come from the backend rollup — that\u2019s one of the two lanes needing a thin restart.</p>
-  <p class="dim" style="margin-top:6px">Caroline\u2019s link went out Wednesday via WhatsApp; her page is the live tribunal demo, so she inherits every merge automatically. No recorded visit from her yet.</p>
+  <p>Visit beacons are live on all six persona pages and the pipeline is proven — you were visitor #1 from Austria on Wednesday night. The programmatic feed isn’t returning data yet (this morning’s API read came back empty), so the Vercel dashboard is the view for now. Identity-level outcomes (who passed/failed a ceremony) come from the backend rollup — that’s one of the two lanes needing a thin restart.</p>
+  <p class="dim" style="margin-top:6px">Caroline’s link went out Wednesday via WhatsApp; her page is the live tribunal demo, so she inherits every merge automatically. No recorded visit from her yet.</p>
   <a class="btn" href="https://vercel.com/violetshores/vac-web/analytics">Open analytics</a>
 </div>
 
@@ -156,16 +156,15 @@
 
 <!-- 7 · MONEY -->
 <h2>Money <span class="sub">silent when clean</span></h2>
-<div class="card"><p class="dim">Clean — no spend alerts or auto-reload notices in this morning\u2019s inbox scan.</p></div>
+<div class="card"><p class="dim">Clean — no spend alerts or auto-reload notices in this morning’s inbox scan.</p></div>
 
 <!-- 8 · BOARDS & SUB-PAGES -->
 <h2>Boards <span class="sub">everything flows from here</span></h2>
 <div class="grid">
   <a class="tile" href="https://vacprotocol.org/p/ietf-brief-4e6123b6f1bb.html">IETF board<span class="dim">standards track · post Wed 29</span></a>
-  <a class="tile" href="https://vacprotocol.org/tribunal-demo">Live demo<span class="dim">Caroline\u2019s surface · walk-test here</span></a>
+  <a class="tile" href="https://vacprotocol.org/tribunal-demo">Live demo<span class="dim">the ceremony — start any counterpart here</span></a>
   <a class="tile" href="https://vacprotocol.org/p/justin-4858d584cec0.html">Justin pager<span class="dim">lunch prep</span></a>
   <a class="tile" href="https://vacprotocol.org/p/eliz-2ed8f504b2ab.html">Elizabeth pager<span class="dim">BRIQ prep</span></a>
-  <a class="tile" href="https://vacprotocol.org/p/l0-status-6b82f3d1c4a7.html">L0 protocol<span class="dim">dev status · envelope building</span></a>
   <a class="tile" href="https://vacprotocol.org/p/feedback-3e91a7c5d2b8.html">Feedback board<span class="dim">your chips → outcomes</span></a>
   <a class="tile" href="https://vacprotocol.org/p/l0-status-6b82f3d1c4a7.html">L0 protocol<span class="dim">sentinels · loop gaps · the gate</span></a>
   <a class="tile" href="https://vacprotocol.org/p/signalrank-8c31d47ab2e9.html">SignalRank<span class="dim">standing status page</span></a>
@@ -176,7 +175,7 @@
 
 <div class="foot">
   This page is the front door — sub-pages flow from it and it is regenerated every morning session. If the stamp above is old, the morning ritual was skipped and this page is stale: say "morning brief" in chat.
-  <div class="stampline">build S147.1 · sections stamped: taps 08:05 · lanes 08:05 · gates read from branch · analytics probed 08:07 · inbox swept 08:00 (all BST)</div>
+  <div class="stampline">build S147.7 · live-edited through the day — the header stamp is the truth; per-section times shown where they matter</div>
 </div>
 
 </div></div>
