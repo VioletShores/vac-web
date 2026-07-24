@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>Architecture — VAC Protocol &amp; Athena, end to end</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--panel:#101827;--line:#1E2A3D;--ink:#E8EDF5;--dim:#93A1B8;--gold:#C9A227;--gold2:#D4A94E;--green:#5FB87A}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#fff}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);padding:0 0 70px}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
+  header{padding:36px 0 22px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:26px;margin-top:6px}
+  .sub{color:var(--dim);font-size:14px;margin-top:8px;line-height:1.55}
+  h2{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:30px 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px}
+  .card p,.card li{font-size:13.5px;line-height:1.6}
+  .card ul{margin:6px 0 0 18px}
+  .card li{margin-bottom:6px}
+  .dim{color:var(--dim);font-size:12.5px}
+  a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(201,162,39,.45);text-underline-offset:3px}
+  a:visited{color:var(--gold)}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.06em;padding:2px 8px;border-radius:12px;border:1px solid var(--green);color:var(--green);margin-left:8px;vertical-align:middle}
+  .flow{font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.9;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;white-space:pre}
+  .foot{font-size:12px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.7}
+</style>
+</head>
+<body data-build="ARCH-S147.1">
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Violet Shores · Working System</div>
+  <h1>The architecture, end to end</h1>
+  <div class="sub">One rail from a verified human to a sealed decision — and the operating system underneath that runs every AI task as an accountable unit of work. A working system running end-to-end; this page describes how the pieces compose.</div>
+</header>
+
+<h2>The stack in one view</h2>
+<div class="flow">VERIFIED HUMAN  (VAC — biometric root, liveness, challenge-response)
+      │
+      ▼
+AUTHORITY &amp; POLICY  (delegation chains · assurance floors · action classes)
+      │
+      ▼
+L0 PACKETS  (every task: plan → execute → verify → seal)
+      │                                   │
+      ▼                                   ▼
+SIGNALRANK ROUTING              THE CONSTELLATION
+(per-domain calibrated          (all packets share awareness;
+ trust picks the model)          sentinels never stop running)
+      │                                   │
+      └────────────┬──────────────────────┘
+                   ▼
+        SEALED, TAMPER-EVIDENT RECEIPTS
+   (who authorised what, under which policy,
+        with which model, at what tier)</div>
+
+<h2>1 · The root — a verified person <span class="pill">running today</span></h2>
+<div class="card">
+  <p>Everything starts from a natural person proven live: multi-modal verification — face, hand gesture, and a spoken random challenge, bound together in real time so cloned voices and replayed video don't pass. From that root, authority is <em>delegated</em> in constrained chains: to colleagues, to organisations, to AI agents — each delegation scoped by action class, amount, purpose, and time. The question every AI system is now being asked — "which human approved this, and how do you know?" — is answered at the protocol layer, not in an application's logs. <a href="https://vacprotocol.org/tribunal-demo">Experience the ceremony</a> (two minutes, phone browser).</p>
+</div>
+
+<h2>2 · Policy — autonomy as configuration <span class="pill">running today</span></h2>
+<div class="card">
+  <p>An organisation sets its position on the autonomy spectrum as policy: a minimum assurance floor (from lightweight liveness to full biometric ceremony) that every authorisation must meet, with per-action rules able to demand more — never less. Human oversight becomes a configured, enforced, evidenced property of the system rather than a procedures document. Changes apply from the next request onward, enforced server-side at verdict time. <a href="https://vacprotocol.org/org-config.html">See the organisation surface</a> (demonstration organisation).</p>
+</div>
+
+<h2>3 · L0 — every task is an accountable packet</h2>
+<div class="card">
+  <p>Beneath the trust layer runs Athena, an operating system whose unit of work is the L0 packet: every task — answering a question, building a feature, producing a report — travels one lifecycle: <span class="dim">planned → researched → executed → verified → deployed → confirmed → attested → fed back</span>. A packet carries its authority (who asked, under which policy), its budget, and its provenance, and it ends in a sealed record. The discipline this buys: nothing runs as an orphan — every piece of AI work in the system can answer for itself afterwards.</p>
+</div>
+
+<h2>4 · The constellation — packets that never stop</h2>
+<div class="card">
+  <p>Packets don't run in isolation: they form a constellation with shared awareness — a compressed "North Star" context that gives each packet knowledge of what matters system-wide. Sentinel packets are the always-running class: they watch, consolidate, and act on schedules — overnight jobs that stitch multi-source research, refresh the knowledge base, triage feedback, and scan the standards and market landscape, each one policy-classified, budget-capped, and sealed like any other work. The design intent in one line: autonomous operation <em>with provenance</em> — a system that can work unattended precisely because every piece of that work remains accountable to a verified human root.</p>
+</div>
+
+<h2>5 · SignalRank — trust as measured evidence <span class="pill">running today</span></h2>
+<div class="card">
+  <p>Which model should do which work is not an opinion here. SignalRank maintains a per-domain trust calibration built from our own harnesses: known-answer challenges across medicine, finance, law, regulation, strategy, code and more — <strong>11,000+ scored challenges across 32 domains</strong>, judged by a multi-family panel with rank-agreement checks, spanning the major frontier and open-source model families (Anthropic, OpenAI, Google, xAI, DeepSeek, Meta, Moonshot among them). Production routing runs on these scores.</p>
+  <ul>
+    <li><strong>No model wins everywhere</strong> — leaders differ by domain, which is the entire case for calibrated routing over single-model loyalty.</li>
+    <li><strong>Measured humility</strong> — every model scores poorly on live-knowledge questions without web access; the system knows this as data, not assumption, and routes accordingly.</li>
+    <li><strong>Evidence over benchmarks</strong> — vendor-published numbers enter the trust graph only when independently reproducible; the rest stay out until we can run them ourselves.</li>
+  </ul>
+</div>
+
+<h2>6 · Standards posture</h2>
+<div class="card">
+  <p>The protocol layer is being shaped in the open: two Internet-Drafts posted to the IETF — <a href="https://datatracker.ietf.org/doc/draft-zagarella-verified-human-root/">draft-zagarella-verified-human-root</a> (rooting agent delegation in a verified natural person) and <a href="https://datatracker.ietf.org/doc/draft-zagarella-autonomy-governor/">draft-zagarella-autonomy-governor</a> (bounded, policy-governed autonomy) — with in-person participation at IETF 126 in Vienna, where the proposed working group on agent audit records and delegation traceability is the natural home for this work. The system is designed to map to NIST 800-63-4 assurance levels, ISO/IEC liveness standards, and the human-oversight and record-keeping articles of the EU AI Act.</p>
+</div>
+
+<h2>How one request flows, end to end</h2>
+<div class="card">
+  <p class="dim">An AI proposes a consequential action → the request declares its action class → policy resolves the required assurance tier → the named human completes the ceremony at that tier → the server seals a receipt binding person, policy, tier, model, and decision → the receipt joins the audit stream any supervisor or counterparty can verify — and the packet that carried all of this feeds its outcome back into the trust graph. One rail, no gaps between "the AI acted" and "a person answerable for it said yes."</p>
+</div>
+
+<div class="foot">
+  Roberto Antonio Zagarella · Violet Shores Pty Ltd · rob@violetshores.com<br>
+  Working system running end-to-end · IP position: 1,000+ claims across 16 filings · <a href="https://vacprotocol.org">vacprotocol.org</a>
+</div>
+
+</div></div>
+</body>
+</html>
