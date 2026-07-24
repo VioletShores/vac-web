@@ -150,3 +150,105 @@ DOM-leak interaction noted above, which is Finding 5's bug, not this one's).
 Recommend: patch findings 2, 4, 5 on this branch (or a thin follow-up) before Rob's device re-test, since
 the restaurant scenario is precisely what all three would need to hold up against. Not merging — per
 lane instructions this stays a review-only gate.
+
+---
+
+## RE-GATE 352 — 2026-07-24, task-329-preflight @ c3acb39
+
+Reviewer: Athena gate lane (adversarial re-read), 2026-07-24
+Scope: ONLY the three finisher commits below, re-checked against Findings 2, 4, 5 above.
+Diff: `vac-reauth-ceremony.js`, e73e650 (f2), 6686f62 (f4), c3acb39 (f5), on top of c50d6d4 (the head
+this GATE-343 review was originally run against).
+
+### Finding 2 (T-329c, ambient-relative mic pill) — e73e650 — **CLEAR** (recurrence path closed), flag below is availability, not a blocker
+
+The documented exploit was: no pre-run history → `_ambientMedian` defaults to `0` → any ≥12% burst in
+the first 3 frames qualifies. e73e650 closes exactly that hole: qualification is now withheld until
+`_micSeeded` is true (`if (_micLoudFrames >= 3 && _micSeeded)`, line 697), which can't happen before a
+real 1.5s sample (`_micSeedLevels`) has been measured and medianed into `_micSeededAmbient` (lines
+678-684). The qualifying floor is then `Math.max(2 * _ambientMedian, 2 * _micSeededAmbient, 12)` (line
+711) — so a ceremony that starts in continuous ambient noise gets that noise folded into the seeded
+floor instead of comparing against a bogus zero, and the pre-existing absolute 12% floor still guards a
+genuinely-quiet seed. Retry is covered too: `retryAVSetup()` re-invokes `startAVChecks()` (line 1623),
+which resets `_micSeedLevels/_micSeedStartT/_micSeededAmbient/_micSeeded` (lines 552-555), so every retry
+gets its own fresh seed window rather than reusing a stale one. No path found where a run can still
+qualify against an unmeasured (zero) baseline. Verdict: **CLEAR** on the documented recurrence.
+
+**Flag (per task instruction — availability nuance, not a block):** the 1.5s seed window is not gated on
+user silence, and the product copy actively invites speech into that exact window. The static
+`avMicPromptText` markup ("Speak now to test your microphone", line 5230) is visible from the moment the
+pre-flight screen renders, `retryAVSetup()` sets the identical string (line 1614) immediately before
+re-arming a fresh seed window, and the sequential-gate guide text shows "Step 2 of N — say a few words to
+test your microphone" (line 1546) for as long as `avChecks.mic` is false — i.e., for the entire seed
+window and beyond. If the user complies (or is already mid-conversation — literally the restaurant case
+this gate exists for) during that first 1.5s, their own voice, not just room noise, gets folded into
+`_micSeededAmbient` via the median. Because the qualifying floor is `2× seeded ambient`, a user whose
+later genuine speech (answering the actual prompt) lands near the same RMS as their seed-window "testing"
+utterance would need to speak roughly twice as loud as their own baseline to ever tick Mic✓. `avChecks.mic`
+gates `allGood` (line 1558) on the full (non-fast) path, so in the worst case this stalls a legitimate
+user at "Mic: checking" rather than falsely passing a fake one — the inverse failure mode of the original
+bug, and non-blocking per the task's framing, but worth tracking: e.g. use a low percentile instead of
+median for the seed sample (so a brief compliant utterance doesn't dominate it), or hold the "speak now"
+copy until after the seed window closes.
+
+### Finding 4 (THIN-329d, candidate-aware streak selection) — 6686f62 — **CHANGES-REQUESTED**: bounds the growth, but the single-challenger-slot eviction path (the original finding's compounding problem #2) is untouched and can still stall a real hand against an actively-jittering phantom
+
+`_AV_INCUMBENT_STREAK_CAP = 12` (line 1049) plus decay-by-1 on invalid frames (lines 1091-1096,
+1112-1117) genuinely closes the "arbitrarily long / effectively forever" framing for a single STEADY
+phantom: the incumbent can no longer accrue an unbounded, practically-unbeatable streak, and the
+challenger now only needs to strictly exceed a capped value (line 1126), so a real hand needs ~13
+uninterrupted frames (~0.2s at 60fps) in the worst case instead of racing an ever-growing number. That is
+a real, substantial fix for problems #1 and #3 as originally written.
+
+However, decay only fires on a *fully-invalid* frame (no landmarks / failed wrist-plausibility). A frame
+where a *different, valid* detection appears elsewhere — exactly what a "jittering/flickering" phantom
+produces, per the findings doc's own description of the failure mode — does not decay the incumbent at
+all. It's routed through the unchanged `else` branch (lines 1130-1133):
+```js
+} else if (!_avActiveWrist) {
+    _avActiveWrist = _avWrist; _avActiveStreak = 1;
+} else {
+    _avChallengerWrist = _avWrist; _avChallengerStreak = 1;
+}
+```
+This unconditionally overwrites the single challenger slot and resets its streak to 1 whenever a new,
+unrecognized position shows up — including a flickering phantom re-entering frame at a slightly different
+spot than either the incumbent or the current challenger. Since there is only one challenger slot, a
+phantom that keeps reappearing at new positions (rather than the same one) keeps evicting the real hand's
+accumulated progress back to 1 before it can ever exceed the (now merely 12-capped, but still nonzero)
+incumbent — the same recurrence shape as the original finding's problem #2 ("an intermittent phantom
+re-flicker mid-attempt keeps zeroing the real hand's progress"), just now bounded in magnitude rather than
+closed. This code path received no changes in 6686f62.
+
+Net: a real improvement (unbounded → bounded, `>=` → `>`), and likely sufficient for the single-steady-
+phantom case the commit message targets, but does not close the documented recurrence for an actively
+jittering phantom, which is the specific shape the findings doc uses to describe the restaurant/clutter
+case. Suggest either giving the challenger slot the same grace/decay treatment (don't hard-overwrite it
+on every new stray position) or tracking more than one challenger candidate.
+
+### Finding 5 (THIN-340, quick-auth mic pill wiring) — c3acb39 — **CLEAR**
+
+The new teardown (`window.__vacGateArmed = false` + `#vacStepVU` removal, lines 3877-3882) sits
+immediately after `_voiceGate.stop()` inside `beginStillCapture`, which is the single point every exit
+path passes through: traced all branches below it (finger client-gate fail-close at line 3900, embedding
+fail-close at line 3927, and the `runFastVerification` success/deny path at line 3932) and confirmed none
+of them can be reached without first executing this teardown — there is no early `return` between where
+`_voiceGate` is armed (`_makeQuickReauthVoiceGate` at line 3599, the only call site of that function) and
+the new disarm line. `#vacStepVU` uses a global DOM id and is appended to either the video-host parent or
+`document.body` (lines 2192-2204), so the `document.getElementById('vacStepVU')` lookup in the new
+teardown finds it regardless of the fast tier's mount-scoping — mirrors the existing line-2461 disarm
+pattern exactly, including the same `try/catch` shape. No new regression found; the fix closes the
+documented DOM-leak recurrence.
+
+### RE-GATE summary
+
+- Finding 2 (e73e650): **CLEAR** — closes the documented exploit. One availability flag noted (seed
+  window is speech-invited by the app's own copy, can inflate the floor against the user) — track, don't
+  block.
+- Finding 4 (6686f62): **CHANGES-REQUESTED** — caps/decays the incumbent, which closes the single-steady-
+  phantom version of the bug, but the untouched single-challenger-slot eviction path (lines 1130-1133)
+  leaves the jittering-phantom recurrence open, just bounded now instead of unbounded.
+- Finding 5 (c3acb39): **CLEAR** — teardown chokepoint verified against every exit path; no new
+  regression.
+
+Not merging — per lane instructions this stays a review-only gate. DO NOT MERGE.
