@@ -457,6 +457,11 @@ function showDeviceInfo() {
 }
 
 // --- Automated AV Checks (adapted from folioAI) ---
+// F-930 (Rob-approved, S147): fused arming — once ALL pre-flight checks land, render the
+// challenge immediately instead of waiting for a Start tap. The Start button stays wired as
+// a fallback (updateAVReady's textContent/onclick are untouched) for anyone who misses the
+// auto-transition. Single constant so this can be killed without touching the trigger logic.
+const AV_FUSED_ARMING = true;
 let avCheckFrame = null;
 let avAudioCtx = null;
 let avAnalyser = null;
@@ -466,6 +471,7 @@ let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
 const AV_HAND_GRACE_MS = 3000; // F-929 (Rob, S147): bounded, VISIBLE grace after hand-drop so one-handed users can reach Start — honesty preserved by the on-chip countdown
 let _handGraceStartT = 0;      // F-929: timestamp when the current grace window opened (0 = not in grace)
+let _fusedArmingFired = false; // F-930: fire-once latch for the AV_FUSED_ARMING auto-transition; reset alongside avChecks on every pre-flight (re-)entry
 let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
 let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
 let _micRunLevels = [];    // T-329c: levels making up the CURRENT sustained >12% run
@@ -544,6 +550,7 @@ function startAVChecks() {
     // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _fusedArmingFired = false;   // F-930: re-arm the fused-arming auto-transition for this fresh pre-flight pass
     _handStableFrames = 0;
     _handUnstableFrames = 0;
     _micLoudFrames = 0;
@@ -1588,12 +1595,32 @@ function updateAVReady() {
     if (allGood && window.__vacAutoProceedChallenge && !challengeIncomplete()) {
         window.__vacAutoProceedChallenge = false;   // fire once
         window.__vacSkipExplainer = true;            // F-563: silent service-error re-run skips the upfront explainer
+        _fusedArmingFired = true;                    // F-930: this IS the auto-transition — don't fire it a second time below
         try { vacDebug('autoretry_preflight_passed'); } catch(_) {}
         // DEFER out of this runAVFrame callback: calling goToChallenge() inline lets the current
         // frame re-schedule the AV loop (the requestAnimationFrame at the end of runAVFrame) AFTER
         // goToChallenge's stopAVChecks() runs, leaving the pre-flight loop (incl FingerDetector.detect)
         // running during recording. A 0ms defer runs after this frame, so stopAVChecks cancels the
         // next scheduled frame before it fires (codex).
+        setTimeout(function(){ try { goToChallenge(); } catch(_) {} }, 0);
+    } else if (AV_FUSED_ARMING && allGood && !_fusedArmingFired && !challengeIncomplete()) {
+        // F-930 (Rob-approved, S147): fused arming — the pre-flight checks ARE the arming
+        // sequence now, so the moment light+mic+hand (or the fast still-detector) land AND the
+        // challenge has arrived, render it immediately instead of waiting on a Start tap. Reuses
+        // the SAME goToChallenge() path Start invokes (no separate challenge-issuance branch to
+        // drift out of sync), on the SAME mediaStream — goToChallenge only calls stopAVChecks()
+        // (cancels the AV rAF loop + closes the audio ctx), it never stops/reacquires the camera
+        // track, so this is a presentation transition only. The Start button is left fully wired
+        // (btn.onclick stays goToChallenge, see requestCamera/updateAVReady above) as the fallback
+        // for anyone who taps before the auto-transition fires or misses it entirely. Does NOT set
+        // __vacSkipExplainer — unlike the silent service-error retry above, this is a first-run
+        // arming, so the user sees the normal challenge intro exactly as a manual Start tap would.
+        // Security: challenge randomness + the server-sealed response are untouched — this only
+        // moves WHEN the client renders an already-issued challenge, never what/how it's issued or
+        // verified. Pre-check stays purely client-advisory, unchanged.
+        _fusedArmingFired = true;   // fire once per pre-flight entry (reset alongside avChecks)
+        try { vacDebug('fused_arming_preflight_passed'); } catch(_) {}
+        // Same defer-out-of-runAVFrame reasoning as the auto-retry branch above (codex).
         setTimeout(function(){ try { goToChallenge(); } catch(_) {} }, 0);
     }
 }
@@ -1612,6 +1639,7 @@ function retryAVSetup() {
     // Stop existing checks
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _fusedArmingFired = false;   // F-930: re-arm the fused-arming auto-transition for this fresh pre-flight pass
     _micLoudFrames = 0;
     _micLevelHistory = [];
     _micRunLevels = [];
@@ -5057,6 +5085,7 @@ function resetBiometricUI(preserveRetryBudget) {
     // 3. Reset the AV preflight gate so light/mic/hand must re-pass — this is what
     //    re-runs the hand preflight that warms the detector.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _fusedArmingFired = false;   // F-930: re-arm the fused-arming auto-transition for the next ceremony run
     // 4. Restore the camera button to its first-run entry point. Run 1 rewired
     //    btnCamera.onclick to goToChallenge (requestCamera resets it again at its end).
     var btnCam = document.getElementById('btnCamera');
