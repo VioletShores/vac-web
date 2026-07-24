@@ -1041,6 +1041,12 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
 let _avActiveWrist = null, _avActiveStreak = 0;
 let _avChallengerWrist = null, _avChallengerStreak = 0;
 const _AV_CANDIDATE_DIST = 0.15; // normalized-coord radius treated as "the same hand"
+// GATE-343 finding 4: the incumbent streak above was uncapped with no decay, so a
+// long-lived phantom could never be out-streaked by a real hand (the challenger would
+// need to match an ever-growing number). Cap the incumbent's effective streak and decay
+// it by 1 on every frame it's absent or implausible; the challenger takes over once its
+// streak exceeds the (possibly decayed) incumbent value, not merely equals it.
+const _AV_INCUMBENT_STREAK_CAP = 12;
 function _avDist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
 function _avDrawHand(videoEl, lm){
     const cv=document.getElementById('avHandOverlay');
@@ -1082,7 +1088,12 @@ function _avDrawHand(videoEl, lm){
         }
         ctx.restore();
     })();
-    if(!lm) { _avActiveWrist = null; _avActiveStreak = 0; _avChallengerWrist = null; _avChallengerStreak = 0; return; }
+    if(!lm) {
+        _avActiveStreak = Math.max(0, _avActiveStreak - 1);
+        if (_avActiveStreak === 0) _avActiveWrist = null;
+        _avChallengerWrist = null; _avChallengerStreak = 0;
+        return;
+    }
     // F-755g: draw skeleton whenever 21 finite landmarks present — zone check removed from draw guard.
     // (_avZone still computed; Hand✓ tick logic in runAVFrame is untouched.)
     let _avLmFin = lm.length === 21;
@@ -1099,19 +1110,20 @@ function _avDrawHand(videoEl, lm){
     const _avWrist = _avLmFin ? lm[0] : null;
     const _avWristPlausible = !!_avWrist && _avWrist.y >= (1 / 3) && _avWrist.x >= 0.04 && _avWrist.x <= 0.96;
     if (!_avLmFin || !_avWristPlausible) {
-        _avActiveWrist = null; _avActiveStreak = 0;
+        _avActiveStreak = Math.max(0, _avActiveStreak - 1);
+        if (_avActiveStreak === 0) _avActiveWrist = null;
         _avChallengerWrist = null; _avChallengerStreak = 0;
         return;
     }
     // THIN-329d selection: same position as the incumbent extends it (challenger lapses);
-    // same position as the challenger grows it, promoting it once it catches the incumbent;
+    // same position as the challenger grows it, promoting it once it exceeds the incumbent;
     // an unrecognized position starts a fresh challenger (incumbent holds, still drawn).
     if (_avActiveWrist && _avDist(_avActiveWrist, _avWrist) < _AV_CANDIDATE_DIST) {
-        _avActiveWrist = _avWrist; _avActiveStreak++;
+        _avActiveWrist = _avWrist; _avActiveStreak = Math.min(_AV_INCUMBENT_STREAK_CAP, _avActiveStreak + 1);
         _avChallengerWrist = null; _avChallengerStreak = 0;
     } else if (_avChallengerWrist && _avDist(_avChallengerWrist, _avWrist) < _AV_CANDIDATE_DIST) {
         _avChallengerWrist = _avWrist; _avChallengerStreak++;
-        if (_avChallengerStreak >= _avActiveStreak) {
+        if (_avChallengerStreak > _avActiveStreak) {
             _avActiveWrist = _avChallengerWrist; _avActiveStreak = _avChallengerStreak;
             _avChallengerWrist = null; _avChallengerStreak = 0;
         }
