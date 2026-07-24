@@ -44,7 +44,7 @@
   .stampline{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold-dim);margin-top:8px;letter-spacing:.05em}
 </style>
 </head>
-<body data-build="S147.1">
+<body data-build="S147.2">
 <div class="page-shell">
 <div class="wrap">
 
@@ -58,7 +58,7 @@
   </svg>
   <div>
     <h1>Rob — Morning Command</h1>
-    <div class="stamp">Refreshed Fri 24 Jul 2026 · 08:10 BST · S147 · London</div>
+    <div class="stamp">Refreshed Fri 24 Jul 2026 · midday BST · S147.2 · London</div>
   </div>
 </header>
 
@@ -126,12 +126,8 @@
   <p>Confirmed nothing in the branch touches the server\u2019s actual accept/reject decision — the server stays the authority. Two flagged items: the new voice-frequency filter could wrongly reject very quiet or deep voices (the floor is tunable and now visible in the test overlay — check on tonight\u2019s walk), and a leftover-meter bug that one of this morning\u2019s fixes already addressed.</p>
 </div>
 <div class="card">
-  <h3>Still in flight <span class="pill q">1 building · 2 need thin restarts</span></h3>
-  <ul>
-    <li>Voice-frequency filter (your insight — filter by voice band, don\u2019t trade thresholds) — still building.</li>
-    <li>Approval/resume flow for escalations and the visitor-activity backend both hit the turn ceiling again; their partial work is safe on branches, thin finishers queued next session.</li>
-  </ul>
-  <p class="dim" style="margin-top:6px">Merge tree: last lane lands → quick re-review of the three gap-fixes → merge → your test → linked Justin email. Fallback (link-free) already covered above.</p>
+  <h3>MERGED — live on the demo <span class="pill run">deployed + byte-verified</span></h3>
+  <p>Your call, done: the six pre-check honesty fixes plus all three review gap-fixes are merged and serving on the live demo. The re-review cleared two of three outright; the third (a jittering phantom can still briefly delay a real hand — a delay, never a false pass) has a one-change finisher building now, plus the voice-frequency filter on a bigger turn budget. Tonight\u2019s walk-test: quiet AND busy-visual scenes, quick-auth finger check, and note if the Mic tick feels slow when you talk immediately.</p>
 </div>
 
 <!-- 4 · COUNTERPART ACTIVITY -->
