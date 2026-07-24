@@ -463,7 +463,16 @@ let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
+let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
 let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
+let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
+let _micRunLevels = [];    // T-329c: levels making up the CURRENT sustained >12% run
+let _micRunStartT = 0;     // T-329c: performance.now() when the current run began
+let _micLastQualifyT = 0;  // T-329c: last time a qualifying (ambient-relative) run occurred — drives 10s regression
+let _micSeedLevels = [];   // GATE-343 f2: levels captured in the first 1.5s after mic-open, before any prompt
+let _micSeedStartT = 0;    // GATE-343 f2: performance.now() when seed collection began
+let _micSeededAmbient = 0; // GATE-343 f2: seeded ambient median — real floor when live pre-run history is thin/empty
+let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has closed
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -534,7 +543,16 @@ function startAVChecks() {
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
     _handStableFrames = 0;
+    _handUnstableFrames = 0;
     _micLoudFrames = 0;
+    _micLevelHistory = [];
+    _micRunLevels = [];
+    _micRunStartT = 0;
+    _micLastQualifyT = 0;
+    _micSeedLevels = [];
+    _micSeedStartT = 0;
+    _micSeededAmbient = 0;
+    _micSeeded = false;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
@@ -647,12 +665,65 @@ function startAVChecks() {
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
             else { bar.style.background = 'var(--text-quaternary)'; }
-            // F-755f: require SUSTAINED level (>= 3 consecutive frames above 12%) to avoid
-            // ambient noise falsely ticking "Mic: working" before the user speaks.
-            if (level > 12) { _micLoudFrames++; } else { _micLoudFrames = 0; }
-            if (_micLoudFrames >= 3 && !avChecks.mic) {
-                setAVStatus('mic', 'good', 'Mic: working');
-                avChecks.mic = true;
+            // T-329c (S145 Finding 2): "Mic: working" must mean the USER's speech was heard during
+            // the speak-now prompt, clear of the ambient floor — not just "12% crossed at some
+            // point" (restaurant ambient alone latched the old absolute-only F-755f bar). Require a
+            // SUSTAINED run (still >= 3 consecutive frames above 12%) whose median level beats 2x
+            // the median of the preceding 2s of levels (ambient-relative, not absolute). A ticked
+            // pill can also regress back to pending if 10s pass with no fresh qualifying run.
+            const _nowT = performance.now();
+            // GATE-343 f2: seed a real ambient baseline from the first 1.5s of frames right after
+            // mic-open, before any prompt — so a ceremony STARTING in noise has something other
+            // than 0 to compare against (see qualify check below).
+            if (!_micSeeded) {
+                if (_micSeedStartT === 0) _micSeedStartT = _nowT;
+                _micSeedLevels.push(level);
+                if (_nowT - _micSeedStartT >= 1500) {
+                    const _seedSorted = _micSeedLevels.slice().sort((a, b) => a - b);
+                    _micSeededAmbient = _seedSorted.length ? _seedSorted[Math.floor(_seedSorted.length / 2)] : 0;
+                    _micSeeded = true;
+                }
+            }
+            _micLevelHistory.push({ t: _nowT, level });
+            while (_micLevelHistory.length && _micLevelHistory[0].t < _nowT - 2000) _micLevelHistory.shift();
+            if (level > 12) {
+                if (_micLoudFrames === 0) _micRunStartT = _nowT;
+                _micLoudFrames++;
+                _micRunLevels.push(level);
+            } else {
+                _micLoudFrames = 0;
+                _micRunLevels = [];
+            }
+            if (_micLoudFrames >= 3 && _micSeeded) {
+                // GATE-343 f2: hold qualification until the seed window has closed — a run
+                // completing WHILE seeding is still in progress means _micSeededAmbient is still
+                // 0 (unmeasured), which is exactly the "starting in noise" false-tick this fix
+                // targets. Withholding here means sustained ambient noise present at mic-open
+                // gets folded into _micSeededAmbient instead of slipping through on the raw floor.
+                const _ambient = _micLevelHistory.filter(e => e.t < _micRunStartT).map(e => e.level).sort((a, b) => a - b);
+                const _ambientMedian = _ambient.length ? _ambient[Math.floor(_ambient.length / 2)] : 0;
+                const _run = _micRunLevels.slice().sort((a, b) => a - b);
+                const _runMedian = _run[Math.floor(_run.length / 2)];
+                // GATE-343 f2: with no pre-run history (ceremony just started) _ambientMedian was
+                // defaulting to 0, so any 3-frame run trivially "qualified" even in sustained
+                // ambient noise. Floor the requirement at 2x the seeded startup ambient, and at an
+                // absolute minimum, so a run can't qualify against a bare 0 baseline.
+                const _qualifyFloor = Math.max(2 * _ambientMedian, 2 * _micSeededAmbient, 12);
+                if (_runMedian > _qualifyFloor) {
+                    _micLastQualifyT = _nowT;
+                    if (!avChecks.mic) {
+                        setAVStatus('mic', 'good', 'Mic: working');
+                        avChecks.mic = true;
+                    }
+                }
+            }
+            if (avChecks.mic && _nowT - _micLastQualifyT > 10000) {
+                avChecks.mic = false;
+                _micLastQualifyT = 0;
+                setAVStatus('mic', 'checking', 'Mic');
+                const _mpt = document.getElementById('avMicPromptText');
+                if (_mpt) _mpt.textContent = 'Speak now to test your microphone';
+                micWaitStart = 0;
             }
         }
 
@@ -713,9 +784,25 @@ function startAVChecks() {
                 const _tickNear = !!lm && _handInTickZone(lm); // F-755h: wider zone gates the Hand✓ tick
                 _camBox.classList.toggle('hand-in-zone', _near);
                 if (avChecks.hand) {
-                    // Already passed — LATCHED. Keep the skeleton drawing for feedback,
-                    // but don't nag the user to re-show their hand once they've proven it.
-                    document.getElementById('avHandHint').style.display='none';
+                    // T-329a (S145 finding 1): LATCHED is no longer permanent. Ready must stay
+                    // backed by zone-ACCEPTED detection (_handNearFaceZone, the real acceptance
+                    // gate — not the wider tick zone). Sustained loss (>=10 consecutive frames
+                    // without _near) regresses back to pending, so a phantom/dropped-hand can't
+                    // ride a stale ✓ (the "All set" false-ready finding).
+                    if (_near) {
+                        _handUnstableFrames = 0;
+                        document.getElementById('avHandHint').style.display='none';
+                    } else {
+                        _handUnstableFrames++;
+                        if (_handUnstableFrames >= 10) {
+                            avChecks.hand = false;
+                            _handStableFrames = 0;
+                            _handUnstableFrames = 0;
+                            setAVStatus('hand','warn','Hand: beside your cheek');
+                            document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek';
+                            document.getElementById('avHandHint').style.display='block';
+                        }
+                    }
                 } else if (lm) {
                     // well-framed? (reuse the same edge logic as the in-challenge guard)
                     let minX=1,maxX=0,minY=1,maxY=0;
@@ -732,18 +819,20 @@ function startAVChecks() {
                     } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
                     else {
                         // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
-                        // F-755d: stability gate — require 5 consecutive good frames so a flickering
-                        // face-phantom (which resets the counter) never reaches the ✓ tick.
+                        // F-755d/T-329a: stability gate — require 5 consecutive frames that are BOTH
+                        // complete AND zone-ACCEPTED (_near, the real _handNearFaceZone gate — not just
+                        // the wider tick zone) so a flickering face-phantom never reaches the ✓ tick.
                         let _ckFin = lm.length === 21;
                         if (_ckFin) { for (let _ci = 0; _ci < 21 && _ckFin; _ci++) { if (!lm[_ci] || !Number.isFinite(lm[_ci].x) || !Number.isFinite(lm[_ci].y)) _ckFin = false; } }
-                        if (_ckFin) {
+                        if (_ckFin && _near) {
                             _handStableFrames++;
                             if (_handStableFrames >= 5) {
-                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none';
+                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; _handUnstableFrames = 0; document.getElementById('avHandHint').style.display='none';
                             } else {
                                 setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
                             }
-                        } else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
+                        } else if (_ckFin) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block'; }
+                        else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
                     }
                 } else {
                     _handStableFrames = 0;
@@ -939,6 +1028,26 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         }
     } finally { ctx.restore(); }
 }
+// S145 finding 3 (THIN-329b): consecutive-frame streak gating the AV pre-flight skeleton
+// DRAW (separate from _handStableFrames, which gates the Hand✓ readiness pill). One bad
+// frame — incomplete landmarks or an implausible wrist — clears it back to zero.
+// S145 finding 4 (THIN-329d): the streak above is CANDIDATE-BLIND — it counts any
+// plausible frame regardless of WHERE the wrist is, so with numHands:1 flipping
+// frame-to-frame between a lingering phantom and a freshly-raised real hand, the
+// phantom's long-held streak keeps winning the draw even once the real hand starts
+// appearing. Track the streak PER candidate position (wrist proximity = same hand);
+// a challenger must build a streak >= the incumbent's before it takes over — a
+// stable real hand displaces a lingering phantom instead of flickering against it.
+let _avActiveWrist = null, _avActiveStreak = 0;
+let _avChallengerWrist = null, _avChallengerStreak = 0;
+const _AV_CANDIDATE_DIST = 0.15; // normalized-coord radius treated as "the same hand"
+// GATE-343 finding 4: the incumbent streak above was uncapped with no decay, so a
+// long-lived phantom could never be out-streaked by a real hand (the challenger would
+// need to match an ever-growing number). Cap the incumbent's effective streak and decay
+// it by 1 on every frame it's absent or implausible; the challenger takes over once its
+// streak exceeds the (possibly decayed) incumbent value, not merely equals it.
+const _AV_INCUMBENT_STREAK_CAP = 12;
+function _avDist(a, b){ return Math.hypot(a.x - b.x, a.y - b.y); }
 function _avDrawHand(videoEl, lm){
     const cv=document.getElementById('avHandOverlay');
     if(!cv||!videoEl||!videoEl.videoWidth) return;
@@ -979,14 +1088,53 @@ function _avDrawHand(videoEl, lm){
         }
         ctx.restore();
     })();
-    if(!lm) return;
+    if(!lm) {
+        _avActiveStreak = Math.max(0, _avActiveStreak - 1);
+        if (_avActiveStreak === 0) _avActiveWrist = null;
+        _avChallengerWrist = null; _avChallengerStreak = 0;
+        return;
+    }
     // F-755g: draw skeleton whenever 21 finite landmarks present — zone check removed from draw guard.
     // (_avZone still computed; Hand✓ tick logic in runAVFrame is untouched.)
     let _avLmFin = lm.length === 21;
     if (_avLmFin) { for (let _fi = 0; _fi < 21 && _avLmFin; _fi++) { if (!lm[_fi] || !Number.isFinite(lm[_fi].x) || !Number.isFinite(lm[_fi].y)) _avLmFin = false; } }
     let _avZone = false;
     if (_avLmFin) { try { _avZone = _handNearFaceZone(lm); } catch(_) {} }
-    if (!_avLmFin) return;
+    // S145 finding 3 (THIN-329b): a phantom detection jitters frame to frame and often lands
+    // in the face band (top third of frame) — landmarks reaching this file already cleared the
+    // model's own mid confidence floor (minHandDetectionConfidence/minHandPresenceConfidence
+    // 0.5 in vac-finger-detect.js), so the residual signal available here is completeness +
+    // wrist plausibility. Require the wrist inside the lower two-thirds of the frame, clear of
+    // the edge margins, for >=4 consecutive frames before drawing at all; any single bad frame
+    // (incomplete landmarks or an implausible wrist) clears the streak back to zero.
+    const _avWrist = _avLmFin ? lm[0] : null;
+    const _avWristPlausible = !!_avWrist && _avWrist.y >= (1 / 3) && _avWrist.x >= 0.04 && _avWrist.x <= 0.96;
+    if (!_avLmFin || !_avWristPlausible) {
+        _avActiveStreak = Math.max(0, _avActiveStreak - 1);
+        if (_avActiveStreak === 0) _avActiveWrist = null;
+        _avChallengerWrist = null; _avChallengerStreak = 0;
+        return;
+    }
+    // THIN-329d selection: same position as the incumbent extends it (challenger lapses);
+    // same position as the challenger grows it, promoting it once it exceeds the incumbent;
+    // an unrecognized position starts a fresh challenger (incumbent holds, still drawn).
+    if (_avActiveWrist && _avDist(_avActiveWrist, _avWrist) < _AV_CANDIDATE_DIST) {
+        _avActiveWrist = _avWrist; _avActiveStreak = Math.min(_AV_INCUMBENT_STREAK_CAP, _avActiveStreak + 1);
+        _avChallengerWrist = null; _avChallengerStreak = 0;
+    } else if (_avChallengerWrist && _avDist(_avChallengerWrist, _avWrist) < _AV_CANDIDATE_DIST) {
+        _avChallengerWrist = _avWrist; _avChallengerStreak++;
+        if (_avChallengerStreak > _avActiveStreak) {
+            _avActiveWrist = _avChallengerWrist; _avActiveStreak = _avChallengerStreak;
+            _avChallengerWrist = null; _avChallengerStreak = 0;
+        }
+    } else if (!_avActiveWrist) {
+        _avActiveWrist = _avWrist; _avActiveStreak = 1;
+    } else {
+        _avChallengerWrist = _avWrist; _avChallengerStreak = 1;
+    }
+    // Only draw when THIS frame belongs to the current winning candidate — a
+    // still-building challenger doesn't flash onto the overlay before it has won.
+    if (_avActiveStreak < 4 || _avDist(_avActiveWrist, _avWrist) >= _AV_CANDIDATE_DIST) return;
     ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
@@ -1445,6 +1593,11 @@ function retryAVSetup() {
     // Stop existing checks
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _micLoudFrames = 0;
+    _micLevelHistory = [];
+    _micRunLevels = [];
+    _micRunStartT = 0;
+    _micLastQualifyT = 0;
     // Stop existing stream
     const video = document.getElementById('videoPreview');
     if (video && video.srcObject) {
@@ -3284,6 +3437,9 @@ function _makeQuickReauthVoiceGate(cfg) {
             analyser.getByteFrequencyData(buf);
             var rms = 0; for (var i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
             rms = Math.sqrt(rms / buf.length) / 255;
+            // S145 finding 5 (F-922 lock-step): the fast/quick-auth single-digit tier runs this
+            // VAD but never showed the mic instrument. Arm the same overlay every speaking surface uses.
+            window.__vacGateArmed = true; _micPillDraw(rms, speechThr, 'q');
             var now = performance.now();
             if (rms < silenceThr) {
                 preOnsetStart = 0; preOnsetMidChecked = false;  // S139: silence aborts pre-onset
@@ -3389,6 +3545,7 @@ async function beginStillCapture() {
     try { var _pc0 = document.querySelector('#step3 .progress-container'); if (_pc0 && _pc0.__qrOrigHTML != null) { _pc0.innerHTML = _pc0.__qrOrigHTML; } } catch(_) {}
     let detectedFingers = null;
     let _fingerFailReason = null;   // F-672: set when NO valid finger count could be captured → fail-closed (never POST detected_fingers:null)
+    let _gateEvidence = [];   // S145 finding 6: per-attempt {stage, detected_finger_count, expected_count, zone_in, attempt_n} — rendered on a client pre-gate fail-close so the user (and Rob) can see WHY, instead of a silent drop to onFallback
     let stillB64 = '';
     // F-637 (L-2224 scope fix): these are STAMPED inside the nested gesture-poll block but READ
     // below at capture time (outside that block). Declared at function scope so the reads resolve.
@@ -3578,6 +3735,18 @@ async function beginStillCapture() {
               if (typeof _polled === 'number' && _polled >= 0) { break; }   // co-occurrence advance confirmed → capture; _pollDetectedFingers stamped at advance (F-637)
               // no advance this window — classify via a raw read (camera still live, pre-teardown).
               var _rawFc = null; try { _rawFc = FingerDetector.detect(_gv); } catch(_) { _rawFc = null; }
+              // S145 finding 6: record this attempt's evidence BEFORE deciding fail-close vs retry, so
+              // a retry that also fails still leaves a trail (every attempt, not just the last one).
+              try {
+                  var _evLm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
+                  _gateEvidence.push({
+                      stage: (_rawFc === null ? 'detector_down' : (_rawFc < 0 ? 'no_hand' : 'unstable')),
+                      detected_finger_count: _rawFc,
+                      expected_count: _expectFingers,
+                      zone_in: !!_evLm && _handNearFaceZone(_evLm),
+                      attempt_n: _fAttempt + 1
+                  });
+              } catch(_) {}
               if (_rawFc === null || (typeof FingerDetector !== 'undefined' && FingerDetector.failed)) { _fingerFailReason = 'finger_detector_down'; break; }   // null → detector down: retry can't recover → fail-closed, NO retry
               if (_fAttempt >= _FINGER_MAX_RETRY) { _fingerFailReason = 'no_finger_after_retry'; break; }   // -1 no hand, retries exhausted → fail-closed
               try { CaptureFeedback.renderGuided(ctx, { digit: _expectFingers, voiceOn: !!_voiceGate, voiceDone: false, handNear: false, gestureLive: false, coachKey: '', voiceHelp: false }); } catch(_) {}   // coachable retry via the shared feedback (camera live) → re-poll
@@ -3713,6 +3882,11 @@ async function beginStillCapture() {
     // stopAudioMonitor is guarded: the fast hosts may lack the #audioLevel element it hides, but
     // its real teardown (cancel rAF, close context, null analyser) runs before that throwable line.
     try { if (_voiceGate) _voiceGate.stop(); } catch(_) {}
+    // GATE-343 finding 5: the quick-auth VAD arms __vacGateArmed + #vacStepVU (line ~3435) but
+    // never disarmed on gate end, leaving a stuck meter on the verdict/evidence screens below.
+    // Same chokepoint as _voiceGate.stop() above → covers every exit path (success, fail-close,
+    // fallback handoff). Mirrors _speechGateOff's teardown.
+    try { window.__vacGateArmed = false; var _sv1 = document.getElementById('vacStepVU'); if (_sv1) _sv1.remove(); } catch(_) {}
     try { if (_audioRec && _audioRec.state && _audioRec.state !== 'inactive') _audioRec.stop(); } catch(_) {}   // F-672: on a fail-close path the audio finalize was skipped — stop the recorder here (no-op on the normal path, already inactive)
     try { stopAudioMonitor(); } catch(_) {}
     // Stop the camera — the still is captured, nothing more to record.
@@ -3733,6 +3907,22 @@ async function beginStillCapture() {
     if (_fingerFailReason || detectedFingers == null) {
         var _ffr = _fingerFailReason || 'no_finger_captured';
         try { vacDebug('fast_reauth_failed', _ffr); } catch(_) {}
+        // S145 finding 6: this is a CLIENT pre-gate stop — the request never reached the server,
+        // so renderQuickReauthVerdict (server-denial path) never runs and the user was previously
+        // dropped straight to onFallback's generic screen with no evidence. Render the same
+        // self-reporting evidence line per attempt, THEN wait for the user to read it before
+        // handing off — mirrors the server-denial Continue-button pattern above.
+        var _rendered = false;
+        try { _rendered = renderClientGateFailure(_ffr, _gateEvidence); } catch(_) { _rendered = false; }
+        if (_rendered) {
+            var _cgBtn = document.getElementById('qrContinueBtn');
+            if (_cgBtn) {
+                _cgBtn.onclick = function(){
+                    if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: ' + _ffr)); } catch(_) {} }
+                };
+                return;
+            }
+        }
         if (CTX && CTX.onFallback) { try { CTX.onFallback(new Error('fast reauth: ' + _ffr)); } catch(_) {} }
         return;
     }
@@ -4014,6 +4204,49 @@ function renderQuickReauthVerdict(res) {
             if (c) c.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
         });
     }
+}
+
+// S145 finding 6: the quick-auth CLIENT pre-gate (beginStillCapture's finger-detection retries)
+// can fail-closed before any POST reaches the server, so renderQuickReauthVerdict above (which
+// only renders SERVER-reported verdicts) never runs. Previously that silently dropped the user
+// straight to CTX.onFallback's generic screen — no evidence, no way to self-correct (Rob: a
+// 3-failure mystery in the field needed a manual ?qa=1 ask to explain). This renders the SAME
+// evidence-card visual style as the modality rows above, one compact line per client attempt:
+// {stage, detected_finger_count, expected_count, zone_in, attempt_n}. Client-side only — the
+// challenge digit is already shown in-session, so no new security surface. Returns true if it
+// rendered into a live host (caller falls back to the direct onFallback handoff otherwise).
+function renderClientGateFailure(reason, evidence) {
+    var host = document.querySelector('#step3 .progress-container')
+        || document.getElementById('challengeText') || document.getElementById('vacGuided');
+    if (!host) return false;
+    if (host.__qrOrigHTML == null) { try { host.__qrOrigHTML = host.innerHTML; } catch(_) {} }
+    try { var _mr = document.getElementById('modalityResults'); if (_mr) _mr.style.display = 'none'; } catch(_) {}
+    try { var _uh = document.getElementById('underHoodContainer'); if (_uh) _uh.style.display = 'none'; } catch(_) {}
+    try { var _vs = document.getElementById('verifySubtitle'); if (_vs) _vs.textContent = 'Quick re-auth was not confirmed — here is what this device checked.'; } catch(_) {}
+    var _reasonMsg = (reason === 'finger_detector_down') ? 'The hand detector could not start on this device.'
+        : (reason === 'no_finger_after_retry') ? "We couldn't get a steady reading of your fingers."
+        : (reason === 'finger_lost_at_capture') ? 'Your hand moved out of frame right at capture.'
+        : "We couldn't confirm your fingers.";
+    var _reasonHtml = '<div style="border:1px solid var(--error);background:rgba(239,68,68,0.10);border-radius:10px;padding:11px 13px;margin-bottom:12px;">'
+        + '<div style="color:var(--error);font-weight:700;font-size:14px;margin-bottom:3px;">Not confirmed — full verification required</div>'
+        + '<div style="color:var(--text-primary);font-size:13px;line-height:1.4;">' + _reasonMsg + '</div>'
+        + '</div>';
+    var _label = '<div style="font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:10px;">Client check evidence — what this device saw, per attempt</div>';
+    var _rows = '';
+    (evidence || []).forEach(function(ev){
+        var _saw = (ev.detected_finger_count == null) ? 'nothing (detector down)' : (ev.detected_finger_count < 0 ? '0' : String(ev.detected_finger_count));
+        var _needed = (ev.expected_count != null) ? String(ev.expected_count) : '?';
+        var _zoneTxt = ev.zone_in ? 'zone IN' : 'zone OUT';
+        _rows += '<div class="qr-mod-row" style="border:1px solid var(--border);border-radius:10px;padding:9px 13px;margin-bottom:6px;background:var(--surface);">'
+            + '<span style="color:var(--text-tertiary);font-family:var(--mono);font-size:10px;letter-spacing:0.5px;text-transform:uppercase;margin-right:8px;">Attempt ' + ev.attempt_n + '</span>'
+            + '<span style="font-size:13px;color:var(--text-primary);">Fingers: saw ' + _saw + ', needed ' + _needed + ' — ' + _zoneTxt + '</span>'
+            + '</div>';
+    });
+    if (!_rows) { _rows = '<div style="color:var(--text-tertiary);font-size:12px;margin-bottom:8px;">No per-attempt evidence was captured for this run.</div>'; }
+    host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _reasonHtml + _label + _rows
+        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Continue →</button>'
+        + '</div>';
+    return true;
 }
 
 async function onRecordingComplete() {
