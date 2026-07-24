@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<meta name="robots" content="noindex,nofollow">
+<title>SignalRank — Status</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0A0F1A;--panel:#101827;--line:#1E2A3D;--ink:#E8EDF5;--dim:#93A1B8;--gold:#D4A94E;--gold-dim:#8A7233;--green:#5FB87A;--red:#D9705F;--blue:#6FA8DC}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#fff}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);padding:0 0 70px}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
+  header{padding:34px 0 22px;border-bottom:1px solid var(--line)}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:24px}
+  .stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:.05em;margin-top:3px}
+  h2{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:30px 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:12px}
+  .card h3{font-size:15px;font-weight:600;margin-bottom:6px}
+  .card p,.card li{font-size:13.5px;line-height:1.55}
+  .card ul{margin:6px 0 0 18px}
+  .card li{margin-bottom:5px}
+  .card .dim{color:var(--dim);font-size:12.5px}
+  a{color:var(--blue);text-decoration:none}
+  .pill{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;padding:2px 8px;border-radius:14px;border:1px solid var(--line);color:var(--dim);margin-left:6px;vertical-align:middle}
+  .pill.live{border-color:var(--green);color:var(--green)}
+  .pill.shadow{border-color:var(--blue);color:var(--blue)}
+  .pill.gap{border-color:var(--red);color:var(--red)}
+  .pill.wait{border-color:var(--gold-dim);color:var(--gold)}
+  .foot{font-size:11.5px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
+</style>
+</head>
+<body data-build="SR-S147.1">
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <h1>SignalRank — Status</h1>
+  <div class="stamp">Standing hub page · refreshed Fri 24 Jul 2026 · S147 · sensor-verified items only</div>
+</header>
+
+<h2>What is live</h2>
+<div class="card">
+  <h3>Model routing <span class="pill live">LIVE in production</span></h3>
+  <p>SignalRank picks the model for AthenaPilot conversation turns in production — trust-graph scores decide, within the sealed authority rails (fail-closed since the routing-authority cleanup: the three hidden default branches are removed, cheapest-on-tie, leader-first cost tiebreak).</p>
+</div>
+<div class="card">
+  <h3>Source trust <span class="pill shadow">SHADOW mode</span></h3>
+  <p>Scoring runs and logs but does not yet steer which sources are used. Promotion to live steering is a deliberate decision, not a default.</p>
+</div>
+<div class="card">
+  <h3>Judging infrastructure <span class="pill live">wired</span></h3>
+  <p>The three-model-family judge panel with rank-agreement checks (Kendall's tau) is in the calibration harness — scores are no longer a single judge's opinion.</p>
+</div>
+
+<h2>Calibration evidence</h2>
+<div class="card">
+  <h3>Domain calibration <span class="pill live">16 sub-domains scored</span></h3>
+  <p>Full sub-domain run across medical, financial, strategy, and regulatory domains with per-domain winners and scores on record — the working proof that trust is domain-specific, not global.</p>
+</div>
+<div class="card">
+  <h3>Coding-domain SignalRank <span class="pill wait">research done, benchmark pending</span></h3>
+  <p>The research pass (harness design, corpus, verdict chain) is written up; the paid benchmark run is spend-gated awaiting a go decision.</p>
+</div>
+<div class="card">
+  <h3>Kimi K3 calibration <span class="pill gap">results doc MISSING</span></h3>
+  <p>The calibration task reported "completed" but the results document never landed — the known completed-is-not-results anomaly. K3 stays suspended from routing until a real table exists. Re-run owed.</p>
+</div>
+
+<h2>Honest gaps</h2>
+<div class="card">
+  <ul>
+    <li><strong>Observability hole:</strong> a majority of WhatsApp turns don't log which model answered — the routing works, but the evidence trail is thin. Fix is scoped, not merged.</li>
+    <li><strong>Trust-score staleness:</strong> newest providers (K3 family, Grok 4.5) have partial or no calibration — they ride defaults or suspension until scored.</li>
+    <li><strong>Cost-weighted trust elevation</strong> is designed (a parallel track) but not built — routing optimises trust within rails, not yet trust-per-dollar.</li>
+  </ul>
+</div>
+
+<h2>Why it matters</h2>
+<div class="card">
+  <p class="dim">SignalRank is the scheduler of the whole operating system: the same trust-graph mechanism that routes models will size dispatch budgets, rank sources, and grade sentinel work. Every calibration table above is also sales evidence — "we measure our models per domain and route on the results" is a line none of the demo audiences' current tools can say.</p>
+</div>
+
+<div class="foot">Standing page — regenerated whenever SignalRank state changes; if the stamp is old, ask for a refresh. Back to <a href="https://vacprotocol.org/p/rob-hub-0f17c4a9ab36.html">Morning Command</a>.</div>
+
+</div></div>
+</body>
+</html>
