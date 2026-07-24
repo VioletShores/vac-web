@@ -464,6 +464,8 @@ let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
+const AV_HAND_GRACE_MS = 3000; // F-929 (Rob, S147): bounded, VISIBLE grace after hand-drop so one-handed users can reach Start — honesty preserved by the on-chip countdown
+let _handGraceStartT = 0;      // F-929: timestamp when the current grace window opened (0 = not in grace)
 let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
 let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
 let _micRunLevels = [];    // T-329c: levels making up the CURRENT sustained >12% run
@@ -791,10 +793,19 @@ function startAVChecks() {
                     // ride a stale ✓ (the "All set" false-ready finding).
                     if (_near) {
                         _handUnstableFrames = 0;
+                        if (_handGraceStartT) { _handGraceStartT = 0; setAVStatus('hand','good','Hand ✓'); }
                         document.getElementById('avHandHint').style.display='none';
                     } else {
-                        _handUnstableFrames++;
-                        if (_handUnstableFrames >= 10) {
+                        // F-929 (Rob, S147): bounded grace window — readiness survives a hand-drop for a
+                        // VISIBLE, time-boxed 3s (countdown on the chip) so a one-handed phone user can
+                        // reach Start. Honesty preserved: explicit, bounded, and the hand returning
+                        // cancels the countdown back to steady ✓. On expiry, full regression as before.
+                        if (!_handGraceStartT) _handGraceStartT = performance.now();
+                        const _gLeft = AV_HAND_GRACE_MS - (performance.now() - _handGraceStartT);
+                        if (_gLeft > 0) {
+                            setAVStatus('hand','good','Hand \u2713 \u2014 start within ' + Math.ceil(_gLeft/1000) + 's');
+                        } else {
+                            _handGraceStartT = 0;
                             avChecks.hand = false;
                             _handStableFrames = 0;
                             _handUnstableFrames = 0;
@@ -827,7 +838,7 @@ function startAVChecks() {
                         if (_ckFin && _near) {
                             _handStableFrames++;
                             if (_handStableFrames >= 5) {
-                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; _handUnstableFrames = 0; document.getElementById('avHandHint').style.display='none';
+                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; _handUnstableFrames = 0; _handGraceStartT = 0; document.getElementById('avHandHint').style.display='none';
                             } else {
                                 setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
                             }
@@ -1118,6 +1129,11 @@ function _avDrawHand(videoEl, lm){
     // THIN-329d selection: same position as the incumbent extends it (challenger lapses);
     // same position as the challenger grows it, promoting it once it exceeds the incumbent;
     // an unrecognized position starts a fresh challenger (incumbent holds, still drawn).
+    // RE-GATE-352 finding 4 residual: an unrecognized position used to hard-overwrite an
+    // EXISTING challenger to streak 1, so an actively-jittering phantom re-appearing at a
+    // new stray spot every frame kept resetting a real hand's challenger streak before it
+    // could out-build the incumbent. Give the challenger slot the same grace as the
+    // incumbent: decay it by 1 on a miss and only evict (replace) it once it hits 0.
     if (_avActiveWrist && _avDist(_avActiveWrist, _avWrist) < _AV_CANDIDATE_DIST) {
         _avActiveWrist = _avWrist; _avActiveStreak = Math.min(_AV_INCUMBENT_STREAK_CAP, _avActiveStreak + 1);
         _avChallengerWrist = null; _avChallengerStreak = 0;
@@ -1129,6 +1145,9 @@ function _avDrawHand(videoEl, lm){
         }
     } else if (!_avActiveWrist) {
         _avActiveWrist = _avWrist; _avActiveStreak = 1;
+    } else if (_avChallengerWrist) {
+        _avChallengerStreak = Math.max(0, _avChallengerStreak - 1);
+        if (_avChallengerStreak === 0) { _avChallengerWrist = _avWrist; _avChallengerStreak = 1; }
     } else {
         _avChallengerWrist = _avWrist; _avChallengerStreak = 1;
     }
