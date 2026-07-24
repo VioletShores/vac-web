@@ -3875,6 +3875,11 @@ async function beginStillCapture() {
     // stopAudioMonitor is guarded: the fast hosts may lack the #audioLevel element it hides, but
     // its real teardown (cancel rAF, close context, null analyser) runs before that throwable line.
     try { if (_voiceGate) _voiceGate.stop(); } catch(_) {}
+    // GATE-343 finding 5: the quick-auth VAD arms __vacGateArmed + #vacStepVU (line ~3435) but
+    // never disarmed on gate end, leaving a stuck meter on the verdict/evidence screens below.
+    // Same chokepoint as _voiceGate.stop() above → covers every exit path (success, fail-close,
+    // fallback handoff). Mirrors _speechGateOff's teardown.
+    try { window.__vacGateArmed = false; var _sv1 = document.getElementById('vacStepVU'); if (_sv1) _sv1.remove(); } catch(_) {}
     try { if (_audioRec && _audioRec.state && _audioRec.state !== 'inactive') _audioRec.stop(); } catch(_) {}   // F-672: on a fail-close path the audio finalize was skipped — stop the recorder here (no-op on the normal path, already inactive)
     try { stopAudioMonitor(); } catch(_) {}
     // Stop the camera — the still is captured, nothing more to record.
