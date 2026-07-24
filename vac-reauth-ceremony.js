@@ -469,6 +469,10 @@ let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the a
 let _micRunLevels = [];    // T-329c: levels making up the CURRENT sustained >12% run
 let _micRunStartT = 0;     // T-329c: performance.now() when the current run began
 let _micLastQualifyT = 0;  // T-329c: last time a qualifying (ambient-relative) run occurred — drives 10s regression
+let _micSeedLevels = [];   // GATE-343 f2: levels captured in the first 1.5s after mic-open, before any prompt
+let _micSeedStartT = 0;    // GATE-343 f2: performance.now() when seed collection began
+let _micSeededAmbient = 0; // GATE-343 f2: seeded ambient median — real floor when live pre-run history is thin/empty
+let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has closed
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -545,6 +549,10 @@ function startAVChecks() {
     _micRunLevels = [];
     _micRunStartT = 0;
     _micLastQualifyT = 0;
+    _micSeedLevels = [];
+    _micSeedStartT = 0;
+    _micSeededAmbient = 0;
+    _micSeeded = false;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
@@ -664,6 +672,18 @@ function startAVChecks() {
             // the median of the preceding 2s of levels (ambient-relative, not absolute). A ticked
             // pill can also regress back to pending if 10s pass with no fresh qualifying run.
             const _nowT = performance.now();
+            // GATE-343 f2: seed a real ambient baseline from the first 1.5s of frames right after
+            // mic-open, before any prompt — so a ceremony STARTING in noise has something other
+            // than 0 to compare against (see qualify check below).
+            if (!_micSeeded) {
+                if (_micSeedStartT === 0) _micSeedStartT = _nowT;
+                _micSeedLevels.push(level);
+                if (_nowT - _micSeedStartT >= 1500) {
+                    const _seedSorted = _micSeedLevels.slice().sort((a, b) => a - b);
+                    _micSeededAmbient = _seedSorted.length ? _seedSorted[Math.floor(_seedSorted.length / 2)] : 0;
+                    _micSeeded = true;
+                }
+            }
             _micLevelHistory.push({ t: _nowT, level });
             while (_micLevelHistory.length && _micLevelHistory[0].t < _nowT - 2000) _micLevelHistory.shift();
             if (level > 12) {
@@ -674,12 +694,22 @@ function startAVChecks() {
                 _micLoudFrames = 0;
                 _micRunLevels = [];
             }
-            if (_micLoudFrames >= 3) {
+            if (_micLoudFrames >= 3 && _micSeeded) {
+                // GATE-343 f2: hold qualification until the seed window has closed — a run
+                // completing WHILE seeding is still in progress means _micSeededAmbient is still
+                // 0 (unmeasured), which is exactly the "starting in noise" false-tick this fix
+                // targets. Withholding here means sustained ambient noise present at mic-open
+                // gets folded into _micSeededAmbient instead of slipping through on the raw floor.
                 const _ambient = _micLevelHistory.filter(e => e.t < _micRunStartT).map(e => e.level).sort((a, b) => a - b);
                 const _ambientMedian = _ambient.length ? _ambient[Math.floor(_ambient.length / 2)] : 0;
                 const _run = _micRunLevels.slice().sort((a, b) => a - b);
                 const _runMedian = _run[Math.floor(_run.length / 2)];
-                if (_runMedian > 2 * _ambientMedian) {
+                // GATE-343 f2: with no pre-run history (ceremony just started) _ambientMedian was
+                // defaulting to 0, so any 3-frame run trivially "qualified" even in sustained
+                // ambient noise. Floor the requirement at 2x the seeded startup ambient, and at an
+                // absolute minimum, so a run can't qualify against a bare 0 baseline.
+                const _qualifyFloor = Math.max(2 * _ambientMedian, 2 * _micSeededAmbient, 12);
+                if (_runMedian > _qualifyFloor) {
                     _micLastQualifyT = _nowT;
                     if (!avChecks.mic) {
                         setAVStatus('mic', 'good', 'Mic: working');
