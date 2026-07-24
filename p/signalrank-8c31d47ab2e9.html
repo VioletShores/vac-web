@@ -32,13 +32,13 @@
   .foot{font-size:11.5px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
 </style>
 </head>
-<body data-build="SR-S147.1">
+<body data-build="SR-S147.2">
 <div class="page-shell">
 <div class="wrap">
 
 <header>
   <h1>SignalRank — Status</h1>
-  <div class="stamp">Standing hub page · refreshed Fri 24 Jul 2026 · S147 · sensor-verified items only</div>
+  <div class="stamp">Standing hub page · refreshed Fri 24 Jul 2026 midday · S147.2 · sensor-verified items only</div>
 </header>
 
 <h2>What is live</h2>
@@ -69,6 +69,21 @@
   <p>The calibration task reported "completed" but the results document never landed — the known completed-is-not-results anomaly. K3 stays suspended from routing until a real table exists. Re-run owed.</p>
 </div>
 
+<h2>Coding SignalRank — the API we planned to ship</h2>
+<div class="card">
+  <h3>Where the test harness actually is <span class="pill wait">research complete · runs not yet fired</span></h3>
+  <p>The research phase finished 18 Jul with zero spend: benchmark landscape mapped (SWE-bench Verified, LiveCodeBench, Aider-polyglot, BigCodeBench all reproducible by us), a five-task-class coding corpus designed to the existing challenge-harness schema with execution-verified scoring (code runs, output checked — no judge opinion needed for most of it), and a cost model. The build itself was awaiting a go — no calibration has run yet, which is why no coding scores exist.</p>
+  <p style="margin-top:6px"><strong>Kimi K3 reality check from the research:</strong> of Moonshot\u2019s published numbers, only SWE-bench Verified (65.8%) and LiveCodeBench (67.2%) are independently reproducible; Terminal-Bench is partially; SWE-Marathon and ProgramBench are internal marketing numbers and stay OUT of our trust graph until we run them ourselves.</p>
+</div>
+<div class="card">
+  <h3>In flight right now <span class="pill live">3 lanes dispatched midday</span></h3>
+  <ul>
+    <li><strong>Coding harness build</strong> (lane 356): code executor + coding corpus + K3 registration, implement only, no spend.</li>
+    <li><strong>K3 calibration re-run</strong> (lane 357): the earlier run reported "completed" without a results table — this one fails by definition unless the scored table lands. Cents-scale provider spend, Rob-authorized. K3 stays suspended from routing until this table exists.</li>
+    <li><strong>WhatsApp model exposure</strong> (lane 358): every WhatsApp reply will log and DISPLAY which model answered — the footer currently says "none" where the model name should be; that goes away, with a fail-loud label if attribution is ever genuinely missing.</li>
+  </ul>
+  <p class="dim" style="margin-top:6px">Next after the harness lands: the budget benchmark run — 8 models across the coding corpus, ~$3.80 estimated — producing the first per-task-class coding trust scores. That table is the launch gate for the public coding leaderboard page and the SignalRank-for-code API ("which model should write this code, with receipts").</p>
+</div>
 <h2>Honest gaps</h2>
 <div class="card">
   <ul>
