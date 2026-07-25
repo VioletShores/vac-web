@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A"><meta name="robots" content="noindex,nofollow"><title>Money</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>:root{--panel:#101827;--line:#1E2A3D;--ink:#E8EDF5;--dim:#93A1B8;--gold:#C9A227}
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif;background:#fff}
+.page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);padding:0 0 70px}
+.wrap{max-width:680px;margin:0 auto;padding:0 20px}
+header{padding:34px 0 18px;border-bottom:1px solid var(--line)}
+h1{font-family:'Fraunces',serif;font-weight:650;font-size:24px}
+.stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);margin-top:3px}
+h2{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin:24px 0 9px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 15px;margin-bottom:10px}
+.frow{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px;line-height:1.4;align-items:baseline}
+.frow:last-child{border-bottom:none}
+.fname{color:var(--ink);font-weight:500;flex:0 0 auto;min-width:110px}
+.fval{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--dim);flex:1;text-align:right}
+.awaiting{color:var(--dim);font-style:italic}
+a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(201,162,39,.4);text-underline-offset:3px}
+.lead{font-size:13.5px;line-height:1.6}
+.banner{background:rgba(201,162,39,.08);border:1px solid rgba(201,162,39,.35);border-radius:10px;padding:10px 15px;font-size:12.5px;line-height:1.5;color:var(--ink)}
+.banner strong{color:var(--gold)}
+.foot{font-size:11.5px;color:var(--dim);margin-top:28px;border-top:1px solid var(--line);padding-top:12px}</style></head>
+<body data-build="MONEY-S147.19"><div class="page-shell"><div class="wrap">
+<header><h1>Money</h1><div class="stamp">spend dashboard scaffold · no live data wired yet · S147</div></header>
+
+<div class="banner"><strong>Scaffold</strong> — live spend wiring is the next lane; no numbers shown are real until a connector is attached.</div>
+
+<h2>Providers</h2>
+<div class="card">
+<div class="frow"><span class="fname">Anthropic</span><span class="fval awaiting">awaiting connector</span></div>
+<div class="frow"><span class="fname">OpenAI</span><span class="fval awaiting">awaiting connector</span></div>
+<div class="frow"><span class="fname">Google</span><span class="fval awaiting">awaiting connector</span></div>
+<div class="frow"><span class="fname">xAI</span><span class="fval awaiting">awaiting connector</span></div>
+<div class="frow"><span class="fname">Groq</span><span class="fval awaiting">awaiting connector</span></div>
+<div class="frow"><span class="fname">DeepSeek</span><span class="fval awaiting">awaiting connector</span></div>
+<div class="frow"><span class="fname">Together</span><span class="fval awaiting">awaiting connector</span></div>
+</div>
+
+<h2>Budget rails</h2>
+<div class="card"><p class="lead">One rail family, three layers: <strong style="color:var(--ink)">P0.8</strong> sets the aggregate cap across all spend, <strong style="color:var(--ink)">F-133</strong> is the per-provider/per-key spend rail underneath it, and <strong style="color:var(--ink)">F-927</strong> caps individual turn budgets so no single call blows past its share. Together they form the COPS/PID cap plan — aggregate ceiling, provider rails, per-turn floor, all enforced from the same policy source.</p></div>
+
+<h2>How this fills</h2>
+<div class="card"><p class="lead">A Gmail connector watches for spend, auto-reload, and receipt emails from each provider, and provider usage APIs are polled directly where available. Both sources land in the same place and populate the provider rows above — until that connector is attached, the rows stay honest placeholders.</p></div>
+
+<div class="foot">Page shell only — build 388 · <a href="https://vacprotocol.org/p/rob-hub-0f17c4a9ab36.html">Hub</a></div>
+</div></div></body></html>
