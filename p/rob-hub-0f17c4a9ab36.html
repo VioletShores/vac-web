@@ -44,7 +44,7 @@
   .stampline{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold-dim);margin-top:8px;letter-spacing:.05em}
 </style>
 </head>
-<body data-build="S147.14">
+<body data-build="S147.15">
 <div class="page-shell">
 <div class="wrap">
 
@@ -115,7 +115,7 @@
   el.innerHTML = '<h2>State of play <span class="sub">one-screen honest read</span></h2>
 <div class="card"><a class="btn" href="https://vacprotocol.org/p/state-of-play-2b9f4e7a1c6d.html">Open the State of Play →</a></div>
 
-<h2>Today <span class="sub">Fri 24 Jul · London revenue day</span></h2><div class="card urgent"><h3>'+pick.title+'</h3><p>'+pick.body+'</p><a class="btn" href="'+pick.url+'">'+pick.btn+'</a></div>';
+<h2>'+(isToday?'Today':'Agenda \u00b7 last set Fri 24 Jul')+' <span class="sub">'+nowLabel+'</span></h2><div class="card urgent"><h3>'+pick.title+'</h3><p>'+pick.body+'</p><a class="btn" href="'+pick.url+'">'+pick.btn+'</a></div>';
 })();
 </script>
 <div class="card">
