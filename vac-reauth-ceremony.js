@@ -2187,6 +2187,7 @@ function beginRecording() {
     let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
     let _speechGateStarted = false;
     let _lastVadRms = 0;             // latest VAD RMS, surfaced to the QA overlay for live calibration
+    let _lastVbRatio = 0;            // BUILD 379: latest voice-band ratio (85Hz-3kHz / all bins), surfaced to the QA overlay
 
     // S145d: shared Mic-pill VU drawer — fast attack (voice snaps the bar up), slow release
     // (decay 0.86/frame ≈ smooth fall), and color hysteresis (green at thr, back to grey only
@@ -2294,6 +2295,21 @@ function beginRecording() {
     const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
     const VAD_ONSET_SUSTAIN_MS = 250; // S139-v2: raised 180→250ms — floor = shortest voiced digit "one/uno" (~250ms phonation). The previous 180ms was vulnerable to two quick desk-taps ~100-150ms apart: the smoothed analyser envelope stayed above threshold continuously across both taps, so the pre-onset timer never reset between them.
     const VAD_VOICE_BAND_FRAC = 0.35; // S139-v2: mid-band 300-3500Hz energy fraction, raised 0.20→0.35. Band narrowed from 0-3.5kHz to exclude LF thump (<300Hz). Desk-tap thumps are sub-200Hz (excluded from mid-band window); voice concentrates formants F1/F2 in 300-3000Hz. Flat-broadband baseline in a 17-bin mid window = ~13.3%, so 0.35 rejects any non-voice signal. Checked at onset-start AND mid-window frames.
+    // BUILD 379 (Rob restaurant fix): a loud BROADBAND room (chatter/clatter) can push rms over
+    // vadSpeechThreshold without being voice-concentrated — false-arming "voiced" and burning the
+    // amplitude-only gate's margin. Rather than lowering the amplitude floor (which just admits more
+    // noise), gate every frame's amplitude-pass on the spectrum ALSO being voice-band-dominant. Wider/
+    // lower band than VAD_VOICE_BAND_FRAC above (85Hz floor, not 300Hz) since this runs on EVERY frame
+    // (not just onset) and must not clip a voice's low formants; the higher ratio (0.55) compensates.
+    const VOICE_BAND_MIN_RATIO = 0.55; // tunable — frame counts as voiced only if this fraction of FFT energy sits in 85Hz-3kHz, AND the existing amplitude gate passes.
+    function _voiceBandRatio(analyser, buf) {
+        var _sr = (analyser.context && analyser.context.sampleRate) || 48000;
+        var _vbStart = Math.ceil(85 * analyser.fftSize / _sr);
+        var _vbEnd = Math.floor(3000 * analyser.fftSize / _sr);
+        var _vbSum = 0, _totSum = 1;
+        for (var _vi = 0; _vi < buf.length; _vi++) { _totSum += buf[_vi]; if (_vi >= _vbStart && _vi <= _vbEnd) _vbSum += buf[_vi]; }
+        return _vbSum / _totSum;
+    }
     const COACH_DEBOUNCE_MS = 600;   // F-599: a coaching candidate must persist this long continuously before it shows — so the hint appears AFTER a genuine failed attempt, not mid-gesture. 'none' clears instantly (no lag on advance/correction).
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
     // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
@@ -2388,6 +2404,8 @@ function beginRecording() {
                 let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
                 rms = Math.sqrt(rms / buf.length) / 255;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
+                const vbRatio = _voiceBandRatio(audioAnalyser, buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
+                _lastVbRatio = vbRatio;  // surfaced to the QA overlay
                 window.__vacGateArmed = true; _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
                 const _now = performance.now();
                 if (rms < vadSilenceThreshold) {
@@ -2398,7 +2416,11 @@ function beginRecording() {
                     if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; }  // S139: silence aborts pre-onset
                     _sawSilence = true;
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
-                } else if (rms > vadSpeechThreshold) {
+                } else if (rms > vadSpeechThreshold && vbRatio >= VOICE_BAND_MIN_RATIO) {
+                    // BUILD 379: amplitude alone crossed the line, but only counts as voiced if the
+                    // energy is also voice-band-dominant — a loud broadband room (restaurant) can
+                    // cross vadSpeechThreshold without qualifying here, and falls through to the
+                    // "neither" branch below (same treatment as a between-thresholds frame).
                     // Accumulate the voiced run from its TRUE onset — even if it starts during the
                     // grace/beat BEFORE the window opens — so a digit begun slightly early still reaches
                     // the duration bar (codex: don't clamp the onset to window-open). The run only STARTS
@@ -2636,13 +2658,14 @@ function beginRecording() {
         try {
           if (typeof QA !== 'undefined' && QA && QA.on) {
             var _rmsVal = _lastVadRms;
-            var _gate = (_rmsVal > vadSpeechThreshold) ? 'voiced'
+            var _vbVal = _lastVbRatio;  // BUILD 379
+            var _gate = (_rmsVal > vadSpeechThreshold && _vbVal >= VOICE_BAND_MIN_RATIO) ? 'voiced'
                       : (_rmsVal < vadSilenceThreshold) ? 'silent' : 'neither';
             var _cliN = (typeof _lastDetectedCount !== 'undefined' && _lastDetectedCount != null) ? _lastDetectedCount : '-';
             var _preMs = (typeof _preOnsetStart !== 'undefined' && _preOnsetStart) ? Math.round(performance.now() - _preOnsetStart) : 0;
             var _rejN = (typeof _rejectedTransients !== 'undefined') ? _rejectedTransients : 0;
             var _rejReason = (typeof _lastRejectReason !== 'undefined' && _lastRejectReason) ? '(' + _lastRejectReason + ')' : '';
-            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  gate:' + _gate + (_preMs ? '  pre:' + _preMs + 'ms' : '') + '  rejTap:' + _rejN + _rejReason;
+            var _rmsText = 'fingers:' + _cliN + '  mic:' + _rmsVal.toFixed(3) + '  vb:' + _vbVal.toFixed(2) + '  gate:' + _gate + (_preMs ? '  pre:' + _preMs + 'ms' : '') + '  rejTap:' + _rejN + _rejReason;
             var _rfsz = Math.max(15, Math.round(cv.width * 0.030));
             ctx.save();
             // counter-flip: cancel the canvas scaleX(-1) so text reads forward
@@ -3089,6 +3112,8 @@ function beginRecording() {
             audioAnalyser.getByteFrequencyData(_buf);
             let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
             _rms = Math.sqrt(_rms / _buf.length) / 255;
+            const _vbRatio = _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
+            _lastVbRatio = _vbRatio;  // surfaced to the QA overlay
             window.__vacGateArmed = true; _micPillDraw(_rms, VAD_SPEECH_RMS_FALLBACK, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)
             // (a) CONNECTED-BUT-SILENT mic detector: sustained genuine near-silence with NO voiced
             // energy → the mic is present but too quiet to ever satisfy the gate. Surface the "we
@@ -3106,7 +3131,9 @@ function beginRecording() {
             } else {
                 _phraseSilentRun = 0;
             }
-            if (_rms > VAD_SPEECH_RMS_FALLBACK) {
+            if (_rms > VAD_SPEECH_RMS_FALLBACK && _vbRatio >= VOICE_BAND_MIN_RATIO) {
+                // BUILD 379: same voice-band gate as the digit tick — amplitude alone isn't enough
+                // in a loud broadband room; a failing vbRatio falls through to the neither-band branch.
                 _phraseSilenceTicks = 0;
                 _phraseVoicedTicks++;
                 // F-595 (A3): the SPEECH sample — this user's greeting loudness on THIS mic+room.
