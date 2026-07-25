@@ -44,7 +44,7 @@
   .stampline{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold-dim);margin-top:8px;letter-spacing:.05em}
 </style>
 </head>
-<body data-build="S147.13">
+<body data-build="S147.14">
 <div class="page-shell">
 <div class="wrap">
 
@@ -106,6 +106,8 @@
      btn:'Tribunal demo', url:'https://vacprotocol.org/tribunal-demo'},
   ];
   const now = new Date();
+  const nowLabel = now.toLocaleString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
+  const isToday = (now.getFullYear()===2026 && now.getMonth()===6 && now.getDate()===24);
   let pick = acts.find(a => now >= new Date(a.from) && now <= new Date(a.to));
   if(!pick){ pick = acts.find(a => now < new Date(a.from)); if(pick){ pick = Object.assign({}, pick, {title:'Next: '+pick.title}); } }
   if(!pick) return;
