@@ -44,7 +44,7 @@
   .stampline{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold-dim);margin-top:8px;letter-spacing:.05em}
 </style>
 </head>
-<body data-build="S147.12">
+<body data-build="S147.13">
 <div class="page-shell">
 <div class="wrap">
 
@@ -58,7 +58,27 @@
   </svg>
   <div>
     <h1>Rob — Morning Command</h1>
-    <div class="stamp">Refreshed Fri 24 Jul 2026 · midday BST · S147.2 · London</div>
+    <div class="stamp" id="stampLine">London</div>
+    <div id="urlbar" style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+      <code id="pageUrl" style="font-family:'JetBrains Mono',monospace;font-size:10.5px;color:#8A7233;background:#0D1420;border:1px solid #1E2A3D;border-radius:6px;padding:3px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></code>
+      <button id="copyUrl" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#D4A94E;background:none;border:1px solid #8A7233;border-radius:6px;padding:3px 9px;cursor:pointer">copy</button>
+      <button id="refreshNow" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#D4A94E;background:none;border:1px solid #8A7233;border-radius:6px;padding:3px 9px;cursor:pointer">refresh &#8635;</button>
+    </div>
+    <script>
+    (function(){
+      var b=document.body.getAttribute('data-build')||'';
+      var u=location.origin+location.pathname;
+      document.getElementById('stampLine').textContent='build '+b+' \u00b7 London \u00b7 '+new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+      document.getElementById('pageUrl').textContent=u;
+      document.getElementById('copyUrl').onclick=function(){
+        (navigator.clipboard?navigator.clipboard.writeText(u):Promise.reject()).then(
+          function(){var x=document.getElementById('copyUrl');x.textContent='copied \u2713';setTimeout(function(){x.textContent='copy';},1500);},
+          function(){var r=document.createRange();r.selectNode(document.getElementById('pageUrl'));window.getSelection().removeAllRanges();window.getSelection().addRange(r);}
+        );
+      };
+      document.getElementById('refreshNow').onclick=function(){location.reload(true);};
+    })();
+    </script>
   </div>
 </header>
 
