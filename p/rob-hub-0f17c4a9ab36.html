@@ -38,13 +38,16 @@
   .row .who{font-weight:600;min-width:88px}
   .row .what{color:var(--dim);flex:1}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:13px;font-weight:600}
+  .tile{display:block;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:10px;padding:12px 14px;font-size:13px;font-weight:600;color:var(--gold);text-decoration:none;position:relative}
+  .tile::after{content:"\2192";position:absolute;right:12px;top:12px;color:var(--gold);opacity:.6;font-weight:400}
+  .tile:visited{color:var(--gold)}
+  a.tile{color:var(--gold)}
   .tile .dim{display:block;font-weight:400;font-size:11.5px;color:var(--dim);margin-top:3px}
   .foot{font-size:11.5px;color:var(--dim);margin-top:36px;border-top:1px solid var(--line);padding-top:14px;line-height:1.6}
   .stampline{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold-dim);margin-top:8px;letter-spacing:.05em}
 </style>
 </head>
-<body data-build="S147.20">
+<body data-build="S147.21">
 <div class="page-shell">
 <div class="wrap">
 
