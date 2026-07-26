@@ -475,6 +475,11 @@ let _micSeedLevels = [];   // GATE-343 f2: levels captured in the first 1.5s aft
 let _micSeedStartT = 0;    // GATE-343 f2: performance.now() when seed collection began
 let _micSeededAmbient = 0; // GATE-343 f2: seeded ambient median — real floor when live pre-run history is thin/empty
 let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has closed
+// F-941 (BUILD 393, restaurant failure): a loud room's ambient floor is broadband/impulsive
+// (plates, chatter, HVAC) while speech concentrates in ~187Hz-3kHz. A run whose energy sits
+// mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
+// see the reduced ambient multiplier at the qualify check below.
+const VOICE_BAND_MIN_RATIO = 0.55;
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
