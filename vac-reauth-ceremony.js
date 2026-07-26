@@ -480,7 +480,7 @@ let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has cl
 // (plates, chatter, HVAC) while speech concentrates in ~187Hz-3kHz. A run whose energy sits
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
 // see the reduced ambient multiplier at the qualify check below.
-const VOICE_BAND_MIN_RATIO = 0.55;
+const VOICE_BAND_MIN_RATIO = 0.45; // S148 field-tune: Rob speaking on a London street read 52% — 0.55 missed real speech; street rumble dilutes the ratio.
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -745,7 +745,7 @@ function startAVChecks() {
                 const _ratioSorted = _micRunRatios.slice().sort((a, b) => a - b);
                 const _runRatioMedian = _ratioSorted.length ? _ratioSorted[Math.floor(_ratioSorted.length / 2)] : 0;
                 const _ambientMult = (_runRatioMedian >= VOICE_BAND_MIN_RATIO) ? 1.15 : 2;
-                const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _ambientMult * _micSeededAmbient, 12);
+                const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _ambientMult * _micSeededAmbient, (_runRatioMedian >= VOICE_BAND_MIN_RATIO) ? 8 : 12); // S148 field-tune: Rob at level 9% speaking outdoors — the flat 12 floor was unreachable; voice-shaped runs may qualify from 8.
                 if (_runMedian > _qualifyFloor) {
                     _micLastQualifyT = _nowT;
                     if (!avChecks.mic) {
@@ -2337,7 +2337,7 @@ function beginRecording() {
     // noise), gate every frame's amplitude-pass on the spectrum ALSO being voice-band-dominant. Wider/
     // lower band than VAD_VOICE_BAND_FRAC above (85Hz floor, not 300Hz) since this runs on EVERY frame
     // (not just onset) and must not clip a voice's low formants; the higher ratio (0.55) compensates.
-    const VOICE_BAND_MIN_RATIO = 0.55; // tunable — frame counts as voiced only if this fraction of FFT energy sits in 85Hz-3kHz, AND the existing amplitude gate passes.
+    const VOICE_BAND_MIN_RATIO = 0.45; // S148 field-tuned (was 0.55) — see line ~483 note. tunable — frame counts as voiced only if this fraction of FFT energy sits in 85Hz-3kHz, AND the existing amplitude gate passes.
     function _voiceBandRatio(analyser, buf) {
         var _sr = (analyser.context && analyser.context.sampleRate) || 48000;
         var _vbStart = Math.ceil(85 * analyser.fftSize / _sr);
