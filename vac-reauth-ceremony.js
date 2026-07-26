@@ -683,8 +683,10 @@ function startAVChecks() {
             bar.style.width = level + '%';
             pct.textContent = level + '%';
             // F-755d: always-visible RMS readout in the Mic pill so Rob can see level on iPhone
+            // F-941 (BUILD 393): append the voice-band ratio so the debug readout shows WHY a
+            // loud-room run does or doesn't qualify at the reduced multiplier, not just the level.
             const _rmsEl = document.getElementById('avRmsReadout');
-            if (_rmsEl && !window.__vacGateArmed) _rmsEl.textContent = '(' + level + '%)';
+            if (_rmsEl && !window.__vacGateArmed) _rmsEl.textContent = '(' + level + '% · voice ' + Math.round(_speechRatio * 100) + '%)';
             if (level > 80) { bar.style.background = 'var(--error)'; }
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
