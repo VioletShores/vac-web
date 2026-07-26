@@ -734,7 +734,16 @@ function startAVChecks() {
                 // defaulting to 0, so any 3-frame run trivially "qualified" even in sustained
                 // ambient noise. Floor the requirement at 2x the seeded startup ambient, and at an
                 // absolute minimum, so a run can't qualify against a bare 0 baseline.
-                const _qualifyFloor = Math.max(2 * _ambientMedian, 2 * _micSeededAmbient, 12);
+                // F-941 (BUILD 393): DUAL-PATH — a run whose energy sits mostly in the voice band
+                // (median speechRatio >= VOICE_BAND_MIN_RATIO) qualifies against a REDUCED 1.15x
+                // ambient multiplier instead of 2x, because voice-shaped energy shouldn't need to
+                // out-shout a restaurant's flat broadband floor. This is a substitution, not an
+                // added AND condition — a run that isn't voice-band-dominant still only needs the
+                // existing strict 2x path (unchanged), so loud non-speech rooms don't get easier.
+                const _ratioSorted = _micRunRatios.slice().sort((a, b) => a - b);
+                const _runRatioMedian = _ratioSorted.length ? _ratioSorted[Math.floor(_ratioSorted.length / 2)] : 0;
+                const _ambientMult = (_runRatioMedian >= VOICE_BAND_MIN_RATIO) ? 1.15 : 2;
+                const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _ambientMult * _micSeededAmbient, 12);
                 if (_runMedian > _qualifyFloor) {
                     _micLastQualifyT = _nowT;
                     if (!avChecks.mic) {
