@@ -469,6 +469,7 @@ let _handGraceStartT = 0;      // F-929: timestamp when the current grace window
 let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
 let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
 let _micRunLevels = [];    // T-329c: levels making up the CURRENT sustained >12% run
+let _micRunRatios = [];    // F-941: voice-band ratios paired frame-for-frame with _micRunLevels
 let _micRunStartT = 0;     // T-329c: performance.now() when the current run began
 let _micLastQualifyT = 0;  // T-329c: last time a qualifying (ambient-relative) run occurred — drives 10s regression
 let _micSeedLevels = [];   // GATE-343 f2: levels captured in the first 1.5s after mic-open, before any prompt
@@ -554,6 +555,7 @@ function startAVChecks() {
     _micLoudFrames = 0;
     _micLevelHistory = [];
     _micRunLevels = [];
+    _micRunRatios = [];
     _micRunStartT = 0;
     _micLastQualifyT = 0;
     _micSeedLevels = [];
@@ -643,6 +645,23 @@ function startAVChecks() {
                 if (dev > maxDev) maxDev = dev;
             }
             const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            // F-941 (BUILD 393): frequency-spectrum data pulled every frame (not just when the
+            // monitor draw below needs it) so the voice-band ratio is available to the
+            // ambient-relative qualify check regardless of __vacGateArmed. bins 1-16 of 128
+            // (fftSize 256 @ 48kHz, ~187Hz-3kHz) hold speech; a restaurant's clatter/HVAC floor
+            // spreads flatter across the full spectrum, so this ratio separates "someone talking
+            // in a loud room" from "the room itself got louder."
+            const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
+            avAnalyser.getByteFrequencyData(_fbuf);
+            let _speechRatio = 0;
+            {
+                let _bandSum = 0, _totalSum = 0;
+                for (let i = 0; i < _fbuf.length; i++) {
+                    _totalSum += _fbuf[i];
+                    if (i >= 1 && i <= 16) _bandSum += _fbuf[i];
+                }
+                _speechRatio = _totalSum > 0 ? (_bandSum / _totalSum) : 0;
+            }
             // S145e (Rob): the Mic-pill VU must run in EVERY phase — greeting included — regardless
             // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
             // does, with rms computed the same way the VAD measures it (so the gold line means the
@@ -653,8 +672,6 @@ function startAVChecks() {
                     // MUST be the SAME quantity the VAD gates measure: FREQUENCY-spectrum rms
                     // (getByteFrequencyData, sqrt-mean/255) — the scale every threshold is tuned in.
                     // The first cut used time-domain rms (~4x smaller for speech) → bar looked dead.
-                    const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
-                    avAnalyser.getByteFrequencyData(_fbuf);
                     let _mrms = 0;
                     for (let i = 0; i < _fbuf.length; i++) _mrms += _fbuf[i] * _fbuf[i];
                     _mrms = Math.sqrt(_mrms / _fbuf.length) / 255;
@@ -697,9 +714,11 @@ function startAVChecks() {
                 if (_micLoudFrames === 0) _micRunStartT = _nowT;
                 _micLoudFrames++;
                 _micRunLevels.push(level);
+                _micRunRatios.push(_speechRatio);
             } else {
                 _micLoudFrames = 0;
                 _micRunLevels = [];
+                _micRunRatios = [];
             }
             if (_micLoudFrames >= 3 && _micSeeded) {
                 // GATE-343 f2: hold qualification until the seed window has closed — a run
@@ -1620,6 +1639,7 @@ function retryAVSetup() {
     _micLoudFrames = 0;
     _micLevelHistory = [];
     _micRunLevels = [];
+    _micRunRatios = [];
     _micRunStartT = 0;
     _micLastQualifyT = 0;
     // Stop existing stream
