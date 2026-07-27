@@ -1084,6 +1084,19 @@ function showSuccess() {
             }));
         } catch(e) {}
         // Update nav badge to show current state
+        // S148 RETURN-CONTRACT (L-2368 seamless rule at the deepest point; field: Jake Bendall
+        // dead-ended here instead of returning to the matters): when this page is TOP-LEVEL
+        // (no parent frame to postMessage back to), the success screen MUST carry the onward tap.
+        try {
+            if (window.parent === window && !document.getElementById('vacContinueBtn')) {
+                var _cb=document.createElement('a'); _cb.id='vacContinueBtn';
+                _cb.href='https://vacprotocol.org/tribunal-demo';
+                _cb.textContent='Continue to the tribunal workflow \u2192';
+                _cb.style.cssText='display:block;margin:18px auto 0;max-width:420px;text-align:center;padding:15px 22px;border-radius:12px;background:#2DD4BF;color:#06121C;font-size:16px;font-weight:800;text-decoration:none;';
+                var _tn2=document.querySelector('#successName')||document.querySelector('.success-name');
+                (_tn2&&_tn2.parentNode?_tn2.parentNode:document.body).appendChild(_cb);
+            }
+        } catch(_e){}
         // S148 TEMPORAL-HONESTY (PN-S148b dim 5 as UI): the verified screen must carry its age.
         try {
             window.__vacVerifiedAt = Date.now();
