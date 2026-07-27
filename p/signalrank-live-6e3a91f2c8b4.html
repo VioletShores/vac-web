@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<meta name="robots" content="noindex,nofollow">
+<title>SignalRank Live — Routing Walkthrough</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--panel:#101827;--line:#1E2A3D;--ink:#E8EDF5;--dim:#93A1B8;--gold:#D4A94E;--gold-dim:#8A7233;--green:#5FB87A;--red:#D9705F}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:#fff}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);padding:0 0 70px}
+  .wrap{max-width:680px;margin:0 auto;padding:0 20px}
+  header{padding:34px 0 20px;border-bottom:1px solid var(--line)}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:24px}
+  .stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);margin-top:3px;letter-spacing:.05em;line-height:1.6}
+  h2{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin:26px 0 10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}
+  .card p{font-size:13.5px;line-height:1.55}
+  .dim{color:var(--dim);font-size:12.5px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  td{padding:5px 4px;border-bottom:1px solid var(--line)}
+  td:last-child{text-align:right;font-family:'JetBrains Mono',monospace;color:var(--gold)}
+  tr:last-child td{border-bottom:none}
+  .m{font-family:'JetBrains Mono',monospace;font-size:11.5px}
+  a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(212,169,78,.4);text-underline-offset:3px}
+  a:visited{color:var(--gold)}
+  .foot{font-size:11.5px;color:var(--dim);margin-top:32px;border-top:1px solid var(--line);padding-top:12px;line-height:1.6}
+
+  .qgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media (max-width:480px){.qgrid{grid-template-columns:1fr}}
+  .qbtn{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:left;cursor:pointer;color:var(--ink);font-family:'Inter',sans-serif;display:block;width:100%}
+  .qbtn:hover{border-color:var(--gold-dim)}
+  .qbtn.active{border-color:var(--gold);background:#141F30}
+  .qbtn .dlabel{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
+  .qbtn .qtext{font-size:12.5px;line-height:1.4;color:var(--ink)}
+
+  .steps{display:none}
+  .steps.show{display:block}
+  .step{opacity:0;transform:translateY(4px);animation:stepIn .35s ease forwards}
+  .step2{animation-delay:.15s}
+  .step3{animation-delay:.3s}
+  @keyframes stepIn{to{opacity:1;transform:translateY(0)}}
+  .stepnum{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:var(--gold-dim);border:1px solid var(--line);border-radius:10px;padding:1px 8px;margin-bottom:8px}
+  .winner{border-color:var(--gold-dim)}
+  .winner .m{color:var(--gold)}
+  .placeholder{font-size:13px;color:var(--dim);font-style:italic}
+  .tienote{margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+</style>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body data-build="SRLIVE-S149.1">
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <h1>SignalRank Live — routing walkthrough</h1>
+  <div class="stamp">Interactive demo · replays the live calibration store snapshot below (11,240 scored challenges) · this is NOT a live per-query run yet — live per-query execution comes next</div>
+</header>
+
+<div class="card"><p><strong>What this is:</strong> pick one of six domain questions. The page walks the routing decision step by step — domain classified, the real top-5 trust scores for that domain, and which model gets the call and why. Every number here is copied from the production calibration store; nothing is simulated. What's simulated is the question itself — no model actually answers it on this page.</p></div>
+
+<h2>Pick a question</h2>
+<div class="qgrid" id="qgrid">
+  <button class="qbtn" data-domain="legal" onclick="selectDomain('legal')">
+    <div class="dlabel">Legal</div>
+    <div class="qtext">Does this indemnification clause conflict with the limitation-of-liability section?</div>
+  </button>
+  <button class="qbtn" data-domain="financial" onclick="selectDomain('financial')">
+    <div class="dlabel">Financial</div>
+    <div class="qtext">Is this SaaS company's ARR growth sustainable given its churn numbers?</div>
+  </button>
+  <button class="qbtn" data-domain="medical" onclick="selectDomain('medical')">
+    <div class="dlabel">Medical</div>
+    <div class="qtext">What are the interaction risks between metformin and this new prescription?</div>
+  </button>
+  <button class="qbtn" data-domain="code" onclick="selectDomain('code')">
+    <div class="dlabel">Code</div>
+    <div class="qtext">Why is this async function causing a race condition in production?</div>
+  </button>
+  <button class="qbtn" data-domain="strategy" onclick="selectDomain('strategy')">
+    <div class="dlabel">Strategy</div>
+    <div class="qtext">Should we enter the European market before or after our Series B?</div>
+  </button>
+  <button class="qbtn" data-domain="market" onclick="selectDomain('market')">
+    <div class="dlabel">Market</div>
+    <div class="qtext">What's the addressable market for enterprise AI compliance tooling?</div>
+  </button>
+</div>
+
+<div id="steps" class="steps">
+  <h2>Routing decision</h2>
+  <div class="card step step1">
+    <div class="stepnum">STEP 1 · CLASSIFY</div>
+    <p id="step1body"></p>
+  </div>
+  <div class="card step step2">
+    <div class="stepnum">STEP 2 · CALIBRATION SNAPSHOT</div>
+    <p class="dim" style="margin-bottom:8px">Live calibration store snapshot · 11,240 scored challenges. Top five models for this domain, real numbers, unedited.</p>
+    <table id="step2table"></table>
+    <div id="step2tienote"></div>
+  </div>
+  <div class="card step step3 winner">
+    <div class="stepnum">STEP 3 · ROUTE</div>
+    <p id="step3body"></p>
+  </div>
+</div>
+
+<div id="placeholderCard" class="card"><p class="placeholder">Pick a question above to see the routing decision unfold.</p></div>
+
+<h2>What's real, what's next</h2>
+<div class="card"><p><strong>Real:</strong> the domain taxonomy, the judge-panel scores, the leader-first / cost-tiebreak-on-tie routing policy. These are the same numbers and the same policy running production traffic today. <strong>Not yet real:</strong> this page does not send your picked question to a model and score the answer live — that's the next build. Today it replays the calibration table that policy was built on.</p></div>
+
+<div class="foot">See the full 32-domain board at <a href="https://vacprotocol.org/p/models-7f2a91c4e8b3.html">The Models</a> · read how routing fits the rest of the system at <a href="https://vacprotocol.org/p/architecture-e2e-5c8d92f1a4b7.html">Architecture, end to end</a>. Back to <a href="https://vacprotocol.org/p/signalrank-8c31d47ab2e9.html">SignalRank status</a>.</div>
+
+</div>
+</div>
+
+<script>
+var DOMAINS = {
+  legal: {
+    label: 'Legal',
+    question: 'Does this indemnification clause conflict with the limitation-of-liability section?',
+    rows: [
+      ['1','Claude Opus 4.7','0.890'],
+      ['2','Grok 4 Fast','0.868'],
+      ['3','Claude Sonnet 4.6','0.856'],
+      ['4','Grok 4','0.847'],
+      ['5','Claude Opus 4.8','0.818']
+    ],
+    tienote: null,
+    why: 'Claude Opus 4.7 wins Legal outright at 0.890 — a 0.022 margin over #2 (Grok 4 Fast, 0.868). No tie at the top, so the leader-first policy routes here with no cost-tiebreak involved.'
+  },
+  financial: {
+    label: 'Financial',
+    question: "Is this SaaS company's ARR growth sustainable given its churn numbers?",
+    rows: [
+      ['1','Claude Opus 4.7','0.927'],
+      ['2','Claude Opus 4.8 / Kimi K2.5','0.909'],
+      ['3','Claude Opus 4.6','0.902'],
+      ['4','Grok 4','0.895'],
+      ['5','Claude Sonnet 4.6','0.892']
+    ],
+    tienote: 'Note the tie one rank down: Claude Opus 4.8 and Kimi K2.5 are dead level at 0.909 for #2. That is exactly the case the cost-tiebreak exists for — cheapest of the two would get it if either were the leader. Here neither is; #1 has a clean 0.018 margin, so it does not apply.',
+    why: 'Claude Opus 4.7 leads Financial at 0.927, 0.018 clear of the #2 tie. Leader-first: no cost decision needed.'
+  },
+  medical: {
+    label: 'Medical',
+    question: 'What are the interaction risks between metformin and this new prescription?',
+    rows: [
+      ['1','Claude Opus 4.7','0.944'],
+      ['2','GPT-5 Mini','0.931'],
+      ['3','Claude Opus 4.8','0.924'],
+      ['4','Claude Opus 4.6 / Grok 4','0.920'],
+      ['5','Claude Sonnet 4.6','0.919']
+    ],
+    tienote: 'Another tie further down the table — Claude Opus 4.6 and Grok 4 both land #4 at 0.920. Same story as Financial: real tie, real tiebreak logic, just not at the position that decides this route.',
+    why: 'Claude Opus 4.7 leads Medical at 0.944, 0.013 ahead of GPT-5 Mini at #2. Leader-first call, no tiebreak needed.'
+  },
+  code: {
+    label: 'Code',
+    question: 'Why is this async function causing a race condition in production?',
+    rows: [
+      ['1','GPT-5.6 Terra','0.972'],
+      ['2','GPT-5.6 Sol / Claude Opus 4.8','0.970'],
+      ['3','GPT-5.5','0.968'],
+      ['4','Claude Opus 4.7','0.965'],
+      ['5','Grok 4','0.963']
+    ],
+    tienote: 'Scores here are judge-scored, not execution-verified yet — the code execution harness is still in build (see The Models board). Treat this table as provisional relative to the other five domains.',
+    why: 'GPT-5.6 Terra technically leads Code at 0.972 — but by only 0.002 over a two-way tie at #2 (GPT-5.6 Sol / Claude Opus 4.8, 0.970). That is within calibration noise: this is the closest call of the six domains shown here. Current policy is strict leader-first regardless of margin size, so Terra gets routed. There is no noise-band override yet that would treat this as a de-facto tie — that is an honest gap, not a hidden one.'
+  },
+  strategy: {
+    label: 'Strategy',
+    question: 'Should we enter the European market before or after our Series B?',
+    rows: [
+      ['1','GPT-5 Mini','0.905'],
+      ['2','GPT-5.4','0.896'],
+      ['3','GPT-5.5','0.894'],
+      ['4','Grok 4','0.889'],
+      ['5','Kimi K2.5','0.883']
+    ],
+    tienote: null,
+    why: 'GPT-5 Mini leads Strategy at 0.905, 0.009 ahead of GPT-5.4. No ties anywhere in this top five — a clean leader-first call.'
+  },
+  market: {
+    label: 'Market',
+    question: "What's the addressable market for enterprise AI compliance tooling?",
+    rows: [
+      ['1','GPT-5 Mini','0.946'],
+      ['2','GPT-5.4','0.928'],
+      ['3','GPT-5.5','0.923'],
+      ['4','Grok 4 Fast','0.832'],
+      ['5','Grok 4','0.826']
+    ],
+    tienote: null,
+    why: 'GPT-5 Mini leads Market analysis at 0.946, 0.018 clear of #2. Leader-first, no tiebreak in play. Note the drop after #3 (0.923 to 0.832) — the GPT-5 family\'s lead here is wide, not a photo finish like Code.'
+  }
+};
+
+function selectDomain(key){
+  var d = DOMAINS[key];
+  if(!d) return;
+
+  var btns = document.querySelectorAll('.qbtn');
+  for(var i=0;i<btns.length;i++){
+    btns[i].classList.toggle('active', btns[i].getAttribute('data-domain') === key);
+  }
+
+  document.getElementById('step1body').innerHTML =
+    'Domain classified: <strong>' + d.label + '</strong>. Matched against the calibration store\'s domain taxonomy (32 domains scored; six shown on this page). Routing now pulls that domain\'s top-5 trust table.';
+
+  var rowsHtml = '';
+  for(var j=0;j<d.rows.length;j++){
+    var r = d.rows[j];
+    rowsHtml += '<tr><td class="dim">' + r[0] + '</td><td class="m">' + r[1] + '</td><td>' + r[2] + '</td></tr>';
+  }
+  document.getElementById('step2table').innerHTML = rowsHtml;
+  document.getElementById('step2tienote').innerHTML = d.tienote
+    ? '<div class="tienote dim">' + d.tienote + '</div>'
+    : '';
+
+  document.getElementById('step3body').innerHTML =
+    '<strong>Routed to ' + d.rows[0][1] + '.</strong> ' + d.why;
+
+  document.getElementById('steps').classList.remove('show');
+  void document.getElementById('steps').offsetWidth;
+  document.getElementById('steps').classList.add('show');
+  document.getElementById('placeholderCard').style.display = 'none';
+}
+</script>
+</body>
+</html>
