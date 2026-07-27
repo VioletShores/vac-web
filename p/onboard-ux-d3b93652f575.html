@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>AthenaPilot — first external user, onboarding UX spec</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#E8E4D8;--dim:#8B8FA3;--line:#1E2536;--gold:#C9A227;--card:#0F1524;--card2:#121A2E;--red:#C46B5B;--green:#6B9E78}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;color:var(--ink)}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;padding:28px 20px 52px}
+  .wrap{max-width:820px;margin:0 auto}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:clamp(23px,4.4vw,31px);line-height:1.16;margin:10px 0 8px}
+  .lead{font-size:14.5px;line-height:1.6;max-width:660px}
+  .lead b{color:var(--gold)}
+  section{margin-top:28px}
+  h2{font-family:'Fraunces',serif;font-weight:650;font-size:18px;margin-bottom:10px}
+  h3{font-size:13px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:18px 0 7px}
+  p,li{font-size:13.5px;line-height:1.6;color:#B9BDCB}
+  ul{margin:8px 0 0 18px}
+  li{margin-bottom:6px}
+  p b,li b{color:var(--ink);font-weight:600}
+  .msg{background:var(--card2);border:1px solid var(--line);border-left:2px solid var(--gold);border-radius:8px;padding:14px 16px;margin-top:10px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.75;color:#CFD3DF;white-space:pre-wrap}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+  .card h4{font-size:12.5px;font-weight:600;margin-bottom:4px;color:var(--ink)}
+  .card h4 span{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold);display:block;margin-bottom:3px;letter-spacing:.08em}
+  .card p{font-size:12.5px}
+  table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px}
+  th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--line);padding:7px 8px 7px 0;font-weight:500}
+  td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);color:#B9BDCB;vertical-align:top}
+  .st-open{color:var(--red)}
+  .st-run{color:var(--gold)}
+  .st-done{color:var(--green)}
+  a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(201,162,39,.45);text-underline-offset:3px}
+  a:visited{color:var(--gold)}
+  .foot{margin-top:34px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--dim);line-height:1.55}
+</style>
+</head>
+<body data-build="S150-onboard-1">
+<div class="page-shell">
+<div class="wrap">
+
+  <div class="eyebrow">Athena · Internal spec · 27 July 2026 · Session 150</div>
+  <h1>First external user — the onboarding experience</h1>
+  <p class="lead">Rob has a candidate first non-Rob user: a senior product and operations person at a fintech, met at the Walmer tennis club, whose stated pain is that leadership is pushing AI adoption with no way to verify or audit the outcome. <b>Her first ten minutes have to demonstrate the argument, not describe it</b> — attribution she can see, limits stated before she trips over them, and one genuinely useful piece of work done in front of her.</p>
+
+  <section>
+    <h2>The design principle</h2>
+    <p>Everything below follows from one rule: <b>the rails are the pitch, not the apology.</b> The product's entire claim is that governed AI beats ungoverned AI. An onboarding that hides what is unfinished would contradict the claim on first contact. So the constraints get stated up front, in her own professional vocabulary, as evidence that the discipline is real.</p>
+    <p>The corollary is that we do not ship her a stripped demo pretending to be a product. She gets a small surface that works completely, and an honest map of the edges.</p>
+  </section>
+
+  <section>
+    <h2>The journey, seven steps</h2>
+    <div class="cols">
+      <div class="card"><h4><span>01</span>Invite</h4><p>Rob sends the one-pager link and the WhatsApp number in person or by message. No app install, no account creation, no password. The channel she already lives in.</p></div>
+      <div class="card"><h4><span>02</span>First message</h4><p>She sends anything. Recognition is by phone number; provisioning happens on first contact against an allowlist, so an unknown number gets a polite decline rather than a session.</p></div>
+      <div class="card"><h4><span>03</span>Welcome</h4><p>One message. Three constraints stated, three capabilities offered, one instruction on how to complain. Copy below — it is the most important artefact on this page.</p></div>
+      <div class="card"><h4><span>04</span>First real task</h4><p>She sends a link — ideally something for her paper. She gets a brief with sources and the model named. This is the moment the argument either lands or does not.</p></div>
+      <div class="card"><h4><span>05</span>Her hub</h4><p>A private page of her own activity: what she asked, what answered, what it cost in confidence terms. The per-user hub route already exists and needs content discipline, not invention.</p></div>
+      <div class="card"><h4><span>06</span>Feedback</h4><p>Plain language in the chat. No form, no rating scale. It routes to Rob and is acknowledged as received, because unacknowledged feedback teaches people to stop giving it.</p></div>
+      <div class="card"><h4><span>07</span>Identity seal, optional</h4><p>Only if she wants it: the verification ceremony roots her as a named human. Never a gate on using the assistant. It is the demo, offered, not the toll gate.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The welcome message</h2>
+    <p>Plain text, no markdown, no emoji — WhatsApp renders neither, and a reply full of hash symbols would undercut the product on the first screen. Roughly 150 words, readable on one phone screen without scrolling twice.</p>
+    <div class="msg">Hello — this is Athena, Rob Zagarella's assistant. He has given you early access.
+
+Three things first, because they are the point rather than the small print.
+
+One. Every answer tells you which model produced it. When that cannot be determined, it says so instead of quietly leaving it out.
+
+Two. Please do not send anything confidential yet. Per-user data isolation is still being finished. I would rather you knew that now than found out later.
+
+Three. I do a small number of things well at the moment, not everything.
+
+What I can do today:
+- Send me a link and I will come back with a brief on it, with sources and the model named
+- Ask me a question and I will route it to whichever model our calibration data rates strongest for that subject, and tell you why it was chosen
+- Ask what can you do at any time to see this list again
+
+If something is wrong or irritating, just say so here. It goes straight to Rob.</div>
+  </section>
+
+  <section>
+    <h2>Function allowlist, version one</h2>
+    <p>Four capabilities. Anything outside the list gets a specific decline that names what is available, never a generic refusal and never a silent failure.</p>
+    <ul>
+      <li><b>Link to brief</b> — she sends a URL, gets a structured brief with sources and attribution. Her paper research is the obvious first use.</li>
+      <li><b>Routed question</b> — a question is classified by subject, routed on calibration evidence, answered with the model named and the reason for choosing it.</li>
+      <li><b>Capability list</b> — asking what it can do returns the current honest list, generated from the allowlist rather than hand-written, so it cannot drift from reality.</li>
+      <li><b>Feedback</b> — anything phrased as a complaint or suggestion is captured, acknowledged, and surfaced to Rob.</li>
+    </ul>
+    <h3>Explicitly out of scope for version one</h3>
+    <p>Dispatching work to build systems, anything touching the repositories, cost and infrastructure surfaces, other people's data, and any storage of confidential material. Not because they are hard, but because each one widens the blast radius before isolation is proven.</p>
+  </section>
+
+  <section>
+    <h2>Failure behaviour</h2>
+    <p>The failure modes matter more than the happy path here, because she is evaluating whether the discipline is real. Three rules: <b>degrade honestly</b> — if a model is unreachable, say which one and that the answer came from elsewhere; <b>never fabricate attribution</b> — unattributed is a legitimate answer, a guess is not; <b>never go silent</b> — a message that produces nothing is worse than a message that explains why it produced nothing.</p>
+  </section>
+
+  <section>
+    <h2>Gates before the invite goes out</h2>
+    <table>
+      <tr><th>Gate</th><th>Why it blocks</th><th>State</th></tr>
+      <tr><td>Tenancy isolation audit</td><td>Fifteen user-scoped tables filter by user identity in application code only, with no database-level policy. A second real user is the moment that stops being theoretical.</td><td class="st-run">Lane running</td></tr>
+      <tr><td>Reply presentation and attribution</td><td>Live replies have arrived with emoji and heading chrome, and roughly two thirds of turns log no model at all. Both contradict the pitch on first contact.</td><td class="st-run">Lane running</td></tr>
+      <tr><td>Per-user spend cap</td><td>An external user with no budget ceiling is an open tap on Rob's subscription and API keys.</td><td class="st-open">Not started</td></tr>
+      <tr><td>Allowlist provisioning</td><td>Unknown numbers must decline politely rather than transparently opening a session.</td><td class="st-open">Not started</td></tr>
+      <tr><td>Rob-side visibility</td><td>If her experience breaks, Rob needs to see it without asking her.</td><td class="st-open">Not started</td></tr>
+    </table>
+    <p>The first two are in flight tonight. The last three are small and independent, and are the natural next fan-out.</p>
+  </section>
+
+  <div class="foot">
+    Internal working spec — Athena Session 150. Companion to her one-pager. The welcome copy is the reviewable artefact; everything else is implementation shape.
+  </div>
+
+</div></div>
+</body>
+</html>
