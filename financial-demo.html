@@ -901,7 +901,9 @@ function showReceipt(){
     <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
     <dt>Trust score</dt><dd>${esc(String(SEAL_TOKEN.trust))}</dd>
     <dt>${cf?'Authority sealed':'Lodged'}</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
-    <dt>Authorised by</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · verified live (VAC)':'Verified human · in the loop'}</dd>
+    <dt>Approver identity</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · accountable senior manager (SM&amp;CR) · verified live (VAC)':'Verified human · in the loop'}</dd>
+    <dt>Assurance tier</dt><dd class="hl">Full biometric re-verification · high assurance (critical action)</dd>
+    <dt>Autonomy position</dt><dd class="hl">${esc((cur&&cur.autonomyPosition)||'Operator — human confirmed before release')}</dd>
     ${(SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&SEAL_AUTHZ.authorized)
         ? `<dt>Action gate + audit</dt><dd class="hl" style="color:var(--success)">GATED (full re-auth) &amp; AUDITED${SEAL_AUTHZ.aar_id?' · AAR '+esc(String(SEAL_AUTHZ.aar_id)):''} <span class="real-badge">LIVE</span></dd>`
         : (SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&!SEAL_AUTHZ.authorized)
