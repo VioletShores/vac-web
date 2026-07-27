@@ -415,24 +415,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <p class="cred-foot">This credential can also be <strong>delegated with constraints</strong> — bounded to a purpose, an amount, a counterparty, a time. That is exactly what the scenario below demonstrates, producing a sealed, independently-checkable receipt.</p>
     </section>
 
-    <p class="section-label">Choose a matter type</p>
+    <p class="section-label">Open the scenario</p>
     <div class="matters" id="matters"></div>
-
-    <!-- F-621: identity-bound data release — the RAIL, not a seventh matter. Positioned with
-         the matters, clearly labelled as a cross-cutting capability + honest integration gap
-         (cross-LLM gated: never present the unwired flow as demo-ready to a legal audience). -->
-    <section class="release-rail" id="releaseRail" aria-labelledby="releaseRailLabel">
-      <p class="section-label" id="releaseRailLabel">The rail beneath every matter · identity-bound data release</p>
-      <div class="release-card">
-        <p class="release-lede">Every matter above ends in a <span class="hil">sealed receipt</span> — but the same rail does something the matters only hint at: it can govern <span class="pull">who may open a document, and under what conditions</span>. Not "share a file with a password." A file or message that opens only for a <span class="hil">verified, living recipient</span> — confirmed by face, voice and liveness at the moment of viewing — optionally bound to a <span class="hil">location</span> and to the recipient <span class="hil">actually attending the screen</span>, with every open recorded.</p>
-        <div class="release-chips">
-          <span class="policy-chip">verified human at view-time</span><span class="policy-chip">geo-conditioned</span><span class="policy-chip">attention-gated</span><span class="policy-chip">ephemeral</span><span class="policy-chip">audited open</span>
-        </div>
-        <p class="release-diff"><strong>Why this isn't document DRM.</strong> Existing tools — secure data rooms and PDF DRM (Digital Rights Management: the software that locks a file so only an approved device or account can open it) — bind access to a <em>device, an account, or an email link</em>, so anyone holding that device opens the file. VAC binds to a <em>verified living person</em>, checked biometrically at the instant of opening. That is the one thing a DRM vendor cannot copy without a liveness-and-anti-deepfake pipeline — and it is the same rail that signs the receipts in the matters above.</p>
-        <p class="release-honest"><strong>Honest status.</strong> The data-release capability — biometric, geo and attention gates — runs today as a working two-party prototype. It is <span class="hil">not yet session-continuous</span> with this walkthrough, so it is shown here as a capability of the rail rather than a wired step in the demo; the location and attention gates are <span class="hil">best-effort and tamper-evident</span> (every open is logged and any circumvention is detectable), not a cryptographic guarantee — which is the honest, and we think the right, claim for legal release conditions. Full integration is the next build with the Law Society.</p>
-      </div>
-    </section>
-
 
     <section class="stage" id="stage">
       <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
@@ -457,8 +441,8 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
              F-666 #2: hidden via CSS (#vacReauthMount{display:none}); shown as a modal via .vac-modal-open. -->
         <div id="vacReauthMount"></div>
         <a href="/org-config.html" style="display:block;margin-top:14px;background:var(--surface-raised);border:1px solid var(--success-border);border-radius:10px;padding:14px 16px;text-decoration:none;color:inherit;">
-          <div style="font-weight:700;font-size:14.5px;margin-bottom:4px;color:var(--success);">Next: how an organisation retrofits this &rarr;</div>
-          <div style="font-size:12.5px;line-height:1.5;color:var(--text-tertiary,#93A1B8);">Point your existing approval steps at the rail and pick the assurance floor per action from a dropdown — EU AI Act Article&nbsp;14 (human oversight) becomes configuration; Article&nbsp;12 (record-keeping) is the sealed receipt above, automatic. Opens the organisation settings surface (demonstration organisation).</div>
+          <div style="font-weight:700;font-size:14.5px;margin-bottom:4px;color:var(--success);">Continue: how a firm configures this &rarr;</div>
+          <div style="font-size:12.5px;line-height:1.5;color:var(--text-tertiary,#93A1B8);">Point your existing approval steps at the rail and pick the assurance floor per action from a dropdown — the accountable senior manager's SM&amp;CR responsibility becomes configuration, and the sealed receipt above is the record-keeping a compliance function or the FCA can review, automatic. Opens the organisation settings surface (demonstration organisation).</div>
         </a>
       </div>
     </section>
@@ -479,89 +463,13 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
         <a href="/architecture" class="cta-btn arch-summary-cta">See the full architecture and honest capability status →</a>
       </div>
       <div class="arch-note">
-        <strong>What's real today vs. what's next.</strong> The cryptographic signing, the authority chain, and the verification are <strong>live and in production now</strong> — the token in the walkthrough is genuinely signed and you can verify it. The trust/tribunal <em>workflow skin</em> over these primitives is what we'd build with the Law Society. Live biometric capture is now wired: the identity step runs the real VAC verification — face liveness, deepfake scan, gesture and voice — against the production backend. The matter workflow over those primitives is the illustrative part, and you can still preview the matters without verifying.
+        <strong>What's real today vs. what's next.</strong> The cryptographic signing, the authority chain, and the verification are <strong>live and in production now</strong> — the token in the walkthrough is genuinely signed and you can verify it. The financial-services <em>workflow skin</em> over these primitives — the specific suitability and appropriateness conditions, the mapping onto a firm's Statement of Responsibilities — is illustrative and is what we'd build with a firm's compliance function. Live biometric capture is wired: the identity step runs the real VAC verification — face liveness, deepfake scan, gesture and voice — against the production backend. The scenario workflow over those primitives is the illustrative part, and you can still preview it without verifying.
       </div>
     </div><!-- /tab-arch -->
 
-    <!-- CAROLINE STANDARDS CARD (removable — internal for Caroline only; strip before external legal/defence contacts).
-         Placed OUTSIDE the linear matter flow per demo↔standards handover §1. Links to the standalone panel. -->
-    <section id="carolineStandards" class="caroline-standards-wrap" style="max-width:680px;margin:34px auto 0;">
-    <script>
-    // F-796-lite: client-brief sections are audience-gated by URL param — the Caroline
-    // standards/IP panel (and its inline expert-input boxes, styled .fb) render only on
-    // links carrying ?for=caroline. Display-only; no data or logic change.
-    (function(){
-      try {
-        var aud = new URLSearchParams(location.search).get('for');
-        if (aud !== 'caroline') {
-          document.getElementById('carolineStandards').style.display = 'none';
-          var st = document.createElement('style');
-          st.textContent = '.fb{display:none !important}';
-          document.head.appendChild(st);
-        }
-      } catch(_) {}
-    })();
-    </script>
-      <div style="background:linear-gradient(135deg,rgba(30,111,184,0.10),rgba(46,158,107,0.08));border:1px solid var(--teal,#2E9E6B);border-radius:12px;padding:18px 20px;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">For Caroline · read, then react on our call</div>
-        <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">Standards &amp; IP — a separate note for your judgment</div>
-        <p style="font-size:14px;color:var(--text-secondary,#9FB0C4);line-height:1.55;margin:0 0 12px;">A short, plain-language brief on the standards and intellectual-property decision behind VAC — non-technical, four specific questions I'd value your read on. Separate from the matters above; no need to act on our call, just a read beforehand.</p>
-        <a href="/caroline-standards-panel.html" target="_blank" rel="noopener" style="display:inline-block;background:var(--teal,#2E9E6B);color:#04140C;font-weight:700;font-size:14px;text-decoration:none;padding:9px 18px;border-radius:8px;">Open the Standards &amp; IP note &rarr;</a>
-        <p style="font-size:13px;color:var(--text-secondary,#9FB0C4);line-height:1.55;margin:14px 0 0;">Also in your wheelhouse: <a href="/eu-ai-act.html" target="_blank" rel="noopener" style="color:var(--teal,#2E9E6B);font-weight:600;">the EU AI Act mapping</a> — Article 14 human oversight and Article 12 record-keeping made evidentiary, with a new critical-infrastructure section added this week. With Canberra now going standards-led on AI, the same mapping discipline is where the Australian conversation lands too.</p>
-      </div>
-    </section>
-
-    <!-- END-TO-END RAIL: connect the demo to the org onboarding (SSO) + the live Accountability Console (audit dashboard). -->
-    <!-- F-813 GATE: the onboarding/console flow failed Rob's E2E walk (15 Jul — session-expiry context loss,
-         stale auth surface, post-verify dead end, duplicate identities in trust graph). Rail renders only with
-         ?preview=org until the flow-audit fixes land. Display-only gate. -->
-    <section class="e2e-rail" id="e2eRail" style="max-width:900px;margin:46px auto 0;">
-    <script>
-    (function(){ try{ if (new URLSearchParams(location.search).get('preview') !== 'org')
-      document.getElementById('e2eRail').style.display='none'; }catch(_){} })();
-    </script>
-      <p class="section-label" style="text-align:center;">The full rail, end to end</p>
-      <p style="text-align:center;color:var(--text-secondary);max-width:640px;margin:8px auto 26px;font-size:15px;line-height:1.6;">The identity step you just saw is one link in a chain. In a live deployment a firm sets up its organisation and connects its existing sign-on, delegates bounded authority to its people and agents, and every authority decision lands in a single accountability record it can audit.</p>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
-        <a href="/org-onboard.html" style="text-decoration:none;display:block;background:var(--surface,#0F1620);border:1px solid var(--border,#233040);border-radius:12px;padding:20px;transition:border-color .15s;">
-          <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">Set up · your existing sign-on</div>
-          <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">How a firm onboards</div>
-          <p style="font-size:13.5px;color:var(--text-secondary,#9FB0C4);line-height:1.5;margin:0;">Create the organisation and connect your existing single sign-on (Okta, Microsoft Entra, or similar) — VAC rides on the identity you already run, it doesn't replace it. Then invite your people.</p>
-          <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--teal,#2E9E6B);">Open the onboarding &rarr;</div>
-        </a>
-        <a href="/org-console.html" style="text-decoration:none;display:block;background:var(--surface,#0F1620);border:1px solid var(--border,#233040);border-radius:12px;padding:20px;transition:border-color .15s;">
-          <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">Audit · every decision, provable</div>
-          <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">The Accountability Console</div>
-          <p style="font-size:13.5px;color:var(--text-secondary,#9FB0C4);line-height:1.5;margin:0;">Where every authority decision lands: the signed record of who authorised what, under which rules, and when — plus every refusal. A live, tamper-evident audit trail an auditor or a tribunal can read. Shows real records from the backend.</p>
-          <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--teal,#2E9E6B);">Open the console &rarr;</div>
-        </a>
-        <a href="/developers.html" style="text-decoration:none;display:block;background:var(--surface,#0F1620);border:1px solid var(--border,#233040);border-radius:12px;padding:20px;transition:border-color .15s;">
-          <div style="font-size:11px;font-family:var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--teal,#2E9E6B);margin-bottom:6px;">Build · for developers &amp; technical teams</div>
-          <div style="font-size:17px;font-weight:700;color:var(--text-primary,#E8EDF4);margin-bottom:5px;">The API &amp; developer SDK</div>
-          <p style="font-size:13.5px;color:var(--text-secondary,#9FB0C4);line-height:1.5;margin:0;">The same primitives as a developer API — issue scoped authority tokens, authenticate via API key, your SSO, or biometric, delegate human-to-agent, and pull the signed audit record. Ed25519-signed tokens anyone can verify.</p>
-          <div style="margin-top:12px;font-size:13px;font-weight:600;color:var(--teal,#2E9E6B);">Open the developer docs &rarr;</div>
-        </a>
-      </div>
-    </section>
-
-    <section class="more-cases">
-      <p class="section-label">The same protocol, other high-stakes domains</p>
-      <p class="more-intro">Verified human authority, policy that travels with the work, and a sealed, auditable decision trail are not specific to legal trusts. The same primitives apply wherever <span class="pull">who authorised what, under which rules</span> has to be provable after the fact.</p>
-      <div class="case-grid">
-        <div class="case"><div class="case-t">Defence &amp; sovereign systems</div><div class="case-d">Chain-of-command authority for autonomous and AI-assisted systems — a verifiable record that a cleared human authorised an action, under encoded rules of engagement, that an oversight body can audit. Sovereignty-sensitive by design: policy stays with the operator, not on a vendor's servers.</div></div>
-        <div class="case"><div class="case-t">Regulated finance &amp; custody</div><div class="case-d">Authorisation trails for high-value transactions where an auditor must later prove a verified human signed off under specific conditions — without exposing the underlying confidential rules.</div></div>
-        <div class="case"><div class="case-t">Critical infrastructure &amp; energy</div><div class="case-d">Verifiable authority for actions on physical systems — who is permitted to act, under what conditions, with a tamper-evident record for the regulator.</div></div>
-        <div class="case" style="border-left:2px solid var(--teal);"><div class="case-t">Water network AI &amp; operations</div><div class="case-d">An AI recommends a pressure reduction or leak-response dispatch on a district metered area. VAC seals the approving engineer's authority, the action conditions, and the outcome — giving the regulator a cryptographically verified trail of who authorised what, under which operational rules, and when. <a href="/trusted-water-demo" style="color:var(--teal);text-decoration:none;font-weight:600;display:inline-block;margin-top:8px;">Walk through the scenario &rarr;</a></div></div>
-      </div>
-      <div class="cta">
-        <div class="cta-text"><div class="cta-h">See a fit — or know someone who should see this?</div><div class="cta-d">If a domain you work in needs verifiable human authority with an auditable trail, or you can introduce us to someone who does, we'd value the conversation.</div></div>
-        <a class="cta-btn" href="mailto:enterprise@vacprotocol.org?subject=VAC%20Trust%20%26%20Tribunal%20%E2%80%94%20introduction" target="_blank" rel="noopener">Start a conversation</a>
-      </div>
-    </section>
-
     <div class="foot">
-      <strong>What this preview shows:</strong> the shape of the flow, built on VAC primitives that already exist — verified identity, a policy-carrying packet that holds the trust's rules, automatic condition-checking, a human authorisation step, and a sealed, lodged decision with an audit trail.
-      <div class="posture">Honest scope · A person authorises every outcome — the protocol speeds the administration, it does not adjudicate. VAC provides the verification and the sealed audit rails; it does not hold or move funds. Cryptographic seal = tamper-evident provenance + audit (zero-knowledge custody is on the roadmap, not in this build).</div>
+      <strong>What this preview shows:</strong> the shape of the flow, built on VAC primitives that already exist — verified identity, a policy-carrying packet that holds a client's suitability conditions, automatic condition-checking, a named human authorisation step, and a sealed, lodged decision with an audit trail.
+      <div class="posture">Honest scope · A named, accountable person authorises every release — the protocol speeds the review and proves who decided, it does not give investment advice or adjudicate suitability itself. VAC provides the verification and the sealed audit rails; it does not hold client assets or execute trades.</div>
     </div>
   </div>
 </div>
@@ -570,26 +478,6 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
   <div class="vo-card">
     <div class="vo-head"><span>Live VAC identity verification</span><button class="cta-btn" id="voContinue" type="button" hidden style="margin-left:auto;margin-right:8px;padding:6px 14px;font-size:13px;">Continue to the scenario &rarr;</button><button class="vo-close" id="voClose" type="button" aria-label="Close verification">&times;</button></div>
     <iframe class="vo-frame" id="voFrame" title="VAC live identity verification" allow="camera; microphone; fullscreen"></iframe>
-  </div>
-</div>
-
-<!-- Send-to-Rob: Caroline's notes genuinely email to Rob (unlike F-570's localStorage-only fb). -->
-<div class="vo" id="sendModal" hidden>
-  <div class="send-card" role="dialog" aria-modal="true" aria-labelledby="sendTitle">
-    <div class="send-head"><span id="sendTitle">Send your notes to Rob</span><button class="vo-close" id="sendClose" type="button" aria-label="Close">&times;</button></div>
-    <div class="send-body">
-      <p class="send-intro" id="sendIntro"></p>
-      <label class="send-l" for="sendName">Your name</label>
-      <input class="send-i" id="sendName" type="text" autocomplete="name" maxlength="120">
-      <label class="send-l" for="sendEmail">Your email</label>
-      <input class="send-i" id="sendEmail" type="email" inputmode="email" autocomplete="email" maxlength="200">
-      <div class="send-err" id="sendErr" hidden></div>
-      <div class="send-actions">
-        <button class="btn btn-primary" id="sendGo" type="button">Send to Rob</button>
-        <button class="btn btn-ghost" id="sendCancel" type="button">Cancel</button>
-      </div>
-      <div class="send-status" id="sendStatus" role="status"></div>
-    </div>
   </div>
 </div>
 
@@ -616,14 +504,6 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 <script src="/vac-reauth-ceremony.js?v=s145b12"></script>
 
 <script>
-// F-570 embedded feedback surface — each speculative legal claim becomes a proposition for expert review
-const fbKey=id=>'vac-fb-'+id;
-const storageOK=(()=>{try{localStorage.setItem(fbKey('probe'),'1');localStorage.removeItem(fbKey('probe'));return true;}catch(e){return false;}})();
-// Registry of every Caroline question, keyed by id. fb() runs for every question when
-// MATTERS is built (the template literals call it eagerly), so this is complete at load —
-// letting the Send action gather answers across every matter/view, not just the one on screen.
-const FB_QUESTIONS={};
-const fb=(id,q)=>{FB_QUESTIONS[id]=q;return `<div class="fb"><div class="fb-label">For Caroline · expert input wanted</div><div class="fb-q" id="fbq-${id}">${q}</div><textarea class="fb-input" id="fb-${id}" data-fb="${id}" rows="3" aria-labelledby="fbq-${id}" placeholder="Your read — doctrine, risk, reform path&hellip;"></textarea><div class="fb-row"><button class="fb-save" data-fb="${id}">Save note</button><button class="fb-send" data-send="${id}" type="button">Send to Rob</button><span class="fb-status" id="fbs-${id}" role="status">Kept in this browser — press Send to share with Rob.</span></div></div>`;};
 // escape untrusted text (e.g. the verified name from auth-test's postMessage) before it enters an innerHTML template
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -890,35 +770,10 @@ function renderStage(){
       s.appendChild(row);
     });
   }
-  let savedCount=0;
-  s.querySelectorAll('.fb-input').forEach(t=>{
-    try{const v=localStorage.getItem(fbKey(t.dataset.fb));if(v){t.value=v;savedCount++;}}catch(e){}
-    if(!storageOK){const st=document.getElementById('fbs-'+t.dataset.fb);if(st)st.textContent="Notes can't be kept in this browser (storage is blocked) — copy your note before leaving.";}
-  });
-  if((vac||cf)&&!panelMode&&savedCount&&intro.innerHTML){intro.innerHTML+=`<div class="saved-hint">${savedCount} saved note${savedCount>1?'s':''} on this view — inside the step boxes below.</div>`;}
   document.getElementById('stage').classList.add('show');
   document.getElementById('receipt').classList.remove('show');
   const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
 }
-
-// F-570 — keep Caroline's notes locally (honest scope: no backend yet, and the status line says so).
-// Drafts autosave on input so a view toggle / reset / matter switch can't destroy typed text.
-document.getElementById('steps').addEventListener('input',e=>{
-  const t=e.target.closest('.fb-input');if(!t||!storageOK)return;
-  try{localStorage.setItem(fbKey(t.dataset.fb),t.value);}catch(err){return;}
-  const st=document.getElementById('fbs-'+t.dataset.fb);
-  st.textContent='Draft kept in this browser — press Send to share with Rob.';
-  st.style.color='var(--amber)';
-});
-document.getElementById('steps').addEventListener('click',e=>{
-  const sendBtn=e.target.closest('.fb-send');
-  if(sendBtn){openSendModal();return;}
-  const btn=e.target.closest('.fb-save');if(!btn)return;
-  const id=btn.dataset.fb, t=document.getElementById('fb-'+id), st=document.getElementById('fbs-'+id);
-  let ok=true;try{localStorage.setItem(fbKey(id),t.value);}catch(err){ok=false;}
-  st.textContent=ok?'Saved in this browser — press “Send to Rob” to share.':'Could not save in this browser — please copy your note before leaving.';
-  st.style.color=ok?'var(--amber)':'var(--text-secondary)';
-});
 
 document.getElementById('advance').onclick=()=>{
   if(!cur)return;
@@ -1032,94 +887,7 @@ function sealReauthGate(onPass, onCancel){
 }
 document.getElementById('reset').onclick=()=>{cerTeardown();if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
 
-// ---- Send-to-Rob (F-597 addendum) ----
-// Caroline's notes genuinely email to Rob via the thin /v1/tribunal/expert-notes endpoint.
-// Gathers EVERY answered question across all matters/views (FB_QUESTIONS is complete at load),
-// keeps the localStorage draft, and reports real send/error states.
 const API_BASE='https://vac-system-production.up.railway.app';
-const SENDER_KEY='vac-fb-sender';
-let sendInFlight=false, sendOpener=null;   // guard double-submit; restore focus on close
-function gatherNotes(){
-  const out=[];
-  Object.keys(FB_QUESTIONS).forEach(id=>{
-    const el=document.getElementById('fb-'+id);
-    let v=el?el.value:'';
-    if(!v){try{v=localStorage.getItem(fbKey(id))||'';}catch(e){}}
-    v=(v||'').trim();
-    if(v)out.push({id,question:FB_QUESTIONS[id],answer:v});
-  });
-  return out;
-}
-function openSendModal(){
-  sendOpener=document.activeElement;   // restore focus here on close (a11y)
-  const notes=gatherNotes();
-  const intro=document.getElementById('sendIntro');
-  const go=document.getElementById('sendGo');
-  document.getElementById('sendErr').hidden=true;
-  const status=document.getElementById('sendStatus');status.textContent='';status.style.color='var(--text-tertiary)';
-  go.disabled=!notes.length;go.textContent='Send to Rob';
-  try{const s=JSON.parse(localStorage.getItem(SENDER_KEY)||'{}');document.getElementById('sendName').value=s.name||'';document.getElementById('sendEmail').value=s.email||'';}catch(e){}
-  intro.textContent=notes.length
-    ? `This emails your ${notes.length} note${notes.length>1?'s':''} (each with its question) straight to Rob. Your notes also stay saved in this browser.`
-    : 'No answers yet — type a note in any “For Caroline” box first, then send.';
-  document.getElementById('sendModal').hidden=false;document.body.style.overflow='hidden';
-  setTimeout(()=>document.getElementById('sendName').focus(),30);
-}
-function closeSendModal(){
-  document.getElementById('sendModal').hidden=true;document.body.style.overflow='';
-  if(sendOpener&&sendOpener.focus){try{sendOpener.focus();}catch(e){}}
-}
-async function doSend(){
-  if(sendInFlight)return;   // guard double-submit (could double-email Rob / mark stale notes sent)
-  const name=document.getElementById('sendName').value.trim();
-  const email=document.getElementById('sendEmail').value.trim();
-  const err=document.getElementById('sendErr');
-  const emailOK=/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
-  if(!name){err.textContent='Please add your name.';err.hidden=false;document.getElementById('sendName').focus();return;}
-  if(!emailOK){err.textContent='Please enter a valid email so Rob can reply.';err.hidden=false;document.getElementById('sendEmail').focus();return;}
-  err.hidden=true;
-  const notes=gatherNotes();
-  if(!notes.length)return;
-  const go=document.getElementById('sendGo'),status=document.getElementById('sendStatus');
-  sendInFlight=true;go.disabled=true;go.textContent='Sending…';status.style.color='var(--text-tertiary)';status.textContent='';
-  try{localStorage.setItem(SENDER_KEY,JSON.stringify({name,email}));}catch(e){}
-  const ctrl=new AbortController();
-  const timer=setTimeout(()=>ctrl.abort(),15000);   // don't hang on 'Sending…' if Railway stalls
-  try{
-    const matter=(cur&&cur.title)?cur.title:'VAC tribunal — expert notes';
-    const resp=await fetch(API_BASE+'/v1/tribunal/expert-notes',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({from_name:name,from_email:email,matter,answers:notes}),signal:ctrl.signal});
-    if(!resp.ok)throw new Error('status '+resp.status);
-    status.style.color='var(--success)';status.textContent='Sent to Rob ✓';
-    go.textContent='Sent ✓';
-    notes.forEach(n=>{const s=document.getElementById('fbs-'+n.id);if(s){s.textContent='Sent to Rob ✓';s.style.color='var(--success)';}});
-    setTimeout(closeSendModal,1500);
-  }catch(e){
-    status.style.color='var(--text-secondary)';
-    status.textContent='Couldn’t send — your notes are still saved here. Try again in a moment.';
-    go.disabled=false;go.textContent='Send to Rob';
-  }finally{
-    clearTimeout(timer);sendInFlight=false;
-  }
-}
-(function(){
-  const modal=document.getElementById('sendModal');
-  document.getElementById('sendClose').addEventListener('click',closeSendModal);
-  document.getElementById('sendCancel').addEventListener('click',closeSendModal);
-  document.getElementById('sendGo').addEventListener('click',doSend);
-  modal.addEventListener('click',e=>{if(e.target===modal)closeSendModal();});
-  // Escape + simple focus trap while the modal is open
-  document.addEventListener('keydown',e=>{
-    if(modal.hidden)return;
-    if(e.key==='Escape'){closeSendModal();return;}
-    if(e.key==='Tab'){
-      const f=modal.querySelectorAll('button,input');if(!f.length)return;
-      const first=f[0],last=f[f.length-1];
-      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
-      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
-    }
-  });
-})();
 
 function showReceipt(){
   const now=new Date();
