@@ -177,6 +177,10 @@
       "destination": "/tribunal-demo.html"
     },
     {
+      "source": "/financial-demo",
+      "destination": "/financial-demo.html"
+    },
+    {
       "source": "/trusted-water-demo",
       "destination": "/trusted-water-demo.html"
     },

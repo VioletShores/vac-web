@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>VAC — Financial Services: Verified Advice Sign-off (Preview)</title>
+<style>
+:root{
+  --bg:#0D1117; --surface:#161B22; --surface-raised:#1C2128; --border:#30363D; --border-light:#3D444D;
+  --text-primary:#F0F6FC; --text-secondary:#C9D1D9; --text-tertiary:#8B949E; --text-quaternary:#6E7681;
+  --purple:#D4AF37; --purple-dim:#B8952A; --purple-bg:rgba(212,175,55,0.08); --purple-border:rgba(212,175,55,0.28);
+  --teal:#D4AF37; --teal-bg:rgba(212,175,55,0.08); --teal-border:rgba(212,175,55,0.22);
+  --success:#3FB950; --success-bg:rgba(63,185,80,0.08); --success-border:rgba(63,185,80,0.2);
+  --amber:#D29922; --amber-bg:rgba(210,153,34,0.08); --amber-border:rgba(210,153,34,0.25);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+.page-shell{background:var(--bg)!important;min-height:100vh;color:var(--text-secondary);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px;}
+.wrap{max-width:880px;margin:0 auto;padding:0 clamp(16px,4vw,24px);}
+
+/* preview banner — honesty (never present mock as real) */
+.preview-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:10px 24px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;}
+
+header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.mark{width:34px;height:34px;flex:0 0 34px;}
+.brand-name{font-weight:700;color:var(--text-primary);font-size:17px;letter-spacing:-0.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1px;}
+.nav-mode{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);}
+
+.hero{margin-bottom:44px;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+.hero h1{font-size:clamp(24px,5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:680px;}
+.hero p{font-size:clamp(14.5px,3.8vw,16px);color:var(--text-secondary);max-width:640px;}
+.hero .pull{color:var(--text-primary);font-weight:600;}
+.hero-lede{font-size:clamp(15px,3.9vw,16.5px);color:var(--text-secondary);max-width:660px;margin-bottom:20px;}
+.hero-cta{display:inline-block;margin-top:6px;margin-bottom:30px;background:var(--teal,#2E9E6B);color:#04110B;font-weight:700;font-size:15.5px;border:0;border-radius:10px;padding:13px 22px;cursor:pointer}
+.hero-cta small{display:block;font-weight:500;font-size:11.5px;opacity:.85;margin-top:2px}
+.brief{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:16px 18px;margin-bottom:20px;max-width:680px;}
+.brief-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.brief p{font-size:13.5px;color:var(--text-secondary);line-height:1.65;max-width:none;}
+.brief p+p{margin-top:10px;}
+.brief .pull{color:var(--text-primary);font-weight:600;}
+.hero-foot{font-size:clamp(14px,3.7vw,15px);color:var(--text-tertiary);max-width:660px;}
+.hero-foot .pull{color:var(--text-secondary);font-weight:600;}
+
+.section-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px;}
+
+/* matter cards */
+.matters{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:14px;}
+.matter{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(14px,3.5vw,18px) clamp(14px,4vw,20px);cursor:pointer;transition:border-color .15s,background .15s;text-align:left;width:100%;font-family:var(--font);}
+.matter:hover{border-color:var(--purple-border);background:var(--surface-raised);}
+.matter.sel{border-color:var(--purple);background:var(--purple-bg);}
+.matter-top{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+.matter-n{font-family:var(--mono);font-size:11px;color:var(--purple);border:1px solid var(--purple-border);border-radius:5px;padding:2px 7px;flex:0 0 auto;}
+.matter-title{font-weight:600;color:var(--text-primary);font-size:15px;}
+.matter-desc{font-size:13.5px;color:var(--text-tertiary);padding-left:42px;}
+
+/* flow stage */
+.stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:clamp(16px,4.5vw,28px);margin-top:24px;display:none;}
+.stage.show{display:block;animation:fade .3s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;flex-wrap:wrap;}
+.stage-head h2{font-size:clamp(17px,4.5vw,19px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;}
+.stage-matter{font-family:var(--mono);font-size:11px;color:var(--teal);}
+.stage-sub{font-size:14px;color:var(--text-tertiary);margin-bottom:24px;}
+
+/* steps */
+.steps{display:flex;flex-direction:column;gap:0;}
+.step{display:flex;gap:16px;padding:0 0 4px;position:relative;}
+.step-rail{display:flex;flex-direction:column;align-items:center;flex:0 0 28px;}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-light);background:var(--surface-raised);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--text-quaternary);transition:all .3s;flex:0 0 28px;}
+.step-dot.active{border-color:var(--purple);color:var(--purple);box-shadow:0 0 10px rgba(108,92,231,0.35);}
+.step-dot.done{border-color:var(--success);background:var(--success-bg);color:var(--success);}
+.step-conn{width:2px;flex:1;background:var(--border);min-height:18px;margin:2px 0;}
+.step-conn.done{background:var(--success);}
+.step-body{padding-bottom:22px;flex:1;min-width:0;}
+.step-body h3{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:3px;}
+.step-meta{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
+.step-detail{font-size:13.5px;color:var(--text-secondary);margin-top:8px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:6px;padding:11px 13px;display:none;overflow-wrap:break-word;}
+.step.revealed .step-detail{display:block;}
+.policy-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.hil{color:var(--amber);font-weight:600;}
+
+/* dual-workflow toggle (matter 01) */
+.view-toggle{display:none;gap:8px;margin:14px 0 16px;flex-wrap:wrap;}
+.vt-btn{font-family:var(--mono);font-size:clamp(10.5px,2.9vw,12px);letter-spacing:.4px;font-weight:600;padding:8px 13px;border-radius:7px;border:1px solid var(--border-light);background:transparent;color:var(--text-tertiary);cursor:pointer;transition:all .15s;}
+.vt-btn:hover{color:var(--text-secondary);border-color:var(--text-tertiary);}
+.vt-btn.sel{border-color:var(--purple);color:var(--purple);background:var(--purple-bg);}
+.vt-btn[data-view="vac"].sel{border-color:var(--amber);color:var(--amber);background:var(--amber-bg);}
+.vt-btn[data-view="cfree"].sel{border-color:var(--teal);color:var(--teal);background:var(--teal-bg);}
+
+/* thesis panel — the differentiator argument, visible copy */
+.thesis{background:linear-gradient(135deg,var(--amber-bg),var(--surface-raised));border:1px solid var(--amber-border);border-radius:10px;padding:clamp(16px,4vw,22px);margin:0 0 14px;}
+.thesis-eyebrow{font-family:var(--mono);font-size:10.5px;color:var(--amber);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.thesis p{font-size:13.5px;color:var(--text-secondary);}
+.thesis .pullq{display:block;font-size:clamp(17px,4.6vw,20px);font-weight:700;color:var(--text-primary);letter-spacing:-.3px;margin:12px 0;border-left:3px solid var(--amber);padding-left:14px;}
+
+/* forward-path honesty note */
+.fwd-note{margin:0 0 22px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--text-secondary);overflow-wrap:break-word;}
+.fwd-note strong{color:var(--text-primary);}
+
+/* hero step — the step a bare smart contract cannot do */
+.step.hero-step .step-dot{border-color:var(--amber-border);color:var(--amber);}
+.step.hero-step .step-dot.active{border-color:var(--amber);color:var(--amber);box-shadow:0 0 12px rgba(210,153,34,0.45);}
+.step.hero-step .step-dot.done{border-color:var(--success);color:var(--success);box-shadow:none;}
+.step.hero-step .step-detail{border-left-color:var(--amber);}
+.hero-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 6px;letter-spacing:1px;text-transform:uppercase;margin-left:8px;vertical-align:2px;max-width:100%;}
+.ctx-note{margin-top:10px;border-top:1px dashed var(--amber-border);padding-top:10px;}
+.ctx-note em{color:var(--amber);font-style:normal;font-weight:600;}
+
+/* F-570 embedded feedback surface */
+.fb{margin-top:12px;border:1px dashed var(--border-light);background:rgba(210,153,34,0.04);border-radius:8px;padding:12px 14px;}
+.fb-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px;}
+.fb-q{font-size:13px;color:var(--text-primary);font-weight:600;margin-bottom:8px;}
+.fb-input{width:100%;background:var(--bg);border:1px solid var(--border-light);border-radius:6px;color:var(--text-secondary);font-family:var(--font);font-size:13px;line-height:1.5;padding:8px 10px;resize:vertical;min-height:58px;}
+.fb-input::placeholder{color:var(--text-tertiary);}
+.fb-input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-bg);}
+@media(pointer:coarse){.fb-input{font-size:16px;}}
+.saved-hint{font-family:var(--mono);font-size:11px;color:var(--amber);margin:-10px 0 18px;}
+.fb-row{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;}
+.fb-save{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .15s;}
+.fb-save:hover{border-color:var(--amber);}
+.fb-status{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
+
+/* controls */
+.controls{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
+.btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:7px;padding:11px 20px;cursor:pointer;border:1px solid transparent;transition:all .15s;}
+.btn-primary{background:var(--purple);color:#1A1406;}
+.btn-primary:hover{background:var(--purple-dim);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{background:transparent;border-color:var(--border-light);color:var(--text-secondary);}
+.btn-ghost:hover{border-color:var(--text-tertiary);color:var(--text-primary);}
+
+/* sealed receipt */
+.receipt{margin-top:8px;background:var(--surface-raised);border:1px solid var(--success-border);border-radius:10px;padding:20px;display:none;}
+.receipt.show{display:block;animation:fade .35s ease;}
+.receipt-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.receipt-head .seal{width:30px;height:30px;flex:0 0 30px;}
+.receipt-head h3{color:var(--success);font-size:15px;font-weight:700;}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 14px;font-size:13px;}
+.kv dt{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:.5px;}
+.kv dd{font-family:var(--mono);font-size:12px;color:var(--text-secondary);word-break:break-all;}
+.kv dd.hl{color:var(--text-primary);}
+.audit{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+.audit-line{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);padding:3px 0;display:flex;gap:10px;}
+.audit-line .t{color:var(--teal);flex:0 0 auto;}
+
+/* proportional re-auth demo (D-FAST-REAUTH-UNREACHABLE-IN-DEMO) */
+.reauth-demo{margin-top:16px;border-top:1px solid var(--border);padding-top:14px;}
+.reauth-demo .rd-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;}
+.reauth-demo .rd-intro{font-size:12.5px;color:var(--text-tertiary);line-height:1.5;margin-bottom:12px;max-width:620px;}
+.reauth-demo .btn{font-size:13px;padding:9px 16px;}
+.reauth-demo .rd-cta{font-size:13.5px;padding:11px 20px;}
+.reauth-demo .rd-cta:disabled{opacity:.55;cursor:default;}
+.reauth-demo .rd-result{margin-top:14px;border:1px solid var(--border);border-radius:8px;padding:14px 16px;background:var(--bg);display:none;}
+.reauth-demo .rd-result.show{display:block;animation:fade .3s ease;}
+.rd-tiers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+@media(max-width:560px){.rd-tiers{grid-template-columns:1fr;}}
+.rd-tier{border:1px solid var(--border);border-radius:7px;padding:11px 12px;}
+.rd-tier .rd-act{font-family:var(--mono);font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-quaternary);margin-bottom:5px;}
+.rd-tier .rd-name{font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;}
+.rd-tier .rd-why{font-size:11.5px;color:var(--text-tertiary);line-height:1.45;}
+.rd-tier.rd-seal{border-left:2px solid var(--amber);}
+.rd-tier.rd-fast{border-left:2px solid var(--success);}
+.rd-tier.rd-full{border-left:2px solid var(--amber);}
+.rd-kv{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);}
+.rd-kv .rk{color:var(--text-secondary);}
+.rd-kv .ok{color:var(--success);}
+.rd-kv .warn{color:var(--amber);}
+.reauth-demo .rd-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:10px;line-height:1.5;}
+/* S117: live fast one-digit re-auth ceremony — deliberately lighter than the full seal overlay */
+.reauth-demo .cer-instr{font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin:2px 0 12px;max-width:620px;}
+.reauth-demo .cer-stage{display:grid;grid-template-columns:minmax(0,220px) 1fr;gap:16px;align-items:start;}
+@media(max-width:540px){.reauth-demo .cer-stage{grid-template-columns:1fr;}}
+.reauth-demo .cer-cam{position:relative;border:1px solid var(--border-light);border-radius:8px;overflow:hidden;background:#000;aspect-ratio:4/3;max-height:190px;}
+.reauth-demo .cer-cam video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:block;}
+.reauth-demo .cer-rec{position:absolute;top:7px;left:7px;font-family:var(--mono);font-size:9.5px;letter-spacing:1px;color:#fff;background:rgba(0,0,0,.55);border-radius:4px;padding:2px 6px;display:flex;align-items:center;gap:5px;}
+.reauth-demo .cer-dot{width:7px;height:7px;border-radius:50%;background:#FF5C5C;animation:cerblink 1s steps(2,start) infinite;}
+@keyframes cerblink{50%{opacity:.25;}}
+.reauth-demo .cer-cd{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:64px;font-weight:700;color:rgba(255,255,255,.92);text-shadow:0 2px 18px rgba(0,0,0,.65);pointer-events:none;}
+.reauth-demo .cer-side{display:flex;flex-direction:column;gap:10px;min-width:0;}
+.reauth-demo .cer-digit{font-family:var(--mono);font-size:52px;font-weight:700;line-height:1;color:var(--purple);text-align:center;border:1px solid var(--purple-border);border-radius:10px;background:var(--purple-bg);padding:10px 0;}
+.reauth-demo .cer-prompt{font-size:13px;color:var(--text-secondary);line-height:1.5;text-align:center;}
+.reauth-demo .cer-finger{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);text-align:center;line-height:1.45;}
+.reauth-demo .cer-row{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:2px;}
+.reauth-demo .cer-cap{font-size:13px;padding:10px 18px;}
+.reauth-demo .cer-full{font-size:12px;color:var(--text-tertiary);text-align:center;text-decoration:underline;}
+.reauth-demo .cer-full:hover{color:var(--text-secondary);}
+.reauth-demo .cer-status{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);margin-top:12px;line-height:1.5;}
+
+.foot{margin-top:48px;border-top:1px solid var(--border);padding-top:24px;font-size:13px;color:var(--text-tertiary);}
+.foot strong{color:var(--text-secondary);}
+.foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--text-quaternary);}
+
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:28px;flex-wrap:wrap;}
+.tab{font-family:var(--font);font-size:clamp(13px,3.5vw,14px);font-weight:600;color:var(--text-tertiary);background:transparent;border:none;border-bottom:2px solid transparent;padding:10px clamp(10px,3vw,16px);cursor:pointer;transition:all .15s;margin-bottom:-1px;}
+.tab:hover{color:var(--text-secondary);}
+.tab.sel{color:var(--purple);border-bottom-color:var(--purple);}
+
+/* architecture */
+.arch{display:flex;flex-direction:column;gap:14px;}
+.arch-row{display:flex;align-items:stretch;gap:14px;}
+.arch-row.single{justify-content:stretch;}
+.arch-node{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(14px,3.5vw,18px);position:relative;min-width:0;}
+.arch-node.wide{flex:1;border-color:var(--success-border);background:linear-gradient(180deg,var(--success-bg),var(--surface));}
+.arch-node.hil-node{border-color:var(--amber-border);background:linear-gradient(180deg,var(--amber-bg),var(--surface));}
+.an-n{font-family:var(--mono);font-size:11px;color:var(--purple);border:1px solid var(--purple-border);border-radius:5px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+.an-t{font-weight:600;color:var(--text-primary);font-size:14.5px;margin-bottom:6px;}
+.an-d{font-size:13px;color:var(--text-secondary);margin-bottom:10px;}
+.an-d em{color:var(--teal);font-style:normal;}
+.an-tech{font-family:var(--mono);font-size:10.5px;color:var(--text-tertiary);letter-spacing:.3px;border-top:1px solid var(--border);padding-top:8px;}
+.arch-arrow{display:flex;align-items:center;color:var(--text-quaternary);font-size:20px;flex:0 0 auto;}
+.arch-note{margin-top:20px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;font-size:13.5px;color:var(--text-secondary);}
+.release-rail{margin:8px 0 22px;}
+.release-card{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:10px;padding:18px 20px;}
+.release-lede{font-size:clamp(14px,3.7vw,15px);color:var(--text-secondary);margin:0 0 12px;line-height:1.5;}
+.release-lede .pull{color:var(--text-primary);font-weight:600;}
+.release-chips{margin:0 0 14px;}
+.release-diff{font-size:13.5px;color:var(--text-secondary);margin:0 0 12px;line-height:1.5;padding-top:12px;border-top:1px solid var(--border);}
+.release-diff strong{color:var(--text-primary);}
+.release-honest{font-size:13px;color:var(--text-tertiary);margin:0;line-height:1.5;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:7px;padding:12px 14px;}
+.release-honest strong{color:var(--amber);}
+.arch-note strong{color:var(--text-primary);}
+.arch-summary{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:clamp(16px,4vw,22px);}
+.arch-summary-lede{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 14px;}
+.arch-summary-list{list-style:none;display:flex;flex-direction:column;gap:12px;margin:0 0 20px;}
+.arch-summary-list li{position:relative;padding-left:20px;font-size:14px;line-height:1.6;color:var(--text-secondary);}
+.arch-summary-list li::before{content:"";position:absolute;left:2px;top:9px;width:6px;height:6px;border-radius:50%;background:var(--teal);}
+.arch-summary-list strong{color:var(--text-primary);font-weight:600;}
+.arch-summary-list em{color:var(--teal);font-style:normal;}
+.arch-summary-cta{display:inline-block;}
+.verify-link{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--teal);text-decoration:none;border:1.5px solid var(--teal);background:var(--teal-bg);border-radius:8px;padding:10px 16px;margin-top:12px;transition:all .15s;max-width:100%;cursor:pointer;box-shadow:0 0 0 0 transparent;}
+.verify-link:hover{background:var(--teal);color:#0A0F1A;border-color:var(--teal);box-shadow:0 2px 12px -2px var(--teal);}
+.verify-link:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+.real-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;letter-spacing:.5px;margin-left:8px;}
+
+/* more use cases + CTA */
+.more-cases{margin-top:52px;}
+.more-intro{font-size:14.5px;color:var(--text-secondary);max-width:660px;margin-bottom:22px;}
+.more-intro .pull{color:var(--text-primary);font-weight:600;}
+.case-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.case{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.case-t{font-weight:600;color:var(--text-primary);font-size:14px;margin-bottom:8px;}
+.case-d{font-size:12.5px;color:var(--text-tertiary);line-height:1.55;}
+.cta{margin-top:18px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:clamp(16px,4.5vw,22px) clamp(16px,5vw,24px);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.cta-h{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.cta-d{font-size:13.5px;color:var(--text-secondary);max-width:520px;}
+.cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#1A1406;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;border:none;cursor:pointer;}
+.cta-btn:hover{background:var(--purple-dim);}
+
+/* live VAC identity gate + verify overlay (F-577) — embeds the single auth-test verify flow; no verify JS duplicated here */
+.id-gate{position:relative;background:var(--surface);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:12px;padding:clamp(18px,4.5vw,26px);margin-bottom:22px;}
+.id-gate.done{border-left-color:var(--success);padding:14px clamp(16px,4vw,20px);}
+.id-gate.done .id-pre{display:none;}              /* collapse pre-verification CTA, leaving only the badge */
+.id-gate.done .id-badge{margin-bottom:0;}
+.id-h{font-size:clamp(18px,4.5vw,22px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;margin-bottom:8px;}
+.id-p{font-size:14px;color:var(--text-secondary);max-width:560px;margin-bottom:16px;}
+.id-actions{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+.id-skip{display:inline-block;margin-top:12px;font-size:12.5px;color:var(--text-tertiary);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.id-skip:hover{color:var(--text-secondary);}
+.id-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);line-height:1.6;margin-top:14px;max-width:560px;}
+.id-badge{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:5px;padding:4px 9px;margin-bottom:12px;}
+.id-badge[hidden]{display:none;}
+/* post-verification credential beat (concept only; self-contained, no live links — ecosystem door is F-588) */
+.cred{background:var(--surface);border:1px solid var(--border);border-left:2px solid var(--success);border-radius:12px;padding:clamp(16px,4vw,24px);margin-bottom:22px;}
+.cred[hidden]{display:none;}
+.cred-eyebrow{font-family:var(--mono);font-size:11px;color:var(--success);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;}
+.cred-h{font-size:clamp(17px,4.2vw,21px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;margin-bottom:8px;}
+.cred-p{font-size:14px;color:var(--text-secondary);max-width:600px;margin-bottom:16px;}
+.cred-p strong,.cred-foot strong{color:var(--text-primary);font-weight:600;}
+.cred-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.cred-tile{background:var(--surface-raised);border:1px solid var(--border);border-radius:10px;padding:14px 16px;}
+.cred-tile[hidden]{display:none;}
+.cred-tile-label{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.cred-score{font-size:26px;font-weight:700;color:var(--teal);font-family:var(--mono);letter-spacing:-0.5px;line-height:1;}
+.cred-tile-sub{font-size:12px;color:var(--text-tertiary);line-height:1.5;margin-top:8px;}
+.cred-graph{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+.cred-node{font-family:var(--mono);font-size:11px;padding:4px 10px;border-radius:6px;}
+.cred-node-you{color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);}
+.cred-node-empty{color:var(--text-quaternary);background:transparent;border:1px dashed var(--border-light);}
+.cred-foot{font-size:13.5px;color:var(--text-secondary);max-width:600px;}
+.vo{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);}
+.vo[hidden]{display:none;}
+.vo-card{display:flex;flex-direction:column;width:min(680px,100%);height:min(900px,96vh);background:var(--surface);border:1px solid var(--border-light);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.vo-head{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--teal);}
+.vo-close{background:transparent;border:none;color:var(--text-tertiary);font-size:22px;line-height:1;cursor:pointer;padding:0 4px;}
+.vo-close:hover{color:var(--text-primary);}
+.vo-frame{flex:1 1 auto;width:100%;border:none;background:var(--bg);}
+/* F-666 #2: the FAST re-auth host renders the shared ceremony INLINE; unstyled it sprawled to the
+   full receipt width (~732px) with a squashed, stretched camera box. Frame it like the full-auth
+   modal (.vo / .vo-card) so fast renders at full sizing — a fixed centered overlay whose single
+   .active step becomes a bounded card. The `.vac-modal-open` selector (id+class) outranks the bare
+   `#vacReauthMount` display:none, so toggling the class drives visibility (viewCredentialReauth
+   clears the inline display when it adds the class; hide paths remove it + set display:none). */
+#vacReauthMount{display:none;}
+#vacReauthMount.vac-modal-open{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);overflow:auto;}
+#vacReauthMount.vac-modal-open .step-section.active{width:min(680px,100%);max-height:min(900px,96vh);overflow-y:auto;background:var(--surface);border:1px solid var(--border-light);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:clamp(16px,3vw,24px);}
+@media(max-width:560px){#vacReauthMount.vac-modal-open{padding:0;}#vacReauthMount.vac-modal-open .step-section.active{width:100%;max-height:100vh;min-height:100vh;border-radius:0;border:none;}}
+/* custodian-free honest-wall panel (matter 03 cfree — static, no stepper/receipt) */
+.wall{display:flex;flex-direction:column;gap:14px;}
+.wall-banner{font-family:var(--mono);font-size:clamp(12.5px,3.5vw,14.5px);font-weight:600;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:8px;padding:12px 14px;letter-spacing:.2px;line-height:1.5;}
+.wall-point{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--text-quaternary);border-radius:8px;padding:14px 16px;overflow-wrap:break-word;}
+.wall-point.removes{border-left-color:var(--teal);}
+.wall-point.caroline{border-left-color:var(--amber);}
+.wall-point .wall-h{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:6px;}
+.wall-point p,.wall-point .wall-body{font-size:13.5px;color:var(--text-secondary);}
+/* attributed-stat source line — visually distinct so it never reads as a VS claim */
+.src-note{font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);line-height:1.55;margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
+.caroline-open{color:var(--amber);font-weight:600;}
+/* forward affordance out of the static honesty wall (D-TRIBUNAL-CFREE-PANEL-DEADEND) — the panel
+   has no stepper by design, so these buttons are the only way forward off the wall. */
+.wall-nav{margin-top:4px;border-top:1px solid var(--border);padding-top:18px;display:flex;flex-direction:column;gap:12px;}
+.wall-nav-label{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--text-quaternary);}
+.wall-nav-btns{display:flex;flex-wrap:wrap;gap:10px;}
+.wall-nav-btns .btn{flex:1 1 auto;}
+
+/* send-to-Rob modal (reuses .vo backdrop) */
+.send-card{width:min(440px,100%);max-height:94vh;overflow:auto;background:var(--surface);border:1px solid var(--border-light);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.send-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--teal);}
+.send-body{padding:16px 18px 18px;}
+.send-intro{font-size:13.5px;color:var(--text-secondary);line-height:1.6;margin-bottom:6px;}
+.send-l{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-tertiary);margin:12px 0 5px;}
+.send-i{width:100%;background:var(--bg);border:1px solid var(--border-light);border-radius:7px;color:var(--text-primary);font-family:var(--font);font-size:14px;line-height:1.5;padding:10px 12px;}
+.send-i:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-bg);}
+@media(pointer:coarse){.send-i{font-size:16px;}}
+.send-err{color:#F85149;font-size:12.5px;margin-top:10px;}
+.send-err[hidden]{display:none;}
+.send-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+.send-status{font-family:var(--mono);font-size:12px;margin-top:12px;min-height:16px;color:var(--text-tertiary);}
+.fb-send{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:6px;padding:6px 12px;cursor:pointer;transition:all .15s;}
+.fb-send:hover{border-color:var(--teal);}
+
+@media(max-width:560px){.kv{grid-template-columns:1fr;}.matter-desc{padding-left:0;}.arch-row{flex-direction:column;}.arch-arrow{transform:rotate(90deg);justify-content:center;}.case-grid{grid-template-columns:1fr;}.cta{flex-direction:column;align-items:flex-start;}.step{gap:12px;}.preview-banner{padding:10px 16px;}.id-actions{flex-direction:column;align-items:flex-start;gap:12px;}.vo{padding:0;}.vo-card{width:100%;height:100%;border-radius:0;border:none;}.cred-grid{grid-template-columns:1fr;}.send-card{border-radius:0;height:100%;max-height:100%;}}
+</style>
+<script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+<div class="page-shell">
+  <div class="preview-banner">Preview — the sign-off step runs live VAC biometric verification; the advisory scenario that follows is an illustrative walkthrough.</div>
+
+  <header class="top"><div class="wrap"><div class="top-row">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="#D4AF37" stroke-width="1.5"/><path d="M20 8 L20 32 M11 14 L29 26 M29 14 L11 26" stroke="#B8952A" stroke-width="1.2" opacity="0.55"/><circle cx="20" cy="20" r="4.5" fill="#D4AF37"/></svg>
+      <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
+    </div>
+    <span class="nav-mode">FINANCIAL SERVICES · PREVIEW</span>
+  </div></div></header>
+
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">A briefing for regulated financial services</div>
+      <h1>An AI system recommends the advice. A named, accountable senior manager verifies it live — and a sealed receipt proves it, long after the moment has passed.</h1>
+      <p class="moat-spine" style="font-size:clamp(18px,3.2vw,23px);font-weight:700;color:var(--text-primary,#E8EDF4);line-height:1.35;margin:14px 0 4px;border-left:3px solid var(--teal,#2E9E6B);padding-left:16px;">One accountable senior manager, verified live — at the moment the advice is released.</p>
+      <p class="moat-spine-sub" style="font-size:clamp(14px,2.4vw,16px);color:var(--text-secondary,#9FB0C4);line-height:1.55;margin:0 0 6px;padding-left:19px;">VAC proves the approver is <span class="pull">the named accountable person</span> (identity), <span class="pull">genuinely present</span> (live biometric), and exactly <span class="pull">where on the autonomy spectrum</span> the release happened (an immutable audit) — an SSO session or a ticked workflow box can prove none of that.</p>
+      <p class="hero-lede"><span class="pull">The core value for a firm:</span> an AI advisory system that proposes, never executes, and a bounded, provable hand-off of the release decision to the specific person who carries personal accountability for it. The live biometric is the high-assurance step-up at the moment that matters most: releasing the advice to the client. Every scenario on this page turns on a question a regulator may have to answer years later: <span class="pull">did the named accountable person actually authorise this release — verified, live — and can anyone check, independently, that the record has not been altered since?</span></p>
+      <button class="hero-cta" type="button" onclick="(function(){var b=document.getElementById('idVerifyBtn');if(b){b.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(function(){try{b.focus();b.style.boxShadow='0 0 0 3px rgba(46,158,107,.55)';setTimeout(function(){b.style.boxShadow='';},1800);}catch(_){}} ,650);}})()">Try the live biometric now &#x2192;<small>~60 seconds · runs against the production backend</small></button>
+
+      <div class="brief">
+        <div class="brief-label">Why this is breaking now</div>
+        <p>AI-generated recommendations make the gap between "the system suggested it" and "a named, accountable person authorised it" impossible to paper over. The Mills Review's framing of an <span class="pull">autonomy spectrum</span> — running from an AI that only assists a human <em>operator</em> through to a system left to run with minimal oversight as an <em>observer</em> — treats verification and identity as a <span class="pull">prerequisite</span> for that spectrum to mean anything in practice, not a compliance step bolted on after a model already ships recommendations to clients. Every seal on this page is that prerequisite made concrete: a verified, named person, a deliberate act, and a signed record of exactly where on the spectrum the decision happened.</p>
+        <p>Under the Senior Managers &amp; Certification Regime, an accountable senior manager already carries personal responsibility for the outcome — but the trail meant to prove they actually reviewed a specific, AI-generated recommendation is usually an email thread, a ticked box in a workflow tool, or a login that proves a session existed, not that a specific human authorised a specific action at a specific moment. The Mills Review's call for <span class="pull">new forms of automated evidence</span> is exactly this: a cryptographically sealed receipt, tied to a live biometric check, that can answer a regulator's question years later — who reviewed this recommendation, under what assurance, and where the system sat on the autonomy spectrum when it did.</p>
+        <p>The scenario on this page does not itself decide what is suitable advice — that judgment, and the liability that comes with it, stays with the named accountable senior manager. What changes is whether the record of that judgment is provable, or merely asserted.</p>
+      </div>
+
+      <p class="hero-foot">The scenario below is a single regulated advice release, walked through end to end on VAC rails. The same two primitives — verified identity, a sealed authority record — reach well past financial services. Begin the walkthrough below.</p>
+    </section>
+
+    <div class="tabs">
+      <button class="tab sel" data-tab="walk">Walkthrough</button>
+      <button class="tab" data-tab="arch">How it works end-to-end</button>
+    </div>
+
+    <div id="tab-walk">
+    <section class="id-gate" id="idGate">
+      <div class="id-badge" id="idVerified" hidden>Identity verified · live VAC<span class="idv-name"></span></div>
+      <div class="id-pre" id="idPre">
+        <div class="eyebrow" style="margin-bottom:10px;">Step one · the live part of this build</div>
+        <h2 class="id-h">Verified Human Root — prove a real, present human, live.</h2>
+        <p class="id-p" style="font-size:13px;color:var(--text-tertiary,#7C8CA0);margin:-4px 0 10px;font-style:italic;">Verified Human Root ties every agent action to an accountable human. Being advanced toward IETF standardisation.</p>
+        <p class="id-p">In a live deployment the baseline human presence can ride on the firm's existing sign-on (Okta, Entra, FaceID) — VAC integrates rather than replaces it. This bespoke biometric is the <span class="pull">high-assurance step-up</span> reserved for the high-stakes moment: face liveness, deepfake scan, and a cross-modal gesture and spoken-number challenge, run live against the VAC production backend. This is the same ceremony the accountable senior manager uses below to authorise the advice release. The cross-modal binding is being hardened, so it is shown here as a live capability rather than the gate that mints the credential — either try it, or continue straight to the scenario.</p>
+        <div class="id-actions">
+          <button class="cta-btn" id="idVerifyBtn" type="button">Try the live biometric</button>
+          <button class="cta-btn" id="idSkip" type="button" style="background:transparent;border:1px solid var(--amber-border);">Continue to the scenario</button>
+        </div>
+        <div class="id-note">Your camera and microphone are used only for this verification step. The recording is sent to VAC's backend to run the liveness and deepfake checks.</div>
+      </div>
+    </section>
+
+    <div id="walkBody" hidden>
+
+    <section class="cred" id="credBeat" hidden>
+      <div class="cred-eyebrow">What you just created</div>
+      <h2 class="cred-h">A verifiable credential — your verified human root.</h2>
+      <p class="cred-p">The VAC identity model mints a credential that is <strong>yours and reusable</strong>: evidence that a specific, living person — not a bot, not a recording — was present and verified. The cryptographic signing, authority chain and liveness are live in production; the cross-modal gesture binding is being hardened (we don't yet stake the credential on it). The advice-release scenario below builds on this verified-human root.</p>
+      <div class="cred-grid">
+        <div class="cred-tile" id="credScoreTile" hidden>
+          <div class="cred-tile-label">Trust score · this verification</div>
+          <div class="cred-score" id="credScore">—</div>
+          <div class="cred-tile-sub">The real score from your check just now. It grows as other verified humans vouch for you.</div>
+        </div>
+        <div class="cred-tile">
+          <div class="cred-tile-label">Your trust graph</div>
+          <div class="cred-graph"><span class="cred-node cred-node-you">You · verified</span><span class="cred-node cred-node-empty">No vouchers yet</span></div>
+          <div class="cred-tile-sub">Brand new — no vouches yet. Each vouch from another verified human strengthens it and makes future verifications faster.</div>
+        </div>
+      </div>
+      <p class="cred-foot">This credential can also be <strong>delegated with constraints</strong> — bounded to a purpose, an amount, a counterparty, a time. That is exactly what the scenario below demonstrates, producing a sealed, independently-checkable receipt.</p>
+    </section>
+
+    <p class="section-label">Open the scenario</p>
+    <div class="matters" id="matters"></div>
+
+    <section class="stage" id="stage">
+      <div class="stage-head"><h2 id="stageTitle"></h2><span class="stage-matter" id="stageMatter"></span></div>
+      <!-- buttons are built per-matter in renderStage (today / vac / cfree, with the right labels) -->
+      <div class="view-toggle" id="viewToggle" role="group" aria-label="Choose workflow view"></div>
+      <p class="stage-sub" id="stageSub"></p>
+      <div id="vacIntro" style="display:none;"></div>
+      <div class="steps" id="steps"></div>
+      <div class="controls">
+        <button class="btn btn-primary" id="advance">Begin</button>
+        <button class="btn btn-ghost" id="reset">Reset</button>
+      </div>
+      <div class="receipt" id="receipt">
+        <div class="receipt-head">
+          <svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3>Decision sealed &amp; lodged</h3>
+        </div>
+        <dl class="kv" id="receiptKv"></dl>
+        <div class="audit" id="auditLog"></div>
+        <div class="reauth-demo" id="reauthDemo" hidden></div>
+        <!-- S120 unify Lane 3: shared VACReauth fast ceremony renders here on "View the sealed credential".
+             F-666 #2: hidden via CSS (#vacReauthMount{display:none}); shown as a modal via .vac-modal-open. -->
+        <div id="vacReauthMount"></div>
+        <a href="/org-config.html" style="display:block;margin-top:14px;background:var(--surface-raised);border:1px solid var(--success-border);border-radius:10px;padding:14px 16px;text-decoration:none;color:inherit;">
+          <div style="font-weight:700;font-size:14.5px;margin-bottom:4px;color:var(--success);">Continue: how a firm configures this &rarr;</div>
+          <div style="font-size:12.5px;line-height:1.5;color:var(--text-tertiary,#93A1B8);">Point your existing approval steps at the rail and pick the assurance floor per action from a dropdown — the accountable senior manager's SM&amp;CR responsibility becomes configuration, and the sealed receipt above is the record-keeping a compliance function or the FCA can review, automatic. Opens the organisation settings surface (demonstration organisation).</div>
+        </a>
+      </div>
+    </section>
+    </div><!-- /walkBody -->
+
+    </div><!-- /tab-walk -->
+
+    <div id="tab-arch" style="display:none;">
+      <p class="section-label">End-to-end architecture</p>
+      <div class="arch-summary">
+        <p class="arch-summary-lede">In order, end to end:</p>
+        <ul class="arch-summary-list">
+          <li>A <strong>verified, present human</strong> is the root — several signals bound together in one act, not a single detector a deepfake can fool.</li>
+          <li><strong>Assurance is proportional to the action — decided, not hardcoded.</strong> A risk controller reads each action and decides how much proof it needs: a fast one-digit re-auth to view the sealed receipt, the full check to release advice to a client.</li>
+          <li>The action is <strong>gated</strong> — refused without fresh, owner-bound re-auth — <em>and</em> the decision is <strong>audited</strong>: every action and every refusal is written to an immutable record.</li>
+          <li>Each authority decision is a <strong>signed, independently-verifiable receipt</strong> (Ed25519) anyone can check against the backend — no trust in us required.</li>
+        </ul>
+        <a href="/architecture" class="cta-btn arch-summary-cta">See the full architecture and honest capability status →</a>
+      </div>
+      <div class="arch-note">
+        <strong>What's real today vs. what's next.</strong> The cryptographic signing, the authority chain, and the verification are <strong>live and in production now</strong> — the token in the walkthrough is genuinely signed and you can verify it. The financial-services <em>workflow skin</em> over these primitives — the specific suitability and appropriateness conditions, the mapping onto a firm's Statement of Responsibilities — is illustrative and is what we'd build with a firm's compliance function. Live biometric capture is wired: the identity step runs the real VAC verification — face liveness, deepfake scan, gesture and voice — against the production backend. The scenario workflow over those primitives is the illustrative part, and you can still preview it without verifying.
+      </div>
+    </div><!-- /tab-arch -->
+
+    <div class="foot">
+      <strong>What this preview shows:</strong> the shape of the flow, built on VAC primitives that already exist — verified identity, a policy-carrying packet that holds a client's suitability conditions, automatic condition-checking, a named human authorisation step, and a sealed, lodged decision with an audit trail.
+      <div class="posture">Honest scope · A named, accountable person authorises every release — the protocol speeds the review and proves who decided, it does not give investment advice or adjudicate suitability itself. VAC provides the verification and the sealed audit rails; it does not hold client assets or execute trades.</div>
+    </div>
+  </div>
+</div>
+
+<div class="vo" id="verifyOverlay" hidden>
+  <div class="vo-card">
+    <div class="vo-head"><span>Live VAC identity verification</span><button class="cta-btn" id="voContinue" type="button" hidden style="margin-left:auto;margin-right:8px;padding:6px 14px;font-size:13px;">Continue to the scenario &rarr;</button><button class="vo-close" id="voClose" type="button" aria-label="Close verification">&times;</button></div>
+    <iframe class="vo-frame" id="voFrame" title="VAC live identity verification" allow="camera; microphone; fullscreen"></iframe>
+  </div>
+</div>
+
+<!-- S117: shared client modules for the LIVE fast one-digit re-auth ceremony (same loaders as
+     auth.html / vat-verify, so the capture path is reused, not reinvented). All three have vercel
+     rewrites and self-load on first use; the ceremony fails open if any is unavailable. -->
+<script type="module">
+  // MediaPipe HandLandmarker — powers the ADVISORY finger readout only (it NEVER gates capture).
+  try {
+    const t0 = performance.now();
+    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+    window.__VAC_MediaPipe = { HandLandmarker: mod.HandLandmarker, FilesetResolver: mod.FilesetResolver };
+    window.__VAC_MediaPipe_load_ms = Math.round(performance.now() - t0);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-ready', { detail: { ms: window.__VAC_MediaPipe_load_ms } }));
+  } catch (e) {
+    window.__VAC_MediaPipe_error = String(e && e.message || e);
+    window.dispatchEvent(new CustomEvent('vac-mediapipe-error', { detail: { error: window.__VAC_MediaPipe_error } }));
+  }
+</script>
+<script src="/vac-face-embed.js"></script>
+<script src="/vac-finger-detect.js"></script>
+<!-- S120 unify Lane 3 (F-634): shared VACReauth ceremony — fast mode for view-credential re-auth. -->
+<script src="/vac-copy-registry.js"></script>
+<script src="/vac-reauth-ceremony.js?v=s145b12"></script>
+
+<script>
+// escape untrusted text (e.g. the verified name from auth-test's postMessage) before it enters an innerHTML template
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const MATTERS = [
+  {
+    id:"advisory", n:"01",
+    title:"AI investment-advice recommendation — accountable senior manager sign-off",
+    desc:"A retail advice engine proposes a portfolio action for a specific client. Before it reaches the client, the named accountable senior manager reviews and authorises it live — the moment personal SM&CR responsibility actually attaches.",
+    matter:"MATTER-ADV-2026-0139",
+    sub:"How the scenario runs end to end: the AI advisory system proposes a specific action for a specific client, the recommendation is checked against the suitability and appropriateness conditions encoded for that account, and — because releasing the advice to the client is the moment personal accountability attaches — a named, accountable senior manager reviews and authorises it live before it goes out.",
+    heroBadge:"the step an advice engine can&#39;t do on its own",
+    steps:[
+      {h:"The advisory system proposes an action",m:"AI recommendation · autonomy spectrum: operator",d:"The system reviews the client's holdings, stated risk profile and objectives, and proposes a specific action — for example, rebalancing part of a portfolio into a lower-volatility fund ahead of the client's stated retirement date. On the Mills Review's autonomy spectrum this is an <span class='hil'>operator</span>-tier system: it proposes, it does not execute, and nothing reaches the client until a human takes the decision. <span class='policy-chip'>autonomy = operator</span><span class='policy-chip'>action = proposed_only</span>"},
+      {h:"The recommendation is checked against the suitability policy",m:"F-495 · policy-carrying packet",d:"The client's suitability and appropriateness conditions travel with the recommendation, not on a separate compliance server: <span class='policy-chip'>risk_profile_matched</span><span class='policy-chip'>suitability_report_current</span><span class='policy-chip'>consumer_duty_check == pass</span><span class='policy-chip'>capacity_for_loss_confirmed</span> Failing any one of these routes the recommendation to further review rather than releasing it."},
+      {h:"The accountable senior manager reviews it",m:"human-in-the-loop · SM&amp;CR",d:"<span class='hil'>The senior manager named as accountable for retail investment advice under the firm's Statement of Responsibilities reviews the recommendation and the policy checks behind it.</span> This is the point at which personal accountability actually attaches — not when the model produced an output, but when a specific, named person decided to let it reach the client."},
+      {h:"The senior manager authorises release — verified, live",m:"VAC · verified person · verified time",hero:true,d:"The authorisation is not a click on a dashboard. <span class='hil'>The named senior manager authorises through VAC — face liveness, deepfake scan, cross-modal gesture and voice — live, at the moment of release</span>, and that authorisation is cryptographically bound to this specific recommendation. <span class='policy-chip'>face_liveness</span><span class='policy-chip'>deepfake_scan</span><span class='policy-chip'>bound_to_recommendation</span><div class='ctx-note'>A password, an SSO session, or a signed-off email thread proves a login occurred — none of them prove that <em>this specific, named person</em> was live and present when <em>this specific</em> recommendation was released. VAC turns 'the senior manager is accountable' from a line in a Statement of Responsibilities into a provable, attributable act.</div>"},
+      {h:"Decision sealed &amp; lodged",m:"VAC authority token",d:"The authorised release is sealed with a cryptographic token and lodged to the audit chain — who authorised the release, under which assurance tier, at which point on the autonomy spectrum, provable forever to a firm's compliance function or a regulator."}
+    ],
+    todayAudit:[
+      ['00:00','recommendation generated · policy-carrying packet attached'],
+      ['00:01','suitability &amp; appropriateness conditions evaluated'],
+      ['00:02','accountable senior manager identified · review opened'],
+      ['00:03','senior manager authorised · verified live (VAC) · full biometric'],
+      ['00:04','release signed (Ed25519) · sealed to audit chain']
+    ],
+    autonomyPosition:"Operator — the system proposed only; a verified human authorised release"
+  }
+];
+
+// tab switching
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('sel'));
+    t.classList.add('sel');
+    const show=t.dataset.tab;
+    document.getElementById('tab-walk').style.display = show==='walk'?'block':'none';
+    document.getElementById('tab-arch').style.display = show==='arch'?'block':'none';
+  };
+});
+
+// A REAL Ed25519+JWT token minted from the live VAC production backend for this demo.
+// Verifiable by anyone at the URL below — this is the live tech, not a mock.
+const REAL_TOKEN = {
+  jti:"vat_root_c1e665235203",
+  trust:0.95,
+  verify:"/vat/verify/vat_root_c1e665235203?intent=verify"
+};
+
+// Authorise the SEALING ACTION server-side (F-TRIBUNAL-SEAL-FIRES-GATE). After the
+// fresh re-auth + mint, call /v1/vat/authorize action=seal_decision so the HARD GATE
+// (seal_decision is 'critical' → requires FULL re-auth) AND the AAR (action attestation)
+// actually fire — making the seal a gated, AUDITED action, not just a token reveal.
+// Honesty: if no full-auth session token reached us, we do NOT fake authorisation — we
+// record that the action was not server-authorised (the receipt reflects it). The
+// consumer-contract rule (D-ATTESTATION-CONSUMER-CONTRACT): trust is gated on the
+// server's authorized=true + assurance, NEVER on a client claim.
+let SEAL_AUTHZ = null;
+async function authorizeSeal(){
+  const tok = (window.__vacVerified && window.__vacVerified.session_token) ? window.__vacVerified.session_token : null;
+  const jti = (SEAL_TOKEN && SEAL_TOKEN.jti) ? SEAL_TOKEN.jti : null;
+  if(!tok || !jti){
+    // No server-verifiable authorisation available — record honestly, do not fake.
+    SEAL_AUTHZ = { authorized:false, reason: !tok ? 'no_session_token' : 'no_jti', server_attested:false };
+    return;
+  }
+  try {
+    const r = await fetch(API_BASE + '/v1/vat/authorize', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        vat_jti: jti,
+        action: 'seal_decision',
+        resource: 'matter:' + ((cur && cur.matter) || 'demo'),
+        authorising_session_token: tok,
+        metadata: { surface:'tribunal-demo', _demo:true }
+      })
+    });
+    const data = await r.json().catch(()=>({}));
+    // The hard gate returns authorized:true/false. Record the SERVER verdict verbatim.
+    SEAL_AUTHZ = {
+      authorized: !!data.authorized,
+      reason: data.reason || null,
+      reauth: data.reauth_authorisation || data.reauth || null,
+      aar_id: data.aar_id || null,
+      server_attested: true
+    };
+  } catch(e){
+    SEAL_AUTHZ = { authorized:false, reason:'authorize_call_failed', server_attested:false };
+  }
+}
+
+// REAL_TOKEN; replaced by a FRESHLY-MINTED token when a matter is sealed (see
+// mintMatterToken). This is what makes each seal a genuine per-authorise mint
+// rather than a constant.
+let SEAL_TOKEN = REAL_TOKEN;
+// VERIFY_SRC must be TOP-LEVEL: sealReauthGate (top-level fn) references it, but it
+// was previously only declared as a const INSIDE the later idGate IIFE — block-scoped
+// and invisible to sealReauthGate → live "VERIFY_SRC is not defined" ReferenceError on
+// the seal click (caught by /browse, S116). Declared here once as the single source.
+const VERIFY_SRC = '/auth.html';
+
+// Mint a REAL, freshly-signed VAT for the current matter at the seal moment.
+// Calls the live /v1/vat/issue (Ed25519 + JWT) with the matter's conditions in
+// `constraints`. HONESTY: the matter CONDITIONS are illustrative/example data
+// (clearly _demo:true), but the TOKEN is genuinely minted, signed, and verifiable
+// on the production backend — not a constant. authorised_by carries the verified
+// human from the seal re-auth so the token attests who authorised it.
+async function mintMatterToken(){
+  const m = cur || {};
+  // DISPLAY name for the receipt + token context (UX only — may be absent).
+  const who = (window.__vacVerified && window.__vacVerified.name) ? window.__vacVerified.name : 'verified human (live)';
+  // BINDING identity: the verified EMAIL. seal_decision is critical → /v1/vat/authorize
+  // re-auths against an EMAIL-derived human_ref, so the token's human_identity MUST be the
+  // email. A NAME derives a different hash → reauth_identity_mismatch (main.py name-collision
+  // fix: a name can't bind a high-value action). Email rides on the vac-auth-success message.
+  const email = (window.__vacVerified && window.__vacVerified.email) ? String(window.__vacVerified.email).trim() : '';
+  // FAIL-CLOSED: never mint a NAME-only token for a critical seal. Without the verified
+  // email we cannot bind the token to the identity the gate will re-auth, so we do NOT mint —
+  // fall back to the reference token (minted:false) and let the action gate record the honest
+  // un-authorised state rather than fake a binding the gate would (correctly) refuse.
+  if(!email){
+    console.warn('[tribunal] seal mint refused: no verified email to bind a critical token');
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted:false });
+    return false;
+  }
+  // Example matter conditions — illustrative, derived from the current matter.
+  const constraints = {
+    _demo: true,
+    _conditions_are_illustrative: true,
+    // Note for an evaluator inspecting this token (e.g. Caroline): the TOKEN is
+    // genuinely minted, signed (Ed25519) and independently verifiable. The matter
+    // CONDITIONS below are illustrative placeholders. Encoding a real matter's legal
+    // rules — the release conditions, statutory triggers, prescribed-witness
+    // requirements, and trust-money handling — is exactly the work that would be
+    // scoped and built WITH the relevant legal authority / Law Society, not asserted
+    // here. What this demonstrates today is the cryptographic primitive (verified
+    // human authority → fresh signed token → auditable chain); the legally-precise
+    // matter model is the forward build.
+    _note_for_evaluator: 'Token is real & verifiable; matter conditions are illustrative. Encoding the actual legal rules is the forward build with the relevant legal authority / Law Society.',
+    matter_ref: m.matter || 'MATTER-DEMO',
+    matter_summary: (m.sub || '').slice(0, 240),
+    // Example release/trigger conditions (mocked — the real matter→packet model is a forward build)
+    release_condition: 'all_parties_directed + trigger_event_verified',
+    human_in_the_loop: true
+  };
+  const body = {
+    human_identity: email,   // BIND to the verified email so human_ref matches the seal re-auth
+    agent_id: 'tribunal-' + (m.id || 'matter'),
+    resources: ['matter:' + (m.matter || 'demo')],
+    // Scope the token for EVERY action it will be asked to authorise. authorizeSeal
+    // authorises 'seal_decision' (critical); the post-seal proportional re-auth demo
+    // (viewCredentialReauth) authorises 'view_credential' (low) against the SAME minted
+    // token. If an action is absent from this array, /v1/vat/authorize rejects it as
+    // action-not-in-scope even with the identity matching — so both must be listed.
+    // (D-FAST-REAUTH-UNREACHABLE-IN-DEMO: view_credential added so the FAST tier is
+    // actually reachable from the sealed receipt.)
+    actions: ['seal_decision', 'view_credential'],
+    verification_method: 'multi_modal',
+    sensitivity: 'high',
+    constraints: constraints,
+    context: { surface: 'tribunal-demo', authorised_by: who, authorised_at: new Date().toISOString() }
+  };
+  try {
+    const r = await fetch(API_BASE + '/v1/vat/issue', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    if(!r.ok) throw new Error('issue ' + r.status);
+    const data = await r.json();
+    if(!data || !data.jti) throw new Error('no jti');
+    SEAL_TOKEN = {
+      jti: data.jti,
+      trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
+      verify: (function(u){ u = data.verify_url || ('/vat/verify/' + data.jti); return u + (u.indexOf('?')>=0 ? '&' : '?') + 'intent=verify'; })(),  // relative fallback follows host; intent=verify → vat-verify leads with the verifier hero (Caroline's job: confirm authenticity)
+      minted: true
+    };
+    return true;
+  } catch(e){
+    // Honest fallback: if the live mint fails, fall back to the pre-minted REAL_TOKEN
+    // and flag it, rather than blocking the seal or faking a mint.
+    console.warn('[tribunal] live mint failed (', e && e.message, ') — showing reference token');
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted:false });
+    return false;
+  }
+}
+
+let cur=null, stepIdx=-1, stageView='today';
+const isVac=()=>stageView==='vac';
+const isCfree=()=>stageView==='cfree';
+const availViews=m=>['today'].concat(m.vacSteps?['vac']:[]).concat((m.cfSteps||m.cfPanel)?['cfree']:[]);
+// 3-view matters use short mode names (three long labels wrap badly at 375px); the qualifier
+// rides in stageSub. 2-view matters keep their existing custom labels.
+const viewLabel=(m,key)=>(m.cfSteps||m.cfPanel)
+  ? (key==='today'?'Today':key==='vac'?'With VAC':'Custodian-free')
+  : (key==='vac'?(m.vacLabel||'With VAC'):(m.todayLabel||'Today'));
+const activeSteps=()=>isCfree()?(cur.cfSteps||[]):isVac()?cur.vacSteps:cur.steps;
+const mEl=document.getElementById('matters');
+MATTERS.forEach(m=>{
+  const b=document.createElement('button');b.className='matter';b.dataset.id=m.id;
+  b.innerHTML=`<div class="matter-top"><span class="matter-n">${m.n}</span><span class="matter-title">${m.title}</span></div><div class="matter-desc">${m.desc}</div>`;
+  b.onclick=()=>selectMatter(m.id);mEl.appendChild(b);
+});
+
+function selectMatter(id){
+  if(cur&&cur.id!==id)stageView='today';
+  cur=MATTERS.find(x=>x.id===id);
+  document.querySelectorAll('.matter').forEach(el=>{const on=el.dataset.id===id;el.classList.toggle('sel',on);el.setAttribute('aria-pressed',on);});
+  renderStage();
+  document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// re-rendering always restarts the walkthrough — intentional: the view toggle and reset share this path
+function renderStage(){
+  stepIdx=-1;
+  const vac=isVac(), cf=isCfree();
+  const panelMode = cf && !!cur.cfPanel;   // static honesty panel (bond cfree) — no stepper, no receipt
+  // toggle buttons, built per matter (3-view matters get short mode-name labels)
+  const vt=document.getElementById('viewToggle');
+  const views=availViews(cur);
+  vt.style.display=views.length>1?'flex':'none';
+  vt.innerHTML='';
+  views.forEach(key=>{
+    const b=document.createElement('button');
+    b.className='vt-btn'+(key===stageView?' sel':'');b.dataset.view=key;
+    b.setAttribute('aria-pressed',key===stageView?'true':'false');
+    b.textContent=viewLabel(cur,key);
+    b.onclick=()=>{if(stageView===key)return;stageView=key;renderStage();vt.scrollIntoView({block:'nearest'});};
+    vt.appendChild(b);
+  });
+  document.getElementById('stageTitle').textContent=cf?(cur.cfTitle||cur.title):vac?(cur.vacTitle||cur.title):cur.title;
+  document.getElementById('stageMatter').textContent=cur.matter;
+  document.getElementById('stageSub').textContent=cf?(cur.cfSub||cur.sub):vac?(cur.vacSub||cur.sub):cur.sub;
+  const intro=document.getElementById('vacIntro');
+  intro.innerHTML=cf?((cur.cfThesis||'')+(cur.cfNote||'')):vac?((cur.vacThesis||'')+(cur.vacNote||'')):'';
+  intro.style.display=intro.innerHTML?'block':'none';
+  const s=document.getElementById('steps');s.innerHTML='';
+  const controls=document.querySelector('.controls');
+  if(panelMode){
+    s.innerHTML=cur.cfPanel;                 // honest wall: explanatory panel, no Begin/Seal, no receipt
+    controls.style.display='none';
+    // D-TRIBUNAL-CFREE-PANEL-DEADEND — the wall is intentionally static (no stepper, so VAC never
+    // implies a custodian-free residential flow exists). But a reader who lands here still needs a
+    // way forward. Add navigation only — NOT a fake bond cfree flow: primary path is this matter's
+    // own verified "With VAC" view; secondary is the commercial-lease matter where custodian-free
+    // is actually lawful. The pointers already named inline (lines ~506,512) become clickable here.
+    const nav=document.createElement('div');
+    nav.className='wall-nav';
+    const haveVac=!!cur.vacSteps, haveLease=cur.id!=='lease'&&MATTERS.some(x=>x.id==='lease');
+    nav.innerHTML=`<div class="wall-nav-label">Where to go from here</div><div class="wall-nav-btns">`
+      +(haveVac?`<button class="btn btn-primary" data-nav="vac">View the “With VAC” flow for this bond &rarr;</button>`:'')
+      +(haveLease?`<button class="btn btn-ghost" data-nav="lease">See the commercial-lease matter — where custodian-free is lawful &rarr;</button>`:'')
+      +`</div>`;
+    s.appendChild(nav);
+    const vb=nav.querySelector('[data-nav="vac"]');
+    if(vb)vb.onclick=()=>{stageView='vac';renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});};
+    const lb=nav.querySelector('[data-nav="lease"]');
+    if(lb)lb.onclick=()=>{selectMatter('lease');stageView='cfree';renderStage();};
+  }else{
+    controls.style.display='flex';
+    const steps=activeSteps();
+    const heroBadge=cur.heroBadge||'the step smart contracts can&#39;t do';
+    steps.forEach((st,i)=>{
+      const row=document.createElement('div');row.className='step'+(st.hero?' hero-step':'');row.dataset.i=i;
+      row.innerHTML=`<div class="step-rail"><div class="step-dot" id="dot${i}">${i+1}</div>${i<steps.length-1?'<div class="step-conn" id="conn'+i+'"></div>':''}</div>
+        <div class="step-body"><h3>${st.h}${st.hero?' <span class="hero-badge">'+heroBadge+'</span>':''}</h3><div class="step-meta">${st.m}</div><div class="step-detail">${st.d}</div></div>`;
+      s.appendChild(row);
+    });
+  }
+  document.getElementById('stage').classList.add('show');
+  document.getElementById('receipt').classList.remove('show');
+  const adv=document.getElementById('advance');adv.disabled=false;adv.textContent='Begin';
+}
+
+document.getElementById('advance').onclick=()=>{
+  if(!cur)return;
+  const steps=activeSteps();
+  if(stepIdx>=0){
+    document.getElementById('dot'+stepIdx).classList.remove('active');
+    document.getElementById('dot'+stepIdx).classList.add('done');
+    const c=document.getElementById('conn'+stepIdx);if(c)c.classList.add('done');
+  }
+  stepIdx++;
+  if(stepIdx<steps.length){
+    const dot=document.getElementById('dot'+stepIdx);dot.classList.add('active');
+    document.querySelector('.step[data-i="'+stepIdx+'"]').classList.add('revealed');
+    document.querySelector('.step[data-i="'+stepIdx+'"]').scrollIntoView({behavior:'smooth',block:'center'});
+    const adv=document.getElementById('advance');
+    adv.textContent = stepIdx===steps.length-1 ? 'Seal & lodge decision' : 'Next step';
+  } else {
+    document.getElementById('advance').disabled=true;
+    // SEAL GATE (F-TRIBUNAL-SEAL-REAUTH-GATE): a sealed authority decision must be
+    // bound to a FRESH live human authorisation at the moment of sealing — that is
+    // the literal tribunal thesis ("did the right person authorise this"). We require
+    // a re-auth here BEFORE rendering the sealed token, so the audit line "verified
+    // human authorisation recorded" is a real event, not just copy.
+    sealReauthGate(
+      async () => { await mintMatterToken(); await authorizeSeal(); showReceipt(); },   // pass → MINT → AUTHORISE action (hardgate+AAR) → seal
+      () => { document.getElementById('advance').disabled=false; }  // cancel → let them retry
+    );
+  }
+};
+
+// Re-auth gate for the seal moment. Reuses the existing live /auth verify overlay
+// (the same flow already embedded for the upfront identity step), invoked HERE at the
+// seal so the authorisation is fresh. On a verified postMessage → onPass(); on close
+// without verifying → onCancel(). NOTE: this currently triggers the full /auth verify;
+// the one-digit BOUND quick-reauth (vat-verify's flow + the freshness-controller tier
+// selection, branch s116-reauth-freshness-signal) is the planned upgrade once that
+// capture UI is factored into a shared module — tracked in F-TRIBUNAL-SEAL-REAUTH-GATE.
+function sealReauthGate(onPass, onCancel){
+  window.__vacGateActive = true;   // F-801b: silence the walkthrough handler while the gate runs
+  resetDemoSurface('full');   // F-666 #1: clear stale result cards + hide the inactive FAST mount before the FULL overlay opens
+  // Rob field-catch 16 Jul 9:23: the post-verify continue affordances (header btn + green
+  // bottom bar) persisted INTO the seal ceremony — a "continue" tap-trap that would abort
+  // the seal. Hide both whenever this gate opens; a fresh success message repaints them.
+  try {
+    const _c=document.getElementById('voContinue'); if(_c){_c.hidden=true;_c.onclick=null;}
+    const _b=document.getElementById('voContinueBar'); if(_b)_b.style.display='none';
+    window.__voOpenedAt=Date.now();
+  } catch(_) {}
+  let settled=false;
+  const overlay=document.getElementById('verifyOverlay');
+  const frame=document.getElementById('voFrame');
+  function cleanup(){ window.removeEventListener('message', onMsg); window.__vacGateActive = false; }
+  function onMsg(ev){
+    if(ev.origin!==window.location.origin) return;
+    const d=ev.data||{};
+    // CRITICAL SEAL gate: accept the FULL-auth message ONLY. vac-auth-success is the live
+    // biometric re-auth result and the ONLY message carrying the verified email + session_token
+    // this seal_decision gate needs. vac-verified is a DIFFERENT signal — auth.html's vouch poll
+    // (startVouchPolling) posts it with no email/session/name — so accepting it here would settle
+    // the seal gate on a background vouch event and dead-end at an unauthorised receipt (mint now
+    // fail-closes without email). Require vac-auth-success for the fresh re-auth. (codex P2)
+    if(d.type==='vac-auth-success'){
+      if(settled) return; settled=true;
+      // Capture the full-auth session token (seal-fires-gate) so the seal can authorise the
+      // action server-side, AND the verified email so the minted token's human_ref is
+      // email-derived and MATCHES this re-auth at the gate (mintMatterToken). Both ride on
+      // vac-auth-success from our own origin (origin already checked above).
+      window.__vacVerified={ name:(d.name||'').trim(), email:(d.email||null), session_token:(d.session_token||null), auth_level:(d.auth_level||null) };
+      cleanup();
+      // F-784a (Rob x3: "the no-greeting auth shows no results"): auth.html's results screen
+      // EXISTS — this teardown was destroying it the instant success posted
+      // (overlay.hidden + frame.src='about:blank'). Keep the overlay up so the user sees the
+      // modality results; the seal proceeds behind it (onPass below). The X — which can no
+      // longer mean cancel (settled/passed) — now dismisses to the sealed receipt.
+      try{
+        if(closeBtn){
+          closeBtn.removeEventListener('click', onClose);
+          closeBtn.addEventListener('click', function(){
+            try{ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }catch(e){}
+          }, { once:true });
+        }
+      }catch(e){}
+      onPass();
+    }
+  }
+  // If the user closes the overlay without verifying, treat as cancel (don't seal).
+  const closeBtn=document.getElementById('voClose');
+  function onClose(){ if(settled) return; settled=true; cleanup(); if(closeBtn) closeBtn.removeEventListener('click', onClose); onCancel(); }
+  if(closeBtn) closeBtn.addEventListener('click', onClose);
+  window.addEventListener('message', onMsg);
+  // Open the live verify overlay at the seal moment.
+  // F-635-LIGHTER + re-auth UX (L-2168): the seal-gate is a SAME-SESSION re-auth — the identity
+  // is ALREADY known. Pass name+email so auth.html PREFILLS and SKIPS the identity form (no re-typing).
+  // L-2173 ROOT CAUSE: window.__vacVerified is a memory var that does NOT survive the separate auth
+  // iframe loads — so at seal time it was empty → no name/email in the URL → no auto-skip. auth.html
+  // ALSO persists the verified identity to localStorage('vac_verified') (same origin = shared), which
+  // DOES survive. So fall back to it. greeting=skip = lighter (drop greeting, keep name); reauth=1 = auto-skip.
+  var _vName = (window.__vacVerified && window.__vacVerified.name) ? window.__vacVerified.name : '';
+  var _vEmail = (window.__vacVerified && window.__vacVerified.email) ? window.__vacVerified.email : '';
+  if (!_vName || !_vEmail) {
+    try {
+      var _vv = JSON.parse(localStorage.getItem('vac_verified') || '{}');
+      if (!_vName && _vv.name) _vName = _vv.name;
+      if (!_vEmail && _vv.email) _vEmail = _vv.email;
+    } catch(_) {}
+  }
+  var _reauthQS = '?greeting=skip&reauth=1'
+      + (_vName ? '&name=' + encodeURIComponent(_vName) : '')
+      + (_vEmail ? '&email=' + encodeURIComponent(_vEmail) : '');
+  frame.src=VERIFY_SRC + _reauthQS; overlay.hidden=false; document.body.style.overflow='hidden';
+}
+document.getElementById('reset').onclick=()=>{cerTeardown();if(cur){renderStage();document.getElementById('stage').scrollIntoView({behavior:'smooth',block:'start'});}};
+
+const API_BASE='https://vac-system-production.up.railway.app';
+
+function showReceipt(){
+  const now=new Date();
+  const cf=isCfree();   // custodian-free Option C (lease): real authority proof, but settlement is a simulated concept
+  const headEl=document.querySelector('.receipt-head h3');
+  if(headEl)headEl.textContent=cf?'Authority proof sealed — settlement simulated':'Decision sealed & lodged';
+  const statusTxt=cf?'AUTHORITY SEALED · SETTLEMENT SIMULATED (CONCEPT)':'SEALED · LODGED · AUDITABLE';
+  document.getElementById('receiptKv').innerHTML=`
+    <dt>Matter</dt><dd class="hl">${cur.matter}</dd>
+    <dt>Authority token</dt><dd class="hl">${esc(String(SEAL_TOKEN.jti))} <span class="real-badge">${SEAL_TOKEN.minted?'FRESHLY MINTED · REAL · LIVE':'REAL · LIVE'}</span></dd>
+    <dt>Signature</dt><dd>Ed25519 + compact JWT</dd>
+    <dt>Trust score</dt><dd>${esc(String(SEAL_TOKEN.trust))}</dd>
+    <dt>${cf?'Authority sealed':'Lodged'}</dt><dd>${now.toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'long'})}</dd>
+    <dt>Approver identity</dt><dd class="hl">${(window.__vacVerified&&window.__vacVerified.name)?esc(window.__vacVerified.name)+' · accountable senior manager (SM&amp;CR) · verified live (VAC)':'Verified human · in the loop'}</dd>
+    <dt>Assurance tier</dt><dd class="hl">Full biometric re-verification · high assurance (critical action)</dd>
+    <dt>Autonomy position</dt><dd class="hl">${esc((cur&&cur.autonomyPosition)||'Operator — human confirmed before release')}</dd>
+    ${(SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&SEAL_AUTHZ.authorized)
+        ? `<dt>Action gate + audit</dt><dd class="hl" style="color:var(--success)">GATED (full re-auth) &amp; AUDITED${SEAL_AUTHZ.aar_id?' · AAR '+esc(String(SEAL_AUTHZ.aar_id)):''} <span class="real-badge">LIVE</span></dd>`
+        : (SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&!SEAL_AUTHZ.authorized)
+          ? `<dt>Action gate + audit</dt><dd style="color:var(--amber)">server refused: ${esc(String(SEAL_AUTHZ.reason||'reauth_required'))}</dd>`
+          : `<dt>Action gate + audit</dt><dd style="color:var(--text-tertiary)">not server-authorised in this preview (no live session token)</dd>`}
+    ${cf?'<dt>Settlement</dt><dd class="hl" style="color:var(--amber)">SIMULATED · NO FUNDS MOVED</dd>':''}
+    <dt>Status</dt><dd class="hl" style="color:${cf?'var(--amber)':'var(--success)'}">${statusTxt}</dd>`;
+  const GENERIC_VAC_AUDIT=[
+    ['00:00','matter opened · policy-carrying packet attached'],
+    ['00:01','parties verified · authority chain nodes issued'],
+    ['00:02','conditions evaluated · verified context captured'],
+    ['00:03','verified human authorisation recorded'],
+    ['00:04','decision signed (Ed25519) · sealed to audit chain']
+  ];
+  const GENERIC_TODAY_AUDIT=[
+    ['00:00','matter opened · policy-carrying packet attached'],
+    ['00:01','parties verified · authority chain nodes issued'],
+    ['00:02','trigger event received · conditions evaluated true'],
+    ['00:03','human authorisation recorded'],
+    ['00:03','decision signed (Ed25519) · lodged to audit chain']
+  ];
+  const log=cf?(cur.cfAudit||GENERIC_VAC_AUDIT):isVac()?(cur.vacAudit||GENERIC_VAC_AUDIT):(cur.todayAudit||GENERIC_TODAY_AUDIT);
+  const footer=cf
+    ?'This token is a genuine, signed VAC authority proof, minted from the production backend and independently verifiable. The settlement in this concept flow is simulated — no funds moved — and the matter events are illustrative (see the concept note above the steps). Production settlement would run on a real-time rail (PayTo/NPP) or a regulated tokenised-AUD escrow; VAC issues the authority proof and is never the money custodian.'
+    :isVac()
+       ?'This token was minted from the VAC production backend and is genuinely signed and verifiable. The matter events in this audit trail are simulated — the reimagined flow is a proposed forward path (see the note above the steps).'
+       :'This token was minted from the VAC production backend. The cryptographic signing and verification are live technology; the matter events in this preview — identity, trigger, conditions — are simulated.';
+  document.getElementById('auditLog').innerHTML='<div style="font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1px;margin-bottom:8px;">AUDIT TRAIL</div>'+
+    log.map(l=>`<div class="audit-line"><span class="t">${l[0]}</span><span>${l[1]}</span></div>`).join('')+
+    `<a class="verify-link" href="${SEAL_TOKEN.verify}${SEAL_TOKEN.verify.indexOf('?')>=0?'&':'?'}intent=verify" target="_blank" rel="noopener">↗ Verify this token independently — it is genuinely signed and live</a>
+     <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">${footer}</div>`+
+    (SEAL_TOKEN.minted ? `<div class="fwd-note" style="margin-top:12px;"><strong>What's real here vs. the forward build (for evaluation).</strong> The token above was <em>just minted</em> against the production backend on this authorisation — a real, signed, independently-verifiable Ed25519 credential, not a stored sample. What is <em>illustrative</em> is the matter's encoded conditions: turning a specific matter's legal rules into the token — the release conditions, statutory triggers, any prescribed-witness requirement, and trust-money handling — is precisely the work that would be scoped and built <strong>with the relevant legal authority (e.g. the Law Society / Fair Trading)</strong>, not asserted in a demo. So: the cryptographic authority primitive is live today; the legally-precise matter model over it is the forward path, and the open legal questions are flagged inline on each matter for you to confirm or correct.</div>` : '');
+  renderReauthDemo();
+  const r=document.getElementById('receipt');r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});
+  // F-791: repurpose voContinue in the auth overlay (stays up per F-784a) as the deep-link CTA
+  // once the receipt is rendered and SEAL_AUTHZ is settled (we're called after authorizeSeal()).
+  (function(){
+    var _ov=document.getElementById('verifyOverlay');
+    if(!_ov||_ov.hidden) return;
+    // Only show when the seal was actually server-authorized — not on refused/error receipts
+    if(!(SEAL_AUTHZ&&SEAL_AUTHZ.authorized)) return;
+    var _c=document.getElementById('voContinue');
+    if(!_c) return;
+    _c.textContent='View sealed decision →';
+    _c.dataset.matter=(cur&&cur.matter)?String(cur.matter):'';
+    _c.dataset.aar=(SEAL_AUTHZ&&SEAL_AUTHZ.aar_id)?String(SEAL_AUTHZ.aar_id):'';
+    _c.hidden=false;
+    _c.onclick=function(){
+      var _f=document.getElementById('voFrame');
+      try{_ov.hidden=true;if(_f)_f.src='about:blank';document.body.style.overflow='';}catch(e){}
+      var _r=document.getElementById('receipt');
+      if(_r)_r.scrollIntoView({behavior:'smooth',block:'center'});
+    };
+  })();
+}
+
+// ---- Proportional re-auth demo (D-FAST-REAUTH-UNREACHABLE-IN-DEMO) ----
+// The seal we just authorised is 'seal_decision' — config.py maps it to CRITICAL, so the
+// /v1/vat/authorize hard gate demanded a FULL re-auth (we opened the live camera overlay
+// before sealing). Viewing the sealed credential is 'view_credential' — config.py maps it
+// to LOW. This block lets the user fire that low-stakes action AFTER the seal so the lighter
+// tier is actually reachable and visible. We read the SERVER's verdict; we never fake a tier.
+function renderReauthDemo(){
+  const host=document.getElementById('reauthDemo');
+  if(!host)return;
+  const sealed=!!(SEAL_AUTHZ&&SEAL_AUTHZ.server_attested&&SEAL_AUTHZ.authorized);
+  // Only meaningful when the seal was genuinely server-authorised — that is what gives us a
+  // live session token + minted in-scope token to authorise the low-stakes action against.
+  if(!sealed){
+    host.hidden=false;
+    host.innerHTML='<div class="rd-label">PROPORTIONAL RE-AUTH</div>'+
+      '<div class="rd-intro">The post-seal quick re-auth demo needs a live, server-authorised seal (a verified session token). This seal was not server-authorised in this preview, so the low-stakes action cannot be authorised against it here. Re-run the seal with a completed live verification to try it.</div>';
+    return;
+  }
+  host.hidden=false;
+  host.innerHTML=
+    '<div class="rd-label">PROPORTIONAL RE-AUTH — TRY IT</div>'+
+    '<div class="rd-intro">Sealing this decision was <strong>critical</strong> and non-repudiable, so it required a <strong>full</strong> re-auth a moment ago. Opening the sealed credential is <strong>low-stakes</strong>. Authorise that low-stakes action against the same token and watch the backend choose a lighter, proportional tier — light when low-stakes, full when critical.</div>'+
+    '<button class="cta-btn rd-cta" id="rdBtn" type="button">View the sealed credential</button>'+
+    '<div class="rd-result" id="rdResult"></div>';
+  // S117: warm the shared capture models now (fail-open) so the LIVE quick ceremony feels instant when
+  // the user taps through — the seal a moment ago already used them, so they are usually warm/cached.
+  try{ if(window.VACFaceEmbed) window.VACFaceEmbed.ready(); }catch(e){}
+  try{ if(window.FingerDetector && !FingerDetector.ready && !FingerDetector.failed) FingerDetector.init(); }catch(e){}
+  // Event delegation on the STABLE host (#reauthDemo never gets replaced — only its innerHTML).
+  // The click handler therefore survives every result re-render and can never be orphaned, so
+  // "Re-authorise again" re-fires viewCredentialReauth on each click. Bind once.
+  if(!host.__rdBound){
+    host.__rdBound=true;
+    host.addEventListener('click',function(e){
+      const t=e.target&&e.target.closest?e.target.closest('#rdBtn'):null;
+      if(t)viewCredentialReauth();
+    });
+  }
+}
+
+// ---- Proportional re-auth: REAL fast one-digit-bound ceremony (S117) ----
+// BEFORE (probe-only): "View the sealed credential" fired /v1/auth/quick-reauth with the biometric
+//   DELIBERATELY omitted (face_still_b64:'x', spoken_audio_b64:''), so it read back the tier the server
+//   WOULD select and proved the fast tier was eligible — but never opened the camera or asked for the
+//   bound digit. The user saw a REPORT that fast was selected, not the EXPERIENCE of doing it.
+// AFTER (this block): the button runs the ACTUAL lightweight ceremony — opens the camera, shows ONE
+//   random digit to show (fingers) AND say, captures a face still + the spoken audio, and POSTs the REAL
+//   biometric payload to /v1/auth/quick-reauth (action='view_credential'). The two-card result then
+//   reflects the live response. This makes the proportional-security contrast tangible: full tri-modal
+//   at the seal (~30s) vs a ~few-second one-digit re-auth to view the credential.
+//
+// Capture is REUSED from the production one-digit ceremony in vat-verify.html (same getUserMedia options,
+// the same <=640 still downscale + canvas.toDataURL, the same VACFaceEmbed 128-D descriptor, the same
+// MediaRecorder mime chain, the same shared FingerDetector) — not reinvented. It is kept LIGHTER than
+// vat-verify's full bound say+show gate: ONE digit, a short hold, no hard co-occurrence timing. The
+// SERVER's face-embedding match is the real gate.
+//
+// FINGER IS ADVISORY — CAPTURE IS NEVER BLOCKED (mirrors auth.html's advisory finger). MediaPipe finger
+// counting is unreliable (it can read 2 as 3), so it NEVER gates: the readout is advisory only, capture
+// is reachable at all times (an always-enabled "Capture now" + an auto-capture countdown + a "Use full
+// verification instead" escape), and we submit whatever count was detected (else the asked digit) as an
+// advisory value for the server to weigh. A flaky finger count can never strand the user.
+const QR_EP='/v1/auth/quick-reauth';
+let CER=null;          // live ceremony state (stream/recorder/timers/raf) so it can always be torn down
+let cerAttempts=0;     // server no-match retries, persisted ACROSS internal re-runs (reset per user start)
+
+// S120 unify Lane 3 (F-634): the bespoke biometric engine moved to VACReauth.run
+// (which owns its OWN camera/recorder teardown). This stub keeps the remaining
+// external callers (the page reset button + reauthDegrade) safe — it clears any
+// residual ceremony state without throwing now that the old engine is gone.
+function cerTeardown(){
+  try{
+    if(CER){
+      try{ if(CER.raf) cancelAnimationFrame(CER.raf); }catch(_){}
+      try{ if(CER.timer) clearInterval(CER.timer); }catch(_){}
+      try{ if(CER.recorder&&CER.recorder.state==='recording') CER.recorder.stop(); }catch(_){}
+      try{ if(CER.stream) CER.stream.getTracks().forEach(function(t){t.stop();}); }catch(_){}
+    }
+  }catch(_){}
+  CER=null;
+}
+window.addEventListener('pagehide',function(){try{cerTeardown();}catch(e){}});
+
+// F-666 #1 (stacking): keep exactly ONE ceremony + ONE result on screen. Called at the TOP of
+// each launcher with the flow that is ABOUT to run. It (a) clears the stale RESULT surface
+// (#rdResult is only ever a result display — written by renderReauthResult, never a live mount —
+// so clearing it is always safe), and (b) hides ONLY the OTHER (inactive) flow's container. It
+// NEVER touches the active flow's own container (that flow is about to render there), so it cannot
+// tear down the running ceremony's own mount mid-flow. Media teardown stays with cerTeardown().
+function resetDemoSurface(active){
+  try{ var r=document.getElementById('rdResult'); if(r){ r.innerHTML=''; r.classList.remove('show'); } }catch(_){}
+  if(active==='fast'){
+    // FAST is launching → the FULL overlay (#verifyOverlay) is the INACTIVE flow → close it.
+    try{ var ov=document.getElementById('verifyOverlay');
+         if(ov && !ov.hidden){ ov.hidden=true; var f=document.getElementById('voFrame'); if(f) f.src='about:blank'; document.body.style.overflow=''; } }catch(_){}
+  }else if(active==='full'){
+    // FULL is launching → the FAST mount (#vacReauthMount) is the INACTIVE flow → hide it.
+    try{ var m=document.getElementById('vacReauthMount'); if(m){ m.classList.remove('vac-modal-open'); m.style.display='none'; } }catch(_){}
+  }
+}
+
+function cerEmail(){ return (window.__vacVerified&&window.__vacVerified.email)?String(window.__vacVerified.email).trim():''; }
+function cerSessionTok(){ return (window.__vacVerified&&window.__vacVerified.session_token)?window.__vacVerified.session_token:null; }
+function cerCamSupported(){ return !!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.isSecureContext!==false); }
+
+// (call 1) AUTHORITATIVE low-stakes action authorisation — unchanged contract. Authorises
+// 'view_credential' against the SAME minted token/session (no fresh full re-auth for a low action) and
+// writes an AAR. Returns the server verdict verbatim.
+async function authorizeViewCredential(){
+  const tok=cerSessionTok();
+  const jti=(SEAL_TOKEN&&SEAL_TOKEN.jti)?SEAL_TOKEN.jti:null;
+  if(tok&&jti){
+    try{
+      const r=await fetch(API_BASE+'/v1/vat/authorize',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({vat_jti:jti,action:'view_credential',resource:'matter:'+((cur&&cur.matter)||'demo'),authorising_session_token:tok,metadata:{surface:'tribunal-demo',_demo:true}})});
+      const d=await r.json().catch(()=>({}));
+      return {attested:true,authorized:!!d.authorized,aar_id:d.aar_id||null,reason:d.reason||null};
+    }catch(e){return {attested:false,reason:'authorize_call_failed'};}
+  }
+  return {attested:false,reason:tok?'no_minted_token':'no_session_token'};
+}
+
+// (call 2 — DEGRADE ONLY) retry-safe TIER PROBE. Sends the freshness signal but DELIBERATELY omits the
+// biometric, so it exits before any capture and never burns a retry. Used ONLY when the live ceremony
+// cannot run (no camera / no enrolled face / no session). Returns the tier the server maps, verbatim.
+async function probeReauthTier(){
+  const tok=cerSessionTok();
+  const email=cerEmail();
+  if(!email) return {state:'no_session'};
+  try{
+    const body={email:email,action:'view_credential',detected_fingers:1,spoken_audio_b64:'',face_still_b64:'x'};
+    if(tok)body.authorising_session_token=tok;
+    const r=await fetch(API_BASE+QR_EP,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d=await r.json().catch(()=>({}));
+    const detail=(d&&d.detail&&typeof d.detail==='object')?d.detail:d;   // FastAPI nests HTTPException detail
+    const errCode=detail&&detail.error;
+    if(r.ok&&detail&&detail.reauth_tier) return {state:'fast',reauth_tier:detail.reauth_tier,fast_tier_eligible:detail.fast_tier_eligible!==false};
+    if(errCode==='embedding_required') return {state:'fast',reauth_tier:'fast_one_digit_bound',fast_tier_eligible:true,inferred:true};
+    if(errCode==='require_full_auth') return {state:'full',reauth_tier:detail.reauth_tier||'full_tri_modal',fast_tier_eligible:false,step_up:(detail.step_up_reasons&&detail.step_up_reasons.length)?detail.step_up_reasons.join(', '):null};
+    if(errCode==='no_face_reference'||errCode==='no_embedding'||errCode==='corrupt_face_reference') return {state:'no_template',reason:errCode};
+    return {state:'unknown',reason:errCode||('http_'+r.status)};
+  }catch(e){return {state:'error'};}
+}
+
+// Degrade: probe + authorise, render the two cards with an honest label of WHY the live ceremony didn't
+// run. Always reachable — this is what the camera/face/email gates fall back to. Never a dead end.
+async function reauthDegrade(why){
+  cerTeardown();
+  // F-654 (Rob S122): a DEGRADE must not silently grant access on a genuine biometric DENIAL.
+  // Previously this always called authorizeViewCredential() — so a FAILED quick-reauth (wrong
+  // finger / different face → onFallback → reauthDegrade('fast_denied')) still authorized off the
+  // seal token. Separate the two cases: an INFRASTRUCTURE degrade (no camera / no session / ceremony
+  // unavailable) may fall back to the seal-token authorization (the user never got to attempt the
+  // biometric); a biometric DENIAL ('fast_denied', or any reason containing 'denied'/'not_authent')
+  // must DENY — the ceremony ran and rejected the user.
+  var _isDenial = typeof why === 'string' && /denied|not_authent|mismatch|face_mismatch|finger/i.test(why);
+  if (_isDenial) {
+    // A biometric DENIAL: do NOT re-probe (the probe POST reads back a tier and renders as a
+    // legitimate-looking outcome). Render an EXPLICIT refusal so it's unmistakable the access was
+    // DENIED — the backend rejected the live ceremony (wrong finger / different face → 401/409).
+    var _authz = { attested:false, authorized:false, reason:why };
+    // F-783b: pass the SPECIFIC denial reason through (the ceremony forwards the server's
+    // rejection code — finger_mismatch / spoken_digit_mismatch / not_cooccurring /
+    // liveness_failed — via onFallback). The old hardcoded 'biometric_not_confirmed'
+    // flattened every failure into an undiagnosable generic (Rob: "not getting through
+    // and no results"). Show what the server actually rejected.
+    var _tier = { state:'failed', ceremony:true, reason:(typeof why === 'string' && why) ? why : 'biometric_not_confirmed' };
+    try{ if (typeof vacDebug === 'function') vacDebug('tribunal_degrade_denied', why); }catch(_){}
+    renderReauthResult(_authz, _tier);
+    const _b = document.getElementById('rdBtn'); if(_b){_b.disabled=false;_b.textContent='Re-authorise again';}
+    return;
+  }
+  const authz = await authorizeViewCredential();
+  const tier=await probeReauthTier();
+  tier.degraded=why;
+  renderReauthResult(authz,tier);
+  const btn=document.getElementById('rdBtn'); if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+}
+
+// Orchestrator wired to "View the sealed credential" / "Re-authorise again".
+// Orchestrator wired to "View the sealed credential" / "Re-authorise again".
+// S120 unify Lane 3 (F-634, Option B): the biometric now rides the SHARED
+// VACReauth ceremony in FAST mode, replacing the ~270-line bespoke engine
+// (startFastCeremony/cerRenderStage/cerAdvisoryTick/cerTeardown — preserved in
+// git history). CRITICAL: the seal→authorize→AAR audit chain is PRESERVED —
+// authorizeViewCredential() still fires in onComplete BEFORE the result render,
+// so /v1/vat/authorize writes the AAR exactly as before. authorizeViewCredential,
+// probeReauthTier, reauthDegrade, renderReauthResult are UNCHANGED.
+
+// F-801: set when the server returns require_full_auth / step_up so "Re-authorise again"
+// routes to the full ceremony (relaunching the fast tier is a guaranteed deny once locked).
+var _viewCredStepUpRequired = false;
+
+// F-801: launch the full /auth iframe ceremony for the view_credential action.
+// Reuses sealReauthGate (same VERIFY_SRC iframe + verifyOverlay); the onPass handler
+// authorises view_credential against the freshly minted session instead of sealing a decision.
+function launchFullForViewCredential(btn) {
+  if (!btn) btn = document.getElementById('rdBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Full verification…'; }
+  // F-801b: settle-watchdog — if neither pass nor cancel fires (gate wedged), recover the
+  // button so the user is never stranded without a path forward.
+  let _settled = false;
+  const _watch = setTimeout(function(){
+    if (_settled) return;
+    window.__vacGateActive = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Try full verification again'; }
+  }, 90000);
+  sealReauthGate(
+    async function() {
+      _settled = true; clearTimeout(_watch);
+      _viewCredStepUpRequired = false;
+      const authz = await authorizeViewCredential();
+      const tier = { state: 'full', ceremony: true, reauth_tier: 'full_tri_modal', fast_tier_eligible: false };
+      renderReauthResult(authz, tier);
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-authorise again'; }
+      // Rob UX law (16 Jul): the user asked for an AUTHORISATION — deliver them to it.
+      // The step-up overlay must close itself on success and land the user on the result
+      // card, not leave them inside ceremony scaffolding to discover the X.
+      try {
+        const _ov = document.getElementById('verifyOverlay');
+        if (_ov) { _ov.hidden = true; const _fr = document.getElementById('voFrame'); if (_fr) _fr.src = 'about:blank'; document.body.style.overflow = ''; }
+        const _res = document.getElementById('rdResult');
+        if (_res) { _res.scrollIntoView({behavior:'smooth', block:'center'});
+          // Highlight AFTER the scroll settles, and hold it long enough to be seen
+          setTimeout(function(){
+            _res.style.transition = 'box-shadow .3s ease';
+            _res.style.boxShadow = '0 0 0 4px rgba(46,158,107,.85), 0 0 24px rgba(46,158,107,.35)';
+            setTimeout(function(){ _res.style.boxShadow=''; }, 3800);
+          }, 750); }
+      } catch(_) {}
+    },
+    function() {
+      _settled = true; clearTimeout(_watch);
+      // User cancelled without completing — leave flag set so next click also routes full.
+      if (btn) { btn.disabled = false; btn.textContent = 'Re-authorise again'; }
+    }
+  );
+}
+
+async function viewCredentialReauth(){
+  const btn=document.getElementById('rdBtn');
+  if(btn){btn.disabled=true;btn.textContent='Starting quick check…';}
+  // F-801: server locked to require_full_auth on a prior attempt — fast tier is a guaranteed deny.
+  if (_viewCredStepUpRequired) { launchFullForViewCredential(btn); return; }
+  resetDemoSurface('fast');   // F-666 #1: clear stale result cards + close the inactive FULL overlay before the FAST ceremony mounts
+  if(!cerEmail()) return reauthDegrade('no_session');
+  // No camera / non-secure context → the fast face check structurally cannot run. Degrade to the
+  // retry-safe tier probe (renders the server-attested fallback + re-enables the button) instead of
+  // launching the shared ceremony, whose requestCamera() error UI does NOT call onFallback and would
+  // leave the outer "Re-authorise" button stuck disabled until a manual back-out (codex P2).
+  if(!cerCamSupported()) return reauthDegrade('camera_unavailable');
+  const mount=document.getElementById('vacReauthMount');
+  if(!mount || typeof VACReauth==='undefined' || !VACReauth.run){
+    // No shared component available → degrade to the retry-safe tier probe
+    // (never burns a biometric retry, never strands the user).
+    return reauthDegrade('ceremony_unavailable');
+  }
+  // PRE-GATE (S120, Bug A fix / L-2164, CORRECTED L-2166): fast re-auth structurally cannot
+  // pass without an enrolled face embedding. The ORIGINAL pre-gate used probeReauthTier() — a
+  // quick-reauth POST with a DUMMY still ('x') — to infer enrolment, but that ALWAYS returns
+  // embedding_required (the backend can't extract a face from a dummy image), so it wrongly
+  // skipped the camera for EVERYONE, enrolled or not. The CORRECT enrolment signal is
+  // GET /v1/auth/face-ref-status → has_embedding (truthful, independent of any capture). Only
+  // skip the doomed ceremony when the identity genuinely has NO enrolled embedding.
+  try{
+    const _email=cerEmail();
+    const _statusR=await fetch(API_BASE+'/v1/auth/face-ref-status?email='+encodeURIComponent(_email));
+    const _status=await _statusR.json().catch(()=>({}));
+    if(_statusR.ok && _status && _status.has_embedding===false){
+      // Genuinely not enrolled → skip the camera ceremony that cannot pass; degrade honestly.
+      const authz=await authorizeViewCredential();
+      renderReauthResult(authz, { state:'no_template', reason:'no_embedding', degraded:'pre_gate' });
+      if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+      return;
+    }
+    // has_embedding===true (or status unavailable) → enrolled (or unknown) → RUN the live ceremony.
+  }catch(_){ /* status check failed → fall through to the live ceremony (the real attempt, not a skip) */ }
+  mount.classList.add('vac-modal-open');   // F-666 #2: overlay styling; inline display is cleared AFTER run() below (run() sets it to 'block')
+
+  VACReauth.run({
+    name: '',
+    email: cerEmail(),
+    riskLevel: 'low',                      // view_credential = low-value → fast tier
+    mount: mount,
+    context: 'tribunal-view-credential',
+    profile: { mode: 'fast' },             // single-digit face-reauth-challenge + quick-reauth, no Gemini
+    onComplete: async function(result){
+      try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){}   // F-666 #2: close the modal
+
+      // Map the shared component's authResult into tribunal's `tier` shape so
+      // renderReauthResult's two-card display is unchanged.
+      const authed = !!(result && (result.authenticated===true || result.authorized===true));
+      const tier = authed
+        ? { state:'fast', ceremony:true,
+            reauth_tier:(result && result.reauth_tier) || 'fast_one_digit_bound',
+            fast_tier_eligible:(!result || result.fast_tier_eligible!==false),
+            digit:(result && result.digit!=null) ? result.digit : null,        // bound digit, surfaced by VACReauth fast result
+            detected:(result && result.detected_fingers!=null) ? result.detected_fingers : null,  // advisory finger count
+            qr_aar_id:(result && result.aar_id) || null }
+        : { state:'failed', ceremony:true, reason:(result && result.reason) || 'not_authenticated' };
+      // F-654 (Rob S122): GATE the authorization on the ceremony verdict. Previously this
+      // ALWAYS called authorizeViewCredential() — which grants off the SEAL TOKEN regardless
+      // of whether the biometric ceremony passed — so a wrong finger / different face still
+      // viewed the credential (the ceremony was cosmetic). Now: authorize ONLY when the
+      // ceremony AUTHENTICATED. A failed verdict renders the denial and does NOT grant access.
+      let authz;
+      if (authed) {
+        // PRESERVE THE AUDIT CHAIN — authorize against the seal token, write the AAR.
+        authz = await authorizeViewCredential();
+      } else {
+        authz = { attested:false, authorized:false, reason:(result && result.reason) || 'reauth_not_authenticated' };
+        try{ if (typeof vacDebug === 'function') vacDebug('tribunal_reauth_denied_not_authorized'); }catch(_){}
+      }
+      renderReauthResult(authz, tier);
+      if(btn){btn.disabled=false;btn.textContent='Re-authorise again';}
+    },
+    onFallback: async function(err){
+      // Denied / fast-not-eligible → still record the authorize attempt + render
+      // the honest verdict via the existing degrade path (no silent success).
+      try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){}   // F-666 #2: close the modal
+      console.warn('[VAC tribunal] fast reauth fell back:', err && err.message);
+      return reauthDegrade('fast_denied');
+    },
+    // F-801: server returned require_full_auth/step_up — the button in the verdict modal
+    // routes here instead of onFallback. Close the fast mount and immediately launch the
+    // full /auth ceremony; mark the flag so "Re-authorise again" also routes full.
+    onRequireFull: function(pendingContext) {
+      try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){}
+      _viewCredStepUpRequired = true;
+      launchFullForViewCredential(btn);
+    },
+    onBack: function(){ try{ mount.classList.remove('vac-modal-open'); mount.style.display='none'; }catch(_){ } if(btn){btn.disabled=false;btn.textContent='View the sealed credential';} },
+  });
+  // F-666 #2: VACReauth.run() sets mount.style.display='block' (inline) at its tail (ceremony.js
+  // ~4638), which beats the .vac-modal-open{display:flex} overlay rule and kills the flex
+  // centering. run() is synchronous, so clear the inline display NOW — the modal centering then
+  // wins, and nothing re-sets the mount display until the next ceremony run.
+  try{ mount.style.display=''; }catch(_){}
+}
+
+function renderReauthResult(authz,tier){
+  const out=document.getElementById('rdResult');
+  if(!out)return;
+  const ceremony=!!(tier&&tier.ceremony);
+  // SEAL tier card — what the critical action required (known from SEAL_AUTHZ).
+  const sealCard='<div class="rd-tier rd-seal"><div class="rd-act">seal_decision · critical</div>'+
+    '<div class="rd-name">Full re-auth</div>'+
+    '<div class="rd-why">High-stakes, non-repudiable. The hard gate required a fresh full tri-modal verification at the moment of sealing (~30s).</div></div>';
+  // VIEW tier card — read verbatim from the live ceremony / probe.
+  let viewCard;
+  if(tier.state==='fast'){
+    const why = ceremony
+      ? 'You just did it — one bound number'+(tier.digit!=null?' ('+esc(String(tier.digit))+')':'')+': shown to camera, matched against your verified face. The backend ran the fast one-digit-bound tier (face-embedding match + ONE bound digit + passive liveness), not full tri-modal.'
+      : 'You verified moments ago — the backend selected the fast one-digit-bound tier (face embedding + ONE bound digit + passive liveness), not full tri-modal.';
+    viewCard='<div class="rd-tier rd-fast"><div class="rd-act">view_credential · low</div>'+
+      '<div class="rd-name">Quick re-auth'+(ceremony?' · done':(tier.degraded?' · eligible (probe)':''))+'</div>'+
+      '<div class="rd-why">'+why+'</div></div>';
+  }else if(tier.state==='full'){
+    // F-801: distinguish a live step-up full ceremony from a probe-only degrade.
+    var _fullWhy = ceremony
+      ? VACCopy.resolve('quick','results','full_step_up_why')
+      : ('The backend re-assessed this to full tri-modal'+(tier.step_up?(' (step-up: '+esc(String(tier.step_up))+')'):'')+'. Honest degrade — no lighter tier was served.');
+    viewCard='<div class="rd-tier rd-full"><div class="rd-act">view_credential · low</div>'+
+      '<div class="rd-name">Full re-auth'+(ceremony?' · done':'')+'</div>'+
+      '<div class="rd-why">'+_fullWhy+'</div></div>';
+  }else{
+    const why = tier.state==='failed' ? 'The quick check ran live, but the server did not confirm a match ('+esc(String(tier.reason||'no_match'))+'). Not faking a pass — showing only what the server returned. Try “Re-authorise again”, or use full verification.'
+      : tier.state==='no_template' ? 'No enrolled face template for this verified identity, so the quick face check can’t run. The authorisation result below is still live and server-attested.'
+      : tier.degraded==='camera_unavailable' ? 'No camera/microphone available here, so the live quick check couldn’t run — showing the server tier probe instead (biometric omitted, retry-safe). On a device with a camera, this button runs the real one-number ceremony.'
+      : (tier.degraded==='no_session'||tier.state==='no_session') ? 'No verified session/email on this seal, so the quick check could not run.'
+      : 'The tier could not be resolved ('+esc(String(tier.reason||tier.state))+'). Not faking a tier — showing only what the server returned.';
+    const nm = tier.state==='failed' ? 'Not confirmed'
+      : tier.degraded==='camera_unavailable' ? 'Tier probed (no camera)'
+      : 'Quick check unavailable';
+    viewCard='<div class="rd-tier rd-full"><div class="rd-act">view_credential · low</div>'+
+      '<div class="rd-name">'+nm+'</div>'+
+      '<div class="rd-why">'+why+'</div></div>';
+  }
+  // Server facts row — authorise verdict + AAR + raw tier field (+ live ceremony result when present).
+  const aar=(tier&&tier.qr_aar_id)||(authz&&authz.aar_id)||null;
+  const cerOK=(ceremony&&tier.state==='fast');
+  const cerFull=(ceremony&&tier.state==='full');  // F-801: live step-up full ceremony
+  let facts;
+  if(authz.attested){
+    facts='<div class="rd-kv">authorize fired: <span class="'+(authz.authorized?'ok':'warn')+'">'+(authz.authorized?'authorized=true':'authorized=false'+(authz.reason?(' ('+esc(String(authz.reason))+')'):''))+'</span>'+
+      (cerOK?' · <span class="ok">quick-reauth authenticated=true</span>':'')+
+      (cerFull?' · <span class="ok">full-reauth authenticated=true</span>':'')+
+      (cerOK&&tier.detected!=null?' · <span class="rk">finger '+esc(String(tier.detected))+' (advisory)</span>':'')+
+      (aar?(' · <span class="rk">AAR '+esc(String(aar))+'</span>'):'')+
+      (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+(typeof tier.fast_tier_eligible==='boolean'?(', fast_tier_eligible='+tier.fast_tier_eligible):'')+'</span>'):'')+
+      '</div>';
+  }else{
+    facts='<div class="rd-kv">authorize: <span class="warn">not server-attested ('+esc(String(authz.reason||'unavailable'))+')</span>'+
+      (cerOK?' · <span class="ok">quick-reauth authenticated=true</span>':'')+
+      (cerFull?' · <span class="ok">full-reauth authenticated=true</span>':'')+
+      (tier.reauth_tier?(' · <span class="rk">reauth_tier='+esc(String(tier.reauth_tier))+'</span>'):'')+
+      '</div>';
+  }
+  let note;
+  if(cerOK){
+    note='The quick re-auth ran live against the production backend just now: camera opened, ONE number shown to camera, a face still + the live face embedding POSTed to '+QR_EP+', and the tier read verbatim from the response. Full tri-modal at the seal (~30s) vs one number here (a few seconds) — the proportional tier doing exactly the work the stakes call for. The finger count is advisory; your face-embedding match is the gate.';
+  }else if(ceremony && tier.state==='full'){
+    // F-801: full ceremony ran live as a step-up (fast tier was server-blocked).
+    note=VACCopy.resolve('quick','results','full_step_up_note');
+  }else if(ceremony){
+    note='The quick re-auth was attempted live; the server did not return a fast-tier pass, so only its verbatim outcome is shown above — no client-side faking.';
+  }else if(tier.degraded==='camera_unavailable'){
+    note='No camera/microphone here, so the live one-number ceremony couldn’t run. Showing the server’s tier-selection probe instead (biometric omitted, retry-safe) — it reports what the backend WOULD require. On a device with a camera, this button runs the real one-number ceremony.';
+  }else if(tier.inferred){
+    note='The quick re-auth ran live: the camera opened and a face still was captured and POSTed to '+QR_EP+'. The backend selected the fast tier but has no enrolled face reference on file for this identity yet, so it could not complete a fast match — the full verification path enrols/verifies the face. Nothing here is client-side faked; this is the server’s verbatim outcome.';
+  }else{
+    note='Tier and authorisation are read verbatim from the production backend — no client-side faking.';
+  }
+  out.innerHTML='<div class="rd-tiers">'+sealCard+viewCard+'</div>'+facts+'<div class="rd-note">'+note+'</div>';
+  out.classList.add('show');
+  // F-791: deep-link CTA — only when server-attested AND authorized (D-ATTESTATION-CONSUMER-CONTRACT)
+  if(authz&&authz.attested&&authz.authorized){
+    const _m=esc(String((cur&&cur.matter)||''));
+    const _a=esc(String((authz&&authz.aar_id)||(tier&&tier.qr_aar_id)||''));
+    const _w=document.createElement('div');
+    _w.style.cssText='margin-top:14px;';
+    _w.innerHTML='<button type="button" class="cta-btn rd-cta" data-matter="'+_m+'" data-aar="'+_a+'" '+
+      'onclick="document.getElementById(\'receipt\').scrollIntoView({behavior:\'smooth\',block:\'center\'})">'+
+      'View sealed decision →</button>';
+    out.appendChild(_w);
+  }
+}
+
+// ---- Live VAC identity step (F-577) ----
+// Embed the single canonical /auth verify flow in an iframe and listen for its existing
+// success postMessage; on success, reveal the walkthrough. No verify logic is
+// duplicated here, so ongoing /auth / F-577 fixes propagate automatically.
+// (S116: /auth-test was consolidated into /auth — this points at the canonical page now.)
+(function(){
+  const gate=document.getElementById('idGate');
+  const walkBody=document.getElementById('walkBody');
+  const overlay=document.getElementById('verifyOverlay');
+  const frame=document.getElementById('voFrame');
+  // VERIFY_SRC is now declared top-level (see note near SEAL_TOKEN) — used here via that scope.
+  let revealed=false;
+  function reveal(verified,name,score,email){
+    if(!revealed){revealed=true;walkBody.hidden=false;}
+    if(verified){
+      // L-2172: capture EMAIL too (not just name) — the seal-gate re-auth needs both to
+      // prefill + skip the identity form. The first auth's vac-auth-success carries d.email.
+      // S126 hardening: MERGE, never REPLACE. The seal-gate re-auth handler (~:1152) writes a
+      // token-bearing __vacVerified {name,email,session_token,auth_level}; a bare {name,email}
+      // replace here would DROP session_token → authorizeSeal records no_session_token → the
+      // seal never authorises. This identity-reveal write runs BEFORE the seal today (no live
+      // clobber, diagnosed S126), but MERGE makes the session_token/auth_level un-droppable under
+      // any future re-ordering. session_token/auth_level are preserved verbatim; name/email
+      // update only when THIS write actually carries them (empty → keep the prior value). The
+      // backend gate still re-binds the token to the minted human_ref + enforces freshness, so a
+      // preserved token can never forge an authorisation — it fails closed on any mismatch.
+      var _prevVV=window.__vacVerified||{};
+      window.__vacVerified=Object.assign({},_prevVV,{name:(name||'').trim()||_prevVV.name||'',email:(email||_prevVV.email||null)});
+      const badge=document.getElementById('idVerified');
+      badge.querySelector('.idv-name').textContent=window.__vacVerified.name?(' · '+window.__vacVerified.name):'';
+      badge.hidden=false;gate.classList.add('done');   // CSS collapses #idPre, leaving only the badge
+      showCredBeat(score);
+    }
+  }
+  // Post-verification credential beat. Show the REAL trust score if auth-test sent one; otherwise omit the number entirely (no-mock rule).
+  function showCredBeat(score){
+    const beat=document.getElementById('credBeat');
+    if(!beat)return;
+    const tile=document.getElementById('credScoreTile');
+    if(typeof score==='number'&&isFinite(score)){   // real numeric score only — never coerce non-numbers into a displayed value
+      document.getElementById('credScore').textContent=(score<=1?score.toFixed(2):String(score));
+      tile.hidden=false;
+    }else{
+      tile.hidden=true;
+    }
+    beat.hidden=false;
+  }
+  function openVerify(){const c=document.getElementById('voContinue');if(c){c.hidden=true;c.onclick=null;}const b=document.getElementById('voContinueBar');if(b)b.style.display='none';window.__voOpenedAt=Date.now();frame.src=VERIFY_SRC;overlay.hidden=false;document.body.style.overflow='hidden';}
+  function closeVerify(){overlay.hidden=true;frame.src='about:blank';document.body.style.overflow='';}
+  document.getElementById('idVerifyBtn').addEventListener('click',openVerify);
+  const skip=document.getElementById('idSkip');
+  skip.addEventListener('click',e=>{e.preventDefault();reveal(false);});
+  skip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();reveal(false);}});
+  document.getElementById('voClose').addEventListener('click',closeVerify);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeVerify();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!overlay.hidden)closeVerify();});
+  // auth-test (same origin) posts these on biometric success when iframed
+  window.addEventListener('message',ev=>{
+    if(ev.origin!==window.location.origin)return;
+    const d=ev.data||{};
+    // F-801b: while a seal/step-up GATE owns the overlay, this walkthrough handler must
+    // stand down entirely — it was closing the overlay under the gate's feet when the
+    // vouch-poll heartbeat ('vac-verified', no payload) ticked mid-ceremony.
+    if(window.__vacGateActive) return;
+    // And completion here requires the payload-bearing success message only.
+    if(d.type==='vac-auth-success'){
+      // Guard (Rob S136): a persisted verified session makes auth.html announce success
+      // the moment the iframe loads — which painted BOTH continue affordances during
+      // Step 2 of a fresh ceremony. A genuine ceremony can't complete in under 8s of
+      // opening, so on-load reposts are ignored; real completions pass.
+      if(window.__voOpenedAt && (Date.now()-window.__voOpenedAt)<8000) return;
+      // Option B: keep auth-test's own verified + modality-detail screen visible so
+      // Caroline sees HOW she was verified (face liveness, deepfake, speech match).
+      // Don't close here — surface a Continue button that closes + shows the credential beat.
+      window.__vacPendingReveal={name:d.name,email:d.email,score:d.overall_score};
+      const cont=document.getElementById('voContinue');
+      const _go=()=>{closeVerify();reveal(true,window.__vacPendingReveal.name,window.__vacPendingReveal.score,window.__vacPendingReveal.email);};
+      if(cont){cont.hidden=false;cont.onclick=_go;}
+      // Unmissable continuation (Rob, S136): full-width bar pinned to the overlay bottom —
+      // the header button alone was too easy to miss while reading the verified screen.
+      if(!document.getElementById('voContinueBar')){
+        const bar=document.createElement('div');
+        bar.id='voContinueBar';
+        bar.style.cssText='position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:rgba(10,15,26,.92);backdrop-filter:blur(6px);border-top:1px solid rgba(46,158,107,.45);z-index:30;';
+        bar.innerHTML='<button type="button" style="display:block;width:100%;max-width:560px;margin:0 auto;background:#2E9E6B;color:#04110B;font-weight:700;font-size:16px;border:0;border-radius:10px;padding:14px 20px;cursor:pointer;">You\'re verified — continue to the matters &rarr;</button>';
+        bar.querySelector('button').onclick=_go;
+        overlay.appendChild(bar);
+      } else { document.getElementById('voContinueBar').style.display='block'; }
+    }
+  });
+  // redirect path: auth-test ?mode=copilot&callback=/tribunal?step=verified returns here
+  if(new URLSearchParams(location.search).get('step')==='verified')reveal(true);
+})();
+</script>
+</body>
+</html>
