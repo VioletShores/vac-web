@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>Where this is going — the story in plain English</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#E8E4D8;--dim:#8B8FA3;--line:#1E2536;--gold:#C9A227;--card:#0F1524}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;color:var(--ink)}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;padding:28px 20px 52px}
+  .wrap{max-width:760px;margin:0 auto}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:clamp(24px,4.6vw,32px);line-height:1.16;margin:10px 0 8px}
+  .lead{font-size:15px;line-height:1.65;max-width:680px}
+  .lead b{color:var(--gold)}
+  section{margin-top:30px}
+  h2{font-family:'Fraunces',serif;font-weight:650;font-size:19px;margin-bottom:10px}
+  p,li{font-size:14px;line-height:1.68;color:#B9BDCB}
+  p+p{margin-top:10px}
+  ul{margin:8px 0 0 18px}
+  li{margin-bottom:8px}
+  p b,li b{color:var(--ink);font-weight:600}
+  .pull{border-left:2px solid var(--gold);padding:3px 0 3px 15px;margin:16px 0;font-size:14.5px;line-height:1.65;color:var(--ink)}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:10px;margin-top:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+  .card h4{font-size:12.5px;font-weight:600;margin-bottom:5px;color:var(--ink)}
+  .card p{font-size:12.5px}
+  a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(201,162,39,.45);text-underline-offset:3px}
+  a:visited{color:var(--gold)}
+  .foot{margin-top:34px;padding-top:12px;border-top:1px solid var(--line);font-size:11.5px;color:var(--dim);line-height:1.55}
+</style>
+</head>
+<body data-build="S150-story-1">
+<div class="page-shell">
+<div class="wrap">
+
+  <div class="eyebrow">Violet Shores · The story in plain English</div>
+  <h1>Where this is going — and why it's a protocol, not just another AI app</h1>
+  <p class="lead">You're one of the first people outside the company to use the assistant. It does a small number of things today, and it will grow every day you use it. This page is the bigger picture — <b>what it's a slice of, and why it's built the way it is</b> — written for a smart person who doesn't need the machinery, just the reasons.</p>
+
+  <section>
+    <h2>Start with the problem everyone can feel</h2>
+    <p>AI now answers our questions, drafts our documents, and is beginning to take real actions — approving, recommending, executing. And almost everywhere it's being adopted the same way: fast, informally, and on trust. Ask any organisation three simple questions — <b>which AI answered this, why was it believed, and who authorised what it did?</b> — and today the honest answer is usually silence. That's not a technology gap. It's an accountability gap, and it grows with every new AI tool bolted on.</p>
+  </section>
+
+  <section>
+    <h2>The point-solution trap</h2>
+    <p>The easy business to build right now is a point solution: one clever AI tool for one task in one industry. Thousands are being built. Each works in its own bubble, keeps its own logs in its own format, and answers those three questions — if at all — in its own private way. Adopt ten of them and you have ten bubbles, ten log formats, ten different meanings of "verified". The accountability gap doesn't close; it multiplies.</p>
+    <p>History has one reliable answer to that pattern. When email needed to work between companies, when payments needed to clear between banks, when the web needed every browser to read every page — the answer was never one vendor's product. It was a <b>protocol</b>: a shared, open way of doing something that anyone can implement and everyone can trust the same way. Protocols are much harder to build than point solutions. They're also the only thing that ever fixes this class of problem.</p>
+    <div class="pull">So the bet is simple to state: the missing layer of AI is not a smarter model — it's the shared rules for <b>trust, authority and evidence</b> that let humans stay accountably in charge. We're building that layer, and running a real business on top of it to prove it works.</div>
+  </section>
+
+  <section>
+    <h2>Three plain-English ideas underneath everything</h2>
+    <div class="cols">
+      <div class="card"><h4>Measure, don't assume</h4><p>Nobody should trust an AI because of its brand. We continuously test the major AI models against thousands of questions with known answers, score them subject by subject, and send each piece of work to whichever model has earned trust for that subject. Every answer tells you which model produced it and can show why it was chosen. Trust becomes a measurement, not a feeling.</p></div>
+      <div class="card"><h4>A real person holds authority</h4><p>Before an AI acts on something that matters, its authority should trace to an identified, living human who approved it — verified in the moment, not a shared login. And when a person hands work to an AI, the AI should get a narrower version of their authority, never a wider one.</p></div>
+      <div class="card"><h4>Evidence, not logs</h4><p>Every significant decision leaves a sealed receipt: who authorised, within what limits, on what evidence, when. A log can be quietly edited; a sealed receipt can't. Six months later, anyone entitled to ask can get the true answer to "what happened here?"</p></div>
+    </div>
+    <p style="margin-top:12px">Everything you'll touch in the assistant — the model name on each answer, the "engine room" link showing how a decision was made, the verification ceremony if you choose to try it — is one of these three ideas made visible.</p>
+  </section>
+
+  <section>
+    <h2>Why the same layer works everywhere</h2>
+    <p>Because the three questions are universal, the layer is too. A hospital needs to prove a clinician stayed accountably over the AI. A law firm needs decisions that survive a tribunal's scrutiny. A bank needs to show a regulator who signed off. A utility needs to know an instruction to the grid came from an authorised engineer. A government needs all of it, at scale, in public. Different industries, identical questions — which is exactly why it must be a protocol rather than fifty separate products. And it scales down as well as up: one person using AI for their own work deserves the same honest answer about what they were told and why.</p>
+    <p>We're deliberately proving it in the hardest rooms first — legal evidence, regulated finance, critical infrastructure — because credibility earned there carries everywhere else.</p>
+  </section>
+
+  <section>
+    <h2>Standards: giving the doors away, keeping the house honest</h2>
+    <p>A protocol only matters if it outlives its inventor, so the interfaces are going through the open standards process — the same institution that standardised email and the web — where they're published for anyone to implement and argue with. That's deliberate: we make money from running the best implementation, not from locking the doors. It's also the difference between "trust us" and "check us", which, for a layer whose entire product is trust, is the whole game.</p>
+  </section>
+
+  <section>
+    <h2>What this means for you, this week</h2>
+    <p>You'll see a slice: send it a link and get a sourced brief; ask a question and see which model answered and why; a private page of your own activity; a daily research digest working on <b>your paper</b>. Small on purpose — every capability you get is one whose limits we can state honestly, and it will grow with a message telling you what's new each time. The useful thing you can do is be demanding: when something is unclear, wrong, or oddly phrased, say so in the chat — it goes straight to Rob, and it genuinely steers what gets built next.</p>
+    <p>The quiet promise underneath: you should walk away from these weeks not just having used an AI tool, but <b>understanding how AI can be adopted honestly</b> — measured instead of assumed, authorised instead of ambient, evidenced instead of logged. That understanding is the product. The software is how we prove it.</p>
+  </section>
+
+  <div class="foot">
+    Roberto (Rob) Zagarella · Violet Shores Pty Ltd · Athena &amp; VAC Protocol.<br>
+    Companion pages: <a href="https://vacprotocol.org/p/naki-3bd20e1222bf.html">your one-pager</a> · <a href="https://vacprotocol.org/financial-demo">the sign-off demo</a> · <a href="https://vacprotocol.org/p/signalrank-live-6e3a91f2c8b4.html">how routing decides</a>.<br>
+    Private page — not indexed.
+  </div>
+
+</div></div>
+</body>
+</html>
