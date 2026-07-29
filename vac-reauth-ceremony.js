@@ -686,8 +686,15 @@ function startAVChecks() {
                     // The prior draw used FREQUENCY-domain rms against a fixed threshold: broadband
                     // wind/HVAC lifts frequency-rms, so the bar read "loud enough" exactly when the
                     // time-domain level the gate actually reads was starving (outdoor false-deny).
+                    // The floor mirrors the FULL qualify formula below (rolling-2s ambient median
+                    // AND seeded ambient, not just the seed) — a meter that only showed the seed
+                    // term could read "past the line" while the real gate (which also weighs recent
+                    // ambient) still failed it, coaching the user wrong (codex adversarial review).
                     // `level` and the floor are both 0-100 scale; /100 puts them on the pill's 0-1 scale.
-                    const _liveFloor = _micQualifyFloor(_speechRatio >= VOICE_BAND_MIN_RATIO);
+                    const _voicedNow = _speechRatio >= VOICE_BAND_MIN_RATIO;
+                    const _histSorted = _micLevelHistory.map(function(e){ return e.level; }).sort(function(a,b){ return a - b; });
+                    const _histAmbientMedian = _histSorted.length ? _histSorted[Math.floor(_histSorted.length / 2)] : 0;
+                    const _liveFloor = Math.max((_voicedNow ? 1.15 : 2) * _histAmbientMedian, _micQualifyFloor(_voicedNow));
                     window.__vacMicPillDraw(level / 100, _liveFloor / 100, 'm');
                 }
             } catch(_) {}
@@ -731,7 +738,16 @@ function startAVChecks() {
             // outdoors never accumulated a single frame) — every frame below it was discarded and
             // _micLoudFrames reset, so the lower qualify floor downstream was dead code. The strict
             // 2x-ambient path for non-voice-shaped runs is unchanged (still floors at 12).
-            if (level > _micQualifyFloor(_speechRatio >= VOICE_BAND_MIN_RATIO)) {
+            // Voice-shaped classification uses the RUN'S OWN accumulated ratio median once a run is
+            // underway (not just this single frame's instantaneous ratio) — the final qualify check
+            // already judges the whole run by its median ratio, so gating single frames on a noisy
+            // instantaneous sample let ordinary formant dips flip a frame to the stricter threshold
+            // mid-utterance and spuriously reset an otherwise-voiced run (codex adversarial review).
+            // A brand-new run (no ratio history yet) still decides on this frame's own ratio.
+            const _runRatioSoFar = _micRunRatios.length
+                ? _micRunRatios.slice().sort((a, b) => a - b)[Math.floor(_micRunRatios.length / 2)]
+                : _speechRatio;
+            if (level > _micQualifyFloor(_runRatioSoFar >= VOICE_BAND_MIN_RATIO)) {
                 if (_micLoudFrames === 0) _micRunStartT = _nowT;
                 _micLoudFrames++;
                 _micRunLevels.push(level);
@@ -2257,7 +2273,7 @@ function beginRecording() {
     let _micBarDisp = 0, _micBarVoiced = false;
     function _micPillDraw(rms, thr, tag) {
         try {
-            window.__vacMicThr = thr;  // S145e: published for the always-on monitor fallback
+            window.__vacMicThr = thr;  // S145e: last-drawn threshold, published for external/QA introspection (S429: the pre-flight monitor computes its own live floor now, no longer reads this back as a fallback)
             // S145g: the pill row lives ONLY on the preflight screen — the ceremony STEP view
             // (greeting/digits, where the user actually speaks) replaces it (Rob screenshot,
             // hotel run). So while a speech gate is armed, ALSO maintain a compact fixed meter
@@ -3545,10 +3561,14 @@ function _cooccurAdvanceDecision(o) {
     // a beat didn't advance instead of leaving it to be guessed after the fact (Rob's "Hello? 3.
     // 3. 3. 4." run against expected "3 4 1" had no non-advance reason recorded on the beat that
     // repeated — only the transcript and a finger count to reconstruct one from afterward).
+    // expireVoice is checked FIRST: the hand-down expiry condition above (handDown && since >
+    // DIGIT_COOCCUR_MS) means liveGestureOk is necessarily false at the moment it fires too, so
+    // checking the generic "neither ready" case first would swallow the specific, more useful
+    // expiry diagnosis on almost every expiry beat (codex adversarial review).
     var reason = advance ? 'advance'
+        : expireVoice ? 'voice_cooccur_expired'
         : (!o.liveGestureOk && !voiceCo) ? 'gesture_and_voice_not_ready'
         : (!o.liveGestureOk) ? 'awaiting_gesture'
-        : expireVoice ? 'voice_cooccur_expired'
         : 'awaiting_voice';
     return { advance: advance, expireVoice: expireVoice, reason: reason };
 }
