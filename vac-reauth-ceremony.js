@@ -3154,10 +3154,15 @@ function beginRecording() {
             // poses that feed detectedCounts, in order, surviving the n>0 filter on the counts.
             (function(){
                 var _zlm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
-                // task-432: this value can cause the BACKEND to drop the pose — deterministic
-                // fallback geometry only, never the noisy face-anchor estimate (see
-                // _handNearFallbackZone's comment).
-                var _zone = (!_zlm || _zlm.length < 21) ? null : _handNearFallbackZone(_zlm);
+                // task-432 (codex review round 6): this value can cause the BACKEND to drop the
+                // pose, and the ON-SCREEN guide (green/"hand in place") reads off the face-anchored
+                // _handNearFaceZone — if the upload only checked the fixed fallback geometry, a
+                // pose the user was just shown as ACCEPTED could silently get dropped server-side
+                // the moment the two geometries disagree (e.g. a user framed high/low who needs the
+                // anchored zone). Accept on EITHER geometry agreeing: this can only ever make MORE
+                // poses register true, never fewer, so it can't introduce a new drop — it only
+                // closes the gap where the face-anchored accept and the uploaded signal disagreed.
+                var _zone = (!_zlm || _zlm.length < 21) ? null : (_handNearFaceZone(_zlm) || _handNearFallbackZone(_zlm));
                 window.__vacPoseZones.push(_zone);
             })();
             _acceptArmed = false;
