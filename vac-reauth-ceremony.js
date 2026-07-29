@@ -680,6 +680,30 @@ function _handNearFaceZone(lm) {
     for (const t of tips) { if (_ptInCheekZone(lm[t])) inside++; }
     return inside >= GESTURE_ZONE_SPEC.minTipsInside;
 }
+// codex review (task-432 round 5): _handNearFaceZone's result is uploaded as part of
+// client_pose_zones (see F-GESTURE-ZONE-QUALIFIES-POSE below), which the BACKEND uses to DROP a
+// pose from the reconstructed sequence when false — that makes it a real (if defense-in-depth)
+// server-side signal, not pure UI coaching. The face-anchor estimate is a best-effort heuristic
+// that can misfire (stale EMA, an edge-clamped read); if it shifted the zone in a way that turned
+// a genuinely good pose false, the backend would drop a legitimate re-auth pose — the exact
+// false-friction this lane is supposed to eliminate, not add. So the backend-facing signal stays
+// on the DETERMINISTIC fallback geometry only (still gets Part 2's relaxed membership test, which
+// only ever makes MORE poses register true — pure generosity, no new drop risk); the on-screen
+// coaching zone (_handNearFaceZone above) is the one that gets the face-anchored experience.
+function _handNearFallbackZone(lm) {
+    if (!lm || lm.length < 21) return false;
+    const rx = GESTURE_ZONE_SPEC.rx, ry = GESTURE_ZONE_SPEC.ry;
+    const inFallbackOval = (p) => GESTURE_ZONE_SPEC.ovals.some((o) => {
+        const dx = (p.x - o.cx) / rx, dy = (p.y - o.cy) / ry;
+        return dx * dx + dy * dy <= 1;
+    });
+    const palm = { x: (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4, y: (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4 };
+    if (inFallbackOval(palm)) return true;
+    const tips = [4, 8, 12, 16, 20];
+    let inside = 0;
+    for (const t of tips) { if (inFallbackOval(lm[t])) inside++; }
+    return inside >= GESTURE_ZONE_SPEC.minTipsInside;
+}
 // F-755h: wider tick-zone for Hand✓ pre-flight tick — separate from acceptance gate, but now
 // face-anchored off the SAME _activeZone() ovals (scaled wider) so it moves with the acceptance
 // gate instead of drifting from it.
@@ -1209,10 +1233,13 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         var _n0 = (typeof n === 'number' && Number.isFinite(n)) ? Math.round(n) : -1;
         // F-761: coach the pose for the ambiguous 4↔5 pair — a relaxed hand (thumb close to fingers)
         // reads as 4-or-5 unreliably. 5 → spread wide; 4 → tuck thumb. Others are visually distinct.
-        // task-432 Part 3: once the hand is ACCEPTED, replace the positioning instruction with an
+        // task-432 Part 3: once the hand is ACCEPTED, swap the positioning instruction for an
         // unmissable confirmation — the user is mid-pose and about to speak, so this must read at
-        // a glance, in peripheral vision, without asking them to refocus on the caption.
-        var _msg = _confident ? 'Hand in place — hold it there'
+        // a glance, in peripheral vision, without asking them to refocus on the caption. codex
+        // review (round 5): the confirmation is zone-only (position), not gesture-correctness —
+        // a wrong finger count in the right spot must not read as "you're done." Keep the target
+        // digit in the message so the required count is never hidden behind the confirmation.
+        var _msg = _confident ? (_n0 > 0 ? 'Show ' + _n0 + ' — hand in place, hold it there' : 'Hand in place — hold it there')
                  : _n0 === 0 ? 'Make a fist beside your cheek'
                  : _n0 === 5 ? 'Show 5 — spread your fingers WIDE, beside your cheek'
                  : _n0 === 4 ? 'Show 4 — tuck your thumb in, beside your cheek'
@@ -3127,7 +3154,10 @@ function beginRecording() {
             // poses that feed detectedCounts, in order, surviving the n>0 filter on the counts.
             (function(){
                 var _zlm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
-                var _zone = (!_zlm || _zlm.length < 21) ? null : _handNearFaceZone(_zlm);
+                // task-432: this value can cause the BACKEND to drop the pose — deterministic
+                // fallback geometry only, never the noisy face-anchor estimate (see
+                // _handNearFallbackZone's comment).
+                var _zone = (!_zlm || _zlm.length < 21) ? null : _handNearFallbackZone(_zlm);
                 window.__vacPoseZones.push(_zone);
             })();
             _acceptArmed = false;
