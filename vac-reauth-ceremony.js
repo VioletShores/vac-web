@@ -525,6 +525,7 @@ const _FACE_SCAN_X0 = 0.42, _FACE_SCAN_X1 = 0.58;   // narrow centre band, clear
 const _FACE_SCAN_W = 160, _FACE_SCAN_H = 90;        // same downsample size as the existing light check
 const _FACE_MIN_HFRAC = 0.16, _FACE_MAX_HFRAC = 0.75; // implausible outside this range → no confident read
 const _FACE_LUMA_TOL = 26;    // per-row luma delta from the centre row still counts as "face"
+const _FACE_MIN_SKIN_FRAC = 0.30; // min share of skin-toned pixels in the band before trusting the read at all
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
 const _FACE_SIDE_GAP = 0.03;  // clearance between the estimated face edge and the oval's inner edge
 let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
@@ -560,14 +561,26 @@ function _sampleFaceBounds(ctx, iw, ih) {
     // deliberately bounded to this narrow band (not widened) so a raised hand — the coaching
     // keeps it further out, beside the cheek — can't corrupt the estimate. Naturally clamped to
     // [x0,x1]/iw, a modest correction rather than precise centring.
-    let wsum = 0, wxsum = 0;
+    let wsum = 0, wxsum = 0, skinCount = 0, sampleCount = 0;
     for (let y = top; y <= bottom; y++) {
         for (let x = x0; x < x1; x++) {
             const idx = (y * iw + x) * 4;
-            const luma = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+            const rr = data[idx], gg = data[idx + 1], bb = data[idx + 2];
+            const luma = 0.299 * rr + 0.587 * gg + 0.114 * bb;
             if (Math.abs(luma - ref) < _FACE_LUMA_TOL) { wsum++; wxsum += x; }
+            // codex review (task-432, round 3): luma-continuity alone can't tell a face from a
+            // shirt or a wall (a plain surface reads just as "continuous" as skin) — when the
+            // user is framed off-centre vertically, the centre row can land on torso/background
+            // instead of skin, and the old check would confidently anchor there. Add a cheap,
+            // well-known RGB skin-tone heuristic as a SECOND, independent signal; require a
+            // minimum share of skin-like pixels across the whole sampled band before trusting
+            // the read at all (checked below, outside this loop).
+            sampleCount++;
+            const mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb);
+            if (rr > 95 && gg > 40 && bb > 20 && (mx - mn) > 15 && Math.abs(rr - gg) > 15 && rr > gg && rr > bb) skinCount++;
         }
     }
+    if (sampleCount === 0 || (skinCount / sampleCount) < _FACE_MIN_SKIN_FRAC) return null;
     const cx = wsum > 0 ? (wxsum / wsum) / iw : 0.5;
     return { cx, cy: ((top + bottom) / 2) / ih, hFrac };
 }
