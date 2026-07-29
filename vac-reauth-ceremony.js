@@ -571,13 +571,18 @@ function _sampleFaceBounds(ctx, iw, ih) {
             // codex review (task-432, round 3): luma-continuity alone can't tell a face from a
             // shirt or a wall (a plain surface reads just as "continuous" as skin) — when the
             // user is framed off-centre vertically, the centre row can land on torso/background
-            // instead of skin, and the old check would confidently anchor there. Add a cheap,
-            // well-known RGB skin-tone heuristic as a SECOND, independent signal; require a
-            // minimum share of skin-like pixels across the whole sampled band before trusting
-            // the read at all (checked below, outside this loop).
+            // instead of skin, and the old check would confidently anchor there. Add a cheap
+            // chrominance-based skin-tone signal as a second, independent check.
+            // codex review (task-432, round 4): an earlier version of this check used absolute
+            // RGB brightness thresholds (e.g. R>95), which systematically fail darker skin tones
+            // and dim lighting — exactly the users who'd lose the face-anchored coaching benefit
+            // and get stuck on the old inaccurate fallback. Use YCbCr chrominance instead (Cb/Cr),
+            // which stays roughly stable across brightness/skin-tone and only encodes colour, not
+            // luma — the standard fix for this class of bias in skin-detection heuristics.
             sampleCount++;
-            const mx = Math.max(rr, gg, bb), mn = Math.min(rr, gg, bb);
-            if (rr > 95 && gg > 40 && bb > 20 && (mx - mn) > 15 && Math.abs(rr - gg) > 15 && rr > gg && rr > bb) skinCount++;
+            const cb = 128 - 0.168736 * rr - 0.331264 * gg + 0.5 * bb;
+            const cr = 128 + 0.5 * rr - 0.418688 * gg - 0.081312 * bb;
+            if (cb >= 77 && cb <= 135 && cr >= 130 && cr <= 180) skinCount++;
         }
     }
     if (sampleCount === 0 || (skinCount / sampleCount) < _FACE_MIN_SKIN_FRAC) return null;
