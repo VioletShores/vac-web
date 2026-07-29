@@ -626,8 +626,12 @@ function _activeZone() {
     const ry = Math.max(0.15, Math.min(0.30, hFrac * 0.56));
     const halfW = wFrac / 2;
     const faceCx = _faceAnchor.cx;
-    let cxLeft = faceCx - halfW - _FACE_SIDE_GAP - rx * 0.3;
-    let cxRight = faceCx + halfW + _FACE_SIDE_GAP + rx * 0.3;
+    // codex review (task-432): the oval's INNER edge (centre ± the full radius) must clear the
+    // face edge by _FACE_SIDE_GAP, not just a fraction of the radius — else the "beside the
+    // cheek" zone partially overlaps the face itself, coaching/accepting a hand position the
+    // server-side vision check may not be able to read cleanly.
+    let cxLeft = faceCx - halfW - _FACE_SIDE_GAP - rx;
+    let cxRight = faceCx + halfW + _FACE_SIDE_GAP + rx;
     // Clamp so an edge-sitting user still gets an on-screen oval.
     cxLeft = Math.max(0.09, Math.min(0.40, cxLeft));
     cxRight = Math.min(0.91, Math.max(0.60, cxRight));
