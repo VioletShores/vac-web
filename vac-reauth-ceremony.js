@@ -527,7 +527,7 @@ const _FACE_MIN_HFRAC = 0.16, _FACE_MAX_HFRAC = 0.75; // implausible outside thi
 const _FACE_LUMA_TOL = 26;    // per-row luma delta from the centre row still counts as "face"
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
 const _FACE_SIDE_GAP = 0.03;  // clearance between the estimated face edge and the oval's inner edge
-let _faceAnchor = { anchored: false, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
+let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
 let _faceScanCanvas = null, _faceScanCtx = null;
 let _faceAnchorMissStreak = 0;
 const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame luma noise
@@ -554,14 +554,29 @@ function _sampleFaceBounds(ctx, iw, ih) {
     while (bottom < ih - 1 && Math.abs(rowLuma[bottom + 1] - ref) < _FACE_LUMA_TOL) bottom++;
     const hFrac = (bottom - top) / ih;
     if (hFrac < _FACE_MIN_HFRAC || hFrac > _FACE_MAX_HFRAC) return null;
-    return { cy: ((top + bottom) / 2) / ih, hFrac: hFrac };
+    // Rough horizontal offset within the SAME narrow band (codex review, task-432): assuming the
+    // face sits at exactly cx=0.5 mis-locates the zone for a user who isn't perfectly centred.
+    // Find the luma-weighted horizontal centroid of the "on-face" rows already identified above,
+    // deliberately bounded to this narrow band (not widened) so a raised hand — the coaching
+    // keeps it further out, beside the cheek — can't corrupt the estimate. Naturally clamped to
+    // [x0,x1]/iw, a modest correction rather than precise centring.
+    let wsum = 0, wxsum = 0;
+    for (let y = top; y <= bottom; y++) {
+        for (let x = x0; x < x1; x++) {
+            const idx = (y * iw + x) * 4;
+            const luma = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+            if (Math.abs(luma - ref) < _FACE_LUMA_TOL) { wsum++; wxsum += x; }
+        }
+    }
+    const cx = wsum > 0 ? (wxsum / wsum) / iw : 0.5;
+    return { cx, cy: ((top + bottom) / 2) / ih, hFrac };
 }
 
 // Samples the given <video> into a small reusable offscreen canvas (created lazily) and updates
 // the module-level face anchor. Never throws — any failure just clears back to "not anchored"
 // (fallback constants), per the "never a dead zone" requirement.
 function _updateFaceAnchor(videoEl) {
-    if (!videoEl || !videoEl.videoWidth) { _faceAnchor = { anchored: false, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null }; _faceAnchorMissStreak = 0; return; }
+    if (!videoEl || !videoEl.videoWidth) { _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null }; _faceAnchorMissStreak = 0; return; }
     if (!_faceScanCanvas) {
         _faceScanCanvas = document.createElement('canvas');
         _faceScanCanvas.width = _FACE_SCAN_W; _faceScanCanvas.height = _FACE_SCAN_H;
@@ -575,14 +590,14 @@ function _updateFaceAnchor(videoEl) {
         // hunting, a blink, a slight head turn) doesn't visibly snap the coaching oval — the user
         // is meant to read this as a stable "hold it here" target, not a jittery live tracker.
         _faceAnchor = (_faceAnchor.anchored && _faceAnchor.hFrac != null)
-            ? { anchored: true, cy: _faceAnchor.cy + _FACE_ANCHOR_EMA * (r.cy - _faceAnchor.cy), hFrac: _faceAnchor.hFrac + _FACE_ANCHOR_EMA * (r.hFrac - _faceAnchor.hFrac) }
-            : { anchored: true, cy: r.cy, hFrac: r.hFrac };
+            ? { anchored: true, cx: _faceAnchor.cx + _FACE_ANCHOR_EMA * (r.cx - _faceAnchor.cx), cy: _faceAnchor.cy + _FACE_ANCHOR_EMA * (r.cy - _faceAnchor.cy), hFrac: _faceAnchor.hFrac + _FACE_ANCHOR_EMA * (r.hFrac - _faceAnchor.hFrac) }
+            : { anchored: true, cx: r.cx, cy: r.cy, hFrac: r.hFrac };
     } else {
         // Absorb a single bad frame — only drop back to the fallback constants after a SUSTAINED
         // miss streak, so the zone doesn't flicker fallback/anchored on every noisy read.
         _faceAnchorMissStreak++;
         if (_faceAnchorMissStreak >= _FACE_ANCHOR_DROP_STREAK) {
-            _faceAnchor = { anchored: false, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
+            _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
         }
     }
 }
@@ -610,8 +625,9 @@ function _activeZone() {
     const rx = Math.max(0.11, Math.min(0.22, hFrac * 0.42));
     const ry = Math.max(0.15, Math.min(0.30, hFrac * 0.56));
     const halfW = wFrac / 2;
-    let cxLeft = 0.5 - halfW - _FACE_SIDE_GAP - rx * 0.3;
-    let cxRight = 0.5 + halfW + _FACE_SIDE_GAP + rx * 0.3;
+    const faceCx = _faceAnchor.cx;
+    let cxLeft = faceCx - halfW - _FACE_SIDE_GAP - rx * 0.3;
+    let cxRight = faceCx + halfW + _FACE_SIDE_GAP + rx * 0.3;
     // Clamp so an edge-sitting user still gets an on-screen oval.
     cxLeft = Math.max(0.09, Math.min(0.40, cxLeft));
     cxRight = Math.min(0.91, Math.max(0.60, cxRight));
