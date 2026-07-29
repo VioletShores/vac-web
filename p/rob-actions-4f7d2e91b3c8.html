@@ -1,0 +1,85 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0A0F1A">
+<title>Rob — Actions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0A0F1A;--card:#0D1420;--line:#1E2A3D;--txt:#DCE4F2;--dim:#8b97ad;--gold:#D4A94E;--gold-dim:#8A7233;--green:#43d692;--red:#e06c75}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,sans-serif;font-size:15px;line-height:1.55}
+.page-shell{background:#0A0F1A !important;min-height:100vh;padding:20px 16px 60px;max-width:680px;margin:0 auto}
+h1{font-family:Fraunces,serif;font-size:26px;margin:4px 0 2px}
+.stamp{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--gold-dim);margin-bottom:18px}
+h2{font-family:Fraunces,serif;font-size:18px;margin:26px 0 10px;color:var(--gold)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.card.gate{border-color:rgba(224,108,117,.5)}
+.t{font-weight:600;margin-bottom:4px}
+.d{color:var(--dim);font-size:13.5px;margin-bottom:10px}
+a,a:visited{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(212,169,78,.45);text-underline-offset:2px}
+a:hover{color:#E8C46B}
+.btn{display:inline-block;background:none;border:1px solid var(--gold-dim);color:var(--gold);border-radius:8px;padding:8px 14px;font-size:13.5px;text-decoration:none;margin:2px 8px 2px 0}
+.btn.primary{background:var(--gold);color:#0A0F1A;border-color:var(--gold);font-weight:600;text-decoration:none}
+.done{color:var(--green)}.pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--dim);margin-left:6px}
+.pill.red{color:var(--red);border-color:rgba(224,108,117,.5)}
+ol{padding-left:20px;color:var(--dim);font-size:13.5px}ol li{margin-bottom:4px}
+</style></head><body><div class="page-shell">
+<h1>Rob — Actions</h1>
+<div class="stamp">S151 &middot; Wed 29 Jul &middot; every item one tap &middot; maintained by chat-Claude, tell it when something is done</div>
+
+<h2>1 &middot; Test the mic fix in noise <span class="pill red">merge gate</span></h2>
+<div class="card">
+  <div class="t">Go somewhere noisy — the wind, the street. Run the ceremony once. That is the whole job.</div>
+  <div class="d">The fix branch is deployed to a preview; the reason for every digit beat now streams to the server, so Claude reads the results itself afterwards. You do not report anything — just run it and say "done, noisy".</div>
+  <a class="btn primary" href="https://vacprotocol.org/financial-demo?qa=1">Open the demo &rarr;</a>
+</div>
+
+<h2>2 &middot; Naki — tomorrow <span class="pill red">hard deadline</span></h2>
+<div class="card">
+  <div class="t">a. Read + approve the welcome copy</div>
+  <div class="d">It is the first thing she sees on WhatsApp. Reply in chat with "welcome copy approved" or your edits.</div>
+  <a class="btn" href="https://vacprotocol.org/p/onboard-ux-d3b93652f575.html">Read the welcome copy (step 1 on this page) &rarr;</a>
+  <div class="t" style="margin-top:12px">b. Send Claude her phone number</div>
+  <div class="d">One line in chat: "Naki's number is +44…". The front door is live on prod and waiting for it.</div>
+  <div class="t" style="margin-top:12px">c. Schedule the three Cowork watches</div>
+  <div class="d">Cowork app &rarr; scheduled tasks &rarr; add three, pointing at these packets:</div>
+  <ol>
+    <li>docs/watch-packets/ &rarr; inbox packet</li>
+    <li>docs/watch-packets/ &rarr; naki-research packet</li>
+    <li>docs/watch-packets/ &rarr; ux-selfexplain packet</li>
+  </ol>
+  <a class="btn" href="https://vacprotocol.org/p/naki-3bd20e1222bf.html">Her one-pager (already live) &rarr;</a>
+</div>
+
+<h2>3 &middot; OAuth list post <span class="pill">window closes w/c 3 Aug</span></h2>
+<div class="card">
+  <div class="t">The draft is staged in your Gmail drafts, guarded with a block comment — has been since Vienna.</div>
+  <div class="d">Open drafts, find the message to oauth@ietf.org, remove the guard block, send. Two taps.</div>
+  <a class="btn primary" href="https://mail.google.com/mail/u/0/#drafts">Open Gmail drafts &rarr;</a>
+</div>
+
+<h2>4 &middot; Justin <span class="pill red">GATED — do not send yet</span></h2>
+<div class="card gate">
+  <div class="t">Held at your instruction until the biometric demo is fixed.</div>
+  <div class="d">Gate = hand-zone acquisition + visible in-zone feedback (escalated P1, 4th report) AND the noise-condition mic pass. When both close, the thank-you draft appears here with the demo link. Nothing for you to do today.</div>
+</div>
+
+<h2>5 &middot; Two checks, two minutes each</h2>
+<div class="card">
+  <div class="t">a. Supabase security advisor</div>
+  <div class="d">Open it, screenshot or paste what it flags into chat. Claude scopes the fix lane from that.</div>
+  <a class="btn" href="https://supabase.com/dashboard">Open Supabase dashboard &rarr;</a>
+  <div class="t" style="margin-top:12px">b. WhatsApp memory re-test — send these four messages to AthenaPilot, in order:</div>
+  <ol>
+    <li>Call me Rob</li>
+    <li>What's my name?</li>
+    <li>What do you remember about me?</li>
+    <li>Forget my name</li>
+  </ol>
+  <div class="d">All four replies now log server-side with the footer — Claude reads the results itself. Just send them and move on.</div>
+  <a class="btn primary" href="https://wa.me/447404843156?text=Call%20me%20Rob">Open the chat with message 1 pre-filled &rarr;</a>
+</div>
+
+<h2>Nothing needed from you</h2>
+<div class="card">
+  <div class="d">Cross-LLM critique of the coding-harness packet (running) &middot; Naki front door (merged, prod healthy) &middot; K3 (deliberately blocked on the execution harness) &middot; hub body regen &middot; SignalRank live-render (queued behind the harness). Claude reports when these need a decision.</div>
+</div>
+</div></body></html>
