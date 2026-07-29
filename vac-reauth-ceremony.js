@@ -2225,6 +2225,8 @@ function beginRecording() {
     let _latchedCount = 0;          // F-563: the finger count SHOWN at the moment the gesture latched — recorded as the client-detected count at advance (the hand may be DOWN by advance time during the camera-free say step, so we can't read `detected` then)
     let _latchedFrames = 0;         // F-563: stableFrames at latch, for the advance log
     let _escapeAdvancePending = false;  // F-563: the mic-escape was tapped on the say step (gesture already latched, hand down) — let THIS digit through via the latch even though escape switches to speech-off (which otherwise requires a live hand-up gesture)
+    let _qaBeatLastLogT = 0;        // S429: throttle state for the ?qa=1 per-beat non-advance log — display-only, decides nothing
+    let _qaBeatLastReason = '';     // S429: last logged reason, so a reason CHANGE logs immediately even inside the throttle window
 
     // ── F-561: per-digit ON-DEVICE voice-pacing gate (energy-VAD) ──────────────
     // The advance gate becomes gesture AND speech: a digit advances only once the
@@ -2917,6 +2919,33 @@ function beginRecording() {
             try { vacDebug('speech_cooccur_expired', null, { digit_index: currentDigitIndex, since_ms: Math.round(_nowCo - _voiceFiredAt) }); } catch(_) {}
         }
         var _advanceNow = _coDecision.advance;
+        // S429: per-beat QA instrumentation ONLY — logs what the gate above already decided,
+        // decides nothing itself. Surfaces voiced-run duration, co-occurrence window state, client
+        // finger count, and the REASON for non-advance so a repeated-digit run (transcript said the
+        // same number 3x, fingers only ever showed 2 of the 3 challenge digits) is diagnosable from
+        // the log instead of reconstructed after the fact. Throttled to once per reason-change or
+        // 300ms so it reads as a beat cadence, not per-rAF-frame spam.
+        if (QA.on) {
+            try {
+                var _coWindowState = (_speechMode === 'off') ? 'off'
+                    : (!_voiceFiredAt) ? 'not_fired'
+                    : _coDecision.expireVoice ? 'expired_' + Math.round(_nowCo - _voiceFiredAt) + 'ms'
+                    : speechReady[currentDigitIndex] ? 'armed_' + Math.round(_nowCo - _voiceFiredAt) + 'ms'
+                    : 'consumed';
+                var _beatReason = _coDecision.reason;
+                if (_beatReason !== _qaBeatLastReason || (_nowCo - _qaBeatLastLogT) >= 300) {
+                    _qaBeatLastLogT = _nowCo;
+                    _qaBeatLastReason = _beatReason;
+                    console.log('[VAC-BEAT]', {
+                        digit_index: currentDigitIndex,
+                        voice_ms: _lastVoiceMs,               // R1: continuous voiced-run duration
+                        co_window: _coWindowState,             // co-occurrence window state
+                        finger_count: detected,                // client-detected finger count this frame
+                        reason: _beatReason                    // 'advance' or why not
+                    });
+                }
+            } catch(_) {}
+        }
         if (currentDigitIndex < digits.length && _advanceNow && _acceptArmed && performance.now() >= _confirmUntil) {
             _escapeAdvancePending = false;
             var _adNow = performance.now();
@@ -3511,7 +3540,17 @@ function _cooccurAdvanceDecision(o) {
     var armedAfter = expireVoice ? false : o.voiceArmed;
     var voiceCo = (o.speechMode === 'off') ? true : armedAfter;
     var advance = (o.liveGestureOk && voiceCo) || (o.escapePending && o.liveGestureOk);
-    return { advance: advance, expireVoice: expireVoice };
+    // S429: REASON is additive instrumentation only — advance/expireVoice (the actual gate
+    // decision, read by both tiers) are computed exactly as before, above. This just names WHY
+    // a beat didn't advance instead of leaving it to be guessed after the fact (Rob's "Hello? 3.
+    // 3. 3. 4." run against expected "3 4 1" had no non-advance reason recorded on the beat that
+    // repeated — only the transcript and a finger count to reconstruct one from afterward).
+    var reason = advance ? 'advance'
+        : (!o.liveGestureOk && !voiceCo) ? 'gesture_and_voice_not_ready'
+        : (!o.liveGestureOk) ? 'awaiting_gesture'
+        : expireVoice ? 'voice_cooccur_expired'
+        : 'awaiting_voice';
+    return { advance: advance, expireVoice: expireVoice, reason: reason };
 }
 
 // FAST-tier voice arming. A single-window LIFT of beginRecording's _startSpeechGate VAD
