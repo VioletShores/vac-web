@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>Execution Board — S150 · what's in flight, what it unlocks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#E8E4D8;--dim:#8B8FA3;--line:#1E2536;--gold:#C9A227;--card:#0F1524;--green:#6B9E78;--amber:#D4A94E;--red:#C46B5B}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;color:var(--ink)}
+  .page-shell{background:#0A0F1A !important;min-height:100vh;padding:26px 18px 50px}
+  .wrap{max-width:860px;margin:0 auto}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase}
+  h1{font-family:'Fraunces',serif;font-weight:650;font-size:clamp(22px,4.2vw,29px);line-height:1.16;margin:8px 0 6px}
+  .stamp{font-size:12px;color:var(--dim);margin-bottom:4px}
+  section{margin-top:24px}
+  h2{font-family:'Fraunces',serif;font-weight:650;font-size:17px;margin-bottom:8px}
+  p,li,td{font-size:13px;line-height:1.55;color:#B9BDCB}
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--line);padding:6px 8px 6px 0;font-weight:500}
+  td{padding:7px 8px 7px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  td b{color:var(--ink);font-weight:600}
+  .g{color:var(--green)} .a{color:var(--amber)} .r{color:var(--red)}
+  .counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px}
+  .cnt{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;text-align:center}
+  .cnt b{display:block;font-family:'Fraunces',serif;font-size:22px;color:var(--gold)}
+  .cnt span{font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+  a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(201,162,39,.4);text-underline-offset:3px}
+  a:visited{color:var(--gold)}
+  .note{background:var(--card);border-left:2px solid var(--gold);border-radius:6px;padding:10px 13px;margin-top:10px;font-size:12.5px;line-height:1.55}
+  .foot{margin-top:30px;padding-top:10px;border-top:1px solid var(--line);font-size:11px;color:var(--dim);line-height:1.5}
+</style>
+</head>
+<body data-build="S150-board-1">
+<div class="page-shell">
+<div class="wrap">
+
+  <div class="eyebrow">Athena · Rob's Execution Board</div>
+  <h1>What's moving, what's gated, and what each one unlocks</h1>
+  <div class="stamp">Snapshot: Wed 29 July 2026, ~08:20 UK · Session 150 · hand-curated this once — becomes auto-generated when the Feature Board pipeline merges. If this stamp is old, say "refresh the board".</div>
+
+  <section>
+    <h2>Feature truth — 792 captured, counted by evidence not memory</h2>
+    <div class="counts">
+      <div class="cnt"><b>151</b><span>SHIPPED (proven)</span></div>
+      <div class="cnt"><b>59</b><span>IN FLIGHT</span></div>
+      <div class="cnt"><b>578</b><span>ORPHANS — no plan</span></div>
+      <div class="cnt"><b>~19%</b><span>execution ratio</span></div>
+    </div>
+    <p style="margin-top:8px">The orphan number is the honest one you asked for. New rule already live: nothing gets captured without a disposition (build now / attached to a track / parked with a date / rejected). The orphan pile becomes a weekly five-minute triage: you pick five, the rest get dates or die.</p>
+  </section>
+
+  <section>
+    <h2>Gated on branches — built, awaiting merge order</h2>
+    <table>
+      <tr><th>What</th><th>State</th><th>When it lands, it unlocks…</th></tr>
+      <tr><td><b>Naki front door</b> (allowlist, v1 classifier, welcome, spend cap, changelog)</td><td class="g">BUILT · gate next</td><td><b>Her first message Thursday.</b> Unknown numbers politely declined; she can never reach the broken open-chat voice; every reply carries attribution.</td></tr>
+      <tr><td><b>Voice quill</b> (in-page feedback, hold-to-talk)</td><td class="g">BUILT · gate next</td><td>You (and later her) react to any page without leaving it — the braided-thread store starts filling. Your story-page feedback stops riding screenshots.</td></tr>
+      <tr><td><b>Router fix</b> (normalisation shrinkage + eligibility + tenant scoping)</td><td class="r">LANE DIED at ceiling — branch check owed, likely partial</td><td><b>The P1.</b> Regret 0.18 → target &lt;0.05; one model's 74% lock broken; before/after number becomes the harness demo.</td></tr>
+      <tr><td><b>Watch runner</b> (our own scheduler: pinned instructions, leases, per-user budgets)</td><td class="r">FINISH LANE DIED — re-fire queued</td><td>Cowork watches migrate to our rails by flipping a row; watches become sellable product surface, not Rob's subscription.</td></tr>
+      <tr><td><b>Routing panel</b> (the "why this model" on every engine-room page)</td><td class="r">LANE DIED — branch has full work, needs verify+gate</td><td>Naki taps an answer and sees the decision: candidates, trust scores, margin, plain-English why. The SignalRank show, per answer.</td></tr>
+      <tr><td><b>Kimi K3 direct</b> (Moonshot key path)</td><td class="g">BUILT</td><td>Merge → I fire the harness → <b>K3 earns its rank live</b>, the depth demo you asked to watch. Needs MOONSHOT_API_KEY confirmed in Railway.</td></tr>
+      <tr><td><b>Router metrics</b> (top-3 + regret in the report)</td><td class="g">BUILT</td><td>Regret becomes a daily watched number — the monitor whose absence hid the P1 for months.</td></tr>
+      <tr><td><b>Feature Board generator</b></td><td class="g">BUILT (counts above are its output)</td><td>This page's feature section auto-regenerates instead of being hand-curated; orphans surface weekly without anyone remembering.</td></tr>
+    </table>
+    <div class="note"><b>Merge order today:</b> front door → quill → routing panel (after verify) → K3 → metrics → board. Router fix and Watch runner get re-fired finishing lanes first — both "failures" likely hold near-complete work on their branches (the runner already survived one such autopsy).</div>
+  </section>
+
+  <section>
+    <h2>This week — the Naki countdown</h2>
+    <table>
+      <tr><th>Day</th><th>Happens</th><th>Needs you</th></tr>
+      <tr><td><b>Wed (today)</b></td><td>Front door + quill merge · OAuth list post 09:00 · Cowork: schedule 3 watches · story/one-pager final read</td><td>Welcome-copy sign-off · her phone number · Cowork setup · Supabase advisor check (hub link)</td></tr>
+      <tr><td><b>Thu</b></td><td><b>Her first session, you beside her:</b> welcome → she sends a link → sourced brief, model named → her research digest exists</td><td>Be there · capture her face at the attribution footer</td></tr>
+      <tr><td><b>Fri</b></td><td>Buffer, her feedback via quill, optionally the verification ceremony as encore</td><td>Nothing scheduled — deliberately</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Next, attached to tracks (not orphans)</h2>
+    <table>
+      <tr><th>Item</th><th>Rides on</th><th>Why it matters</th></tr>
+      <tr><td><b>Seal-draft prose</b> (sealed decision receipts I-D)</td><td>Standards track · this week's chat windows</td><td>"Durable authorization receipt" language is being colonised on-list <b>this week</b>; the alliance standardises the layer above us. Skeleton done; Birkholz note rides it.</td></tr>
+      <tr><td><b>Bi-temporal trust rows</b> (valid_at/recorded_at, supersede-never-delete)</td><td>Router-fix follow-up</td><td>Turns the staleness bug class into a schema property AND gives weight changes their sealed audit history — the weighting patent claim as a data model.</td></tr>
+      <tr><td><b>Envelope as typed graph</b></td><td>Metadata-envelope track / Watch wave</td><td>Constellation becomes queryable like the graph-memory wave everyone's excited about — with the one thing they all lack: authority provenance on writes.</td></tr>
+      <tr><td><b>Decision Weighting Copilot</b></td><td>New card · v1 = elicitation dialogue</td><td>SignalRank as universal decision substrate (your 2015 Priority Blaster, industrialised). We're customer #1: the router P1 is the proof it must exist.</td></tr>
+      <tr><td><b>X-ingest fix</b> (long posts + honesty manifest)</td><td>Ingest track · after queue clears</td><td>Never again summarise a fragment as the whole; every ingest declares what it could not see.</td></tr>
+      <tr><td><b>Braided thread</b> (WhatsApp dialogue under a page link)</td><td>Quill store + front-door follow-up + hub pass</td><td>Artifact + conversation + feedback + opens = one record; the whitepaper's voice-editing story.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>September & standing</h2>
+    <p><b>Lugano w/c 14 Sep soft-confirmed</b> by Andrea (grandson's week protected; two-pager drawered until asked) · <b>OSAIA/graph-wave posture:</b> quiet window holds — IETF is the public voice; receipts + authority provenance is the gap the whole market keeps describing without naming · <b>Inbox:</b> Supabase security alert awaiting your advisor click (hub) · IETF survey 3-min goodwill.</p>
+  </section>
+
+  <div class="foot">
+    Private board · not indexed. Companions: <a href="https://vacprotocol.org/p/story-8fbb551c6c4c.html">the story</a> · <a href="https://vacprotocol.org/p/naki-3bd20e1222bf.html">Naki one-pager</a> · <a href="https://vacprotocol.org/p/onboard-ux-d3b93652f575.html">onboarding spec</a> · <a href="https://vacprotocol.org/financial-demo">financial demo</a> · <a href="https://vacprotocol.org/p/signalrank-live-6e3a91f2c8b4.html">routing walkthrough</a>.<br>
+    Quill feedback lands here too once the widget merges — tell the page, not the screenshot.
+  </div>
+
+</div></div>
+</body>
+</html>
