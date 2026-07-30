@@ -481,6 +481,18 @@ let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has cl
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
 // see the reduced ambient multiplier at the qualify check below.
 const VOICE_BAND_MIN_RATIO = 0.45; // S148 field-tune: Rob speaking on a London street read 52% — 0.55 missed real speech; street rumble dilutes the ratio.
+// S429: single source for the mic qualify floor — used by the pre-flight collector gate (what
+// counts as part of a "loud enough" run), the sustained-run qualify check, and the live meter's
+// gold line, so a given room reads the same threshold everywhere instead of drifting between an
+// unreachable flat collector gate and a lower qualify floor it was supposed to feed (field
+// measurement: Rob's speech read 46% in a quiet room but 9% outdoors — a fixed number can't gate
+// both a 1% room and a 40% street). Pre-seed (_micSeededAmbient still 0) this collapses to the
+// flat floor (8 voiced / 12 non-voiced), matching today's startup behaviour until ambient is known.
+function _micQualifyFloor(_voiced) {
+    const _mult = _voiced ? 1.15 : 2;   // F-941: voice-band-dominant energy needs less headroom over ambient than flat/broadband noise
+    const _floor = _voiced ? 8 : 12;    // S148 field-tune: the flat 12 floor was unreachable for Rob's 9% outdoor speech; voice-shaped runs may qualify from 8
+    return Math.max(_mult * _micSeededAmbient, _floor);
+}
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and
@@ -669,13 +681,21 @@ function startAVChecks() {
             try {
                 if (!window.__vacGateArmed) { var _svx = document.getElementById('vacStepVU'); if (_svx) _svx.remove(); }
                 if (!window.__vacGateArmed && window.__vacMicPillDraw) {
-                    // MUST be the SAME quantity the VAD gates measure: FREQUENCY-spectrum rms
-                    // (getByteFrequencyData, sqrt-mean/255) — the scale every threshold is tuned in.
-                    // The first cut used time-domain rms (~4x smaller for speech) → bar looked dead.
-                    let _mrms = 0;
-                    for (let i = 0; i < _fbuf.length; i++) _mrms += _fbuf[i] * _fbuf[i];
-                    _mrms = Math.sqrt(_mrms / _fbuf.length) / 255;
-                    window.__vacMicPillDraw(_mrms, window.__vacMicThr || 0.115, 'm');
+                    // S429: MUST be the SAME quantity the pass/fail gate below judges — TIME-domain
+                    // `level` — with the gold line at the LIVE qualify floor, not a hardcoded 0.115.
+                    // The prior draw used FREQUENCY-domain rms against a fixed threshold: broadband
+                    // wind/HVAC lifts frequency-rms, so the bar read "loud enough" exactly when the
+                    // time-domain level the gate actually reads was starving (outdoor false-deny).
+                    // The floor mirrors the FULL qualify formula below (rolling-2s ambient median
+                    // AND seeded ambient, not just the seed) — a meter that only showed the seed
+                    // term could read "past the line" while the real gate (which also weighs recent
+                    // ambient) still failed it, coaching the user wrong (codex adversarial review).
+                    // `level` and the floor are both 0-100 scale; /100 puts them on the pill's 0-1 scale.
+                    const _voicedNow = _speechRatio >= VOICE_BAND_MIN_RATIO;
+                    const _histSorted = _micLevelHistory.map(function(e){ return e.level; }).sort(function(a,b){ return a - b; });
+                    const _histAmbientMedian = _histSorted.length ? _histSorted[Math.floor(_histSorted.length / 2)] : 0;
+                    const _liveFloor = Math.max((_voicedNow ? 1.15 : 2) * _histAmbientMedian, _micQualifyFloor(_voicedNow));
+                    window.__vacMicPillDraw(level / 100, _liveFloor / 100, 'm');
                 }
             } catch(_) {}
             const bar = document.getElementById('avAudioLevel');
@@ -712,7 +732,22 @@ function startAVChecks() {
             }
             _micLevelHistory.push({ t: _nowT, level });
             while (_micLevelHistory.length && _micLevelHistory[0].t < _nowT - 2000) _micLevelHistory.shift();
-            if (level > 12) {
+            // S429: collect relative to the SAME qualify floor the run is later judged against
+            // (_micQualifyFloor — ambient-relative, voice-band-aware), not a flat 12. The flat 12
+            // was an unreachable absolute for a voice-shaped run that qualifies from 8 (Rob at 9%
+            // outdoors never accumulated a single frame) — every frame below it was discarded and
+            // _micLoudFrames reset, so the lower qualify floor downstream was dead code. The strict
+            // 2x-ambient path for non-voice-shaped runs is unchanged (still floors at 12).
+            // Voice-shaped classification uses the RUN'S OWN accumulated ratio median once a run is
+            // underway (not just this single frame's instantaneous ratio) — the final qualify check
+            // already judges the whole run by its median ratio, so gating single frames on a noisy
+            // instantaneous sample let ordinary formant dips flip a frame to the stricter threshold
+            // mid-utterance and spuriously reset an otherwise-voiced run (codex adversarial review).
+            // A brand-new run (no ratio history yet) still decides on this frame's own ratio.
+            const _runRatioSoFar = _micRunRatios.length
+                ? _micRunRatios.slice().sort((a, b) => a - b)[Math.floor(_micRunRatios.length / 2)]
+                : _speechRatio;
+            if (level > _micQualifyFloor(_runRatioSoFar >= VOICE_BAND_MIN_RATIO)) {
                 if (_micLoudFrames === 0) _micRunStartT = _nowT;
                 _micLoudFrames++;
                 _micRunLevels.push(level);
@@ -744,8 +779,12 @@ function startAVChecks() {
                 // existing strict 2x path (unchanged), so loud non-speech rooms don't get easier.
                 const _ratioSorted = _micRunRatios.slice().sort((a, b) => a - b);
                 const _runRatioMedian = _ratioSorted.length ? _ratioSorted[Math.floor(_ratioSorted.length / 2)] : 0;
-                const _ambientMult = (_runRatioMedian >= VOICE_BAND_MIN_RATIO) ? 1.15 : 2;
-                const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _ambientMult * _micSeededAmbient, (_runRatioMedian >= VOICE_BAND_MIN_RATIO) ? 8 : 12); // S148 field-tune: Rob at level 9% speaking outdoors — the flat 12 floor was unreachable; voice-shaped runs may qualify from 8.
+                const _runVoiced = _runRatioMedian >= VOICE_BAND_MIN_RATIO;
+                const _ambientMult = _runVoiced ? 1.15 : 2;
+                // S429: seeded-ambient + floor term now lives in the shared _micQualifyFloor (also
+                // used by the collector gate above and the live meter), so this can't drift from
+                // what fed it. The local pre-run ambientMedian term is unchanged.
+                const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _micQualifyFloor(_runVoiced));
                 if (_runMedian > _qualifyFloor) {
                     _micLastQualifyT = _nowT;
                     if (!avChecks.mic) {
@@ -2202,6 +2241,8 @@ function beginRecording() {
     let _latchedCount = 0;          // F-563: the finger count SHOWN at the moment the gesture latched — recorded as the client-detected count at advance (the hand may be DOWN by advance time during the camera-free say step, so we can't read `detected` then)
     let _latchedFrames = 0;         // F-563: stableFrames at latch, for the advance log
     let _escapeAdvancePending = false;  // F-563: the mic-escape was tapped on the say step (gesture already latched, hand down) — let THIS digit through via the latch even though escape switches to speech-off (which otherwise requires a live hand-up gesture)
+    let _qaBeatLastLogT = 0;        // S429: throttle state for the ?qa=1 per-beat non-advance log — display-only, decides nothing
+    let _qaBeatLastReason = '';     // S429: last logged reason, so a reason CHANGE logs immediately even inside the throttle window
 
     // ── F-561: per-digit ON-DEVICE voice-pacing gate (energy-VAD) ──────────────
     // The advance gate becomes gesture AND speech: a digit advances only once the
@@ -2232,7 +2273,7 @@ function beginRecording() {
     let _micBarDisp = 0, _micBarVoiced = false;
     function _micPillDraw(rms, thr, tag) {
         try {
-            window.__vacMicThr = thr;  // S145e: published for the always-on monitor fallback
+            window.__vacMicThr = thr;  // S145e: last-drawn threshold, published for external/QA introspection (S429: the pre-flight monitor computes its own live floor now, no longer reads this back as a fallback)
             // S145g: the pill row lives ONLY on the preflight screen — the ceremony STEP view
             // (greeting/digits, where the user actually speaks) replaces it (Rob screenshot,
             // hotel run). So while a speech gate is armed, ALSO maintain a compact fixed meter
@@ -2894,6 +2935,33 @@ function beginRecording() {
             try { vacDebug('speech_cooccur_expired', null, { digit_index: currentDigitIndex, since_ms: Math.round(_nowCo - _voiceFiredAt) }); } catch(_) {}
         }
         var _advanceNow = _coDecision.advance;
+        // S429: per-beat QA instrumentation ONLY — logs what the gate above already decided,
+        // decides nothing itself. Surfaces voiced-run duration, co-occurrence window state, client
+        // finger count, and the REASON for non-advance so a repeated-digit run (transcript said the
+        // same number 3x, fingers only ever showed 2 of the 3 challenge digits) is diagnosable from
+        // the log instead of reconstructed after the fact. Throttled to once per reason-change or
+        // 300ms so it reads as a beat cadence, not per-rAF-frame spam.
+        if (QA.on) {
+            try {
+                var _coWindowState = (_speechMode === 'off') ? 'off'
+                    : (!_voiceFiredAt) ? 'not_fired'
+                    : _coDecision.expireVoice ? 'expired_' + Math.round(_nowCo - _voiceFiredAt) + 'ms'
+                    : speechReady[currentDigitIndex] ? 'armed_' + Math.round(_nowCo - _voiceFiredAt) + 'ms'
+                    : 'consumed';
+                var _beatReason = _coDecision.reason;
+                if (_beatReason !== _qaBeatLastReason || (_nowCo - _qaBeatLastLogT) >= 300) {
+                    _qaBeatLastLogT = _nowCo;
+                    _qaBeatLastReason = _beatReason;
+                    console.log('[VAC-BEAT]', {
+                        digit_index: currentDigitIndex,
+                        voice_ms: _lastVoiceMs,               // R1: continuous voiced-run duration
+                        co_window: _coWindowState,             // co-occurrence window state
+                        finger_count: detected,                // client-detected finger count this frame
+                        reason: _beatReason                    // 'advance' or why not
+                    });
+                }
+            } catch(_) {}
+        }
         if (currentDigitIndex < digits.length && _advanceNow && _acceptArmed && performance.now() >= _confirmUntil) {
             _escapeAdvancePending = false;
             var _adNow = performance.now();
@@ -3488,7 +3556,21 @@ function _cooccurAdvanceDecision(o) {
     var armedAfter = expireVoice ? false : o.voiceArmed;
     var voiceCo = (o.speechMode === 'off') ? true : armedAfter;
     var advance = (o.liveGestureOk && voiceCo) || (o.escapePending && o.liveGestureOk);
-    return { advance: advance, expireVoice: expireVoice };
+    // S429: REASON is additive instrumentation only — advance/expireVoice (the actual gate
+    // decision, read by both tiers) are computed exactly as before, above. This just names WHY
+    // a beat didn't advance instead of leaving it to be guessed after the fact (Rob's "Hello? 3.
+    // 3. 3. 4." run against expected "3 4 1" had no non-advance reason recorded on the beat that
+    // repeated — only the transcript and a finger count to reconstruct one from afterward).
+    // expireVoice is checked FIRST: the hand-down expiry condition above (handDown && since >
+    // DIGIT_COOCCUR_MS) means liveGestureOk is necessarily false at the moment it fires too, so
+    // checking the generic "neither ready" case first would swallow the specific, more useful
+    // expiry diagnosis on almost every expiry beat (codex adversarial review).
+    var reason = advance ? 'advance'
+        : expireVoice ? 'voice_cooccur_expired'
+        : (!o.liveGestureOk && !voiceCo) ? 'gesture_and_voice_not_ready'
+        : (!o.liveGestureOk) ? 'awaiting_gesture'
+        : 'awaiting_voice';
+    return { advance: advance, expireVoice: expireVoice, reason: reason };
 }
 
 // FAST-tier voice arming. A single-window LIFT of beginRecording's _startSpeechGate VAD
