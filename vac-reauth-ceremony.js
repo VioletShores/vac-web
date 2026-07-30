@@ -482,6 +482,20 @@ let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has cl
 // _micSeededAmbient so the ceremony VAD can arm from BOTH instead of starting deaf on fallback
 // constants until a greeting it can't hear over the noise recalibrates it.
 let _micSeededSpeechLevel = 0;
+// D-VAD-UNITS (task-447, live evidence: Rob's 17:24 UTC run — thr 0.128 unreachable, greeting
+// spoken and never detected): _micSeededAmbient/_micSeededSpeechLevel above are TIME-domain peak %
+// (0-100, see `level` in runAVFrame) — a different quantity, on a different scale, from what the
+// ceremony VAD actually compares (frequency-domain RMS-of-squares, 0-1, see _ceremonyRms below and
+// its verbatim twins at the digit gate ~_startSpeechGate and the phrase gate ~_phraseVadTick). The
+// task-443 fix handed the ceremony derivation `level`/100, which reads nothing like ceremony-scale
+// RMS — right idea, wrong units, unreachable threshold. These are the ceremony-RMS-scale twins,
+// sampled from the SAME frames/windows as the pair above, so the derivation below can arm from THIS
+// room's ambient and THIS user's speech in the ceremony VAD's OWN units — no cross-scale conversion.
+let _micSeededAmbientRms = 0;
+let _micSeededSpeechRms = 0;
+let _micSeedRmsSamples = [];  // ceremony-scale twin of _micSeedLevels, same 1.5s seed window
+let _micRunRmsSamples = [];   // ceremony-scale twin of _micRunLevels, same qualifying run
+let _micPreflightVadReason = null;  // last _micPreflightVad() null-return reason — surfaced in vad_calibrated for field diagnosis
 // F-941 (BUILD 393, restaurant failure): a loud room's ambient floor is broadband/impulsive
 // (plates, chatter, HVAC) while speech concentrates in ~187Hz-3kHz. A run whose energy sits
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
@@ -517,13 +531,17 @@ const _CAL_SIL_K = 0.30;     // mirrors the greeting calibration's _CAL_SIL_K �
 const _CAL_MIN_SPAN = 0.04;  // mirrors the greeting calibration's _CAL_MIN_SPAN — reject a degenerate (near-zero) floor→speech span rather than calibrate off noise
 function _calClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 function _micPreflightVad() {
-    if (!(_micSeededAmbient > 0) || !(_micSeededSpeechLevel > 0)) return null;  // preflight measurements absent (AV check skipped, or never qualified)
-    // Preflight levels are 0-100 (time-domain peak %, see runAVFrame); the ceremony VAD reads
-    // 0-1 (frequency-domain rms). /100 is the SAME conversion the shared mic-pill draw already
-    // uses to put a preflight level on the ceremony gate's scale (see window.__vacMicPillDraw call).
-    const _floor01 = _micSeededAmbient / 100, _speech01 = _micSeededSpeechLevel / 100;
+    _micPreflightVadReason = null;
+    // D-VAD-UNITS (task-447): arm from the ceremony-RMS-scale samples (_micSeededAmbientRms /
+    // _micSeededSpeechRms) — the SAME quantity, SAME units, the ceremony VAD ticks compare against
+    // every frame. No /100 conversion here: that was the bug (a 0-100 time-domain peak % hint fed
+    // straight into a 0-1 frequency-domain rms comparison sets an unreachable threshold — thr 0.128
+    // against real ceremony-RMS speech of ~0.03-0.1 outdoors never fires).
+    if (!(_micSeededAmbientRms > 0)) { _micPreflightVadReason = 'no_ambient_sample'; return null; }
+    if (!(_micSeededSpeechRms > 0)) { _micPreflightVadReason = 'no_speech_sample'; return null; }  // user barely spoke during preflight — caller keeps its fallback constants
+    const _floor01 = _micSeededAmbientRms, _speech01 = _micSeededSpeechRms;
     const _span = _speech01 - _floor01;
-    if (_span < _CAL_MIN_SPAN) return null;  // degenerate — caller keeps its fallback constants
+    if (_span < _CAL_MIN_SPAN) { _micPreflightVadReason = 'thin_span'; return null; }  // degenerate — caller keeps its fallback constants
     const speechThr = _calClamp(_floor01 + _CAL_K * _span, 0.06, 0.30);   // same clamp bounds as the greeting calibration
     const silenceThr = _floor01 + _CAL_SIL_K * (speechThr - _floor01);
     return { speechThr: speechThr, silenceThr: silenceThr, floor: _floor01, speech: _speech01 };
@@ -841,6 +859,10 @@ function startAVChecks() {
     _micSeedStartT = 0;
     _micSeededAmbient = 0;
     _micSeededSpeechLevel = 0;
+    _micSeededAmbientRms = 0;
+    _micSeededSpeechRms = 0;
+    _micSeedRmsSamples = [];
+    _micRunRmsSamples = [];
     _micSeeded = false;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
@@ -942,6 +964,15 @@ function startAVChecks() {
                 }
                 _speechRatio = _totalSum > 0 ? (_bandSum / _totalSum) : 0;
             }
+            // D-VAD-UNITS (task-447): the ceremony VAD's actual comparison quantity — computed
+            // VERBATIM from the same _fbuf just fetched above, mirroring _startSpeechGate's digit
+            // tick (~L2784) and _phraseVadTick's greeting tick (~L3538) byte-for-byte. Sampling it
+            // here (same analyser type, fftSize 256, same frequencyBinCount) means the ceremony
+            // derivation below hands the ceremony VAD numbers in ITS OWN units instead of the
+            // unrelated time-domain `level` the task-443 fix mistakenly reused.
+            let _ceremonyRms = 0;
+            for (let i = 0; i < _fbuf.length; i++) _ceremonyRms += _fbuf[i] * _fbuf[i];
+            _ceremonyRms = Math.sqrt(_ceremonyRms / _fbuf.length) / 255;
             // S145e (Rob): the Mic-pill VU must run in EVERY phase — greeting included — regardless
             // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
             // does, with rms computed the same way the VAD measures it (so the gold line means the
@@ -992,9 +1023,12 @@ function startAVChecks() {
             if (!_micSeeded) {
                 if (_micSeedStartT === 0) _micSeedStartT = _nowT;
                 _micSeedLevels.push(level);
+                _micSeedRmsSamples.push(_ceremonyRms);  // D-VAD-UNITS: ceremony-scale twin, same seed window
                 if (_nowT - _micSeedStartT >= 1500) {
                     const _seedSorted = _micSeedLevels.slice().sort((a, b) => a - b);
                     _micSeededAmbient = _seedSorted.length ? _seedSorted[Math.floor(_seedSorted.length / 2)] : 0;
+                    const _seedRmsSorted = _micSeedRmsSamples.slice().sort((a, b) => a - b);
+                    _micSeededAmbientRms = _seedRmsSorted.length ? _seedRmsSorted[Math.floor(_seedRmsSorted.length / 2)] : 0;
                     _micSeeded = true;
                 }
             }
@@ -1020,10 +1054,12 @@ function startAVChecks() {
                 _micLoudFrames++;
                 _micRunLevels.push(level);
                 _micRunRatios.push(_speechRatio);
+                _micRunRmsSamples.push(_ceremonyRms);  // D-VAD-UNITS: ceremony-scale twin, same qualifying run
             } else {
                 _micLoudFrames = 0;
                 _micRunLevels = [];
                 _micRunRatios = [];
+                _micRunRmsSamples = [];
             }
             if (_micLoudFrames >= 3 && _micSeeded) {
                 // GATE-343 f2: hold qualification until the seed window has closed — a run
@@ -1059,6 +1095,8 @@ function startAVChecks() {
                     // speaking level over THIS room's ambient — persist it so the ceremony VAD
                     // can arm from it (see _micPreflightVad).
                     _micSeededSpeechLevel = _runMedian;
+                    const _runRmsSorted = _micRunRmsSamples.slice().sort((a, b) => a - b);
+                    _micSeededSpeechRms = _runRmsSorted.length ? _runRmsSorted[Math.floor(_runRmsSorted.length / 2)] : 0;  // D-VAD-UNITS: ceremony-scale twin of _runMedian, same run
                     if (!avChecks.mic) {
                         setAVStatus('mic', 'good', 'Mic: working');
                         avChecks.mic = true;
@@ -1987,6 +2025,7 @@ function retryAVSetup() {
     _micLevelHistory = [];
     _micRunLevels = [];
     _micRunRatios = [];
+    _micRunRmsSamples = [];  // D-VAD-UNITS: ceremony-scale twin of _micRunLevels/_micRunRatios above — kept in lockstep
     _micRunStartT = 0;
     _micLastQualifyT = 0;
     // Stop existing stream
@@ -2662,7 +2701,10 @@ function beginRecording() {
     // _CAL_K / _CAL_SIL_K / _CAL_MIN_SPAN / _calClamp now live at module scope (shared with
     // _micPreflightVad and the FAST tier) — see the definitions near _micQualifyFloor.
     function _calMedian(a) { if (!a.length) return null; const s = a.slice().sort(function(x,y){return x-y;}); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; }
-    try { vacDebug('vad_calibrated', null, { at: 'arm', floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : null, speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, source: _preflightVad ? 'preflight' : 'fallback' }); } catch(_) {}
+    // D-VAD-UNITS (task-447): floor/speech below are now ceremony-RMS-scale (0-1, same units as
+    // thr/sil) — floor_pct/speech_pct carry the RAW time-domain preflight samples (0-100) alongside
+    // them so a field run can verify the two quantities directly instead of inferring a conversion.
+    try { vacDebug('vad_calibrated', null, { at: 'arm', floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : null, speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, reason: _preflightVad ? null : _micPreflightVadReason, source: _preflightVad ? 'preflight' : 'fallback' }); } catch(_) {}
     // F-563 (#1): the digit say-step got the SAME tap/beep weakness the greeting had — the old
     // ~100ms (VAD_SPEECH_FRAMES) bar let a tap/beep satisfy a digit. A SPOKEN number is ~300-500ms
     // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
@@ -4097,7 +4139,9 @@ async function beginStillCapture() {
                 const _fastVad = _micPreflightVad();
                 const _fastSpeechThr = _fastVad ? _fastVad.speechThr : FAST_VAD_SPEECH_RMS;
                 const _fastSilenceThr = _fastVad ? _fastVad.silenceThr : FAST_VAD_SILENCE_RMS;
-                try { vacDebug('vad_calibrated', null, { at: 'arm', tier: 'fast', floor: _fastVad ? Number(_fastVad.floor.toFixed(3)) : null, speech: _fastVad ? Number(_fastVad.speech.toFixed(3)) : null, thr: Number(_fastSpeechThr.toFixed(3)), sil: Number(_fastSilenceThr.toFixed(3)), fallback: !_fastVad, source: _fastVad ? 'preflight' : 'fallback' }); } catch(_) {}
+                // D-VAD-UNITS (task-447): floor/speech are ceremony-RMS-scale; floor_pct/speech_pct
+                // carry the raw time-domain preflight samples alongside for direct field verification.
+                try { vacDebug('vad_calibrated', null, { at: 'arm', tier: 'fast', floor: _fastVad ? Number(_fastVad.floor.toFixed(3)) : null, speech: _fastVad ? Number(_fastVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(_fastSpeechThr.toFixed(3)), sil: Number(_fastSilenceThr.toFixed(3)), fallback: !_fastVad, reason: _fastVad ? null : _micPreflightVadReason, source: _fastVad ? 'preflight' : 'fallback' }); } catch(_) {}
                 _voiceGate = _makeQuickReauthVoiceGate({
                     speechThr: _fastSpeechThr, silenceThr: _fastSilenceThr,
                     voiceMinMs: FAST_DIGIT_VOICE_MIN_MS, modDelta: FAST_DIGIT_MOD_DELTA, gapMs: FAST_DIGIT_VOICE_GAP_MS
