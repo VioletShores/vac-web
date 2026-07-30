@@ -512,96 +512,91 @@ const GESTURE_ZONE_SPEC = Object.freeze({
     minTipsInside: 3,  // majority (3 of 5) fingertips must be inside (or the palm centre — see below)
 });
 
-// task-432 Part 1: lightweight per-frame FACE-BOUNDS ESTIMATE — a coaching proxy only, not a
-// detector used for any security decision. Cheap heuristic (no new model/library, works on every
-// platform incl. iOS Safari where no native face-detection API ships): sample a NARROW horizontal
-// band at the frame's centre (hands are coached to stay OFF to the side, "beside your cheek", so
-// this band is rarely occluded by the hand itself) and find the vertical run of rows whose luma
-// stays close to the frame's vertical-centre row (assumed on-face), stopping at the first sharp
-// luma jump (background/hairline/chin edge). Confidence-gated: any implausible read (too small,
-// too large, no clear edge) is discarded so the zone never anchors to garbage — _activeZone()
-// falls back to the fixed GESTURE_ZONE_SPEC constants whenever this has no confident read.
-const _FACE_SCAN_X0 = 0.42, _FACE_SCAN_X1 = 0.58;   // narrow centre band, clear of the cheek ovals
-const _FACE_SCAN_W = 160, _FACE_SCAN_H = 90;        // same downsample size as the existing light check
-const _FACE_MIN_HFRAC = 0.16, _FACE_MAX_HFRAC = 0.75; // implausible outside this range → no confident read
-const _FACE_LUMA_TOL = 26;    // per-row luma delta from the centre row still counts as "face"
-const _FACE_MIN_SKIN_FRAC = 0.30; // min share of skin-toned pixels in the band before trusting the read at all
+// task-432 Part 6 (Rob directive, "Def use MediaPipe"): FACE-BOUNDS come from a REAL detector —
+// MediaPipe FaceLandmarker (478 3-D landmarks; a bounding box derives from landmark min/max x,y).
+// This replaces the earlier luma/skin-pixel scan entirely: even the improved YCbCr chrominance
+// check distributed the UX benefit unevenly across skin tones/lighting, and a real detector
+// removes the question. Confidence is now the detector's own (no face landmarks → no read), so
+// _activeZone() still falls back to the fixed GESTURE_ZONE_SPEC constants whenever there's no
+// confident read — never a dead zone.
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
 const _FACE_SIDE_GAP = 0.03;  // clearance between the estimated face edge and the oval's inner edge
 let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
-let _faceScanCanvas = null, _faceScanCtx = null;
 let _faceAnchorMissStreak = 0;
-const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame luma noise
+const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame jitter
 const _FACE_ANCHOR_DROP_STREAK = 2;  // consecutive misses before dropping back to the fallback constants
 
-function _sampleFaceBounds(ctx, iw, ih) {
-    let data;
-    try { data = ctx.getImageData(0, 0, iw, ih).data; } catch(_) { return null; }
-    const x0 = Math.max(0, Math.floor(iw * _FACE_SCAN_X0)), x1 = Math.min(iw, Math.ceil(iw * _FACE_SCAN_X1));
-    if (x1 <= x0) return null;
-    const rowLuma = new Float64Array(ih);
-    for (let y = 0; y < ih; y++) {
-        let sum = 0;
-        for (let x = x0; x < x1; x++) {
-            const idx = (y * iw + x) * 4;
-            sum += 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-        }
-        rowLuma[y] = sum / (x1 - x0);
+// Warm-init MediaPipe FaceLandmarker — same CDN bundle vac-finger-detect.js already loads for
+// HandLandmarker (@mediapipe/tasks-vision), so the browser's module cache serves this import for
+// free once either detector has loaded it. Kept self-contained to this file: this lane's scope is
+// vac-reauth-ceremony.js only, so this does NOT touch window.__VAC_MediaPipe (defined inline in
+// each host HTML page) — it does its own dynamic import + FilesetResolver, mirroring the warm-init
+// KICK-OFF pattern above (FingerDetector.init) without depending on that other module wiring.
+// Sampled only at the existing ~4fps anchor-update cadence (_maybeUpdateFaceAnchor) — never at
+// full frame rate purely for ovals.
+const _FACE_LANDMARKER_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+const _FaceAnchorDetector = (function() {
+    let detector = null, isReady = false, hasFailed = false, loading = null;
+    async function init() {
+        if (isReady || hasFailed) return isReady;
+        if (loading) return loading;
+        loading = (async function() {
+            try {
+                const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
+                const vision = await mod.FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+                );
+                detector = await mod.FaceLandmarker.createFromOptions(vision, {
+                    baseOptions: { modelAssetPath: _FACE_LANDMARKER_MODEL_URL, delegate: "GPU" },
+                    runningMode: "VIDEO",
+                    numFaces: 1,
+                    outputFaceBlendshapes: false,
+                    outputFacialTransformationMatrixes: false,
+                });
+                isReady = true;
+                console.log('[VAC] FaceLandmarker ready — face-anchored gesture zone active');
+                return true;
+            } catch (e) {
+                hasFailed = true;
+                console.warn('[VAC] FaceLandmarker unavailable, gesture zone will use fallback geometry:', (e && e.message) || e);
+                return false;
+            }
+        })();
+        return loading;
     }
-    const cyRow = Math.floor(ih / 2);
-    const ref = rowLuma[cyRow];
-    let top = cyRow, bottom = cyRow;
-    while (top > 0 && Math.abs(rowLuma[top - 1] - ref) < _FACE_LUMA_TOL) top--;
-    while (bottom < ih - 1 && Math.abs(rowLuma[bottom + 1] - ref) < _FACE_LUMA_TOL) bottom++;
-    const hFrac = (bottom - top) / ih;
-    if (hFrac < _FACE_MIN_HFRAC || hFrac > _FACE_MAX_HFRAC) return null;
-    // Rough horizontal offset within the SAME narrow band (codex review, task-432): assuming the
-    // face sits at exactly cx=0.5 mis-locates the zone for a user who isn't perfectly centred.
-    // Find the luma-weighted horizontal centroid of the "on-face" rows already identified above,
-    // deliberately bounded to this narrow band (not widened) so a raised hand — the coaching
-    // keeps it further out, beside the cheek — can't corrupt the estimate. Naturally clamped to
-    // [x0,x1]/iw, a modest correction rather than precise centring.
-    let wsum = 0, wxsum = 0, skinCount = 0, sampleCount = 0;
-    for (let y = top; y <= bottom; y++) {
-        for (let x = x0; x < x1; x++) {
-            const idx = (y * iw + x) * 4;
-            const rr = data[idx], gg = data[idx + 1], bb = data[idx + 2];
-            const luma = 0.299 * rr + 0.587 * gg + 0.114 * bb;
-            if (Math.abs(luma - ref) < _FACE_LUMA_TOL) { wsum++; wxsum += x; }
-            // codex review (task-432, round 3): luma-continuity alone can't tell a face from a
-            // shirt or a wall (a plain surface reads just as "continuous" as skin) — when the
-            // user is framed off-centre vertically, the centre row can land on torso/background
-            // instead of skin, and the old check would confidently anchor there. Add a cheap
-            // chrominance-based skin-tone signal as a second, independent check.
-            // codex review (task-432, round 4): an earlier version of this check used absolute
-            // RGB brightness thresholds (e.g. R>95), which systematically fail darker skin tones
-            // and dim lighting — exactly the users who'd lose the face-anchored coaching benefit
-            // and get stuck on the old inaccurate fallback. Use YCbCr chrominance instead (Cb/Cr),
-            // which stays roughly stable across brightness/skin-tone and only encodes colour, not
-            // luma — the standard fix for this class of bias in skin-detection heuristics.
-            sampleCount++;
-            const cb = 128 - 0.168736 * rr - 0.331264 * gg + 0.5 * bb;
-            const cr = 128 + 0.5 * rr - 0.418688 * gg - 0.081312 * bb;
-            if (cb >= 77 && cb <= 135 && cr >= 130 && cr <= 180) skinCount++;
+    // Bounding box from landmark min/max x,y, normalized to the SAME {cx,cy,hFrac} shape the old
+    // pixel scan returned, so _updateFaceAnchor's EMA + miss-streak logic below is unchanged.
+    function detect(videoEl) {
+        if (!isReady || !detector) return null;
+        let res;
+        try { res = detector.detectForVideo(videoEl, performance.now()); }
+        catch (e) { hasFailed = true; detector = null; return null; } // detector faulted — fall back, never throw into the caller
+        const lm = res && res.faceLandmarks && res.faceLandmarks[0];
+        if (!lm || !lm.length) return null;
+        let minX = 1, maxX = 0, minY = 1, maxY = 0;
+        for (let i = 0; i < lm.length; i++) {
+            const p = lm[i];
+            if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+            if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
         }
+        return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, hFrac: maxY - minY };
     }
-    if (sampleCount === 0 || (skinCount / sampleCount) < _FACE_MIN_SKIN_FRAC) return null;
-    const cx = wsum > 0 ? (wxsum / wsum) / iw : 0.5;
-    return { cx, cy: ((top + bottom) / 2) / ih, hFrac };
+    return { init: init, detect: detect, get ready() { return isReady; }, get failed() { return hasFailed; } };
+})();
+// Kick off FaceLandmarker init as soon as the page loads (same warm-init trigger as
+// FingerDetector.init above) so it's ready by the time the user reaches the pre-flight checks.
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(_FaceAnchorDetector.init, 500); });
+} else {
+    setTimeout(_FaceAnchorDetector.init, 500);
 }
 
-// Samples the given <video> into a small reusable offscreen canvas (created lazily) and updates
-// the module-level face anchor. Never throws — any failure just clears back to "not anchored"
-// (fallback constants), per the "never a dead zone" requirement.
+// Updates the module-level face anchor from the real detector. Never throws — any failure just
+// clears back to "not anchored" (fallback constants), per the "never a dead zone" requirement.
 function _updateFaceAnchor(videoEl) {
     if (!videoEl || !videoEl.videoWidth) { _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null }; _faceAnchorMissStreak = 0; return; }
-    if (!_faceScanCanvas) {
-        _faceScanCanvas = document.createElement('canvas');
-        _faceScanCanvas.width = _FACE_SCAN_W; _faceScanCanvas.height = _FACE_SCAN_H;
-        _faceScanCtx = _faceScanCanvas.getContext('2d', { willReadFrequently: true });
-    }
     let r = null;
-    try { _faceScanCtx.drawImage(videoEl, 0, 0, _FACE_SCAN_W, _FACE_SCAN_H); r = _sampleFaceBounds(_faceScanCtx, _FACE_SCAN_W, _FACE_SCAN_H); } catch(_) { r = null; }
+    try { r = _FaceAnchorDetector.detect(videoEl); } catch(_) { r = null; }
     if (r) {
         _faceAnchorMissStreak = 0;
         // EMA-smooth against the previous confident read so a single noisy frame (auto-exposure
