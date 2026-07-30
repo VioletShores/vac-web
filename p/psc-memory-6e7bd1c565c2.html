@@ -60,7 +60,14 @@
     <circle cx="48" cy="42" r="1" fill="#D4A94E" opacity="0.6"/>
   </svg>
   <div class="eyebrow">Memory &amp; Context Stream (P-SC) · Plan · S142 · 21 July 2026</div>
-  <h1>How AthenaPilot Remembers People</h1>
+  <h1>How AthenaPilot Remembers People</h1><!-- stamp S151 -->
+<div style="border:1px solid rgba(67,214,146,.4);border-radius:12px;padding:14px 16px;margin:16px 0;background:rgba(67,214,146,.05)">
+<h2 style="margin-top:0">Status update — S151, 30 Jul 2026</h2>
+<p><strong>Memory is now LIVE-PROVEN on production.</strong> The four-message WhatsApp test ran end-to-end today on the prod pipeline: store ("Call me Rob"), recall ("Your name is Rob"), forget (explicit confirmation), and forget-persistence (a later "What's my name" correctly knew nothing). Every reply carried the model footer; latency 3&ndash;5s. Verbatim transcript is on file in the athena repo (docs/qa/WA-MEMORY-TEST-2026-07-30.md). One quality wrinkle logged: the first reply referenced residue from a prior test run &mdash; muddled wording, correct behaviour; filed as the first specimen for the reply-quality watch.</p>
+<p><strong>What is NOT ready (unchanged in substance, sharper in evidence):</strong> per-user isolation. The tenancy audit stands &mdash; identity accepted as an unauthenticated request field on the onboarding routes, 16 leak paths across 10 user tables, and Supabase row-level security still disabled. Until closed, the standing rule holds: no confidential data from external users, and the welcome message says so.</p>
+<p><strong>The path is shorter than it was:</strong> (1) the identity-gate build (lane 409) is COMPLETE on its branch &mdash; the remaining step is gate-and-merge; (2) a stopgap deny-all lockdown of the onboarding routes is in a lane right now (per the S151 onboarding critique: the boundary must be server-side, today, not a frontend convention); (3) after 409 merges: the authenticated operator view (unredacts message content for QA), then RLS on user-scoped tables; (4) THEN the second real user&rsquo;s confidential data is defensible. Naki onboards before that on the current honest terms.</p>
+</div>
+
   <p class="sub">Today, AthenaPilot forgets who you are between conversations. Tell it your name or "reply in Italian" and tomorrow it starts blank. This is the third of three blockers stopping real users from being invited onto the product. This plan defines what gets remembered, how it's stored, how it travels, how it's deleted — and the smallest cut that ships in one week.</p>
 </header>
 
