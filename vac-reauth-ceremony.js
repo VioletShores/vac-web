@@ -2952,12 +2952,15 @@ function beginRecording() {
                 if (_beatReason !== _qaBeatLastReason || (_nowCo - _qaBeatLastLogT) >= 300) {
                     _qaBeatLastLogT = _nowCo;
                     _qaBeatLastReason = _beatReason;
-                    console.log('[VAC-BEAT]', {
+                    // S151 fix (Rob: "can't you get the reason yourself from your sensory?"):
+                    // console.log alone made Rob the log-reader. vacDebug POSTs to /v1/auth/debug,
+                    // so chat-Claude reads the beat trail server-side after a live run — same
+                    // throttle (reason-change or 300ms) keeps volume sane. Best-effort, never blocks.
+                    vacDebug('digit_beat', _beatReason, {
                         digit_index: currentDigitIndex,
                         voice_ms: _lastVoiceMs,               // R1: continuous voiced-run duration
                         co_window: _coWindowState,             // co-occurrence window state
-                        finger_count: detected,                // client-detected finger count this frame
-                        reason: _beatReason                    // 'advance' or why not
+                        finger_count: detected                 // client-detected finger count this frame
                     });
                 }
             } catch(_) {}
