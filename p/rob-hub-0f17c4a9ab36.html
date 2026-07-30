@@ -48,7 +48,7 @@
 </style>
 <script defer src="/_vercel/insights/script.js"></script>
 </head>
-<body data-build="S151.4">
+<body data-build="S151.5">
 <div class="page-shell">
 <div class="wrap">
 
@@ -115,167 +115,68 @@
   <div class="row"><span class="who">Boards</span><span class="what"><a href="https://vacprotocol.org/p/state-of-play-2b9f4e7a1c6d.html">State of play</a> &middot; <a href="https://vacprotocol.org/p/board-2c2739fdc1ff.html">Execution</a> &middot; <a href="https://vacprotocol.org/p/revenue-board-4a7c31e9d5f2.html">Revenue</a></span></div>
 </div>
 
-<!-- 1 · TODAY -->
-<div id="rightnow"></div>
-<script>
-(function(){
-  // All times Europe/London (BST, UTC+1).
-  const acts = [
-    {from:'2026-07-24T06:00:00+01:00', to:'2026-07-24T10:00:00+01:00',
-     title:'One action before the meetings: reply to Justin',
-     body:'He confirmed lunch — "1pm at The Natural Kitchen, right by our office." Reply link-free now (his thread, one tap below). The linked follow-up goes only after tonight’s walk-test passes. Bag-drop Liverpool St before Elizabeth.',
-     btn:'Open Justin’s email', url:'https://mail.google.com/mail/u/0/#inbox/19f8e74d902a760c'},
-    {from:'2026-07-24T10:00:00+01:00', to:'2026-07-24T12:15:00+01:00',
-     title:'Elizabeth — BRIQ, 469 Bethnal Green Rd, ~10:30\u201311:00',
-     body:'GEP grants doorway. In person, verbal-only on traction. Her refresher page is in Boards below if you want it on the walk.',
-     btn:'Directions to BRIQ', url:'https://maps.google.com/?q=BRIQ+469+Bethnal+Green+Road+London'},
-    {from:'2026-07-24T12:15:00+01:00', to:'2026-07-24T15:00:00+01:00',
-     title:'Justin Barrow — 1pm, The Natural Kitchen',
-     body:'In-person demo from your phone is the plan (his office is next door). Revenue frame: one-pager ships once demo links are live — tonight’s merge decision feeds this.',
-     btn:'The Natural Kitchen', url:'https://maps.google.com/?q=The+Natural+Kitchen+London'},
-    {from:'2026-07-24T17:00:00+01:00', to:'2026-07-24T23:00:00+01:00',
-     title:'Evening walk-test: preflight fixes + quick-auth regression',
-     body:'If the last build lane and the re-gate come back clean, merge lands before your walk. Test quiet AND busy-visual scenes; quick-auth finger check is explicitly on the list.',
-     btn:'Tribunal demo', url:'https://vacprotocol.org/tribunal-demo'},
-  ];
-  const now = new Date();
-  const nowLabel = now.toLocaleString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
-  const isToday = (now.getFullYear()===2026 && now.getMonth()===6 && now.getDate()===24);
-  let pick = acts.find(a => now >= new Date(a.from) && now <= new Date(a.to));
-  if(!pick){ pick = acts.find(a => now < new Date(a.from)); if(pick){ pick = Object.assign({}, pick, {title:'Next: '+pick.title}); } }
-  if(!pick) return;
-  const el = document.getElementById('rightnow');
-  el.innerHTML = '<h2>State of play <span class="sub">one-screen honest read</span></h2>
-<div class="card"><a class="btn" href="https://vacprotocol.org/p/state-of-play-2b9f4e7a1c6d.html">Open the State of Play →</a></div>
-
-<h2>'+(isToday?'Today':'Agenda \u00b7 last set Fri 24 Jul')+' <span class="sub">'+nowLabel+'</span></h2><div class="card urgent"><h3>'+pick.title+'</h3><p>'+pick.body+'</p><a class="btn" href="'+pick.url+'">'+pick.btn+'</a></div>';
-})();
-</script>
-<div class="card">
-  <div class="row"><span class="who">~10:30</span><span class="what">Elizabeth · BRIQ, Bethnal Green (bag-drop Liverpool St en route)</span></div>
-  <div class="row"><span class="who">1:00pm</span><span class="what">Justin Barrow · The Natural Kitchen (confirmed by his email yesterday)</span></div>
-  <div class="row"><span class="who">Evening</span><span class="what">Walk-test the preflight fixes on the live demo · merge decision</span></div>
-</div>
-
-<h2>Now — the honest four-lens state <span class="sub">regenerated Sun 26 Jul, this session</span></h2>
-<div class="card">
-  <h3>Test on your phone</h3>
-  <ul>
-    <li><strong>Voice-in-noise round 2 merged minutes ago</strong> — meter now reads <em>(level% · voice%)</em>; normal speech should tick over din. If voice% is high and it still refuses, screenshot me.<br><a class="btn" href="https://vacprotocol.org/tribunal-demo">Test the ceremony now</a></li>
-    <li><strong>Continuity two-face test pending</strong> — I gate + merge first, then you: enrol a 2nd face under your email, seal as you → it must REFUSE.</li>
-    <li><strong>New boards:</strong> <a href="https://vacprotocol.org/p/money-8d3f2a91c7e4.html">money</a> · <a href="https://vacprotocol.org/p/activity-5f9c2e81a4d7.html">activity</a> (per-user timeline skeleton).</li>
-  </ul>
-</div>
-<div class="card">
-  <h3>Infrastructure</h3>
-  <ul>
-    <li><strong>Turn-cap saga CLOSED with proof</strong> (60-turn lane under an 80 budget; cause was a month-stale process; process-age check now mandatory).</li>
-    <li><strong>Envelope step 2 building now</strong> — the governed header into the packet lifecycle; step 3 (Railway sentinel runner) unlocks the self-regenerating hub.</li>
-    <li><strong>Page telemetry live</strong> on all 26 pages.</li>
-  </ul>
-</div>
-<div class="card">
-  <h3>Strategy</h3>
-  <ul>
-    <li><strong>First market data:</strong> Justin pager 10 visitors/18 views (likely circulating at Burges Salmon) · ceremony tried by 8 · <em>one sealed receipt verified by a counterpart</em>.</li>
-    <li>Aug-11 brief + signal log standing · wedge brief on the revenue board · Elizabeth/Jack depth links live.</li>
-  </ul>
-</div>
-<div class="card">
-  <h3>Protocol</h3>
-  <ul>
-    <li>Two I-Ds on Datatracker · Vienna BoF ahead · <strong>OAuth post Wed 29 Jul 09:00 UK (your send)</strong> · envelope = Claim 449 alive in code.</li>
-  </ul>
-</div>
-<h2>Decision — memory architecture <span class="sub">one tap settles it</span></h2>
-<div class="card">
-  <p><strong>The question:</strong> wire our existing memory system end-to-end first, or adopt mem0 (open-source memory layer) now? Field evidence today: the store WORKS (it listed your facts days ago) but recall doesn't trigger reliably and the bot has no self-knowledge — failures that are last-mile wiring, which any store including mem0 would still need.</p>
-  <p><strong>Recommendation:</strong> wire ours first (sunk build · data stays ours · $0 · same wiring either way); re-arbitrate mem0-OSS as a consolidation substrate only if our extraction quality lags after the acceptance test ("do you have a memory layer" → truthful yes + facts list). mem0's hosted version is excluded on data sovereignty.</p>
-  <a class="chip" href="https://wa.me/447404843156?text=%5BHUB%3Adecision-memory%5D%20agree%20%E2%80%94%20wire%20ours%20first">Agree — wire ours first</a> <a class="chip" href="https://wa.me/447404843156?text=%5BHUB%3Adecision-memory%5D%20">Different view…</a>
-</div>
-<h2>Ingest round <span class="sub">7 items · your one-liners needed</span></h2>
-<div class="card">
-  <p>Four X posts + three YouTube links ingested via AthenaPilot. Read-back gap means each needs your one-line context — the overlay-channel product idea is already captured (F-964, sentinel-driven broadcast channels).</p>
-  <a class="btn" href="https://vacprotocol.org/p/ingest-round-s149-7b4e2c9a1f6d.html">Open the round — answer per item</a>
-</div>
-<h2>Meetings — debrief &amp; follow-ups <span class="sub">from your WhatsApp debriefs 15:04-15:12</span></h2>
-<div class="card">
-  <h3>Elizabeth — BRIQ</h3>
-  <p><strong>Her venture:</strong> early planning with <strong>Jack Hampson</strong> — 3x exit, founder of Deeper Insights (AI consultancy, acquired by Cisco; now Senior Director CX AI there, in earnout), ex-Department for Business &amp; Trade AI Dealmaker (the same dealmaker world as Elizabeth's GEP role), Bristol-based, angel investor. AI assurance space. Possible shape discussed: Elizabeth CEO · Jack business+technical · you building product.</p>
-  <ul>
-    <li><a href="https://vacprotocol.org/p/aug11-brief-9f3e51a7c2d8.html">Aug 11 decision brief</a> — live; wider-work section for her page — <strong>drafted, awaiting your approval below in chat</strong> (she asked for it in writing today)</li>
-    <li>One-hour call <strong>Mon 11 Aug, morning</strong> (you're in Italy) — calendar entry to set</li>
-  </ul>
-</div>
-<div class="card">
-  <h3>Justin — lunch</h3>
-  <p>"Really thinks you're onto something." Sent the FCA thread: his firm's autonomy-spectrum article + the Mills Review — the regulator's own framework for managed AI autonomy in financial services, which names <em>verification and identity</em> as a prerequisite building block.</p>
-  <ul>
-    <li>Financial-services section for his page — <strong>drafted, awaiting your approval in chat</strong></li>
-    <li>Financial walkthrough demo (FCA/SMCR-flavoured ceremony) — <strong>scoped, tonight's build on your go</strong></li>
-    <li>Reply email to Justin — after the section ships</li>
-    <li><strong>Foundation angle:</strong> Justin has built a foundation to drive a standard before (climate-credits venture) — directly relevant to the protocol-stewardship foundation plan; worth a dedicated conversation</li>
-  </ul>
-</div>
-<!-- 2 · TAPS OWED -->
-<h2>Taps owed <span class="sub">sensor-swept 08:05 — only real items shown</span></h2>
+<!-- 1 · TODAY (regenerated S151-cont, from docs/strategic/CURRENT-STATE.md RIGHT NOW + NEXT 7 DAYS) -->
+<h2>Today <span class="sub">from CURRENT-STATE, S151 close &middot; 29 Jul 2026</span></h2>
 <div class="card urgent">
-  <h3>Reply to Justin — link-free confirm</h3>
-  <p class="dim">Sensor note: your Gmail drafts aren’t readable from this tooling, so I can’t confirm Wednesday’s staged draft. If it’s not there, this reply works: <em>"Perfect — see you at 1 at The Natural Kitchen. I’ll bring the working system on my phone. Rob"</em></p>
-  <a class="btn" href="https://mail.google.com/mail/u/0/#inbox/19f8e74d902a760c">Open his thread</a>
-</div>
-<div class="card">
-  <h3>Scheduled, not owed today</h3>
+  <h3>Right now</h3>
   <ul>
-    <li>OAuth list post — <strong>Wed 29 Jul, 9:00am UK</strong>. Locked with the chair’s blessing (Rifaat replied in 11 minutes; you acked). Calendar reminders set. Weekend prep: read the identity-chaining draft, resolve the one [VERIFY] sentence.</li>
-    <li>Merge decision — waits on the last build lane + re-review, then your walk-test tonight.</li>
+    <li><strong>Ceremony fixes await live gates.</strong> Two branches are built and waiting on your test: the mic/noise fix (task-429) needs a pass IN NOISE to gate; the hand-zone fix (task-432, MediaPipe rebuild in flight &mdash; see Execution) needs a first-timer to land the zone uncoached. Digit-beat data is now readable at /v1/auth/debug.</li>
+    <li><strong>Naki's front door is merged and prod is healthy.</strong> Thursday only needs your three items: welcome-copy sign-off, her phone number, three Cowork watches &mdash; all on the Actions page above.</li>
+    <li><strong>Coding eval pivoted.</strong> No self-built code executor for now &mdash; we ingest third-party, execution-verified benchmark results instead (task-434 branch, 848 lines, unmerged). See F-985/F-986 in Features below. The K3 critique leg (third model in the review panel) is still owed.</li>
+    <li><strong>Justin is gated</strong> on the biometric fix per your directive &mdash; no thank-you email until it lifts. OAuth list post is still unsent (window runs through w/c 3 Aug).</li>
   </ul>
 </div>
-
-<!-- 3 · OVERNIGHT BUILD REPORT -->
-<h2>Overnight build <span class="sub">as of 08:05 · lanes + gates read from source</span></h2>
 <div class="card">
-  <h3>Camera/mic pre-check honesty fixes <span class="pill run">3 of 3 gap-fixes landed</span></h3>
-  <p><strong>What:</strong> the six fixes for the "false-ready ✓" problem (a phantom hand or noisy room ticking the checks green) were built overnight and put through two independent reviews. The adversarial review found three real gaps; all three gap-fixes are now pushed: the mic check seeds itself from ambient noise so a loud room can’t self-pass, a stuck phantom hand now decays and loses to a real hand, and the quick-auth meter cleans up after itself.</p>
-  <p style="margin-top:6px"><strong>Means:</strong> the pre-check panel should now tell the truth in the restaurant scene that caught it. <strong>Strategy:</strong> this is the trust surface Caroline and Justin see first — an honest "ready" light is the product’s first promise.</p>
-</div>
-<div class="card">
-  <h3>Security read (independent reviewer) <span class="pill wait">concerns, not blockers</span></h3>
-  <p>Confirmed nothing in the branch touches the server’s actual accept/reject decision — the server stays the authority. Two flagged items: the new voice-frequency filter could wrongly reject very quiet or deep voices (the floor is tunable and now visible in the test overlay — check on tonight’s walk), and a leftover-meter bug that one of this morning’s fixes already addressed.</p>
-</div>
-<div class="card">
-  <h3>MERGED — live on the demo <span class="pill run">deployed + byte-verified</span></h3>
-  <p>Your call, done: the six pre-check honesty fixes plus all three review gap-fixes are merged and serving on the live demo. The re-review cleared two of three outright; the third (a jittering phantom can still briefly delay a real hand — a delay, never a false pass) has a one-change finisher building now, plus the voice-frequency filter on a bigger turn budget. Tonight’s walk-test: quiet AND busy-visual scenes, quick-auth finger check, and note if the Mic tick feels slow when you talk immediately.</p>
+  <h3>Next 7 days</h3>
+  <ol style="margin:6px 0 0 18px;font-size:13.5px;line-height:1.6;color:var(--ink)">
+    <li>Your noisy-room run of the demo &rarr; read the digit-beat trail &rarr; gate and merge 429/432/434 (each gates separately)</li>
+    <li>Naki live Thursday &mdash; the first external first-timer is the acceptance test for the hand-zone fix</li>
+    <li>Relabel the code trust score "articulacy (Q&amp;A-judged)" everywhere it appears; bring SignalRank's live-rendered page up with third-party receipts</li>
+    <li>Re-fire the K3 critique leg; send the OAuth post; then lift Justin's gate once the demo passes</li>
+  </ol>
 </div>
 
-<!-- 4 · COUNTERPART ACTIVITY -->
-<h2>Counterpart activity <span class="sub">who opened what</span></h2>
+<!-- 2 · EXECUTION (regenerated S151-cont, from docs/EXECUTION-DEBT.md S151 top blocks) -->
+<h2>Execution <span class="sub">open debt, P0/P1 &middot; EXECUTION-DEBT S151</span></h2>
+<div class="card urgent">
+  <h3>P0</h3>
+  <ul>
+    <li><strong>D-CODING-HARNESS-NEVER-BUILT</strong> &mdash; coding evaluation. What was promised (a real code executor scoring actual working code) was never built; today's "code" score is models talking about code, not writing it. Fixed by the ingest-first pivot: no prospect-facing coding score until third-party execution-verified results replace it (F-985/F-986).</li>
+  </ul>
+</div>
 <div class="card">
-  <p><strong>The feed is real now (Vercel analytics, this week):</strong> Justin's pager <strong>10 visitors · 18 views</strong> — circulation beyond one reader is likely · tribunal-demo <strong>8 / 12</strong> (ceremony attempts) · auth surface 4 / 9 · <strong>one /vat/verify hit = a counterpart verified a sealed record</strong>. Elizabeth's count sits below the fold in the Pages panel — scroll one row.</p>
-  <p class="dim" style="margin-top:6px">Per-user timelines (page opens joined with email-keyed ceremony events) land on the activity board — F-961, sequenced behind the admin endpoint. Old text about empty API feeds is superseded.</p><p style="display:none"> and the pipeline is proven — you were visitor #1 from Austria on Wednesday night. The programmatic feed isn’t returning data yet (this morning’s API read came back empty), so the Vercel dashboard is the view for now. Identity-level outcomes (who passed/failed a ceremony) come from the backend rollup — that’s one of the two lanes needing a thin restart.</p>
-  <p class="dim" style="margin-top:6px">Caroline’s link went out Wednesday via WhatsApp; her page is the live tribunal demo, so she inherits every merge automatically. No recorded visit from her yet.</p>
-  <a class="btn" href="https://vacprotocol.org/p/activity-5f9c2e81a4d7.html">Open the activity board</a> <a href="https://vercel.com/robert-zagarellas-projects/vacprotocol-org/analytics" style="font-size:12px;margin-left:10px">raw source (Vercel)</a>
+  <h3>P1</h3>
+  <ul>
+    <li><strong>D-CEREMONY-TUNED-INDOORS-DEMOED-OUTDOORS</strong> &mdash; ceremony audio. Every audio fix has been tuned in a quiet room and then failed in the field. Acceptance from now on is a pass IN NOISE, not a pass at your desk.</li>
+    <li><strong>D-MICGATE-METER-MEASURES-DIFFERENT-QUANTITY</strong> &mdash; mic pre-flight. The meter bar and the actual pass/fail gate read two different signals, so it can show "loud enough" while failing you &mdash; worst in wind.</li>
+    <li><strong>D-MICGATE-8-FLOOR-UNREACHABLE</strong> &mdash; mic pre-flight. The collector cuts off at a level you can't reach speaking outdoors (9%); the intended relief path below that never engages. This is why you strand outdoors.</li>
+    <li><strong>D-VAD-CALIBRATION-GREETING-BOUND</strong> &mdash; voice detection. Calibration only happens during the greeting, so the pre-flight check and the no-greeting fast tier both run on a hardcoded fallback that doesn't fit the room. (The no-greeting design itself is correct &mdash; don't restore a greeting to fix this.)</li>
+    <li><strong>D-DIGIT-ADVANCE-COOCCURRENCE</strong> &mdash; digit capture. Leading hypothesis: a digit only advances when your voice AND your hand-in-zone line up at the same instant, so a good voice retry gets thrown away if your hand isn't registering. Needs one instrumented run to confirm, not a blind fix.</li>
+    <li><strong>D-HAND-SLOT-AFFORDANCE</strong> &mdash; hand-capture zone (Justin send gate). The zone is anchored to the video frame instead of your face, so it drifts out of reach depending on how close you sit &mdash; fix is in flight on lane 435 below.</li>
+  </ul>
+</div>
+<div class="card">
+  <h3>Lanes in flight</h3>
+  <div class="row"><span class="who">435</span><span class="what">Rebuilding the hand-capture zone on real face-tracking (MediaPipe), replacing the homemade skin-tone check entirely, per your "def use MediaPipe" call. On the task-432-hand-zone branch.</span></div>
+  <div class="row"><span class="who">434-queue</span><span class="what">Third-party coding-benchmark ingest &mdash; gate and merge owed next session; branch needs a rebase first.</span></div>
+  <div class="row"><span class="who">433-queue</span><span class="what">K3 critique leg (the third model in the coding-eval review panel) &mdash; still owed, nothing pushed yet.</span></div>
 </div>
 
-<!-- 5 · REVENUE THREADS -->
-<h2>Contact status <span class="sub">last touch → next move</span></h2>
+<!-- 3 · FEATURES (regenerated S151-cont, from docs/FEATURE-INBOX.md F-983..F-986) -->
+<h2>Features <span class="sub">captured this session &middot; FEATURE-INBOX</span></h2>
 <div class="card">
-  <div class="row"><span class="who">Justin</span><span class="what">Met Fri (lunch) → "really thinks you're onto something"; sent FCA/Mills Review thread. Owed: thank-you + fetch his agentic-platform client name. Financial demo scoped.</span></div>
-  <div class="row"><span class="who">Elizabeth</span><span class="what">Met Fri → genuinely excited; wants the wider-work write-up (shipped to her page); co-founder shape w/ Jack Hampson/Cisco. Aug-11 call to set. See decision brief.</span></div>
-  <div class="row"><span class="who">Caroline</span><span class="what">Demo link sent (WhatsApp) → awaiting her first run; formal email trail owed after continuity fix lands</span></div>
-  <div class="row"><span class="who">Antonio</span><span class="what">No reply since 17 Jul email → WhatsApp nudge owed; his page inherits every merge</span></div>
-  <div class="row"><span class="who">Workforce Gate</span><span class="what">Fastest wedge → design partners: Justin's firm #1, Peter's wife's insurance network, Antonio. Demo v0 is the unlock.</span></div>
+  <div class="row"><span class="who">F-983</span><span class="what">One demo shell &mdash; collapse the separate Financial/Legal/(future Water) demo pages into a single page driven by a scenario setting, so every ceremony fix lands on all of them at once instead of being copied by hand.</span></div>
+  <div class="row"><span class="who">F-984</span><span class="what">Pre-flight mic calibrates to the room &mdash; the mic check should measure your actual room's noise floor instead of comparing you to a fixed number.</span></div>
+  <div class="row"><span class="who">F-985</span><span class="what">Enterprise bring-your-own test harness &mdash; let a customer upload their own test cases; every model gets scored against them continuously, feeding that customer's own private leaderboard.</span></div>
+  <div class="row"><span class="who">F-986</span><span class="what">Closed-loop production scoring &mdash; score models on the real work they actually do, not just practice questions, using cheap signals first and a hard monthly budget cap.</span></div>
 </div>
 
-<!-- 6 · WATCH -->
-<h2>Watch <span class="sub">deltas only</span></h2>
+<!-- 4 · STANDARDS WATCH (kept as-is per instruction, stamp corrected to be honest about staleness) -->
+<h2>Standards Watch <span class="sub">delta scan owed &mdash; last full scan S147</span></h2>
 <div class="card">
-  <p><strong>One delta:</strong> the OAuth chair personally scheduled your list post (Wed 29). No movement from Mirja, Henk, or Chen in 48h — normal for meeting week. Inbox-only scan this morning (travel day); last full sweep Wednesday. Full board: <a href="https://vacprotocol.org/p/watch-9d42e1c7a5f0.html">standards &amp; market watch</a>.</p>
+  <p>Carried over from the last hub cycle, not re-scanned this session: the OAuth chair personally scheduled your list post for Wed 29 Jul; no other movement was seen from Mirja, Henk, or Chen. <strong>This line is stale by design</strong> &mdash; shown honestly rather than dressed up as current. A fresh delta scan is owed.</p>
+  <a class="btn" href="https://vacprotocol.org/p/watch-9d42e1c7a5f0.html">Open the Watch board</a>
 </div>
-
-<!-- 7 · MONEY -->
-<h2>Money <span class="sub">silent when clean</span></h2>
-<div class="card"><p class="dim">Clean — no spend alerts or auto-reload notices in this morning’s inbox scan. Dashboard scaffold (no live numbers yet): <a href="https://vacprotocol.org/p/money-8d3f2a91c7e4.html">Money board</a>.</p></div>
 
 <!-- 8 · BOARDS & SUB-PAGES -->
 <h2>Start here <span class="sub">the whole picture in one screen</span></h2>
@@ -322,7 +223,7 @@
 
 <div class="foot">
   This page is the front door — sub-pages flow from it and it is regenerated every morning session. If the stamp above is old, the morning ritual was skipped and this page is stale: say "morning brief" in chat.
-  <div class="stampline">build S147.7 · live-edited through the day — the header stamp is the truth; per-section times shown where they matter</div>
+  <div class="stampline">Last refreshed: S151-cont · 30 Jul 2026 · build S151.5 — the header stamp is the truth; per-section times shown where they matter</div>
 </div>
 
 </div></div>
