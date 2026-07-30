@@ -508,6 +508,12 @@ function _micQualifyFloor(_voiced) {
 // Widened from prior 0.15/0.19 so a natural spread-finger beside-cheek pose at normal
 // phone/laptop distance is inside (old 0.15/0.19 only passed when the hand was far back
 // and landmarks were compressed — the inversion bug described in D-GESTURE-ZONE-2026-07-18).
+//
+// task-432 (Rob framing): this on-screen zone is NOT a security gate — it exists only to
+// coach the hand into roughly where the GEMINI SERVER-SIDE vision check can see it. These
+// constants are now the FALLBACK geometry (frame-anchored), used whenever no confident face
+// read is available — never a dead zone. When a face read IS confident, _activeZone() below
+// anchors the ovals beside the DETECTED face instead, so distance-to-camera stops mattering.
 const GESTURE_ZONE_SPEC = Object.freeze({
     ovals: [
         { cx: 0.18, cy: 0.48, side: 'left'  },
@@ -515,39 +521,236 @@ const GESTURE_ZONE_SPEC = Object.freeze({
     ],
     rx: 0.17,          // acceptance + draw radii — unified (S139 Rob live-tune: 0.15→0.20 overshot, →0.17)
     ry: 0.22,          // acceptance + draw radii — unified (S139 Rob live-tune: 0.19→0.26 overshot, →0.22)
-    minTipsInside: 3,  // wrist + majority (3 of 5) fingertips must be inside
+    minTipsInside: 3,  // majority (3 of 5) fingertips must be inside (or the palm centre — see below)
 });
+
+// task-432 Part 1: lightweight per-frame FACE-BOUNDS ESTIMATE — a coaching proxy only, not a
+// detector used for any security decision. Cheap heuristic (no new model/library, works on every
+// platform incl. iOS Safari where no native face-detection API ships): sample a NARROW horizontal
+// band at the frame's centre (hands are coached to stay OFF to the side, "beside your cheek", so
+// this band is rarely occluded by the hand itself) and find the vertical run of rows whose luma
+// stays close to the frame's vertical-centre row (assumed on-face), stopping at the first sharp
+// luma jump (background/hairline/chin edge). Confidence-gated: any implausible read (too small,
+// too large, no clear edge) is discarded so the zone never anchors to garbage — _activeZone()
+// falls back to the fixed GESTURE_ZONE_SPEC constants whenever this has no confident read.
+const _FACE_SCAN_X0 = 0.42, _FACE_SCAN_X1 = 0.58;   // narrow centre band, clear of the cheek ovals
+const _FACE_SCAN_W = 160, _FACE_SCAN_H = 90;        // same downsample size as the existing light check
+const _FACE_MIN_HFRAC = 0.16, _FACE_MAX_HFRAC = 0.75; // implausible outside this range → no confident read
+const _FACE_LUMA_TOL = 26;    // per-row luma delta from the centre row still counts as "face"
+const _FACE_MIN_SKIN_FRAC = 0.30; // min share of skin-toned pixels in the band before trusting the read at all
+const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
+const _FACE_SIDE_GAP = 0.03;  // clearance between the estimated face edge and the oval's inner edge
+let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
+let _faceScanCanvas = null, _faceScanCtx = null;
+let _faceAnchorMissStreak = 0;
+const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame luma noise
+const _FACE_ANCHOR_DROP_STREAK = 2;  // consecutive misses before dropping back to the fallback constants
+
+function _sampleFaceBounds(ctx, iw, ih) {
+    let data;
+    try { data = ctx.getImageData(0, 0, iw, ih).data; } catch(_) { return null; }
+    const x0 = Math.max(0, Math.floor(iw * _FACE_SCAN_X0)), x1 = Math.min(iw, Math.ceil(iw * _FACE_SCAN_X1));
+    if (x1 <= x0) return null;
+    const rowLuma = new Float64Array(ih);
+    for (let y = 0; y < ih; y++) {
+        let sum = 0;
+        for (let x = x0; x < x1; x++) {
+            const idx = (y * iw + x) * 4;
+            sum += 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+        }
+        rowLuma[y] = sum / (x1 - x0);
+    }
+    const cyRow = Math.floor(ih / 2);
+    const ref = rowLuma[cyRow];
+    let top = cyRow, bottom = cyRow;
+    while (top > 0 && Math.abs(rowLuma[top - 1] - ref) < _FACE_LUMA_TOL) top--;
+    while (bottom < ih - 1 && Math.abs(rowLuma[bottom + 1] - ref) < _FACE_LUMA_TOL) bottom++;
+    const hFrac = (bottom - top) / ih;
+    if (hFrac < _FACE_MIN_HFRAC || hFrac > _FACE_MAX_HFRAC) return null;
+    // Rough horizontal offset within the SAME narrow band (codex review, task-432): assuming the
+    // face sits at exactly cx=0.5 mis-locates the zone for a user who isn't perfectly centred.
+    // Find the luma-weighted horizontal centroid of the "on-face" rows already identified above,
+    // deliberately bounded to this narrow band (not widened) so a raised hand — the coaching
+    // keeps it further out, beside the cheek — can't corrupt the estimate. Naturally clamped to
+    // [x0,x1]/iw, a modest correction rather than precise centring.
+    let wsum = 0, wxsum = 0, skinCount = 0, sampleCount = 0;
+    for (let y = top; y <= bottom; y++) {
+        for (let x = x0; x < x1; x++) {
+            const idx = (y * iw + x) * 4;
+            const rr = data[idx], gg = data[idx + 1], bb = data[idx + 2];
+            const luma = 0.299 * rr + 0.587 * gg + 0.114 * bb;
+            if (Math.abs(luma - ref) < _FACE_LUMA_TOL) { wsum++; wxsum += x; }
+            // codex review (task-432, round 3): luma-continuity alone can't tell a face from a
+            // shirt or a wall (a plain surface reads just as "continuous" as skin) — when the
+            // user is framed off-centre vertically, the centre row can land on torso/background
+            // instead of skin, and the old check would confidently anchor there. Add a cheap
+            // chrominance-based skin-tone signal as a second, independent check.
+            // codex review (task-432, round 4): an earlier version of this check used absolute
+            // RGB brightness thresholds (e.g. R>95), which systematically fail darker skin tones
+            // and dim lighting — exactly the users who'd lose the face-anchored coaching benefit
+            // and get stuck on the old inaccurate fallback. Use YCbCr chrominance instead (Cb/Cr),
+            // which stays roughly stable across brightness/skin-tone and only encodes colour, not
+            // luma — the standard fix for this class of bias in skin-detection heuristics.
+            sampleCount++;
+            const cb = 128 - 0.168736 * rr - 0.331264 * gg + 0.5 * bb;
+            const cr = 128 + 0.5 * rr - 0.418688 * gg - 0.081312 * bb;
+            if (cb >= 77 && cb <= 135 && cr >= 130 && cr <= 180) skinCount++;
+        }
+    }
+    if (sampleCount === 0 || (skinCount / sampleCount) < _FACE_MIN_SKIN_FRAC) return null;
+    const cx = wsum > 0 ? (wxsum / wsum) / iw : 0.5;
+    return { cx, cy: ((top + bottom) / 2) / ih, hFrac };
+}
+
+// Samples the given <video> into a small reusable offscreen canvas (created lazily) and updates
+// the module-level face anchor. Never throws — any failure just clears back to "not anchored"
+// (fallback constants), per the "never a dead zone" requirement.
+function _updateFaceAnchor(videoEl) {
+    if (!videoEl || !videoEl.videoWidth) { _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null }; _faceAnchorMissStreak = 0; return; }
+    if (!_faceScanCanvas) {
+        _faceScanCanvas = document.createElement('canvas');
+        _faceScanCanvas.width = _FACE_SCAN_W; _faceScanCanvas.height = _FACE_SCAN_H;
+        _faceScanCtx = _faceScanCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    let r = null;
+    try { _faceScanCtx.drawImage(videoEl, 0, 0, _FACE_SCAN_W, _FACE_SCAN_H); r = _sampleFaceBounds(_faceScanCtx, _FACE_SCAN_W, _FACE_SCAN_H); } catch(_) { r = null; }
+    if (r) {
+        _faceAnchorMissStreak = 0;
+        // EMA-smooth against the previous confident read so a single noisy frame (auto-exposure
+        // hunting, a blink, a slight head turn) doesn't visibly snap the coaching oval — the user
+        // is meant to read this as a stable "hold it here" target, not a jittery live tracker.
+        _faceAnchor = (_faceAnchor.anchored && _faceAnchor.hFrac != null)
+            ? { anchored: true, cx: _faceAnchor.cx + _FACE_ANCHOR_EMA * (r.cx - _faceAnchor.cx), cy: _faceAnchor.cy + _FACE_ANCHOR_EMA * (r.cy - _faceAnchor.cy), hFrac: _faceAnchor.hFrac + _FACE_ANCHOR_EMA * (r.hFrac - _faceAnchor.hFrac) }
+            : { anchored: true, cx: r.cx, cy: r.cy, hFrac: r.hFrac };
+    } else {
+        // Absorb a single bad frame — only drop back to the fallback constants after a SUSTAINED
+        // miss streak, so the zone doesn't flicker fallback/anchored on every noisy read.
+        _faceAnchorMissStreak++;
+        if (_faceAnchorMissStreak >= _FACE_ANCHOR_DROP_STREAK) {
+            _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
+        }
+    }
+}
+let _faceAnchorLastSampleT = 0;
+function _maybeUpdateFaceAnchor(videoEl) {
+    const t = performance.now();
+    if (t - _faceAnchorLastSampleT < 250) return;   // ~4fps — matches the existing light-check cadence
+    _faceAnchorLastSampleT = t;
+    _updateFaceAnchor(videoEl);
+}
+
+// Single source of truth for the ACTIVE zone geometry — face-anchored beside the estimated
+// cheeks when confident, else GESTURE_ZONE_SPEC's fixed fallback (never a dead zone). BOTH
+// _ptInCheekZone (acceptance) and _ptInTickZone (wider pre-flight tick) read this, and the
+// drawn guide (_drawFingerTargetGuide / _avDrawHand) draws from it too, so all three always
+// agree — no drift between what's drawn and what's accepted.
+function _activeZone() {
+    if (!_faceAnchor.anchored || _faceAnchor.hFrac == null) {
+        return { ovals: GESTURE_ZONE_SPEC.ovals, rx: GESTURE_ZONE_SPEC.rx, ry: GESTURE_ZONE_SPEC.ry, anchored: false, faceW: null };
+    }
+    const hFrac = _faceAnchor.hFrac;
+    const wFrac = hFrac * _FACE_ASPECT;
+    // Generous per the task-432 framing (err on accepting — Gemini is the real judge): sized
+    // off the DETECTED face, clamped to sane on-screen bounds for very close/far seating.
+    const rx = Math.max(0.11, Math.min(0.22, hFrac * 0.42));
+    const ry = Math.max(0.15, Math.min(0.30, hFrac * 0.56));
+    const halfW = wFrac / 2;
+    const faceCx = _faceAnchor.cx;
+    // codex review (task-432): the oval's INNER edge (centre ± the full radius) must clear the
+    // face edge by _FACE_SIDE_GAP, not just a fraction of the radius — else the "beside the
+    // cheek" zone partially overlaps the face itself, coaching/accepting a hand position the
+    // server-side vision check may not be able to read cleanly.
+    let cxLeft = faceCx - halfW - _FACE_SIDE_GAP - rx;
+    let cxRight = faceCx + halfW + _FACE_SIDE_GAP + rx;
+    // Clamp so an edge-sitting user still gets an on-screen oval.
+    cxLeft = Math.max(0.09, Math.min(0.40, cxLeft));
+    cxRight = Math.min(0.91, Math.max(0.60, cxRight));
+    return {
+        ovals: [ { cx: cxLeft, cy: _faceAnchor.cy, side: 'left' }, { cx: cxRight, cy: _faceAnchor.cy, side: 'right' } ],
+        rx, ry, anchored: true, faceW: wFrac,
+    };
+}
+
 function _ptInCheekZone(p) {
-    const rx = GESTURE_ZONE_SPEC.rx, ry = GESTURE_ZONE_SPEC.ry;
-    for (const o of GESTURE_ZONE_SPEC.ovals) {
-        const dx = (p.x - o.cx) / rx, dy = (p.y - o.cy) / ry;
+    const z = _activeZone();
+    for (const o of z.ovals) {
+        const dx = (p.x - o.cx) / z.rx, dy = (p.y - o.cy) / z.ry;
         if (dx * dx + dy * dy <= 1) return true;
     }
     return false;
 }
+// task-432 Part 2 (Rob framing: err on accepting — Gemini is the real judge): dropped the
+// wrist-inside requirement, which forced the hand back further than a natural beside-the-cheek
+// pose. New test: palm-centre (average of the four MCP knuckles, a stabler point than any single
+// knuckle) inside the oval, OR a majority (3 of 5) of fingertips inside.
 function _handNearFaceZone(lm) {
     if (!lm || lm.length < 21) return false;
-    if (!_ptInCheekZone(lm[0])) return false;       // wrist must be inside either cheek oval
+    const palm = { x: (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4, y: (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4 };
+    if (_ptInCheekZone(palm)) return true;
     const tips = [4, 8, 12, 16, 20];                // thumb..pinky fingertips
     let inside = 0;
     for (const t of tips) { if (_ptInCheekZone(lm[t])) inside++; }
     return inside >= GESTURE_ZONE_SPEC.minTipsInside;
 }
-// F-755h: wider tick-zone for Hand✓ pre-flight tick — separate from acceptance gate.
+// codex review (task-432 round 5): _handNearFaceZone's result is uploaded as part of
+// client_pose_zones (see F-GESTURE-ZONE-QUALIFIES-POSE below), which the BACKEND uses to DROP a
+// pose from the reconstructed sequence when false — that makes it a real (if defense-in-depth)
+// server-side signal, not pure UI coaching. The face-anchor estimate is a best-effort heuristic
+// that can misfire (stale EMA, an edge-clamped read); if it shifted the zone in a way that turned
+// a genuinely good pose false, the backend would drop a legitimate re-auth pose — the exact
+// false-friction this lane is supposed to eliminate, not add. So the backend-facing signal stays
+// on the DETERMINISTIC fallback geometry only (still gets Part 2's relaxed membership test, which
+// only ever makes MORE poses register true — pure generosity, no new drop risk); the on-screen
+// coaching zone (_handNearFaceZone above) is the one that gets the face-anchored experience.
+function _handNearFallbackZone(lm) {
+    if (!lm || lm.length < 21) return false;
+    const rx = GESTURE_ZONE_SPEC.rx, ry = GESTURE_ZONE_SPEC.ry;
+    const inFallbackOval = (p) => GESTURE_ZONE_SPEC.ovals.some((o) => {
+        const dx = (p.x - o.cx) / rx, dy = (p.y - o.cy) / ry;
+        return dx * dx + dy * dy <= 1;
+    });
+    const palm = { x: (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4, y: (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4 };
+    if (inFallbackOval(palm)) return true;
+    const tips = [4, 8, 12, 16, 20];
+    let inside = 0;
+    for (const t of tips) { if (inFallbackOval(lm[t])) inside++; }
+    return inside >= GESTURE_ZONE_SPEC.minTipsInside;
+}
+// F-755h: wider tick-zone for Hand✓ pre-flight tick — separate from acceptance gate, but now
+// face-anchored off the SAME _activeZone() ovals (scaled wider) so it moves with the acceptance
+// gate instead of drifting from it.
 const _TICK_ZONE_RX = 0.28, _TICK_ZONE_RY = 0.30;
 function _ptInTickZone(p) {
-    const dxL = (p.x - 0.18) / _TICK_ZONE_RX, dyL = (p.y - 0.48) / _TICK_ZONE_RY;
-    if (dxL * dxL + dyL * dyL <= 1) return true;
-    const dxR = (p.x - 0.82) / _TICK_ZONE_RX, dyR = (p.y - 0.48) / _TICK_ZONE_RY;
-    return dxR * dxR + dyR * dyR <= 1;
+    const z = _activeZone();
+    const scale = z.anchored ? (z.rx / GESTURE_ZONE_SPEC.rx) : 1;
+    const rx = _TICK_ZONE_RX * scale, ry = _TICK_ZONE_RY * scale;
+    for (const o of z.ovals) {
+        const dx = (p.x - o.cx) / rx, dy = (p.y - o.cy) / ry;
+        if (dx * dx + dy * dy <= 1) return true;
+    }
+    return false;
 }
 function _handInTickZone(lm) {
     if (!lm || lm.length < 21) return false;
-    if (!_ptInTickZone(lm[0])) return false;
+    const palm = { x: (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4, y: (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4 };
+    if (_ptInTickZone(palm)) return true;
     const tips = [4, 8, 12, 16, 20];
     let inside = 0;
     for (const t of tips) { if (_ptInTickZone(lm[t])) inside++; }
     return inside >= 3;
+}
+// task-432 Part 4: throttled transition telemetry — server-readable via /v1/auth/debug so the
+// give can be tuned from real runs. Only fires on an ACTUAL in/out transition (no per-frame spam).
+function _noteHandZoneTransition(prevState, isIn, zone) {
+    if (prevState === null) return isIn;   // seed silently — not a real transition, just the first classified frame
+    if (prevState === isIn) return prevState;
+    try {
+        vacDebug('hand_zone', isIn ? 'in' : 'out', {
+            anchored: zone.anchored ? 'face' : 'fallback',
+            face_w: zone.faceW != null ? Number(zone.faceW.toFixed(3)) : null,
+        });
+    } catch(_) {}
+    return isIn;
 }
 
 function startAVChecks() {
@@ -834,6 +1037,9 @@ function startAVChecks() {
             }
 
         } catch (e) { /* canvas errors are non-fatal */ }
+        // task-432 Part 1: refresh the face-anchor estimate at the same ~4fps cadence — feeds
+        // _activeZone() so the pre-flight practice oval matches the real gesture-step geometry.
+        try { _updateFaceAnchor(video); } catch(_) {}
         } // end throttle block
 
         // S110 (F-559): hand pre-flight. Run the SAME FingerDetector here so the user
@@ -1008,27 +1214,31 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         }
         if (_allFin) { _lmComplete = true; try { _confident = _handNearFaceZone(lm); } catch(_){} }
     }
-    // Two static ovals, one beside each cheek — geometry from GESTURE_ZONE_SPEC.
-    var _ovals = GESTURE_ZONE_SPEC.ovals;
-    var _cy = 0.48, _radX = GESTURE_ZONE_SPEC.rx, _radY = GESTURE_ZONE_SPEC.ry;
+    // Two ovals, one beside each cheek — geometry from _activeZone() (task-432 Part 1:
+    // face-anchored when a confident face read exists, else GESTURE_ZONE_SPEC's fallback).
+    var _zone = _activeZone();
+    var _ovals = _zone.ovals, _radX = _zone.rx, _radY = _zone.ry;
     ctx.save();
     try {
         for (var _oi = 0; _oi < _ovals.length; _oi++) {
             var _ov = _ovals[_oi];
             var _active = (_ov.side === side);
             var _glow = _active && _confident;
-            var _cx = _ov.cx * w, _ocx2 = _cy * h;
+            var _cx = _ov.cx * w, _ocx2 = _ov.cy * h;
             var _rx = _radX * w, _ry = _radY * h;
             // F-755h2: only ONE oval reads as the target — the active side is bright,
             // the inactive side is heavily dimmed so it never looks like "use both hands".
             ctx.beginPath();
             ctx.ellipse(_cx, _ocx2, _rx, _ry, 0, 0, 6.283);
             if (_active) {
-                ctx.fillStyle = _glow ? 'rgba(108,92,231,0.28)' : 'rgba(108,92,231,0.12)';
-                ctx.shadowColor = _glow ? '#6C5CE7' : 'transparent';
+                // task-432 Part 3: unmissable, peripheral-vision-readable confirmation — the
+                // zone itself turns green + fills solid the instant the hand is accepted, and
+                // reverses instantly on exit (recomputed fresh every frame, no latch).
+                ctx.fillStyle = _glow ? 'rgba(0,184,148,0.32)' : 'rgba(108,92,231,0.12)';
+                ctx.shadowColor = _glow ? '#00b894' : 'transparent';
                 ctx.shadowBlur  = _glow ? Math.max(18, w * 0.04) : 0;
                 ctx.fill();
-                ctx.strokeStyle = _glow ? '#6C5CE7' : 'rgba(108,92,231,0.75)';
+                ctx.strokeStyle = _glow ? '#00b894' : 'rgba(108,92,231,0.75)';
                 ctx.lineWidth   = _glow ? Math.max(3, w * 0.006) : Math.max(2, w * 0.005);
                 ctx.shadowBlur  = _glow ? Math.max(10, w * 0.02) : 0;
                 ctx.stroke();
@@ -1062,7 +1272,14 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         var _n0 = (typeof n === 'number' && Number.isFinite(n)) ? Math.round(n) : -1;
         // F-761: coach the pose for the ambiguous 4↔5 pair — a relaxed hand (thumb close to fingers)
         // reads as 4-or-5 unreliably. 5 → spread wide; 4 → tuck thumb. Others are visually distinct.
-        var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
+        // task-432 Part 3: once the hand is ACCEPTED, swap the positioning instruction for an
+        // unmissable confirmation — the user is mid-pose and about to speak, so this must read at
+        // a glance, in peripheral vision, without asking them to refocus on the caption. codex
+        // review (round 5): the confirmation is zone-only (position), not gesture-correctness —
+        // a wrong finger count in the right spot must not read as "you're done." Keep the target
+        // digit in the message so the required count is never hidden behind the confirmation.
+        var _msg = _confident ? (_n0 > 0 ? 'Show ' + _n0 + ' — hand in place, hold it there' : 'Hand in place — hold it there')
+                 : _n0 === 0 ? 'Make a fist beside your cheek'
                  : _n0 === 5 ? 'Show 5 — spread your fingers WIDE, beside your cheek'
                  : _n0 === 4 ? 'Show 4 — tuck your thumb in, beside your cheek'
                  : _n0 > 0  ? 'Hold ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's') + ' beside your cheek'
@@ -1082,13 +1299,13 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             var _tx = w * 0.5, _ty = Math.max(28, h * 0.055);
             var _tw = ctx.measureText(_msg).width;
             var _pad = Math.max(8, w * 0.018);
-            ctx.fillStyle = 'rgba(0,0,0,0.68)';
+            ctx.fillStyle = _confident ? 'rgba(0,60,45,0.82)' : 'rgba(0,0,0,0.68)';
             ctx.fillRect((w - _tx) - _tw / 2 - _pad, _ty - _fs * 0.75, _tw + _pad * 2, _fs * 1.5);
             ctx.shadowColor = 'rgba(0,0,0,0.85)';
             ctx.shadowBlur = 4;
             ctx.shadowOffsetX = 1;
             ctx.shadowOffsetY = 1;
-            ctx.fillStyle = 'rgba(255,214,10,0.97)';
+            ctx.fillStyle = _confident ? '#00e0a8' : 'rgba(255,214,10,0.97)';
             ctx.fillText(_msg, w - _tx, _ty);
         } finally { ctx.restore(); }
         // F-755d: per-frame zone readout — Rob's iPhone visual verification
@@ -1140,26 +1357,43 @@ function _avDrawHand(videoEl, lm){
     const ctx=cv._ctx;
     if(cv.width!==videoEl.videoWidth){ cv.width=videoEl.videoWidth; cv.height=videoEl.videoHeight; }
     ctx.clearRect(0,0,cv.width,cv.height);
-    // F-755e: draw static cheek-zone ovals before the lm-guard so they show even with no hand up.
-    // Geometry from GESTURE_ZONE_SPEC — matches acceptance gate and _drawFingerTargetGuide exactly.
+    // F-755g: 21-finite check + zone membership computed BEFORE the oval draw (task-432 Part 3
+    // needs _avZone to color the accepted oval green) — zone check itself never gates the skeleton draw.
+    let _avLmFin = !!lm && lm.length === 21;
+    if (_avLmFin) { for (let _fi = 0; _fi < 21 && _avLmFin; _fi++) { if (!lm[_fi] || !Number.isFinite(lm[_fi].x) || !Number.isFinite(lm[_fi].y)) _avLmFin = false; } }
+    let _avZone = false;
+    if (_avLmFin) { try { _avZone = _handNearFaceZone(lm); } catch(_) {} }
+    // F-755e: draw cheek-zone ovals before the lm-guard so they show even with no hand up.
+    // task-432 Part 1: geometry from _activeZone() (face-anchored when confident, else fallback) —
+    // matches the acceptance gate and _drawFingerTargetGuide exactly, so marker and gate never drift.
     (function _drawAvCheekOvals(){
         const w=cv.width, h=cv.height;
         // F-755h2: only ONE oval reads as target (never "use both hands").
         // Pre-flight has no chosen digit-side, so light whichever cheek the hand is nearest;
         // if no hand yet, both are shown dim-equal so nothing implies "both hands".
+        const _zone = _activeZone();
         let _wristX = null;
         if (lm && lm.length === 21 && lm[0] && Number.isFinite(lm[0].x)) _wristX = lm[0].x;
-        const _nearSide = _wristX === null ? null : (_wristX < 0.5 ? 0.18 : 0.82);
-        const _gzRx = GESTURE_ZONE_SPEC.rx, _gzRy = GESTURE_ZONE_SPEC.ry;
+        const _nearSide = _wristX === null ? null : (_wristX < 0.5 ? _zone.ovals[0].cx : _zone.ovals[1].cx);
+        const _gzRx = _zone.rx, _gzRy = _zone.ry;
         ctx.save();
-        for(const cxN of [0.18,0.82]){
+        for (const _ov of _zone.ovals) {
+            const cxN = _ov.cx;
             const _isActive = (_nearSide === null) ? null : (cxN === _nearSide);
             ctx.beginPath();
-            ctx.ellipse(cxN*w, 0.48*h, _gzRx*w, _gzRy*h, 0, 0, Math.PI*2);
+            ctx.ellipse(cxN*w, _ov.cy*h, _gzRx*w, _gzRy*h, 0, 0, Math.PI*2);
             if (_isActive === true) {
-                ctx.fillStyle='rgba(108,92,231,0.16)'; ctx.fill();
-                ctx.strokeStyle='rgba(108,92,231,0.80)'; ctx.lineWidth=Math.max(2,w*0.005);
-                ctx.setLineDash([]); ctx.stroke();
+                // task-432 Part 3: unmissable, instant-reversing confirmation once the hand is
+                // actually ACCEPTED (_avZone), not just nearest-side — mirrors the capture-step oval.
+                if (_avZone) {
+                    ctx.fillStyle='rgba(0,184,148,0.30)'; ctx.fill();
+                    ctx.strokeStyle='#00b894'; ctx.lineWidth=Math.max(3,w*0.006);
+                    ctx.setLineDash([]); ctx.stroke();
+                } else {
+                    ctx.fillStyle='rgba(108,92,231,0.16)'; ctx.fill();
+                    ctx.strokeStyle='rgba(108,92,231,0.80)'; ctx.lineWidth=Math.max(2,w*0.005);
+                    ctx.setLineDash([]); ctx.stroke();
+                }
             } else if (_isActive === false) {
                 ctx.fillStyle='rgba(108,92,231,0.03)'; ctx.fill();
                 ctx.strokeStyle='rgba(108,92,231,0.18)'; ctx.lineWidth=Math.max(1,w*0.002);
@@ -1179,12 +1413,6 @@ function _avDrawHand(videoEl, lm){
         _avChallengerWrist = null; _avChallengerStreak = 0;
         return;
     }
-    // F-755g: draw skeleton whenever 21 finite landmarks present — zone check removed from draw guard.
-    // (_avZone still computed; Hand✓ tick logic in runAVFrame is untouched.)
-    let _avLmFin = lm.length === 21;
-    if (_avLmFin) { for (let _fi = 0; _fi < 21 && _avLmFin; _fi++) { if (!lm[_fi] || !Number.isFinite(lm[_fi].x) || !Number.isFinite(lm[_fi].y)) _avLmFin = false; } }
-    let _avZone = false;
-    if (_avLmFin) { try { _avZone = _handNearFaceZone(lm); } catch(_) {} }
     // S145 finding 3 (THIN-329b): a phantom detection jitters frame to frame and often lands
     // in the face band (top third of frame) — landmarks reaching this file already cleared the
     // model's own mid confidence floor (minHandDetectionConfidence/minHandPresenceConfidence
@@ -2762,9 +2990,11 @@ function beginRecording() {
     }
 
     let _detLoopFrames = 0;  // telemetry only
+    let _handZoneLastState = null;  // task-432 Part 4: transition telemetry — null until first classified frame
     function runDetectionLoop() {
         if (recordingStopped) return;
         const videoEl = document.getElementById('videoPreviewRec');
+        try { _maybeUpdateFaceAnchor(videoEl); } catch(_) {}   // task-432 Part 1: throttled face-anchor refresh
         const detected = FingerDetector.detect(videoEl);
         try { _lastDetectedCount = detected; } catch(_){}
         // F-613: smoothed count for STABILITY/TIMING only (absorbs MediaPipe flicker
@@ -2779,6 +3009,8 @@ function beginRecording() {
         // detected === -1 means no hand in frame; landmarks null otherwise.
         var _handPresent = !!FingerDetector.landmarks;
         var _handNear = _handPresent && _handNearFaceZone(FingerDetector.landmarks);
+        // task-432 Part 4: throttled hand_zone in/out telemetry (transition-only, no per-frame spam).
+        try { _handZoneLastState = _noteHandZoneTransition(_handZoneLastState, _handNear, _activeZone()); } catch(_) {}
         // F-755: per-frame instrumentation (advisory; never fed to server clip).
         try {
             var _f755lm = FingerDetector.landmarks;
@@ -2993,7 +3225,15 @@ function beginRecording() {
             // poses that feed detectedCounts, in order, surviving the n>0 filter on the counts.
             (function(){
                 var _zlm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
-                var _zone = (!_zlm || _zlm.length < 21) ? null : _handNearFaceZone(_zlm);
+                // task-432 (codex review round 6): this value can cause the BACKEND to drop the
+                // pose, and the ON-SCREEN guide (green/"hand in place") reads off the face-anchored
+                // _handNearFaceZone — if the upload only checked the fixed fallback geometry, a
+                // pose the user was just shown as ACCEPTED could silently get dropped server-side
+                // the moment the two geometries disagree (e.g. a user framed high/low who needs the
+                // anchored zone). Accept on EITHER geometry agreeing: this can only ever make MORE
+                // poses register true, never fewer, so it can't introduce a new drop — it only
+                // closes the gap where the face-anchored accept and the uploaded signal disagreed.
+                var _zone = (!_zlm || _zlm.length < 21) ? null : (_handNearFaceZone(_zlm) || _handNearFallbackZone(_zlm));
                 window.__vacPoseZones.push(_zone);
             })();
             _acceptArmed = false;
@@ -3814,6 +4054,7 @@ async function beginStillCapture() {
             // FingerDetector.detect() re-read that can race with hand-down on settle.
             // (Declared at function scope above — L-2224 — so the capture-time reads resolve.)
             _pollStillTsMs = 0; _pollDetectedFingers = null;
+            var _fastHandZoneLastState = null;  // task-432 Part 4: transition telemetry for this attempt
             // F-637: minimum audio window for the gesture-only fallback (voice required but
             // _voiceGate = null). Without this, stable-gesture fires at ~480ms before the
             // user speaks, leaving stillTsMs in pre-speech silence. 800ms ensures the audio
@@ -3829,6 +4070,7 @@ async function beginStillCapture() {
                 const _iv = setInterval(function(){
                     _waited += _GEST_TICK;
                     let _n = null;
+                    try { _maybeUpdateFaceAnchor(_gv); } catch(_) {}   // task-432 Part 1: throttled face-anchor refresh
                     try { _n = FingerDetector.detect(_gv); } catch(_) {}
                     // F-654: draw the SAME hand skeleton as the full/seal finger phase (consistency,
                     // Rob) via the top-level shared drawer (the beginRecording one is out of scope).
@@ -3847,6 +4089,7 @@ async function beginStillCapture() {
                     // — coachKey='gestureonly' ("say it out loud") carries the honest nudge instead.
                     var _lm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
                     var _handNear = !!_lm && _handNearFaceZone(_lm);
+                    try { _fastHandZoneLastState = _noteHandZoneTransition(_fastHandZoneLastState, _handNear, _activeZone()); } catch(_) {}
                     var _gestureLive = (_stable >= _STABLE_NEEDED && typeof _n === 'number' && _n > 0);
                     var _voiceDone = !!(_voiceGate && _voiceGate.armed);
                     var _coachKey = '';
