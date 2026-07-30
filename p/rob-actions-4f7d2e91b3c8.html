@@ -16,70 +16,71 @@ h2{font-family:Fraunces,serif;font-size:18px;margin:26px 0 10px;color:var(--gold
 .d{color:var(--dim);font-size:13.5px;margin-bottom:10px}
 a,a:visited{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(212,169,78,.45);text-underline-offset:2px}
 a:hover{color:#E8C46B}
-.btn{display:inline-block;background:none;border:1px solid var(--gold-dim);color:var(--gold);border-radius:8px;padding:8px 14px;font-size:13.5px;text-decoration:none;margin:2px 8px 2px 0}
+.btn{display:inline-block;background:none;border:1px solid var(--gold-dim);color:var(--gold);border-radius:8px;padding:8px 14px;font-size:13.5px;text-decoration:none;margin:2px 8px 6px 0}
 .btn.primary{background:var(--gold);color:#0A0F1A;border-color:var(--gold);font-weight:600;text-decoration:none}
-.done{color:var(--green)}.pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--dim);margin-left:6px}
-.pill.red{color:var(--red);border-color:rgba(224,108,117,.5)}
-ol{padding-left:20px;color:var(--dim);font-size:13.5px}ol li{margin-bottom:4px}
+.pill{font-family:'JetBrains Mono',monospace;font-size:10.5px;border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--dim);margin-left:6px}
+.pill.red{color:var(--red);border-color:rgba(224,108,117,.5)}.pill.green{color:var(--green);border-color:rgba(67,214,146,.4)}
+ol{padding-left:20px;color:var(--dim);font-size:13.5px}ol li{margin-bottom:6px}
+blockquote{border-left:2px solid var(--gold-dim);margin:8px 0;padding:4px 12px;color:var(--dim);font-size:13px}
 </style></head><body><div class="page-shell">
 <h1>Rob — Actions</h1>
-<div class="stamp">S151 &middot; Wed 29 Jul &middot; every item one tap &middot; maintained by chat-Claude, tell it when something is done</div>
+<div class="stamp">S151 &middot; Thu 31 Jul, afternoon UK &middot; ordered by when to do them &middot; maintained by chat-Claude &mdash; say "done" per item</div>
 
-<h2>1 &middot; Test the mic fix in noise <span class="pill red">merge gate</span></h2>
+<h2>Now — Naki day is TODAY <span class="pill red">unblocks her invite</span></h2>
 <div class="card">
-  <div class="t">Go somewhere noisy — the wind, the street. Run the ceremony once. That is the whole job.</div>
-  <div class="d">The fix branch is deployed to a preview; the reason for every digit beat now streams to the server, so Claude reads the results itself afterwards. You do not report anything — just run it and say "done, noisy".</div>
-  <a class="btn primary" href="https://vacprotocol.org/financial-demo?qa=1">Open the demo &rarr;</a>
-</div>
-
-<h2>2 &middot; Naki — tomorrow <span class="pill red">hard deadline</span></h2>
-<div class="card">
-  <div class="t">a. Read + approve the welcome copy</div>
-  <div class="d">It is the first thing she sees on WhatsApp. Reply in chat with "welcome copy approved" or your edits.</div>
-  <a class="btn" href="https://vacprotocol.org/p/onboard-ux-d3b93652f575.html">Read the welcome copy (step 1 on this page) &rarr;</a>
-  <div class="t" style="margin-top:12px">b. Send Claude her phone number</div>
-  <div class="d">One line in chat: "Naki's number is +44…". The front door is live on prod and waiting for it.</div>
-  <div class="t" style="margin-top:12px">c. Schedule the three Cowork watches</div>
-  <div class="d">Cowork app &rarr; scheduled tasks &rarr; add three, pointing at these packets:</div>
+  <div class="t">a. Sign off the welcome message (2 min)</div>
+  <div class="d">~150 words. Leads with three honesty points; the sentence needing your judgement is <em>"please do not send anything confidential yet &mdash; per-user data isolation is still being finished."</em> True (the row-level-security gap), but it is the second thing your first external user reads. Approve as-is, or send edits in chat.</div>
+  <a class="btn primary" href="https://vacprotocol.org/p/onboard-ux-d3b93652f575.html">Read it &mdash; section "The welcome message" &rarr;</a>
+  <div class="t" style="margin-top:10px">b. Send her phone number (30 sec)</div>
+  <div class="d">One chat line: "Naki's number is +64&hellip;". Front door is merged &amp; live on prod &mdash; this is the last missing input.</div>
+  <div class="t" style="margin-top:10px">c. Schedule the three Cowork watches (10 min, can trail by a few hours)</div>
+  <div class="d">Claude Cowork &rarr; scheduled tasks &rarr; new task &rarr; paste the packet as the instruction &rarr; set the time:</div>
   <ol>
-    <li>docs/watch-packets/ &rarr; inbox packet</li>
-    <li>docs/watch-packets/ &rarr; naki-research packet</li>
-    <li>docs/watch-packets/ &rarr; ux-selfexplain packet</li>
+    <li>07:30 UK daily, Gmail connector ON &mdash; <a href="https://github.com/VioletShores/athena/blob/main/docs/watch-packets/WATCH-INBOX-IETF.md">WATCH-INBOX-IETF packet</a></li>
+    <li>07:45 UK daily &mdash; <a href="https://github.com/VioletShores/athena/blob/main/docs/watch-packets/WATCH-NAKI-AIGOV.md">WATCH-NAKI-AIGOV packet</a></li>
+    <li>daily, your pick of time &mdash; <a href="https://github.com/VioletShores/athena/blob/main/docs/watch-packets/WATCH-UX-SELFEXPLAIN.md">WATCH-UX-SELFEXPLAIN packet</a></li>
   </ol>
-  <a class="btn" href="https://vacprotocol.org/p/naki-3bd20e1222bf.html">Her one-pager (already live) &rarr;</a>
+  <div class="d">Before her invite goes out, tell Claude "check the invite gates" &mdash; the onboarding page lists go/no-go gates and Claude verifies them server-side so nothing surprises you mid-onboarding.</div>
 </div>
 
-<h2>3 &middot; OAuth list post <span class="pill">window closes w/c 3 Aug</span></h2>
+<h2>Today — while you have a quiet moment</h2>
 <div class="card">
-  <div class="t">The draft is staged in your Gmail drafts, guarded with a block comment — has been since Vienna.</div>
-  <div class="d">Open drafts, find the message to oauth@ietf.org, remove the guard block, send. Two taps.</div>
+  <div class="t">OAuth working-group post <span class="pill">window closes w/c 3 Aug</span></div>
+  <div class="d">Draft staged in Gmail drafts with a guard comment &mdash; remove the guard, send to the list. Two taps.</div>
   <a class="btn primary" href="https://mail.google.com/mail/u/0/#drafts">Open Gmail drafts &rarr;</a>
 </div>
 
-<h2>4 &middot; Justin <span class="pill red">GATED — do not send yet</span></h2>
-<div class="card gate">
-  <div class="t">Held at your instruction until the biometric demo is fixed.</div>
-  <div class="d">Gate = hand-zone acquisition + visible in-zone feedback (escalated P1, 4th report) AND the noise-condition mic pass. When both close, the thank-you draft appears here with the demo link. Nothing for you to do today.</div>
+<h2>Next time you are out in noise</h2>
+<div class="card">
+  <div class="t">One ceremony run in wind/street noise <span class="pill red">mic merge gate</span></div>
+  <div class="d">Run it once in the failing condition, say "done, noisy". Every digit beat now streams to the server &mdash; Claude reads the trail itself; you report nothing.</div>
+  <a class="btn primary" href="https://vacprotocol.org/financial-demo?qa=1">Open the demo &rarr;</a>
 </div>
 
-<h2>5 &middot; Two checks, two minutes each</h2>
+<h2>Deferred by you — combined session (Option B) <span class="pill">waiting on 432/435 merge</span></h2>
+<div class="card gate">
+  <div class="t">Face-swap test + new gesture zone, one clean build</div>
+  <div class="d">Runs after the MediaPipe zone rework (lane 435) passes gates and merges. Needs one other person; a FIRST-TIMER on the zone is the merge evidence (your runs excluded). Test account = robzag@gmail.com (3 verifications). NEVER run the impostor round on rob@violetshores.com (274 verifications &mdash; your daily driver). Claude has the baseline on file and reads all results server-side.</div>
+</div>
+
+<h2>Gated — nothing for you to do</h2>
+<div class="card gate">
+  <div class="t">Justin thank-you + demo link</div>
+  <div class="d">Held at your instruction until the biometric demo passes (hand zone + noise mic). Draft appears here when the gates clear.</div>
+</div>
+
+<h2>Two-minute checks, whenever</h2>
 <div class="card">
   <div class="t">a. Supabase security advisor</div>
-  <div class="d">Open it, screenshot or paste what it flags into chat. Claude scopes the fix lane from that.</div>
-  <a class="btn" href="https://supabase.com/dashboard">Open Supabase dashboard &rarr;</a>
-  <div class="t" style="margin-top:12px">b. WhatsApp memory re-test — send these four messages to AthenaPilot, in order:</div>
-  <ol>
-    <li>Call me Rob</li>
-    <li>What's my name?</li>
-    <li>What do you remember about me?</li>
-    <li>Forget my name</li>
-  </ol>
-  <div class="d">All four replies now log server-side with the footer — Claude reads the results itself. Just send them and move on.</div>
-  <a class="btn primary" href="https://wa.me/447404843156?text=Call%20me%20Rob">Open the chat with message 1 pre-filled &rarr;</a>
+  <div class="d">Open, paste what it flags into chat.</div>
+  <a class="btn" href="https://supabase.com/dashboard">Open Supabase &rarr;</a>
+  <div class="t" style="margin-top:10px">b. WhatsApp memory test &mdash; send 4 messages in order, then move on (Claude reads results server-side)</div>
+  <ol><li>Call me Rob</li><li>What's my name?</li><li>What do you remember about me?</li><li>Forget my name</li></ol>
+  <a class="btn primary" href="https://wa.me/447404843156?text=Call%20me%20Rob">Open chat, message 1 pre-filled &rarr;</a>
 </div>
 
-<h2>Nothing needed from you</h2>
+<h2>In flight &mdash; Claude's side, no action</h2>
 <div class="card">
-  <div class="d">Cross-LLM critique of the coding-harness packet (running) &middot; Naki front door (merged, prod healthy) &middot; K3 (deliberately blocked on the execution harness) &middot; hub body regen &middot; SignalRank live-render (queued behind the harness). Claude reports when these need a decision.</div>
+  <div class="d">Lane 435 MediaPipe zone rework + security gates (running) &middot; benchmark ingest built, gate+merge queued &middot; K3 critique re-fire queued &middot; SignalRank live-render queued behind ingest &middot; hub body regeneration dispatched.</div>
 </div>
 </div></body></html>
