@@ -476,6 +476,12 @@ let _micSeedLevels = [];   // GATE-343 f2: levels captured in the first 1.5s aft
 let _micSeedStartT = 0;    // GATE-343 f2: performance.now() when seed collection began
 let _micSeededAmbient = 0; // GATE-343 f2: seeded ambient median — real floor when live pre-run history is thin/empty
 let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has closed
+// D-VAD-CALIBRATION-GREETING-BOUND: the preflight's own qualifying run (the "Mic: working" check
+// below) already measures this session's real speaking level over this room's ambient — the
+// median level of the run that passed _micQualifyFloor. Persisted (module scope) alongside
+// _micSeededAmbient so the ceremony VAD can arm from BOTH instead of starting deaf on fallback
+// constants until a greeting it can't hear over the noise recalibrates it.
+let _micSeededSpeechLevel = 0;
 // F-941 (BUILD 393, restaurant failure): a loud room's ambient floor is broadband/impulsive
 // (plates, chatter, HVAC) while speech concentrates in ~187Hz-3kHz. A run whose energy sits
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
@@ -492,6 +498,35 @@ function _micQualifyFloor(_voiced) {
     const _mult = _voiced ? 1.15 : 2;   // F-941: voice-band-dominant energy needs less headroom over ambient than flat/broadband noise
     const _floor = _voiced ? 8 : 12;    // S148 field-tune: the flat 12 floor was unreachable for Rob's 9% outdoor speech; voice-shaped runs may qualify from 8
     return Math.max(_mult * _micSeededAmbient, _floor);
+}
+
+// D-VAD-CALIBRATION-GREETING-BOUND fix: the ceremony VAD (vadSpeechThreshold/vadSilenceThreshold
+// in beginRecording, FAST_VAD_SPEECH_RMS/FAST_VAD_SILENCE_RMS in the quick-reauth tier) used to
+// calibrate ONLY from the greeting/bound digit it hears AFTER arming on flat fallback constants —
+// circular in a noisy room, where those constants can't hear the greeting to calibrate off it in
+// the first place (Rob's live noisy run: waited_s=17, voice_ms=0 the whole digit phase). The
+// preflight already measures this room's ambient (_micSeededAmbient) AND this user's qualifying
+// speaking level (_micSeededSpeechLevel) to answer its own "Mic: working" pass/fail — reuse those
+// two numbers to arm the ceremony VAD relative to THIS room instead of an absolute guess. Same
+// floor→speech relative formula the greeting calibration already uses (K = fraction of the way
+// from floor to speech), so this isn't a new absolute level (L-2403) — just an earlier source for
+// the same derivation. Returns null (caller keeps its fallback constants) when the preflight never
+// measured both quantities, or the span between them is too thin to trust.
+const _CAL_K = 0.32;         // mirrors the greeting calibration's _CAL_K — speech threshold sits 32% of the way from floor to speech
+const _CAL_SIL_K = 0.30;     // mirrors the greeting calibration's _CAL_SIL_K — silence threshold sits 30% of the way from floor to the speech threshold (floor < silence < speech, provably, regardless of clamping)
+const _CAL_MIN_SPAN = 0.04;  // mirrors the greeting calibration's _CAL_MIN_SPAN — reject a degenerate (near-zero) floor→speech span rather than calibrate off noise
+function _calClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+function _micPreflightVad() {
+    if (!(_micSeededAmbient > 0) || !(_micSeededSpeechLevel > 0)) return null;  // preflight measurements absent (AV check skipped, or never qualified)
+    // Preflight levels are 0-100 (time-domain peak %, see runAVFrame); the ceremony VAD reads
+    // 0-1 (frequency-domain rms). /100 is the SAME conversion the shared mic-pill draw already
+    // uses to put a preflight level on the ceremony gate's scale (see window.__vacMicPillDraw call).
+    const _floor01 = _micSeededAmbient / 100, _speech01 = _micSeededSpeechLevel / 100;
+    const _span = _speech01 - _floor01;
+    if (_span < _CAL_MIN_SPAN) return null;  // degenerate — caller keeps its fallback constants
+    const speechThr = _calClamp(_floor01 + _CAL_K * _span, 0.06, 0.30);   // same clamp bounds as the greeting calibration
+    const silenceThr = _floor01 + _CAL_SIL_K * (speechThr - _floor01);
+    return { speechThr: speechThr, silenceThr: silenceThr, floor: _floor01, speech: _speech01 };
 }
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
@@ -805,6 +840,7 @@ function startAVChecks() {
     _micSeedLevels = [];
     _micSeedStartT = 0;
     _micSeededAmbient = 0;
+    _micSeededSpeechLevel = 0;
     _micSeeded = false;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
@@ -1019,6 +1055,10 @@ function startAVChecks() {
                 const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _micQualifyFloor(_runVoiced));
                 if (_runMedian > _qualifyFloor) {
                     _micLastQualifyT = _nowT;
+                    // D-VAD-CALIBRATION-GREETING-BOUND: this run just proved it's THIS user's
+                    // speaking level over THIS room's ambient — persist it so the ceremony VAD
+                    // can arm from it (see _micPreflightVad).
+                    _micSeededSpeechLevel = _runMedian;
                     if (!avChecks.mic) {
                         setAVStatus('mic', 'good', 'Mic: working');
                         avChecks.mic = true;
@@ -2599,24 +2639,30 @@ function beginRecording() {
     // the sole sustained-duration gate. See _startSpeechGate for the continuity fix that makes the
     // 350ms measure GENUINELY continuous voicing (the noisy-room tap-through Rob hit accumulated
     // sparse transients across the silence..speech "neither" band, where the run was never reset).
-    // F-595: live per-session thresholds the DIGIT gate reads (NOT the constants). Start at the
-    // fallback; the greeting phase replaces them with values tuned to this mic+room (A2/A3 below).
-    let vadSpeechThreshold = VAD_SPEECH_RMS_FALLBACK;
-    let vadSilenceThreshold = VAD_SILENCE_RMS_FALLBACK;
+    // F-595: live per-session thresholds the DIGIT gate reads (NOT the constants).
+    // D-VAD-CALIBRATION-GREETING-BOUND: arm from the PREFLIGHT's measured ambient + speaking
+    // level (module-scope _micPreflightVad — survives from the AV check into this ceremony)
+    // instead of blind fallback constants, so the phrase-phase VAD can actually hear the
+    // greeting in a noisy room. The greeting phase below still refines these once it hears the
+    // user directly (A2/A3); preflight is the ARMED starting point, not a replacement for it.
+    // Only falls back to the hand-tuned constants when the preflight never measured both
+    // quantities (AV check skipped, or the mic never qualified).
+    const _preflightVad = _micPreflightVad();
+    let vadSpeechThreshold = _preflightVad ? _preflightVad.speechThr : VAD_SPEECH_RMS_FALLBACK;
+    let vadSilenceThreshold = _preflightVad ? _preflightVad.silenceThr : VAD_SILENCE_RMS_FALLBACK;
     // F-595 calibration sampling state. _floorSamples = leading near-silent greeting frames
     // (the room's noise floor); _speechSamples = the voiced greeting run (this user speaking).
     // Both medians (robust to a cough/click) feed the threshold at phraseSpoke. Function-scoped,
     // so they reset fresh every recording (no stale per-session value bleeds into a re-auth).
-    let _calNoiseFloor = null, _calSpeechRms = null, _calIsFallback = true;
+    let _calNoiseFloor = null, _calSpeechRms = null, _calIsFallback = !_preflightVad;
     const _floorSamples = [], _speechSamples = [];
     const _CAL_FLOOR_MAX = 8;        // cap leading-silence collection at 8 samples (up to ~1.6s at TICK_MS=200, but collection stops the moment the user starts speaking, so usually fewer) — enough for a stable median, never blocks the flow
     const _CAL_MIN_FLOOR = 3;        // need >=3 floor samples for a trustworthy median, else keep fallback
     const _CAL_SPEECH_MAX = 40;      // cap voiced-run collection (a normal greeting is ~7-20 voiced ticks; this bounds a pathologically long one) — symmetry with _floorSamples, median stays representative
-    const _CAL_K = 0.32;             // speech threshold sits 32% of the way from floor to speech (S145: 0.40 still demanded a raised voice when calibration ran — normal conversational level must clear it; noise floor is guarded by the hysteresis silence gate below)
-    const _CAL_SIL_K = 0.30;         // silence threshold sits 30% of the way from floor to the SPEECH THRESHOLD (not to speech) — anchoring to floor↔thr makes floor < silence < speech provably true regardless of the constants, so the "neither" hysteresis band can never invert
-    const _CAL_MIN_SPAN = 0.04;      // reject a degenerate sample (speech median barely above floor, e.g. a contaminated floor) → keep fallback rather than calibrate off noise
+    // _CAL_K / _CAL_SIL_K / _CAL_MIN_SPAN / _calClamp now live at module scope (shared with
+    // _micPreflightVad and the FAST tier) — see the definitions near _micQualifyFloor.
     function _calMedian(a) { if (!a.length) return null; const s = a.slice().sort(function(x,y){return x-y;}); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; }
-    function _calClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+    try { vacDebug('vad_calibrated', null, { at: 'arm', floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : null, speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, source: _preflightVad ? 'preflight' : 'fallback' }); } catch(_) {}
     // F-563 (#1): the digit say-step got the SAME tap/beep weakness the greeting had — the old
     // ~100ms (VAD_SPEECH_FRAMES) bar let a tap/beep satisfy a digit. A SPOKEN number is ~300-500ms
     // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
@@ -3474,8 +3520,11 @@ function beginRecording() {
             _calIsFallback = false;
         } else {
             // too thin to trust (no floor, clipped greeting, or contaminated sample) → keep the
-            // fallback pair (already the current values), same graceful-degrade spirit as no-mic.
-            _calIsFallback = true;
+            // CURRENT pair (already the active values — preflight-derived if arm found one,
+            // fallback constants otherwise), same graceful-degrade spirit as no-mic. Don't stomp
+            // _calIsFallback back to true here: a noisy room that starved the greeting sample is
+            // exactly the case the preflight-derived arm value exists to cover, and it's still
+            // the active pair below (D-VAD-CALIBRATION-GREETING-BOUND).
         }
         try { vacDebug('vad_calibrated', null, { floor: _calNoiseFloor == null ? null : Number(_calNoiseFloor.toFixed(3)), speech: _calSpeechRms == null ? null : Number(_calSpeechRms.toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, floor_n: _floorSamples.length, speech_n: _speechSamples.length }); } catch(_) {}
         try { QA.cal({ floor: _calNoiseFloor, speech: _calSpeechRms, thr: vadSpeechThreshold, sil: vadSilenceThreshold, fallback: _calIsFallback }); } catch(_) {}
@@ -4039,8 +4088,18 @@ async function beginStillCapture() {
         try {
             startAudioMonitor();
             if (audioAnalyser) {
+                // D-VAD-CALIBRATION-GREETING-BOUND: the fast tier has no greeting to calibrate off
+                // at all (comment on FAST_VAD_SPEECH_RMS above says so directly) — it's PURELY the
+                // fallback constants today. This tier also has a preflight (startAVChecks) ahead of
+                // it in the same page session, so arm from the same preflight-derived thresholds the
+                // full tier now uses, falling back to the FAST_VAD_* constants only if preflight
+                // measurements never landed.
+                const _fastVad = _micPreflightVad();
+                const _fastSpeechThr = _fastVad ? _fastVad.speechThr : FAST_VAD_SPEECH_RMS;
+                const _fastSilenceThr = _fastVad ? _fastVad.silenceThr : FAST_VAD_SILENCE_RMS;
+                try { vacDebug('vad_calibrated', null, { at: 'arm', tier: 'fast', floor: _fastVad ? Number(_fastVad.floor.toFixed(3)) : null, speech: _fastVad ? Number(_fastVad.speech.toFixed(3)) : null, thr: Number(_fastSpeechThr.toFixed(3)), sil: Number(_fastSilenceThr.toFixed(3)), fallback: !_fastVad, source: _fastVad ? 'preflight' : 'fallback' }); } catch(_) {}
                 _voiceGate = _makeQuickReauthVoiceGate({
-                    speechThr: FAST_VAD_SPEECH_RMS, silenceThr: FAST_VAD_SILENCE_RMS,
+                    speechThr: _fastSpeechThr, silenceThr: _fastSilenceThr,
                     voiceMinMs: FAST_DIGIT_VOICE_MIN_MS, modDelta: FAST_DIGIT_MOD_DELTA, gapMs: FAST_DIGIT_VOICE_GAP_MS
                 });
                 _voiceGate.start(audioAnalyser);
