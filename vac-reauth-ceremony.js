@@ -535,19 +535,46 @@ const _FACE_ANCHOR_DROP_STREAK = 2;  // consecutive misses before dropping back 
 // Sampled only at the existing ~4fps anchor-update cadence (_maybeUpdateFaceAnchor) — never at
 // full frame rate purely for ovals.
 const _FACE_LANDMARKER_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+// F-788-style stall guard (codex-adversarial finding, task-432 Part 6): vac-finger-detect.js's
+// HandLandmarker init proved live (S134 telemetry) that createFromOptions can hang indefinitely on
+// a stalled model download with no exception — a fixed total-time timeout would also kill
+// slow-but-working downloads on real (Gatwick Express, hotel wifi) connections, so this fails on a
+// STALL (no bytes for _STALL_MS), never total duration, mirroring that fix.
+async function _fetchFaceModelBlob(url) {
+    const STALL_MS = 12000;
+    const resp = await Promise.race([
+        fetch(url, { cache: 'force-cache' }),
+        new Promise(function(_, rej) { setTimeout(function() { rej(new Error('connect_stall')); }, STALL_MS); }),
+    ]);
+    if (!resp.ok) throw new Error('http_' + resp.status);
+    if (!resp.body || !resp.body.getReader) return URL.createObjectURL(await resp.blob());
+    const reader = resp.body.getReader();
+    const chunks = [];
+    while (true) {
+        const r = await Promise.race([
+            reader.read(),
+            new Promise(function(_, rej) { setTimeout(function() { rej(new Error('stall')); }, STALL_MS); }),
+        ]);
+        if (r.done) break;
+        chunks.push(r.value);
+    }
+    return URL.createObjectURL(new Blob(chunks));
+}
 const _FaceAnchorDetector = (function() {
     let detector = null, isReady = false, hasFailed = false, loading = null;
     async function init() {
         if (isReady || hasFailed) return isReady;
         if (loading) return loading;
         loading = (async function() {
+            let blobUrl = null;
             try {
                 const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
                 const vision = await mod.FilesetResolver.forVisionTasks(
                     "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
                 );
+                blobUrl = await _fetchFaceModelBlob(_FACE_LANDMARKER_MODEL_URL);
                 detector = await mod.FaceLandmarker.createFromOptions(vision, {
-                    baseOptions: { modelAssetPath: _FACE_LANDMARKER_MODEL_URL, delegate: "GPU" },
+                    baseOptions: { modelAssetPath: blobUrl, delegate: "GPU" },
                     runningMode: "VIDEO",
                     numFaces: 1,
                     outputFaceBlendshapes: false,
@@ -560,6 +587,8 @@ const _FaceAnchorDetector = (function() {
                 hasFailed = true;
                 console.warn('[VAC] FaceLandmarker unavailable, gesture zone will use fallback geometry:', (e && e.message) || e);
                 return false;
+            } finally {
+                if (blobUrl) try { URL.revokeObjectURL(blobUrl); } catch(_) {}
             }
         })();
         return loading;
@@ -573,12 +602,17 @@ const _FaceAnchorDetector = (function() {
         catch (e) { hasFailed = true; detector = null; return null; } // detector faulted — fall back, never throw into the caller
         const lm = res && res.faceLandmarks && res.faceLandmarks[0];
         if (!lm || !lm.length) return null;
-        let minX = 1, maxX = 0, minY = 1, maxY = 0;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         for (let i = 0; i < lm.length; i++) {
             const p = lm[i];
+            if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
             if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
             if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
         }
+        // codex-adversarial finding (task-432 Part 6): a corrupted/all-NaN frame (e.g. a transient
+        // GPU delegate hiccup) must never anchor to a degenerate box — reject it exactly like "no
+        // face", so _updateFaceAnchor's miss-streak counts it as a miss, not a confident read.
+        if (!(maxX > minX) || !(maxY > minY)) return null;
         return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, hFrac: maxY - minY };
     }
     return { init: init, detect: detect, get ready() { return isReady; }, get failed() { return hasFailed; } };
