@@ -115,9 +115,14 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 .hub-placeholder { font-family:var(--mono); font-size:13px; color:var(--text-muted); background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:12px 14px; margin:10px 0; word-break:break-all; }
 
 /* ─── Feedback quill — F-977 pattern, text + hold-to-talk ─── */
-.quill-rail { position:fixed; right:16px; bottom:16px; z-index:50; }
-.quill-toggle { width:46px; height:46px; border-radius:50%; background:var(--accent); color:#0D0F17; border:none; font-size:18px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; }
-.quill-panel { display:none; position:absolute; right:0; bottom:58px; width:280px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; box-shadow:0 8px 30px rgba(0,0,0,0.5); }
+/* Anchored mid-right, not bottom-right — the bottom corner is where every
+   panel's primary CTA row lives, and a fixed bottom-right button sits on
+   top of it on short mobile viewports (measured overlap during /browse QA:
+   step3's "See what happens next" button, ~46x33px covered). Vertical
+   center is clear of every panel's CTA row regardless of content length. */
+.quill-rail { position:fixed; right:16px; top:50%; transform:translateY(-50%); z-index:50; }
+.quill-toggle { width:44px; height:44px; border-radius:50%; background:var(--accent); color:#0D0F17; border:none; font-size:17px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; }
+.quill-panel { display:none; position:absolute; right:0; top:52px; width:280px; max-width:calc(100vw - 32px); background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; box-shadow:0 8px 30px rgba(0,0,0,0.5); }
 .quill-panel.open { display:block; }
 .quill-panel .qp-label { font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
 .quill-panel textarea { width:100%; min-height:60px; background:var(--surface-raised); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--text); font-family:var(--font); font-size:13px; resize:vertical; }
@@ -310,9 +315,11 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
     <button class="btn btn-primary" onclick="submitOnboarding()">Review my answers</button>
     <div class="status-msg" id="close_status"></div>
-    <div class="review-panel" id="review_panel" style="display:none;">
-      <div class="ic-label">Your answers — reviewed here, not sent anywhere</div>
-      <pre id="review_json"></pre>
+    <div id="review_panel" style="display:none;">
+      <div class="review-panel">
+        <div class="ic-label">Your answers — reviewed here, not sent anywhere</div>
+        <pre id="review_json"></pre>
+      </div>
       <button class="btn btn-secondary" style="margin-top:10px;" onclick="downloadOnboardingJSON()">Download as JSON</button>
     </div>
 
@@ -595,7 +602,7 @@ async function sendQuillFeedback() {
   if (!text) { status.textContent = 'Type or dictate something first.'; return; }
   status.textContent = 'Sending...';
   try {
-    await fetch(FEEDBACK_API, {
+    const res = await fetch(FEEDBACK_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -605,10 +612,14 @@ async function sendQuillFeedback() {
         product: 'athena'
       })
     });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     status.textContent = 'Sent — thank you.';
     document.getElementById('quill_text').value = '';
   } catch (e) {
-    status.textContent = 'Could not send right now: ' + e.message;
+    // Degrade honestly (per this page's own INTRO copy) rather than
+    // claiming success on a non-2xx response — fetch() alone does not
+    // throw on 4xx/5xx. Text stays in the box so nothing is lost.
+    status.textContent = 'Could not send right now (' + e.message + '). Your text is still here — try again in a moment.';
   }
 }
 </script>
