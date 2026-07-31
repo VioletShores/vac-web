@@ -256,6 +256,16 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     </div>
 
     <div class="field">
+      <label>What should your first deep-dive cover</label>
+      <select id="q_paper_focus">
+        <option value="governance">Governance — decision rights, oversight, accountability</option>
+        <option value="integration">Integration — fitting AI into processes you already run</option>
+        <option value="risk">Risk — what could go wrong, and how you'd know</option>
+        <option value="other">Other — I'll say it myself</option>
+      </select>
+    </div>
+
+    <div class="field">
       <label>Comfort with AI tools today</label>
       <select id="q_comfort">
         <option value="new">New to this</option>
@@ -297,6 +307,11 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
     <div class="stub-ribbon" id="close_stub_ribbon">Preview only — nothing has been saved to a live account yet</div>
 
+    <div class="info-card" style="border-left:2px solid var(--accent);">
+      <div class="ic-label">Try this first</div>
+      <div class="ic-value">Paste any YouTube, podcast, or X post link into Athena. It comes back with an in-context brief — what it says, why it matters to you, sources cited, model named. It's the proven loop, live today, and the fastest way to see what this actually does.</div>
+    </div>
+
     <div class="info-card">
       <div class="ic-label">Your seeded watches</div>
       <div class="watch-list" id="watch_list"></div>
@@ -309,7 +324,12 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     </div>
 
     <div class="info-card">
-      <div class="ic-label">Any time you're unsure what Athena can do</div>
+      <div class="ic-label">Your paper, built as you go</div>
+      <div class="ic-value">You don't need a paper already written — AthenaPilot helps you write one: how your organisation can use AI better, with stronger governance and real integration into the processes you already run. Every link you paste, every daily watch, every brief that comes back becomes part of that synthesis. The workflow above IS the paper pipeline — and using it is the demonstration of this technology to your organisation.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-label">Any time you're unsure what else Athena can do</div>
       <div class="ic-value">Message AthenaPilot on the channel you were given access through, and just ask <strong>what can you do</strong>. It answers from the current, honest list — not a guess.</div>
     </div>
 
@@ -407,6 +427,7 @@ function restoreProgress() {
     const saved = JSON.parse(raw);
     if (saved.role) document.getElementById('q_role').value = saved.role;
     if (saved.watch) document.getElementById('q_watch').value = saved.watch;
+    if (saved.paper_focus) document.getElementById('q_paper_focus').value = saved.paper_focus;
     if (saved.comfort) document.getElementById('q_comfort').value = saved.comfort;
     if (saved.channel) document.getElementById('q_channel').value = saved.channel;
     if (saved.other) document.getElementById('q_other').value = saved.other;
@@ -449,11 +470,18 @@ const CHANNEL_LABELS = {
   hub: 'Hub only',
   other: 'Your chosen channel'
 };
+const PAPER_FOCUS_LABELS = {
+  governance: 'Governance — decision rights, oversight, accountability',
+  integration: 'Integration — fitting AI into processes you already run',
+  risk: 'Risk — what could go wrong, and how you\'d know',
+  other: 'Your own focus, from what you told Athena'
+};
 
 function collectAnswers() {
   return {
     role: document.getElementById('q_role').value,
     watch: document.getElementById('q_watch').value,
+    paper_focus: document.getElementById('q_paper_focus').value,
     comfort: document.getElementById('q_comfort').value,
     channel: document.getElementById('q_channel').value,
     other: document.getElementById('q_other').value.trim()
@@ -475,6 +503,12 @@ function deriveWatches(answers) {
   if (extra) {
     watches.push({ label: extra.label, meta: cadence + ' via ' + surface, tag: extra.tag });
   }
+
+  watches.push({
+    label: 'Paper synthesis: ' + (PAPER_FOCUS_LABELS[answers.paper_focus] || 'General focus'),
+    meta: 'Weekly synthesis digest via ' + surface,
+    tag: 'paper track'
+  });
 
   if (answers.other) {
     watches.push({
