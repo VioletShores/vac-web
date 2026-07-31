@@ -56,6 +56,13 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 .field input:focus, .field select:focus, .field textarea:focus { border-color:var(--accent); }
 .field input::placeholder, .field textarea::placeholder { color:var(--text-dim); }
 .field textarea { resize:vertical; min-height:70px; }
+.field select[multiple] { padding:6px; }
+.chip-input-row { display:flex; gap:8px; }
+.chip-input-row input { flex:1; }
+.chip-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.chip { display:flex; align-items:center; gap:6px; background:var(--surface-raised); border:1px solid var(--border); border-radius:20px; padding:5px 10px 5px 12px; font-size:12.5px; color:var(--text); }
+.chip button { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:14px; line-height:1; padding:0; }
+.chip button:hover { color:var(--red); }
 .field select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%235a6478' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; }
 
 .btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border-radius:var(--radius); border:none; font-family:var(--font); font-size:15px; font-weight:600; cursor:pointer; transition:all 0.15s; }
@@ -245,6 +252,46 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     </div>
 
     <div class="field">
+      <label>Your organisation</label>
+      <input type="text" id="q_org" placeholder="e.g. Ministry of Business, Innovation &amp; Employment">
+    </div>
+
+    <div class="field">
+      <label>Competitors or peers to watch</label>
+      <div class="chip-input-row">
+        <input type="text" id="q_competitor_input" placeholder="Type a name, press Enter to add" onkeydown="if(event.key==='Enter'){event.preventDefault();addCompetitorChip();}">
+        <button type="button" class="btn btn-secondary" style="width:auto;padding:10px 14px;" onclick="addCompetitorChip()">Add</button>
+      </div>
+      <div class="chip-list" id="competitor_chips"></div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Athena can suggest these once you're live — for now, add who comes to mind.</div>
+    </div>
+
+    <div class="field">
+      <label>Sectors or topics to watch</label>
+      <select id="q_sectors" multiple size="5">
+        <option value="public_sector">Public-sector AI governance</option>
+        <option value="financial_services">Financial services &amp; AI</option>
+        <option value="healthcare">Healthcare &amp; AI regulation</option>
+        <option value="technology">Technology &amp; AI standards</option>
+        <option value="legal_compliance">Legal &amp; compliance</option>
+        <option value="education">Education &amp; AI</option>
+      </select>
+      <input type="text" id="q_sector_other" placeholder="Other sector or topic (optional)" style="margin-top:8px;">
+    </div>
+
+    <div class="field">
+      <label>Region</label>
+      <select id="q_region">
+        <option value="nz">New Zealand</option>
+        <option value="au">Australia</option>
+        <option value="uk">United Kingdom</option>
+        <option value="us">United States</option>
+        <option value="eu">European Union</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+
+    <div class="field">
       <label>What should Athena watch daily, for you</label>
       <select id="q_watch">
         <option value="market_competitor">Competitor and market moves</option>
@@ -252,6 +299,16 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
         <option value="ops_team">Team and operations signals</option>
         <option value="spend_budget">Spend and budget</option>
         <option value="other">Something else</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>What should your first deep-dive cover</label>
+      <select id="q_paper_focus">
+        <option value="governance">Governance — decision rights, oversight, accountability</option>
+        <option value="integration">Integration — fitting AI into processes you already run</option>
+        <option value="risk">Risk — what could go wrong, and how you'd know</option>
+        <option value="other">Other — I'll say it myself</option>
       </select>
     </div>
 
@@ -269,10 +326,11 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
       <label>Where should Athena reach you</label>
       <select id="q_channel">
         <option value="whatsapp">WhatsApp</option>
-        <option value="email">Email</option>
         <option value="hub">In the hub only</option>
-        <option value="other">Other</option>
+        <option value="email" disabled>Email — coming later</option>
+        <option value="other" disabled>Other — coming later</option>
       </select>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:6px;">Live today: WhatsApp and your hub — they're one feedback surface, not two. Other channels are coming later, not live yet.</div>
     </div>
 
     <div class="field">
@@ -297,6 +355,11 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
     <div class="stub-ribbon" id="close_stub_ribbon">Preview only — nothing has been saved to a live account yet</div>
 
+    <div class="info-card" style="border-left:2px solid var(--accent);">
+      <div class="ic-label">Try this first</div>
+      <div class="ic-value">Paste any YouTube, podcast, or X post link into Athena. It comes back with an in-context brief — what it says, why it matters to you, sources cited, model named. It's the proven loop, live today, and the fastest way to see what this actually does.</div>
+    </div>
+
     <div class="info-card">
       <div class="ic-label">Your seeded watches</div>
       <div class="watch-list" id="watch_list"></div>
@@ -304,12 +367,18 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
     <div class="info-card">
       <div class="ic-label">Your hub</div>
-      <div class="ic-value">Once your account is live, your private activity page lives here:</div>
+      <div class="ic-value" style="padding-right:54px;">Once your account is live, your private activity page lives here:</div>
       <div class="hub-placeholder" id="hub_placeholder">yourname.athenapilot.ai/hub — placeholder, not a live link yet</div>
+      <div class="ic-value" style="margin-top:10px;padding-right:54px;">Feedback you leave here — typed or spoken, this page's quill or a WhatsApp message — lands in the same queue and gets worked the same way, whichever channel it came from. When it's actioned, that closure shows up on this hub page — nothing just sits as "stored."</div>
     </div>
 
     <div class="info-card">
-      <div class="ic-label">Any time you're unsure what Athena can do</div>
+      <div class="ic-label">Your paper, built as you go</div>
+      <div class="ic-value">You don't need a paper already written — AthenaPilot helps you write one: how your organisation can use AI better, with stronger governance and real integration into the processes you already run. Every link you paste, every daily watch, every brief that comes back becomes part of that synthesis. The workflow above IS the paper pipeline — and using it is the demonstration of this technology to your organisation.</div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-label">Any time you're unsure what else Athena can do</div>
       <div class="ic-value">Message AthenaPilot on the channel you were given access through, and just ask <strong>what can you do</strong>. It answers from the current, honest list — not a guess.</div>
     </div>
 
@@ -406,12 +475,47 @@ function restoreProgress() {
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (saved.role) document.getElementById('q_role').value = saved.role;
+    if (saved.org) document.getElementById('q_org').value = saved.org;
+    if (saved.competitors) { competitorChips = saved.competitors; renderCompetitorChips(); }
+    if (saved.sectors) {
+      const sel = document.getElementById('q_sectors');
+      Array.from(sel.options).forEach(o => { o.selected = saved.sectors.includes(o.value); });
+    }
+    if (saved.sector_other) document.getElementById('q_sector_other').value = saved.sector_other;
+    if (saved.region) document.getElementById('q_region').value = saved.region;
     if (saved.watch) document.getElementById('q_watch').value = saved.watch;
+    if (saved.paper_focus) document.getElementById('q_paper_focus').value = saved.paper_focus;
     if (saved.comfort) document.getElementById('q_comfort').value = saved.comfort;
-    if (saved.channel) document.getElementById('q_channel').value = saved.channel;
+    if (saved.channel && !document.getElementById('q_channel').querySelector('option[value="' + saved.channel + '"]').disabled) {
+      document.getElementById('q_channel').value = saved.channel;
+    }
     if (saved.other) document.getElementById('q_other').value = saved.other;
   } catch (e) {}
 }
+
+// ─── STEP 3: competitor/peer chip input — client-side only, per interest-capture (item 5) ───
+let competitorChips = [];
+function addCompetitorChip() {
+  const input = document.getElementById('q_competitor_input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!competitorChips.includes(val)) competitorChips.push(val);
+  input.value = '';
+  renderCompetitorChips();
+  saveProgress();
+}
+function removeCompetitorChip(i) {
+  competitorChips.splice(i, 1);
+  renderCompetitorChips();
+  saveProgress();
+}
+function renderCompetitorChips() {
+  const el = document.getElementById('competitor_chips');
+  el.innerHTML = competitorChips.map((c, i) =>
+    '<span class="chip">' + escHtml(c) + '<button type="button" onclick="removeCompetitorChip(' + i + ')" title="Remove">&times;</button></span>'
+  ).join('');
+}
+
 restoreProgress();
 
 // ─── STEP 2: biometric "test it now" — link, not iframe ───
@@ -449,14 +553,59 @@ const CHANNEL_LABELS = {
   hub: 'Hub only',
   other: 'Your chosen channel'
 };
+const PAPER_FOCUS_LABELS = {
+  governance: 'Governance — decision rights, oversight, accountability',
+  integration: 'Integration — fitting AI into processes you already run',
+  risk: 'Risk — what could go wrong, and how you\'d know',
+  other: 'Your own focus, from what you told Athena'
+};
+const SECTOR_LABELS = {
+  public_sector: 'public-sector AI governance',
+  financial_services: 'financial services & AI',
+  healthcare: 'healthcare & AI regulation',
+  technology: 'technology & AI standards',
+  legal_compliance: 'legal & compliance',
+  education: 'education & AI'
+};
+const REGION_LABELS = { nz: 'NZ', au: 'AU', uk: 'UK', us: 'US', eu: 'EU', other: '' };
+
+function getSelectedSectors() {
+  return Array.from(document.getElementById('q_sectors').selectedOptions).map(o => o.value);
+}
 
 function collectAnswers() {
   return {
     role: document.getElementById('q_role').value,
+    org: document.getElementById('q_org').value.trim(),
+    competitors: competitorChips.slice(),
+    sectors: getSelectedSectors(),
+    sector_other: document.getElementById('q_sector_other').value.trim(),
+    region: document.getElementById('q_region').value,
     watch: document.getElementById('q_watch').value,
+    paper_focus: document.getElementById('q_paper_focus').value,
     comfort: document.getElementById('q_comfort').value,
     channel: document.getElementById('q_channel').value,
     other: document.getElementById('q_other').value.trim()
+  };
+}
+
+// ─── the NAMED watch (item 5): "Watching: <org> + N peers — <region> <sector>" —
+// built from her actual answers, never a generic template. ───
+function buildNamedOrgWatch(answers) {
+  const org = answers.org || 'your organisation';
+  const peerCount = answers.competitors.length;
+  const peerPart = peerCount > 0 ? ' + ' + peerCount + ' peer' + (peerCount === 1 ? '' : 's') : '';
+  const sectorLabels = answers.sectors.map(s => SECTOR_LABELS[s] || s);
+  if (answers.sector_other) sectorLabels.push(answers.sector_other);
+  const sectorText = sectorLabels.length ? sectorLabels.join(', ') : (WATCH_LABELS[answers.watch] || 'your focus areas');
+  const regionLabel = REGION_LABELS[answers.region] || answers.region || '';
+  const scopeText = (regionLabel ? regionLabel + ' ' : '') + sectorText;
+  const cadence = CADENCE_BY_COMFORT[answers.comfort] || 'Daily digest';
+  const surface = CHANNEL_LABELS[answers.channel] || 'Hub only';
+  return {
+    label: 'Watching: ' + org + peerPart + ' — ' + scopeText,
+    meta: (peerCount > 0 ? peerCount + ' peer' + (peerCount === 1 ? '' : 's') + ' named · ' : 'No peers named yet · ') + cadence + ' via ' + surface,
+    tag: 'named'
   };
 }
 
@@ -465,16 +614,18 @@ function deriveWatches(answers) {
   const surface = CHANNEL_LABELS[answers.channel] || 'Hub only';
   const watches = [];
 
-  watches.push({
-    label: WATCH_LABELS[answers.watch] || 'General watch',
-    meta: cadence + ' via ' + surface,
-    tag: 'primary'
-  });
+  watches.push(buildNamedOrgWatch(answers));
 
   const extra = ROLE_EXTRA_WATCH[answers.role];
   if (extra) {
-    watches.push({ label: extra.label, meta: cadence + ' via ' + surface, tag: extra.tag });
+    watches.push({ label: extra.label + (answers.org ? ' at ' + answers.org : ''), meta: cadence + ' via ' + surface, tag: extra.tag });
   }
+
+  watches.push({
+    label: 'Paper synthesis: ' + (PAPER_FOCUS_LABELS[answers.paper_focus] || 'General focus'),
+    meta: 'Weekly synthesis digest via ' + surface,
+    tag: 'paper track'
+  });
 
   if (answers.other) {
     watches.push({
