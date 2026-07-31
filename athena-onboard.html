@@ -30,6 +30,8 @@
 * { margin:0; padding:0; box-sizing:border-box; }
 body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; }
 .app { max-width:520px; margin:0 auto; padding:20px 16px 100px; }
+a { color:var(--accent-light); text-decoration:underline; text-underline-offset:2px; }
+a:hover { color:var(--accent); }
 
 .nav { display:flex; align-items:center; gap:10px; padding:8px 0 20px; border-bottom:1px solid var(--border); margin-bottom:24px; }
 .nav-mark { font-size:18px; font-weight:700; color:var(--accent); }
@@ -142,6 +144,14 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
 .review-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-top:14px; max-height:220px; overflow:auto; }
 .review-panel pre { font-family:var(--mono); font-size:11px; color:var(--text-muted); white-space:pre-wrap; word-break:break-word; }
+
+/* ─── Actions bar — F-990, first application: every major screen gets the
+   same compact strip so feedback and reference never need explaining. ─── */
+.actions-bar-wrap { margin-top:20px; padding-top:14px; border-top:1px solid var(--border); }
+.actions-bar { display:flex; gap:8px; }
+.actions-bar button { flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text-muted); font-family:var(--font); font-size:11px; font-weight:600; padding:10px 6px; border-radius:8px; cursor:pointer; text-align:center; line-height:1.3; }
+.actions-bar button:hover { border-color:var(--accent); color:var(--text); }
+.actions-bar-wrap .status-msg { margin-top:6px; min-height:16px; }
 </style>
 </head>
 <body>
@@ -168,6 +178,11 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
   <!-- STEP 1: INTRO — what we're building, and why -->
   <div class="panel active" id="step1">
+    <div class="info-card" style="border-left:2px solid var(--accent);">
+      <div class="ic-label">What AthenaPilot actually is</div>
+      <div class="ic-value">AthenaPilot is an AI assistant that lives in WhatsApp. You message it like you'd message a colleague — questions, links, voice notes — and it comes back with real answers that name their sources and the AI model that wrote them. No app to install; the number is your assistant.</div>
+    </div>
+
     <div class="title">What Athena is, and why</div>
     <div class="subtitle">Four things, before anything else — because they're the point, not the small print.</div>
 
@@ -196,6 +211,15 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     </div>
 
     <button class="btn btn-primary" onclick="goStep(2)">Continue</button>
+
+    <div class="actions-bar-wrap">
+      <div class="actions-bar">
+        <button type="button" onclick="askAthenaAbout('step1')">Ask Athena about this</button>
+        <button type="button" onclick="toggleQuill()">Say what's wrong or add your take</button>
+        <button type="button" onclick="copySection('step1','ab_status_1')">Copy this section</button>
+      </div>
+      <div class="status-msg" id="ab_status_1"></div>
+    </div>
   </div>
 
   <!-- STEP 2: BIOMETRIC — assurance varies by rails and risk -->
@@ -228,11 +252,25 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
       <div class="try-result" id="try_result"></div>
     </div>
 
+    <div class="info-card" style="border-left:2px solid var(--accent);">
+      <div class="ic-label">This maps to the EU AI Act</div>
+      <div class="ic-value">The same rails on this screen — attribution, risk-sized checks, honest failure — line up with what the EU AI Act asks of high-risk AI systems. <a href="https://vacprotocol.org/eu-ai-act.html" target="_blank" rel="noopener">See the mapping</a>, including the retrofit console built for exactly this leadership conversation.</div>
+    </div>
+
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="goStep(1)">Back</button>
       <button class="btn btn-primary" onclick="goStep(3)">Continue</button>
     </div>
     <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:10px;">Trying it — or skipping it — never blocks your progress here.</div>
+
+    <div class="actions-bar-wrap">
+      <div class="actions-bar">
+        <button type="button" onclick="askAthenaAbout('step2')">Ask Athena about this</button>
+        <button type="button" onclick="toggleQuill()">Say what's wrong or add your take</button>
+        <button type="button" onclick="copySection('step2','ab_status_2')">Copy this section</button>
+      </div>
+      <div class="status-msg" id="ab_status_2"></div>
+    </div>
   </div>
 
   <!-- STEP 3: QUESTIONS — dropdowns + F-977 quill "other" -->
@@ -369,6 +407,15 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
       <button class="btn btn-secondary" onclick="goStep(2)">Back</button>
       <button class="btn btn-primary" onclick="goStep(4)">See what happens next</button>
     </div>
+
+    <div class="actions-bar-wrap">
+      <div class="actions-bar">
+        <button type="button" onclick="askAthenaAbout('step3')">Ask Athena about this</button>
+        <button type="button" onclick="toggleQuill()">Say what's wrong or add your take</button>
+        <button type="button" onclick="copySection('step3','ab_status_3')">Copy this section</button>
+      </div>
+      <div class="status-msg" id="ab_status_3"></div>
+    </div>
   </div>
 
   <!-- STEP 4: CLOSE — what happens next -->
@@ -377,6 +424,16 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     <div class="subtitle">Based on what you told Athena, here's what would start watching for you.</div>
 
     <div class="stub-ribbon" id="close_stub_ribbon">Preview only — nothing has been saved to a live account yet</div>
+
+    <div class="info-card" style="border-left:2px solid var(--accent);background:var(--accent-glow);">
+      <div class="ic-label">Your briefing</div>
+      <div class="ic-value">How this maps to Finova and the EU AI Act — written for you; use it in your paper.<br><a href="https://vacprotocol.org/p/naki-3bd20e1222bf.html" target="_blank" rel="noopener">vacprotocol.org/p/naki-3bd20e1222bf.html</a></div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-label">Your welcome message on WhatsApp</div>
+      <div class="ic-value">When your access goes live, your first message from Athena covers the same four things as this page's opening screen, in plain text — and carries the link to your briefing above, so it's sitting in your WhatsApp thread from day one, not just here.</div>
+    </div>
 
     <div class="info-card" style="border-left:2px solid var(--accent);">
       <div class="ic-label">Try this first</div>
@@ -397,7 +454,7 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
     <div class="info-card">
       <div class="ic-label">Your paper, taken further</div>
-      <div class="ic-value">Already written something for your employer — a paper, a case, a proposal? Share it. A link works today; attachment upload is landing once that pipeline merges, so hold off on sending it as a file for now. Athena helps you edit and extend it from there: sharpening the case for leadership to take a managed, governed approach to embedding AI without slowing the pace teams adopt it at — vibe engineering via L0, versus the whole team vibe coding. Every link you paste, every daily watch, every brief that comes back feeds straight back into that draft. (Naki's paper is headed to Finova's leadership — her seeded watch reads "Watching: Finova + peers…".)</div>
+      <div class="ic-value">Already written something for your employer — a paper, a case, a proposal? Share it. A link works today; attachment upload is landing once that pipeline merges, so hold off on sending it as a file for now. Athena helps you edit and extend it from there: sharpening the case for leadership to take a managed, governed approach to embedding AI without slowing the pace teams adopt it at — vibe engineering via a governed task protocol, where every piece of work Athena does for you is a tracked, auditable packet, so you can always see what was asked, what was done, and by which model (we call it L0), versus the whole team vibe coding. Every link you paste, every daily watch, every brief that comes back feeds straight back into that draft. (Naki's paper is headed to Finova's leadership — her seeded watch reads "Watching: Finova + peers…".)</div>
     </div>
 
     <div class="info-card">
@@ -417,6 +474,15 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
     <div class="btn-row" style="margin-top:14px;">
       <button class="btn btn-secondary" onclick="goStep(3)">Back</button>
+    </div>
+
+    <div class="actions-bar-wrap">
+      <div class="actions-bar">
+        <button type="button" onclick="askAthenaAbout('step4')">Ask Athena about this</button>
+        <button type="button" onclick="toggleQuill()">Say what's wrong or add your take</button>
+        <button type="button" onclick="copySection('step4','ab_status_4')">Copy this section</button>
+      </div>
+      <div class="status-msg" id="ab_status_4"></div>
     </div>
   </div>
 
@@ -460,6 +526,59 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
 
 const FEEDBACK_API = 'https://api.athenapilot.ai/v1/feedback';
 const TOTAL_STEPS = 4;
+const ATHENA_WA_NUMBER = '447404843156';
+
+// ─── Actions bar — F-990 first application: real wa.me deep-link, real
+// quill hookup, real clipboard copy. No decorative buttons. ───
+const SCREEN_LABELS = {
+  step1: 'What Athena is, and why',
+  step2: 'Identity checks, sized to risk',
+  step3: 'A few quick questions',
+  step4: 'What happens next'
+};
+
+function askAthenaAbout(stepId) {
+  const label = SCREEN_LABELS[stepId] || 'this screen';
+  const text = encodeURIComponent('Question about the "' + label + '" screen in the onboarding preview: ');
+  window.open('https://wa.me/' + ATHENA_WA_NUMBER + '?text=' + text, '_blank', 'noopener');
+}
+
+function getPanelText(panelId) {
+  const panel = document.getElementById(panelId);
+  const clone = panel.cloneNode(true);
+  clone.querySelectorAll('.actions-bar-wrap').forEach(el => el.remove());
+  return clone.textContent.replace(/\s+/g, ' ').trim();
+}
+
+const copyStatusTimers = {};
+async function copySection(panelId, statusElId) {
+  const text = getPanelText(panelId);
+  const status = document.getElementById(statusElId);
+  let ok = false;
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('no-clipboard-api');
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    try {
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      ok = document.execCommand('copy');
+    } catch (e2) {
+      ok = false;
+    } finally {
+      if (ta.parentNode) ta.parentNode.removeChild(ta);
+    }
+  }
+  status.textContent = ok ? 'Copied.' : 'Could not copy automatically — select and copy the text on this screen manually.';
+  clearTimeout(copyStatusTimers[statusElId]);
+  copyStatusTimers[statusElId] = setTimeout(() => { status.textContent = ''; }, 2500);
+}
 
 function updateSteps(current) {
   for (let i = 1; i <= TOTAL_STEPS; i++) {
