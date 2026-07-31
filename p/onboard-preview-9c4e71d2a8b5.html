@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Athena — Welcome</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0D0F17;
+  --surface: #1A1D29;
+  --surface-raised: #2A2E3D;
+  --border: rgba(201,168,76,0.08);
+  --text: #e8eaf0;
+  --text-muted: #9498A8;
+  --text-dim: #6B7084;
+  --accent: #C9A84C;
+  --accent-light: #E8D48B;
+  --accent-glow: rgba(201,168,76,0.12);
+  --purple: #6C5CE7;
+  --green: #34d399;
+  --green-bg: rgba(52,211,153,0.12);
+  --blue: #60a5fa;
+  --red: #f87171;
+  --radius: 12px;
+  --font: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --serif: 'Cormorant Garamond', 'Georgia', serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:var(--font); background:var(--bg); color:var(--text); min-height:100vh; -webkit-font-smoothing:antialiased; }
+.app { max-width:520px; margin:0 auto; padding:20px 16px 100px; }
+
+.nav { display:flex; align-items:center; gap:10px; padding:8px 0 20px; border-bottom:1px solid var(--border); margin-bottom:24px; }
+.nav-mark { font-size:18px; font-weight:700; color:var(--accent); }
+.nav-label { font-family:var(--mono); font-size:10px; color:var(--text-dim); letter-spacing:1px; text-transform:uppercase; }
+.nav-badge { font-family:var(--mono); font-size:10px; padding:2px 8px; border-radius:20px; background:var(--accent-glow); color:var(--accent); font-weight:600; margin-left:auto; }
+
+.steps { display:flex; align-items:center; justify-content:center; gap:6px; margin-bottom:24px; }
+.step-dot { width:10px; height:10px; border-radius:50%; background:var(--border); transition:all 0.3s; }
+.step-dot.active { background:var(--accent); box-shadow:0 0 10px rgba(201,168,76,0.35); }
+.step-dot.done { background:var(--green); }
+.step-line { width:24px; height:2px; background:var(--border); transition:background 0.3s; }
+.step-line.done { background:var(--green); }
+
+.panel { display:none; animation:fadeIn 0.3s ease; }
+.panel.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+.title { font-family:var(--serif); font-size:26px; font-weight:600; margin-bottom:6px; letter-spacing:0.5px; }
+.subtitle { font-size:14px; color:var(--text-muted); margin-bottom:20px; line-height:1.6; }
+
+.field { margin-bottom:16px; }
+.field label { display:block; font-family:var(--mono); font-size:11px; color:var(--text-dim); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:6px; }
+.field input, .field select, .field textarea { width:100%; background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px 14px; font-family:var(--font); font-size:15px; color:var(--text); outline:none; transition:border-color 0.15s; }
+.field input:focus, .field select:focus, .field textarea:focus { border-color:var(--accent); }
+.field input::placeholder, .field textarea::placeholder { color:var(--text-dim); }
+.field textarea { resize:vertical; min-height:70px; }
+.field select { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%235a6478' stroke-width='1.5' fill='none'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 14px center; }
+
+.btn { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border-radius:var(--radius); border:none; font-family:var(--font); font-size:15px; font-weight:600; cursor:pointer; transition:all 0.15s; }
+.btn:active { transform:scale(0.98); }
+.btn-primary { background:var(--accent); color:#0D0F17; }
+.btn-primary:hover { box-shadow:0 4px 16px rgba(201,168,76,0.3); }
+.btn-primary:disabled { opacity:0.4; cursor:default; }
+.btn-secondary { background:var(--surface); color:var(--text); border:1px solid var(--border); }
+.btn-verify { background:var(--purple); color:#fff; }
+.btn-verify:hover { box-shadow:0 4px 16px rgba(108,92,231,0.3); }
+.btn-success { background:var(--green); color:var(--bg); }
+.btn-row { display:flex; gap:10px; }
+.btn-row .btn { width:auto; flex:1; }
+
+.info-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-bottom:16px; }
+.info-card .ic-label { font-size:11px; color:var(--text-dim); text-transform:uppercase; font-family:var(--mono); letter-spacing:0.5px; margin-bottom:2px; }
+.info-card .ic-value { font-size:14px; color:var(--text); line-height:1.5; }
+
+.rule-list { margin:16px 0; display:flex; flex-direction:column; gap:12px; }
+.rule-item { background:var(--surface); border:1px solid var(--border); border-left:2px solid var(--accent); border-radius:8px; padding:12px 14px; }
+.rule-item .rn { font-family:var(--mono); font-size:10px; color:var(--accent); letter-spacing:1px; text-transform:uppercase; margin-bottom:4px; }
+.rule-item p { font-size:13.5px; color:var(--text-muted); line-height:1.55; }
+
+.status-msg { font-size:13px; color:var(--text-muted); text-align:center; margin:12px 0; min-height:20px; }
+.status-msg.error { color:var(--red); }
+.status-msg.success { color:var(--green); }
+
+.scope-list { margin:16px 0; }
+.scope-item { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.scope-item:last-child { border-bottom:none; }
+.scope-check { color:var(--green); font-weight:600; }
+.scope-lock { color:var(--red); font-weight:600; }
+
+.risk-chain { display:flex; align-items:center; gap:0; margin:16px 0; }
+.risk-step { flex:1; text-align:center; padding:14px 8px; background:var(--surface); border:1px solid var(--border); }
+.risk-step:first-child { border-radius:8px 0 0 8px; }
+.risk-step:last-child { border-radius:0 8px 8px 0; border-left:none; }
+.risk-step:not(:first-child):not(:last-child) { border-left:none; }
+.risk-step .rs-tag { font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:6px; }
+.risk-step .rs-val { font-size:12.5px; color:var(--text); font-weight:600; }
+.risk-step.hi { background:var(--accent-glow); border-color:rgba(201,168,76,0.3); }
+.risk-step.hi .rs-val { color:var(--accent-light); }
+
+.try-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:18px; margin:18px 0; text-align:center; }
+.try-box p { font-size:13px; color:var(--text-muted); margin-bottom:14px; line-height:1.5; }
+.try-result { margin-top:14px; padding:12px; border-radius:8px; background:var(--surface-raised); font-size:12.5px; color:var(--text-muted); display:none; }
+.try-result.shown { display:block; }
+
+.watch-list { margin:16px 0; display:flex; flex-direction:column; gap:10px; }
+.watch-item { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.watch-item .wi-label { font-size:13.5px; color:var(--text); font-weight:500; }
+.watch-item .wi-meta { font-size:11px; color:var(--text-dim); font-family:var(--mono); margin-top:2px; }
+.watch-item .wi-tag { font-family:var(--mono); font-size:9.5px; padding:3px 8px; border-radius:20px; background:var(--accent-glow); color:var(--accent); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
+
+.stub-ribbon { font-family:var(--mono); font-size:10px; letter-spacing:0.5px; text-transform:uppercase; color:var(--accent); background:var(--accent-glow); border:1px solid rgba(201,168,76,0.25); border-radius:6px; padding:6px 10px; margin-bottom:16px; text-align:center; }
+
+.hub-placeholder { font-family:var(--mono); font-size:13px; color:var(--text-muted); background:var(--surface); border:1px dashed var(--border); border-radius:8px; padding:12px 14px; margin:10px 0; word-break:break-all; }
+
+/* ─── Feedback quill — F-977 pattern, text + hold-to-talk ─── */
+/* Anchored mid-right, not bottom-right — the bottom corner is where every
+   panel's primary CTA row lives, and a fixed bottom-right button sits on
+   top of it on short mobile viewports (measured overlap during /browse QA:
+   step3's "See what happens next" button, ~46x33px covered). Vertical
+   center is clear of every panel's CTA row regardless of content length. */
+.quill-rail { position:fixed; right:16px; top:50%; transform:translateY(-50%); z-index:50; }
+.quill-toggle { width:44px; height:44px; border-radius:50%; background:var(--accent); color:#0D0F17; border:none; font-size:17px; cursor:pointer; box-shadow:0 4px 16px rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; }
+.quill-panel { display:none; position:absolute; right:0; top:52px; width:280px; max-width:calc(100vw - 32px); background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; box-shadow:0 8px 30px rgba(0,0,0,0.5); }
+.quill-panel.open { display:block; }
+.quill-panel .qp-label { font-family:var(--mono); font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; }
+.quill-panel textarea { width:100%; min-height:60px; background:var(--surface-raised); border:1px solid var(--border); border-radius:6px; padding:8px 10px; color:var(--text); font-family:var(--font); font-size:13px; resize:vertical; }
+.quill-actions { display:flex; gap:8px; margin-top:8px; }
+.quill-mic { flex:0 0 auto; width:38px; height:38px; border-radius:50%; border:1px solid var(--border); background:var(--surface-raised); color:var(--text-muted); cursor:pointer; font-size:15px; }
+.quill-mic.recording { background:var(--red); border-color:var(--red); color:#fff; animation:pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.quill-send { flex:1; padding:9px; border-radius:6px; border:none; background:var(--accent); color:#0D0F17; font-weight:600; font-size:13px; cursor:pointer; }
+.quill-status { font-size:11px; color:var(--text-dim); margin-top:6px; min-height:14px; }
+
+.review-panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:14px; margin-top:14px; max-height:220px; overflow:auto; }
+.review-panel pre { font-family:var(--mono); font-size:11px; color:var(--text-muted); white-space:pre-wrap; word-break:break-word; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="nav">
+    <div style="width:36px;height:36px;background:var(--accent-glow);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:5px;flex-shrink:0;"><svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" width="26" height="26"><line x1="50" y1="10" x2="25" y2="38" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="50" y1="10" x2="75" y2="32" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="25" y1="38" x2="14" y2="68" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="25" y1="38" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="75" y1="32" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/><line x1="75" y1="32" x2="88" y2="62" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="50" y1="55" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/><line x1="14" y1="68" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/><line x1="88" y1="62" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/><circle cx="50" cy="10" r="5.5" fill="#C9A84C"/><circle cx="25" cy="38" r="4" fill="#E8D48B"/><circle cx="75" cy="32" r="4" fill="#E8D48B"/><circle cx="50" cy="55" r="4.5" fill="#C9A84C"/><circle cx="14" cy="68" r="3" fill="#C9A84C" opacity="0.8"/><circle cx="88" cy="62" r="3" fill="#C9A84C" opacity="0.8"/><circle cx="50" cy="88" r="3.5" fill="#E8D48B"/></svg></div>
+    <div>
+      <div style="font-family:var(--serif);font-weight:600;font-size:16px;letter-spacing:2px;">ATHENA</div>
+      <div class="nav-label">Welcome — let's set you up</div>
+    </div>
+    <div class="nav-badge">VAC secured</div>
+  </div>
+
+  <div class="steps">
+    <div class="step-dot active" id="sd1"></div>
+    <div class="step-line" id="sl1"></div>
+    <div class="step-dot" id="sd2"></div>
+    <div class="step-line" id="sl2"></div>
+    <div class="step-dot" id="sd3"></div>
+    <div class="step-line" id="sl3"></div>
+    <div class="step-dot" id="sd4"></div>
+  </div>
+
+  <!-- STEP 1: INTRO — what we're building, and why -->
+  <div class="panel active" id="step1">
+    <div class="title">What Athena is, and why</div>
+    <div class="subtitle">Four things, before anything else — because they're the point, not the small print.</div>
+
+    <div class="rule-list">
+      <div class="rule-item">
+        <div class="rn">One — attribution</div>
+        <p>Every answer tells you which model produced it. When that can't be determined, it says so instead of quietly leaving it out.</p>
+      </div>
+      <div class="rule-item">
+        <div class="rn">Two — the rails are the pitch</div>
+        <p>Athena's whole claim is that governed AI beats ungoverned AI. So the limits get stated up front, as evidence the discipline is real — not hidden behind a stripped demo.</p>
+      </div>
+      <div class="rule-item">
+        <div class="rn">Three — honesty over confidence</div>
+        <p>If something can't be done yet, you get a specific answer naming what's available instead of a vague refusal or a silent failure.</p>
+      </div>
+      <div class="rule-item">
+        <div class="rn">Four — please hold off on anything confidential</div>
+        <p>Per-user data isolation is still being finished. Better you know that now than find out later.</p>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-label">What this session covers</div>
+      <div class="ic-value">A short explanation of how identity checks work here, a couple of questions so Athena knows what to watch for you, and what happens the moment you're done — no forms to fill out later, no waiting on Rob.</div>
+    </div>
+
+    <button class="btn btn-primary" onclick="goStep(2)">Continue</button>
+  </div>
+
+  <!-- STEP 2: BIOMETRIC — assurance varies by rails and risk -->
+  <div class="panel" id="step2">
+    <div class="title">Identity checks, sized to risk</div>
+    <div class="subtitle">Athena doesn't ask for the same proof every time. The check scales with what's actually at stake.</div>
+
+    <div class="risk-chain">
+      <div class="risk-step">
+        <div class="rs-tag">Low risk</div>
+        <div class="rs-val">Light check</div>
+      </div>
+      <div class="risk-step">
+        <div class="rs-tag">Everyday action</div>
+        <div class="rs-val">Standard check</div>
+      </div>
+      <div class="risk-step hi">
+        <div class="rs-tag">High risk</div>
+        <div class="rs-val">Full ceremony</div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-value">Reading a briefing or asking a question needs almost nothing from you. Approving spend, changing an account, or anything that could hurt if it were wrong, asks for the full biometric ceremony — face, voice, a spoken challenge — cryptographically tied to you as a person, not a password.</div>
+    </div>
+
+    <div class="try-box">
+      <p>Curious what the full ceremony feels like? Try it now — it opens in a new tab so you keep your place here. Camera permissions are unreliable inside embedded frames, especially on iOS, which is why this is a link, not a box on this page.</p>
+      <button class="btn btn-verify" onclick="tryBiometric()">Test it now</button>
+      <div class="try-result" id="try_result"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(1)">Back</button>
+      <button class="btn btn-primary" onclick="goStep(3)">Continue</button>
+    </div>
+    <div style="font-size:11px;color:var(--text-dim);text-align:center;margin-top:10px;">Trying it — or skipping it — never blocks your progress here.</div>
+  </div>
+
+  <!-- STEP 3: QUESTIONS — dropdowns + F-977 quill "other" -->
+  <div class="panel" id="step3">
+    <div class="title">A few quick questions</div>
+    <div class="subtitle">This shapes what Athena watches for you and where it reaches you. Nothing here is final — you can change it later.</div>
+
+    <div class="field">
+      <label>Your role</label>
+      <select id="q_role">
+        <option value="founder_operator">Founder / operator</option>
+        <option value="product_ops">Product or operations lead</option>
+        <option value="engineer">Engineer / technical</option>
+        <option value="compliance_legal">Compliance or legal</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>What should Athena watch daily, for you</label>
+      <select id="q_watch">
+        <option value="market_competitor">Competitor and market moves</option>
+        <option value="compliance_reg">Compliance and regulation changes</option>
+        <option value="ops_team">Team and operations signals</option>
+        <option value="spend_budget">Spend and budget</option>
+        <option value="other">Something else</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Comfort with AI tools today</label>
+      <select id="q_comfort">
+        <option value="new">New to this</option>
+        <option value="occasional">Use AI tools occasionally</option>
+        <option value="daily">Use AI tools daily</option>
+        <option value="builder">Build with AI professionally</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Where should Athena reach you</label>
+      <select id="q_channel">
+        <option value="whatsapp">WhatsApp</option>
+        <option value="email">Email</option>
+        <option value="hub">In the hub only</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Anything else — type it or hold the mic to talk</label>
+      <textarea id="q_other" placeholder="Tell Athena anything the dropdowns above didn't cover..."></textarea>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="quill-mic" id="q_other_mic" type="button" title="Hold to talk" onmousedown="startQuestionDictation()" onmouseup="stopQuestionDictation()" onmouseleave="stopQuestionDictation()" ontouchstart="startQuestionDictation(event)" ontouchend="stopQuestionDictation(event)">&#127908;</button>
+        <div class="status-msg" id="q_other_status" style="margin:0;flex:1;text-align:left;"></div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="goStep(2)">Back</button>
+      <button class="btn btn-primary" onclick="goStep(4)">See what happens next</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: CLOSE — what happens next -->
+  <div class="panel" id="step4">
+    <div class="title">What happens next</div>
+    <div class="subtitle">Based on what you told Athena, here's what would start watching for you.</div>
+
+    <div class="stub-ribbon" id="close_stub_ribbon">Preview only — nothing has been saved to a live account yet</div>
+
+    <div class="info-card">
+      <div class="ic-label">Your seeded watches</div>
+      <div class="watch-list" id="watch_list"></div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-label">Your hub</div>
+      <div class="ic-value">Once your account is live, your private activity page lives here:</div>
+      <div class="hub-placeholder" id="hub_placeholder">yourname.athenapilot.ai/hub — placeholder, not a live link yet</div>
+    </div>
+
+    <div class="info-card">
+      <div class="ic-label">Any time you're unsure what Athena can do</div>
+      <div class="ic-value">Message AthenaPilot on the channel you were given access through, and just ask <strong>what can you do</strong>. It answers from the current, honest list — not a guess.</div>
+    </div>
+
+    <button class="btn btn-primary" onclick="submitOnboarding()">Review my answers</button>
+    <div class="status-msg" id="close_status"></div>
+    <div id="review_panel" style="display:none;">
+      <div class="review-panel">
+        <div class="ic-label">Your answers — reviewed here, not sent anywhere</div>
+        <pre id="review_json"></pre>
+      </div>
+      <button class="btn btn-secondary" style="margin-top:10px;" onclick="downloadOnboardingJSON()">Download as JSON</button>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-secondary" onclick="goStep(3)">Back</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── Feedback quill rail — present on every step ─── -->
+<div class="quill-rail">
+  <div class="quill-panel" id="quill_panel">
+    <div class="qp-label">Tell Athena something, right now</div>
+    <textarea id="quill_text" placeholder="Type feedback, or hold the mic to talk..."></textarea>
+    <div class="quill-actions">
+      <button class="quill-mic" id="quill_mic" type="button" title="Hold to talk" onmousedown="startQuillDictation()" onmouseup="stopQuillDictation()" onmouseleave="stopQuillDictation()" ontouchstart="startQuillDictation(event)" ontouchend="stopQuillDictation(event)">&#127908;</button>
+      <button class="quill-send" onclick="sendQuillFeedback()">Send</button>
+    </div>
+    <div class="quill-status" id="quill_status"></div>
+  </div>
+  <button class="quill-toggle" id="quill_toggle" onclick="toggleQuill()" title="Feedback">&#9998;</button>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────────────────────────────
+ * MOCK/LIVE BOUNDARY — per CRITIQUE-ONBOARDING-S151.md (VioletShores/athena,
+ * docs/packets/), the packet's "labelled stub + one-line swap" convention
+ * was rejected: both cross-LLM reviewers found a frontend naming convention
+ * insufficient to stop a real write to a zero-auth endpoint (16 known leak
+ * paths, D-TENANCY-CLAIMED-IDENTITY, Supabase RLS disabled).
+ *
+ * This file therefore contains NO real onboard endpoint URL anywhere —
+ * not even as a commented-out or labelled stub target. submitOnboarding()
+ * below only renders answers into the in-page review panel and offers a
+ * JSON download. The ONLY network call this file ever makes is to the
+ * existing, already-live /v1/feedback route (same one used across
+ * athena-my.html, athena-shan.html, athena-derm-copilot.html, etc.) — for
+ * the quill widget's feedback capture, which is not onboarding data.
+ *
+ * Lane 3 (PACKET-ONBOARDING-EXPERIENCE-S151.md, section 3) wires real
+ * /v1/onboard{,/answer} endpoints only after lane 409 (identity gate) and
+ * Supabase RLS are live on prod — and adds the URL to the bundle then,
+ * not before.
+ * ────────────────────────────────────────────────────────────────────── */
+
+const FEEDBACK_API = 'https://api.athenapilot.ai/v1/feedback';
+const TOTAL_STEPS = 4;
+
+function updateSteps(current) {
+  for (let i = 1; i <= TOTAL_STEPS; i++) {
+    const dot = document.getElementById('sd' + i);
+    if (dot) dot.className = 'step-dot' + (i < current ? ' done' : i === current ? ' active' : '');
+  }
+  for (let i = 1; i < TOTAL_STEPS; i++) {
+    const line = document.getElementById('sl' + i);
+    if (line) line.className = 'step-line' + (i < current ? ' done' : '');
+  }
+}
+
+function showPanel(n) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('step' + n).classList.add('active');
+  updateSteps(n);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  saveProgress();
+}
+
+function goStep(n) {
+  if (n === 4) renderWatchList();
+  showPanel(n);
+}
+
+// ─── honest-state persistence (context survives a refresh, per F-746 pattern) ───
+function saveProgress() {
+  try {
+    sessionStorage.setItem('athena_onboard_experience', JSON.stringify(collectAnswers()));
+  } catch (e) {}
+}
+
+function restoreProgress() {
+  try {
+    const raw = sessionStorage.getItem('athena_onboard_experience');
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved.role) document.getElementById('q_role').value = saved.role;
+    if (saved.watch) document.getElementById('q_watch').value = saved.watch;
+    if (saved.comfort) document.getElementById('q_comfort').value = saved.comfort;
+    if (saved.channel) document.getElementById('q_channel').value = saved.channel;
+    if (saved.other) document.getElementById('q_other').value = saved.other;
+  } catch (e) {}
+}
+restoreProgress();
+
+// ─── STEP 2: biometric "test it now" — link, not iframe ───
+function tryBiometric() {
+  window.open('/tribunal-demo?qa=0', '_blank', 'noopener');
+  const el = document.getElementById('try_result');
+  el.textContent = 'Opened in a new tab. Come back to this tab any time — trying the ceremony (or skipping it) doesn\'t hold up the rest of onboarding.';
+  el.classList.add('shown');
+}
+
+// ─── STEP 3 → 4: derive watch-seeds client-side from dropdown answers ───
+const WATCH_LABELS = {
+  market_competitor: 'Competitor and market moves',
+  compliance_reg: 'Compliance and regulation changes',
+  ops_team: 'Team and operations signals',
+  spend_budget: 'Spend and budget',
+  other: 'Custom watch (from your own words)'
+};
+const ROLE_EXTRA_WATCH = {
+  founder_operator: { label: 'Weekly ops health digest', tag: 'role-based' },
+  product_ops: { label: 'Feature and roadmap signals', tag: 'role-based' },
+  engineer: { label: 'Dependency and security advisories', tag: 'role-based' },
+  compliance_legal: { label: 'Regulatory filing deadlines', tag: 'role-based' },
+  other: null
+};
+const CADENCE_BY_COMFORT = {
+  new: 'Daily digest, plain-English',
+  occasional: 'Daily digest',
+  daily: 'Real-time alerts',
+  builder: 'Real-time alerts, raw detail'
+};
+const CHANNEL_LABELS = {
+  whatsapp: 'WhatsApp',
+  email: 'Email',
+  hub: 'Hub only',
+  other: 'Your chosen channel'
+};
+
+function collectAnswers() {
+  return {
+    role: document.getElementById('q_role').value,
+    watch: document.getElementById('q_watch').value,
+    comfort: document.getElementById('q_comfort').value,
+    channel: document.getElementById('q_channel').value,
+    other: document.getElementById('q_other').value.trim()
+  };
+}
+
+function deriveWatches(answers) {
+  const cadence = CADENCE_BY_COMFORT[answers.comfort] || 'Daily digest';
+  const surface = CHANNEL_LABELS[answers.channel] || 'Hub only';
+  const watches = [];
+
+  watches.push({
+    label: WATCH_LABELS[answers.watch] || 'General watch',
+    meta: cadence + ' via ' + surface,
+    tag: 'primary'
+  });
+
+  const extra = ROLE_EXTRA_WATCH[answers.role];
+  if (extra) {
+    watches.push({ label: extra.label, meta: cadence + ' via ' + surface, tag: extra.tag });
+  }
+
+  if (answers.other) {
+    watches.push({
+      label: 'From what you told Athena: "' + (answers.other.length > 60 ? answers.other.slice(0, 60) + '…' : answers.other) + '"',
+      meta: 'Reviewed before it becomes a watch',
+      tag: 'your words'
+    });
+  }
+
+  return watches;
+}
+
+function renderWatchList() {
+  const answers = collectAnswers();
+  const watches = deriveWatches(answers);
+  const list = document.getElementById('watch_list');
+  list.innerHTML = watches.map(w =>
+    '<div class="watch-item"><div><div class="wi-label">' + escHtml(w.label) + '</div><div class="wi-meta">' + escHtml(w.meta) + '</div></div><span class="wi-tag">' + escHtml(w.tag) + '</span></div>'
+  ).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── submitOnboarding: the ONE function all answer/seed writes go through.
+// Renders to the in-page review panel + offers a JSON download.
+// Deliberately makes no network call — see boundary comment above. ───
+let lastOnboardingPayload = null;
+
+function submitOnboarding() {
+  const answers = collectAnswers();
+  const payload = {
+    generated_at_local: new Date().toString(),
+    answers: answers,
+    seeded_watches: deriveWatches(answers),
+    hub_placeholder: 'yourname.athenapilot.ai/hub',
+    note: 'Preview only. No onboard endpoint was contacted — see mock/live boundary comment in this page\'s source.'
+  };
+  lastOnboardingPayload = payload;
+
+  document.getElementById('review_json').textContent = JSON.stringify(payload, null, 2);
+  document.getElementById('review_panel').style.display = 'block';
+  document.getElementById('close_status').textContent = 'Reviewed below — nothing was sent anywhere.';
+  document.getElementById('close_status').className = 'status-msg success';
+}
+
+function downloadOnboardingJSON() {
+  if (!lastOnboardingPayload) submitOnboarding();
+  const blob = new Blob([JSON.stringify(lastOnboardingPayload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'athena-onboarding-answers.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Dictation — Web Speech API where available, graceful text-only fallback ───
+function makeRecognizer(onResult, onEnd) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const rec = new SR();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.onresult = (e) => {
+    let text = '';
+    for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript;
+    onResult(text);
+  };
+  rec.onend = onEnd;
+  rec.onerror = onEnd;
+  return rec;
+}
+
+let questionRecognizer = null;
+function startQuestionDictation(evt) {
+  if (evt) evt.preventDefault();
+  const status = document.getElementById('q_other_status');
+  const mic = document.getElementById('q_other_mic');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { status.textContent = 'Voice input not supported in this browser — type instead.'; return; }
+  mic.classList.add('recording');
+  status.textContent = 'Listening...';
+  questionRecognizer = makeRecognizer(
+    (text) => { document.getElementById('q_other').value = text; },
+    () => { mic.classList.remove('recording'); status.textContent = 'Captured. Edit the text if needed.'; }
+  );
+  try { questionRecognizer.start(); } catch (e) {}
+}
+function stopQuestionDictation(evt) {
+  if (evt) evt.preventDefault();
+  if (questionRecognizer) { try { questionRecognizer.stop(); } catch (e) {} }
+}
+
+let quillRecognizer = null;
+function toggleQuill() {
+  document.getElementById('quill_panel').classList.toggle('open');
+}
+function startQuillDictation(evt) {
+  if (evt) evt.preventDefault();
+  const status = document.getElementById('quill_status');
+  const mic = document.getElementById('quill_mic');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { status.textContent = 'Voice input not supported here — type instead.'; return; }
+  mic.classList.add('recording');
+  status.textContent = 'Listening...';
+  quillRecognizer = makeRecognizer(
+    (text) => { document.getElementById('quill_text').value = text; },
+    () => { mic.classList.remove('recording'); status.textContent = 'Captured. Edit, then send.'; }
+  );
+  try { quillRecognizer.start(); } catch (e) {}
+}
+function stopQuillDictation(evt) {
+  if (evt) evt.preventDefault();
+  if (quillRecognizer) { try { quillRecognizer.stop(); } catch (e) {} }
+}
+
+// ─── Quill feedback send — the one permitted network call in this file ───
+async function sendQuillFeedback() {
+  const status = document.getElementById('quill_status');
+  const text = document.getElementById('quill_text').value.trim();
+  if (!text) { status.textContent = 'Type or dictate something first.'; return; }
+  status.textContent = 'Sending...';
+  try {
+    const res = await fetch(FEEDBACK_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        feedback_type: 'onboarding_experience',
+        content: text,
+        source_page: 'athena-onboard',
+        product: 'athena'
+      })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    status.textContent = 'Sent — thank you.';
+    document.getElementById('quill_text').value = '';
+  } catch (e) {
+    // Degrade honestly (per this page's own INTRO copy) rather than
+    // claiming success on a non-2xx response — fetch() alone does not
+    // throw on 4xx/5xx. Text stays in the box so nothing is lost.
+    status.textContent = 'Could not send right now (' + e.message + '). Your text is still here — try again in a moment.';
+  }
+}
+</script>
+</body>
+</html>
