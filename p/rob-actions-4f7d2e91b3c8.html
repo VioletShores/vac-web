@@ -59,6 +59,28 @@ blockquote{border-left:2px solid var(--gold-dim);margin:8px 0;padding:4px 12px;c
   <a class="btn primary" href="https://vacprotocol.org/financial-demo?qa=1">Open the demo &rarr;</a></div>
 </div>
 
+<h2>Review — the onboarding experience UI <span class="pill red">your review is the gate</span></h2>
+<div class="card" id="onbReview">
+  <div class="t">Walk it as if you were Naki (5 min), then tap one button below</div>
+  <div class="d">Full test-user flow: end-to-end intro, biometric with rails-and-risk framing + "test it now", dropdown questions with voice/text other, what-happens-next close. SAFE PREVIEW: cannot write to any real account.</div>
+  <a class="btn primary" href="https://vacprotocol.org/p/onboard-preview-9c4e71d2a8b5.html">Open the onboarding preview &rarr;</a>
+  <div style="margin-top:10px">
+    <button class="btn" onclick="onbFb('approved','Reviewed - good to go')">Reviewed &mdash; good to go</button>
+    <button class="btn" onclick="onbFb('changes', document.getElementById('onbNote').value || 'Changes needed (no note)')">Send changes note</button>
+  </div>
+  <textarea id="onbNote" placeholder="Optional: what to change (or use the quill on the preview page itself, voice or text)" style="width:100%;margin-top:8px;background:#0A0F1A;border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:10px;font-family:inherit;font-size:13.5px;min-height:64px"></textarea>
+  <div id="onbStatus" class="d" style="margin-top:6px"></div>
+</div>
+<script>
+async function onbFb(verdict, text){
+  const el=document.getElementById('onbStatus'); el.textContent='Sending...';
+  try{
+    const r=await fetch('https://api.athenapilot.ai/v1/feedback',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({page:'onboarding-ui-review',mode:'text',text:'[Rob review: '+verdict+'] '+text})});
+    el.textContent = r.ok ? 'Recorded - Claude picks this up as a work packet.' : 'Could not record ('+r.status+') - reply in chat instead.';
+  }catch(e){ el.textContent='Network error - reply in chat instead.'; }
+}
+</script>
 <h2>Gated — nothing for you to do</h2>
 <div class="card gate">
   <div class="t">Justin thank-you + demo link</div>
