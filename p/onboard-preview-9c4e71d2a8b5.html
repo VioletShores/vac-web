@@ -267,6 +267,29 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     </div>
 
     <div class="field">
+      <label>Voices you already follow</label>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">X accounts, YouTube channels, podcasts — the people whose takes you already trust. These become sources Athena ingests directly into your digests, not just topic keywords.</div>
+
+      <div class="chip-input-row" style="margin-bottom:6px;">
+        <input type="text" id="q_voice_x_input" placeholder="X handle, e.g. @name — Enter to add" onkeydown="if(event.key==='Enter'){event.preventDefault();addVoiceChip('x');}">
+        <button type="button" class="btn btn-secondary" style="width:auto;padding:10px 14px;" onclick="addVoiceChip('x')">Add</button>
+      </div>
+      <div class="chip-list" id="voice_x_chips"></div>
+
+      <div class="chip-input-row" style="margin:10px 0 6px;">
+        <input type="text" id="q_voice_youtube_input" placeholder="YouTube channel or creator — Enter to add" onkeydown="if(event.key==='Enter'){event.preventDefault();addVoiceChip('youtube');}">
+        <button type="button" class="btn btn-secondary" style="width:auto;padding:10px 14px;" onclick="addVoiceChip('youtube')">Add</button>
+      </div>
+      <div class="chip-list" id="voice_youtube_chips"></div>
+
+      <div class="chip-input-row" style="margin:10px 0 6px;">
+        <input type="text" id="q_voice_podcast_input" placeholder="Podcast you follow — Enter to add" onkeydown="if(event.key==='Enter'){event.preventDefault();addVoiceChip('podcast');}">
+        <button type="button" class="btn btn-secondary" style="width:auto;padding:10px 14px;" onclick="addVoiceChip('podcast')">Add</button>
+      </div>
+      <div class="chip-list" id="voice_podcast_chips"></div>
+    </div>
+
+    <div class="field">
       <label>Sectors or topics to watch</label>
       <select id="q_sectors" multiple size="5">
         <option value="public_sector">Public-sector AI governance</option>
@@ -373,8 +396,8 @@ body { font-family:var(--font); background:var(--bg); color:var(--text); min-hei
     </div>
 
     <div class="info-card">
-      <div class="ic-label">Your paper, built as you go</div>
-      <div class="ic-value">You don't need a paper already written — AthenaPilot helps you write one: how your organisation can use AI better, with stronger governance and real integration into the processes you already run. Every link you paste, every daily watch, every brief that comes back becomes part of that synthesis. The workflow above IS the paper pipeline — and using it is the demonstration of this technology to your organisation.</div>
+      <div class="ic-label">Your paper, taken further</div>
+      <div class="ic-value">Already written something for your employer — a paper, a case, a proposal? Share it. A link works today; attachment upload is landing once that pipeline merges, so hold off on sending it as a file for now. Athena helps you edit and extend it from there: sharpening the case for leadership to take a managed, governed approach to embedding AI without slowing the pace teams adopt it at — vibe engineering via L0, versus the whole team vibe coding. Every link you paste, every daily watch, every brief that comes back feeds straight back into that draft. (Naki's paper is headed to Finova's leadership — her seeded watch reads "Watching: Finova + peers…".)</div>
     </div>
 
     <div class="info-card">
@@ -477,6 +500,7 @@ function restoreProgress() {
     if (saved.role) document.getElementById('q_role').value = saved.role;
     if (saved.org) document.getElementById('q_org').value = saved.org;
     if (saved.competitors) { competitorChips = saved.competitors; renderCompetitorChips(); }
+    if (saved.voices) { Object.assign(voiceChips, saved.voices); ['x','youtube','podcast'].forEach(renderVoiceChips); }
     if (saved.sectors) {
       const sel = document.getElementById('q_sectors');
       Array.from(sel.options).forEach(o => { o.selected = saved.sectors.includes(o.value); });
@@ -513,6 +537,30 @@ function renderCompetitorChips() {
   const el = document.getElementById('competitor_chips');
   el.innerHTML = competitorChips.map((c, i) =>
     '<span class="chip">' + escHtml(c) + '<button type="button" onclick="removeCompetitorChip(' + i + ')" title="Remove">&times;</button></span>'
+  ).join('');
+}
+
+// ─── STEP 3: voices-she-follows chip inputs (item 8) — X handles, YouTube
+// channels, podcasts as watch SOURCES, not just topic keywords ───
+let voiceChips = { x: [], youtube: [], podcast: [] };
+function addVoiceChip(kind) {
+  const input = document.getElementById('q_voice_' + kind + '_input');
+  const val = input.value.trim();
+  if (!val) return;
+  if (!voiceChips[kind].includes(val)) voiceChips[kind].push(val);
+  input.value = '';
+  renderVoiceChips(kind);
+  saveProgress();
+}
+function removeVoiceChip(kind, i) {
+  voiceChips[kind].splice(i, 1);
+  renderVoiceChips(kind);
+  saveProgress();
+}
+function renderVoiceChips(kind) {
+  const el = document.getElementById('voice_' + kind + '_chips');
+  el.innerHTML = voiceChips[kind].map((c, i) =>
+    '<span class="chip">' + escHtml(c) + '<button type="button" onclick="removeVoiceChip(\'' + kind + '\',' + i + ')" title="Remove">&times;</button></span>'
   ).join('');
 }
 
@@ -578,6 +626,7 @@ function collectAnswers() {
     role: document.getElementById('q_role').value,
     org: document.getElementById('q_org').value.trim(),
     competitors: competitorChips.slice(),
+    voices: { x: voiceChips.x.slice(), youtube: voiceChips.youtube.slice(), podcast: voiceChips.podcast.slice() },
     sectors: getSelectedSectors(),
     sector_other: document.getElementById('q_sector_other').value.trim(),
     region: document.getElementById('q_region').value,
@@ -626,6 +675,20 @@ function deriveWatches(answers) {
     meta: 'Weekly synthesis digest via ' + surface,
     tag: 'paper track'
   });
+
+  const voiceCount = answers.voices.x.length + answers.voices.youtube.length + answers.voices.podcast.length;
+  if (voiceCount > 0) {
+    const voicePartCounts = [
+      answers.voices.x.length ? answers.voices.x.length + ' X' : '',
+      answers.voices.youtube.length ? answers.voices.youtube.length + ' YouTube' : '',
+      answers.voices.podcast.length ? answers.voices.podcast.length + ' podcast' : ''
+    ].filter(Boolean).join(' · ');
+    watches.push({
+      label: 'Voices you follow: ' + voiceCount + ' source' + (voiceCount === 1 ? '' : 's') + ' feeding your digests',
+      meta: voicePartCounts + ' · ' + cadence + ' via ' + surface,
+      tag: 'your sources'
+    });
+  }
 
   if (answers.other) {
     watches.push({
