@@ -11,7 +11,7 @@ tennis-club conversation with Rob and is being walked toward AthenaPilot access.
 
 **Widths tested:** mobile (~390px) and desktop (~1280px) where the method allows it.
 
-**Status:** IN PROGRESS — this file is committed after every section so a crash never loses findings.
+**Status:** COMPLETE — all 5 surfaces tested, both widths where applicable.
 
 ---
 
@@ -233,3 +233,43 @@ not already covered above, plus `curl -s -o /dev/null -w "%{http_code}"` sweeps 
   was verified; the ceremony's actual pass/fail behavior was not.
 
 ---
+
+## Summary
+
+All 5 surfaces tested end to end: `/browse` live-render for every page (headless Chromium worked
+this run — no fallback to static curl+HTML audit was needed), at 390px and 1280px. 15 distinct URLs
+verified in total (5 walked fully with `/browse`, 3 more spot-checked with `/browse` for
+overflow/console errors, 7 resolved via `curl` for link-integrity only per the scope note in
+Section 5).
+
+**Confirmed bugs (2), both on `financial-demo`:**
+1. **Unreadable "Continue to the scenario" button** (`#idSkip`, `financial-demo.html:391`) — dark
+   brown text (`#1A1406`, inherited from the shared `.cta-btn` class default) on a transparent
+   background, effectively invisible at both widths. This is the button that lets a visitor skip the
+   live camera-based biometric and go straight to the illustrative walkthrough — exactly the path
+   someone in Naki's position (reading a briefing, not necessarily ready to do a live face scan) is
+   likely to need. Root cause and a same-page working control (`tribunal-demo.html`, unaffected)
+   identified in Section 3.
+2. **Horizontal overflow on mobile**, "How it works end-to-end" tab of `financial-demo` —
+   `.arch-summary-cta` link is `white-space:nowrap` at 416px computed width inside a 390px viewport,
+   forcing 59px of horizontal scroll. Section 3.
+
+**One structural/content gap (not a code bug):** the naki pager (`p/naki-3bd20e1222bf.html`) offers
+early AthenaPilot access ("Early access, deliberately narrow") but contains no link, WhatsApp
+deep-link, or any other mechanism to actually claim it — confirmed absent from the page's full HTML.
+The onboard-preview page links back to this pager, but the reverse link doesn't exist, so the pager
+is a dead end unless Naki already has the onboard-preview URL from elsewhere. Section 2.
+
+**Everything else** (`onboard-preview`, `eu-ai-act.html`, the SignalRank Live walkthrough, the story
+pager, `retrofit-console.html`, `signalrank.html`) rendered cleanly at both widths with no console
+errors and no horizontal overflow. onboard-preview's Step 3 → Step 4 personalization logic
+(derived "Watching: Finova + 1 peer — UK financial services & AI" from form answers) works correctly
+and is the strongest piece of functionality tested in this pass. A handful of copy/polish items are
+logged in Section 1 (POV register shift in the "Your paper, taken further" card; duplicate
+mic affordances; onboard-preview's desktop layout leaves ~380px of unused space per side).
+
+**Not independently verified in this pass** (headless-Chromium limitations, need a real-device
+re-test): the live biometric ceremony (camera/mic/WebGL-dependent) on all three demo entry points,
+and the `wa.me` WhatsApp deep links.
+
+**No fixes were made** — per the brief, this is a report-only pass.
