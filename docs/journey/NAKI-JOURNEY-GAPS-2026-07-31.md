@@ -160,3 +160,27 @@ mobile. The default "Walkthrough" tab does not have this problem (confirmed `scr
   onboard-preview page's "narrow mobile column on a wide desktop" issue.
 
 ---
+
+### 4. `eu-ai-act.html` — linked from onboard-preview Step 2
+
+**Method:** `/browse` live render at 390×844 and 1280×900.
+`https://vacprotocol.org/eu-ai-act.html`.
+
+**No bugs found.** Clean at both widths: no horizontal overflow (`scrollWidth` matches viewport at
+both sizes), no console errors, dense but readable typography, good use of the wider desktop canvas
+(this page does not repeat onboard-preview's narrow-column-on-wide-viewport issue, and its content
+column genuinely uses the 1280px width rather than the ~820px cap the naki pager uses).
+
+**Links discovered here (new, added to scope), all verified 200 via curl:**
+- `https://vacprotocol.org/retrofit-console.html`
+- `https://vacprotocol.org/tribunal-demo.html`
+- `https://vacprotocol.org/signalrank.html`
+- `https://arxiv.org/pdf/2604.23280` (cited as "Source" for the independent problem-validation claim)
+- IETF drafts (verified-human-root, autonomy-governor) — same two URLs as on the naki pager.
+
+**Polish observation:** the penalty figures ("up to €35M or 7%...") sit in a red-tinted callout box
+that reads clearly, and the compliance-hedge disclaimer at the bottom ("this page describes how the
+infrastructure is designed to support compliance with the cited provisions... not a claim of
+certification") is exactly the kind of honest-scope framing seen elsewhere on the site. No notes.
+
+---
