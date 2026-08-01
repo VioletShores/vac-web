@@ -84,3 +84,40 @@ Tested at 390×844 (mobile) and 1280×900 (desktop).
 **No hard blockers found on this surface.**
 
 ---
+
+### 2. `p/naki-3bd20e1222bf.html` — the private pager
+
+**Method:** `/browse` live render against
+`https://vacprotocol.org/p/naki-3bd20e1222bf.html`, at 390×844 and 1280×900. Cross-checked links
+and full page HTML with `browse links` / `browse js`, and network log for asset failures.
+
+**Works well:**
+- Content renders identically to the repo source (`p/naki-3bd20e1222bf.html`), no console errors,
+  no failed network requests (fonts load 200 across both widths).
+- Desktop layout holds up much better here than on onboard-preview: `.wrap{max-width:820px}` keeps
+  line length readable at 1280px instead of collapsing to a narrow centered mobile column.
+- `<meta name="robots" content="noindex, nofollow">` is present — matches the footer's own claim
+  "Not indexed, not public."
+- All 6 outbound links present and pointing where the visible link text says: financial-demo (×2),
+  the two IETF Internet-Draft datatracker URLs, the SignalRank pager, and the story pager.
+
+**Blocker-adjacent finding:**
+- **The page makes an offer with no way to act on it.** "Early access, deliberately narrow" closes
+  with "The offer is to put you on it early..." but the page contains zero mechanism to claim
+  it — no link to the onboarding flow, no WhatsApp deep link, no email, no "reply to this" — verified
+  by searching the full page HTML for `onboard`, `wa.me`, and `athenapilot` (all absent). The only
+  way Naki can act on the offer is to already have a separate channel to Rob (the tennis-club
+  connection) or already possess the `onboard-preview` URL from elsewhere. Given the onboard-preview
+  page *does* link back to this pager (Step 4's "Your briefing" card), the reverse link is missing:
+  this is a dead end unless she was sent both URLs together out of band. Worth adding a direct CTA
+  here (link to the onboard-preview page, or the WhatsApp number itself) so the pager is
+  self-sufficient.
+
+**Minor polish:**
+- Bold gold-colored emphasis phrases in the opening paragraph ("unpriced risk", "is the AI output
+  actually better than the human baseline here", etc.) use the same gold color as real links
+  (`--gold`/`--accent`) but are `<b>` tags, not `<a>` tags — no underline, so technically
+  distinguishable on close inspection, but a fast skim could read them as clickable and be surprised
+  they aren't. Low severity since real links in the same page are underlined and these aren't.
+
+---
