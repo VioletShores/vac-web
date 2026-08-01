@@ -142,6 +142,17 @@ in the moment she's reading this (professional context, possibly at a desk witho
 just not wanting to do a live face scan to read a briefing) — the "skip to the illustrative
 walkthrough" path exists precisely for her, and it is currently unreadable. Confirmed present at
 both 390px and 1280px (same inline style, no responsive override).
+  - **Root cause identified (not fixed, per brief):** `financial-demo.html:391` sets
+    `id="idSkip"` with inline `style="background:transparent;border:1px solid var(--amber-border);"`
+    but does not override `color`, so it inherits the base `.cta-btn` rule at
+    `financial-demo.html:253`, which sets `color:#1A1406` (dark brown — correct against that class's
+    default *filled* `var(--purple)` background, wrong against a transparent one). Cross-checked
+    against `tribunal-demo.html`, which has the visually identical button (`#idSkip`, same inline
+    style, labelled "Continue to the matters" at `tribunal-demo.html:391`) and renders it fine
+    because *that* page's base `.cta-btn` rule (`tribunal-demo.html:253`) uses `color:#fff`. The two
+    demo pages have diverged: same component, same inline override, different base text color, and
+    only financial-demo's combination is unreadable. A one-line `color` override on the `#idSkip`
+    element (or in a page-specific rule) would fix it without touching the shared `.cta-btn` class.
 
 **Second confirmed bug — horizontal overflow on mobile, "How it works end-to-end" tab.** At 390px
 width, switching to the second tab makes `document.documentElement.scrollWidth` grow to 449px (59px
@@ -182,5 +193,43 @@ column genuinely uses the 1280px width rather than the ~820px cap the naki pager
 that reads clearly, and the compliance-hedge disclaimer at the bottom ("this page describes how the
 infrastructure is designed to support compliance with the cited provisions... not a claim of
 certification") is exactly the kind of honest-scope framing seen elsewhere on the site. No notes.
+
+---
+
+### 5. Remaining discovered links
+
+**Scope note:** "every link discoverable from them" is read as every link reachable *from the four
+named surfaces* (onboard-preview, naki pager, financial-demo, eu-ai-act.html) — i.e. the union of
+outbound links already enumerated in sections 1–4. Second-order links (links found *on* those
+discovered pages — e.g. the three links inside the SignalRank Live walkthrough) were spot-checked
+for a 200 response via `curl -L` for completeness but not given a full `/browse` walkthrough, to keep
+this pass bounded. None of the spot-checks below turned up a broken link (all 200).
+
+**Method:** `/browse` full render + `browse console --errors` + horizontal-overflow check
+(`document.documentElement.scrollWidth` vs `window.innerWidth`) at 390px for each first-order link
+not already covered above, plus `curl -s -o /dev/null -w "%{http_code}"` sweeps for link resolution.
+
+| Link | Method | Result |
+|---|---|---|
+| `p/signalrank-live-6e3a91f2c8b4.html` (SignalRank walkthrough, from naki pager) | `/browse`, exercised the interactive "Financial" question end to end | Clean. No console errors, no overflow, routing walkthrough (classify → calibration snapshot → route) renders and updates correctly. |
+| `p/story-8fbb551c6c4c.html` (footer link, from naki pager) | `/browse` | Clean. No console errors, no overflow at 390px. |
+| `/tribunal-demo.html` (from eu-ai-act.html, and the underlying page behind onboard-preview's `/tribunal-demo` "Test it now" link and financial-demo's live-biometric CTA) | `/browse` | Clean, and notably: this page's own `#idSkip` "Continue to the matters" button — the same component that's unreadable on financial-demo — renders correctly here (white text). See root-cause note in Section 3; used this page as the working control to confirm the financial-demo bug is page-specific, not systemic. |
+| `/retrofit-console.html` (from eu-ai-act.html) | `/browse` | Clean. No console errors, no overflow at 390px. |
+| `/signalrank.html` (from eu-ai-act.html; distinct from the `signalrank-live` pager) | `/browse` | Clean. No console errors, no overflow at 390px. |
+| `datatracker.ietf.org/doc/draft-zagarella-verified-human-root/` | curl | 200 |
+| `datatracker.ietf.org/doc/draft-zagarella-autonomy-governor/` | curl | 200 |
+| `arxiv.org/pdf/2604.23280` (eu-ai-act.html "Source" citation) | curl | 200 |
+| `org-config.html`, `/architecture` (financial-demo footer links) | curl (see Section 3) | 200 |
+| Second-order: `p/models-7f2a91c4e8b3.html`, `p/architecture-e2e-5c8d92f1a4b7.html`, `p/signalrank-8c31d47ab2e9.html` (all linked from the SignalRank Live pager) | curl | 200 each — not walked further per scope note above |
+
+**Not independently verified — flagged for a real-device pass:**
+- `wa.me/447404843156?text=...` deep links (the onboard-preview "Ask Athena about this" actions bar
+  and any other WhatsApp CTAs) — headless Chromium did not visibly open a second tab when this was
+  triggered (Section 1), which is consistent with popup-blocking in a headless context rather than a
+  page bug, but this was not confirmed on a real phone/browser.
+- The live biometric ceremony itself (face liveness, gesture, spoken-number challenge) on
+  `financial-demo`, `tribunal-demo.html`, and `/tribunal-demo` — requires a real camera/mic and
+  GPU-backed WebGL; headless Chromium has neither. Everything reachable *without* driving the camera
+  was verified; the ceremony's actual pass/fail behavior was not.
 
 ---
