@@ -37,7 +37,7 @@
   .foot{font-size:11.5px;color:var(--dim);margin-top:28px;border-top:1px solid var(--line);padding-top:12px}
 </style>
 </head>
-<body data-build="XBRIEF-1AUG.1">
+<body data-build="XBRIEF-1AUG.2">
 <div class="page-shell"><div class="wrap">
 
 <header>
@@ -73,10 +73,10 @@
   <div class="src">x.com/kimmonismus — <a href="https://x.com/kimmonismus/status/2083144340176609556">status …609556</a></div>
 
   <div class="lbl ingest">Ingest</div>
-  <p>A model has hit 82.7 on Terminal-Bench, a +25.8 point jump — API-only now, open weights to follow. Ingest flags this as pressure on SignalRank's evaluation pipeline (a new capability tier to route against) and a short competitive-intelligence window before the open-weights release commoditises it.</p>
+  <p>Ingest's read of this specific post is generic — "a model" hit 82.7 on Terminal-Bench, a +25.8 point jump, API-only with open weights to follow — it did not name the model or connect it to card 1.</p>
 
   <div class="lbl research">Our research</div>
-  <p>This is exactly the failure mode the model-discovery sentinel exists to close: "L0 packet that watches for new LLMs, auto-detects availability, feeds into harness" (docs/FEATURE-INBOX.md:400) — captured as a feature, not yet the thing running today. task-467 is the live thread for this; this card is the trigger event, not new scope.</p>
+  <p><strong>This is the same release as card 1.</strong> The 82.7 score is DeepSeek V4-Flash-0731 on Terminal-Bench 2.1, up from 56.9 in the April preview — the exact model Chamath was reacting to, re-shared here by a different account for the capability jump rather than the cost angle (V4-Flash-0731 now beats its own V4-Pro-Preview, 82.7 vs 72.1, on agentic terminal tasks). One release, two distinct signals worth carrying separately: cost (card 1) and capability (this card) both moved at once, which is the actual story — not two unrelated events. This is exactly the failure mode the model-discovery sentinel exists to close: "L0 packet that watches for new LLMs, auto-detects availability, feeds into harness" (docs/FEATURE-INBOX.md:400) — captured as a feature, not yet the thing running today. task-467 is the live thread for this; this card is the trigger event, not new scope.</p>
 
   <div class="lbl rob">Rob's guidance</div>
   <blockquote>"This needs to be fixed properly so SignalRank can't recommend a model that is not available. The models get updated etc and SignalRank needs to be updated daily on that... is this because we are not running the harnesses?"<cite>— Rob, Session 89 (docs/FEATURE-INBOX.md:12828)</cite></blockquote>
