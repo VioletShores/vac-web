@@ -121,3 +121,42 @@ and full page HTML with `browse links` / `browse js`, and network log for asset 
   they aren't. Low severity since real links in the same page are underlined and these aren't.
 
 ---
+
+### 3. `financial-demo` (`https://vacprotocol.org/financial-demo`) — the demo the pager links
+
+**Method:** `/browse` live render at 390×844 and 1280×900. The live biometric ceremony itself
+requires a real camera/mic and GPU-backed WebGL (MediaPipe face/hand landmarkers) — headless
+Chromium has neither, so `Try the live biometric` could not be driven end-to-end. This is a method
+limitation, not a page defect: console shows the expected MediaPipe→WebGL2 fallback warnings, no
+crash. A real-device pass is still needed to verify the live ceremony itself; everything below is
+what could be verified statically/structurally without a camera.
+
+**Blocker — near-invisible "Continue to the scenario" button (both widths).** Step One's card has
+two CTAs side by side: `Try the live biometric` (gold-filled, readable) and `#idSkip` "Continue to
+the scenario" (outline button, `style="background:transparent;border:1px solid var(--amber-border)"`).
+Its text computes to `rgb(26, 20, 6)` — near-black dark brown — on a transparent button over the
+page's near-black background. Contrast ratio is effectively ~1:1; the button text is not legible.
+Screenshot confirms it (isolated element capture shows an almost-blank dark rectangle where the label
+should read). This matters specifically for Naki: she is very unlikely to have camera access ready
+in the moment she's reading this (professional context, possibly at a desk without a webcam, or
+just not wanting to do a live face scan to read a briefing) — the "skip to the illustrative
+walkthrough" path exists precisely for her, and it is currently unreadable. Confirmed present at
+both 390px and 1280px (same inline style, no responsive override).
+
+**Second confirmed bug — horizontal overflow on mobile, "How it works end-to-end" tab.** At 390px
+width, switching to the second tab makes `document.documentElement.scrollWidth` grow to 449px (59px
+of horizontal overflow) because `.arch-summary-cta` ("See the full architecture and honest capability
+status →", linking to `/architecture`) is `display:inline-block; white-space:nowrap` at a computed
+width of 416px — wider than the viewport, and not allowed to wrap. This forces horizontal scroll on
+mobile. The default "Walkthrough" tab does not have this problem (confirmed `scrollWidth` stays at
+390px there).
+
+**Works well:**
+- Both footer links resolve 200: `/org-config.html`, `/architecture`.
+- Honest-scope framing is consistent with the rest of the site's voice ("VAC provides the
+  verification and the sealed audit rails; it does not hold client assets or execute trades").
+- Preview banner at the very top is unambiguous about what's live vs. illustrative.
+- Desktop layout (max-width'd content column, generous margins) reads well and doesn't repeat the
+  onboard-preview page's "narrow mobile column on a wide desktop" issue.
+
+---
