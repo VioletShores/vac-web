@@ -114,6 +114,8 @@ const MODE_CONFIG = {
                     // clip (co-occurrence proof). Empty audio → server bound-digit gate fails closed.
                     spoken_audio_b64: (parts && parts.spoken_audio_b64 != null) ? parts.spoken_audio_b64 : '',
                     still_ts_ms: (parts && parts.still_ts_ms != null) ? parts.still_ts_ms : null,
+                    // F-998 (task-499): additive preflight envelope — server ignoring it must break nothing.
+                    preflight_envelope: (function(){ try { return _assemblePreflightEnvelope(); } catch(_) { return null; } })(),
                 };
             },
         },
@@ -127,6 +129,29 @@ const MODE_CONFIG = {
 function modeConfig(){
     const m = (CTX && CTX.profile && CTX.profile.mode) || 'full';
     return MODE_CONFIG[m] || MODE_CONFIG.full;
+}
+
+// F-998 (task-499): assemble the ceremony's preflight environment envelope from the client's own
+// preflight readouts (ambient/voice RMS, VAD gate threshold, light, hand-detect timing, fallbacks
+// taken) — additive metadata attached to the existing take-submission payload (FULL formData +
+// FAST JSON body), both modes. IRON RULE (F-998): this envelope may INFORM the server, never
+// EXCUSE — the server measures its own conditions from the media independently and cross-checks
+// claimed-vs-measured; nothing here gates or alters this client's own ceremony behaviour.
+function _assemblePreflightEnvelope() {
+    var _fallbacks = [];
+    try { if (fingerFallback === 'voice') _fallbacks.push('voice_only'); } catch(_) {}
+    try { if (typeof FingerDetector !== 'undefined' && FingerDetector.failed) _fallbacks.push('gesture_timer'); } catch(_) {}
+    return {
+        ambient_rms_avg: _envAmbientRmsCount ? Number((_envAmbientRmsSum / _envAmbientRmsCount).toFixed(4)) : null,
+        voice_peak: _envVoiceSeen ? Number(_envVoicePeak.toFixed(4)) : null,
+        gate_value: (typeof window.__vacMicThr === 'number') ? Number(window.__vacMicThr.toFixed(4)) : null,
+        light_score: _envLightScore,
+        light_pass: !!avChecks.light,
+        hand_detect_ms: _envHandDetectMs,
+        fallbacks_offered: _fallbacks,
+        ua: (typeof navigator !== 'undefined' && navigator.userAgent) || '',
+        ts: Date.now(),
+    };
 }
 
 // Self-contained telemetry (was auth.html's vacDebug): POSTs to /v1/auth/debug + fans to the
@@ -462,6 +487,15 @@ let avAudioCtx = null;
 let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
 let avPrevOval = null; // previous frame luminance for motion detection
+// F-998 (task-499): preflight envelope accumulators — client-observed ambient/voice/light/hand
+// readouts, assembled at submission time into the take-submission payload's preflight_envelope
+// field. INFORMATIONAL ONLY (iron rule: inform, never excuse) — nothing here gates the ceremony;
+// the server independently measures conditions from the media itself. Reset on every
+// startAVChecks() entry so the envelope reflects THIS run's preflight, not a stale one.
+let _envAmbientRmsSum = 0, _envAmbientRmsCount = 0; // running ambient (non-voiced) ceremony-RMS average
+let _envVoicePeak = 0, _envVoiceSeen = false;       // peak ceremony-RMS observed while voiced
+let _envLightScore = null;                          // last preflight brightness reading (avgBright)
+let _envHandDetectStartT = 0, _envHandDetectMs = null; // ms from preflight start to first stable Hand ✓
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
 const AV_HAND_GRACE_MS = 3000; // F-929 (Rob, S147): bounded, VISIBLE grace after hand-drop so one-handed users can reach Start — honesty preserved by the on-chip countdown
@@ -847,6 +881,11 @@ function startAVChecks() {
     // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    // F-998 (task-499): fresh preflight envelope for THIS entry.
+    _envAmbientRmsSum = 0; _envAmbientRmsCount = 0;
+    _envVoicePeak = 0; _envVoiceSeen = false;
+    _envLightScore = null;
+    _envHandDetectStartT = performance.now(); _envHandDetectMs = null;
     _handStableFrames = 0;
     _handUnstableFrames = 0;
     _micLoudFrames = 0;
@@ -973,6 +1012,15 @@ function startAVChecks() {
             let _ceremonyRms = 0;
             for (let i = 0; i < _fbuf.length; i++) _ceremonyRms += _fbuf[i] * _fbuf[i];
             _ceremonyRms = Math.sqrt(_ceremonyRms / _fbuf.length) / 255;
+            // F-998 (task-499): preflight envelope — classify this sample ambient vs voiced with
+            // the same voice-band-ratio test the qualify logic uses, and track the running ambient
+            // average / voice peak (display-only elsewhere; read at submission by _assemblePreflightEnvelope).
+            if (_speechRatio >= VOICE_BAND_MIN_RATIO) {
+                _envVoiceSeen = true;
+                if (_ceremonyRms > _envVoicePeak) _envVoicePeak = _ceremonyRms;
+            } else {
+                _envAmbientRmsSum += _ceremonyRms; _envAmbientRmsCount++;
+            }
             // S145e (Rob): the Mic-pill VU must run in EVERY phase — greeting included — regardless
             // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
             // does, with rms computed the same way the VAD measures it (so the gold line means the
@@ -1127,6 +1175,7 @@ function startAVChecks() {
                 totalBright += (0.299 * imgData[i] + 0.587 * imgData[i+1] + 0.114 * imgData[i+2]);
             }
             const avgBright = Math.round(totalBright / (imgData.length / 16));
+            _envLightScore = avgBright; // F-998 (task-499): preflight envelope light_score
             document.getElementById('avLuxValue').textContent = '(' + avgBright + ')';
 
             if (avgBright < 50) {
@@ -1226,6 +1275,8 @@ function startAVChecks() {
                             _handStableFrames++;
                             if (_handStableFrames >= 5) {
                                 setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; _handUnstableFrames = 0; _handGraceStartT = 0; document.getElementById('avHandHint').style.display='none';
+                                // F-998 (task-499): first stable Hand ✓ this entry — preflight envelope hand_detect_ms.
+                                if (_envHandDetectMs === null) _envHandDetectMs = Math.round(performance.now() - _envHandDetectStartT);
                             } else {
                                 setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
                             }
@@ -4894,6 +4945,8 @@ async function runRealVerification(videoBlob) {
         // client-computed, backend tolerates-or-drops.
         formData.append('face_still_b64', window.__vacFaceStillB64 || '');
         formData.append('face_still_ts_ms', String(Number.isFinite(window.__vacFaceStillTsMs) ? window.__vacFaceStillTsMs : 0));
+        // F-998 (task-499): additive preflight envelope — server ignoring it must break nothing.
+        try { formData.append('preflight_envelope', JSON.stringify(_assemblePreflightEnvelope())); } catch(_) {}
 
         stepEl.textContent = 'Analysing biometrics…';
         detailEl.textContent = 'Gemini (face) + Deepgram (voice)';
