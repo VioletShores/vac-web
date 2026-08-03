@@ -2817,7 +2817,23 @@ function beginRecording() {
     // words, so on-device energy detection is sufficient. Reuses the existing
     // audioAnalyser (startAudioMonitor) — no second AudioContext, no new getUserMedia,
     // no permission prompt.
-    function _markSpeech(src, rms, onsetAt) {
+    
+// S154 GATE DIAGNOSTICS (L-2173: one runtime datum beats rounds of code-reading).
+// A small fixed line reporting the last gate event with its numbers, so a missed
+// digit tells us duration/peak/threshold instead of requiring another guess cycle.
+function _vadDiag(msg){
+    try {
+        var el = document.getElementById('vacVadDiag');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'vacVadDiag';
+            el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;font:10px/1.4 ui-monospace,monospace;color:#9498A8;background:rgba(10,15,26,0.85);padding:3px 8px;border-radius:4px;pointer-events:none;max-width:92vw;';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+    } catch(_){}
+}
+function _markSpeech(src, rms, onsetAt) {
         if (recordingStopped) return;
         if (currentDigitIndex >= digits.length) return;
         if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
@@ -2871,6 +2887,7 @@ function beginRecording() {
                     // carry-over (no pause since the last accept) stays rejected.
                     if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }  // S139: silence aborts pre-onset (S154: dip tracker cleared too)
                     _sawSilence = true;
+                    if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (DIGIT_MOD_DELTA*100).toFixed(0)); }  // S154 diag
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
                 } else if (rms > vadSpeechThreshold && vbRatio >= VOICE_BAND_MIN_RATIO) {
                     // BUILD 379: amplitude alone crossed the line, but only counts as voiced if the
@@ -2940,6 +2957,7 @@ function beginRecording() {
                     if (voiced > 0 && _now >= speechWindowStart
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
                         && (voiceMax - voiceMin) >= DIGIT_MOD_DELTA) {
+                        _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%');  // S154 diag
                         _markSpeech('vad', rms, _voiceOnsetAt);
                         voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
                     }
@@ -2947,7 +2965,7 @@ function beginRecording() {
                     // neither band (between silence and speech thresholds)
                     if (_preOnsetStart) {  // S154: tolerate brief observed dips (soft consonants) within pre-onset; only a SUSTAINED dip (> VAD_ONSET_DIP_MS) aborts — was a hard single-frame reset that rejected normal speech
                         if (_preOnsetDipStart === 0) _preOnsetDipStart = _now;
-                        else if (_now - _preOnsetDipStart > VAD_ONSET_DIP_MS) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }
+                        else if (_now - _preOnsetDipStart > VAD_ONSET_DIP_MS) { _rejectedTransients++; _lastRejectReason = 'sust'; _vadDiag('onset aborted: dip > ' + VAD_ONSET_DIP_MS + 'ms during sustain (had ' + Math.round(_now - _preOnsetStart) + 'ms of ' + VAD_ONSET_SUSTAIN_MS + 'ms)'); _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }
                     }
                     if (voiced > 0) {
                         // mid-run dip: time it; if it stays here past DIGIT_VOICE_GAP_MS the voicing
@@ -3982,7 +4000,7 @@ function _cooccurAdvanceDecision(o) {
 // full path keeps its own inline _startSpeechGate (F-662 risk call, codex: don't refactor
 // the shipping VAD); these FAST_* constants MIRROR that inline tuning (kept separate on
 // purpose). Pacing only — the server (Deepgram) is the authoritative spoken-digit check.
-const FAST_VAD_SPEECH_RMS = 0.14;    // voiced threshold (rms above this = voice). Fallback: no greeting calibration in the fast tier. Mirrors VAD_SPEECH_RMS_FALLBACK.
+const FAST_VAD_SPEECH_RMS = 0.115;   // S154: propagate the S145 hotel field-tune (0.14->0.115 — 0.14 forced a raised voice on both mics) that reached only the full-path fallback. The fast tier has no greeting calibration, so this hard constant IS its threshold — it must carry every field-tune. Second missed propagation found today (first: 350->270ms min duration).
 const FAST_VAD_SILENCE_RMS = 0.085;  // silence threshold (rms below this = silence). Mirrors VAD_SILENCE_RMS_FALLBACK.
 const FAST_DIGIT_VOICE_MIN_MS = 270; // S154: propagate the S145j field-tune (350→270) that reached only the full path — quick-auth kept rejecting a briskly-said digit the full path had already learned to accept. Mirrors DIGIT_VOICE_MIN_MS.
 const FAST_DIGIT_MOD_DELTA = 0.030;  // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy. Mirrors DIGIT_MOD_DELTA.
@@ -4051,6 +4069,7 @@ function _makeQuickReauthVoiceGate(cfg) {
                 dipStart = 0;
                 if (voiced > 0 && now >= _windowStart
                     && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= modDelta) {
+                    _vadDiag('FIRED: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% thr ' + (speechThr*100).toFixed(0) + '%');  // S154 diag
                     _armed = true; _firedAt = now;                              // sustained + modulated → FIRE
                     voiced = 0; vMin = 1; vMax = 0; sawSilence = false;         // consumed; a NEW silence re-arms
                 }
