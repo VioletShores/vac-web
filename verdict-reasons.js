@@ -1,5 +1,6 @@
 /*
- * Verdict-evidence coherence (F-755d follow-up / task-515 P0-2).
+ * Verdict-evidence coherence (ported from vac-protocol task-515 P0-2,
+ * commits b923dc3/6afc21c).
  *
  * Derives the human-readable "why did this fail" text shown on the auth
  * retry screen from `result.verdict.reasons` — compute_honest_verdict()'s
@@ -13,9 +14,14 @@
  * actually gates on. Deriving the message from `status` alone can silently
  * drop the true reason and fall back to a signal-less generic message.
  *
- * Isomorphic: used as a plain <script> in vac-frontend/auth.html (attaches
+ * FAIL_REASONS copy below is vac-web's own live-tuned product text (was
+ * vac-reauth-ceremony.js's inline FAIL_REASONS), not vac-protocol's — only
+ * the coherence-fixing derivation logic (reasonSignal/SIGNAL_TO_MODALITY/
+ * deriveFailureDisplay) was ported; the wording is this lineage's, unchanged.
+ *
+ * Isomorphic: used as a plain <script> in auth.html (attaches
  * `window.VacVerdictReasons`) and via `require()` in the Node regression
- * test (vac-backend/test_verdict_evidence_coherence.node.js).
+ * test (test_verdict_reasons.node.js).
  */
 (function (root, factory) {
     if (typeof module !== 'undefined' && module.exports) {
@@ -49,23 +55,23 @@
             reason: 'Spoken words did not match the challenge phrase.',
             tip: 'Read the challenge phrase exactly as shown — include the greeting and all digits.'
         },
+        duress: {
+            reason: 'Duress check — monitoring for signs of coercion.',
+            tip: 'This runs silently. If you are safe, this will always pass.'
+        },
         finger_gesture: {
             reason: 'Finger count sequence did not match the expected digits.',
-            tip: 'Hold up the correct number of fingers for each digit shown. Keep your hand near your face and fingers clearly spread.'
+            tip: 'Show each digit with your fingers near your face. Change your hand clearly between each number — hold, change, hold. Keep fingers spread.'
         },
         geolocation: {
             reason: 'Location could not be determined.',
             tip: 'Allow location access when prompted by your browser.'
         },
-        // verdict.reasons prefixes that do NOT match a modality name 1:1 —
-        // these are the signals the old status-filtered logic dropped.
+        // verdict.reasons prefixes that do NOT match a modality name 1:1 — these
+        // are the signals the old status-filtered logic dropped (task-515 P0-2).
         deepfake: {
             reason: 'Deepfake indicators detected in the video.',
             tip: 'Use your device camera directly — screen sharing, virtual cameras, or recorded playback will be rejected.'
-        },
-        duress: {
-            reason: 'Unusual behaviour detected during verification.',
-            tip: 'Complete the check in a calm, unpressured environment with no one directing you off-screen.'
         },
         identity_continuity: {
             reason: 'This capture did not match the identity already on file for this email.',
@@ -84,16 +90,16 @@
     }
 
     // verdict.reasons prefixes that don't match their modality's `name` field
-    // 1:1 (vac-backend/main.py's modalities list names the Gemini deepfake
-    // scan "deepfake_detection", but compute_honest_verdict's reason codes
-    // use the "deepfake" prefix) — without this, findMod(signal) always
-    // misses and a deepfake-service outage (status: 'error') gets displayed
-    // as a false "deepfake detected" alarm instead of "service unavailable".
+    // 1:1 (the backend's modalities list names the Gemini deepfake scan
+    // "deepfake_detection", but compute_honest_verdict's reason codes use the
+    // "deepfake" prefix) — without this, findMod(signal) always misses and a
+    // deepfake-service outage (status: 'error') gets displayed as a false
+    // "deepfake detected" alarm instead of "service unavailable".
     var SIGNAL_TO_MODALITY = {
         deepfake: 'deepfake_detection'
     };
 
-    // result: the JSON body from /v1/vat/auth/verify (or equivalent) —
+    // result: the JSON body from the verify endpoint —
     // { verdict: { reasons: [...] }, biometric_verification: { modalities: [...] } }
     // Returns { reasons: string[], tips: string[] } naming only signals that
     // are actually present in verdict.reasons (falls back to per-modality

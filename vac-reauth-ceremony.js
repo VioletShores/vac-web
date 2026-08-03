@@ -258,46 +258,25 @@ const MAX_RETRIES = 5;
 let audioContext = null;
 let audioAnalyser = null;
 let audioAnimFrame = null;
+// F-755d audio-bar/equaliser display-only onset instrumentation (task-515 P0-1,
+// ported from vac-protocol b923dc3/a348465). Distinct from the real per-digit
+// VAD gate's own threshold state (vadSpeechThreshold/_lastVadRms etc. below) —
+// this only drives the ab0-4 bars + _renderEqualiser, never a pass/fail gate.
+let audioNoiseFloor = 0.01; // seeded low; adapts up/down to the room via EMA
+let audioOnsetActive = false;
+const AUDIO_ONSET_DELTA = 0.025;    // rms must exceed floor by this much to trigger onset
+const AUDIO_ONSET_RELEASE = 0.012;  // hysteresis: must drop back below floor+this to release
+const AUDIO_FLOOR_EMA_ALPHA = 0.05;    // fast adaptation while quiet
+const AUDIO_FLOOR_DRIFT_ALPHA = 0.002; // slow drift while onset-active (recovery only — see a348465: a hard freeze-while-active can never release in a sustained-loud room)
 
 
 
 // ========== FAIL_REASONS ==========
 
-// Fail reason descriptions — specific, actionable (Veriff/iProov pattern)
-const FAIL_REASONS = {
-    face_liveness: {
-        reason: 'Face not detected or liveness check failed.',
-        tip: 'Make sure your face is clearly visible, well-lit, and centered in the oval. Remove sunglasses or hats.'
-    },
-    deepfake_detection: {
-        reason: 'Deepfake indicators detected in the video.',
-        tip: 'Use your device camera directly — screen sharing, virtual cameras, or recorded playback will be rejected.'
-    },
-    voiceprint: {
-        reason: 'Voice not captured clearly enough for analysis.',
-        tip: 'Speak the challenge phrase clearly and at normal volume. Reduce background noise if possible.'
-    },
-    lip_sync: {
-        reason: 'Lip movements did not match the spoken audio.',
-        tip: 'Look directly at the camera while speaking. Make sure your mouth is visible and well-lit.'
-    },
-    challenge_response: {
-        reason: 'Spoken words did not match the challenge phrase.',
-        tip: 'Read the challenge phrase exactly as shown — include the greeting and all digits.'
-    },
-    duress: {
-        reason: 'Duress check — monitoring for signs of coercion.',
-        tip: 'This runs silently. If you are safe, this will always pass.'
-    },
-    finger_gesture: {
-        reason: 'Finger count sequence did not match the expected digits.',
-        tip: 'Show each digit with your fingers near your face. Change your hand clearly between each number — hold, change, hold. Keep fingers spread.'
-    },
-    geolocation: {
-        reason: 'Location could not be determined.',
-        tip: 'Allow location access when prompted by your browser.'
-    },
-};
+// Fail reason descriptions + verdict.reasons -> display derivation now live in
+// verdict-reasons.js (task-515 P0-2 port, shared with test_verdict_reasons.node.js)
+// — showRetry() below calls window.VacVerdictReasons.deriveFailureDisplay(result)
+// instead of deriving text from each modality's own `status` field.
 
 
 
@@ -461,6 +440,7 @@ let avCheckFrame = null;
 let avAudioCtx = null;
 let avAnalyser = null;
 let avChecks = { light: false, mic: false, hand: false };
+let _avSilentFrames = 0; // S154 fix-on-find: consecutive near-zero-input pre-flight frames while mic hasn't qualified — after ~6s, warns of a likely wrong-mic selection
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
@@ -864,6 +844,7 @@ function startAVChecks() {
     _micSeedRmsSamples = [];
     _micRunRmsSamples = [];
     _micSeeded = false;
+    _avSilentFrames = 0; // S154: fresh entry/retry gets a fresh 6s wrong-mic detection window
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
@@ -923,6 +904,13 @@ function startAVChecks() {
         const _atrk = mediaStream.getAudioTracks()[0];
         const source = avAudioCtx.createMediaStreamSource(_atrk ? new MediaStream([_atrk]) : mediaStream);
         source.connect(avAnalyser);
+        // S154 fix-on-find (F-1025 spirit): show the ACTUAL input device label during
+        // pre-flight — a silent wrong-device state (browser listening on the wrong
+        // mic) was previously masked once the latched "Mic: working" chip stuck.
+        try {
+            const devEl = document.getElementById('avMicDevice');
+            if (_atrk && devEl) { devEl.textContent = 'Listening through: ' + (_atrk.label || 'default microphone'); devEl.style.display = 'block'; }
+        } catch (e2) { /* label unavailable pre-permission on some browsers */ }
     } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
 
     // Create hidden canvas for brightness analysis
@@ -947,6 +935,7 @@ function startAVChecks() {
                 if (dev > maxDev) maxDev = dev;
             }
             const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            _checkMicDeviceWarn(level);
             // F-941 (BUILD 393): frequency-spectrum data pulled every frame (not just when the
             // monitor draw below needs it) so the voice-band ratio is available to the
             // ambient-relative qualify check regardless of __vacGateArmed. bins 1-16 of 128
@@ -1946,6 +1935,36 @@ function updateMicTips() {
     } else if (waited > 3) {
         tip.textContent = 'Try speaking louder or clapping';
         tip.style.display = 'block';
+    }
+}
+
+// S154 fix-on-find (F-1025 spirit, ported from vac-protocol d1656cc): correct code
+// running + near-zero pre-flight input for ~6s despite the "speak now" prompt above
+// usually means the browser is listening on a DIFFERENT microphone than the one
+// being spoken into (Continuity/display/BT mic) — say so explicitly. Complements
+// updateMicTips' generic "speak louder"/"check permissions" tips with the specific
+// wrong-device hypothesis once the silence is long and sustained enough to point at it.
+function _checkMicDeviceWarn(level) {
+    if (level >= 2 || avChecks.mic) {
+        if (_avSilentFrames) {
+            // Clear OUR leftover warning colour (marker-checked so this never clobbers
+            // a tip/colour some other code path set) — updateMicTips() keeps managing
+            // its own tip content/visibility independently every frame.
+            const tip = document.getElementById('avMicTip');
+            if (tip && tip.style.color === 'var(--warning)') tip.style.color = '';
+        }
+        _avSilentFrames = 0;
+        return;
+    }
+    _avSilentFrames++;
+    if (_avSilentFrames === 360) { // ~6s at the ~60fps this runs at (audio bar runs every frame)
+        const tip = document.getElementById('avMicTip');
+        if (tip) {
+            tip.innerHTML = 'Very low input. Your browser may be using a different microphone than the one you\'re speaking into — click the camera icon in the address bar, check the Microphone selection, then Refresh camera &amp; mic.';
+            tip.style.display = 'block';
+            tip.style.color = 'var(--warning)';
+        }
+        setAVStatus('mic', 'warn', 'Mic: input very low');
     }
 }
 
@@ -5419,34 +5438,17 @@ function showRetry(result) {
         return; // do NOT fall through to the red failure panel
     }
 
-    if (failed.length > 0) {
-        const reasons = failed.map(m => {
-            // Distinguish API errors from actual verification failures
-            if (m.status === 'error') {
-                return `${m.name.replace(/_/g, ' ')} — service unavailable (will retry).`;
-            }
-            // For challenge response, show what was heard vs expected
-            if (m.name === 'challenge_response' && (m.detail?.heard || m.detail?.expected)) {
-                return `Challenge Response — heard: "${m.detail.heard || '(nothing)'}" vs expected: "${m.detail.expected || challengePhrase}"`;
-            }
-            if (m.name === 'finger_gesture' && m.detail) {
-                var exp = (m.detail.digits_expected||[]).join(', ');
-                var saw = (m.detail.digits_seen||[]).join(', ');
-                return 'Finger gesture mismatch — expected [' + exp + '] but Gemini saw [' + saw + ']';
-            }
-            const info = FAIL_REASONS[m.name] || { reason: `${m.name} check failed.`, tip: '' };
-            return info.reason;
-        });
-        const tips = failed.filter(m => m.status === 'failed').map(m => {
-            const info = FAIL_REASONS[m.name] || { reason: '', tip: 'Try again with better conditions.' };
-            return info.tip;
-        }).filter(Boolean);
-        // If only API errors (no actual failures), show a simpler message
-        const hasRealFailures = failed.some(m => m.status === 'failed');
-        if (!hasRealFailures) {
-            tips.push('Some verification services are temporarily unavailable. Your voice and location were verified successfully.');
-        }
+    // VERDICT-EVIDENCE COHERENCE (task-515 P0-2, ported from vac-protocol
+    // b923dc3/6afc21c): derive the displayed reason from result.verdict.reasons
+    // (compute_honest_verdict's own authoritative output) instead of each
+    // modality's own `status` field — duress.status is "alert"/"clear" (never
+    // "failed"/"error"), and deepfake_detection.status can disagree with the
+    // deepfake_likelihood float the verdict actually gates on, so a duress- or
+    // deepfake-only deny left `failed` (above) empty and fell through to the
+    // signal-less generic message this used to show.
+    const { reasons, tips } = VacVerdictReasons.deriveFailureDisplay(result);
 
+    if (reasons.length > 0) {
         document.getElementById('failReasons').innerHTML = reasons.map(r =>
             `<div style="margin-bottom: 4px;">${r}</div>`
         ).join('');
@@ -5667,7 +5669,29 @@ function _renderEqualiser(rms) {
     });
 }
 
-// Audio level monitoring
+// Audio level monitoring (F-755d — VAD onset instrumentation, task-515 P0-1
+// ported from vac-protocol b923dc3/a348465)
+//
+// ROOT CAUSE (VAD onset loss, live repro: indoor speech w/ mild aircon pinned the
+// old "RMS" readout at ~1% through real speech): this DISPLAY-ONLY monitor (ab0-4
+// bars + _renderEqualiser — never the real per-digit VAD gate below, which has its
+// own independently-tuned ambient-relative/voice-band-ratio system) computed its
+// "RMS" from getByteFrequencyData() — the smoothed frequency-MAGNITUDE spectrum —
+// averaged across ALL 128 bins of a 256-point FFT. Voice energy sits in a handful
+// of low bins; the other ~110 bins are near-silent, so sqrt(mean-of-squares) over
+// the full spectrum systematically dilutes real speech toward zero. Fix: read the
+// raw TIME-DOMAIN waveform (getByteTimeDomainData, unaffected by smoothing) and
+// compute true sample RMS — the same domain the (correctly-implemented) pre-flight
+// AV mic check already uses (see startAVChecks() above).
+//
+// Gate: a fixed 5% absolute threshold silently fails once ambient noise (e.g.
+// aircon hum) sits anywhere near it. Replaced with an onset-sensitive gate — an
+// adapting ambient noise-floor estimate (EMA) plus a require-above-floor-by-delta
+// trigger, so onset detection tracks the actual room instead of one hardcoded
+// number. Two adaptation rates (not a hard freeze-while-active): FAST while quiet,
+// but the floor still DRIFTS slowly while onset is active (AUDIO_FLOOR_DRIFT_ALPHA)
+// — a hard freeze can never release in a room whose steady ambient sits above the
+// seeded floor (a348465).
 function startAudioMonitor() {
     try {
         // Belt-and-suspenders (the reload already guarantees a fresh context for re-auth, but this
@@ -5688,24 +5712,45 @@ function startAudioMonitor() {
         const source = audioContext.createMediaStreamSource(monitorStream);
         source.connect(audioAnalyser);
 
-        const dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+        audioNoiseFloor = 0.01;
+        audioOnsetActive = false;
+        const dataArray = new Uint8Array(audioAnalyser.fftSize);
         const bars = [0,1,2,3,4].map(i => document.getElementById(`ab${i}`));
+        const readout = document.getElementById('audioRmsReadout');
 
         function updateLevels() {
-            audioAnalyser.getByteFrequencyData(dataArray);
-            // RMS-based level with noise gate (FolioAI learning: raw FFT triggers on ambient)
-            let rms = 0;
-            for (let i = 0; i < dataArray.length; i++) rms += dataArray[i] * dataArray[i];
-            rms = Math.sqrt(rms / dataArray.length) / 255;
-            const gated = rms > 0.05 ? rms : 0; // Noise gate: ignore below 5% RMS
+            audioAnalyser.getByteTimeDomainData(dataArray);
+            // True time-domain RMS of the waveform (samples are unsigned bytes
+            // centered on 128) — not smoothed, not diluted across empty bins.
+            let sumSq = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                const dev = (dataArray[i] - 128) / 128;
+                sumSq += dev * dev;
+            }
+            const rms = Math.sqrt(sumSq / dataArray.length);
+
+            // Onset-sensitive gate, relative to an adapting ambient floor.
+            if (!audioOnsetActive && rms > audioNoiseFloor + AUDIO_ONSET_DELTA) {
+                audioOnsetActive = true;
+            } else if (audioOnsetActive && rms < audioNoiseFloor + AUDIO_ONSET_RELEASE) {
+                audioOnsetActive = false;
+            }
+            // Track the floor at all times, just far more slowly while onset is
+            // active — a normal utterance is too short/rms-transient to move it at
+            // the drift rate, but a sustained loud room still recovers (a348465).
+            const floorAlpha = audioOnsetActive ? AUDIO_FLOOR_DRIFT_ALPHA : AUDIO_FLOOR_EMA_ALPHA;
+            audioNoiseFloor += (rms - audioNoiseFloor) * floorAlpha;
+
             try { _renderEqualiser(rms); } catch(_) {}   // F-563 (2): live eq off the same mic level (display-only)
 
-            const step = Math.floor(dataArray.length / 5);
             for (let i = 0; i < 5; i++) {
-                const bandVal = dataArray[i * step] / 255;
-                const val = gated > 0 ? bandVal : 0;
+                const val = audioOnsetActive ? Math.min(1, rms * 4) : 0;
                 const h = Math.max(2, val * 20);
                 if (bars[i]) bars[i].style.height = h + 'px';
+            }
+            if (readout) {
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '%';
+                readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
         }
@@ -5728,6 +5773,7 @@ function stopAudioMonitor() {
     if (audioContext) audioContext.close().catch(() => {});
     audioContext = null;
     audioAnalyser = null;
+    audioOnsetActive = false;
     document.getElementById('audioLevel').style.display = 'none';
 }
 
@@ -5784,6 +5830,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
                 </div>
                 <span id="avAudioPct" style="font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); min-width: 30px; text-align: right;">0%</span>
             </div>
+            <div id="avMicDevice" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none; font-family: var(--mono);"></div>
             <div id="avMicTip" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none;"></div>
             <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; padding: 4px 10px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
@@ -5886,6 +5933,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
                 <div class="audio-bar" id="ab2" style="height:2px;"></div>
                 <div class="audio-bar" id="ab3" style="height:2px;"></div>
                 <div class="audio-bar" id="ab4" style="height:2px;"></div>
+                <span class="audio-rms-readout" id="audioRmsReadout" title="Live mic RMS — instrumentation for onset debugging (F-755d)">RMS 0%</span>
             </div>
         </div>
         <!-- F-563 (2/latch): camera-free "Say N" view. An OPAQUE cover over the feed during the

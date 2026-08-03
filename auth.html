@@ -149,6 +149,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 /* Audio level indicator */
 .audio-level { position: absolute; top: 8px; right: 8px; display: flex; align-items: flex-end; gap: 2px; height: 20px; background: rgba(0,0,0,0.7); padding: 3px 5px; border-radius: 4px; }
 .audio-bar { width: 3px; background: var(--success); border-radius: 1px; transition: height 0.08s ease-out; min-height: 2px; }
+.audio-rms-readout { margin-left: 6px; align-self: center; font-family: var(--mono); font-size: 10px; color: #9498A8; white-space: nowrap; transition: color 0.1s ease-out; }
+.audio-rms-readout.onset-active { color: var(--success); font-weight: 600; }
 /* F-563 (2): live audio equaliser bars (display-only; driven off the mic level the gate analyses) */
 .vac-eq > span { display: inline-block; width: 6px; height: 4px; border-radius: 3px; background: var(--text-quaternary, #6E7681); transition: height 0.1s ease, background 0.1s ease; }
 .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
@@ -336,6 +338,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <!-- S117 reauth-unify: the ONE shared re-auth ceremony (camera + show-and-say N digits +
      capture + verify), extracted verbatim from this page. auth.html is its first/only caller. -->
 <script src="/vac-copy-registry.js"></script>
+<!-- task-515 P0-2 (ported from vac-protocol b923dc3/6afc21c): verdict.reasons ->
+     display derivation, shared with test_verdict_reasons.node.js. Must load
+     before vac-reauth-ceremony.js's showRetry() calls it. -->
+<script src="/verdict-reasons.js"></script>
 <script src="/vac-reauth-ceremony.js?v=s145b12"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
