@@ -1,0 +1,560 @@
+
+
+
+
+Network Working Group                                    R. A. Zagarella
+Internet-Draft                                     Violet Shores Pty Ltd
+Intended status: Informational                              14 July 2026
+Expires: 15 January 2027
+
+
+ Verified Human Root Attestation for Agent Delegation Chains and Audit
+                                Records
+                 draft-zagarella-verified-human-root-00
+
+Abstract
+
+   Autonomous software agents increasingly act under delegated
+   authority, and emerging audit-record data models capture what an
+   agent did, under which delegation, with which authorization state.
+   In current practice the head of every such chain, and the identity
+   axis of every such record, is a key, an account, or a workload
+   identity.  No standardized element establishes that an identified
+   natural person, verified as live and present, stands at the head of
+   the chain or behind the recorded action.
+
+   This document defines the Verified Human Root Attestation (VHRA): a
+   compact, privacy-preserving data structure asserting that a biometric
+   proof-of-human verification of an identified natural person (or an
+   M-of-N quorum of such persons) occurred at a specific issuance event.
+   It further defines how a delegation chain binds a VHRA at its root
+   such that the binding survives attenuation, and how audit and
+   interaction records reference a VHRA so that any recorded agent
+   action can be resolved to an accountable natural person without the
+   verifier receiving any biometric material.
+
+   This document is offered as input to the proposed AUDIT working
+   group's data model work.  It deliberately does not standardize
+   biometric verification methods; it standardizes only the attestation
+   structure, its bindings, and verifier obligations.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 1]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 15 January 2027.
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+     1.1.  Relationship to the proposed AUDIT work . . . . . . . . .   4
+   2.  Conventions and Definitions . . . . . . . . . . . . . . . . .   4
+   3.  Terminology . . . . . . . . . . . . . . . . . . . . . . . . .   4
+   4.  The Verified Human Root Attestation . . . . . . . . . . . . .   5
+   5.  Binding a VHRA to a Delegation Chain  . . . . . . . . . . . .   5
+     5.1.  Root placement  . . . . . . . . . . . . . . . . . . . . .   6
+     5.2.  Preservation across attenuation . . . . . . . . . . . . .   6
+     5.3.  Verifier obligations  . . . . . . . . . . . . . . . . . .   6
+     5.4.  Revocation  . . . . . . . . . . . . . . . . . . . . . . .   7
+   6.  Referencing a VHRA from Audit Records . . . . . . . . . . . .   7
+   7.  Privacy Considerations  . . . . . . . . . . . . . . . . . . .   7
+   8.  Security Considerations . . . . . . . . . . . . . . . . . . .   8
+   9.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   8
+   10. References  . . . . . . . . . . . . . . . . . . . . . . . . .   8
+     10.1.  Normative References . . . . . . . . . . . . . . . . . .   8
+     10.2.  Informative References . . . . . . . . . . . . . . . . .   9
+   Appendix A.  Binding to Existing Authorization Ecosystems . . . .   9
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .  10
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  10
+
+
+
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 2]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+1.  Introduction
+
+   Delegation and audit mechanisms for autonomous agents are converging
+   quickly: attenuable token chains, delegation receipts, agent identity
+   attestations, and audit-record architectures are all active areas of
+   specification.  These mechanisms share a structural property:
+   authority is rooted in the possession of a cryptographic key, an
+   account at an identity provider, or a workload identity.  Attribution
+   therefore terminates at a credential.
+
+   A large class of deployments — legal instruments, regulated
+   industries, critical infrastructure, government — carries a
+   requirement that credential-level attribution alone does not address.
+   The governing question in these settings is: which accountable
+   natural person authorized this, and can that be proven years later,
+   to a party who was not present, without that party being granted
+   standing access to personal data?  Keys are delegated, stolen,
+   shared, and escrowed; accounts are administered; workloads are
+   ephemeral.  A credential at the head of a chain does not answer the
+   question.
+
+   This document defines a small data structure, the Verified Human Root
+   Attestation (VHRA), that closes this gap in a composable way:
+
+   *  A VHRA asserts that a biometric proof-of-human verification of an
+      identified natural person occurred at a specific issuance event,
+      at a stated assurance level, optionally as an M-of-N quorum of
+      distinct persons.
+
+   *  A delegation chain MAY bind a VHRA at its root such that every
+      attenuation hop preserves a resolvable reference to it, and a
+      verifier of any leaf action can validate the human root and fail
+      closed if it is absent, invalid, or revoked.
+
+   *  An audit or interaction record MAY carry a reference to the VHRA
+      under which the recorded action was performed, so that audit
+      resolution reaches a natural person rather than terminating at an
+      agent identifier.
+
+   The VHRA is intentionally agnostic to how biometric verification is
+   performed.  Verification methods, liveness detection techniques, and
+   their quality are the province of certification programs and are out
+   of scope.  The structure standardized here is the interface: what an
+   issuer asserts, what travels in the chain, what a record references,
+   and what a verifier is obliged to check.
+
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 3]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+1.1.  Relationship to the proposed AUDIT work
+
+   The proposed AUDIT working group contemplates data models for
+   interaction records, agent identity, delegation context,
+   authorization state over time, and action provenance.  Each of those
+   elements is strengthened by, and none currently provides, an optional
+   verified-human-root binding.  This document proposes that the audit-
+   record data model include an OPTIONAL field carrying a VHRA reference
+   (Section 6), so that deployments with accountability requirements can
+   resolve records to natural persons while deployments without such
+   requirements omit the field entirely.
+
+2.  Conventions and Definitions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  Terminology
+
+   Human Principal:  An identified natural person on whose authority a
+      delegation chain is issued or an action is performed.
+
+   Liveness Event:  A discrete biometric verification of a Human
+      Principal, performed at a specific time, asserting that the person
+      was live and present.  The methods by which liveness is
+      established are out of scope.
+
+   Verified Human Root Attestation (VHRA):  The data structure defined
+      in Section 4, asserting one Liveness Event (or an M-of-N quorum of
+      Liveness Events) bound to a specific issuance event.
+
+   Issuance Event:  The act of creating a delegation chain, credential,
+      or session for which the VHRA establishes the human root,
+      identified by a unique nonce.
+
+   Quorum Root:  A VHRA whose assertion covers M-of-N Liveness Events of
+      N distinct Human Principals.
+
+   Delegation Chain:  Any mechanism by which authority is conveyed from
+      an issuer through zero or more attenuation hops to a leaf
+      credential under which an agent acts.  This document is agnostic
+      to the token format.
+
+   Audit Record:  Any record, per an audit-record data model, describing
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 4]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+      an agent interaction or action, its delegation context, and its
+      authorization state.
+
+4.  The Verified Human Root Attestation
+
+   A VHRA is a signed structure with the following logical fields.
+   Encodings (CBOR, JSON) are expected to be profiled by the consuming
+   ecosystem; field semantics are normative, serialization is not, in
+   this version.
+
+   subject:  A reference to the Human Principal's identity credential.
+      This is a reference, not the credential itself and not biometric
+      material.
+
+   liveness:  Metadata about the Liveness Event(s): the count and class
+      of verification modalities employed (e.g., "multi-modal, fused"),
+      the assurance level asserted by the issuer against a stated
+      assurance framework, and the time of the event.  This field
+      carries no biometric samples, templates, or model outputs.
+
+   issuance_nonce:  The unique identifier of the Issuance Event to which
+      this VHRA is bound.  A VHRA MUST be bound to exactly one Issuance
+      Event.  This binding is the anti-replay anchor: a VHRA MUST NOT be
+      accepted for any issuance other than the one named by this nonce.
+
+   freshness:  The validity window within which the Liveness Event must
+      have occurred relative to the Issuance Event, as asserted by the
+      issuer.
+
+   quorum:  OPTIONAL.  Present when the VHRA is a Quorum Root: the
+      values M and N, and, for each constituent Liveness Event, an
+      independently-signed sub-assertion bound to the same
+      issuance_nonce.  Constituent sub-assertions MUST be independently
+      produced and signed such that satisfaction of the quorum requires
+      M distinct Human Principals; M qualifying sub-assertions from a
+      single person is a protocol violation.
+
+   revocation:  A pointer (URI or equivalent) at which the current
+      validity of this VHRA can be checked.  Revocation semantics are
+      defined in Section 5.3.
+
+   issuer, signature:  The attestation issuer's identifier and signature
+      over all fields above.
+
+5.  Binding a VHRA to a Delegation Chain
+
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 5]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+5.1.  Root placement
+
+   A delegation chain that claims a verified human root MUST bind the
+   VHRA (or a cryptographic commitment to it) in a root position with
+   the following properties:
+
+   *  It is covered by the signature of the root credential and,
+      transitively, by every signature in the chain, such that its
+      removal or alteration invalidates the chain.
+
+   *  It is non-removable: no attenuation hop can produce a valid
+      derivative credential that omits the binding.
+
+5.2.  Preservation across attenuation
+
+   Each attenuation hop, whatever else it narrows, MUST preserve a
+   resolvable cryptographic reference to the root VHRA.  A verifier
+   presented with any leaf credential of the chain MUST be able to
+   resolve the reference and validate the VHRA without cooperation from
+   intermediate hops.
+
+5.3.  Verifier obligations
+
+   A verifier of an action requested under a chain that claims a
+   verified human root MUST, in addition to whatever chain validation
+   the token format requires:
+
+   1.  resolve the root VHRA reference;
+
+   2.  validate the VHRA signature and its binding to the chain's
+       Issuance Event via issuance_nonce;
+
+   3.  check freshness and, where present, quorum satisfaction;
+
+   4.  check current validity via the revocation pointer; and
+
+   5.  reject the action if the VHRA is absent, unresolvable, invalid,
+       stale, quorum-deficient, or revoked (fail closed).
+
+   A verifier MUST NOT treat the absence of a VHRA as equivalent to a
+   present but unverifiable VHRA: a chain that claims a human root and
+   cannot prove it is invalid, whereas a chain that never claimed one is
+   simply outside this document's scope.
+
+
+
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 6]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+5.4.  Revocation
+
+   Revocation of a VHRA by or on behalf of the Human Principal
+   invalidates the chain rooted in it.  Post-revocation, verification
+   per Section 5.3 fails, and all leaf authority derived from the chain
+   is extinguished at the identity layer, independent of the revocation
+   state of any individual key in the chain.
+
+6.  Referencing a VHRA from Audit Records
+
+   An audit-record data model SHOULD provide an OPTIONAL field,
+   suggested name verified_human_root, with the following contents:
+
+   *  a reference to the VHRA under which the recorded action's
+      authority was rooted;
+
+   *  a cryptographic digest of the VHRA as validated at action time;
+      and
+
+   *  the validity status observed at action time.
+
+   This triple permits a later audit consumer to establish that the
+   recorded action resolved, at the time it was performed, to a then-
+   valid verified human root — and to re-resolve the reference if the
+   underlying attestation is still available — without the record itself
+   carrying any personal data beyond an opaque reference.
+
+   Records for actions performed under chains with no VHRA simply omit
+   the field.  Audit tooling can therefore filter, without heuristics,
+   between human-rooted and credential-rooted actions — which is
+   precisely the distinction that liability-bearing deployments need to
+   make.
+
+7.  Privacy Considerations
+
+   The design constraint of this document is that accountability must
+   not cost surveillance:
+
+   *  No biometric samples, templates, feature vectors, or model outputs
+      appear in the VHRA, the delegation chain, or any audit record.
+
+   *  A verifier receives only: an opaque subject reference, liveness
+      metadata, a digest, and a validity status.  Resolution of the
+      subject reference to a legal identity is a governed act, available
+      to authorized oversight parties under the deployment's disclosure
+      rules, and is out of band with respect to this document.
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 7]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+   *  An oversight party can confirm THAT an accountable verified person
+      stands behind an action without learning WHO, unless and until
+      disclosure is authorized.  This "standing-access-free" property is
+      deliberate and deployments SHOULD preserve it.
+
+   *  The issuance_nonce binding prevents cross-context correlation of
+      VHRAs: an attestation is meaningful only for its named Issuance
+      Event.
+
+8.  Security Considerations
+
+   Replay:  The issuance_nonce binding (Section 4) is mandatory
+      precisely because a liveness assertion detached from its issuance
+      context is a replayable bearer of trust.  Verifiers MUST reject
+      VHRA presentations whose nonce does not match the chain's Issuance
+      Event.
+
+   Freshness:  A stale Liveness Event weakens the live-and-present
+      claim.  Issuers assert a freshness window; verifiers enforce it.
+      Deployments choose windows proportional to risk.
+
+   Quorum independence:  The value of a Quorum Root depends on
+      constituent sub-assertions being independently produced.
+      Implementations MUST NOT permit a single capture pipeline to emit
+      multiple constituent sub-assertions for one issuance.
+
+   Downgrade:  An attacker who can strip a VHRA binding converts a
+      human-rooted chain into a credential-rooted one.  The non-
+      removability requirement (Section 5.1) exists to make this a
+      signature-breaking operation.
+
+   Verification quality:  This document standardizes the interface, not
+      the strength, of biometric verification.  An attestation is only
+      as strong as its issuer's practices; conformance and certification
+      of issuers is expected to be addressed by external programs and is
+      a natural complement to this specification.
+
+9.  IANA Considerations
+
+   This document has no IANA actions.  A future version may register the
+   verified_human_root audit-record field and a VHRA media type, subject
+   to working-group adoption.
+
+10.  References
+
+10.1.  Normative References
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 8]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+10.2.  Informative References
+
+   [RFC9635]  Richer, J., Ed. and F. Imbault, "Grant Negotiation and
+              Authorization Protocol (GNAP)", RFC 9635,
+              DOI 10.17487/RFC9635, October 2024,
+              <https://www.rfc-editor.org/info/rfc9635>.
+
+   [RFC8693]  Jones, M., Nadalin, A., Campbell, B., Ed., Bradley, J.,
+              and C. Mortimore, "OAuth 2.0 Token Exchange", RFC 8693,
+              DOI 10.17487/RFC8693, January 2020,
+              <https://www.rfc-editor.org/info/rfc8693>.
+
+   [RFC2693]  Ellison, C., Frantz, B., Lampson, B., Rivest, R., Thomas,
+              B., and T. Ylonen, "SPKI Certificate Theory", RFC 2693,
+              DOI 10.17487/RFC2693, September 1999,
+              <https://www.rfc-editor.org/info/rfc2693>.
+
+Appendix A.  Binding to Existing Authorization Ecosystems
+
+   This appendix sketches, informatively, how the VHRA composes with
+   current mechanisms; none of these bindings changes the host protocol.
+
+   GNAP ([RFC9635]):  The VHRA functions as interaction-derived evidence
+      bound to a grant: the grant's issuance is the Issuance Event, and
+      access tokens derived from the grant carry the root reference.
+
+   OAuth 2.0 Token Exchange ([RFC8693]):  A token-exchange chain
+      preserves the VHRA reference as a claim that MUST survive
+      exchange; the verifier obligations of Section 5.3 apply at
+      resource access.
+
+   Attenuable token formats (macaroon- and biscuit-class):  The VHRA
+      commitment is the first caveat; attenuation appends caveats but
+      cannot remove it.
+
+   SPKI-style authorization certificates ([RFC2693]):  The VHRA is
+      carried in the root certificate; delegated certificates reference
+      it.
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 9]
+
+Internet-Draft             Verified Human Root                 July 2026
+
+
+   Workload identity ecosystems:  A workload credential remains
+      workload-scoped; where a workload acts under human-rooted
+      delegated authority, the workload's requests carry the chain, and
+      the chain carries the VHRA.  Human root and workload identity are
+      complementary, not competing, axes.
+
+Acknowledgments
+
+   This document responds to the direction of the proposed AUDIT work
+   and to the broader delegation-receipt and agent-identity efforts
+   whose gap it aims to fill.
+
+Author's Address
+
+   Roberto Antonio Zagarella
+   Violet Shores Pty Ltd
+   Email: rob@violetshores.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Zagarella                Expires 15 January 2027               [Page 10]

@@ -1,0 +1,448 @@
+
+
+
+
+Network Working Group                                    R. A. Zagarella
+Internet-Draft                                     Violet Shores Pty Ltd
+Intended status: Informational                              14 July 2026
+Expires: 15 January 2027
+
+
+        Pre-Action Risk-Graded Assurance for Agent Interactions
+                  draft-zagarella-autonomy-governor-00
+
+Abstract
+
+   Governance of autonomous agents today is largely expressed as
+   boundary enforcement: an action is permitted or blocked at the point
+   it is attempted, per a policy evaluated at that boundary.  As agents
+   span heterogeneous action types — authenticating a human, executing a
+   delegated task, selecting a computational resource — a single,
+   uniform way to express "how much assurance this action requires,
+   before it proceeds" is missing.
+
+   This document describes an interface for pre-action, risk-graded
+   assurance: a policy stage that, before an agent action proceeds,
+   derives an assurance requirement from a risk signal and expresses
+   that requirement in a domain-appropriate form, recording the decision
+   in an audit record and optionally binding it to a verified human
+   root.  It defines the interface and the audit-record fields, not any
+   particular risk-scoring method or control law.
+
+   This document is offered as input to the proposed AUDIT working
+   group's work on authorization state over time and action provenance.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 15 January 2027.
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 1]
+
+Internet-Draft             Assurance Governor                  July 2026
+
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   2
+     1.1.  Relationship to the policy decision/enforcement model . .   3
+     1.2.  Relationship to the proposed AUDIT work . . . . . . . . .   3
+     1.3.  Relationship to the Verified Human Root . . . . . . . . .   3
+   2.  Conventions and Definitions . . . . . . . . . . . . . . . . .   4
+   3.  The Pre-Action Assurance Stage  . . . . . . . . . . . . . . .   4
+   4.  Domain-Appropriate Assurance Forms  . . . . . . . . . . . . .   4
+   5.  Audit Record Fields . . . . . . . . . . . . . . . . . . . . .   5
+   6.  Interoperability Considerations . . . . . . . . . . . . . . .   6
+   7.  Security Considerations . . . . . . . . . . . . . . . . . . .   6
+   8.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .   7
+   9.  References  . . . . . . . . . . . . . . . . . . . . . . . . .   7
+     9.1.  Normative References  . . . . . . . . . . . . . . . . . .   7
+     9.2.  Informative References  . . . . . . . . . . . . . . . . .   7
+   Design Rationale  . . . . . . . . . . . . . . . . . . . . . . . .   7
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .   8
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .   8
+
+1.  Introduction
+
+   Emerging agent-governance systems evaluate policy at action
+   boundaries and return, in the common case, a binary decision.  This
+   is adequate for uniform allow/deny gating but does not capture a
+   property that liability-bearing and safety-sensitive deployments
+   increasingly require: assurance should scale with risk, be evaluated
+   before the action proceeds, be expressible uniformly across different
+   kinds of action, and leave a provable record of why a given assurance
+   level was required and whether it was met.
+
+   Consider three actions an agent may take: (a) re-authenticate the
+   human on whose behalf it acts; (b) execute a delegated task with
+   external effect; (c) select which computational resource (for
+
+
+
+Zagarella                Expires 15 January 2027                [Page 2]
+
+Internet-Draft             Assurance Governor                  July 2026
+
+
+   instance, which model) will handle a request.  These belong to
+   different domains, yet each admits a natural notion of "assurance":
+   authentication depth for (a), oversight degree for (b), and selection
+   rigor for (c).  Today each is governed by a separate mechanism, if at
+   all.
+
+   This document describes a single pre-action stage that unifies them
+   at the interface level.  It does not prescribe how risk is computed,
+   nor the control law that maps risk to requirement; those are
+   implementation and product matters, and in some deployments
+   proprietary.  What it standardizes is the shape of the decision and
+   its record, so that audit consumers and interoperating systems can
+   reason about assurance uniformly.
+
+1.1.  Relationship to the policy decision/enforcement model
+
+   The separation of a decision function from an enforcement function is
+   a well-known model in this community: the Common Open Policy Service
+   [RFC2748] defined a policy decision point (PDP) and a policy
+   enforcement point (PEP), with the PEP consulting the PDP before
+   acting.  The stage described here follows that established division
+   of responsibility: an assurance decision function computes the
+   required assurance for a request, and an enforcement point admits the
+   action only once the requirement is met.  What this document adds to
+   that model, for the agent setting, is (a) a requirement that is risk-
+   graded rather than a single admit/deny outcome, (b) evaluation that
+   is uniform across heterogeneous action-domains, and (c) an audit
+   record of the decision suitable for the provenance and authorization-
+   state work of the proposed AUDIT working group.  The terminology of
+   [RFC2748] is used here for continuity; this document does not reuse
+   the COPS wire protocol.
+
+1.2.  Relationship to the proposed AUDIT work
+
+   The proposed AUDIT working group contemplates modeling authorization
+   state over time and action provenance.  A pre-action assurance
+   decision is exactly a unit of authorization state: it is computed,
+   applied, and — per this document — recorded, before the action.  The
+   audit-record fields in Section 5 are offered for that model.
+
+1.3.  Relationship to the Verified Human Root
+
+   Where a deployment also uses a verified human root
+   ([I-D.zagarella-verified-human-root]), the assurance decision MAY be
+   bound to the root attestation, so that the record shows not only what
+   assurance was required and met, but under which accountable human the
+   action was authorized.  The two documents are independent; either may
+   be used without the other.
+
+
+
+Zagarella                Expires 15 January 2027                [Page 3]
+
+Internet-Draft             Assurance Governor                  July 2026
+
+
+2.  Conventions and Definitions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  The Pre-Action Assurance Stage
+
+   This section describes the decision whose record is the subject of
+   this document.  It is descriptive context for the audit-record fields
+   of Section 5, not a mandated enforcement architecture: a deployment
+   records these fields wherever it makes such a decision, however its
+   own enforcement is structured.
+
+   An implementation that records these fields evaluates, for an
+   incoming agent action request and before the action proceeds:
+
+   1.  a risk signal for the request (the method of computing it is out
+       of scope);
+
+   2.  an assurance requirement derived from that signal, expressed in a
+       form appropriate to the request's action-domain (Section 4);
+
+   3.  whether the requirement is satisfied; and
+
+   4.  a decision that gates the action at an enforcement point (a PEP
+       in the sense of [RFC2748]): the action proceeds only if the
+       requirement is met, and cannot bypass the stage.
+
+   The decision, its inputs, and its outcome are recorded (Section 5).
+
+   The requirement is "risk-graded": it may take one of several ordered
+   levels rather than a single permit/deny outcome.  The number of
+   levels, and the mapping from risk signal to level, are out of scope
+   for this document; a deployment MAY use as few as two levels, but an
+   interoperating consumer MUST NOT assume only two levels exist.
+
+4.  Domain-Appropriate Assurance Forms
+
+   The assurance requirement is one primitive expressed differently per
+   domain.  This document defines three domains and leaves the set
+   extensible.
+
+   Human-authentication domain:  The requirement is an authentication
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 4]
+
+Internet-Draft             Assurance Governor                  July 2026
+
+
+      depth, ranging from a light single-factor re-authentication for
+      low-risk actions to a full multi-modal re-authentication for high-
+      risk or non-repudiable actions.
+
+   Agent-action-execution domain:  The requirement is an oversight
+      degree, ranging from autonomous execution, through draft-then-
+      human-confirmation, to block-pending-human-authorization.
+
+   Computational-resource-selection domain:  The requirement is a
+      selection rigor, ranging from single-resource selection to multi-
+      resource cross-validation or consensus of a specified depth.
+
+   An implementation MAY define additional domains.  A domain definition
+   MUST specify the ordered set of assurance levels for that domain and
+   how a level is determined to be satisfied.
+
+5.  Audit Record Fields
+
+   For each evaluation, an implementation SHOULD record, in the
+   deployment's audit-record model:
+
+   action_ref:  A reference to the action request being gated.
+
+   risk_signal:  The risk value that drove the decision, and a reference
+      to the method or metric identity that produced it (the metric's
+      internals are out of scope).
+
+   domain:  The action-domain of the request.
+
+   assurance_required:  The derived requirement, in the domain-
+      appropriate form of Section 4, including the level within that
+      domain's ordered set.
+
+   assurance_outcome:  Whether the requirement was satisfied, and by
+      what evidence reference.
+
+   pre_action:  A boolean or structural indicator that the evaluation
+      preceded and gated the action (as opposed to a post-hoc log).
+
+   verified_human_root:  OPTIONAL.  A reference per
+      [I-D.zagarella-verified-human-root] binding the decision to an
+      accountable human.
+
+   These fields let an audit consumer answer, for any recorded action:
+   what was the assessed risk, what assurance did policy therefore
+   require, was it met, and was the check made before the action —
+   uniformly across domains.
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 5]
+
+Internet-Draft             Assurance Governor                  July 2026
+
+
+6.  Interoperability Considerations
+
+   Two systems interoperate at this interface when they agree on: the
+   set of action-domains in use; for each domain, the ordered set of
+   assurance levels and their satisfaction criteria; and the audit-
+   record field names and encodings.  This document fixes the field
+   semantics and the three baseline domains; the concrete level sets and
+   encodings are expected to be profiled by the consuming ecosystem or
+   working group.
+
+   Systems that evaluate policy only at action boundaries can expose a
+   degenerate two-level grading through this interface without adopting
+   continuous grading internally; consumers therefore MUST treat two-
+   level behavior as a valid special case and MUST NOT infer richer
+   semantics than a producer advertises.
+
+7.  Security Considerations
+
+   Non-bypass:  The value of a pre-action stage is that it cannot be
+      skipped.  An implementation MUST ensure the action does not
+      proceed unless the assurance requirement is satisfied; a stage
+      that can be bypassed provides no assurance regardless of how it
+      grades risk.
+
+   Risk-signal integrity:  The assurance requirement is only as
+      trustworthy as the risk signal.  Manipulation of the signal
+      manipulates the requirement.  Deployments SHOULD protect the
+      integrity and provenance of the risk input; this document's audit
+      fields record which metric was used so that later review can
+      detect anomalous inputs.
+
+   Record integrity:  Assurance decisions are security-relevant events.
+      The audit records SHOULD be carried in a tamper-evident record
+      model so that the "required vs met" history cannot be silently
+      rewritten.
+
+   Binding to human root:  Where the verified_human_root field is used,
+      the security considerations of [I-D.zagarella-verified-human-root]
+      apply to that binding, including its replay and revocation
+      properties.
+
+   Downgrade:  An attacker who can lower the derived requirement (by
+      influencing the risk signal or the domain classification) weakens
+      assurance without triggering a deny.  Deployments SHOULD monitor
+      for anomalous downward drift in required assurance relative to
+      comparable historical actions.
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 6]
+
+Internet-Draft             Assurance Governor                  July 2026
+
+
+8.  IANA Considerations
+
+   This document has no IANA actions.  A future version may register the
+   audit-record field names of Section 5, subject to working-group
+   adoption.
+
+9.  References
+
+9.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+9.2.  Informative References
+
+   [RFC2748]  Durham, D., Ed., Boyle, J., Cohen, R., Herzog, S., Rajan,
+              R., and A. Sastry, "The COPS (Common Open Policy Service)
+              Protocol", RFC 2748, DOI 10.17487/RFC2748, January 2000,
+              <https://www.rfc-editor.org/info/rfc2748>.
+
+   [RFC9635]  Richer, J., Ed. and F. Imbault, "Grant Negotiation and
+              Authorization Protocol (GNAP)", RFC 9635,
+              DOI 10.17487/RFC9635, October 2024,
+              <https://www.rfc-editor.org/info/rfc9635>.
+
+   [I-D.zagarella-verified-human-root]
+              Zagarella, R. A., "Verified Human Root Attestation for
+              Agent Delegation Chains and Audit Records", Work in
+              Progress, Internet-Draft, draft-zagarella-verified-human-
+              root-00, 2026, <https://datatracker.ietf.org/doc/html/
+              draft-zagarella-verified-human-root-00>.
+
+Design Rationale
+
+   The interface deliberately stops at the decision boundary.  Whether
+   risk is computed by a single model, an ensemble, a calibrated cross-
+   model metric, or a human-tuned heuristic is a deployment choice;
+   whether the mapping from risk to requirement is a step function, a
+   continuous curve, or a control loop with feedback is likewise out of
+   scope here.  Standardizing only the shape of the decision and its
+   record maximizes interoperability while leaving room for
+   implementations to differentiate on the quality of their risk
+
+
+
+Zagarella                Expires 15 January 2027                [Page 7]
+
+Internet-Draft             Assurance Governor                  July 2026
+
+
+   assessment and control behavior.
+
+Acknowledgments
+
+   This document responds to the direction of the proposed AUDIT work on
+   authorization state and provenance, and is designed to compose with
+   [I-D.zagarella-verified-human-root].
+
+Author's Address
+
+   Roberto Antonio Zagarella
+   Violet Shores Pty Ltd
+   Email: rob@violetshores.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Zagarella                Expires 15 January 2027                [Page 8]
