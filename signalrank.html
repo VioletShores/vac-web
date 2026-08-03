@@ -85,7 +85,7 @@ td.mono{font-family:var(--mono)}
       [domains.size,'calibrated domains'],
       [models.size,'models tracked'],
       [d.total_corpus_size? d.total_corpus_size.toLocaleString():'—','known-answer corpus'],
-      [(d.score_gap!=null)?(d.score_gap*100).toFixed(1)+'%','best-vs-median score gap'],
+      [(d.score_gap!=null)?(d.score_gap*100).toFixed(1)+'%':'—','best-vs-median score gap'],
     ];
     $('stats').innerHTML=stats.map(([n,l])=>'<div class="stat"><div class="n">'+n+'</div><div class="l">'+l+'</div></div>').join('');
     // per-domain leaders
