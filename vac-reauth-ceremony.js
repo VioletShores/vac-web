@@ -2734,7 +2734,8 @@ function beginRecording() {
     // F-662: DIGIT_COOCCUR_MS / DIGIT_COOCCUR_MAX_MS moved to module scope (ONE source, shared with the
     // FAST tier via _cooccurAdvanceDecision). Same values; the inline gate below now calls that helper.
     const DIGIT_MOD_DELTA = 0.030;   // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy a digit; a spoken digit's vowel envelope does
-    const VAD_ONSET_SUSTAIN_MS = 250; // S139-v2: raised 180→250ms — floor = shortest voiced digit "one/uno" (~250ms phonation). The previous 180ms was vulnerable to two quick desk-taps ~100-150ms apart: the smoothed analyser envelope stayed above threshold continuously across both taps, so the pre-onset timer never reset between them.
+    const VAD_ONSET_SUSTAIN_MS = 180; // S154 field-tune (Rob, Sicily e2e): 250→180. The 250ms no-gap hold rejected naturally-spoken digits with soft onsets ("four" — /f/ fricative dips a frame; dragged speech passed, normal speech aborted at the hard single-frame reset below, now dip-tolerant). Tap defense unchanged in depth: dual spectral checks (onset + mid-window) + modulation + Gemini server-side remain. Original S139-v2 note: raised 180→250ms — floor = shortest voiced digit "one/uno" (~250ms phonation). The previous 180ms was vulnerable to two quick desk-taps ~100-150ms apart: the smoothed analyser envelope stayed above threshold continuously across both taps, so the pre-onset timer never reset between them.
+    const VAD_ONSET_DIP_MS = 60;     // S154: max OBSERVED neither-band dip tolerated WITHIN the pre-onset sustain window (mirrors the R1 observed-dip pattern post-onset). A soft consonant dips 1-3 frames (~20-50ms); spaced desk-taps sit 100-150ms apart and still break. Silence always aborts instantly.
     const VAD_VOICE_BAND_FRAC = 0.35; // S139-v2: mid-band 300-3500Hz energy fraction, raised 0.20→0.35. Band narrowed from 0-3.5kHz to exclude LF thump (<300Hz). Desk-tap thumps are sub-200Hz (excluded from mid-band window); voice concentrates formants F1/F2 in 300-3000Hz. Flat-broadband baseline in a 17-bin mid window = ~13.3%, so 0.35 rejects any non-voice signal. Checked at onset-start AND mid-window frames.
     // BUILD 379 (Rob restaurant fix): a loud BROADBAND room (chatter/clatter) can push rms over
     // vadSpeechThreshold without being voice-concentrated — false-arming "voiced" and burning the
@@ -2759,6 +2760,7 @@ function beginRecording() {
     let _sawSilence = false;         // observed real silence since THIS digit's window opened?
     let _voiceOnsetAt = 0;           // performance.now() when the current fresh voiced run began
     let _preOnsetStart = 0;          // S139: perf.now() when continuous above-threshold pre-onset accumulation began; 0 = not accumulating. Resets on any non-above-threshold frame.
+    let _preOnsetDipStart = 0;  // S154: start of the current tolerated pre-onset dip (0 = not dipping)
     let _preOnsetMidChecked = false; // S139-v2: true once the mid-window spectral re-check has run in the current pre-onset window; reset when _preOnsetStart resets.
     let _rejectedTransients = 0;     // S139: count of onset attempts killed by the onset sustain gate (taps that dropped before 250ms)
     let _lastRejectReason = '';      // S139-v2: 'spec' (spectral mid-band check) | 'sust' (sustain dip/silence); surfaced in the QA debug readout
@@ -2854,7 +2856,7 @@ function beginRecording() {
                     // beat / grace). A real pause there arms the next digit, so a fresh utterance
                     // that OVERLAPS the window-open still counts (codex), while continuous
                     // carry-over (no pause since the last accept) stays rejected.
-                    if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; }  // S139: silence aborts pre-onset
+                    if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }  // S139: silence aborts pre-onset (S154: dip tracker cleared too)
                     _sawSilence = true;
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
                 } else if (rms > vadSpeechThreshold && vbRatio >= VOICE_BAND_MIN_RATIO) {
@@ -2909,6 +2911,7 @@ function beginRecording() {
                                 }
                             }
                             // else: accumulating within the sustain window
+                            _preOnsetDipStart = 0;  // S154: above-threshold frame ends any tolerated dip
                         }
                         // else: voice with no preceding in-window silence (carry-over) → ignore
                     } else {
@@ -2929,7 +2932,10 @@ function beginRecording() {
                     }
                 } else {
                     // neither band (between silence and speech thresholds)
-                    if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; }  // S139: any non-above-threshold frame breaks the pre-onset sustain window
+                    if (_preOnsetStart) {  // S154: tolerate brief observed dips (soft consonants) within pre-onset; only a SUSTAINED dip (> VAD_ONSET_DIP_MS) aborts — was a hard single-frame reset that rejected normal speech
+                        if (_preOnsetDipStart === 0) _preOnsetDipStart = _now;
+                        else if (_now - _preOnsetDipStart > VAD_ONSET_DIP_MS) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }
+                    }
                     if (voiced > 0) {
                         // mid-run dip: time it; if it stays here past DIGIT_VOICE_GAP_MS the voicing
                         // wasn't continuous (spaced taps in elevated ambient) → KILL the run. Re-arming
@@ -3965,10 +3971,10 @@ function _cooccurAdvanceDecision(o) {
 // purpose). Pacing only — the server (Deepgram) is the authoritative spoken-digit check.
 const FAST_VAD_SPEECH_RMS = 0.14;    // voiced threshold (rms above this = voice). Fallback: no greeting calibration in the fast tier. Mirrors VAD_SPEECH_RMS_FALLBACK.
 const FAST_VAD_SILENCE_RMS = 0.085;  // silence threshold (rms below this = silence). Mirrors VAD_SILENCE_RMS_FALLBACK.
-const FAST_DIGIT_VOICE_MIN_MS = 350; // CONTINUOUS voiced duration a real spoken digit clears (~300-500ms); a ~100ms tap can't. Mirrors DIGIT_VOICE_MIN_MS.
+const FAST_DIGIT_VOICE_MIN_MS = 270; // S154: propagate the S145j field-tune (350→270) that reached only the full path — quick-auth kept rejecting a briskly-said digit the full path had already learned to accept. Mirrors DIGIT_VOICE_MIN_MS.
 const FAST_DIGIT_MOD_DELTA = 0.030;  // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy. Mirrors DIGIT_MOD_DELTA.
 const FAST_DIGIT_VOICE_GAP_MS = 200; // max sustained OBSERVED dip within one voiced run before the run breaks (spaced taps). Mirrors DIGIT_VOICE_GAP_MS.
-const FAST_VAD_ONSET_SUSTAIN_MS = 250; // S139-v2: mirrors VAD_ONSET_SUSTAIN_MS — raised 180→250ms (shortest voiced digit "one/uno"). See full-path constant comment.
+const FAST_VAD_ONSET_SUSTAIN_MS = 180; // S154 field-tune: mirrors VAD_ONSET_SUSTAIN_MS 250→180 (see full-path comment — normal-speech soft onsets were rejected).
 const FAST_VAD_VOICE_BAND_FRAC = 0.35; // S139-v2: mirrors VAD_VOICE_BAND_FRAC — mid-band 300-3500Hz fraction >= 0.35; band narrowed from 0-3.5kHz to exclude LF tap thump. See full-path constant comment.
 function _makeQuickReauthVoiceGate(cfg) {
     var speechThr = cfg.speechThr, silenceThr = cfg.silenceThr;
