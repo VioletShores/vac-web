@@ -1,0 +1,11 @@
+name: auth-fork-guard
+on:
+  push: { paths: ['vac-reauth-ceremony.js', 'auth.html'] }
+  pull_request: { paths: ['vac-reauth-ceremony.js', 'auth.html'] }
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-auth-single-path.sh
+      - run: node --check vac-reauth-ceremony.js
