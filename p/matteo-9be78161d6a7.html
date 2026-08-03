@@ -27,10 +27,10 @@ pre{background:#0F1626;border:1px solid #1E2A3E;border-radius:8px;padding:16px;o
 <body><div class="page-shell"><div class="wrap">
 <div class="eyebrow">Violet Shores — private briefing for Matteo</div>
 <h1>The trust layer for AI agents, built the way we instrument a plant</h1>
-<p>Ciao Matteo — good to meet you in Santa Teresa. This page is the engineer's version of what I'm building: the protocol itself, where it came from, and live systems you can poke at. Happy to go as deep as you like, in English or Italian.</p>
+<p>Ciao Matteo — good to meet you in Santa Teresa. This page is the engineer's version of what I'm building: the protocol itself, where it came from, live systems you can poke at, and where it's heading commercially. Happy to go as deep as you like, in English or Italian.</p>
 
 <h2>Why an instrumentation &amp; control engineer built this</h2>
-<p>My whole career is one question asked of different machines: <em>how do you make infrastructure provably trustworthy?</em> Patented smart-grid control at GE across Asia-Pacific. At Grid Net in Silicon Valley I built a <b>COPS-based policy-control system (IETF RFC 2748)</b> that pushed configuration to smart meters attribute-by-attribute — deployed from the first meter to roughly <b>750,000</b> in Victoria. Then a decade running national-scale LoRaWAN IoT networks, deployed in 19 countries. Level-3 support of AI systems will feel familiar to you for the same reason all of this feels familiar to me: it's telemetry, calibration, interlocks, and root cause — just pointed at a new kind of machine.</p>
+<p>My whole career is one question asked of different machines: <em>how do you make infrastructure provably trustworthy?</em> I led <b>GE's Smart Grid business across Asia-Pacific</b>. Then, working alongside a Silicon Valley serial entrepreneur at Grid Net, I helped <b>build and launch a COPS-based policy-control platform (IETF RFC 2748)</b> that pushed configuration to smart meters attribute-by-attribute — a Victorian deployment I won and delivered from the first meter to roughly <b>750,000</b>. Then a decade founding and running national-scale LoRaWAN IoT networks, deployed in 19 countries. Level-3 support of AI systems will feel familiar to you for the same reason all of this feels familiar to me: it's telemetry, calibration, interlocks, and root cause — just pointed at a new kind of machine.</p>
 <p>Working with AI agents daily made the missing layer impossible to ignore: agents can act, but nothing proves <b>which accountable human authorised the action, within what limits, at that moment</b>. In plant terms: we had actuators with no interlock system, no protection relays, and no calibration regime. So I built those three things for AI. The fuller story: <a href="https://vacprotocol.org/origin.html">the origin document</a>.</p>
 
 <h2>The protocol, in control-engineering terms</h2>
@@ -40,6 +40,9 @@ pre{background:#0F1626;border:1px solid #1E2A3E;border-radius:8px;padding:16px;o
 <p style="margin-bottom:0">Every AI task travels as a governed packet — identity, policy limits, evidence chain — through a fixed lifecycle (plan → execute → verify → attest). Think of it as the DCS function block for cognitive work: nothing runs outside the loop, and the attestation phase is the loop closing.</p></div>
 <div class="card"><b>SignalRank</b> <span class="tag">the calibration regime</span>
 <p style="margin-bottom:0">Routing across AI models isn't done on vendor benchmarks — every model is continuously scored on known-answer challenges per domain, and routing weight follows the measured evidence, with drift visible. Exactly how you'd treat instruments: never trust the datasheet, calibrate in situ, re-calibrate on schedule. The adaptive risk engine (we call it CoPS/PID — the COPS lineage is literal) then selects verification depth per action: a trusted operator on a routine action gets a streamlined ceremony; a critical action gets the full modality set, floored so trust can never weaken a consequential action.</p></div>
+
+<div class="card"><b>In your language: Zero Trust, extended to agents</b>
+<p style="margin-bottom:0">You wrote it in your own profile — Zero Trust Architecture, security by design. VAC is that principle carried one layer up: never trust an AI agent's <em>authority</em>, always verify it — back to a live, biometrically-present human, per action class, with a sealed receipt. Identity-first security where the identity is the accountable person behind the agent, not the agent itself.</p></div>
 
 <h2>See the engines live</h2>
 <div class="links card">
@@ -56,8 +59,14 @@ pre{background:#0F1626;border:1px solid #1E2A3E;border-radius:8px;padding:16px;o
 <a href="https://datatracker.ietf.org/doc/draft-zagarella-autonomy-governor/">draft-zagarella-autonomy-governor — human-on-the-loop autonomy governance</a>
 </div>
 
+<h2>The market moment</h2>
+<p>Three forces are converging. <b>Agentic AI is crossing into consequential actions</b> — payments, filings, releases, infrastructure changes — and every one of those actions needs an answer to "who authorised this?" that stands up afterwards. <b>The EU AI Act's enforcement wave</b> turns that from good practice into a budgeted, board-level compliance obligation across every regulated organisation in Europe — and today they answer it with screenshots and log-scraping. <b>No incumbent owns the answer:</b> identity vendors verify humans at login, not per action; observability vendors record what happened, not who was accountable. The gap between those two is exactly where this protocol sits — with a 1,068-claim patent estate and an open standards track staked around it.</p>
+
+<h2>Where this is going</h2>
+<p>Near term: paid design-partner pilots on one irreversible action class — the zero-integration compliance retrofit (a seal-request link plus an evidence page, no code changes on the customer's side) — with financial services and regulated-advice firms first. In parallel: the two Internet-Drafts advancing at the IETF, the patent family building, and the reference implementation hardening in production. The layered end-state: an open standard anyone can implement, a protected reference implementation, regional implementation partners, and a vendor-neutral advisory practice — so when a board asks "who do we buy from?", the answer is clean at every layer.</p>
+
 <h2>Sicily</h2>
-<p>The system is in production — live backend, hundreds of sealed verifications, external users onboarding — and I'm exploring building a small engineering presence right here: Santa Teresa as a working base for part of the year. Someone with your profile — AI systems, cyber, level-3 discipline — is exactly the kind of engineer this stack needs. No agenda for now beyond showing you the machine; if it interests you, let's talk properly over a coffee.</p>
+<p>The system is in production — live backend, hundreds of sealed verifications, external users onboarding — and I'm exploring building a small engineering presence right here: Santa Teresa as a working base for part of the year. Someone with your profile — CISSP, ten years of network security from Messina to Milan, Zero Trust by conviction, level-3 discipline — is exactly the kind of engineer this stack needs. No agenda for now beyond showing you the machine; if it interests you, let's talk properly over a coffee.</p>
 
 <div class="foot">Rob Zagarella · Violet Shores Pty Ltd · prepared 3 Aug 2026 · shared personally — please don't circulate</div>
 </div></div></body></html>
