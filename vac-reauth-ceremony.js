@@ -2887,7 +2887,7 @@ function _markSpeech(src, rms, onsetAt) {
                     // carry-over (no pause since the last accept) stays rejected.
                     if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }  // S139: silence aborts pre-onset (S154: dip tracker cleared too)
                     _sawSilence = true;
-                    if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (DIGIT_MOD_DELTA*100).toFixed(0)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: DIGIT_MOD_DELTA, digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
+                    if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (Math.max(0.012, 0.10*voiceMax)*100).toFixed(1)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: Number(Math.max(0.012, 0.10*voiceMax).toFixed(3)), digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
                 } else if (rms > vadSpeechThreshold && vbRatio >= VOICE_BAND_MIN_RATIO) {
                     // BUILD 379: amplitude alone crossed the line, but only counts as voiced if the
@@ -2956,7 +2956,14 @@ function _markSpeech(src, rms, onsetAt) {
                     // beep/tone (no modulation) can't satisfy a digit, while a real spoken number does.
                     if (voiced > 0 && _now >= speechWindowStart
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
-                        && (voiceMax - voiceMin) >= DIGIT_MOD_DELTA) {
+                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)) {
+                        // S154 DATA-DRIVEN (vad_gate telemetry, Rob live test 14:15-14:16 UTC):
+                        // every failed digit passed duration+level and failed the ABSOLUTE 0.030
+                        // modulation floor — normal steady speech at peak ~0.21 swings 0.020-0.026.
+                        // Relative floor: 10% of the run's own peak (min 0.012). His 0.020 swing at
+                        // 0.194 peak now passes (needs 0.019); a flat tone at any level still fails
+                        // (~zero swing); the voice-band + dual spectral checks + Gemini remain the
+                        // real anti-spoof per L-2439 (client gates are pacing aids).
                         _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}  // S154 diag
                         _markSpeech('vad', rms, _voiceOnsetAt);
                         voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
@@ -4070,7 +4077,7 @@ function _makeQuickReauthVoiceGate(cfg) {
                 }
                 dipStart = 0;
                 if (voiced > 0 && now >= _windowStart
-                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= modDelta) {
+                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)) {  // S154: relative modulation (see full-path comment)
                     _vadDiag('FIRED: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% thr ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)) }); } catch(_){}  // S154 diag
                     _armed = true; _firedAt = now;                              // sustained + modulated → FIRE
                     voiced = 0; vMin = 1; vMax = 0; sawSilence = false;         // consumed; a NEW silence re-arms
