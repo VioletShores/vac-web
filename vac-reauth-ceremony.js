@@ -4257,9 +4257,10 @@ async function beginStillCapture() {
         // would keep videoWidth=0 (still/embedding skipped → needless fallback). Idempotently ensure
         // THIS (mounted) recorder video carries the live stream; a no-op in the normal no-collision case.
         try { if (_gv && mediaStream && _gv.srcObject !== mediaStream) { _gv.srcObject = mediaStream; _gv.muted = true; _gv.setAttribute('playsinline',''); _gv.play().catch(function(){}); } } catch(_) {}
-        // S154 (Rob): quick-auth camera rendered too wide — constrain the mounted video to a
-        // centred 4:3 card regardless of host CSS; object-fit keeps framing, no stretch.
-        try { if (_gv) { _gv.style.width='100%'; _gv.style.maxWidth='420px'; _gv.style.aspectRatio='4 / 3'; _gv.style.objectFit='cover'; _gv.style.display='block'; _gv.style.margin='0 auto'; _gv.style.borderRadius='12px'; } } catch(_) {}
+        // S154 REVERTED (Rob): the video-only constraint broke registration with the zone/skeleton
+        // overlay canvas (drawn against raw video dims) — video crossed the oval. Cosmetic sizing
+        // must resize video+canvas as a UNIT; parked to the zone lane (F-1028) where that geometry
+        // is already in scope. Do not re-attempt element-only styling here.
         if (_gv && _expectFingers != null) {
             // F-671 Phase B1: render the show-and-say feedback through the SHARED CaptureFeedback.* (the
             // full path's UI) instead of the old minimal inline #challengeText. renderDigitStrip ONCE (one
