@@ -522,7 +522,7 @@ function _micPreflightVad() {
     const _floor01 = _micSeededAmbientRms, _speech01 = _micSeededSpeechRms;
     const _span = _speech01 - _floor01;
     if (_span < _CAL_MIN_SPAN) { _micPreflightVadReason = 'thin_span'; return null; }  // degenerate — caller keeps its fallback constants
-    const speechThr = _calClamp(_floor01 + _CAL_K * _span, 0.06, 0.30);   // same clamp bounds as the greeting calibration
+    const speechThr = _calClamp(_floor01 + _CAL_K * _span, 0.06, Math.max(0.13, _floor01 + 0.03));   // S154 data-driven ceiling: telemetry shows thr .166 eating normal speech (peaks .17-.21) while .093-.119 runs were flawless — cap at .13 unless the ambient floor itself is high (ordering floor<thr preserved via floor+.03)
     const silenceThr = _floor01 + _CAL_SIL_K * (speechThr - _floor01);
     return { speechThr: speechThr, silenceThr: silenceThr, floor: _floor01, speech: _speech01 };
 }
@@ -2970,6 +2970,18 @@ function _markSpeech(src, rms, onsetAt) {
                     }
                 } else {
                     // neither band (between silence and speech thresholds)
+                    // S154 FIX (telemetry: dur-366/mod-.023 runs dying unfired): a run whose
+                    // duration+modulation conditions become satisfied while the level sits in a
+                    // dip frame previously never fired — the check lived only in the above-
+                    // threshold branch. Evaluate on run-alive dip frames too; same conditions,
+                    // no loosening.
+                    if (voiced > 0 && _now >= speechWindowStart
+                        && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
+                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)) {
+                        _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
+                        _markSpeech('vad', voiceMax, _voiceOnsetAt);
+                        voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;
+                    }
                     if (_preOnsetStart) {  // S154: tolerate brief observed dips (soft consonants) within pre-onset; only a SUSTAINED dip (> VAD_ONSET_DIP_MS) aborts — was a hard single-frame reset that rejected normal speech
                         if (_preOnsetDipStart === 0) _preOnsetDipStart = _now;
                         else if (_now - _preOnsetDipStart > VAD_ONSET_DIP_MS) { _rejectedTransients++; _lastRejectReason = 'sust'; _vadDiag('onset aborted: dip > ' + VAD_ONSET_DIP_MS + 'ms during sustain (had ' + Math.round(_now - _preOnsetStart) + 'ms of ' + VAD_ONSET_SUSTAIN_MS + 'ms)'); try { vacDebug('vad_gate', 'onset_abort_dip', { path:'full', had_ms: Math.round(_now - _preOnsetStart), need_ms: VAD_ONSET_SUSTAIN_MS }); } catch(_){} _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }
@@ -3617,7 +3629,7 @@ function _markSpeech(src, rms, onsetAt) {
         if (_calNoiseFloor != null && _calSpeechRms != null && (_calSpeechRms - _calNoiseFloor) >= _CAL_MIN_SPAN) {
             const _span = _calSpeechRms - _calNoiseFloor;
             // speech threshold 40% of the way floor→speech (sensitive but clear of noise).
-            vadSpeechThreshold = _calClamp(_calNoiseFloor + _CAL_K * _span, 0.06, 0.30);
+            vadSpeechThreshold = _calClamp(_calNoiseFloor + _CAL_K * _span, 0.06, Math.max(0.13, _calNoiseFloor + 0.03));  // S154: same data-driven ceiling as module-scope calibration (see comment there)
             // silence threshold 30% of the way from floor to the SPEECH THRESHOLD — provably
             // floor < silence < speechThreshold (no clamp can invert it), so the digit gate's
             // silence→voice hysteresis band stays valid for THIS session's mic.
@@ -4084,6 +4096,12 @@ function _makeQuickReauthVoiceGate(cfg) {
                 }
             } else {
                 // neither band
+                if (voiced > 0 && now >= _windowStart
+                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)) {  // S154: dip-frame fire evaluation (mirrors full path — see comment there)
+                    _vadDiag('FIRED(dip): ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', on:'dip', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)) }); } catch(_){}
+                    _armed = true; _firedAt = now;
+                    voiced = 0; vMin = 1; vMax = 0; sawSilence = false;
+                }
                 if (preOnsetStart) {  // S154: tolerate brief observed dips within pre-onset (mirrors full path); sustained dip (>60ms) aborts
                     if (preOnsetDipStart === 0) preOnsetDipStart = now;
                     else if (now - preOnsetDipStart > 60) { preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0; }
