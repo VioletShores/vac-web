@@ -4027,7 +4027,9 @@ function _makeQuickReauthVoiceGate(cfg) {
             var now = performance.now();
             if (rms < silenceThr) {
                 preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0;  // S139: silence aborts pre-onset (S154: dip tracker cleared)
-                sawSilence = true; voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
+                sawSilence = true;
+                if (voiced > 0) { _vadDiag('run ended: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% | need ' + voiceMinMs + 'ms above ' + (speechThr*100).toFixed(0) + '%'); }  // S154 diag
+                voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
             } else if (rms > speechThr) {
                 if (voiced === 0) {
                     // S139 onset gate: require SUSTAINED above-threshold for FAST_VAD_ONSET_SUSTAIN_MS.
