@@ -2385,6 +2385,22 @@ function startCountdown() {
     }, 1000);
 }
 
+// S154 GATE DIAGNOSTICS (L-2173: one runtime datum beats rounds of code-reading).
+// A small fixed line reporting the last gate event with its numbers, so a missed
+// digit tells us duration/peak/threshold instead of requiring another guess cycle.
+function _vadDiag(msg){
+    try {
+        var el = document.getElementById('vacVadDiag');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'vacVadDiag';
+            el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;font:10px/1.4 ui-monospace,monospace;color:#9498A8;background:rgba(10,15,26,0.85);padding:3px 8px;border-radius:4px;pointer-events:none;max-width:92vw;';
+            document.body.appendChild(el);
+        }
+        el.textContent = msg;
+    } catch(_){}
+}
+
 function beginRecording() {
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
@@ -2818,21 +2834,6 @@ function beginRecording() {
     // audioAnalyser (startAudioMonitor) — no second AudioContext, no new getUserMedia,
     // no permission prompt.
     
-// S154 GATE DIAGNOSTICS (L-2173: one runtime datum beats rounds of code-reading).
-// A small fixed line reporting the last gate event with its numbers, so a missed
-// digit tells us duration/peak/threshold instead of requiring another guess cycle.
-function _vadDiag(msg){
-    try {
-        var el = document.getElementById('vacVadDiag');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'vacVadDiag';
-            el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;font:10px/1.4 ui-monospace,monospace;color:#9498A8;background:rgba(10,15,26,0.85);padding:3px 8px;border-radius:4px;pointer-events:none;max-width:92vw;';
-            document.body.appendChild(el);
-        }
-        el.textContent = msg;
-    } catch(_){}
-}
 function _markSpeech(src, rms, onsetAt) {
         if (recordingStopped) return;
         if (currentDigitIndex >= digits.length) return;
@@ -4043,8 +4044,14 @@ function _makeQuickReauthVoiceGate(cfg) {
             rms = Math.sqrt(rms / buf.length) / 255;
             // S145 finding 5 (F-922 lock-step): the fast/quick-auth single-digit tier runs this
             // VAD but never showed the mic instrument. Arm the same overlay every speaking surface uses.
-            window.__vacGateArmed = true; _micPillDraw(rms, speechThr, 'q');
+            window.__vacGateArmed = true;
             var now = performance.now();
+            // S154 SCOPE FIX (root cause of months-dead quick-auth voice): _micPillDraw is
+            // defined INSIDE beginRecording() — out of scope here at file level — so this
+            // call threw a ReferenceError EVERY FRAME since S145, silently eaten by the
+            // catch below; the sampler and the ENTIRE gate never executed. Cosmetic call is
+            // now typeof-guarded and moved AFTER the gate logic; sampler runs first.
+            try { if (typeof _micPillDraw === 'function') _micPillDraw(rms, speechThr, 'q'); } catch(_){}
             // S154 SAMPLER (zero fast vad_gate events across 3 failed quick-auths = the gate
             // never even started a run; only live state distinguishes never-silent vs
             // onset-aborting vs tick-dead). 1.5s cadence, window-max level, full gate state.
@@ -4120,7 +4127,12 @@ function _makeQuickReauthVoiceGate(cfg) {
                     else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; }  // sustained dip kills the run
                 }
             }
-        } catch(_) {}
+        } catch(_e) {
+            // S154: a per-frame exception here is a DEAD GATE wearing a running loop's
+            // clothes (the months-dead scope bug hid exactly this way). Report, throttled.
+            var _en = performance.now();
+            if (_en - _sampLastT >= 3000) { _sampLastT = _en; try { vacDebug('vad_gate', 'fast_loop_error', { path:'fast', err: String(_e && _e.message || _e).slice(0,120) }); } catch(_){} }
+        }
         _raf = requestAnimationFrame(function(){ _loop(analyser, buf); });
     }
     return {
