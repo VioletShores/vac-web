@@ -385,6 +385,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
                 </div>
                 <span id="avAudioPct" style="font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); min-width: 30px; text-align: right;">0%</span>
             </div>
+            <div id="avMicDevice" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none; font-family: var(--mono);"></div>
             <div id="avMicTip" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none;"></div>
             <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 6px 12px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
@@ -1043,6 +1044,11 @@ function startAVChecks() {
         avAnalyser.fftSize = 256;
         const source = avAudioCtx.createMediaStreamSource(mediaStream);
         source.connect(avAnalyser);
+        try {
+            const at = mediaStream.getAudioTracks()[0];
+            const devEl = document.getElementById('avMicDevice');
+            if (at && devEl) { devEl.textContent = 'Listening through: ' + (at.label || 'default microphone'); devEl.style.display = 'block'; }
+        } catch (e2) { /* label unavailable pre-permission on some browsers */ }
     } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
 
     // Create hidden canvas for brightness analysis
@@ -1052,6 +1058,12 @@ function startAVChecks() {
 
     let avLastCheck = 0;
 
+    function hideMicDeviceWarn() {
+        const tip = document.getElementById('avMicTip');
+        if (tip && tip.style.color === 'var(--warning)') { tip.style.display = 'none'; }
+        if (avChecks.mic) { setAVStatus('mic', 'good', 'Mic: working'); }
+    }
+    let avSilentFrames = 0;
     function runAVFrame() {
         const video = document.getElementById('videoPreview');
         if (!video || video.paused || video.readyState < 2) { avCheckFrame = requestAnimationFrame(runAVFrame); return; }
@@ -1078,6 +1090,19 @@ function startAVChecks() {
             if (level > 5 && !avChecks.mic) {
                 setAVStatus('mic', 'good', 'Mic: working');
                 avChecks.mic = true;
+            }
+            // Silent-input detector: correct code + near-zero level for ~6s usually
+            // means the browser is using a different microphone than the one being
+            // spoken into (Continuity/display/BT mic). Say so, visibly.
+            if (level < 2) { avSilentFrames = (avSilentFrames || 0) + 1; } else { avSilentFrames = 0; hideMicDeviceWarn(); }
+            if (avSilentFrames === 360) {
+                const tip = document.getElementById('avMicTip');
+                if (tip) {
+                    tip.innerHTML = 'Very low input. Your browser may be using a different microphone than the one you\'re speaking into — click the camera icon in the address bar, check the Microphone selection, then Refresh camera &amp; mic.';
+                    tip.style.display = 'block';
+                    tip.style.color = 'var(--warning)';
+                }
+                if (avChecks.mic) { setAVStatus('mic', 'warn', 'Mic: input very low'); }
             }
         }
 
