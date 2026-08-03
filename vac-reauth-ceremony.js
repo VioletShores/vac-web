@@ -4033,6 +4033,7 @@ function _makeQuickReauthVoiceGate(cfg) {
     var voiced = 0, vMin = 1, vMax = 0, dipStart = 0, onsetAt = 0, sawSilence = false;
     var preOnsetStart = 0;       // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
     var preOnsetDipStart = 0;    // S154: tolerated pre-onset dip start (mirrors full path)
+    var _sampLastT = 0, _sampMax = 0;  // S154 sampler state
     var preOnsetMidChecked = false;  // S139-v2: true once the mid-window spectral re-check has run in this pre-onset window
     function _loop(analyser, buf) {
         if (_stopped) { _raf = null; return; }
@@ -4044,6 +4045,14 @@ function _makeQuickReauthVoiceGate(cfg) {
             // VAD but never showed the mic instrument. Arm the same overlay every speaking surface uses.
             window.__vacGateArmed = true; _micPillDraw(rms, speechThr, 'q');
             var now = performance.now();
+            // S154 SAMPLER (zero fast vad_gate events across 3 failed quick-auths = the gate
+            // never even started a run; only live state distinguishes never-silent vs
+            // onset-aborting vs tick-dead). 1.5s cadence, window-max level, full gate state.
+            _sampMax = Math.max(_sampMax, rms);
+            if (now - _sampLastT >= 1500) {
+                try { vacDebug('vad_gate', 'fast_sample', { path:'fast', rms_now: Number(rms.toFixed(3)), rms_max: Number(_sampMax.toFixed(3)), thr: Number(speechThr.toFixed(3)), sil: Number(silenceThr.toFixed(3)), saw_sil: !!sawSilence, voiced: voiced, pre_onset: preOnsetStart !== 0 }); } catch(_){}
+                _sampLastT = now; _sampMax = 0;
+            }
             if (rms < silenceThr) {
                 preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0;  // S139: silence aborts pre-onset (S154: dip tracker cleared)
                 sawSilence = true;
@@ -4248,6 +4257,9 @@ async function beginStillCapture() {
         // would keep videoWidth=0 (still/embedding skipped → needless fallback). Idempotently ensure
         // THIS (mounted) recorder video carries the live stream; a no-op in the normal no-collision case.
         try { if (_gv && mediaStream && _gv.srcObject !== mediaStream) { _gv.srcObject = mediaStream; _gv.muted = true; _gv.setAttribute('playsinline',''); _gv.play().catch(function(){}); } } catch(_) {}
+        // S154 (Rob): quick-auth camera rendered too wide — constrain the mounted video to a
+        // centred 4:3 card regardless of host CSS; object-fit keeps framing, no stretch.
+        try { if (_gv) { _gv.style.width='100%'; _gv.style.maxWidth='420px'; _gv.style.aspectRatio='4 / 3'; _gv.style.objectFit='cover'; _gv.style.display='block'; _gv.style.margin='0 auto'; _gv.style.borderRadius='12px'; } } catch(_) {}
         if (_gv && _expectFingers != null) {
             // F-671 Phase B1: render the show-and-say feedback through the SHARED CaptureFeedback.* (the
             // full path's UI) instead of the old minimal inline #challengeText. renderDigitStrip ONCE (one
