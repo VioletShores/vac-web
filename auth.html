@@ -2,19 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- F-563 (5): match the mobile browser chrome to the dark app bg (S96 page-shell pattern).
-     NOT using viewport-fit=cover — the page has edge-aligned chrome (sticky nav, fixed scroll
-     hint) with no env(safe-area-inset) compensation, so cover would render under the notch on
-     iOS (codex). Default viewport keeps the browser's automatic safe-area insets. -->
-<meta name="theme-color" content="#0D1117">
 <title>VAC Verify — Authenticate</title>
-<meta name="description" content="Verify you're a real human with VAC Verify — cryptographic human provenance powered by VAC Protocol.">
+<meta name="description" content="Verify your identity with VAC Verify — cryptographic human provenance powered by VAC Protocol.">
 <meta property="og:title" content="VAC Verify — Authenticate">
-<meta property="og:description" content="Biometric verification → cryptographic authority chain. 1028+ patent claims. Math so neither party has to rely on trust alone.">
+<meta property="og:description" content="Biometric verification → cryptographic authority chain. 285 patent claims. Math so neither party has to rely on trust alone.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://vacprotocol.org/auth">
 <meta property="og:image" content="https://vacprotocol.org/og-image.png">
@@ -54,7 +46,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font); color: var(--text-secondary); background: var(--bg); font-size: 15px; line-height: 1.6; -webkit-font-smoothing: antialiased; min-height: 100dvh; }
 
-.page { max-width: 560px; margin: 0 auto; padding: 0 clamp(12px, 4vw, 20px) 40px; }
+.page { max-width: 560px; margin: 0 auto; padding: 0 20px 60px; }
 
 /* Nav */
 .nav { border-bottom: 1px solid var(--border); padding: 0 20px; background: rgba(13,17,23,0.95); backdrop-filter: blur(12px); position: sticky; top: 0; z-index: 100; }
@@ -78,10 +70,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .step-section.active { display: block; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-.header { text-align: center; padding: clamp(4px, 1vh, 12px) 0 clamp(4px, 1vh, 10px); position: relative; }
-.header-eyebrow { font-family: var(--mono); font-size: clamp(9px, 2.5vw, 11px); color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
-.header-title { font-size: clamp(18px, 5vw, 24px); font-weight: 700; color: var(--text-primary); line-height: 1.3; }
-.header-sub { font-size: clamp(11px, 3vw, 13px); color: var(--text-tertiary); margin-top: 4px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.4; }
+.header { text-align: center; padding: clamp(8px, 2vh, 24px) 0 clamp(6px, 1.5vh, 16px); position: relative; }
+.header-eyebrow { font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+.header-title { font-size: 24px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+.header-sub { font-size: 13px; color: var(--text-tertiary); margin-top: 4px; max-width: 400px; margin-left: auto; margin-right: auto; }
 
 /* Forms */
 .form-group { margin-bottom: 16px; }
@@ -99,42 +91,24 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .btn-secondary:hover { border-color: var(--purple); background: var(--purple-bg); }
 
 /* Camera */
-/* D-VERIFY-CHECKS-BELOW-FOLD: cap the feed so the live status row + active-step
-   instruction stay in view on a ~800px laptop viewport (was 40vh/320px, which
-   dominated the fold and pushed the checks off-screen). */
-.camera-container { position: relative; width: 100%; aspect-ratio: 4/3; max-height: clamp(180px, 36vh, 300px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
+.camera-container { position: relative; width: 100%; aspect-ratio: 16/10; min-height: clamp(160px, 28vh, 220px); max-height: clamp(200px, 35vh, 320px); background: #000; border-radius: 12px; overflow: hidden; border: 2px solid var(--border); margin-bottom: clamp(4px, 0.8vh, 8px); }
 .camera-container.recording { border-color: var(--error); box-shadow: 0 0 20px rgba(248,81,73,0.15); }
 .camera-container.verified { border-color: var(--success); box-shadow: 0 0 20px rgba(63,185,80,0.15); }
 #videoPreview, #videoPreviewRec { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; background: #000; }
 
 /* Face oval guide */
-.face-oval { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: clamp(120px, 35vw, 180px); height: clamp(160px, 45vw, 240px); pointer-events: none; }
+.face-oval { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 180px; height: 240px; pointer-events: none; }
 .face-oval-ring { fill: none; stroke: var(--purple); stroke-width: 2; stroke-dasharray: 8 4; opacity: 0.6; transition: all 0.3s; }
 .camera-container.face-detected .face-oval-ring { stroke: var(--success); stroke-dasharray: none; opacity: 0.8; }
-.face-oval-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; }
-/* Hand-capture guide — shows WHERE to hold the hand during the gesture step (in front
-   of the face, the server-side hand_near_face anti-spoof zone). The div is EXACTLY the
-   zone box: width 64% = 2*RX, height 80% = 2*RY of the frame, so its inscribed ellipse
-   has normalized radii 0.32 x 0.40 — identical to the _handNearFaceZone() check. The
-   SVG uses preserveAspectRatio="none" + overflow:visible so the drawn ring maps 1:1 to
-   that box (no letterboxing). Dashed teal until the hand is inside, then solid-green. */
-.hand-zone { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 64%; height: 80%; pointer-events: none; display: none; z-index: 5; }
-.camera-container.show-hand-zone .hand-zone { display: block; }
-/* One guide at a time: hide the face oval while the hand guide is active so the user
-   isn't looking at two concentric dotted ellipses during the gesture step. */
-.camera-container.show-hand-zone .face-oval { display: none; }
-.hand-zone-ring { fill: none; stroke: var(--teal, #00cec9); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
-.camera-container.hand-in-zone .hand-zone-ring { stroke: var(--success); opacity: 0.9; }
-.hand-zone-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; transition: color 0.3s; }
-.camera-container.hand-in-zone .hand-zone-label { color: var(--success); }
+.face-oval-label { position: absolute; bottom: -24px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.6); padding: 2px 8px; border-radius: 3px; }
 
 /* Countdown ring */
-.countdown-ring-wrap { width: clamp(72px, 18vw, 100px); height: clamp(72px, 18vw, 100px); margin: 4px auto; position: relative; }
+.countdown-ring-wrap { width: 100px; height: 100px; margin: 8px auto; position: relative; }
 .countdown-ring-wrap svg { transform: rotate(-90deg); width: 100%; height: 100%; }
 .countdown-ring-wrap .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
 .countdown-ring-wrap .ring-fill { fill: none; stroke: var(--purple); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 245; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
 .countdown-ring-wrap .ring-fill.recording { stroke: var(--error); }
-.countdown-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: clamp(24px, 6vw, 32px); font-weight: 700; color: var(--text-primary); }
+.countdown-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 32px; font-weight: 700; color: var(--text-primary); }
 
 /* Privacy statement */
 .privacy-statement { display: flex; align-items: flex-start; gap: 6px; padding: clamp(4px, 0.8vh, 8px) clamp(6px, 1vw, 10px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: clamp(6px, 1vh, 14px); font-size: clamp(10px, 1.2vw, 12px); color: var(--text-tertiary); line-height: 1.4; }
@@ -147,33 +121,31 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 @keyframes bounce-down { 0%,100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
 
 /* Audio level indicator */
-.audio-level { position: absolute; top: 8px; right: 8px; display: flex; align-items: flex-end; gap: 2px; height: 20px; background: rgba(0,0,0,0.7); padding: 3px 5px; border-radius: 4px; }
+.audio-level { position: absolute; bottom: 24px; right: 24px; display: flex; align-items: flex-end; gap: 2px; height: 24px; background: rgba(0,0,0,0.6); padding: 4px 6px; border-radius: 4px; }
 .audio-bar { width: 3px; background: var(--success); border-radius: 1px; transition: height 0.08s ease-out; min-height: 2px; }
-/* F-563 (2): live audio equaliser bars (display-only; driven off the mic level the gate analyses) */
-.vac-eq > span { display: inline-block; width: 6px; height: 4px; border-radius: 3px; background: var(--text-quaternary, #6E7681); transition: height 0.1s ease, background 0.1s ease; }
+.audio-rms-readout { margin-left: 6px; align-self: center; font-family: var(--mono); font-size: 10px; color: #9498A8; white-space: nowrap; transition: color 0.1s ease-out; }
+.audio-rms-readout.onset-active { color: var(--success); font-weight: 600; }
 .camera-overlay { position: absolute; inset: 0; pointer-events: none; }
-.camera-corners { position: absolute; inset: 8px; }
-.camera-corners::before, .camera-corners::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: var(--purple); border-style: solid; }
+.camera-corners { position: absolute; inset: 16px; }
+.camera-corners::before, .camera-corners::after { content: ''; position: absolute; width: 24px; height: 24px; border-color: var(--purple); border-style: solid; }
 .camera-corners::before { top: 0; left: 0; border-width: 2px 0 0 2px; border-radius: 4px 0 0 0; }
 .camera-corners::after { top: 0; right: 0; border-width: 2px 2px 0 0; border-radius: 0 4px 0 0; }
-.camera-corners-bottom { position: absolute; inset: 8px; }
-.camera-corners-bottom::before, .camera-corners-bottom::after { content: ''; position: absolute; width: 20px; height: 20px; border-color: var(--purple); border-style: solid; }
+.camera-corners-bottom { position: absolute; inset: 16px; }
+.camera-corners-bottom::before, .camera-corners-bottom::after { content: ''; position: absolute; width: 24px; height: 24px; border-color: var(--purple); border-style: solid; }
 .camera-corners-bottom::before { bottom: 0; left: 0; border-width: 0 0 2px 2px; border-radius: 0 0 0 4px; }
 .camera-corners-bottom::after { bottom: 0; right: 0; border-width: 0 2px 2px 0; border-radius: 0 0 4px 0; }
-.camera-label { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--teal); letter-spacing: 1.5px; text-transform: uppercase; background: rgba(0,0,0,0.7); padding: 3px 10px; border-radius: 4px; }
-.rec-indicator { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; color: var(--error); letter-spacing: 1px; background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 4px; }
+.camera-label { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 1.5px; text-transform: uppercase; background: rgba(0,0,0,0.6); padding: 4px 12px; border-radius: 4px; }
+.rec-indicator { position: absolute; top: 24px; right: 24px; display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--error); letter-spacing: 1px; background: rgba(0,0,0,0.6); padding: 4px 10px; border-radius: 4px; }
 .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); animation: pulse-rec 1s ease-in-out infinite; }
 @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-@keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124,92,252,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 20px 4px rgba(124,92,252,0.3); } }
-/* S111 #3: instruction text is now a readable panel BELOW the feed (was an absolutely-
-   positioned overlay inside the video, behind the z-index:4 skeleton canvas → unreadable). */
-.challenge-panel { margin: 10px 0 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; text-align: center; }
-.camera-challenge-text { font-size: clamp(13px, 3.5vw, 16px); font-weight: 600; color: var(--text-primary); line-height: 1.3; }
-.camera-challenge-sub { font-size: clamp(10px, 2.5vw, 12px); color: var(--text-tertiary); margin-top: 2px; }
+@keyframes pulse-digit { 0%,100% { box-shadow: 0 0 0 0 rgba(108,92,231,0.5); } 50% { box-shadow: 0 0 0 6px rgba(108,92,231,0); } }
+.camera-challenge { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); max-width: 80%; text-align: center; background: rgba(0,0,0,0.75); backdrop-filter: blur(8px); padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(108,92,231,0.3); }
+.camera-challenge-text { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.camera-challenge-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
 
 /* Progress */
-.progress-container { text-align: center; padding: 16px 0; }
-.progress-ring { width: 64px; height: 64px; margin: 0 auto 10px; position: relative; }
+.progress-container { text-align: center; padding: 40px 0; }
+.progress-ring { width: 80px; height: 80px; margin: 0 auto 20px; position: relative; }
 .progress-ring svg { transform: rotate(-90deg); }
 .progress-ring circle { fill: none; stroke-width: 3; }
 .progress-ring .ring-bg { stroke: var(--border); }
@@ -201,36 +173,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .mod-score.fail { color: var(--error); }
 .mod-score.pending { color: var(--text-quaternary); }
 .mod-result { flex-wrap: wrap; }
-/* F-AUTH-UX-POLISH (1): disclosure caret — the whole .mod-result row is the hit area
-   (cursor:pointer below), the caret is the visual "click to expand" cue. ▸ → ▾ via a
-   90° rotation on the row's `.open` class — same caret glyph + rotate style as the
-   "Learn what this enables ▸" / "How we authenticated you" disclosures elsewhere on
-   the page, so the affordance reads consistently. The 32×32 min box preserves the old
-   .mod-info tap target (keeps the row >= 32px tall). */
-.mod-result { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.mod-caret { font-size: 11px; color: var(--text-tertiary); min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center; transition: transform 0.2s, color 0.2s; flex-shrink: 0; }
-.mod-result:hover .mod-caret, .mod-result:active .mod-caret { color: var(--accent); }
+.mod-info { font-size: 16px; color: var(--text-tertiary); cursor: pointer; padding: 6px 8px; min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: color 0.2s; -webkit-tap-highlight-color: transparent; }
+.mod-info:hover, .mod-info:active { color: var(--accent); }
 .mod-desc { display: none; width: 100%; font-size: clamp(9px, 1.1vw, 11px); color: var(--text-quaternary); padding: 2px 0 4px 28px; line-height: 1.4; }
-.mod-detail-expand { display: none; }
-/* A single `.open` class on the row drives ALL of it in sync — caret rotation, the static
-   .mod-desc, and the dynamic engine .mod-detail-expand — so whichever detail exists shows
-   together and the caret always reflects the row's true open/closed state. */
-.mod-result.open .mod-desc { display: block; }
-.mod-result.open .mod-detail-expand { display: block; }
-.mod-result.open .mod-caret { transform: rotate(90deg); color: var(--accent); }
-
-/* UI HONESTY (S117 / D-F577-D3-FALSE-ACCEPT): ADVISORY modalities (Finger Gesture, Duress) are
-   NEVER consulted in compute_honest_verdict — finger has a known false-accept and can't gate yet;
-   duress is a deny-signal, not a pass/fail gate. They must NOT look like the mandatory pass/fail
-   rows. The subheading + muted dot + chip make clear they're informational and didn't gate the
-   verdict. Presentation only — no score, verdict, or modality-requirement change. */
-.mod-subhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; width: 100%; font-size: clamp(9px, 1.1vw, 11px); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--text-tertiary); padding: clamp(8px, 1.2vh, 12px) 0 4px; margin-top: clamp(4px, 0.8vh, 8px); border-top: 1px solid var(--border); }
-.mod-subhead-note { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-quaternary); }
-.mod-advisory-tag { display: inline-block; font-family: var(--mono); font-size: clamp(8px, 1vw, 10px); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
-.mod-score.advisory { color: var(--text-tertiary); font-weight: 500; }
+.mod-result.show-desc .mod-desc { display: block; }
+.mod-result.show-desc .mod-info { color: var(--accent); }
 
 /* Back button */
-.btn-back { position: relative; display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-secondary); font-family: var(--mono); font-size: 12px; cursor: pointer; padding: 8px 4px; transition: color 0.2s; margin-bottom: 4px; }
+.btn-back { position: absolute; top: clamp(8px, 2vh, 24px); left: 0; display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-secondary); font-family: var(--mono); font-size: 12px; cursor: pointer; padding: 8px 4px; transition: color 0.2s; }
 .btn-back:hover { color: var(--text-primary); }
 .btn-back svg { opacity: 0.6; }
 
@@ -300,7 +250,6 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
 /* Error */
 .error-msg { font-size: 13px; color: var(--error); text-align: center; margin-top: 12px; font-family: var(--mono); }
-@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Claim mapping pills */
 .claim-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
@@ -312,58 +261,15 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .transcript-label { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
 .transcript-text { font-size: 14px; color: var(--text-primary); font-style: italic; }
 .transcript-match { font-family: var(--mono); font-size: 11px; margin-top: 6px; }
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-}
 </style>
-<!-- MediaPipe HandLandmarker for real-time finger detection (with graceful fallback to timer) -->
-<script type="module">
-  try {
-    const t0 = performance.now();
-    const mod = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs");
-    window.__VAC_MediaPipe = { HandLandmarker: mod.HandLandmarker, FilesetResolver: mod.FilesetResolver };
-    window.__VAC_MediaPipe_load_ms = Math.round(performance.now() - t0);
-    window.dispatchEvent(new CustomEvent('vac-mediapipe-ready', { detail: { ms: window.__VAC_MediaPipe_load_ms } }));
-  } catch (e) {
-    window.__VAC_MediaPipe_error = String(e && e.message || e);
-    window.dispatchEvent(new CustomEvent('vac-mediapipe-error', { detail: { error: window.__VAC_MediaPipe_error } }));
-  }
-</script>
-<!-- VAC face-EMBEDDING module (face-api.js 128-D identity descriptor for re-auth). Self-loads face-api on first use. -->
-<script src="/vac-face-embed.js"></script>
-<!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
-<script src="/vac-finger-detect.js"></script>
-<!-- S117 reauth-unify: the ONE shared re-auth ceremony (camera + show-and-say N digits +
-     capture + verify), extracted verbatim from this page. auth.html is its first/only caller. -->
-<script src="/vac-copy-registry.js"></script>
-<script src="/vac-reauth-ceremony.js?v=s145b12"></script>
-<script>
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
-<div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;"><a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#2DD4BF'" onmouseout="this.style.color='#6B7280'">← Back to VAC Protocol</a></div><script>
-(function(){
-  var bar=document.getElementById("vacBackBar");
-  if(window.parent===window) bar.style.display="block";
-  try{
-    var r=new URLSearchParams(location.search).get("return");
-    // sanitize: same-origin path only — must start with single "/", no "//", no ":"
-    if(r && /^\/(?!\/)[A-Za-z0-9_\-.\/?=&%]*$/.test(r) && r.indexOf(":")===-1){
-      window.__vacReturnPath=r;
-      var a=bar.querySelector("a"); a.href=r; a.textContent="\u2190 Back to the demo";
-      bar.style.display="block";
-    }
-  }catch(e){}
-})();
-</script>
 
 <!-- NAV -->
 <div class="nav">
 <div class="nav-inner">
     <a href="/" class="nav-left">
-        <img src="/branding/vac-logo-icon-dark.png" class="nav-icon" style="width:22px;height:22px" onerror="this.style.display='none'">
+        <svg width="18" height="18" viewBox="0 0 100 100"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" fill="none" stroke="#6C5CE7" stroke-width="5"/><polygon points="50,24 76,38 76,62 50,76 24,62 24,38" fill="#6C5CE7" fill-opacity="0.1" stroke="#6C5CE7" stroke-width="2.5"/></svg>
         <div class="nav-wordmark">VAC <span>VERIFY</span></div>
     </a>
     <div style="display:flex;align-items:center;gap:10px"><a href="javascript:openDashboard()" id="navDashboard" style="display:none;font-family:var(--mono);font-size:10px;color:var(--text-tertiary);text-decoration:none;letter-spacing:0.5px">DASHBOARD</a><div class="nav-mode" id="navStatus">AUTHENTICATE</div></div>
@@ -387,16 +293,16 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <div class="step-section active" id="step0">
     <div class="header">
         <div class="header-eyebrow">Step 1 of 4</div>
-        <div class="header-title">Verify You're a Real Human</div>
+        <div class="header-title">Verify Your Identity</div>
         <div class="header-sub">Prove you're a real human. Your verified identity becomes a cryptographic credential that agents, services, and people can trust.</div>
     </div>
     <div class="form-group">
         <label class="form-label">Full Name</label>
-        <input class="form-input" id="inputName" type="text" placeholder="Your full name" autocomplete="name">
+        <input class="form-input" id="inputName" type="text" placeholder="Rob Zagarella" autocomplete="name">
     </div>
     <div class="form-group">
         <label class="form-label">Email</label>
-        <input class="form-input" id="inputEmail" type="email" placeholder="you@example.com" autocomplete="email">
+        <input class="form-input" id="inputEmail" type="email" placeholder="rob@violetshores.com" autocomplete="email">
     </div>
     <div id="optionalFields" style="display:none;">
         <div class="form-row">
@@ -420,7 +326,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;">
             <div style="font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1px;margin-bottom:8px;">EMAIL VERIFICATION</div>
             <div style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">We sent a 6-digit code to <strong id="otpEmail"></strong></div>
-            <input class="form-input" id="otpInput" type="text" inputmode="numeric" maxlength="7" placeholder="000-000" style="text-align:center;font-size:24px;letter-spacing:8px;font-family:var(--mono);" oninput="formatOTPInput(this)" onkeydown="if(event.key==='Enter')verifyAuthOTP()">
+            <input class="form-input" id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="000000" style="text-align:center;font-size:24px;letter-spacing:8px;font-family:var(--mono);" onkeydown="if(event.key==='Enter')verifyAuthOTP()">
             <button class="btn-primary" id="btnVerifyOTP" onclick="verifyAuthOTP()" style="margin-top:12px;">
                 Verify Code
             </button>
@@ -432,10 +338,198 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     <div id="identityError" class="error-msg" style="display:none;"></div>
 </div>
 
-<!-- STEP 1-3 (camera pre-flight + challenge/recording + verify) now rendered by the
-     shared VACReauth ceremony module into this mount. STEP 0 (identity) + STEP 4
-     (success) remain in this page. See vac-reauth-ceremony.js (S117 reauth-unify). -->
-<div id="vacReauthMount"></div>
+<!-- STEP 1: Camera Access -->
+<div class="step-section" id="step1">
+    <div class="header">
+        <button onclick="goToStep(0)" class="btn-back" aria-label="Back to Identity">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Back
+        </button>
+        <div class="header-eyebrow">Step 2 of 4</div>
+        <div class="header-title">Camera & Microphone</div>
+        <div class="header-sub">We'll record a short video of you speaking a challenge phrase, then showing fingers to match the digits. Takes about 15 seconds.</div>
+        <div id="deviceInfo" style="font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); margin-top: 4px;"></div>
+    </div>
+    <div class="camera-container" id="cameraBox">
+        <video id="videoPreview" autoplay playsinline muted></video>
+        <div class="camera-overlay">
+            <div class="camera-corners"></div>
+            <div class="camera-corners-bottom"></div>
+            <div class="face-oval" id="faceOval">
+                <svg viewBox="0 0 180 240" width="180" height="240">
+                    <ellipse class="face-oval-ring" cx="90" cy="120" rx="75" ry="105"/>
+                </svg>
+                <div class="face-oval-label" id="faceOvalLabel">Position face in oval</div>
+            </div>
+            <div class="camera-label" id="cameraLabel">AWAITING CAMERA</div>
+        </div>
+    </div>
+    <div class="privacy-statement">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.6 6.8 6 7.5 3.4-.7 6-4 6-7.5V4L8 1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Your biometric data is processed in real-time for verification only. Video is not stored after analysis. VAC Protocol does not retain facial images or voice recordings.</span>
+    </div>
+    <button class="btn-primary" id="btnCamera" onclick="requestCamera()">
+        Enable Camera & Microphone
+    </button>
+    <div id="cameraError" class="error-msg" style="display:none;"></div>
+    <div id="preRecordChecklist" style="display:none; margin-top: clamp(6px, 1vh, 10px);">
+        <!-- Mic test — prominent call to action -->
+        <div id="avAudioBar" style="display:none; margin-bottom: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
+            <div id="avMicPrompt" style="display: flex; align-items: center; gap: 8px; font-size: clamp(12px, 1.4vw, 14px); color: var(--text-primary); font-weight: 500; margin-bottom: 8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                <span id="avMicPromptText">Speak now to test your microphone</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="flex: 1; height: 12px; background: rgba(255,255,255,0.06); border-radius: 6px; overflow: hidden;">
+                    <div id="avAudioLevel" style="height: 100%; width: 0%; background: var(--success); border-radius: 6px; transition: width 75ms;"></div>
+                </div>
+                <span id="avAudioPct" style="font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); min-width: 30px; text-align: right;">0%</span>
+            </div>
+            <div id="avMicTip" style="font-size: 11px; color: var(--text-quaternary); margin-top: 4px; display: none;"></div>
+            <button onclick="retryAVSetup()" style="display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 6px 12px; font-size: 11px; color: var(--accent); background: none; border: 1px solid var(--accent); border-radius: 6px; cursor: pointer; opacity: 0.8; transition: opacity 0.2s;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.8'">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+                Refresh camera &amp; mic
+            </button>
+        </div>
+        <!-- Status pills — horizontal row -->
+        <div style="display: flex; justify-content: space-between; gap: 6px;">
+            <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
+            <div id="avPillMic" class="av-pill"><span id="avMicIcon" class="av-pill-icon spinning"></span><span id="avMicLabel">Mic</span></div>
+        </div>
+    </div>
+    <div style="text-align: center; margin-top: 6px;">
+        <div id="adaptiveAuthBar" class="adaptive-auth-bar standard" style="display:none;"></div>
+        <div class="modalities-mini" style="justify-content: center; display: none;" id="modalityChips">
+            <div class="mod-chip" data-mod="video_liveness"><span class="dot"></span>Face Liveness</div>
+            <div class="mod-chip" data-mod="deepfake_detection"><span class="dot"></span>Deepfake Detection</div>
+            <div class="mod-chip" data-mod="voice_biometric"><span class="dot"></span>Voiceprint</div>
+            <div class="mod-chip" data-mod="lip_sync"><span class="dot"></span>Lip-Sync</div>
+            <div class="mod-chip" data-mod="otp_verification"><span class="dot"></span>Challenge Response</div>
+            <div class="mod-chip" data-mod="finger_gesture"><span class="dot"></span>Finger Gesture</div>
+        </div>
+    </div>
+</div>
+
+<!-- STEP 2: Challenge + Recording -->
+<div class="step-section" id="step2">
+    <div class="header" style="padding-bottom: 16px;">
+        <button onclick="goToStep(1)" class="btn-back" aria-label="Back to Camera">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Back
+        </button>
+        <div class="header-eyebrow">Step 3 of 4</div>
+        <div class="header-title">Complete the Challenge</div>
+    </div>
+    <div class="camera-container recording" id="cameraBoxRec">
+        <video id="videoPreviewRec" autoplay playsinline muted></video>
+        <div class="camera-overlay">
+            <div class="camera-corners"></div>
+            <div class="camera-corners-bottom"></div>
+            <div class="face-oval">
+                <svg viewBox="0 0 180 240" width="180" height="240">
+                    <ellipse class="face-oval-ring" cx="90" cy="120" rx="75" ry="105"/>
+                </svg>
+            </div>
+            <div class="rec-indicator" id="recIndicator" style="display:none;">
+                <span class="rec-dot"></span>REC
+            </div>
+            <div class="audio-level" id="audioLevel" style="display:none;">
+                <div class="audio-bar" id="ab0" style="height:2px;"></div>
+                <div class="audio-bar" id="ab1" style="height:2px;"></div>
+                <div class="audio-bar" id="ab2" style="height:2px;"></div>
+                <div class="audio-bar" id="ab3" style="height:2px;"></div>
+                <div class="audio-bar" id="ab4" style="height:2px;"></div>
+                <span class="audio-rms-readout" id="audioRmsReadout" title="Live mic RMS — instrumentation for onset debugging (F-755d)">RMS 0%</span>
+            </div>
+            <div class="camera-challenge">
+                <div class="camera-challenge-text" id="challengeText">Loading challenge…</div>
+                <div class="camera-challenge-sub">Look at the camera the whole time</div>
+            </div>
+        </div>
+    </div>
+    <div class="timer-label" id="timerLabel">Recording in</div>
+    <div class="countdown-ring-wrap" id="countdownRingWrap">
+        <svg viewBox="0 0 100 100">
+            <circle class="ring-bg" cx="50" cy="50" r="39"/>
+            <circle class="ring-fill" cx="50" cy="50" r="39" id="countdownRingFill" style="stroke-dasharray: 245; stroke-dashoffset: 0;"/>
+        </svg>
+        <div class="countdown-number" id="countdownTimer">3</div>
+    </div>
+    <!-- Combined capture explanation (visible during recording) -->
+    <div id="combinedCaptureInfo" style="margin-top: 12px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;">
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">One action, six signals</div>
+        <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+            Speaking the phrase while showing fingers captures your face, voice, lip movements, challenge response, and finger gesture — producing six independent biometric signals from one recording. The finger count must match the digits you spoke.
+        </div>
+    </div>
+</div>
+
+<!-- STEP 3: Processing — REAL verification -->
+<div class="step-section" id="step3">
+    <div class="header">
+        <button onclick="goToStep(1)" class="btn-back" aria-label="Back to Camera" id="verifyBackBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+            Start over
+        </button>
+        <div class="header-eyebrow">Step 4 of 4</div>
+        <div class="header-title">Verifying Identity</div>
+        <div class="header-sub" id="verifySubtitle">Sending biometric data to verification engines…</div>
+    </div>
+    <div class="progress-container">
+        <div class="progress-ring">
+            <svg viewBox="0 0 80 80">
+                <circle class="ring-bg" cx="40" cy="40" r="36"/>
+                <circle class="ring-fill" cx="40" cy="40" r="36" id="progressRing"/>
+            </svg>
+        </div>
+        <div class="progress-step" id="progressStep">Uploading recording…</div>
+        <div class="progress-detail" id="progressDetail">Video + Audio → Gemini + Deepgram</div>
+    </div>
+    <div class="modality-results" id="modalityResults">
+        <div class="modality-toggle" id="modalityToggle" onclick="toggleModalities()">
+            <span class="toggle-label">Verification Modalities</span>
+            <span class="toggle-summary" id="modalitySummary">Checking…</span>
+            <span class="toggle-arrow">▼</span>
+        </div>
+        <div class="modality-list" id="modalityList">
+        <div class="mod-result" id="modFace"><span class="mod-status">⏳</span><span class="mod-name">Face Liveness</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms a real person is present, not a photo or mask</span></div>
+        <div class="mod-result" id="modDeepfake"><span class="mod-status">⏳</span><span class="mod-name">Deepfake Detection</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Checks for AI-generated or manipulated video artifacts</span></div>
+        <div class="mod-result" id="modVoice"><span class="mod-status">⏳</span><span class="mod-name">Voiceprint</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies speech is from a live human voice, not synthesized</span></div>
+        <div class="mod-result" id="modLipSync"><span class="mod-status">⏳</span><span class="mod-name">Lip-Sync</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Confirms lip movements match spoken audio in real time</span></div>
+        <div class="mod-result" id="modChallenge"><span class="mod-status">⏳</span><span class="mod-name">Challenge Response</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Matches spoken words against a unique server-generated phrase</span></div>
+        <div class="mod-result" id="modFinger"><span class="mod-status">⏳</span><span class="mod-name">Finger Gesture</span><span class="mod-info" onclick="event.stopPropagation();toggleModDesc(this.parentElement)">ⓘ</span><span class="mod-score pending">—</span><span class="mod-desc">Verifies correct finger count sequence shown near the face</span></div>
+        </div>
+    </div>
+    <!-- Under the Hood — engine analysis details -->
+    <div class="modality-results" id="underHoodContainer" style="display:none;margin-top: clamp(8px, 1vh, 12px);">
+        <div class="modality-toggle" onclick="toggleUnderHood()">
+            <span class="toggle-label">Under the Hood</span>
+            <span class="toggle-summary" id="hoodSummary" style="color: var(--text-tertiary);">Gemini + Deepgram</span>
+            <span class="toggle-arrow" id="hoodArrow">▼</span>
+        </div>
+        <div class="modality-list" id="underHoodList">
+            <div id="hoodContent" style="padding: clamp(8px, 1vh, 12px) 0; font-size: clamp(11px, 1.2vw, 12px); font-family: var(--mono); color: var(--text-secondary); line-height: 1.6;">
+                <div style="color: var(--text-quaternary); margin-bottom: 6px;">Loading engine data…</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="retrySection" style="display:none; margin-top: 20px;">
+        <div id="failReasonCard" style="background: var(--error-bg); border: 1px solid var(--error-border); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px;">
+            <div style="font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--error); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Why it failed</div>
+            <div id="failReasons" style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;"></div>
+        </div>
+        <div id="retryTips" style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin-bottom: 14px;">
+            <div style="font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--teal); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px;">Try this</div>
+            <div id="retryTipsList" style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;"></div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn-primary" onclick="retryVerification()" style="flex: 1;">Retry Verification</button>
+            <button class="btn-secondary" onclick="showSuccess()" id="btnContinueAnyway" style="flex: 0 0 auto; display: none;">Continue Anyway</button>
+        </div>
+        <div style="font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); text-align: center; margin-top: 8px;" id="retryCount"></div>
+    </div>
+</div>
 
 <!-- STEP 4: Success -->
 <div class="step-section" id="step4">
@@ -455,26 +549,6 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div style="font-size: 20px; font-weight: 700; color: var(--text-primary);" id="successName"></div>
         <div style="font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); margin-top: 2px;" id="successOrg"></div>
         <div style="font-family: var(--mono); font-size: 13px; color: var(--teal); margin-top: 4px;" id="successScore"></div>
-    </div>
-
-    <!-- F-563 (4): POST-VERIFICATION "what it means" — bookends the upfront explainer. TWO depths:
-         (A) plain-English, ALWAYS visible, for every user; (B) expandable, COLLAPSED by default. -->
-    <div id="whatItMeans" style="margin-top:18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:clamp(16px,4vw,22px);">
-        <div style="font-size:clamp(16px,4.5vw,20px);font-weight:800;color:var(--text-primary);line-height:1.3;text-align:center;">You're now a <span style="color:var(--teal);">verified human</span> on the record.</div>
-        <div style="font-size:clamp(13px,3.6vw,15px);line-height:1.6;color:var(--text-secondary);margin-top:12px;">
-            Your certificate is live. From here you can put AI agents to work in your name — and each one inherits its authority <strong style="color:var(--text-primary);">from you</strong>, stays bounded by it, and traces back to you. You get the leverage of agents <strong style="color:var(--text-primary);">without</strong> losing accountability: everything done under your authority has a proven human standing behind it.
-        </div>
-        <!-- (B) Expandable deeper context, collapsed by default -->
-        <button id="whatItMeansToggle" onclick="toggleWhatItEnables()" style="margin-top:14px;width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;background:transparent;border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;color:var(--text-secondary);font-size:clamp(13px,3.6vw,14px);font-weight:600;-webkit-tap-highlight-color:transparent;">
-            <span>Learn what this enables</span>
-            <span id="whatItMeansArrow" style="font-size:11px;transition:transform 0.2s;">▸</span>
-        </button>
-        <div id="whatItMeansMore" style="display:none;font-size:clamp(12px,3.4vw,14px);line-height:1.65;color:var(--text-secondary);margin-top:12px;padding-top:4px;">
-            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">Policies travel with the work, not on a server.</strong> Your verified authority is carried inside each unit of work (an L0 policy-carrying packet) — the rules ride along with the task itself, so they hold wherever the work goes, even off-platform.</p>
-            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">Agents act only on authority you grant.</strong> AI agents can act for you, but each action is authorised against your verified identity and bounded by the scope you set — derived from this credential, never exceeding it. Nothing acts in your name without tracing back to you.</p>
-            <p style="margin:0 0 10px;"><strong style="color:var(--text-primary);">A verifiable record of who did what.</strong> Because every action is authorised against a verified human, each one leaves an attributable, independently-checkable record — so the full chain of who acted, under whose authority, and when can be reconstructed and verified after the fact.</p>
-            <p style="margin:0;">Together these are the building blocks of an <strong style="color:var(--text-primary);">operating system for trusted intelligence</strong> — where humans and the agents working for them are accountable by design.</p>
-        </div>
     </div>
     <!-- Trust Status — live updates from vouch polling -->
     <div id="trustStatusSection" style="margin-top:16px;display:none;">
@@ -508,12 +582,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
     <!-- Enter full app -->
     <div style="margin-top:20px;text-align:center;">
-        <a id="returnDemoBtn" href="#" style="display:none;background:var(--teal,#2DD4BF);color:#06251F;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;margin-right:10px;">Return to the demo →</a><script>(function(){var b=document.getElementById("returnDemoBtn"); if(window.__vacReturnPath){ b.href=window.__vacReturnPath; b.style.display="inline-block"; }})();</script><a id="enterAppBtn" href="#" onclick="enterApp()" style="display:inline-block;background:var(--purple);color:white;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;">Enter VAC Protocol →</a>
+        <a id="enterAppBtn" href="#" onclick="enterApp()" style="display:inline-block;background:var(--purple);color:white;font-family:var(--mono);font-size:13px;font-weight:700;padding:14px 32px;border-radius:8px;text-decoration:none;letter-spacing:0.5px;cursor:pointer;">Enter VAC Protocol →</a>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text-quaternary);margin-top:8px;">Messages · Agents · Governance</div>
-        <div style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-            <a href="#" onclick="refreshVerification()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Refresh verification</a>
-            <a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-quaternary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--coral)';this.style.color='var(--coral)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-quaternary)'">Re-verify</a>
-        </div>
+        <div style="margin-top:14px"><a href="#" onclick="clearAndRestart()" style="font-family:var(--mono);font-size:12px;color:var(--text-secondary);text-decoration:none;cursor:pointer;padding:8px 16px;border:1px solid var(--border);border-radius:6px;display:inline-block;transition:all 0.2s;" onmouseover="this.style.borderColor='var(--teal)';this.style.color='var(--teal)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-secondary)'">Re-verify identity</a></div>
     </div>
 
     <!-- Share card -->
@@ -571,259 +642,116 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
     </svg>
 </div>
 
+<script src="verdict-reasons.js"></script>
 <script>
 const API_BASE = 'https://vac-system-production.up.railway.app';
 
-// ── Telemetry: POST to /v1/auth/debug at each interesting decision point ──
-// Goal: see what actually happens on user phones when auth fails, instead of
-// guessing from desktop. Fire-and-forget — must never block or fail the auth flow.
-const VAC_DEBUG_SESSION = 'sess_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now();
-// ── F-560: ?qa=1 multi-modal advance-gate debug overlay ─────────────────────
-// A live on-screen instrument: per-digit gesture-confirmed-at / speech-confirmed-at
-// / advance-fired-at, the dwell timer, detector state each frame, recorder
-// start/stop, and final pass/fail + which modality failed. This is the substrate
-// that makes the F-561 gesture-AND-speech advance gate verifiable by WATCHING it,
-// not by grep. The speech column reads "—" until F-561 wires it via
-// vacDebug('speech_confirm', null, { digit_index }). Zero cost when ?qa!=1 —
-// every hook is guarded on QA.on.
-//
-//   discrete events ──vacDebug()──▶ QA.onEvent()  (server trail + panel, in sync)
-//   per-frame state ──QA.frame()──▶ cache(every frame) + paint(~10Hz, no POST)
-//
-const QA = (function () {
-    const params = new URLSearchParams(window.location.search);
-    const on = params.get('qa') === '1';
-    const demo = on && params.get('qaDemo') === '1';
-
-    let t0 = 0;              // recorder-start anchor (performance.now())
-    let recStop = null;     // ms since t0 when the recorder stopped
-    let recStarted = false;
-    let expected = [];      // S111: EXPECTED challenge digits, to show exp:N vs detected cnt: per row (malformed-challenge vs misdetection)
-    const rows = [];        // [{ gestureAt, speechAt, advanceAt, count }]
-    let result = null;      // { pass:bool, failed:[name] }
-    let calData = null;     // F-595: { floor, speech, thr, sil, fallback } — per-session VAD auto-calibration readout
-    let live = null;        // latest per-frame state, cached EVERY frame
-    let lastPaint = 0;
-    let panel = null, liveEl = null;
-
-    function relNow() { return t0 ? (performance.now() - t0) : null; }
-    function ms(v) { return v == null ? '—' : ('+' + Math.round(v) + 'ms'); }
-    function row(i) {
-        while (rows.length <= i) rows.push({ gestureAt: null, speechAt: null, advanceAt: null, count: null, winOpenAt: null, speechRms: null, onsetAt: null });
-        return rows[i];
-    }
-
-    function ensurePanel() {
-        if (panel || !on || !document.body) return;
-        panel = document.createElement('div');
-        panel.id = 'qaOverlay';
-        panel.style.cssText = [
-            'position:fixed', 'top:0', 'right:0', 'z-index:99999',
-            // cap to the viewport so the panel can never exceed the screen width...
-            'max-width:min(360px,94vw)', 'box-sizing:border-box', 'padding:8px 10px',
-            'background:rgba(8,10,16,0.92)', 'border:1px solid #2DD4BF',
-            'border-radius:0 0 0 8px', 'font-family:ui-monospace,SFMono-Regular,Menlo,monospace',
-            'font-size:11px', 'line-height:1.45', 'color:#C9D1D9',
-            // ...and pre-wrap so the long `live:` line WRAPS (keeping sOk visible)
-            // instead of running off the right edge; overflow-wrap breaks long tokens.
-            'white-space:pre-wrap', 'overflow-wrap:anywhere',
-            'pointer-events:none', 'box-shadow:0 4px 20px rgba(0,0,0,0.5)'
-        ].join(';');
-        document.body.appendChild(panel);
-    }
-
-    function paintLine() {
-        if (!liveEl || !live) return;
-        const s = live;
-        liveEl.textContent =
-            'live: det=' + s.detected + ' stable=' + s.stableFrames + '/' + s.need +
-            ' dwell=' + s.dwellMs + 'ms beat=' + s.beatMs +
-            ' gOk=' + (s.gestureOk ? 'Y' : 'N') +
-            ' sOk=' + (s.speechOk == null ? '—' : (s.speechOk ? 'Y' : 'N')) +
-            // F-561: live VAD RMS vs threshold so the gate is calibratable by eye —
-            // silent reads the noise floor, speaking spikes, set thr in the gap.
-            ' rms=' + (s.rms == null ? '—' : Number(s.rms).toFixed(3)) +
-            ' thr=' + (s.thr == null ? '—' : Number(s.thr).toFixed(3)) +
-            // R1: continuous voiced-run ms vs the sustained-duration gate — a tap never climbs to
-            // voiceNeed (keeps resetting); a real spoken digit does. Makes the time-based gate visible.
-            (s.voiceMs == null ? '' : ' vMs=' + Math.round(s.voiceMs) + '/' + (s.voiceNeed || '?'));
-    }
-
-    function render() {
-        ensurePanel();
-        if (!panel) return;
-        let html = '';
-        if (demo) {
-            html += '<div style="background:#D6336C;color:#fff;font-weight:700;padding:3px 6px;margin:-8px -10px 6px;letter-spacing:0.5px;">DEMO — SYNTHETIC DATA, NOT A LIVE RUN</div>';
-        }
-        html += '<b style="color:#2DD4BF">VAC QA · advance-gate</b>\n';
-        html += '<span style="color:#6E7681">per-digit: g=gesture  s=speech  adv=advance</span>\n';
-        for (let i = 0; i < rows.length; i++) {
-            const r = rows[i];
-            const heldNoAdv = (r.gestureAt != null && r.advanceAt == null);
-            html += 'D' + i +
-                (expected[i] != null ? '  exp:' + expected[i] : '') +
-                '  win:' + ms(r.winOpenAt) +
-                '  g:' + ms(r.gestureAt) +
-                (r.onsetAt != null ? '  on:' + ms(r.onsetAt) : '') +
-                '  s:' + ms(r.speechAt) + (r.speechRms != null ? '(rms ' + Number(r.speechRms).toFixed(3) + ')' : '') +
-                '  adv:' + (r.advanceAt == null ? (heldNoAdv ? '— (held, no advance)' : '—') : ms(r.advanceAt)) +
-                (r.count != null ? '  cnt:' + r.count + (expected[i] != null && r.count !== expected[i] ? '≠exp' : '') : '') + '\n';
-        }
-        if (rows.length === 0) html += '<span style="color:#6E7681">(no digits yet)</span>\n';
-        // F-595: per-session VAD auto-calibration — makes the auto-cal'd threshold verifiable by eye
-        // (same philosophy as the per-digit rows). floor=room noise, speech=greeting loudness,
-        // thr=voice gate, sil=silence gate. "(fallback)" = greeting couldn't calibrate → 0.14/0.085.
-        if (calData) {
-            const _cf = function (v) { return v == null ? '—' : Number(v).toFixed(3); };
-            html += '<span style="color:' + (calData.fallback ? '#fbbf24' : '#2DD4BF') + '">cal: floor=' + _cf(calData.floor) +
-                ' speech=' + _cf(calData.speech) + ' thr=' + _cf(calData.thr) + ' sil=' + _cf(calData.sil) +
-                (calData.fallback ? ' (fallback)' : '') + '</span>\n';
-        } else {
-            html += '<span style="color:#6E7681">cal: — (greeting not calibrated yet)</span>\n';
-        }
-        html += '<span id="qaLive" style="color:#fbbf24">live: —</span>\n';
-        html += 'rec: ' + (recStarted ? 'start+0ms' : '—') + (recStop != null ? '  stop' + ms(recStop) : '') + '\n';
-        if (result) {
-            html += '<b style="color:' + (result.pass ? '#3FB950' : '#F85149') + '">RESULT: ' +
-                (result.pass ? 'PASS' : 'FAIL') + '</b>  fail:' + (result.failed.length ? result.failed.join(',') : 'none') + '\n';
-        }
-        html += '<span style="color:#6E7681">VAD: win=window-open · on=silence→voice ONSET (fresh per-digit binding; must be after win) · (rms ..)=value that fired s · blank s = no voice yet · live line shows thr</span>';
-        panel.innerHTML = html;
-        liveEl = panel.querySelector('#qaLive');
-        paintLine();
-    }
-
-    // Discrete-event bus — vacDebug fans every event here when QA.on (D1: hybrid).
-    function onEvent(event, ctx) {
-        if (!on || demo) return;   // demo panel is static synthetic data, never overwritten
-        if (event === 'recorder_started') {
-            // FRESH overlay per recording: rows/result/recStop/expected are module-level and
-            // survive re-entry. Without this reset, a re-auth keeps the PRIOR run's rows — and
-            // since t0 is re-anchored here, guarded fields (gestureAt/speechAt/onsetAt, set only
-            // if==null) display the old run's timestamps against the NEW clock → impossible
-            // orderings (the phantom "re-auth race"). Reset alongside the t0 re-anchor so every
-            // recording reads TRUE. (expected is repopulated by the challenge_digits event.)
-            rows.length = 0; result = null; recStop = null; expected = []; calData = null;   // F-595: fresh calibration per recording (re-auth must not show the prior session's thr)
-            t0 = performance.now(); recStarted = true; render();
-        } else if (event === 'challenge_digits' && ctx && Array.isArray(ctx.digits)) {
-            // S111: the EXPECTED challenge sequence — show exp:N per row so a stuck digit
-            // reveals malformed-challenge (exp == a repeat) vs misdetection (cnt != exp).
-            expected = ctx.digits.slice(); render();
-        } else if (event === 'recorder_stopped') {
-            recStop = relNow(); render();
-        } else if (event === 'gesture_confirm' && ctx && typeof ctx.digit_index === 'number') {
-            const r = row(ctx.digit_index); if (r.gestureAt == null) { r.gestureAt = relNow(); render(); }
-        } else if (event === 'speech_confirm' && ctx && typeof ctx.digit_index === 'number') {
-            // F-561 #2 diag: record WHEN speech fired and the RMS that triggered it,
-            // so a false-fire (rms barely over thr / loud transient) is distinguishable
-            // from a real spoken number on the next live pass.
-            const r = row(ctx.digit_index);
-            if (r.speechAt == null) { r.speechAt = relNow(); r.speechRms = (typeof ctx.rms === 'number' ? ctx.rms : null); r.onsetAt = (t0 && typeof ctx.onset_perf === 'number') ? (ctx.onset_perf - t0) : null; render(); }
-        } else if (event === 'speech_window_open' && ctx && typeof ctx.digit_index === 'number') {
-            // F-561 #2 diag: when each digit's speech window opened (relative to t0).
-            // A speechAt at/just-after this == possible bleed; mid-window == false-fire.
-            const r = row(ctx.digit_index);
-            r.winOpenAt = (t0 && typeof ctx.at_perf === 'number') ? (ctx.at_perf - t0) : relNow();
-            render();
-        } else if (event === 'detect_digit_advance' && ctx && typeof ctx.digit_index === 'number') {
-            const r = row(ctx.digit_index); r.advanceAt = relNow(); r.count = ctx.fingers_shown; render();
-        } else if (event === 'qa_final_result' && ctx) {
-            result = { pass: !!ctx.pass, failed: ctx.failed || [] }; render();
-        }
-    }
-
-    function frame(s) {
-        if (!on || demo) return;
-        live = s;                              // cache EVERY frame so discrete reads see true-latest
-        const now = performance.now();
-        if (now - lastPaint < 100) return;     // D2: throttle paint to ~10Hz, textContent only
-        lastPaint = now;
-        paintLine();
-    }
-
-    // F-595: the greeting phase calls this once with the per-session VAD calibration result.
-    function cal(c) {
-        if (!on || demo) return;
-        calData = c; render();
-    }
-
-    function runDemo() {
-        // Synthetic data ONLY — the persistent banner makes that unmistakable (D3).
-        // Mid-run snapshot of the F-561 AND-gate: D0/D1 advanced only after BOTH gesture
-        // and speech; D2 is gesture-confirmed but HELD, waiting on voice (sOk=N, rms<thr).
-        t0 = 1; recStarted = true; recStop = null;
-        rows.push({ gestureAt: 812,  speechAt: 980,  speechRms: 0.187, onsetAt: 930,  advanceAt: 1010, winOpenAt: 0,    count: 2 });
-        rows.push({ gestureAt: 2210, speechAt: 2360, speechRms: 0.203, onsetAt: 2300, advanceAt: 2410, winOpenAt: 1910, count: 3 });
-        rows.push({ gestureAt: 3900, speechAt: null, speechRms: null,  advanceAt: null, winOpenAt: 3310, count: null }); // held, waiting on voice
-        expected = [2, 3, 5];  // synthetic expected sequence → shows exp:N per row (D2 exp:5, held)
-        result = null;  // run not complete in this snapshot
-        calData = { floor: 0.052, speech: 0.221, thr: 0.120, sil: 0.077, fallback: false };   // F-595: synthetic auto-cal readout
-        live = { detected: 5, stableFrames: 12, need: 12, dwellMs: 740, beatMs: 0, gestureOk: true, speechOk: false, rms: 0.041, thr: 0.120, voiceMs: 0, voiceNeed: 350 };
-        render();
-    }
-
-    if (on) {
-        const boot = demo ? runDemo : render;   // demo: synthetic panel; live: empty panel proves ?qa=1 took effect
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-        else boot();
-    }
-
-    return { on, demo, onEvent, frame, cal };
-})();
-// S117 reauth-unify: expose the ?qa=1 debug overlay so the shared ceremony module (a separate
-// script scope) can fan its telemetry into the same panel. Captured by VACReauth.run() at run time.
-window.QA = QA;
-
-function vacDebug(event, reason, context) {
-    try {
-        const body = { session_id: VAC_DEBUG_SESSION, event: String(event) };
-        if (reason !== undefined && reason !== null) body.reason = String(reason);
-        if (context) {
-            try { body.context = context; } catch(_) {}
-        }
-        // Best-effort: don't await, don't care about errors, don't block anything
-        fetch(API_BASE + '/v1/auth/debug', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            keepalive: true,  // survives page unload
-        }).catch(function() {});
-        // F-560: fan discrete events out to the ?qa=1 on-screen overlay — single
-        // event bus, so the panel and the server telemetry read the same calls.
-        try { if (QA.on) QA.onEvent(event, context); } catch(_) {}
-        // Also mirror to console so local debugging still works
-        console.log('[VAC-DBG]', event, reason || '', context || '');
-    } catch(_) { /* never block auth for telemetry */ }
-}
-// Fire a boot event immediately so we can confirm the session_id in the DB
-vacDebug('auth_page_loaded', null, {
-    ua: navigator.userAgent,
-    online: navigator.onLine,
-    cores: navigator.hardwareConcurrency || 0,
-    lang: navigator.language,
-    screen: window.screen ? (window.screen.width + 'x' + window.screen.height) : 'unknown'
-});
-
-// Listen for MediaPipe module load outcome (fires from the <script type="module"> in head)
-window.addEventListener('vac-mediapipe-ready', function(e) {
-    vacDebug('mediapipe_module_ready', null, { ms: (e.detail && e.detail.ms) || null });
-});
-window.addEventListener('vac-mediapipe-error', function(e) {
-    vacDebug('mediapipe_module_error', (e.detail && e.detail.error) || 'unknown', null);
-});
-// If the module already loaded before this listener attached, log it now
-if (window.__VAC_MediaPipe) {
-    vacDebug('mediapipe_module_ready', null, { ms: window.__VAC_MediaPipe_load_ms || null, late: true });
-} else if (window.__VAC_MediaPipe_error) {
-    vacDebug('mediapipe_module_error', window.__VAC_MediaPipe_error, { late: true });
-}
-
 let currentStep = 0;
-// S117 reauth-unify: the live verify result. The ceremony state (mediaStream, challengeData,
-// retryAttempts, …) now lives inside the shared module; this page keeps only authResult, which the
-// module hands back via onComplete and showSuccess()/copyShareUrl() read.
+let mediaStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
 let authResult = null;
+let challengeData = null;
+let fingerFallback = 'none'; // 'none' = fingers, 'voice' = voice only
+
+// ──────────────────────────────────────────────────────────────────────────
+// FingerDetector — real-time hand landmark detection via MediaPipe Tasks Vision
+// Loads asynchronously; gracefully falls back to timer if unavailable or slow
+// ──────────────────────────────────────────────────────────────────────────
+const FingerDetector = (function() {
+    let _detector = null;
+    let _isReady = false;
+    let _hasFailed = false;
+    let _initStarted = false;
+
+    function _loadScript(src) {
+        return new Promise(function(resolve, reject) {
+            if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = function() { reject(new Error('Failed to load ' + src)); };
+            document.head.appendChild(s);
+        });
+    }
+
+    async function init() {
+        if (_initStarted) return;
+        _initStarted = true;
+        try {
+            await _loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/vision_bundle.js');
+            const FSetRes = window.FilesetResolver;
+            const HLM = window.HandLandmarker;
+            if (!FSetRes || !HLM) throw new Error('MediaPipe globals not found after script load');
+            const vision = await FSetRes.forVisionTasks(
+                'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm'
+            );
+            _detector = await HLM.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+                    delegate: 'GPU'
+                },
+                runningMode: 'VIDEO',
+                numHands: 1
+            });
+            _isReady = true;
+            console.log('[VAC] HandLandmarker ready — real-time finger detection active');
+        } catch(e) {
+            _hasFailed = true;
+            console.warn('[VAC] HandLandmarker unavailable, will use timer fallback:', e.message);
+        }
+    }
+
+    // Count extended fingers from MediaPipe landmark array (21 points, normalized 0-1)
+    // y=0 is top of frame; finger is "up" when tip is above its PIP joint
+    function _countFingers(landmarks) {
+        let count = 0;
+        // Thumb: tip(4) above IP(3) — works for hand held face-on to camera
+        if (landmarks[4].y < landmarks[3].y) count++;
+        // Index tip(8) vs PIP(6)
+        if (landmarks[8].y < landmarks[6].y) count++;
+        // Middle tip(12) vs PIP(10)
+        if (landmarks[12].y < landmarks[10].y) count++;
+        // Ring tip(16) vs PIP(14)
+        if (landmarks[16].y < landmarks[14].y) count++;
+        // Pinky tip(20) vs PIP(18)
+        if (landmarks[20].y < landmarks[18].y) count++;
+        return count;
+    }
+
+    function detect(videoEl) {
+        if (!_isReady || _hasFailed || !_detector) return null;
+        const t0 = performance.now();
+        let results;
+        try {
+            results = _detector.detectForVideo(videoEl, performance.now());
+        } catch(e) {
+            console.warn('[VAC] HandLandmarker detect error, switching to timer fallback:', e.message);
+            _hasFailed = true;
+            return null;
+        }
+        const ms = performance.now() - t0;
+        if (ms > 500) {
+            console.warn('[VAC] HandLandmarker too slow (' + ms.toFixed(0) + 'ms/frame), switching to timer fallback');
+            _hasFailed = true;
+            return null;
+        }
+        if (!results.landmarks || results.landmarks.length === 0) return -1; // no hand in frame
+        return _countFingers(results.landmarks[0]);
+    }
+
+    return {
+        init: init,
+        detect: detect,
+        get ready() { return _isReady; },
+        get failed() { return _hasFailed; }
+    };
+})();
+let retryAttempts = 0;
+const MAX_RETRIES = 5;
+let audioContext = null;
+let audioAnalyser = null;
+let audioAnimFrame = null;
 
 function toggleOrgFields() {
     const el = document.getElementById('optionalFields');
@@ -833,6 +761,9 @@ function toggleOrgFields() {
     btn.textContent = showing ? '− Hide organisation details' : '+ Add organisation details';
 }
 
+// Fail reason descriptions + verdict.reasons -> display derivation now live
+// in verdict-reasons.js (shared with the Node regression test — see
+// vac-backend/test_verdict_evidence_coherence.node.js).
 
 // User data helper
 const userData = () => ({
@@ -844,9 +775,6 @@ const userData = () => ({
 
 // Step navigation
 function goToStep(n) {
-    // F-563 (1): the upfront-explainer overlay is fixed/full-screen — hide it on any step change
-    // so a back-navigation while it's up can't leave it blocking the UI.
-    try { var _ci = document.getElementById('challengeIntro'); if (_ci) _ci.style.display = 'none'; } catch(_) {}
     document.querySelectorAll('.step-section').forEach(s => s.classList.remove('active'));
     document.getElementById(`step${n}`).classList.add('active');
     for (let i = 0; i <= 3; i++) {
@@ -864,39 +792,6 @@ function goToStep(n) {
 }
 
 // STEP 0 → 1: Identity → Camera
-// S117 reauth-unify: hand off to the shared VACReauth ceremony module (camera pre-flight +
-// show-and-say N digits + face/audio capture + verify). STEP 0 (identity/OTP) and STEP 4 (success)
-// stay in this page; the ceremony renders into #vacReauthMount. This replaces the old inline
-// goToStep(1) → requestCamera() entry. opts.auto = resume/service-error silent auto-proceed.
-function startReauthCeremony(opts) {
-    opts = opts || {};
-    const d = userData();
-    const mount = document.getElementById('vacReauthMount');
-    if (!mount || typeof VACReauth === 'undefined' || !VACReauth.run) {
-        console.error('[VAC] VACReauth ceremony module not available');
-        return;
-    }
-    // F-635: when embedded as the SEAL-GATE re-auth, tribunal opens this page as /auth.html?greeting=skip
-    // — a same-session second full auth that drops the greeting/voice-anchor phase (lighter, proportional).
-    // The first identity auth opens this page WITHOUT the param → profile omitted → greeting required
-    // (regression guard: the standalone /auth experience and the first auth are unchanged).
-    var _greetingParam = null;
-    try { _greetingParam = new URLSearchParams(window.location.search).get('greeting'); } catch(_) {}
-    var _sealGateProfile = (_greetingParam === 'skip') ? { greeting: 'skip' } : null;
-    VACReauth.run({
-        name: d.name, email: d.email, org: d.org, role: d.role,
-        riskLevel: 'medium',                 // auth.html runs the full ceremony (unchanged from before)
-        mount: mount, context: 'register',
-        auto: !!opts.auto,
-        profile: _sealGateProfile,           // F-635: {greeting:'skip'} only when ?greeting=skip (seal-gate); else null → greeting required
-        retryAttempts: (typeof opts.retryAttempts === 'number') ? opts.retryAttempts : 0,
-        onStep: function(n) { try { goToStep(n); } catch(_) {} },        // mirror progress on this page's step dots
-        onComplete: function(result) { authResult = result; try { showSuccess(); } catch(e) { console.error('[VAC] showSuccess failed:', e); } },
-        onReauthReload: function(o) { reauthReload(o || {}); },          // full fresh-start reload (the host restart primitive)
-        onBack: function() { try { goToStep(0); } catch(_) {} },         // step-1 back → identity form
-    });
-}
-
 function goToCamera() {
     const d = userData();
     const errEl = document.getElementById('identityError');
@@ -915,7 +810,7 @@ function goToCamera() {
         // Skip OTP if confirmed within 7 days
         if (confirmedAt && (Date.now() - confirmedAt) < 7 * 24 * 60 * 60 * 1000) {
             console.log('[VAC] Email already OTP-confirmed, skipping to camera');
-            startReauthCeremony();
+            goToStep(1);
             return;
         }
     } catch(e) {}
@@ -952,16 +847,8 @@ function goToCamera() {
     });
 }
 
-// Format OTP input to match the emailed 000-000 layout: strip non-digits,
-// cap at 6 digits, insert a dash after the third digit.
-function formatOTPInput(el) {
-    let digits = el.value.replace(/\D/g, '').slice(0, 6);
-    el.value = digits.length > 3 ? digits.slice(0, 3) + '-' + digits.slice(3) : digits;
-}
-
 function verifyAuthOTP() {
-    // Strip the display dash so the backend receives 6 raw digits.
-    const code = document.getElementById('otpInput').value.replace(/\D/g, '');
+    const code = document.getElementById('otpInput').value.trim();
     const errEl = document.getElementById('identityError');
     if (code.length !== 6) {
         errEl.textContent = 'Enter the 6-digit code from your email.';
@@ -990,7 +877,7 @@ function verifyAuthOTP() {
                 confirmed[userData().email.toLowerCase()] = Date.now();
                 localStorage.setItem('vac_otp_confirmed', JSON.stringify(confirmed));
             } catch(e) {}
-            startReauthCeremony();
+            goToStep(1);
         }
     })
     .catch(e => {
@@ -1019,164 +906,1096 @@ function resendAuthOTP() {
     });
 }
 
+// STEP 1: Request camera + fetch challenge from backend
+async function requestCamera() {
+    const btn = document.getElementById('btnCamera');
+    const err = document.getElementById('cameraError');
+    err.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Requesting access…';
+    const dev = showDeviceInfo();
 
+    try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
+            audio: true,
+        });
+        const vid = document.getElementById('videoPreview');
+        vid.srcObject = mediaStream;
+        vid.muted = true;
+        vid.setAttribute('playsinline', '');
+        await vid.play().catch(() => {});
+        document.getElementById('cameraLabel').textContent = 'CAMERA ACTIVE';
 
-// F-563 (4): expand/collapse the deeper "what this enables" context on the success screen.
-// Collapsed by default so the plain-English payoff isn't buried for a first-time user.
-function toggleWhatItEnables() {
-    var more = document.getElementById('whatItMeansMore');
-    var arrow = document.getElementById('whatItMeansArrow');
-    if (!more) return;
-    var open = more.style.display !== 'none';
-    more.style.display = open ? 'none' : 'block';
-    if (arrow) arrow.style.transform = open ? 'rotate(0deg)' : 'rotate(90deg)';
+        // Show AV checks immediately — don't wait for challenge fetch
+        document.getElementById('preRecordChecklist').style.display = 'block';
+        document.getElementById('avAudioBar').style.display = 'block';
+        startAVChecks();
+
+        // Fetch challenge from backend (parallel — doesn't block AV checks)
+        btn.textContent = 'Loading challenge…';
+        btn.disabled = true;
+        const d = userData();
+        try {
+            const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: d.name, risk_level: 'medium' }),
+            });
+            challengeData = await resp.json();
+        } catch (fetchErr) {
+            console.error('[CHALLENGE FETCH]', fetchErr);
+            // Show error but keep AV checks running
+            err.innerHTML = `<div style="color: var(--warning); margin-bottom: 4px;">Could not load challenge — check your connection and try again.</div>`;
+            err.style.display = 'block';
+        }
+
+        btn.textContent = 'Ready — Proceed to Challenge';
+        btn.disabled = false;
+        btn.onclick = goToChallenge;
+        // Fetch adaptive modality requirements
+        fetchModalityRequirements();
+    } catch (e) {
+        // Browser-specific troubleshooting tips
+        const tips = getCameraTips(dev);
+        let errHtml = `<div style="margin-bottom: 6px;">${e.message || 'Camera access denied.'}</div>`;
+        if (tips.length > 0) {
+            errHtml += `<div style="font-size: 11px; color: var(--text-tertiary); line-height: 1.5;">`;
+            tips.forEach(t => { errHtml += `<div style="margin-top: 3px;">→ ${t}</div>`; });
+            errHtml += `</div>`;
+        }
+        err.innerHTML = errHtml;
+        err.style.display = 'block';
+        btn.textContent = 'Retry Camera Access';
+        btn.disabled = false;
+    }
 }
 
+// --- Device & Browser Detection (from folioAI) ---
+function detectDevice() {
+    const ua = navigator.userAgent;
+    let os = 'Unknown';
+    if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+    else if (/Android/.test(ua)) os = 'Android';
+    else if (/Mac OS X/.test(ua)) os = 'macOS';
+    else if (/Windows/.test(ua)) os = 'Windows';
+    else if (/Linux/.test(ua)) os = 'Linux';
 
+    let browser = 'Unknown', ver = '';
+    if (/CriOS\/(\d+)/.test(ua)) { browser = 'Chrome (iOS)'; ver = ua.match(/CriOS\/(\d+)/)?.[1] || ''; }
+    else if (/FxiOS\/(\d+)/.test(ua)) { browser = 'Firefox (iOS)'; ver = ua.match(/FxiOS\/(\d+)/)?.[1] || ''; }
+    else if (/Edg\/(\d+)/.test(ua)) { browser = 'Edge'; ver = ua.match(/Edg\/(\d+)/)?.[1] || ''; }
+    else if (/Chrome\/(\d+)/.test(ua) && /Google/.test(navigator.vendor)) { browser = 'Chrome'; ver = ua.match(/Chrome\/(\d+)/)?.[1] || ''; }
+    else if (/Firefox\/(\d+)/.test(ua)) { browser = 'Firefox'; ver = ua.match(/Firefox\/(\d+)/)?.[1] || ''; }
+    else if (/Version\/(\d+)/.test(ua) && /Safari/.test(ua)) { browser = 'Safari'; ver = ua.match(/Version\/(\d+)/)?.[1] || ''; }
+
+    let device = 'desktop';
+    if (/iPhone|Android.*Mobile/.test(ua)) device = 'mobile';
+    else if (/iPad|Android/.test(ua) && !/Mobile/.test(ua)) device = 'tablet';
+
+    return { device, browser, ver, os };
+}
+
+function getCameraTips(dev) {
+    const tips = [];
+    if (dev.browser === 'Safari') {
+        if (dev.os === 'iOS') tips.push('On iPhone: Settings → Safari → Camera & Microphone → Allow');
+        else tips.push('Safari → Settings → Websites → Camera/Microphone → Allow');
+    } else if (dev.browser.includes('Chrome')) {
+        tips.push('Chrome: Menu (⋮) → Settings → Privacy → Site settings → Camera/Microphone → Allow');
+        if (dev.os === 'iOS') tips.push('iPhone: Settings → Chrome → Camera & Microphone → turn on');
+        else if (dev.os === 'macOS') tips.push('Mac: System Settings → Privacy & Security → Camera/Microphone → tick Chrome');
+    } else if (dev.browser === 'Firefox') {
+        tips.push('Firefox: Menu (☰) → Settings → Privacy → Permissions → Camera/Microphone → Allow');
+    } else if (dev.browser === 'Edge') {
+        tips.push('Edge: Menu (⋯) → Settings → Cookies & permissions → Camera/Microphone → Allow');
+    }
+    tips.push('Close other apps using your camera (Zoom, Teams, FaceTime)');
+    return tips;
+}
+
+// Show device info on camera step
+function showDeviceInfo() {
+    const dev = detectDevice();
+    const el = document.getElementById('deviceInfo');
+    if (el) el.textContent = `${dev.browser}${dev.ver ? ' ' + dev.ver : ''} · ${dev.os} · ${dev.device}`;
+    return dev;
+}
+
+// --- Automated AV Checks (adapted from folioAI) ---
+let avCheckFrame = null;
+let avAudioCtx = null;
+let avAnalyser = null;
+let avChecks = { light: false, mic: false };
+let avPrevOval = null; // previous frame luminance for motion detection
+
+function startAVChecks() {
+    // Initialize pill icons with spinners
+    ['avLightIcon', 'avMicIcon'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
+    });
+    // Set up audio analyser
+    try {
+        avAudioCtx = new AudioContext();
+        if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
+        avAnalyser = avAudioCtx.createAnalyser();
+        avAnalyser.fftSize = 256;
+        const source = avAudioCtx.createMediaStreamSource(mediaStream);
+        source.connect(avAnalyser);
+    } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
+
+    // Create hidden canvas for brightness analysis
+    const canvas = document.createElement('canvas');
+    canvas.width = 160; canvas.height = 90;
+    const ctx = canvas.getContext('2d');
+
+    let avLastCheck = 0;
+
+    function runAVFrame() {
+        const video = document.getElementById('videoPreview');
+        if (!video || video.paused || video.readyState < 2) { avCheckFrame = requestAnimationFrame(runAVFrame); return; }
+
+        // Audio bar runs every frame for smooth real-time feel
+        if (avAnalyser) {
+            if (avAudioCtx && avAudioCtx.state === 'suspended') avAudioCtx.resume();
+            const dataArray = new Uint8Array(avAnalyser.fftSize);
+            avAnalyser.getByteTimeDomainData(dataArray);
+            let maxDev = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                const dev = Math.abs(dataArray[i] - 128);
+                if (dev > maxDev) maxDev = dev;
+            }
+            const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            const bar = document.getElementById('avAudioLevel');
+            const pct = document.getElementById('avAudioPct');
+            bar.style.width = level + '%';
+            pct.textContent = level + '%';
+            if (level > 80) { bar.style.background = 'var(--error)'; }
+            else if (level > 50) { bar.style.background = 'var(--warning)'; }
+            else if (level > 5) { bar.style.background = 'var(--success)'; }
+            else { bar.style.background = 'var(--text-quaternary)'; }
+            if (level > 5 && !avChecks.mic) {
+                setAVStatus('mic', 'good', 'Mic: working');
+                avChecks.mic = true;
+            }
+        }
+
+        // Face + light checks throttled to ~4fps — prevents jitter
+        const now = performance.now();
+        if (now - avLastCheck >= 250) {
+            avLastCheck = now;
+
+        // 1. Brightness check
+        try {
+            ctx.drawImage(video, 0, 0, 160, 90);
+            const imgData = ctx.getImageData(0, 0, 160, 90).data;
+            let totalBright = 0;
+            for (let i = 0; i < imgData.length; i += 16) {
+                totalBright += (0.299 * imgData[i] + 0.587 * imgData[i+1] + 0.114 * imgData[i+2]);
+            }
+            const avgBright = Math.round(totalBright / (imgData.length / 16));
+            document.getElementById('avLuxValue').textContent = '(' + avgBright + ')';
+
+            if (avgBright < 50) {
+                setAVStatus('light', 'bad', 'Light: too dark');
+                avChecks.light = false;
+            } else if (avgBright < 80) {
+                setAVStatus('light', 'warn', 'Light: dim');
+                avChecks.light = true; // Acceptable
+            } else if (avgBright > 220) {
+                setAVStatus('light', 'warn', 'Light: too bright');
+                avChecks.light = false;
+            } else {
+                setAVStatus('light', 'good', 'Light: good');
+                avChecks.light = true;
+            }
+
+        } catch (e) { /* canvas errors are non-fatal */ }
+        } // end throttle block
+
+        // Update proceed button
+        updateAVReady();
+        updateMicTips();
+        avCheckFrame = requestAnimationFrame(runAVFrame);
+    }
+    avCheckFrame = requestAnimationFrame(runAVFrame);
+}
+
+// SVG icons (from folioAI — clean, professional, no emoji)
+const AV_ICONS = {
+    spinner: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>',
+    mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>',
+};
+
+function setAVStatus(check, status, label) {
+    const pillMap = { face: 'avPillFace', light: 'avPillLight', mic: 'avPillMic' };
+    const iconMap = { face: 'avFaceIcon', light: 'avLightIcon', mic: 'avMicIcon' };
+    const labelMap = { face: 'avFaceLabel', light: 'avLightLabel', mic: 'avMicLabel' };
+    const pill = document.getElementById(pillMap[check]);
+    const iconEl = document.getElementById(iconMap[check]);
+    const labelEl = document.getElementById(labelMap[check]);
+    if (labelEl) labelEl.textContent = label;
+    // Set icon and pill class
+    if (pill) {
+        pill.classList.remove('good', 'warn', 'bad');
+        if (status === 'good') { pill.classList.add('good'); iconEl.innerHTML = AV_ICONS.check; iconEl.classList.remove('spinning'); }
+        else if (status === 'warn') { pill.classList.add('warn'); iconEl.innerHTML = AV_ICONS.warn; iconEl.classList.remove('spinning'); }
+        else if (status === 'bad') { pill.classList.add('bad'); iconEl.innerHTML = AV_ICONS.x; iconEl.classList.remove('spinning'); }
+        else { iconEl.innerHTML = AV_ICONS.spinner; iconEl.classList.add('spinning'); }
+    }
+}
+
+// Progressive mic tips (from folioAI)
+let micWaitStart = 0;
+function updateMicTips() {
+    if (avChecks.mic) {
+        // Mic working — update prompt
+        const prompt = document.getElementById('avMicPrompt');
+        const promptText = document.getElementById('avMicPromptText');
+        if (promptText) promptText.textContent = 'Microphone detected';
+        // Change icon to green
+        const svg = prompt?.querySelector('svg');
+        if (svg) svg.setAttribute('stroke', 'var(--success)');
+        document.getElementById('avMicTip').style.display = 'none';
+        return;
+    }
+    if (!micWaitStart) micWaitStart = Date.now();
+    const waited = (Date.now() - micWaitStart) / 1000;
+    const tip = document.getElementById('avMicTip');
+    if (waited > 8) {
+        const dev = detectDevice();
+        const tips = getCameraTips(dev);
+        tip.innerHTML = `<span style="color: var(--warning);">Mic not picking up audio?</span> ${tips[0] || 'Check your browser permissions.'}`;
+        tip.style.display = 'block';
+    } else if (waited > 3) {
+        tip.textContent = 'Try speaking louder or clapping';
+        tip.style.display = 'block';
+    }
+}
+
+function updateAVReady() {
+    const btn = document.getElementById('btnCamera');
+    const allGood = avChecks.light && avChecks.mic;
+    if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready')) {
+        btn.disabled = !allGood;
+        btn.textContent = allGood ? 'Ready — Proceed to Challenge' : 'Proceed to Challenge';
+    }
+}
+
+function stopAVChecks() {
+    if (avCheckFrame) { cancelAnimationFrame(avCheckFrame); avCheckFrame = null; }
+    if (avAudioCtx) { avAudioCtx.close().catch(() => {}); avAudioCtx = null; }
+    avAnalyser = null;
+    avPrevOval = null;
+}
+
+function retryAVSetup() {
+    // Stop existing checks
+    stopAVChecks();
+    avChecks = { face: false, light: false, mic: false };
+    // Stop existing stream
+    const video = document.getElementById('videoPreview');
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+    }
+    // Reset pill states
+    ['avLightIcon', 'avMicIcon'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
+    });
+    setAVStatus('light', 'checking', 'Light');
+    setAVStatus('mic', 'checking', 'Mic');
+    document.getElementById('avMicPromptText').textContent = 'Speak now to test your microphone';
+    document.getElementById('avAudioLevel').style.width = '0%';
+    document.getElementById('avAudioPct').textContent = '0%';
+    updateAVReady();
+    // Re-request camera/mic
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+        .then(stream => {
+            video.srcObject = stream;
+            video.play();
+            startAVChecks();
+        })
+        .catch(err => {
+            console.error('[AV RETRY]', err);
+            document.getElementById('avMicTip').textContent = 'Could not access camera/mic. Check browser permissions.';
+            document.getElementById('avMicTip').style.display = 'block';
+        });
+}
+
+// STEP 1 → 2: Challenge
+function goToChallenge() {
+    stopAVChecks(); // Clean up audio context and animation frame
+    const phrase = challengeData?.phrase || `I am ${userData().name}, authorising VAC Protocol`;
+    const digits = (fingerFallback === 'voice') ? [] : (challengeData?.digits || []);
+    const digitStr = digits.join(', ');
+    var greetPart = phrase.replace(/,\s*\d[\d\s,]*$/, '');
+    var digitWords = digits.map(function(d) { return d; }).join(' then ');
+    document.getElementById('challengeText').innerHTML = '<span style="font-size:15px">Say: "' + greetPart + '"</span><br><span style="font-size:13px;opacity:0.7;margin-top:8px;display:inline-block">Then show fingers and say each number:<br><strong>' + digitWords + '</strong></span>';
+    // Accessibility fallback link
+    if (!document.getElementById('fingerFallback')) {
+        const fb = document.createElement('div');
+        fb.id = 'fingerFallback';
+        fb.style.cssText = 'text-align:center;margin-top:8px';
+        fb.innerHTML = '<button onclick="setFingerFallback()" style="background:none;border:none;color:var(--text-secondary);font-family:var(--mono);font-size:12px;cursor:pointer;text-decoration:underline;padding:8px 4px">Cannot show fingers? Voice-only mode</button>';
+        document.getElementById('challengeText').parentElement.appendChild(fb);
+    }
+    const recVid = document.getElementById('videoPreviewRec');
+    recVid.srcObject = mediaStream;
+    recVid.muted = true;
+    recVid.setAttribute('playsinline', '');
+    recVid.play().catch(() => {});
+    goToStep(2);
+    document.getElementById("countdownTimer").innerHTML = "<button onclick=\"startCountdown()\" style=\"background:var(--purple);color:white;border:none;border-radius:50%;width:78px;height:78px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--mono)\">Start</button>";
+    FingerDetector.init(); // Pre-warm HandLandmarker while user reads the challenge
+}
+
+function setFingerFallback() {
+    if (fingerFallback === 'none') {
+        fingerFallback = 'voice';
+        const fb = document.getElementById('fingerFallback');
+        if (fb) fb.querySelector('button').textContent = 'Switch back to finger mode';
+        const phrase = challengeData?.phrase || '';
+        document.getElementById('challengeText').innerHTML = '"' + phrase + '"<br><span style="font-size:12px;color:var(--warning);margin-top:6px;display:inline-block">Voice-only mode (reduced trust score)</span>';
+    } else {
+        fingerFallback = 'none';
+        const fb = document.getElementById('fingerFallback');
+        if (fb) fb.querySelector('button').textContent = "Cannot show fingers? Voice-only mode";
+        const phrase = challengeData?.phrase || '';
+        const digits = challengeData?.digits || [];
+        document.getElementById('challengeText').innerHTML = '"' + phrase + '"<br><span style="font-size:12px;opacity:0.5;margin-top:6px;display:inline-block">Then show fingers: ' + digits.join(', ') + '</span>';
+    }
+}
+
+// STEP 2: Countdown then record
+function startCountdown() {
+    const timerEl = document.getElementById('countdownTimer');
+    const ringFill = document.getElementById('countdownRingFill');
+    const circumference = 2 * Math.PI * 39;
+    let count = 3;
+    timerEl.textContent = count;
+    ringFill.style.strokeDashoffset = 0;
+
+    const interval = setInterval(() => {
+        count--;
+        if (count > 0) {
+            timerEl.textContent = count;
+            ringFill.style.strokeDashoffset = circumference * ((3 - count) / 3);
+        } else {
+            clearInterval(interval);
+            timerEl.textContent = '●';
+            ringFill.classList.add('recording');
+            ringFill.style.strokeDashoffset = 0;
+            beginRecording();
+        }
+    }, 1000);
+}
+
+function beginRecording() {
+    document.getElementById('recIndicator').style.display = 'flex';
+    document.getElementById('audioLevel').style.display = 'flex';
+    document.getElementById('cameraBoxRec').classList.add('recording');
+    document.getElementById('timerLabel').textContent = 'Recording';
+
+    // Start audio level monitoring
+    startAudioMonitor();
+
+    recordedChunks = [];
+
+    // MediaRecorder mimeType fallback chain (Chrome → Safari → default)
+    const mimeTypes = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4',
+    ];
+    let selectedMime = '';
+    for (const mime of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mime)) {
+            selectedMime = mime;
+            break;
+        }
+    }
+
+    const options = selectedMime ? { mimeType: selectedMime } : {};
+
+    // Diagnostic: confirm audio tracks are present before recording
+    const audioTracks = mediaStream ? mediaStream.getAudioTracks() : [];
+    console.log(`[VAC] Stream tracks: ${mediaStream?.getTracks().length ?? 0} total, ${audioTracks.length} audio, ${mediaStream?.getVideoTracks().length ?? 0} video — mimeType: ${selectedMime || '(default)'}`);
+    if (audioTracks.length === 0) console.warn('[VAC] WARNING: No audio tracks — recording will be silent. Check mic permissions.');
+
+    mediaRecorder = new MediaRecorder(mediaStream, options);
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = () => { onRecordingComplete(); };
+    mediaRecorder.start();
+
+    // Show combined capture info
+    document.getElementById('combinedCaptureInfo').style.display = 'block';
+
+    const digits = challengeData?.digits || [];
+    const PHRASE_DURATION = 4;           // seconds for the speak-phrase phase
+    const HINT_TIMEOUT_MS = 8000;        // ms per digit before showing camera hint
+    const timerEl = document.getElementById('countdownTimer');
+    const ringFill = document.getElementById('countdownRingFill');
+    const challengeEl = document.getElementById('challengeText');
+    const circumference = 2 * Math.PI * 39;
+
+    ringFill.classList.add('recording');
+    ringFill.style.strokeDashoffset = 0;
+    timerEl.textContent = PHRASE_DURATION;
+
+    // ── Shared state ─────────────────────────────────────────────────────────
+    let detectedDigits = new Array(digits.length).fill(false);
+    let detectedCounts = new Array(digits.length).fill(0);  // actual finger count seen per position (for telemetry + client-side cross-check)
+    let digitJustSeen = false;  // debounce: require fingers-down between gestures
+    let currentDigitIndex = 0;
+    let digitStartTime = 0;
+    let hintShown = false;
+    let rafId = null;
+    let recordingStopped = false;
+
+    // ── Helper: render finger circles ─────────────────────────────────────────
+    // Grey = upcoming, pulsing purple = current (waiting), green ✓ = detected
+    function renderFingerCircles(hint) {
+        if (digits.length === 0) return '';
+        var circles = '';
+        for (var di = 0; di < digits.length; di++) {
+            if (detectedDigits[di]) {
+                circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--success);color:white;align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px">&#10003;</span>';
+            } else if (di === currentDigitIndex) {
+                circles += '<span style="display:inline-flex;width:52px;height:52px;border-radius:50%;border:2px solid var(--purple);background:rgba(108,92,231,0.15);color:white;align-items:center;justify-content:center;font-size:28px;font-weight:700;margin:0 4px;animation:pulse-digit 1.2s ease-in-out infinite">' + digits[di] + '</span>';
+            } else {
+                circles += '<span style="display:inline-flex;width:36px;height:36px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:16px;font-weight:700;margin:0 4px">' + digits[di] + '</span>';
+            }
+        }
+        const safeIndex = Math.min(currentDigitIndex, digits.length - 1);
+        const currentDigit = digits[safeIndex] || '';
+        const hintHtml = hint ? '<div style="color:var(--warning);font-size:12px;margin-top:6px;font-family:var(--mono);letter-spacing:0.5px">Hold hand closer to camera, fingers spread</div>' : '';
+        return '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY + SHOW FINGERS</span>'
+             + '<div style="display:flex;justify-content:center;margin:8px 0">' + circles + '</div>'
+             + '<span style="font-size:13px;opacity:0.7">Say \u201c' + currentDigit + '\u201d and show ' + currentDigit + ' fingers</span>'
+             + hintHtml;
+    }
+
+    // ── Stop recording ────────────────────────────────────────────────────────
+    function finishRecording() {
+        if (recordingStopped) return;
+        recordingStopped = true;
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        challengeEl.textContent = 'Processing\u2026';
+        setTimeout(function() { mediaRecorder.stop(); }, 500);
+    }
+
+    // ── Timer fallback (mirrors original 2s-per-digit behaviour) ─────────────
+    function runTimerFallback() {
+        console.log('[VAC] Finger phase: using timer fallback (2s per digit)');
+        const DIGIT_DURATION = 2;
+        let fallbackElapsed = 0;
+        const fallbackInterval = setInterval(function() {
+            if (recordingStopped) { clearInterval(fallbackInterval); return; }
+            fallbackElapsed++;
+            const completed = Math.min(Math.floor(fallbackElapsed / DIGIT_DURATION), digits.length);
+            for (let i = 0; i < completed; i++) detectedDigits[i] = true;
+            currentDigitIndex = completed;
+            if (completed < digits.length) {
+                challengeEl.innerHTML = renderFingerCircles(false);
+            }
+            if (completed >= digits.length) {
+                clearInterval(fallbackInterval);
+                finishRecording();
+            }
+        }, 1000);
+    }
+
+    // ── Real-time detection loop (requestAnimationFrame) ─────────────────────
+    function runDetectionLoop() {
+        if (recordingStopped) return;
+        const videoEl = document.getElementById('videoPreviewRec');
+        const detected = FingerDetector.detect(videoEl);
+
+        if (FingerDetector.failed) {
+            // Detector failed mid-loop — switch to timer
+            runTimerFallback();
+            return;
+        }
+
+        // Advance on ANY finger shown (1+) — server-side Gemini validates the full sequence.
+        // Don't gate on per-step correctness (users get trapped guessing by trial and error).
+        // Give immediate positive feedback + record WHICH count was shown.
+        if (detected > 0 && !digitJustSeen) {
+            detectedDigits[currentDigitIndex] = true;
+            detectedCounts[currentDigitIndex] = detected;
+            digitJustSeen = true;
+            currentDigitIndex++;
+            digitStartTime = performance.now();
+            hintShown = false;
+            if (currentDigitIndex >= digits.length) {
+                challengeEl.innerHTML = renderFingerCircles(false);
+                finishRecording();
+                return;
+            }
+        } else if (detected <= 0 && digitJustSeen) {
+            // Hand dropped or out of frame — ready to count the next gesture
+            digitJustSeen = false;
+        }
+
+        // Show hint if user hasn't been detected within HINT_TIMEOUT_MS
+        if (!hintShown && (performance.now() - digitStartTime) > HINT_TIMEOUT_MS) {
+            hintShown = true;
+        }
+
+        challengeEl.innerHTML = renderFingerCircles(hintShown);
+        rafId = requestAnimationFrame(runDetectionLoop);
+    }
+
+    // ── Phase 1: Phrase timer (PHRASE_DURATION seconds) ───────────────────────
+    const phrase = challengeData?.phrase || '';
+    challengeEl.innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>\u201c' + phrase + '\u201d';
+
+    let phraseElapsed = 0;
+    const phraseInterval = setInterval(function() {
+        phraseElapsed++;
+        const remaining = PHRASE_DURATION - phraseElapsed;
+        timerEl.textContent = Math.max(remaining, 0);
+        ringFill.style.strokeDashoffset = circumference * (phraseElapsed / PHRASE_DURATION);
+
+        if (phraseElapsed >= PHRASE_DURATION) {
+            clearInterval(phraseInterval);
+
+            if (digits.length === 0) {
+                // Voice-only mode — no finger phase
+                finishRecording();
+                return;
+            }
+
+            // ── Phase 2: Finger detection ─────────────────────────────────
+            digitStartTime = performance.now();
+            hintShown = false;
+            // Switch ring to steady recording indicator
+            timerEl.textContent = '\u25cf';
+            ringFill.style.transition = 'none';
+            ringFill.style.strokeDashoffset = circumference * 0.1;
+            setTimeout(function() { ringFill.style.transition = ''; }, 50);
+
+            challengeEl.innerHTML = renderFingerCircles(false);
+
+            if (FingerDetector.ready) {
+                console.log('[VAC] Finger phase: using HandLandmarker real-time detection');
+                rafId = requestAnimationFrame(runDetectionLoop);
+            } else {
+                // HandLandmarker not ready in time — fall back to timer
+                runTimerFallback();
+            }
+        }
+    }, 1000);
+}
+
+// Recording complete → upload to backend for real verification
+async function onRecordingComplete() {
+    document.getElementById('recIndicator').style.display = 'none';
+    document.getElementById('cameraBoxRec').classList.remove('recording');
+    stopAudioMonitor();
+
+    // Stop camera
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+    }
+
+    goToStep(3);
+
+    // Build the blob
+    const videoBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/webm' });
+    console.log(`[VAC] Recorded blob: ${(videoBlob.size / 1024).toFixed(1)} KB, type: ${videoBlob.type}, chunks: ${recordedChunks.length}`);
+    if (videoBlob.size < 5000) console.warn('[VAC] WARNING: Blob is very small (<5KB) — likely no audio captured');
+
+    await runRealVerification(videoBlob);
+}
+
+// STEP 3: Upload to backend, show real results
+async function runRealVerification(videoBlob) {
+    const ring = document.getElementById('progressRing');
+    const stepEl = document.getElementById('progressStep');
+    const detailEl = document.getElementById('progressDetail');
+    const circumference = 2 * Math.PI * 36;
+
+    // Progress animation while we wait for backend
+    stepEl.textContent = 'Uploading recording…';
+    detailEl.textContent = `${(videoBlob.size / 1024).toFixed(0)} KB → verification engines`;
+    ring.style.strokeDashoffset = circumference * 0.85;
+
+    // Set geolocation as verified immediately (it's browser-side)
+    // Geolocation removed from initial auth — reserved for groups/governance
+
+    try {
+        // Build multipart form data
+        const formData = new FormData();
+        formData.append('video', videoBlob, 'capture.webm');
+        formData.append('challenge_id', challengeData?.challenge_id || 'none');
+        formData.append('name', userData().name);
+        formData.append('email', userData().email);
+        formData.append('org_name', userData().org);
+        formData.append('org_role', userData().role);
+
+        stepEl.textContent = 'Analysing biometrics…';
+        detailEl.textContent = 'Gemini (face) + Deepgram (voice)';
+        ring.style.strokeDashoffset = circumference * 0.6;
+
+        // Smooth progress animation while waiting
+        var progress = 0.75;
+        ring.style.strokeDashoffset = circumference * progress;
+        var pSteps = [
+            {at: 0.65, text: 'Uploading recording...'},
+            {at: 0.55, text: 'Face liveness check...'},
+            {at: 0.45, text: 'Deepfake analysis...'},
+            {at: 0.35, text: 'Voice transcription...'},
+            {at: 0.25, text: 'Lip sync correlation...'},
+            {at: 0.18, text: 'Finger gesture analysis...'},
+            {at: 0.12, text: 'Computing trust score...'},
+        ];
+        var pIdx = 0;
+        var progressTimer = setInterval(function() {
+            progress -= 0.015;
+            if (progress < 0.08) progress = 0.08;
+            ring.style.strokeDashoffset = circumference * progress;
+            if (pIdx < pSteps.length && progress <= pSteps[pIdx].at) {
+                detailEl.textContent = pSteps[pIdx].text;
+                pIdx++;
+            }
+        }, 400);
+
+        // Send to backend
+        const resp = await fetch(`${API_BASE}/v1/vat/auth/verify`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!resp.ok) {
+            var errText = await resp.text();
+            var errDetail = '';
+            try {
+                var errJson = JSON.parse(errText);
+                errDetail = errJson.detail || errJson.message || errText;
+            } catch(x) { errDetail = errText; }
+            throw new Error('Server error ' + resp.status + ': ' + errDetail.substring(0, 300));
+        }
+
+        authResult = await resp.json();
+        clearInterval(progressTimer);
+
+        // Update modality displays with real results
+        ring.style.strokeDashoffset = circumference * 0.2;
+        stepEl.textContent = 'Processing results…';
+
+        const mods = authResult.biometric_verification?.modalities || [];
+        // Auto-open modality dropdown when results arrive
+        const toggleEl = document.getElementById('modalityToggle');
+        const listEl = document.getElementById('modalityList');
+        if (toggleEl && listEl) { toggleEl.classList.add('open'); listEl.classList.add('open'); }
+        for (const mod of mods) {
+            const elId = {
+                'face_liveness': 'modFace',
+                'deepfake_detection': 'modDeepfake',
+                'voiceprint': 'modVoice',
+                'lip_sync': 'modLipSync',
+                'challenge_response': 'modChallenge',
+                'finger_gesture': 'modFinger',
+                'geolocation': null, // not used in initial auth
+            }[mod.name];
+            if (elId) {
+                updateModality(elId, mod.status, mod.score, mod.name, mod.detail);
+                await sleep(300); // Stagger for visual effect
+            }
+        }
+
+        // Final state
+        ring.style.strokeDashoffset = 0;
+        const passed = authResult.authenticated;
+        // Populate Under the Hood with engine data
+        try{populateUnderHood(authResult);}catch(uhErr){console.error("Under hood error:",uhErr);}
+
+        if (passed) {
+            stepEl.textContent = 'Identity verified ✓';
+            ring.style.stroke = 'var(--success)';
+            detailEl.textContent = `Trust score: ${authResult.biometric_verification.overall_score}`;
+            await sleep(800);
+            showSuccess();
+        } else {
+            stepEl.textContent = 'Verification incomplete';
+            ring.style.stroke = 'var(--warning)';
+            detailEl.textContent = `Trust score: ${authResult.biometric_verification.overall_score}`;
+            showRetry(authResult);
+        }
+
+    } catch (e) {
+        clearInterval(progressTimer);
+        var msg = e.message || 'Network error';
+        var tip = '';
+        if (msg.indexOf('expired challenge') >= 0 || msg.indexOf('Invalid or expired') >= 0 || msg.indexOf('Challenge not found') >= 0) {
+            msg = 'Your challenge expired or the server restarted. Not your fault.';
+            tip = 'Tap Retry for a fresh challenge. This usually resolves on retry.';
+        } else if (msg.indexOf('400') >= 0) {
+        } else if (msg.indexOf("Liveness") >= 0 || msg.indexOf("live person") >= 0) {
+            msg = "Face liveness check did not pass. Make sure your face is clearly visible.";
+            tip = "Look directly at the camera in good lighting. Avoid shadows.";
+        } else if (msg.indexOf("authenticity") >= 0) {
+            msg = "Video authenticity check did not pass.";
+            tip = "Try again in better lighting with a clearer camera angle.";
+        } else if (msg.indexOf("Challenge verification") >= 0) {
+            msg = "Could not match what you said to the challenge phrase.";
+            tip = "Speak each word and number slowly and clearly. Tap Retry.";
+        } else if (msg.indexOf("400") >= 0) {
+            msg = "The server could not process your recording.";
+            tip = "Speak clearly, keep face and fingers visible. Tap Retry.";
+        } else if (msg.indexOf("500")>=0) {
+            msg="Servers temporarily busy.";tip="Wait and tap Retry.";
+        } else {
+            msg = "Something went wrong during verification.";
+            tip = "Tap Retry to try again. Speak clearly and keep your face and fingers visible.";
+        }
+        stepEl.textContent = 'Verification error';
+        detailEl.textContent = msg;
+        ring.style.stroke = 'var(--error)';
+        console.error('Verification failed:', e);
+        var retryEl = document.getElementById('retrySection');
+        retryEl.style.display = 'block';
+        document.getElementById("failReasons").parentElement.style.display="none";
+        document.getElementById('retryTipsList').textContent = tip;
+        try{document.getElementById("modalityToggle").style.display="none";document.getElementById("underHoodContainer").style.display="none";}catch(x){}
+        retryAttempts++;
+        document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
+        if (retryAttempts >= MAX_RETRIES) {
+            document.getElementById('btnContinueAnyway').style.display = 'inline-flex';
+        }
+    }
+}
+
+function updateModality(elId, status, score, modName, detail) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const statusEl = el.querySelector('.mod-status');
+    const scoreEl = el.querySelector('.mod-score');
+    // Add detail expand if we have engine data
+    if (detail && modName) {
+        var existing = el.querySelector('.mod-detail-expand');
+        if (!existing) {
+            var detDiv = document.createElement('div');
+            detDiv.className = 'mod-detail-expand';
+            detDiv.style.cssText = 'width:100%;font-size:11px;color:var(--text-quaternary);padding:4px 0 6px 24px;line-height:1.5;font-family:var(--mono);display:none';
+            el.appendChild(detDiv);
+            el.style.cursor = 'pointer';
+            el.onclick = function(){var d=this.querySelector('.mod-detail-expand');if(d)d.style.display=d.style.display==='none'?'block':'none';};
+        }
+        var dd = el.querySelector('.mod-detail-expand');
+        if (dd) {
+            var lines = [];
+            if (modName==='face_liveness'){if(detail.person_description)lines.push('Saw: '+detail.person_description);if(detail.face_detected)lines.push('Face: yes');if(detail.blink_detected)lines.push('Blink: yes');}
+            if (modName==='deepfake_detection'){lines.push('Deepfake likelihood: '+(detail.deepfake_likelihood!==undefined?(detail.deepfake_likelihood*100).toFixed(0)+'%':'--'));if(!detail.artifacts||!detail.artifacts.length)lines.push('Artifacts: none');}
+            if (modName==='voiceprint'&&detail.confidence){lines.push('Confidence: '+(detail.confidence*100).toFixed(0)+'%');}
+            if (modName==='lip_sync'){lines.push('Lip-audio match: '+(detail.matches_audio?'yes':'no'));}
+            if (modName==='challenge_response'){if(detail.heard)lines.push('Heard: '+detail.heard);if(detail.expected)lines.push('Expected: '+detail.expected);if(detail.match_ratio!==undefined)lines.push('Match: '+(detail.match_ratio*100).toFixed(0)+'%');}
+            if (modName==='finger_gesture'){if(detail.digits_expected)lines.push('Expected: ['+detail.digits_expected.join(', ')+']');if(detail.digits_seen)lines.push('Gemini saw: ['+detail.digits_seen.join(', ')+']');if(detail.hand_near_face!==undefined)lines.push('Hand near face: '+(detail.hand_near_face?'yes':'no'));}
+            dd.innerHTML = lines.join('<br>');
+        }
+    }
+
+    if (status === 'verified') {
+        statusEl.textContent = '✓';
+        statusEl.style.color = 'var(--success)';
+        scoreEl.textContent = typeof score === 'number' ? score.toFixed(2) : '—';
+        scoreEl.className = 'mod-score pass';
+    } else if (status === 'failed') {
+        statusEl.textContent = '✗';
+        statusEl.style.color = 'var(--error)';
+        scoreEl.textContent = typeof score === 'number' ? score.toFixed(2) : '—';
+        scoreEl.className = 'mod-score fail';
+    } else if (status === 'error') {
+        statusEl.textContent = '⚠';
+        statusEl.style.color = 'var(--warning)';
+        scoreEl.textContent = 'err';
+        scoreEl.className = 'mod-score fail';
+    } else if (status === 'inconclusive') {
+        statusEl.textContent = '~';
+        statusEl.style.color = 'var(--warning)';
+        scoreEl.textContent = typeof score === 'number' ? score.toFixed(2) : '—';
+        scoreEl.className = 'mod-score pending';
+    } else {
+        statusEl.textContent = '⏳';
+        scoreEl.textContent = typeof score === 'number' ? score.toFixed(2) : '—';
+        scoreEl.className = 'mod-score pending';
+    }
+    updateModalitySummary();
+}
+
+function toggleModalities() {
+    const toggle = document.getElementById('modalityToggle');
+    const list = document.getElementById('modalityList');
+    toggle.classList.toggle('open');
+    list.classList.toggle('open');
+}
+
+function updateModalitySummary() {
+    const mods = ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger'];
+    let passed = 0, failed = 0, pending = 0;
+    mods.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const status = el.querySelector('.mod-status');
+        if (status.textContent === '✓') passed++;
+        else if (status.textContent === '✗' || status.textContent === '⚠') failed++;
+        else pending++;
+    });
+    const summary = document.getElementById('modalitySummary');
+    if (!summary) return;
+    if (pending > 0) {
+        summary.textContent = 'Checking...';
+        summary.className = 'toggle-summary';
+    } else if (failed > 0) {
+        summary.textContent = `${passed}/${passed+failed} passed`;
+        summary.className = 'toggle-summary has-fail';
+    } else {
+        summary.textContent = `${passed}/${passed+failed} passed`;
+        summary.className = 'toggle-summary';
+    }
+}
+
+function toggleUnderHood() {
+    const arrow = document.getElementById('hoodArrow');
+    const list = document.getElementById('underHoodList');
+    const isOpen = list.classList.contains('open');
+    list.classList.toggle('open');
+    arrow.style.transform = isOpen ? '' : 'rotate(180deg)';
+}
+
+function toggleModDesc(el) {
+    el.classList.toggle('show-desc');
+}
+
+function populateUnderHood(authData) {
+    const bio = authData.biometric_verification;
+    const mods = bio?.modalities || [];
+    const el = document.getElementById('hoodContent');
+    if (!el) return;
+
+    let html = '';
+
+    const face = mods.find(m => m.name === 'face_liveness');
+    const df = mods.find(m => m.name === 'deepfake_detection');
+    const ls = mods.find(m => m.name === 'lip_sync');
+
+    if (face?.provider === 'gemini' || df?.provider === 'gemini') {
+        html += `<div class="hood-section"><div class="hood-label">Gemini 2.5 Flash — Vision Analysis <span class="hood-provider">gemini</span></div>`;
+        if (face?.detail?.person_description) {
+            html += `<div class="hood-value">"${face.detail.person_description}"</div>`;
+        }
+        html += `<div class="hood-value" style="color: var(--text-tertiary); font-size: 10px;">`;
+        html += `Face: ${face?.detail?.face_detected ? '✓ detected' : '✗'} · Blink: ${face?.detail?.blink_detected ? '✓' : '—'}`;
+        if (df?.detail) {
+            const dfLikelihood = typeof df.detail.deepfake_likelihood === 'number' ? (df.detail.deepfake_likelihood * 100).toFixed(0) : '0';
+            html += ` · Deepfake: ${dfLikelihood}% likelihood`;
+            if (df.detail.artifacts?.length > 0) html += ` (${df.detail.artifacts.join(', ')})`;
+        }
+        html += `</div>`;
+        if (ls?.detail?.visual_speech?.estimated_words) {
+            html += `<div class="hood-value" style="margin-top: 4px;">Lip reading: "${ls.detail.visual_speech.estimated_words}"</div>`;
+        }
+        html += `</div>`;
+    }
+
+    const voice = mods.find(m => m.name === 'voiceprint');
+    const challenge = mods.find(m => m.name === 'challenge_response');
+
+    if (voice?.provider === 'deepgram_nova3') {
+        html += `<div class="hood-section"><div class="hood-label">Deepgram Nova-3 — Speech Analysis <span class="hood-provider">deepgram</span></div>`;
+        if (voice.detail?.transcript) {
+            html += `<div class="hood-value">Heard: "${voice.detail.transcript}"</div>`;
+        }
+        html += `<div class="hood-value" style="color: var(--text-tertiary); font-size: 10px;">`;
+        html += `Confidence: ${(voice.score * 100).toFixed(0)}% · Words: ${voice.detail?.word_count || 0}`;
+        if (challenge) {
+            html += ` · Match: ${(challenge.score * 100).toFixed(0)}%`;
+        }
+        html += `</div>`;
+        if (challenge?.detail?.expected) {
+            html += `<div class="hood-value" style="margin-top: 4px; font-size: 10px; color: var(--text-quaternary);">Expected: "${challenge.detail.expected}"</div>`;
+        }
+        html += `</div>`;
+    }
+
+    const finger = mods.find(m => m.name === 'finger_gesture');
+    if (finger) {
+        html += `<div class="hood-section"><div class="hood-label">Finger Gesture Verification <span class="hood-provider">gemini</span></div>`;
+        const seen = finger.detail?.digits_seen || [];
+        const expected = finger.detail?.digits_expected || [];
+        html += `<div class="hood-value" style="font-size: 10px;">`;
+        html += `Expected: [${expected.join(', ')}] \u00b7 Seen: [${seen.join(', ')}]`;
+        html += ` \u00b7 Hand near face: ${finger.detail?.hand_near_face ? '\u2713' : '\u2717'}`;
+        html += ` \u00b7 Score: ${(finger.score * 100).toFixed(0)}%`;
+        html += `</div></div>`;
+    }
+
+    if (bio?.trust_breakdown) {
+        html += `<div class="hood-section"><div class="hood-label">Trust Score Breakdown</div>`;
+        html += `<div class="hood-value" style="font-size: 10px;">`;
+        const parts = Object.entries(bio.trust_breakdown).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'number' ? v.toFixed(2) : v}`);
+        html += parts.join(' · ');
+        html += `</div></div>`;
+    }
+
+    html += `<div class="hood-section" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">`;
+    html += `<div style="font-size: 10px; color: var(--text-quaternary);">Biometric engines shared with <a href="https://folioai.com" target="_blank" style="color: var(--accent); text-decoration: none;">folioAI</a> — AI-powered video reflection and practice.</div>`;
+    html += `</div>`;
+
+    el.innerHTML = html || '<div style="color: var(--text-quaternary);">No engine data available.</div>';
+    document.getElementById('hoodSummary').textContent = bio?.method?.includes('real') ? 'Gemini + Deepgram' : 'Simulated';
+}
+
+// Show retry with specific fail reasons.
+//
+// VERDICT-EVIDENCE COHERENCE (root cause): this used to derive the displayed
+// reason from each modality's own `status` field (failed/error). That field
+// is NOT the same thing as why compute_honest_verdict() denied the request —
+// duress modality.status is "alert"/"clear" (never "failed"/"error"), and
+// deepfake_detection.status reflects Gemini's `is_likely_real` boolean, which
+// can disagree with the `deepfake_likelihood` float the verdict actually
+// gates on. A duress- or deepfake-only deny left `failed` empty, so the old
+// code fell through to a generic "did not reach the required trust
+// threshold" message that named no signal at all — incoherent with the
+// attempt evidence that actually caused the denial.
+// Fix: read `result.verdict.reasons` (compute_honest_verdict's own output,
+// server main.py always includes it alongside biometric_verification) as the
+// authoritative list of what failed; only use per-modality `detail` to
+// enrich a named signal with specifics (heard/expected, digits), never to
+// decide which signal gets blamed.
+function showRetry(result) {
+    retryAttempts++;
+    const retryEl = document.getElementById('retrySection');
+    retryEl.style.display = 'block';
+
+    const { reasons, tips } = VacVerdictReasons.deriveFailureDisplay(result);
+
+    if (reasons.length > 0) {
+        document.getElementById('failReasons').innerHTML = reasons.map(r =>
+            `<div style="margin-bottom: 4px;">${r}</div>`
+        ).join('');
+        document.getElementById('retryTipsList').innerHTML = [...new Set(tips)].map(t =>
+            `<div style="margin-bottom: 4px;">${t}</div>`
+        ).join('');
+    } else {
+        document.getElementById('failReasons').textContent = 'Verification did not reach the required trust threshold.';
+        document.getElementById('retryTipsList').textContent = 'Ensure good lighting, speak clearly, and look directly at the camera.';
+    }
+
+    document.getElementById('retryCount').textContent = retryAttempts > 1 ? 'Attempt ' + retryAttempts + ' of ' + MAX_RETRIES : '';
+
+    // After max retries, offer "continue anyway" (mints partial chain)
+    if (retryAttempts >= MAX_RETRIES) {
+        document.getElementById('btnContinueAnyway').style.display = 'inline-flex';
+    }
+}
 
 // Retry: go back to camera step with fresh challenge
-// F-563/STRUCTURAL: re-auth = a LITERAL fresh start via page reload — correct BY CONSTRUCTION.
-// Every prior re-auth bug this session (modality tiles, overlay rows, pre-flight ticks, warm-up
-// skip, audio analyser, guided DOM) was the same root: re-entry didn't fully reset to fresh-load
-// state, and each new feature leaked new state into the in-memory reset. A reload GCs every
-// AudioContext (kills the ~6-limit), resets every module var + DOM node, and re-runs the warm-up —
-// so the whole stale-state bug class dies at once and can't recur with future features. Identity
-// re-hydrates from localStorage on boot (no re-OTP); maybeResumeReauth() lands on the camera
-// pre-flight. See maybeResumeReauth() at the boot IIFE.
-function reauthReload(opts) {
-    opts = opts || {};
-    var d = userData();
-    try {
-        localStorage.setItem('vac_reauth', JSON.stringify({
-            ts: Date.now(),
-            auto: !!opts.auto,
-            // Manual refresh resets the retry budget (fresh start); a retry-after-failure keeps it.
-            // S117 reauth-unify: the retry budget lives in the ceremony module now; it passes its
-            // current count in via opts.retryAttempts when keepRetryBudget is set (retryVerification).
-            retryAttempts: opts.keepRetryBudget ? (opts.retryAttempts || 0) : 0,
-            name: d.name, email: d.email, org: d.org, role: d.role
-        }));
-    } catch(e) {}
-    try { vacDebug('reauth_reload', null, { auto: !!opts.auto, keep_budget: !!opts.keepRetryBudget }); } catch(_) {}
-    location.reload();
-}
+async function retryVerification() {
+    if (retryAttempts >= MAX_RETRIES) return;
 
+    // Reset modality displays
+    ['modFace', 'modDeepfake', 'modVoice', 'modLipSync', 'modChallenge', 'modFinger'].forEach(id => {
+        updateModality(id, 'pending', null);
+    });
+
+    // Hide retry section
+    document.getElementById('retrySection').style.display = 'none';
+
+    // Re-request camera
+    try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
+            audio: true,
+        });
+    } catch (e) {
+        // Camera may still be available from before
+    }
+
+    // Fetch fresh challenge
+    const d = userData();
+    try {
+        const resp = await fetch(`${API_BASE}/v1/vat/auth/challenge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: d.name, risk_level: 'medium' }),
+        });
+        challengeData = await resp.json();
+    } catch (e) {
+        console.error('Failed to fetch new challenge:', e);
+    }
+
+    // Set up recording preview
+    const phrase = challengeData?.phrase || `I am ${d.name}, authorising VAC Protocol`;
+    document.getElementById('challengeText').textContent = `"${phrase}"`;
+    const recVid = document.getElementById('videoPreviewRec');
+    recVid.srcObject = mediaStream;
+    recVid.muted = true;
+    recVid.setAttribute('playsinline', '');
+    recVid.play().catch(() => {});
+
+    // Reset countdown ring
+    const ringFill = document.getElementById('countdownRingFill');
+    ringFill.classList.remove('recording');
+    ringFill.style.strokeDashoffset = 0;
+
+    // Go to recording step
+    goToStep(2);
+    startCountdown();
+}
 
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
+    // Save verified state to localStorage for persistence — but STRIP the session token.
+    // The 'full' token is biometric-grade and short-lived; it lives only in sessionStorage
+    // (cleared on tab close), never in 24h localStorage. The restore path deliberately gets
+    // no token, so a returning user re-authenticates rather than reusing a stale 'full'.
+    try {
+        const authResultForStorage = Object.assign({}, authResult);
+        delete authResultForStorage.session_token;
+        delete authResultForStorage.session;
+        localStorage.setItem('vac_verified', JSON.stringify({
+            email: d.email, name: d.name, org: d.org, role: d.role,
+            authResult: authResultForStorage, timestamp: Date.now()
+        }));
+    } catch(e) {}
+    
+    // Use the 'full' session token issued INLINE by /v1/vat/auth/verify (authResult).
+    // The frontend no longer mints its own token via /v1/session/create — that
+    // unauthenticated endpoint was the full-token mint hole and now fail-closes (403).
+    // A token is present only on a genuine server-verified pass; on the localStorage
+    // restore path it may be a prior (possibly expired) token, which is correct
+    // fail-closed behaviour (we must NOT mint a fresh 'full' token without biometrics).
+    const sessionToken = authResult && authResult.session_token;
+    if (sessionToken) {
+        sessionStorage.setItem('vac_token_' + d.email, sessionToken);
+        // Check for redirect
+        const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
+        if (redirectUrl) {
+            const sep = redirectUrl.includes('?') ? '&' : '?';
+            window.location.href = redirectUrl + sep + 'token=' + encodeURIComponent(sessionToken);
+            return;
+        }
+    }
+    // Update nav badge to show current state
+    const nav = document.getElementById('navStatus');
+    if (nav) { nav.textContent = 'AUTHENTICATED'; nav.style.color = '#2DD4BF'; nav.style.background = 'rgba(45,212,191,0.1)'; nav.style.borderColor = '#2DD4BF'; }
+    // Notify parent frame (SPA shell) of auth success
+    try { if (window.parent !== window) { window.parent.postMessage({ type: 'vac-auth-success', email: d.email, name: d.name }, '*'); } } catch(e) {}
+    // Start polling for vouches to unlock messaging
+    startVouchPolling();
+    // Dashboard hidden until vouch flow exists
     const r = authResult;
     const bio = r.biometric_verification;
-    // SEVERANCE / INTEGRITY (addendum-13 #3; dispatch point 6): VERIFIED is display-only and
-    // strictly follows the SERVER verdict (authResult.authenticated, computed in the vac-protocol
-    // lane). NEVER show, persist, or emit VERIFIED unless it's true. "Continue Anyway" routes a
-    // real failure into showSuccess(), so showSuccess() is the chokepoint: on an unauthenticated
-    // result we render the partial screen but emit NONE of the verified side-effects (no vac_verified
-    // persist, no vac-auth-success postMessage to the tribunal credBeat, no vouch promotion, no
-    // ?verified URL, no AUTHENTICATED chrome). The client dual-✓ pacing gate never reaches here.
-    const ok = !!(r && r.authenticated);
-    if (ok) {
-        // Save verified state to localStorage for persistence
-        try {
-            localStorage.setItem('vac_verified', JSON.stringify({
-                email: d.email, name: d.name, org: d.org, role: d.role,
-                authResult: authResult, timestamp: Date.now()
-            }));
-        } catch(e) {}
-        // Update nav badge to show current state
-        // S148 RETURN-CONTRACT (L-2368 seamless rule at the deepest point; field: Jake Bendall
-        // dead-ended here instead of returning to the matters): when this page is TOP-LEVEL
-        // (no parent frame to postMessage back to), the success screen MUST carry the onward tap.
-        try {
-            if (window.parent === window && !document.getElementById('vacContinueBtn')) {
-                var _cb=document.createElement('a'); _cb.id='vacContinueBtn';
-                _cb.href='https://vacprotocol.org/tribunal-demo';
-                _cb.textContent='Continue to the tribunal workflow \u2192';
-                _cb.style.cssText='display:block;margin:18px auto 0;max-width:420px;text-align:center;padding:15px 22px;border-radius:12px;background:#2DD4BF;color:#06121C;font-size:16px;font-weight:800;text-decoration:none;';
-                var _tn2=document.querySelector('#successName')||document.querySelector('.success-name');
-                (_tn2&&_tn2.parentNode?_tn2.parentNode:document.body).appendChild(_cb);
-            }
-        } catch(_e){}
-        // S148 TEMPORAL-HONESTY (PN-S148b dim 5 as UI): the verified screen must carry its age.
-        try {
-            window.__vacVerifiedAt = Date.now();
-            var _st = document.getElementById('vacVerifiedStamp');
-            if (!_st) {
-                _st = document.createElement('div'); _st.id='vacVerifiedStamp';
-                _st.style.cssText='font-family:monospace;font-size:12px;color:#93A1B8;margin-top:6px;text-align:center;';
-                var _tn = document.querySelector('#successName') || document.querySelector('.success-name');
-                (_tn && _tn.parentNode ? _tn.parentNode : document.body).appendChild(_st);
-            }
-            var _fmt=function(){ var m=Math.floor((Date.now()-window.__vacVerifiedAt)/60000);
-                _st.textContent='Verified '+new Date(window.__vacVerifiedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+(m<1?' · just now':' · '+m+'m ago'); };
-            _fmt(); clearInterval(window.__vacStampTick); window.__vacStampTick=setInterval(_fmt,30000);
-            // 10-min screen expiry: an aged verification must not keep presenting as fresh.
-            clearInterval(window.__vacExpiryTick);
-            window.__vacExpiryTick=setInterval(function(){
-                if (Date.now()-window.__vacVerifiedAt > 10*60*1000) {
-                    clearInterval(window.__vacExpiryTick); clearInterval(window.__vacStampTick);
-                    try {
-                        var ov=document.createElement('div');
-                        ov.style.cssText='position:fixed;inset:0;background:rgba(6,10,18,0.96);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;text-align:center;';
-                        ov.innerHTML='<div style="font-family:monospace;font-size:13px;letter-spacing:.12em;color:#D4A94E;margin-bottom:14px;">SESSION AGED</div><div style="font-size:19px;font-weight:700;color:#E8EDF5;max-width:420px;line-height:1.5;">This verification is more than 10 minutes old. For anything that matters, verify freshly.</div><button onclick="location.reload()" style="margin-top:26px;padding:14px 26px;border-radius:12px;border:1px solid #2DD4BF;background:transparent;color:#2DD4BF;font-size:16px;font-weight:700;">Verify again</button>';
-                        document.body.appendChild(ov);
-                    } catch(_e){}
-                }
-            }, 20000);
-        } catch(_e){}
-        const nav = document.getElementById('navStatus');
-        if (nav) { nav.textContent = 'AUTHENTICATED'; nav.style.color = '#2DD4BF'; nav.style.background = 'rgba(45,212,191,0.1)'; nav.style.borderColor = '#2DD4BF'; }
-        // Notify parent frame (SPA shell) of auth success — overall_score feeds the tribunal credBeat.
-        // SECURITY (S116 seal-fires-gate): we now also pass the full-auth session_token so the parent
-        // (the tribunal seal) can authorise the sealing ACTION server-side (/v1/vat/authorize). A
-        // session token is a CREDENTIAL — it MUST NOT go to a wildcard target. Send only to the
-        // SAME-ORIGIN parent (auth.html and the tribunal are both on this origin). If the parent is
-        // cross-origin (unexpected embed), omit the token and send only the non-sensitive fields.
-        try {
-            if (window.parent !== window) {
-                var _msg = { type: 'vac-auth-success', email: d.email, name: d.name,
-                    overall_score: (authResult && authResult.biometric_verification ? authResult.biometric_verification.overall_score : undefined) };
-                // S126 nesting fix: /v1/vat/auth/verify returns session_token at the TOP LEVEL
-                // (result["session_token"]) but auth_level ONLY NESTED under result["session"]
-                // (main.py: result["session"]={token, auth_level:'full', ...}). Reading a top-level
-                // authResult.auth_level was ALWAYS undefined → the message carried auth_level:null,
-                // so the tribunal's __vacVerified.auth_level was null after a full seal re-auth. The
-                // seal GATE reads auth_level from the decoded token server-side so it never blocked,
-                // but the client-side level must be honest. Read the nested session; keep top-level
-                // fallbacks so this is resilient if the backend shape ever changes.
-                var _sessObj = (authResult && authResult.session) ? authResult.session : null;
-                var _sess = (authResult && authResult.session_token) ? authResult.session_token
-                          : (_sessObj && _sessObj.token) ? _sessObj.token : null;
-                var _level = (_sessObj && _sessObj.auth_level) ? _sessObj.auth_level
-                           : (authResult && authResult.auth_level) ? authResult.auth_level : null;
-                // Only attach the credential when posting to our OWN origin.
-                if (_sess) { _msg.session_token = _sess; _msg.auth_level = _level; }
-                window.parent.postMessage(_msg, window.location.origin);
-                // F-819 Plan C (additive, same-origin): mirror the success signal into localStorage so a
-                // launcher TAB (not iframe) can receive completion via the 'storage' event. The session
-                // token is already persisted by this page's own session store; no new exposure class.
-                try { localStorage.setItem('vac_last_verified', JSON.stringify({ email: d.email||null, name: d.name||null, session_token: _sess||null, ts: Date.now() })); } catch(e) {}
-            }
-            // Plan C also for STANDALONE tab completions (window.parent === window): same mirror.
-            if (window.parent === window) {
-                try {
-                    var _so = (authResult && authResult.session) ? authResult.session : null;
-                    var _st = (authResult && authResult.session_token) ? authResult.session_token : (_so && _so.token) ? _so.token : null;
-                    localStorage.setItem('vac_last_verified', JSON.stringify({ email: d.email||null, name: d.name||null, session_token: _st, ts: Date.now() }));
-                } catch(e) {}
-            }
-        } catch(e) {}
-        // Start polling for vouches to unlock messaging
-        startVouchPolling();
-    } else {
-        // Unauthenticated (partial / "Continue Anyway"): keep the nav badge OUT of the verified state.
-        const nav = document.getElementById('navStatus');
-        if (nav) { nav.textContent = 'NOT VERIFIED'; nav.style.color = 'var(--warning)'; nav.style.background = 'rgba(210,153,34,0.1)'; nav.style.borderColor = 'var(--warning)'; }
-        // The teal "AUTHENTICATED" trust badge is static markup — correct it so it can't read verified.
-        var _tbt = document.getElementById('trustBadgeText'); if (_tbt) { _tbt.textContent = 'NOT VERIFIED'; _tbt.style.color = 'var(--warning)'; }
-        var _tb = document.getElementById('trustBadge'); if (_tb) { _tb.style.borderColor = 'var(--warning)'; _tb.style.background = 'rgba(210,153,34,0.06)'; }
-    }
-    // Dashboard hidden until vouch flow exists
 
     document.getElementById('successName').textContent = d.name;
     document.getElementById('successOrg').textContent = [d.role, d.org].filter(Boolean).join(' · ') || 'Authenticated Human';
@@ -1185,17 +2004,10 @@ function showSuccess() {
     document.getElementById('successScore').textContent = `Trust Score: ${bio.overall_score} · ${trustLabel}`;
 
     // Update header based on pass/fail
-    var _wim = document.getElementById('whatItMeans');
     if (!r.authenticated) {
         document.getElementById('successEyebrow').textContent = 'PARTIAL AUTHENTICATION';
         document.getElementById('successEyebrow').style.color = 'var(--warning)';
         document.getElementById('successTitle').textContent = 'Partially Authenticated';
-        // F-563 (4) / integrity: a certificate was NOT minted on a partial/"Continue Anyway" path,
-        // so DON'T show the "digital certificate of you, a real human, has been minted" claim — it
-        // would overstate the trust state (addendum-13 #3 family). Hide the whole block.
-        if (_wim) _wim.style.display = 'none';
-    } else if (_wim) {
-        _wim.style.display = 'block';   // real success — show the minted-certificate explainer
     }
 
     // Verification method badge
@@ -1207,20 +2019,18 @@ function showSuccess() {
     var modDescs = {
         'face_liveness': 'Gemini analysed video frames for natural micro-expressions, eye movement, and 3D depth consistency to confirm a live human face.',
         'deepfake_detection': 'Checked for synthetic artifacts, GAN fingerprints, and inconsistent lighting or skin texture that indicate AI-generated faces.',
-        'voiceprint': 'Deepgram transcribed your spoken words and scored how clearly the challenge phrase was captured.',
+        'voiceprint': 'Deepgram captured a unique voiceprint from your speech patterns, pitch, and cadence for biometric matching.',
         'lip_sync': 'Cross-referenced lip movements with audio waveform to verify the voice belongs to the face on screen.',
         'challenge_response': 'Matched your spoken words against the server-generated random challenge phrase to prove real-time presence.',
-        'finger_gesture': 'Gemini counted fingers shown in each pose and verified the sequence matched the spoken digits at corresponding timestamps.',
-        'face_liveness_didit': 'An independent passive-liveness provider (Didit) scored a bound still frame from the recording for spoof signals — a second opinion alongside the Gemini face-liveness pass.'
+        'finger_gesture': 'Gemini counted fingers shown in each pose and verified the sequence matched the spoken digits at corresponding timestamps.'
     };
     var modNames = {
         'face_liveness': 'Face Liveness',
         'deepfake_detection': 'Deepfake Scan',
-        'voiceprint': 'Speech Match',
+        'voiceprint': 'Voiceprint',
         'lip_sync': 'Lip Sync',
         'challenge_response': 'Challenge Match',
-        'finger_gesture': 'Finger Gesture',
-        'face_liveness_didit': 'Face Liveness (Didit)'
+        'finger_gesture': 'Finger Gesture'
     };
     modEl.innerHTML = mods.map(function(m, idx) {
         var pct = m.score ? (m.score * 100).toFixed(0) + '%' : '--';
@@ -1321,11 +2131,10 @@ function showSuccess() {
     ).join('');
 
     goToStep(4);
-
-    // Persist verified state in URL so refresh doesn't lose it — ONLY on a real pass (integrity:
-    // a partial/"Continue Anyway" run must not survive a refresh as ?verified=true).
+    
+    // Persist verified state in URL so refresh doesn't lose it
     const verifiedEmail = userData().email;
-    if (ok && verifiedEmail) {
+    if (verifiedEmail) {
         const url = new URL(window.location);
         url.searchParams.set('verified', 'true');
         url.searchParams.set('email', verifiedEmail);
@@ -1334,15 +2143,6 @@ function showSuccess() {
 }
 
 // Share actions
-
-function refreshVerification() {
-    // Structural re-auth: a LITERAL fresh start via reload (correct by construction — see
-    // reauthReload). Manual refresh from the success screen → fresh retry budget. Identity
-    // re-hydrates from localStorage on boot; lands on the camera pre-flight, no re-OTP.
-    try { localStorage.removeItem('vac_verified'); } catch(e) {}
-    reauthReload({ auto: false, keepRetryBudget: false });
-}
-
 function clearAndRestart() {
     try { localStorage.removeItem('vac_verified'); localStorage.removeItem('vac_otp_confirmed'); } catch(e) {}
     window.location.href = '/auth';
@@ -1421,6 +2221,157 @@ async function sendToRecipient() {
     btn.textContent = 'Send Vouch Request';
 }
 
+// Fetch adaptive modality requirements based on trust relationship
+async function fetchModalityRequirements() {
+    const email = userData().email;
+    if (!email) return;
+    try {
+        const resp = await fetch(`${API_BASE}/v1/modality-requirements/${encodeURIComponent(email)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const policy = data.modality_policy;
+        if (!policy) return;
+
+        // Show adaptive bar ONLY when trust graph actually reduces requirements
+        // First auth = no trust data = full verification = don't show confusing "3 of 6" message
+        const bar = document.getElementById('adaptiveAuthBar');
+        const lvl = policy.label.toLowerCase();
+        if (policy.total_required < policy.total_available && data.trust_relationship?.total_vouches > 0) {
+            bar.className = `adaptive-auth-bar ${lvl}`;
+            bar.textContent = `${policy.label}: ${policy.total_required} of ${policy.total_available} modalities required`;
+            bar.style.display = 'block';
+        } else {
+            bar.style.display = 'none';
+        }
+
+        // Update chips: dim optional/can-skip
+        const chips = document.querySelectorAll('#modalityChips .mod-chip');
+        chips.forEach(chip => {
+            const mod = chip.dataset.mod;
+            chip.classList.remove('optional', 'recommended');
+            if (policy.can_skip && policy.can_skip.includes(mod)) {
+                chip.classList.add('optional');
+            } else if (policy.optional && policy.optional.includes(mod)) {
+                chip.classList.add('optional');
+            } else if (policy.recommended && policy.recommended.includes(mod)) {
+                chip.classList.add('recommended');
+            }
+        });
+    } catch (e) {
+        // Silently fail — default to showing all modalities as required
+        console.warn('Could not fetch modality requirements:', e);
+    }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Audio level monitoring (F-755d — VAD onset instrumentation + gate)
+//
+// ROOT CAUSE (VAD onset loss, live repro: indoor speech w/ mild aircon pinned
+// the old "RMS" readout at ~1% through real speech): the old code computed
+// its "RMS" from getByteFrequencyData() — the smoothed frequency-MAGNITUDE
+// spectrum (AnalyserNode default smoothingTimeConstant=0.8, ~80% of each
+// frame carried over from the last) — then averaged across ALL 128 bins of a
+// 256-point FFT. Voice energy sits in a handful of low bins; the other ~110
+// bins are near-silent, so sqrt(mean-of-squares) over the full spectrum
+// systematically dilutes real speech toward zero AND lags onsets by several
+// animation frames. Fix: read the raw TIME-DOMAIN waveform
+// (getByteTimeDomainData, unaffected by smoothingTimeConstant) and compute
+// true sample RMS — the same domain the (correctly-implemented) pre-flight
+// AV mic check already uses (see startAVChecks() above).
+//
+// Gate: a fixed 5% absolute threshold silently fails once ambient noise
+// (e.g. aircon hum) sits anywhere near it. Replaced with an onset-sensitive
+// gate — a slow-moving ambient noise-floor estimate (EMA) plus a
+// require-above-floor-by-delta trigger, so onset detection tracks the
+// actual room instead of one hardcoded number.
+//
+// Two adaptation rates, not a hard freeze-while-active: the floor tracks
+// FAST while quiet (AUDIO_FLOOR_EMA_ALPHA), but still DRIFTS slowly while
+// "onset" is active (AUDIO_FLOOR_DRIFT_ALPHA). A hard freeze looked
+// tempting (never let speech pull the floor up) but has a real failure
+// mode — a room whose steady ambient sits above the seeded floor triggers
+// onset immediately on load and then can never release (a sustained-loud
+// ambient never drops back below floor+RELEASE, so the floor never gets a
+// quiet window to adapt), leaving the instrumentation permanently
+// "onset-active" and useless for exactly the room conditions it exists to
+// debug. The slow drift rate is far too gentle to be pulled up by a normal
+// few-hundred-ms utterance, but over several seconds it recovers from a
+// bad initial seed.
+let audioNoiseFloor = 0.01; // seeded low; adapts up/down to the room via EMA
+let audioOnsetActive = false;
+const AUDIO_ONSET_DELTA = 0.025;    // rms must exceed floor by this much to trigger onset
+const AUDIO_ONSET_RELEASE = 0.012;  // hysteresis: must drop back below floor+this to release
+const AUDIO_FLOOR_EMA_ALPHA = 0.05;   // fast adaptation while quiet
+const AUDIO_FLOOR_DRIFT_ALPHA = 0.002; // slow drift while onset-active (recovery only)
+
+function startAudioMonitor() {
+    try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // Clone stream so AudioContext doesn't interfere with MediaRecorder audio capture.
+        // Sharing the same stream between AudioContext and MediaRecorder causes silent
+        // recordings on Firefox and some WebKit builds (AudioContext claims the audio track).
+        const monitorStream = mediaStream ? mediaStream.clone() : null;
+        if (!monitorStream) return;
+        const source = audioContext.createMediaStreamSource(monitorStream);
+        audioAnalyser = audioContext.createAnalyser();
+        audioAnalyser.fftSize = 256;
+        source.connect(audioAnalyser);
+
+        audioNoiseFloor = 0.01;
+        audioOnsetActive = false;
+        const dataArray = new Uint8Array(audioAnalyser.fftSize);
+        const bars = [0,1,2,3,4].map(i => document.getElementById(`ab${i}`));
+        const readout = document.getElementById('audioRmsReadout');
+
+        function updateLevels() {
+            audioAnalyser.getByteTimeDomainData(dataArray);
+            // True time-domain RMS of the waveform (samples are unsigned bytes
+            // centered on 128) — not smoothed, not diluted across empty bins.
+            let sumSq = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                const dev = (dataArray[i] - 128) / 128;
+                sumSq += dev * dev;
+            }
+            const rms = Math.sqrt(sumSq / dataArray.length);
+
+            // Onset-sensitive gate, relative to an adapting ambient floor.
+            if (!audioOnsetActive && rms > audioNoiseFloor + AUDIO_ONSET_DELTA) {
+                audioOnsetActive = true;
+            } else if (audioOnsetActive && rms < audioNoiseFloor + AUDIO_ONSET_RELEASE) {
+                audioOnsetActive = false;
+            }
+            // Track the floor at all times, just far more slowly while onset is
+            // active — a normal utterance is too short/rms-transient to move it
+            // at the drift rate, but a sustained loud room still recovers.
+            const floorAlpha = audioOnsetActive ? AUDIO_FLOOR_DRIFT_ALPHA : AUDIO_FLOOR_EMA_ALPHA;
+            audioNoiseFloor += (rms - audioNoiseFloor) * floorAlpha;
+
+            for (let i = 0; i < 5; i++) {
+                const val = audioOnsetActive ? Math.min(1, rms * 4) : 0;
+                const h = Math.max(2, val * 20);
+                if (bars[i]) bars[i].style.height = h + 'px';
+            }
+            if (readout) {
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '%';
+                readout.classList.toggle('onset-active', audioOnsetActive);
+            }
+            audioAnimFrame = requestAnimationFrame(updateLevels);
+        }
+        updateLevels();
+    } catch (e) {
+        console.warn('Audio monitor unavailable:', e);
+    }
+}
+
+function stopAudioMonitor() {
+    if (audioAnimFrame) cancelAnimationFrame(audioAnimFrame);
+    if (audioContext) audioContext.close().catch(() => {});
+    audioContext = null;
+    audioAnalyser = null;
+    audioOnsetActive = false;
+    document.getElementById('audioLevel').style.display = 'none';
+}
 
 function openMessage() {
     const email = userData().email;
@@ -1430,7 +2381,9 @@ function openMessage() {
 }
 function openDashboard() {
     const email = userData().email;
-    window.open(`/dashboard?email=${encodeURIComponent(email)}`, '_blank');
+    const token = sessionStorage.getItem('vac_token_' + email) || '';
+    const tokenParam = token ? '&token=' + encodeURIComponent(token) : '';
+    window.open(`/dashboard?email=${encodeURIComponent(email)}${tokenParam}`, '_blank');
 }
 // ============================================================
 // VOUCH POLLING — check for received vouches, upgrade trust status
@@ -1498,35 +2451,14 @@ function updateTrustStatus(vouchData) {
     }
 
     // Show trust graph
-    // F-813 item 4 (display-side interim): test enrollments of the SAME person appear as
-    // separate vouchers (e.g. "Roberto", "Rob Zagarella" vouching "Robert Zagarella") —
-    // reads as broken identity to an outsider. Filter vouchers that are self-variants:
-    // same email as the user, or a name that is a prefix/variant of the user's own name.
-    // Backend dedup remains the durable fix.
-    const _selfEmail = ((userData().email)||'').toLowerCase().trim();
-    const _selfName = ((userData().name)||'').toLowerCase().trim();
-    const _isSelfVariant = (v) => {
-        const ve = (v.email||'').toLowerCase().trim();
-        const vn = (v.person||'').toLowerCase().trim();
-        if (ve && _selfEmail && ve === _selfEmail) return true;
-        if (vn && _selfName) {
-            const a = vn.replace(/[^a-z]/g,''), b = _selfName.replace(/[^a-z]/g,'');
-            if (a && b && (b.startsWith(a) || a.startsWith(b) || a.split(' ')[0] === b.split(' ')[0])) {
-                const fa = vn.split(/\s+/)[0], fb = _selfName.split(/\s+/)[0];
-                if (fa.slice(0,3) === fb.slice(0,3)) return true;
-            }
-        }
-        return false;
-    };
-    const _shownVouches = vouches.filter(v => !_isSelfVariant(v));
-    if (graphSection && _shownVouches.length > 0) {
+    if (graphSection && vouches.length > 0) {
         graphSection.style.display = 'block';
         graphNodes.innerHTML = '';
         // Add self
         const selfName = userData().name || 'You';
         graphNodes.innerHTML += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--teal);border-radius:8px;"><div style="width:28px;height:28px;border-radius:50%;background:rgba(45,212,191,0.15);border:1px solid var(--teal);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--teal);font-weight:700;">' + selfName.charAt(0) + '</div><div><div style="font-size:12px;color:var(--text-primary);font-weight:600;">' + selfName + '</div><div style="font-size:10px;font-family:var(--mono);color:var(--teal);">YOU · ROOT</div></div></div>';
         // Add vouchers
-        _shownVouches.forEach(v => {
+        vouches.forEach(v => {
             const name = v.person || v.email || 'Voucher';
             const initial = name.charAt(0).toUpperCase();
             graphNodes.innerHTML += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--purple);border-radius:8px;"><div style="width:28px;height:28px;border-radius:50%;background:rgba(124,58,237,0.15);border:1px solid var(--purple);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--purple);font-weight:700;">' + initial + '</div><div><div style="font-size:12px;color:var(--text-primary);font-weight:600;">' + name + '</div><div style="font-size:10px;font-family:var(--mono);color:var(--purple);">VOUCHED FOR YOU</div></div></div>';
@@ -1581,35 +2513,6 @@ if (typeof VACTheme !== 'undefined') {
         });
     }
 }
-
-// F-635-LIGHTER re-auth UX (L-2168/L-2173): a same-session re-auth (the seal-gate) opens this page
-// with ?reauth=1. The identity is ALREADY verified — DON'T make the user re-type it. Prefill + auto-
-// advance past the identity form into the ceremony.
-// L-2173 ROBUSTNESS: the previous build relied on the seal-gate threading name/email through the URL,
-// which came out EMPTY at runtime (the cross-iframe __vacVerified/localStorage read raced the seal).
-// Fix: read the identity DIRECTLY here. Source order: URL params → localStorage('vac_verified')
-// (same-origin, written by the first auth's showSuccess). Either fills the form; reauth=1 auto-skips.
-try {
-    const _rp = new URLSearchParams(window.location.search);
-    let _rName = _rp.get('name') || '';
-    let _rEmail = _rp.get('email') || '';
-    if (!_rName || !_rEmail) {
-        try {
-            const _vv = JSON.parse(localStorage.getItem('vac_verified') || '{}');
-            if (!_rName && _vv.name) _rName = _vv.name;
-            if (!_rEmail && _vv.email) _rEmail = _vv.email;
-        } catch(_) {}
-    }
-    if (_rName) { var _ni = document.getElementById('inputName'); if (_ni) _ni.value = _rName; }
-    if (_rEmail) { var _ei = document.getElementById('inputEmail'); if (_ei) _ei.value = _rEmail; }
-    try { vacDebug && vacDebug('reauth_prefill', null, { reauth: _rp.get('reauth'), has_name: !!_rName, has_email: !!_rEmail, src: (_rp.get('name')?'url':(_rName?'localStorage':'none')) }); } catch(_) {}
-    if (_rp.get('reauth') === '1' && _rName && _rEmail) {
-        // Auto-skip the identity form into the ceremony (same-session re-auth — no re-typing).
-        // goToCamera() validates name+email (now prefilled) and, since the same-session email is
-        // OTP-confirmed in shared localStorage, goes straight to the camera ceremony.
-        setTimeout(function(){ try { goToCamera(); } catch(e) { console.error('[VAC] reauth auto-skip failed', e); } }, 0);
-    }
-} catch(_) {}
 </script>
 <script>
 // Scroll indicator — hide when near bottom or not scrollable
@@ -1627,65 +2530,45 @@ setTimeout(checkScroll, 200);
 const _origGoToStep = goToStep;
 goToStep = function(n) { _origGoToStep(n); setTimeout(checkScroll, 150); };
 
-// ============================================================
-// STRUCTURAL RE-AUTH RESUME — consumes the vac_reauth blob left by reauthReload() before the
-// page reloaded. Re-hydrates identity from localStorage (NO re-OTP) and lands on the camera
-// pre-flight, so re-auth is a literal fresh start. Runs once on boot.
-// ============================================================
-function maybeResumeReauth() {
-    // F-563 restore: mode=copilot boot path removed — normal + iframe (tribunal embed) now run the
-    // single guided flow, so there's no copilot path to defer to here.
-    var raw;
-    try { raw = localStorage.getItem('vac_reauth'); } catch(e) { return false; }
-    if (!raw) return false;
-    try { localStorage.removeItem('vac_reauth'); } catch(e) {}   // one-shot
-    var blob;
-    try { blob = JSON.parse(raw); } catch(e) { return false; }
-    if (!blob || (Date.now() - (blob.ts || 0)) > 60000) return false;   // stale/expired → ignore
-    // Re-hydrate identity into the form (userData() reads these inputs) — no re-OTP.
-    try {
-        if (blob.name)  document.getElementById('inputName').value  = blob.name;
-        if (blob.email) document.getElementById('inputEmail').value = blob.email;
-        if (blob.org)   document.getElementById('inputOrg').value   = blob.org;
-        if (blob.role)  document.getElementById('inputRole').value  = blob.role;
-    } catch(e) {}
-    var _ra = (typeof blob.retryAttempts === 'number') ? blob.retryAttempts : 0;
-    if (blob.auto) {
-        // Service-error auto-retry: auto-proceed through the (now warmed) pre-flight + skip the
-        // upfront explainer, as before — but from a guaranteed fresh page state. The module reads
-        // these window flags (updateAVReady / showChallengeIntro) exactly as the inline flow did.
-        window.__vacAutoProceedChallenge = true;
-        window.__vacSkipExplainer = true;
-    }
-    try { vacDebug('reauth_resumed', null, { auto: !!blob.auto, retry_attempts: _ra }); } catch(_) {}
-    // S117 reauth-unify: the shared ceremony module owns the camera + challenge + recording now.
-    startReauthCeremony({ auto: !!blob.auto, retryAttempts: _ra });   // identity confirmed, OTP skipped
-    return true;
-}
-(function() {
-    function _run() { try { maybeResumeReauth(); } catch(e) { console.warn('[VAC] reauth resume failed:', e); } }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', _run);
-    else _run();
-})();
-
-// F-563 (c): pre-fill identity from a prior verified session, but do NOT resurrect the verified
-// SCREEN on a plain page load. The old IIFE auto-routed to showSuccess()+goToStep(4) whenever
-// vac_verified existed (<24h), so a RAW URL refresh landed back on the verified page instead of
-// the email/name start — localStorage was too sticky. Now a plain refresh lands on START (step 0,
-// identity pre-filled); only the reauth flag (maybeResumeReauth) routes to the camera pre-flight.
+// Restore verified state from localStorage
 (function() {
     try {
         const saved = localStorage.getItem('vac_verified');
         if (!saved) return;
         const data = JSON.parse(saved);
-        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) { localStorage.removeItem('vac_verified'); return; }
-        if (!data.email) return;
-        // Convenience pre-fill only (so the user doesn't re-type) — NO auto-route to the success screen.
-        var _n = document.getElementById('inputName');  if (_n) _n.value = data.name || '';
-        var _e = document.getElementById('inputEmail'); if (_e) _e.value = data.email || '';
-        var _o = document.getElementById('inputOrg');   if (_o) _o.value = data.org || '';
-        var _r = document.getElementById('inputRole');  if (_r) _r.value = data.role || '';
-    } catch(e) { console.log('[VAC] verified pre-fill failed:', e); }
+        // Check if less than 24 hours old
+        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) {
+            localStorage.removeItem('vac_verified');
+            return;
+        }
+        if (!data.email || !data.authResult) return;
+        console.log('[VAC] Restoring verified state for', data.email);
+        // Restore form fields
+        const nameInput = document.getElementById('inputName');
+        const emailInput = document.getElementById('inputEmail');
+        const orgInput = document.getElementById('inputOrg');
+        const roleInput = document.getElementById('inputRole');
+        if (nameInput) nameInput.value = data.name || '';
+        if (emailInput) emailInput.value = data.email || '';
+        if (orgInput) orgInput.value = data.org || '';
+        if (roleInput) roleInput.value = data.role || '';
+        // Restore auth result and skip to success
+        authResult = data.authResult;
+        // Use setTimeout to ensure DOM is fully ready
+        setTimeout(() => {
+            try {
+                showSuccess();
+                goToStep(4);
+                console.log('[VAC] Restored to success screen');
+            } catch(e2) {
+                console.error('[VAC] Restore showSuccess failed:', e2);
+                // Fallback: just show step 4 with basic info
+                goToStep(4);
+                document.getElementById('successName').textContent = data.name || '';
+                document.getElementById('successScore').textContent = 'Trust Score: ' + (data.authResult?.biometric_verification?.overall_score || '0.90');
+            }
+        }, 100);
+    } catch(e) { console.log('[VAC] Restore failed:', e); }
 })();
 </script>
 
