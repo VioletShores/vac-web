@@ -2887,7 +2887,7 @@ function _markSpeech(src, rms, onsetAt) {
                     // carry-over (no pause since the last accept) stays rejected.
                     if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }  // S139: silence aborts pre-onset (S154: dip tracker cleared too)
                     _sawSilence = true;
-                    if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (DIGIT_MOD_DELTA*100).toFixed(0)); }  // S154 diag
+                    if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (DIGIT_MOD_DELTA*100).toFixed(0)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: DIGIT_MOD_DELTA, digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
                 } else if (rms > vadSpeechThreshold && vbRatio >= VOICE_BAND_MIN_RATIO) {
                     // BUILD 379: amplitude alone crossed the line, but only counts as voiced if the
@@ -2957,7 +2957,7 @@ function _markSpeech(src, rms, onsetAt) {
                     if (voiced > 0 && _now >= speechWindowStart
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
                         && (voiceMax - voiceMin) >= DIGIT_MOD_DELTA) {
-                        _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%');  // S154 diag
+                        _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}  // S154 diag
                         _markSpeech('vad', rms, _voiceOnsetAt);
                         voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
                     }
@@ -2965,7 +2965,7 @@ function _markSpeech(src, rms, onsetAt) {
                     // neither band (between silence and speech thresholds)
                     if (_preOnsetStart) {  // S154: tolerate brief observed dips (soft consonants) within pre-onset; only a SUSTAINED dip (> VAD_ONSET_DIP_MS) aborts — was a hard single-frame reset that rejected normal speech
                         if (_preOnsetDipStart === 0) _preOnsetDipStart = _now;
-                        else if (_now - _preOnsetDipStart > VAD_ONSET_DIP_MS) { _rejectedTransients++; _lastRejectReason = 'sust'; _vadDiag('onset aborted: dip > ' + VAD_ONSET_DIP_MS + 'ms during sustain (had ' + Math.round(_now - _preOnsetStart) + 'ms of ' + VAD_ONSET_SUSTAIN_MS + 'ms)'); _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }
+                        else if (_now - _preOnsetDipStart > VAD_ONSET_DIP_MS) { _rejectedTransients++; _lastRejectReason = 'sust'; _vadDiag('onset aborted: dip > ' + VAD_ONSET_DIP_MS + 'ms during sustain (had ' + Math.round(_now - _preOnsetStart) + 'ms of ' + VAD_ONSET_SUSTAIN_MS + 'ms)'); try { vacDebug('vad_gate', 'onset_abort_dip', { path:'full', had_ms: Math.round(_now - _preOnsetStart), need_ms: VAD_ONSET_SUSTAIN_MS }); } catch(_){} _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }
                     }
                     if (voiced > 0) {
                         // mid-run dip: time it; if it stays here past DIGIT_VOICE_GAP_MS the voicing
@@ -4028,7 +4028,7 @@ function _makeQuickReauthVoiceGate(cfg) {
             if (rms < silenceThr) {
                 preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0;  // S139: silence aborts pre-onset (S154: dip tracker cleared)
                 sawSilence = true;
-                if (voiced > 0) { _vadDiag('run ended: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% | need ' + voiceMinMs + 'ms above ' + (speechThr*100).toFixed(0) + '%'); }  // S154 diag
+                if (voiced > 0) { _vadDiag('run ended: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% | need ' + voiceMinMs + 'ms above ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'run_ended', { path:'fast', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)), need_ms: voiceMinMs }); } catch(_){} }  // S154 diag
                 voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
             } else if (rms > speechThr) {
                 if (voiced === 0) {
@@ -4071,7 +4071,7 @@ function _makeQuickReauthVoiceGate(cfg) {
                 dipStart = 0;
                 if (voiced > 0 && now >= _windowStart
                     && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= modDelta) {
-                    _vadDiag('FIRED: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% thr ' + (speechThr*100).toFixed(0) + '%');  // S154 diag
+                    _vadDiag('FIRED: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% thr ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)) }); } catch(_){}  // S154 diag
                     _armed = true; _firedAt = now;                              // sustained + modulated → FIRE
                     voiced = 0; vMin = 1; vMax = 0; sawSilence = false;         // consumed; a NEW silence re-arms
                 }
