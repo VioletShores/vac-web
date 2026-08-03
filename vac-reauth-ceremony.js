@@ -3982,6 +3982,7 @@ function _makeQuickReauthVoiceGate(cfg) {
     var _armed = false, _firedAt = 0, _windowStart = 0, _raf = null, _stopped = false;
     var voiced = 0, vMin = 1, vMax = 0, dipStart = 0, onsetAt = 0, sawSilence = false;
     var preOnsetStart = 0;       // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
+    var preOnsetDipStart = 0;    // S154: tolerated pre-onset dip start (mirrors full path)
     var preOnsetMidChecked = false;  // S139-v2: true once the mid-window spectral re-check has run in this pre-onset window
     function _loop(analyser, buf) {
         if (_stopped) { _raf = null; return; }
@@ -3994,7 +3995,7 @@ function _makeQuickReauthVoiceGate(cfg) {
             window.__vacGateArmed = true; _micPillDraw(rms, speechThr, 'q');
             var now = performance.now();
             if (rms < silenceThr) {
-                preOnsetStart = 0; preOnsetMidChecked = false;  // S139: silence aborts pre-onset
+                preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0;  // S139: silence aborts pre-onset (S154: dip tracker cleared)
                 sawSilence = true; voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
             } else if (rms > speechThr) {
                 if (voiced === 0) {
@@ -4012,7 +4013,7 @@ function _makeQuickReauthVoiceGate(cfg) {
                                 preOnsetStart = now; preOnsetMidChecked = false;  // voice-like mid-band; start sustain window
                             }
                             // else: LF-heavy transient — don't start pre-onset
-                        } else if (now - preOnsetStart >= FAST_VAD_ONSET_SUSTAIN_MS) {
+                        } else if ((preOnsetDipStart = 0) || (now - preOnsetStart >= FAST_VAD_ONSET_SUSTAIN_MS)) {
                             onsetAt = preOnsetStart;  // backdate to actual start
                             vMin = rms; vMax = rms; voiced = 1;
                             preOnsetStart = 0; preOnsetMidChecked = false;
@@ -4042,7 +4043,10 @@ function _makeQuickReauthVoiceGate(cfg) {
                 }
             } else {
                 // neither band
-                preOnsetStart = 0; preOnsetMidChecked = false;  // S139: any gap resets pre-onset sustain window
+                if (preOnsetStart) {  // S154: tolerate brief observed dips within pre-onset (mirrors full path); sustained dip (>60ms) aborts
+                    if (preOnsetDipStart === 0) preOnsetDipStart = now;
+                    else if (now - preOnsetDipStart > 60) { preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0; }
+                }
                 if (voiced > 0) {
                     if (!dipStart) dipStart = now;
                     else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; }  // sustained dip kills the run
