@@ -5782,6 +5782,28 @@ function startAudioMonitor() {
         // `new AudioContext()` throw → audioAnalyser stayed null → the phrase fail-open bypass).
         if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
         if (!mediaStream) { console.error('[VAC][AUDIO] startAudioMonitor: no mediaStream — voice gate will be OFF'); return; }
+        // S154 (quick-auth-after-full-ceremony deafness): the full path's teardown can END the
+        // stream's audio track while the mediaStream global stays truthy — cloning an ended
+        // track yields permanent zeros: a deaf gate with no error anywhere. Check track state,
+        // report it (telemetry names the truth at every gate start), and reacquire audio-only
+        // if dead (permission already granted → silent).
+        var _amTrack = null; try { _amTrack = mediaStream.getAudioTracks()[0] || null; } catch(_) {}
+        var _amState = _amTrack ? _amTrack.readyState : 'none';
+        try { vacDebug('audio_monitor_start', null, { track: _amState }); } catch(_) {}
+        if (_amState !== 'live') {
+            try {
+                var _p = navigator.mediaDevices.getUserMedia({ audio: true });
+                // Synchronous path continues with the (dead) stream this frame; swap in the fresh
+                // track as soon as it lands and rebuild the analyser chain against it.
+                _p.then(function(_fresh){
+                    try {
+                        mediaStream = _fresh.getAudioTracks().length ? new MediaStream([_fresh.getAudioTracks()[0]].concat((mediaStream.getVideoTracks&&mediaStream.getVideoTracks())||[])) : mediaStream;
+                        try { vacDebug('audio_monitor_start', 'reacquired', { track: 'live' }); } catch(_) {}
+                        startAudioMonitor();  // rebuild against the live track (prior context closed at top)
+                    } catch(_e2) {}
+                }).catch(function(_ge){ try { vacDebug('audio_monitor_start', 'reacquire_failed', { err: String(_ge && _ge.name || _ge).slice(0,60) }); } catch(_) {} });
+            } catch(_) {}
+        }
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         if (audioContext.state === 'suspended') { audioContext.resume().catch(function(){}); }  // some browsers start suspended → no audio frames until resumed
         // Assign the analyser BEFORE the (throwable) stream clone/connect, so a failure here leaves a
