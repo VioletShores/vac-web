@@ -2729,6 +2729,19 @@ function beginRecording() {
     // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
     // duration AND modulation. Shorter than the greeting's 1.4s (a single digit < a multi-word
     // greeting). PACING ONLY — Gemini server-side stays the authoritative voice check. LIVE-TUNE.
+    // ═══════════════════════════════════════════════════════════════════════════
+    // DESIGN RULE (Rob directive, S154) — READ BEFORE TUNING ANY CONSTANT BELOW:
+    // The on-device gates (VAD, MediaPipe fingers, zones) are a PACING/UNIFORMITY
+    // AID for the backend — a camera operator, not a bouncer. Their job is a clean,
+    // well-framed capture per digit (one utterance + one gesture, separated beats)
+    // so server-side validation (Gemini: deepfake, lip-sync, gesture↔number match)
+    // receives uniform input. Security lives SERVER-SIDE. Therefore: when a client
+    // gate rejects real users, loosen the client and let the server judge — client
+    // strictness must justify itself as capture QUALITY (framing/uniformity),
+    // never as security. Bias permissive. (S154 specimen: the 250ms zero-dip onset
+    // hold rejected normally-spoken digits while adding no security the dual
+    // spectral checks + server validation didn't already provide.)
+    // ═══════════════════════════════════════════════════════════════════════════
     const DIGIT_VOICE_MIN_MS = 270;  // S145j live-tune (Rob, hotel e2e): 350 rejected a briskly-said 'two' (bar clearly over threshold, duration under floor — slow retry passed). 270 admits a natural quick monosyllable (~250-300ms) while keeping ~2.5x margin over a ~100ms tap; modulation + hysteresis + Gemini server-side remain the real anti-tap guards.
     const DIGIT_VOICE_GAP_MS = 200;  // R1: max sustained OBSERVED dip (neither-band frames) within one voiced run. A real intra-word dip is brief; spaced taps leave a long neither-band gap between them. Gated on OBSERVED dip frames (not a bare inter-frame time delta) so rAF jank — a skipped frame — can't fake a gap and false-reject a real digit (adversarial-review F1).
     // F-662: DIGIT_COOCCUR_MS / DIGIT_COOCCUR_MAX_MS moved to module scope (ONE source, shared with the
