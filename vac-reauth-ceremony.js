@@ -1443,9 +1443,9 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
                 ctx.textBaseline = 'bottom';
                 var _zm = _confident ? 'ZONE: IN ✓' : 'ZONE: OUT';
                 // task-handzone-faceanchored: show palm-centre (the actual test point) not wrist
-                var _pcxd = (lm.length >= 18 && Number.isFinite(lm[5].x)) ? (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4 : null;
-                var _pcyd = (_pcxd != null) ? (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4 : null;
-                var _wsub = (_pcxd != null) ? 'palm(' + _pcxd.toFixed(2) + ',' + _pcyd.toFixed(2) + ')' : 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
+                var _pcxd = (lm.length >= 18 && Number.isFinite(lm[5].x) && Number.isFinite(lm[9].x) && Number.isFinite(lm[13].x) && Number.isFinite(lm[17].x)) ? (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4 : null;
+                var _pcyd = (_pcxd != null && Number.isFinite(lm[5].y) && Number.isFinite(lm[9].y) && Number.isFinite(lm[13].y) && Number.isFinite(lm[17].y)) ? (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4 : null;
+                var _wsub = (_pcxd != null && _pcyd != null) ? 'palm(' + _pcxd.toFixed(2) + ',' + _pcyd.toFixed(2) + ')' : 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
                 var _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width) + 8;
                 ctx.fillStyle = 'rgba(0,0,0,0.65)';
                 ctx.fillRect(6, h - _zfs * 2.6 - 6, _mw, _zfs * 2.6 + 4);
@@ -3272,7 +3272,7 @@ function _markSpeech(src, rms, onsetAt) {
                 var _snapPcx = null, _snapPcy = null, _snapPalmIn = null, _snapTips = 0;
                 if (_snapLm && _snapLm.length === 21) {
                     var _sfin = true;
-                    for (var _sfi = 0; _sfi < 21 && _sfin; _sfi++) { if (!_snapLm[_sfi] || !Number.isFinite(_snapLm[_sfi].x)) _sfin = false; }
+                    for (var _sfi = 0; _sfi < 21 && _sfin; _sfi++) { if (!_snapLm[_sfi] || !Number.isFinite(_snapLm[_sfi].x) || !Number.isFinite(_snapLm[_sfi].y)) _sfin = false; }
                     if (_sfin) {
                         var _spc = { x: (_snapLm[5].x + _snapLm[9].x + _snapLm[13].x + _snapLm[17].x) / 4, y: (_snapLm[5].y + _snapLm[9].y + _snapLm[13].y + _snapLm[17].y) / 4 };
                         _snapPcx = +_spc.x.toFixed(3); _snapPcy = +_spc.y.toFixed(3);
@@ -3507,7 +3507,7 @@ function _markSpeech(src, rms, onsetAt) {
                 var _advPcx = null, _advPcy = null, _advPalmIn = null, _advTips = 0;
                 if (_advLm && _advLm.length === 21) {
                     var _afin = true;
-                    for (var _afi = 0; _afi < 21 && _afin; _afi++) { if (!_advLm[_afi] || !Number.isFinite(_advLm[_afi].x)) _afin = false; }
+                    for (var _afi = 0; _afi < 21 && _afin; _afi++) { if (!_advLm[_afi] || !Number.isFinite(_advLm[_afi].x) || !Number.isFinite(_advLm[_afi].y)) _afin = false; }
                     if (_afin) {
                         var _apc = { x: (_advLm[5].x + _advLm[9].x + _advLm[13].x + _advLm[17].x) / 4, y: (_advLm[5].y + _advLm[9].y + _advLm[13].y + _advLm[17].y) / 4 };
                         _advPcx = +_apc.x.toFixed(3); _advPcy = +_apc.y.toFixed(3);
@@ -4495,7 +4495,7 @@ async function beginStillCapture() {
                             var _fPcx = null, _fPcy = null, _fPalmIn = null, _fTips = 0;
                             if (_lm && _lm.length === 21) {
                                 var _ffin = true;
-                                for (var _ffi = 0; _ffi < 21 && _ffin; _ffi++) { if (!_lm[_ffi] || !Number.isFinite(_lm[_ffi].x)) _ffin = false; }
+                                for (var _ffi = 0; _ffi < 21 && _ffin; _ffi++) { if (!_lm[_ffi] || !Number.isFinite(_lm[_ffi].x) || !Number.isFinite(_lm[_ffi].y)) _ffin = false; }
                                 if (_ffin) {
                                     var _fpc = { x: (_lm[5].x + _lm[9].x + _lm[13].x + _lm[17].x) / 4, y: (_lm[5].y + _lm[9].y + _lm[13].y + _lm[17].y) / 4 };
                                     _fPcx = +_fpc.x.toFixed(3); _fPcy = +_fpc.y.toFixed(3);
