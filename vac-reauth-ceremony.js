@@ -1442,7 +1442,10 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'bottom';
                 var _zm = _confident ? 'ZONE: IN ✓' : 'ZONE: OUT';
-                var _wsub = 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
+                // task-handzone-faceanchored: show palm-centre (the actual test point) not wrist
+                var _pcxd = (lm.length >= 18 && Number.isFinite(lm[5].x) && Number.isFinite(lm[9].x) && Number.isFinite(lm[13].x) && Number.isFinite(lm[17].x)) ? (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4 : null;
+                var _pcyd = (_pcxd != null && Number.isFinite(lm[5].y) && Number.isFinite(lm[9].y) && Number.isFinite(lm[13].y) && Number.isFinite(lm[17].y)) ? (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4 : null;
+                var _wsub = (_pcxd != null && _pcyd != null) ? 'palm(' + _pcxd.toFixed(2) + ',' + _pcyd.toFixed(2) + ')' : 'wrist(' + lm[0].x.toFixed(2) + ',' + lm[0].y.toFixed(2) + ')';
                 var _mw = Math.max(ctx.measureText(_zm).width, ctx.measureText(_wsub).width) + 8;
                 ctx.fillStyle = 'rgba(0,0,0,0.65)';
                 ctx.fillRect(6, h - _zfs * 2.6 - 6, _mw, _zfs * 2.6 + 4);
@@ -3236,6 +3239,7 @@ function _markSpeech(src, rms, onsetAt) {
 
     let _detLoopFrames = 0;  // telemetry only
     let _handZoneLastState = null;  // task-432 Part 4: transition telemetry — null until first classified frame
+    let _handZoneSnapLastT = 0;    // task-handzone-faceanchored: throttle per-beat zone snapshot (2s interval)
     function runDetectionLoop() {
         if (recordingStopped) return;
         const videoEl = document.getElementById('videoPreviewRec');
@@ -3256,6 +3260,41 @@ function _markSpeech(src, rms, onsetAt) {
         var _handNear = _handPresent && _handNearFaceZone(FingerDetector.landmarks);
         // task-432 Part 4: throttled hand_zone in/out telemetry (transition-only, no per-frame spam).
         try { _handZoneLastState = _noteHandZoneTransition(_handZoneLastState, _handNear, _activeZone()); } catch(_) {}
+        // task-handzone-faceanchored: per-beat zone snapshot — fires ~every 2s with face-anchored
+        // zone bounds + palm position + zone membership, so a stuck digit is diagnosable server-side
+        // without requiring QA mode. Complements the transition-only hand_zone event above.
+        try {
+            var _snapNow = performance.now();
+            if (_snapNow - _handZoneSnapLastT >= 2000) {
+                _handZoneSnapLastT = _snapNow;
+                var _snapZone = _activeZone();
+                var _snapLm = FingerDetector.landmarks;
+                var _snapPcx = null, _snapPcy = null, _snapPalmIn = null, _snapTips = 0;
+                if (_snapLm && _snapLm.length === 21) {
+                    var _sfin = true;
+                    for (var _sfi = 0; _sfi < 21 && _sfin; _sfi++) { if (!_snapLm[_sfi] || !Number.isFinite(_snapLm[_sfi].x) || !Number.isFinite(_snapLm[_sfi].y)) _sfin = false; }
+                    if (_sfin) {
+                        var _spc = { x: (_snapLm[5].x + _snapLm[9].x + _snapLm[13].x + _snapLm[17].x) / 4, y: (_snapLm[5].y + _snapLm[9].y + _snapLm[13].y + _snapLm[17].y) / 4 };
+                        _snapPcx = +_spc.x.toFixed(3); _snapPcy = +_spc.y.toFixed(3);
+                        _snapPalmIn = _ptInCheekZone(_spc);
+                        var _stips = [4, 8, 12, 16, 20];
+                        for (var _sti = 0; _sti < _stips.length; _sti++) { if (_ptInCheekZone(_snapLm[_stips[_sti]])) _snapTips++; }
+                    }
+                }
+                vacDebug('hand_zone_snap', null, {
+                    digit_index: currentDigitIndex,
+                    anchored: _snapZone.anchored,
+                    rx: +_snapZone.rx.toFixed(3),
+                    ry: +_snapZone.ry.toFixed(3),
+                    ovals: _snapZone.ovals.map(function(o) { return { side: o.side, cx: +o.cx.toFixed(3), cy: +o.cy.toFixed(3) }; }),
+                    palm_cx: _snapPcx,
+                    palm_cy: _snapPcy,
+                    palm_in_zone: _snapPalmIn,
+                    tips_in: _snapTips,
+                    hand_near: _handNear
+                });
+            }
+        } catch(_) {}
         // F-755: per-frame instrumentation (advisory; never fed to server clip).
         try {
             var _f755lm = FingerDetector.landmarks;
@@ -3460,7 +3499,38 @@ function _markSpeech(src, rms, onsetAt) {
             if (currentDigitIndex === 0) {
                 try { vacDebug('detect_first_finger_advance', null, { frames_before_first_detect: _detLoopFrames, fingers_shown: _recordCount, held_frames: _recordFrames }); } catch(_) {}
             }
-            try { vacDebug('detect_digit_advance', null, { digit_index: currentDigitIndex, fingers_shown: _recordCount, held_frames: _recordFrames, dwell_ms: Math.round(_adNow - digitStartTime) }); } catch(_) {}
+            // task-handzone-faceanchored: include face-anchored zone geometry at advance time so
+            // Rob can confirm the zone was beside the actual cheek when each pose was accepted.
+            try {
+                var _advZone = _activeZone();
+                var _advLm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
+                var _advPcx = null, _advPcy = null, _advPalmIn = null, _advTips = 0;
+                if (_advLm && _advLm.length === 21) {
+                    var _afin = true;
+                    for (var _afi = 0; _afi < 21 && _afin; _afi++) { if (!_advLm[_afi] || !Number.isFinite(_advLm[_afi].x) || !Number.isFinite(_advLm[_afi].y)) _afin = false; }
+                    if (_afin) {
+                        var _apc = { x: (_advLm[5].x + _advLm[9].x + _advLm[13].x + _advLm[17].x) / 4, y: (_advLm[5].y + _advLm[9].y + _advLm[13].y + _advLm[17].y) / 4 };
+                        _advPcx = +_apc.x.toFixed(3); _advPcy = +_apc.y.toFixed(3);
+                        _advPalmIn = _ptInCheekZone(_apc);
+                        var _atips = [4, 8, 12, 16, 20];
+                        for (var _ati = 0; _ati < _atips.length; _ati++) { if (_ptInCheekZone(_advLm[_atips[_ati]])) _advTips++; }
+                    }
+                }
+                vacDebug('detect_digit_advance', null, {
+                    digit_index: currentDigitIndex,
+                    fingers_shown: _recordCount,
+                    held_frames: _recordFrames,
+                    dwell_ms: Math.round(_adNow - digitStartTime),
+                    zone_anchored: _advZone.anchored,
+                    zone_rx: +_advZone.rx.toFixed(3),
+                    zone_ry: +_advZone.ry.toFixed(3),
+                    zone_ovals: _advZone.ovals.map(function(o) { return { side: o.side, cx: +o.cx.toFixed(3), cy: +o.cy.toFixed(3) }; }),
+                    palm_cx: _advPcx,
+                    palm_cy: _advPcy,
+                    palm_in_zone: _advPalmIn,
+                    tip_count_in_zone: _advTips
+                });
+            } catch(_) {}
             detectedDigits[currentDigitIndex] = true;
             detectedCounts[currentDigitIndex] = _recordCount;   // latched count, or live count on the speech-off path — never the hand-down 0
             // F-GESTURE-ZONE-QUALIFIES-POSE: capture whether THIS accepted pose was in-zone, using
@@ -4380,6 +4450,7 @@ async function beginStillCapture() {
             // (Declared at function scope above — L-2224 — so the capture-time reads resolve.)
             _pollStillTsMs = 0; _pollDetectedFingers = null;
             var _fastHandZoneLastState = null;  // task-432 Part 4: transition telemetry for this attempt
+            var _fastHandZoneSnapLastT = 0;    // task-handzone-faceanchored: throttle fast-tier zone snapshot
             // F-637: minimum audio window for the gesture-only fallback (voice required but
             // _voiceGate = null). Without this, stable-gesture fires at ~480ms before the
             // user speaks, leaving stillTsMs in pre-speech silence. 800ms ensures the audio
@@ -4415,6 +4486,38 @@ async function beginStillCapture() {
                     var _lm = (typeof FingerDetector !== 'undefined') ? FingerDetector.landmarks : null;
                     var _handNear = !!_lm && _handNearFaceZone(_lm);
                     try { _fastHandZoneLastState = _noteHandZoneTransition(_fastHandZoneLastState, _handNear, _activeZone()); } catch(_) {}
+                    // task-handzone-faceanchored: per-beat zone snapshot for the fast tier (~2s throttle)
+                    try {
+                        var _fSnapNow = performance.now();
+                        if (_fSnapNow - _fastHandZoneSnapLastT >= 2000) {
+                            _fastHandZoneSnapLastT = _fSnapNow;
+                            var _fSnapZone = _activeZone();
+                            var _fPcx = null, _fPcy = null, _fPalmIn = null, _fTips = 0;
+                            if (_lm && _lm.length === 21) {
+                                var _ffin = true;
+                                for (var _ffi = 0; _ffi < 21 && _ffin; _ffi++) { if (!_lm[_ffi] || !Number.isFinite(_lm[_ffi].x) || !Number.isFinite(_lm[_ffi].y)) _ffin = false; }
+                                if (_ffin) {
+                                    var _fpc = { x: (_lm[5].x + _lm[9].x + _lm[13].x + _lm[17].x) / 4, y: (_lm[5].y + _lm[9].y + _lm[13].y + _lm[17].y) / 4 };
+                                    _fPcx = +_fpc.x.toFixed(3); _fPcy = +_fpc.y.toFixed(3);
+                                    _fPalmIn = _ptInCheekZone(_fpc);
+                                    var _ftips = [4, 8, 12, 16, 20];
+                                    for (var _fti = 0; _fti < _ftips.length; _fti++) { if (_ptInCheekZone(_lm[_ftips[_fti]])) _fTips++; }
+                                }
+                            }
+                            vacDebug('hand_zone_snap', null, {
+                                path: 'fast',
+                                anchored: _fSnapZone.anchored,
+                                rx: +_fSnapZone.rx.toFixed(3),
+                                ry: +_fSnapZone.ry.toFixed(3),
+                                ovals: _fSnapZone.ovals.map(function(o) { return { side: o.side, cx: +o.cx.toFixed(3), cy: +o.cy.toFixed(3) }; }),
+                                palm_cx: _fPcx,
+                                palm_cy: _fPcy,
+                                palm_in_zone: _fPalmIn,
+                                tips_in: _fTips,
+                                hand_near: _handNear
+                            });
+                        }
+                    } catch(_) {}
                     var _gestureLive = (_stable >= _STABLE_NEEDED && typeof _n === 'number' && _n > 0);
                     var _voiceDone = !!(_voiceGate && _voiceGate.armed);
                     var _coachKey = '';
