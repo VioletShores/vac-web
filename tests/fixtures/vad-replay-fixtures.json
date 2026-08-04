@@ -1,0 +1,55 @@
+{
+  "provenance": {
+    "fetched_at": "2026-08-04T10:35:00Z",
+    "source_query": "GET https://vac-system-production.up.railway.app/v1/auth/debug?since_minutes=1500&limit=3000",
+    "packet": "S155 L0 task-ro-render-floors",
+    "note": "Real vad_gate/vad_calibrated events pulled from production /v1/auth/debug on 2026-08-04. Snapshotted (not re-fetched every CI run) so the replay is deterministic and CI never depends on prod backend availability; each record below carries the original server-assigned event id + created_at for audit. Re-fetch with scripts (none checked in yet) if a future session wants a fresher snapshot."
+  },
+  "rob_full_path_fires": {
+    "session_id": "sess_sa1ymiye_reauth",
+    "path": "full",
+    "note": "Three real digit fires from a live full-ceremony run, iPhone UA, 2026-08-04 ~10:27 UTC.",
+    "events": [
+      { "id": 17236, "created_at": "2026-08-04 10:27:03", "digit_index": 0, "dur_ms": 284, "peak": 0.161, "thr": 0.118 },
+      { "id": 17241, "created_at": "2026-08-04 10:27:06", "digit_index": 1, "dur_ms": 287, "peak": 0.272, "thr": 0.118 },
+      { "id": 17268, "created_at": "2026-08-04 10:27:20", "digit_index": 2, "dur_ms": 281, "peak": 0.228, "thr": 0.118 }
+    ]
+  },
+  "rob_full_path_rejected_taps": {
+    "session_id": "sess_sa1ymiye_reauth",
+    "path": "full",
+    "note": "onset_abort_dip events from the SAME live session: pre-onset energy that failed to sustain the onset floor (VAD_ONSET_SUSTAIN_MS) — correct rejections, not fires. Real evidence that the gate does not fire on brief transients even from a genuine live session.",
+    "events": [
+      { "id": 17226, "created_at": "2026-08-04 10:26:52", "had_ms": 185, "need_ms": 180 },
+      { "id": 17227, "created_at": "2026-08-04 10:26:57", "had_ms": 215, "need_ms": 180 },
+      { "id": 17228, "created_at": "2026-08-04 10:27:01", "had_ms": 197, "need_ms": 180 },
+      { "id": 17229, "created_at": "2026-08-04 10:27:02", "had_ms": 90, "need_ms": 180 },
+      { "id": 17231, "created_at": "2026-08-04 10:27:03", "had_ms": 125, "need_ms": 180 }
+    ]
+  },
+  "skyssia_fast_path": {
+    "session_id": "sess_osdy8boy_reauth",
+    "path": "fast",
+    "note": "Real fast-tier (quick-auth) session, 2026-08-04 10:25-10:26 UTC, cited in the S155 packet: 0.058-0.124 voice climb must fire under the new per-speaker cal, ~0.07 ambient must not.",
+    "calibrations": [
+      { "id": 17171, "created_at": "2026-08-04 10:25:10", "floor": 0.054, "speech": 0.325, "sil_old": 0.077, "thr_old": 0.13 },
+      { "id": 17187, "created_at": "2026-08-04 10:26:04", "floor": 0.044, "speech": 0.385, "sil_old": 0.07, "thr_old": 0.13 }
+    ],
+    "voice_climb_samples": [
+      { "id": 17172, "created_at": "2026-08-04 10:25:12", "rms_max": 0.058 },
+      { "id": 17173, "created_at": "2026-08-04 10:25:13", "rms_max": 0.124 }
+    ],
+    "ambient_samples": [
+      { "id": 17171, "created_at": "2026-08-04 10:25:10", "sil": 0.077 },
+      { "id": 17187, "created_at": "2026-08-04 10:26:04", "sil": 0.07 }
+    ],
+    "silence_samples": [
+      { "id": 17170, "created_at": "2026-08-04 10:25:10", "rms_now": 0, "rms_max": 0, "saw_sil": false },
+      { "id": 17188, "created_at": "2026-08-04 10:26:04", "rms_now": 0, "rms_max": 0, "saw_sil": false }
+    ],
+    "fired": [
+      { "id": 17177, "created_at": "2026-08-04 10:25:15", "dur_ms": 284, "peak": 0.352, "thr": 0.13 },
+      { "id": 17192, "created_at": "2026-08-04 10:26:05", "dur_ms": 300, "peak": 0.388, "thr": 0.13 }
+    ]
+  }
+}

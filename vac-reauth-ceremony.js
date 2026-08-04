@@ -510,6 +510,34 @@ const _CAL_K = 0.32;         // mirrors the greeting calibration's _CAL_K — sp
 const _CAL_SIL_K = 0.30;     // mirrors the greeting calibration's _CAL_SIL_K — silence threshold sits 30% of the way from floor to the speech threshold (floor < silence < speech, provably, regardless of clamping)
 const _CAL_MIN_SPAN = 0.04;  // mirrors the greeting calibration's _CAL_MIN_SPAN — reject a degenerate (near-zero) floor→speech span rather than calibrate off noise
 function _calClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+// S155 PER-SPEAKER FAST CALIBRATION — SHARED helper (D-VAD-GATE-FORK companion: ONE formula, ONE
+// call site definition, called from BOTH the full and fast tiers below — advances the fork-guard's
+// eventual goal without a full unification of the two calibration subsystems, per the packet).
+// _micPreflightVad() above needs BOTH a measured ambient floor AND a measured speech sample from
+// the pre-flight AV check; whenever the user didn't speak enough there (or the AV check never
+// qualified), both tiers previously fell straight through to a FLAT hardcoded constant
+// (VAD_SPEECH_RMS_FALLBACK / FAST_VAD_SPEECH_RMS = 0.115) — identical for every speaker and every
+// room. This is a simpler, floor-ONLY formula (needs no speech sample at all) that still
+// personalises the threshold to THIS room/mic: rollingFloor is audioNoiseFloor, the continuously
+// EMA-adapting ambient estimate (startAudioMonitor, AUDIO_FLOOR_EMA_ALPHA/AUDIO_FLOOR_DRIFT_ALPHA
+// above) — a live, rolling read, not a one-shot seed sample — so it's available at ARM time even
+// on a first-ever fast-tier attempt with no prior greeting. clamp(rollingFloor*1.8, 0.05, 0.13):
+// verified against the Skyssia fixture (auth-debug 4 Aug ~10:25 UTC, session
+// sess_osdy8boy_reauth): floor 0.044-0.054 -> thr 0.079-0.097, comfortably under her observed
+// voice peaks 0.058-0.124 (the flat-0.13-ceiling fallback was at risk of clipping her quieter
+// utterances), while a ~0.07 no-voice ambient reading still sits below every realistic
+// floor*1.8 result and correctly does not cross it. Sits BETWEEN the full preflight calibration
+// (preferred, when available) and the flat constant (last-resort, when even the floor is
+// unmeasured) — never overrides a real calibration, only upgrades the fallback.
+const FAST_CAL_FLOOR_MULT = 1.8;
+const FAST_CAL_THR_MIN = 0.05;
+const FAST_CAL_THR_MAX = 0.13;
+function _fastCalThreshold(rollingFloor) {
+    if (!(rollingFloor > 0)) return null;   // no live floor read yet — caller keeps its flat fallback
+    return _calClamp(rollingFloor * FAST_CAL_FLOOR_MULT, FAST_CAL_THR_MIN, FAST_CAL_THR_MAX);
+}
+
 function _micPreflightVad() {
     _micPreflightVadReason = null;
     // D-VAD-UNITS (task-447): arm from the ceremony-RMS-scale samples (_micSeededAmbientRms /
@@ -2596,8 +2624,22 @@ function beginRecording() {
     let _acceptArmed = true;      // Option 2 (S111): speech-off re-arm — a continuous hold can't double-accept. Re-armed by a SUSTAINED release OR a stably-held DIFFERENT count (debounced, robust to transient miscounts; codex P2). The VAD path ignores this and uses the per-digit speech window as the new-digit signal, which makes repeated digits ([2,4,4]) solvable.
     let _lastAcceptedCount = 0;   // speech-off re-arm: a stably-held count != this == a deliberate change
     let _releaseFrames = 0;       // consecutive detected===0 frames; a SUSTAINED release (>=3) re-arms (1-frame dropouts don't)
+    let _releaseSince = 0;        // S155: perf.now() when the CURRENT continuous detected===0 run began; 0 = hand present (mirrors the audio hysteresis pattern — wall-clock, not frame count)
     const STABLE_FRAMES_NEEDED = 12;  // ~0.6s at ~20fps — a deliberate hold, not a flicker
-    const MIN_DIGIT_DWELL_MS = 700;   // S110: each digit must be held ~0.7s wall-clock before advancing, so the recorded video captures every pose for Gemini (frame-rate independent)
+    const MIN_DIGIT_DWELL_MS = 700;   // S110: each digit must be held ~0.7s wall-clock before advancing, so the recorded video captures every pose for Gemini (frame-rate independent) — S155: already exceeds the FINGER_HOLD_MIN_MS positive-evidence floor (400ms), no change needed here
+    // S155 POSITIVE-EVIDENCE FLOOR — finger release (D-VERDICT-COMPOSITION companion). The old
+    // release/re-arm signal (_releaseFrames >= 3) was a raw FRAME COUNT, which is fps-dependent:
+    // ~150ms at 20fps but only ~50ms at 60fps, so on a fast device a single dropped/blinked
+    // detection pair could satisfy it and false-re-arm mid-gesture. Schmitt trigger, wall-clock:
+    // release now requires the hand to read fully absent (detected===0 — outside even the widened
+    // GESTURE_ZONE_SPEC acceptance geometry, the strictest "gone" reading available) for a
+    // SUSTAINED period, AND a frame-count floor raised 1.3x over the old bare-minimum (3 -> 4) as
+    // a belt-and-suspenders minimum-sample-count alongside the new time floor — mirrors
+    // AUDIO_ONSET_RELEASE's asymmetric arm/release hysteresis band. This only makes RE-ARM slower
+    // to trigger (never faster) — it cannot loosen acceptance, so it stays inside the DESIGN RULE's
+    // bias-permissive mandate (client gates are pacing aids, never the security boundary).
+    const FINGER_RELEASE_SUSTAIN_MS = 300;
+    const FINGER_RELEASE_MIN_FRAMES = Math.ceil(3 * 1.3);  // 4
     let _confirmUntil = 0;            // S110: during a confirmation beat after an accept, pause new accepts + delay next-number reveal
     const CONFIRM_BEAT_MS = 900;      // length of the "Got it ✓" beat between digits
     let _confirmStripPending = -1;    // digit index whose strip-highlight is waiting for the beat to end
@@ -2720,10 +2762,13 @@ function beginRecording() {
     // greeting in a noisy room. The greeting phase below still refines these once it hears the
     // user directly (A2/A3); preflight is the ARMED starting point, not a replacement for it.
     // Only falls back to the hand-tuned constants when the preflight never measured both
-    // quantities (AV check skipped, or the mic never qualified).
+    // quantities (AV check skipped, or the mic never qualified) AND the rolling floor is also
+    // unmeasured. S155: _fastCalThreshold(audioNoiseFloor) is the PER-SPEAKER shared-helper tier —
+    // used ONLY when the full preflight calibration is unavailable, never overriding it.
     const _preflightVad = _micPreflightVad();
-    let vadSpeechThreshold = _preflightVad ? _preflightVad.speechThr : VAD_SPEECH_RMS_FALLBACK;
-    let vadSilenceThreshold = _preflightVad ? _preflightVad.silenceThr : VAD_SILENCE_RMS_FALLBACK;
+    const _rollingCalThr = _preflightVad ? null : _fastCalThreshold(audioNoiseFloor);
+    let vadSpeechThreshold = _preflightVad ? _preflightVad.speechThr : (_rollingCalThr != null ? _rollingCalThr : VAD_SPEECH_RMS_FALLBACK);
+    let vadSilenceThreshold = _preflightVad ? _preflightVad.silenceThr : (_rollingCalThr != null ? _calClamp(audioNoiseFloor + _CAL_SIL_K * (_rollingCalThr - audioNoiseFloor), 0.03, _rollingCalThr) : VAD_SILENCE_RMS_FALLBACK);
     // F-595 calibration sampling state. _floorSamples = leading near-silent greeting frames
     // (the room's noise floor); _speechSamples = the voiced greeting run (this user speaking).
     // Both medians (robust to a cough/click) feed the threshold at phraseSpoke. Function-scoped,
@@ -2739,7 +2784,7 @@ function beginRecording() {
     // D-VAD-UNITS (task-447): floor/speech below are now ceremony-RMS-scale (0-1, same units as
     // thr/sil) — floor_pct/speech_pct carry the RAW time-domain preflight samples (0-100) alongside
     // them so a field run can verify the two quantities directly instead of inferring a conversion.
-    try { vacDebug('vad_calibrated', null, { at: 'arm', floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : null, speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, reason: _preflightVad ? null : _micPreflightVadReason, source: _preflightVad ? 'preflight' : 'fallback' }); } catch(_) {}
+    try { vacDebug('vad_calibrated', null, { at: 'arm', floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : (_rollingCalThr != null ? Number(audioNoiseFloor.toFixed(3)) : null), speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, reason: _preflightVad ? null : _micPreflightVadReason, source: _preflightVad ? 'preflight' : (_rollingCalThr != null ? 'rolling_floor' : 'fallback') }); } catch(_) {}
     // F-563 (#1): the digit say-step got the SAME tap/beep weakness the greeting had — the old
     // ~100ms (VAD_SPEECH_FRAMES) bar let a tap/beep satisfy a digit. A SPOKEN number is ~300-500ms
     // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
@@ -2861,6 +2906,7 @@ function _markSpeech(src, rms, onsetAt) {
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
         let voiced = 0;
         let voiceMin = 1, voiceMax = 0;   // F-563 (#1): rms range over the current voiced run (the modulation check)
+        let _voicedAboveThrFrames = 0;   // S155: count of individual frames read above vadSpeechThreshold this run (VOICE_EVIDENCE_MIN_FRAMES floor) — independent of the wall-clock duration check
         let _voiceDipStart = 0;          // R1: perf.now() when the current within-run dip (an OBSERVED neither-band frame) began; 0 = voicing/not in a dip. A dip sustained > DIGIT_VOICE_GAP_MS breaks the run.
         // The reusable per-digit unit: fire speechReady ONLY on a silence→voice ONSET inside
         // the current window. A voiced run that did NOT follow an in-window silence (greeting
@@ -2889,8 +2935,12 @@ function _markSpeech(src, rms, onsetAt) {
                     if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }  // S139: silence aborts pre-onset (S154: dip tracker cleared too)
                     _sawSilence = true;
                     if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (Math.max(0.012, 0.10*voiceMax)*100).toFixed(1)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: Number(Math.max(0.012, 0.10*voiceMax).toFixed(3)), digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
-                    voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0;   // R1: real silence fully ends the run
+                    voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; _voicedAboveThrFrames = 0;   // R1: real silence fully ends the run
                 } else if (rms > vadSpeechThreshold && vbRatio >= VOICE_BAND_MIN_RATIO) {
+                    // S155: count EVERY individual above-threshold+voice-band sample this attempt
+                    // (pre-onset accumulation included, not just post-onset-confirm voicing) —
+                    // VOICE_EVIDENCE_MIN_FRAMES reads real observed samples, not a derived state.
+                    _voicedAboveThrFrames++;
                     // BUILD 379: amplitude alone crossed the line, but only counts as voiced if the
                     // energy is also voice-band-dominant — a loud broadband room (restaurant) can
                     // cross vadSpeechThreshold without qualifying here, and falls through to the
@@ -2957,7 +3007,8 @@ function _markSpeech(src, rms, onsetAt) {
                     // beep/tone (no modulation) can't satisfy a digit, while a real spoken number does.
                     if (voiced > 0 && _now >= speechWindowStart
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
-                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)) {
+                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)
+                        && _voicedAboveThrFrames >= VOICE_EVIDENCE_MIN_FRAMES) {
                         // S154 DATA-DRIVEN (vad_gate telemetry, Rob live test 14:15-14:16 UTC):
                         // every failed digit passed duration+level and failed the ABSOLUTE 0.030
                         // modulation floor — normal steady speech at peak ~0.21 swings 0.020-0.026.
@@ -2967,7 +3018,7 @@ function _markSpeech(src, rms, onsetAt) {
                         // real anti-spoof per L-2439 (client gates are pacing aids).
                         _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}  // S154 diag
                         _markSpeech('vad', rms, _voiceOnsetAt);
-                        voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;   // consumed; a NEW silence is required to re-arm
+                        voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false; _voicedAboveThrFrames = 0;   // consumed; a NEW silence is required to re-arm
                     }
                 } else {
                     // neither band (between silence and speech thresholds)
@@ -2978,10 +3029,11 @@ function _markSpeech(src, rms, onsetAt) {
                     // no loosening.
                     if (voiced > 0 && _now >= speechWindowStart
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
-                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)) {
+                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)
+                        && _voicedAboveThrFrames >= VOICE_EVIDENCE_MIN_FRAMES) {
                         _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
                         _markSpeech('vad', voiceMax, _voiceOnsetAt);
-                        voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false;
+                        voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false; _voicedAboveThrFrames = 0;
                     }
                     if (_preOnsetStart) {  // S154: tolerate brief observed dips (soft consonants) within pre-onset; only a SUSTAINED dip (> VAD_ONSET_DIP_MS) aborts — was a hard single-frame reset that rejected normal speech
                         if (_preOnsetDipStart === 0) _preOnsetDipStart = _now;
@@ -2995,7 +3047,7 @@ function _markSpeech(src, rms, onsetAt) {
                         // _sawSilence is left untouched (a neither-band dip is not a real pause).
                         // rAF jank observes no neither frames, so it can't trip this — a real digit survives.
                         if (!_voiceDipStart) _voiceDipStart = _now;
-                        else if (_now - _voiceDipStart > DIGIT_VOICE_GAP_MS) { voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; }
+                        else if (_now - _voiceDipStart > DIGIT_VOICE_GAP_MS) { voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; _voicedAboveThrFrames = 0; }
                     }
                 }
                 _lastVoiceMs = (voiced > 0) ? Math.round(_now - _voiceOnsetAt) : 0;   // R1: surface continuous voiced-run ms to ?qa=1
@@ -3252,7 +3304,7 @@ function _markSpeech(src, rms, onsetAt) {
         // Note: we only need to detect that a DISTINCT stable gesture was held; the
         // ACTUAL finger count is validated later server-side by Gemini (Rob's point).
         if (detected > 0) {
-            _releaseFrames = 0;   // hand present — reset the sustained-release counter
+            _releaseFrames = 0; _releaseSince = 0;   // hand present — reset the sustained-release counter + timer
             // F-613: track stability on the SMOOTHED count (_stableDetected), so a stray
             // flicker frame no longer resets the hold timer. The user can hold a count
             // naturally; a 1-frame miscount is absorbed by the detector's hysteresis.
@@ -3316,11 +3368,15 @@ function _markSpeech(src, rms, onsetAt) {
             // inside `if (detected>0)` would deadlock once the gesture is latched + voice given
             // (codex P1). The latch (_qaGestureLatched) already captures "gesture confirmed".
         } else {
-            // Hand fully dropped — reset the hold. A SUSTAINED release (>=3 frames, robust to
-            // 1-frame detection dropouts) re-arms the speech-off path so a repeated digit can
-            // be shown again (Option 2 / codex P2). Harmless in VAD mode (ignores _acceptArmed).
+            // Hand fully dropped — reset the hold. A SUSTAINED release re-arms the speech-off path
+            // so a repeated digit can be shown again (Option 2 / codex P2). Harmless in VAD mode
+            // (ignores _acceptArmed). S155 Schmitt trigger: BOTH a frame-count floor (robust to
+            // 1-frame detection dropouts, raised 1.3x per the positive-evidence floor) AND a
+            // wall-clock sustain floor (fps-independent) must be satisfied — release can only get
+            // SLOWER than the old frame-only check, never faster.
             _releaseFrames++;
-            if (_releaseFrames >= 3) _acceptArmed = true;
+            if (!_releaseSince) _releaseSince = performance.now();
+            if (_releaseFrames >= FINGER_RELEASE_MIN_FRAMES && (performance.now() - _releaseSince) >= FINGER_RELEASE_SUSTAIN_MS) _acceptArmed = true;
             stableCount = 0;
             stableFrames = 0;
             if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false, speechOk: (_speechMode === 'off') ? true : speechReady[currentDigitIndex], rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: vadSpeechThreshold, voiceMs: (_speechMode === 'vad' ? _lastVoiceMs : null), voiceNeed: DIGIT_VOICE_MIN_MS }); } catch(_) {} }
@@ -4012,6 +4068,20 @@ function _cooccurAdvanceDecision(o) {
     return { advance: advance, expireVoice: expireVoice, reason: reason };
 }
 
+// S155 POSITIVE-EVIDENCE FLOOR — voice (D-VERDICT-COMPOSITION companion). The FIRE conditions on
+// both paths already require a wall-clock duration (DIGIT_VOICE_MIN_MS / FAST_DIGIT_VOICE_MIN_MS)
+// AND a modulation swing — but duration is a TIMESTAMP DELTA, not a count of frames actually
+// observed above threshold: on a stalled/throttled tab (backgrounded rAF, GC pause) a single wide
+// gap between two above-threshold samples can satisfy a duration floor with very little real
+// evidence. This is an INDEPENDENT floor, ANDed alongside the existing checks (never a substitute
+// for them): the run must contain at least this many individual frames actually read above
+// vadSpeechThreshold. One shared constant, both paths (D-VAD-GATE-FORK: identical value at both
+// call sites — no drift possible, so it does not need a fork-guard pair like the ms/mod constants
+// below do). ~8 frames is ~130-270ms of real above-threshold samples at typical 30-60fps rAF
+// cadence — comfortably under the existing ms floors, so it tightens against timer gaps without
+// becoming the binding constraint on a normal digit.
+const VOICE_EVIDENCE_MIN_FRAMES = 8;
+
 // FAST-tier voice arming. A single-window LIFT of beginRecording's _startSpeechGate VAD
 // core (sustained ≥ voiceMinMs, modulated ≥ modDelta, FRESH silence→voice onset, dip-
 // tolerant ≤ gapMs) — the SAME on-device energy gate, scoped to ONE bound digit (no
@@ -4032,6 +4102,7 @@ function _makeQuickReauthVoiceGate(cfg) {
     var voiceMinMs = cfg.voiceMinMs, modDelta = cfg.modDelta, gapMs = cfg.gapMs;
     var _armed = false, _firedAt = 0, _windowStart = 0, _raf = null, _stopped = false;
     var voiced = 0, vMin = 1, vMax = 0, dipStart = 0, onsetAt = 0, sawSilence = false;
+    var voicedFrames = 0;   // S155: mirrors full-path _voicedAboveThrFrames — VOICE_EVIDENCE_MIN_FRAMES floor
     var preOnsetStart = 0;       // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
     var preOnsetDipStart = 0;    // S154: tolerated pre-onset dip start (mirrors full path)
     var _sampLastT = 0, _sampMax = 0;  // S154 sampler state
@@ -4064,8 +4135,9 @@ function _makeQuickReauthVoiceGate(cfg) {
                 preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0;  // S139: silence aborts pre-onset (S154: dip tracker cleared)
                 sawSilence = true;
                 if (voiced > 0) { _vadDiag('run ended: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% | need ' + voiceMinMs + 'ms above ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'run_ended', { path:'fast', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)), need_ms: voiceMinMs }); } catch(_){} }  // S154 diag
-                voiced = 0; vMin = 1; vMax = 0; dipStart = 0;   // real silence fully ends the run
+                voiced = 0; vMin = 1; vMax = 0; dipStart = 0; voicedFrames = 0;   // real silence fully ends the run
             } else if (rms > speechThr) {
+                voicedFrames++;   // S155: every above-threshold sample this attempt, pre-onset included
                 if (voiced === 0) {
                     // S139 onset gate: require SUSTAINED above-threshold for FAST_VAD_ONSET_SUSTAIN_MS.
                     if (sawSilence) {
@@ -4105,18 +4177,20 @@ function _makeQuickReauthVoiceGate(cfg) {
                 }
                 dipStart = 0;
                 if (voiced > 0 && now >= _windowStart
-                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)) {  // S154: relative modulation (see full-path comment)
+                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)
+                    && voicedFrames >= VOICE_EVIDENCE_MIN_FRAMES) {  // S154: relative modulation (see full-path comment); S155: frame floor
                     _vadDiag('FIRED: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% thr ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)) }); } catch(_){}  // S154 diag
                     _armed = true; _firedAt = now;                              // sustained + modulated → FIRE
-                    voiced = 0; vMin = 1; vMax = 0; sawSilence = false;         // consumed; a NEW silence re-arms
+                    voiced = 0; vMin = 1; vMax = 0; sawSilence = false; voicedFrames = 0;         // consumed; a NEW silence re-arms
                 }
             } else {
                 // neither band
                 if (voiced > 0 && now >= _windowStart
-                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)) {  // S154: dip-frame fire evaluation (mirrors full path — see comment there)
+                    && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)
+                    && voicedFrames >= VOICE_EVIDENCE_MIN_FRAMES) {  // S154: dip-frame fire evaluation (mirrors full path — see comment there); S155: frame floor
                     _vadDiag('FIRED(dip): ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', on:'dip', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)) }); } catch(_){}
                     _armed = true; _firedAt = now;
-                    voiced = 0; vMin = 1; vMax = 0; sawSilence = false;
+                    voiced = 0; vMin = 1; vMax = 0; sawSilence = false; voicedFrames = 0;
                 }
                 if (preOnsetStart) {  // S154: tolerate brief observed dips within pre-onset (mirrors full path); sustained dip (>60ms) aborts
                     if (preOnsetDipStart === 0) preOnsetDipStart = now;
@@ -4124,7 +4198,7 @@ function _makeQuickReauthVoiceGate(cfg) {
                 }
                 if (voiced > 0) {
                     if (!dipStart) dipStart = now;
-                    else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; }  // sustained dip kills the run
+                    else if (now - dipStart > gapMs) { voiced = 0; vMin = 1; vMax = 0; dipStart = 0; voicedFrames = 0; }  // sustained dip kills the run
                 }
             }
         } catch(_e) {
@@ -4245,12 +4319,18 @@ async function beginStillCapture() {
                 // it in the same page session, so arm from the same preflight-derived thresholds the
                 // full tier now uses, falling back to the FAST_VAD_* constants only if preflight
                 // measurements never landed.
+                // S155 PER-SPEAKER FAST CAL: when the preflight never measured a usable speech
+                // sample (common on the fast tier — no greeting), fall to the SHARED
+                // _fastCalThreshold(audioNoiseFloor) helper (same function the full tier calls
+                // above) before the flat FAST_VAD_* constants. audioNoiseFloor is already rolling
+                // by this point (startAudioMonitor() just (re)started it, two lines up).
                 const _fastVad = _micPreflightVad();
-                const _fastSpeechThr = _fastVad ? _fastVad.speechThr : FAST_VAD_SPEECH_RMS;
-                const _fastSilenceThr = _fastVad ? _fastVad.silenceThr : FAST_VAD_SILENCE_RMS;
+                const _fastRollingThr = _fastVad ? null : _fastCalThreshold(audioNoiseFloor);
+                const _fastSpeechThr = _fastVad ? _fastVad.speechThr : (_fastRollingThr != null ? _fastRollingThr : FAST_VAD_SPEECH_RMS);
+                const _fastSilenceThr = _fastVad ? _fastVad.silenceThr : (_fastRollingThr != null ? _calClamp(audioNoiseFloor + _CAL_SIL_K * (_fastRollingThr - audioNoiseFloor), 0.03, _fastRollingThr) : FAST_VAD_SILENCE_RMS);
                 // D-VAD-UNITS (task-447): floor/speech are ceremony-RMS-scale; floor_pct/speech_pct
                 // carry the raw time-domain preflight samples alongside for direct field verification.
-                try { vacDebug('vad_calibrated', null, { at: 'arm', tier: 'fast', floor: _fastVad ? Number(_fastVad.floor.toFixed(3)) : null, speech: _fastVad ? Number(_fastVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(_fastSpeechThr.toFixed(3)), sil: Number(_fastSilenceThr.toFixed(3)), fallback: !_fastVad, reason: _fastVad ? null : _micPreflightVadReason, source: _fastVad ? 'preflight' : 'fallback' }); } catch(_) {}
+                try { vacDebug('vad_calibrated', null, { at: 'arm', tier: 'fast', floor: _fastVad ? Number(_fastVad.floor.toFixed(3)) : (_fastRollingThr != null ? Number(audioNoiseFloor.toFixed(3)) : null), speech: _fastVad ? Number(_fastVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(_fastSpeechThr.toFixed(3)), sil: Number(_fastSilenceThr.toFixed(3)), fallback: !_fastVad, reason: _fastVad ? null : _micPreflightVadReason, source: _fastVad ? 'preflight' : (_fastRollingThr != null ? 'rolling_floor' : 'fallback') }); } catch(_) {}
                 _voiceGate = _makeQuickReauthVoiceGate({
                     speechThr: _fastSpeechThr, silenceThr: _fastSilenceThr,
                     voiceMinMs: FAST_DIGIT_VOICE_MIN_MS, modDelta: FAST_DIGIT_MOD_DELTA, gapMs: FAST_DIGIT_VOICE_GAP_MS
@@ -5134,7 +5214,9 @@ async function runRealVerification(videoBlob) {
 
         // Final state
         ring.style.strokeDashoffset = 0;
-        const passed = authResult.authenticated;
+        // RENDER-ONLY (S155): strict === true, not truthiness — the client renders the server's
+        // exact boolean contract field, never a loosened interpretation of it.
+        const passed = authResult.authenticated === true;
         // F-560: surface final pass/fail + which modality failed on the QA overlay.
         // authResult.authenticated stays the source of truth (RESULT line); failed[] is a hint.
         try {

@@ -1071,8 +1071,17 @@ function reauthReload(opts) {
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
-    const r = authResult;
-    const bio = r.biometric_verification;
+    // RENDER-ONLY / FAIL-CLOSED (S155, D-VERDICT-COMPOSITION): showSuccess() renders the SERVER
+    // decision verbatim — it must never compose, infer, or default a verdict itself. A missing or
+    // malformed authResult (e.g. every verify attempt threw before a server response was ever
+    // parsed, then the user hit "Continue Anyway") previously threw a TypeError here (r.biometric_
+    // verification on null) that was silently swallowed by the onComplete try/catch, leaving the
+    // user stranded on whatever screen was showing with no explicit outcome. A missing decision is
+    // now an explicit DENY: r/bio are normalised to safe empty shapes so the code below runs the
+    // exact same not-authenticated render path as any other explicit failure — never a crash, never
+    // a default to success.
+    const r = (authResult && typeof authResult === 'object') ? authResult : {};
+    const bio = (r.biometric_verification && typeof r.biometric_verification === 'object') ? r.biometric_verification : {};
     // SEVERANCE / INTEGRITY (addendum-13 #3; dispatch point 6): VERIFIED is display-only and
     // strictly follows the SERVER verdict (authResult.authenticated, computed in the vac-protocol
     // lane). NEVER show, persist, or emit VERIFIED unless it's true. "Continue Anyway" routes a
@@ -1080,7 +1089,7 @@ function showSuccess() {
     // result we render the partial screen but emit NONE of the verified side-effects (no vac_verified
     // persist, no vac-auth-success postMessage to the tribunal credBeat, no vouch promotion, no
     // ?verified URL, no AUTHENTICATED chrome). The client dual-✓ pacing gate never reaches here.
-    const ok = !!(r && r.authenticated);
+    const ok = r.authenticated === true;
     if (ok) {
         // Save verified state to localStorage for persistence
         try {
@@ -1210,9 +1219,14 @@ function showSuccess() {
     // on a NON-authenticated result). Gate-passed plan (cross-LLM RESEARCH gate): server verdict is
     // correct & untouched; render integrity only. Only show a numeric Trust Score when authenticated;
     // on denial show ONE coarse reason (never enumerate defeated defences to a failing subject).
-    const trustLabel = {'high': 'authenticated', 'medium': 'authenticated', 'low': 'partial'}[bio.trust_level] || bio.trust_level;
+    // Merged with the DENY-on-missing-decision fix (companion lane, same session): trustLabel/
+    // scoreLabel fall back to honest placeholders instead of literal "undefined" if bio ever lacks
+    // a level/score even on an authenticated result — r/bio are already normalised to safe empty
+    // shapes above, so neither branch here can crash on a missing/malformed authResult.
+    const trustLabel = {'high': 'authenticated', 'medium': 'authenticated', 'low': 'partial'}[bio.trust_level] || bio.trust_level || 'not verified';
     if (r.authenticated) {
-        document.getElementById('successScore').textContent = `Trust Score: ${bio.overall_score} · ${trustLabel}`;
+        const scoreLabel = (typeof bio.overall_score === 'number') ? bio.overall_score : '—';
+        document.getElementById('successScore').textContent = `Trust Score: ${scoreLabel} · ${trustLabel}`;
     } else {
         // Map the server's first verdict reason to a friendly coarse category — no score, no enumeration.
         var _vr = (r.verdict && Array.isArray(r.verdict.reasons) ? r.verdict.reasons : []);
