@@ -1205,9 +1205,26 @@ function showSuccess() {
 
     document.getElementById('successName').textContent = d.name;
     document.getElementById('successOrg').textContent = [d.role, d.org].filter(Boolean).join(' · ') || 'Authenticated Human';
-    // Map trust level to state label
+    // S155 fix-on-find (Rob live: a wrong-digits/wrong-voice ceremony DISPLAYED 0.81 as if passed —
+    // server correctly DENIED it; the defect was the client rendering the trust METRIC as a headline
+    // on a NON-authenticated result). Gate-passed plan (cross-LLM RESEARCH gate): server verdict is
+    // correct & untouched; render integrity only. Only show a numeric Trust Score when authenticated;
+    // on denial show ONE coarse reason (never enumerate defeated defences to a failing subject).
     const trustLabel = {'high': 'authenticated', 'medium': 'authenticated', 'low': 'partial'}[bio.trust_level] || bio.trust_level;
-    document.getElementById('successScore').textContent = `Trust Score: ${bio.overall_score} · ${trustLabel}`;
+    if (r.authenticated) {
+        document.getElementById('successScore').textContent = `Trust Score: ${bio.overall_score} · ${trustLabel}`;
+    } else {
+        // Map the server's first verdict reason to a friendly coarse category — no score, no enumeration.
+        var _vr = (r.verdict && Array.isArray(r.verdict.reasons) ? r.verdict.reasons : []);
+        var _coarse = 'Verification not completed';
+        var _joined = _vr.join(' ');
+        if (/voiceprint|challenge_response|below_floor.*voice/i.test(_joined)) _coarse = 'Voice or spoken response did not match';
+        else if (/face|liveness/i.test(_joined)) _coarse = 'Face verification did not pass';
+        else if (/deepfake/i.test(_joined)) _coarse = 'Liveness scan could not be confirmed';
+        else if (/duress/i.test(_joined)) _coarse = 'Verification not completed';  // never reveal duress state
+        document.getElementById('successScore').textContent = _coarse;
+        document.getElementById('successScore').style.color = 'var(--warning)';
+    }
 
     // Update header based on pass/fail
     var _wim = document.getElementById('whatItMeans');
