@@ -1,4 +1,17 @@
 # VAC Web — HANDOFF (Session 18 → Session 19)
+> Updated: 5 Aug 2026 — FLASH START: task-handzone-faceanchored begins
+
+## FLASH START — task-handzone-faceanchored (S155/S156)
+**Branch:** `task-handzone-faceanchored`
+**Defect:** D-HAND-SLOT-AFFORDANCE (Rob 4th report S131/S133/S151 — recurring hand-not-registering)
+**Root cause (chat-verified):** cheek ovals FRAME-ANCHORED (fallback cx 0.18/0.82) — face-anchor already merged but per-beat telemetry missing; "wrist" label in debug overlay is stale post-palm-centre switch
+**Execution:** exists-audit confirmed face-anchor (task-432) + palm-centre + in-zone glow all in main; GAPS = per-beat zone telemetry at detect_digit_advance + "wrist→palm" debug overlay fix
+**Gates:** /codex, /cso, /review, /browse — merge only on all-pass
+**Status:** IN PROGRESS
+
+---
+
+## S144 F-755d ZONE FIX — AWAITING ROB IPHONE TEST (L-2173)
 > Updated: 23 July 2026 — S144 F-755d fix shipped to branch
 
 ## S144 F-755d ZONE FIX — AWAITING ROB IPHONE TEST (L-2173)
