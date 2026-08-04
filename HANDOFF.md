@@ -1,13 +1,14 @@
 # VAC Web — HANDOFF (Session 18 → Session 19)
-> Updated: 5 Aug 2026 — FLASH START: task-handzone-faceanchored begins
+> Updated: 5 Aug 2026 — FLASH DONE: task-handzone-faceanchored merged to main
 
-## FLASH START — task-handzone-faceanchored (S155/S156)
-**Branch:** `task-handzone-faceanchored`
+## FLASH DONE — task-handzone-faceanchored (S155/S156)
+**Branch:** `task-handzone-faceanchored` (merged to main 2026-08-05)
 **Defect:** D-HAND-SLOT-AFFORDANCE (Rob 4th report S131/S133/S151 — recurring hand-not-registering)
 **Root cause (chat-verified):** cheek ovals FRAME-ANCHORED (fallback cx 0.18/0.82) — face-anchor already merged but per-beat telemetry missing; "wrist" label in debug overlay is stale post-palm-centre switch
 **Execution:** exists-audit confirmed face-anchor (task-432) + palm-centre + in-zone glow all in main; GAPS = per-beat zone telemetry at detect_digit_advance + "wrist→palm" debug overlay fix
-**Gates:** /codex, /cso, /review, /browse — merge only on all-pass
-**Status:** IN PROGRESS
+**Gates:** /codex PASS | /cso PASS | /review PASS (2 auto-fixes: NaN guard expanded to all 4 MCP knuckles x+y) | /browse PASS (ceremony chrome; spatial test needs Rob live session)
+**Deploy:** Merged + pushed to main 2026-08-05; Vercel auto-deploy triggered
+**Next:** Rob re-runs ceremony — zone should sit naturally beside cheek; debug overlay now shows palm(x,y) not wrist(x,y); /v1/auth/debug receives hand_zone_snap events every ~2s
 
 ---
 
