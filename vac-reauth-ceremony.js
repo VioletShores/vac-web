@@ -740,24 +740,36 @@ function _activeZone() {
     }
     const hFrac = _faceAnchor.hFrac;
     const wFrac = hFrac * _FACE_ASPECT;
-    // Generous per the task-432 framing (err on accepting — Gemini is the real judge): sized
-    // off the DETECTED face, clamped to sane on-screen bounds for very close/far seating.
-    const rx = Math.max(0.11, Math.min(0.22, hFrac * 0.42));
-    const ry = Math.max(0.15, Math.min(0.30, hFrac * 0.56));
+    // task-zone-harness-then-fix (L-2446, revert d8a1374): face-proportional radii so oval width
+    // stays ~44% of face width at any seating distance. The old hFrac*0.42 formula produced ovals
+    // wider than the face at close range (A2 fail) and the 94ba1b9 wFrac*0.40 attempt pushed oval
+    // centers to the screen edge (cxLeft=rx) so the inner half was invisible — "vanish" (A1/A3 fail).
+    // New: rx = 22% face width, ry = 30% face height, gap = 15% face width (all face-proportional).
+    const rx = Math.min(0.15, 0.22 * wFrac);
+    const ry = Math.min(0.20, 0.30 * hFrac);
+    // Gap is face-proportional so it stays in the [0.10, 0.50] faceW assertion band at all distances.
+    const gap = Math.max(_FACE_SIDE_GAP, 0.15 * wFrac);
     const halfW = wFrac / 2;
     const faceCx = _faceAnchor.cx;
-    // codex review (task-432): the oval's INNER edge (centre ± the full radius) must clear the
-    // face edge by _FACE_SIDE_GAP, not just a fraction of the radius — else the "beside the
-    // cheek" zone partially overlaps the face itself, coaching/accepting a hand position the
-    // server-side vision check may not be able to read cleanly.
-    let cxLeft = faceCx - halfW - _FACE_SIDE_GAP - rx;
-    let cxRight = faceCx + halfW + _FACE_SIDE_GAP + rx;
-    // Clamp so an edge-sitting user still gets an on-screen oval.
-    cxLeft = Math.max(0.09, Math.min(0.40, cxLeft));
-    cxRight = Math.min(0.91, Math.max(0.60, cxRight));
+    let cxLeft  = faceCx - halfW - gap - rx;
+    let cxRight = faceCx + halfW + gap + rx;
+    // Clamp so the ENTIRE oval stays in-frame (centre ± radius stays in [0,1]) with a 0.5% margin.
+    cxLeft  = Math.max(rx + 0.005, Math.min(0.5 - rx, cxLeft));
+    cxRight = Math.min(1.0 - rx - 0.005, Math.max(0.5 + rx, cxRight));
     return {
         ovals: [ { cx: cxLeft, cy: _faceAnchor.cy, side: 'left' }, { cx: cxRight, cy: _faceAnchor.cy, side: 'right' } ],
         rx, ry, anchored: true, faceW: wFrac,
+    };
+}
+
+// Interactive QA hook — exposes _activeZone() for manual live debugging via ?qa=1.
+// The automated test (zone-geometry.test.js) extracts the formula directly from source
+// and does not use this hook. Never active in production without deliberate ?qa=1 activation.
+if (_qaFlag) {
+    window.__zoneDebug = {
+        setFaceAnchor: function(a) { _faceAnchor = { anchored: true, cx: a.cx, cy: a.cy, hFrac: a.hFrac }; },
+        clearFaceAnchor: function() { _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null }; },
+        getActiveZone: function() { return _activeZone(); },
     };
 }
 

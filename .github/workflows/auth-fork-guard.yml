@@ -10,3 +10,4 @@ jobs:
       - run: bash scripts/check-auth-single-path.sh
       - run: node --check vac-reauth-ceremony.js
       - run: node --test tests/vad-replay.test.js
+      - run: node --test tests/zone-geometry.test.js
