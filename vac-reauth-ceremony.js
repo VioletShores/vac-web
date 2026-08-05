@@ -2483,12 +2483,9 @@ function _contentTranscriptHasDigit(transcript, digit) {
     for (var wi = 0; wi < words.length; wi++) {
         var w = words[wi];
         if (!w) continue;
-        // Concatenated numerals: "321" → check each digit character individually
-        if (/^\d{2,5}$/.test(w)) {
-            for (var ci = 0; ci < w.length; ci++) {
-                if (parseInt(w[ci], 10) === digit) return true;
-            }
-        }
+        // _contentNormWord handles word form ("three"→3) and single-digit numeral ("3"→3).
+        // Multi-digit strings (e.g. "321") are rejected — substring match would let ambient
+        // speech like "thirteen" (→"13") bypass the gate for digit 3. (security: D-VOICE-GATE)
         if (_contentNormWord(w) === digit) return true;
     }
     return false;
@@ -4129,6 +4126,9 @@ function _markSpeech(src, rms, onsetAt) {
                     if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; }
                     try { vacDebug('phrase_content_gate_matched', null, { tokens: _phrTokens.length }); } catch(_) {}
                 });
+                // null return = runtime permission failure; disable content gate so _phraseVadTick
+                // energy fallback activates and the phrase step can still proceed (degraded mode).
+                if (!_phraseContentGate) { _contentGateAvail = false; }
             }
         } catch(_) {}
     }
@@ -4495,7 +4495,10 @@ function _makeQuickReauthVoiceGate(cfg) {
                     // D-VOICE-GATE-SPEAKER-AGNOSTIC: energy alone is NOT a progression signal.
                     if (_contentGateAvail && _expectedDigit != null) {
                         // Energy heard — health indicator. Content gate fires _armed when matched.
-                        if (!_fastContentGate) { _fastContentGate = _startDigitContentGate(_expectedDigit, function() { _fastContentGate = null; _armed = true; _firedAt = performance.now(); }); }
+                        if (!_fastContentGate) {
+                            _fastContentGate = _startDigitContentGate(_expectedDigit, function() { _fastContentGate = null; _armed = true; _firedAt = performance.now(); });
+                            if (!_fastContentGate) { _armed = true; _firedAt = now; }  // runtime null → energy fallback
+                        }
                     } else {
                         _armed = true; _firedAt = now;  // energy fallback (no content gate)
                     }
@@ -4508,7 +4511,10 @@ function _makeQuickReauthVoiceGate(cfg) {
                     && voicedFrames >= VOICE_EVIDENCE_MIN_FRAMES) {  // S154: dip-frame fire evaluation (mirrors full path — see comment there); S155: frame floor
                     _vadDiag('FIRED(dip): ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', on:'dip', content_gated: _contentGateAvail && _expectedDigit != null, dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)) }); } catch(_){}
                     if (_contentGateAvail && _expectedDigit != null) {
-                        if (!_fastContentGate) { _fastContentGate = _startDigitContentGate(_expectedDigit, function() { _fastContentGate = null; _armed = true; _firedAt = performance.now(); }); }
+                        if (!_fastContentGate) {
+                            _fastContentGate = _startDigitContentGate(_expectedDigit, function() { _fastContentGate = null; _armed = true; _firedAt = performance.now(); });
+                            if (!_fastContentGate) { _armed = true; _firedAt = now; }  // runtime null → energy fallback
+                        }
                     } else {
                         _armed = true; _firedAt = now;
                     }
