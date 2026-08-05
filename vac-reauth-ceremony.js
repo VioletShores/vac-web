@@ -4138,6 +4138,20 @@ function _markSpeech(src, rms, onsetAt) {
     // mounts (F-563 piece 2). Pacing only — the phrase gate (phraseSpoke) is unchanged.
     function renderGreeting() {
         if (_ceremonyPhase !== _PHASE.GREETING) return;   // L-2246: guard — stale phraseInterval tick must not paint greeting text in digit phase
+        // D-QUICKAUTH-MIC-COLD-START parity (full path): if AudioContext was just created and is
+        // still suspended, hold "Preparing mic…" — phraseInterval will re-call within 200ms when
+        // ready. Full path has implicit warmup (user reads the phrase), but an explicit guard closes
+        // the same race on any config/device where context creation takes an unexpected route.
+        // Fallthrough after 3s: if AudioContext stays non-running that long (iOS PWA backgrounded,
+        // permission revoked), show the phrase anyway — prior behaviour was always to show it, and
+        // the analyser degrades gracefully (W4.1 gesture-only mode). 3s >> typical resume latency
+        // and << PHRASE_DURATION (so the user still has time to speak the phrase).
+        if (audioContext && audioContext.state !== 'running' && elapsedMs < 3000) {
+            try { audioContext.resume().catch(function(){}); } catch(_) {}
+            var _stPre = document.getElementById('step2Title');
+            if (_stPre && _stPre.textContent !== 'Preparing mic…') { _stPre.textContent = 'Preparing mic…'; _stPre.style.color = '#fbbf24'; }
+            return;  // re-rendered by the next phraseInterval tick once context is running (or 3s elapses)
+        }
         var _full = challengeData?.phrase || '';
         var _vo = (fingerFallback === 'voice');
         // F-563 (#4): show the FULL phrase INCLUDING the digits (say them all up front), not the
@@ -4641,6 +4655,61 @@ function _makeQuickReauthVoiceGate(cfg) {
     };
 }
 
+// D-QUICKAUTH-MIC-COLD-START: dedicated silent calibration window before the speak prompt.
+// Root cause: AudioContext starts suspended on user-gesture paths in some browsers; the gate
+// armed (and the prompt showed) while context was still suspended, so the analyser returned
+// zeros for the first ~50-300ms. Rob's first utterance began before context resumed → the
+// onset sustain window never saw enough above-threshold frames → first attempt always lost.
+// Fix: hold "Preparing mic…" and poll until context is provably 'running', then collect a
+// dedicated silent window so the EMA floor settles before the gate arms. The speak prompt
+// shows ONLY after this resolves. No user speech is consumed by the calibration window.
+const MIC_READY_CAL_MS = 400;       // silent floor-calibration window (EMA settles, ~24 rAF frames at 60 fps)
+const MIC_READY_TIMEOUT_MS = 2000;  // bail-out ceiling — permanent suspension is unrecoverable
+// analyser param reserved for future analyser-data calibration; current calibration is time-based
+// (EMA floor settles passively via startAudioMonitor's updateLevels rAF loop — no explicit read needed here).
+function _awaitMicReady(ctx, analyser, calMs) {  // eslint-disable-line no-unused-vars
+    return new Promise(function(resolve) {
+        var _t0 = performance.now();
+        var _deadline = _t0 + MIC_READY_TIMEOUT_MS;
+        var _calStart = 0;
+        var _resumeRequested = false;  // one-shot: avoid repeated ctx.resume() (iOS WebKit bug — multiple pending resumes can lock state)
+        // Instrument the wait for field diagnosis (L-2173: one runtime datum beats code-reading).
+        try { vacDebug('mic_ready_wait_start', null, {
+            ctx_state: ctx ? ctx.state : 'null',
+            stream_active: (typeof mediaStream !== 'undefined' && mediaStream) ? mediaStream.active : null,
+            audio_track: (typeof mediaStream !== 'undefined' && mediaStream && mediaStream.getAudioTracks().length)
+                         ? mediaStream.getAudioTracks()[0].readyState : 'none',
+            cal_ms: calMs
+        }); } catch(_) {}
+        function _tick(tsNow) {
+            var now = (typeof tsNow === 'number' && tsNow > 0) ? tsNow : performance.now();
+            if (now >= _deadline) {
+                try { vacDebug('mic_ready_timeout', null, { elapsed_ms: Math.round(now - _t0), ctx_state: ctx ? ctx.state : 'null' }); } catch(_) {}
+                resolve(); return;
+            }
+            if (!ctx || ctx.state === 'closed') { resolve(); return; }  // AudioContext closed (session teardown) — no point waiting
+            if (ctx.state !== 'running') {
+                if (ctx.state === 'suspended' && !_resumeRequested) {
+                    _resumeRequested = true;  // one-shot: don't hammer resume() — iOS WebKit 17 bug with multiple concurrent resumes
+                    try { ctx.resume().then(function(){ _resumeRequested = false; }).catch(function(){ _resumeRequested = false; }); } catch(_) { _resumeRequested = false; }
+                }
+                requestAnimationFrame(_tick); return;
+            }
+            if (_calStart === 0) {
+                _calStart = now;
+                try { vacDebug('mic_ready_ctx_running', null, { elapsed_ms: Math.round(now - _t0) }); } catch(_) {}
+            }
+            if (now - _calStart < calMs) { requestAnimationFrame(_tick); return; }
+            try { vacDebug('mic_ready_done', null, {
+                elapsed_ms: Math.round(now - _t0),
+                floor: (typeof audioNoiseFloor !== 'undefined') ? Number(audioNoiseFloor.toFixed(4)) : null
+            }); } catch(_) {}
+            resolve();
+        }
+        requestAnimationFrame(_tick);
+    });
+}
+
 // Recording complete → upload to backend for real verification
 // F-624 Rung 2 (FAST capture): the lightweight counterpart to beginRecording — no
 // MediaRecorder, no A/V clip. Grab ONE still from the live preview plus a single
@@ -4725,6 +4794,10 @@ async function beginStillCapture() {
                 _audioStartMs = performance.now();
             }
         } catch(ae) { console.warn('[VAC] quick-reauth audio record start failed (non-fatal):', (ae && ae.message) || ae); }
+        // D-QUICKAUTH-MIC-COLD-START: show honest state while waiting for AudioContext + floor.
+        // The real "Show your fingers and say the number" prompt is rendered below ONLY after
+        // _awaitMicReady resolves — this label is what the user sees during the calibration window.
+        try { var _t2prep = byId('step2Title'); if (_t2prep) { _t2prep.textContent = 'Preparing mic…'; _t2prep.style.color = '#fbbf24'; } } catch(_) {}
         // F-662: tap a STANDALONE analyser (startAudioMonitor's mic clone — independent of the clip
         // MediaRecorder, so the lightweight contract is untouched) so the poll loop can gate capture on
         // the spoken digit CO-OCCURRING with the gesture, instead of stopping _audioRec mid-utterance
@@ -4732,6 +4805,17 @@ async function beginStillCapture() {
         try {
             startAudioMonitor();
             if (audioAnalyser) {
+                // D-QUICKAUTH-MIC-COLD-START: wait for AudioContext running + dedicated 400ms floor-
+                // calibration window before arming the gate. This is the core fix: the race was that
+                // AudioContext started suspended, the gate armed (and the speak prompt showed) before
+                // context resumed, so Rob's first utterance was swallowed by a deaf analyser returning
+                // zeros. The await holds "Preparing mic…" until context is provably running and the EMA
+                // floor has settled over a silent window — the gate arms on a real floor, not 0.01 seed.
+                // No user speech is consumed: the calibration window ends before the prompt shows.
+                try { await _awaitMicReady(audioContext, audioAnalyser, MIC_READY_CAL_MS); } catch(_) {}
+                // Ghost-session guard: VACReauth.cancel() → stopAudioMonitor() → audioAnalyser=null.
+                // If that fired during the await window, abort — don't arm the gate or run the POST.
+                if (!audioAnalyser) { return; }
                 // D-VAD-CALIBRATION-GREETING-BOUND: the fast tier has no greeting to calibrate off
                 // at all (comment on FAST_VAD_SPEECH_RMS above says so directly) — it's PURELY the
                 // fallback constants today. This tier also has a preflight (startAVChecks) ahead of
@@ -4742,7 +4826,7 @@ async function beginStillCapture() {
                 // sample (common on the fast tier — no greeting), fall to the SHARED
                 // _fastCalThreshold(audioNoiseFloor) helper (same function the full tier calls
                 // above) before the flat FAST_VAD_* constants. audioNoiseFloor is already rolling
-                // by this point (startAudioMonitor() just (re)started it, two lines up).
+                // by this point (startAudioMonitor() + _awaitMicReady just finished, above).
                 const _fastVad = _micPreflightVad();
                 const _fastRollingThr = _fastVad ? null : _fastCalThreshold(audioNoiseFloor);
                 const _fastSpeechThr = _fastVad ? _fastVad.speechThr : (_fastRollingThr != null ? _fastRollingThr : FAST_VAD_SPEECH_RMS);
