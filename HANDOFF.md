@@ -1,3 +1,24 @@
+# VAC Web — HANDOFF (Session 24 → Session 25)
+> Updated: 6 Aug 2026 — DONE: task-quickauth-mic-ready merged + deployed
+
+## DONE — task-quickauth-mic-ready (D-QUICKAUTH-MIC-COLD-START)
+**Branch:** `task-quickauth-mic-ready` → PR #25 → merged to main (2026-08-06)
+**Root cause fixed:** AudioContext starts in `'suspended'` state on some browsers/devices. Fast path (`beginStillCapture`) armed the VAD gate and showed the speak prompt immediately. During the 50-300ms suspension window the analyser returned zeros, so Rob's first utterance was swallowed every time (3/3 runs). Second attempt always succeeded because the context was already running.
+**Fix:**
+- `_awaitMicReady(ctx, analyser, calMs)`: rAF loop polling until `ctx.state === 'running'`, then a dedicated 400ms calibration window (`MIC_READY_CAL_MS`) so the `audioNoiseFloor` EMA settles on real silence before the gate arms. The speak prompt shows ONLY after this resolves.
+- "Preparing mic…" (amber) shown during the wait — honest state.
+- Ghost-session guard: if `VACReauth.cancel()` fires during the await (sets `audioAnalyser = null`), the capture path returns immediately — no dangling POST.
+- One-shot `_resumeRequested` flag prevents iOS WebKit double-resume lock (60x/sec spam).
+- `renderGreeting` (full path) parity: same `audioContext.state !== 'running'` guard + `elapsedMs < 3000` fallthrough to prevent permanent "Preparing mic" on stuck contexts.
+**Adversarial findings (all fixed):** 4 total — ghost-session, rAF leak on closed ctx, permanent "Preparing mic" fallthrough, resume spam.
+**Harness:** `tests/mic-cold-start.test.js` — 11 structural assertions (TC-MIC-C1 through C10). Node built-in test runner, zero dependencies.
+**Tests:** 61/61 PASS
+**Gates:** /review PASS (adversarial — 4 findings fixed) | /qa 61/61 | /ship PASS
+**Byte-verify LIVE:** `_awaitMicReady`, `MIC_READY_CAL_MS`, `MIC_READY_TIMEOUT_MS`, `Preparing mic`, `mic_ready_done` — 13 hits at vacprotocol.org/vac-reauth-ceremony.js
+**CONFIRM:** Rob's first utterance registers first time, three consecutive runs.
+
+---
+
 # VAC Web — HANDOFF (Session 23 → Session 24)
 > Updated: 6 Aug 2026 — FLASH DONE: task-quickauth-zone-preshow merged + deployed
 
