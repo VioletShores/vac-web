@@ -9,6 +9,12 @@
 (function(){
 'use strict';
 
+// F-823: i18n adapter. vac-ceremony-i18n.js loads before this file and exposes window.VACi18n.
+var _i18n = window.VACi18n || null;
+function t(k){ return _i18n ? _i18n.t(k) : k; }
+function tf(k){ return _i18n ? _i18n.tf(k) : function(){ return k; }; }
+if (_i18n) _i18n.initLang();
+
 const API_BASE = 'https://vac-system-production.up.railway.app';
 
 // Per-run context: identity, risk level, mount, host callbacks. Set by VACReauth.run().
@@ -533,9 +539,9 @@ function startAVChecks() {
     _handStableFrames = 0;
     _micLoudFrames = 0;
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
-    setAVStatus('light', 'checking', 'Light');
-    setAVStatus('mic', 'checking', 'Mic');
-    setAVStatus('hand', 'checking', 'Hand');
+    setAVStatus('light', 'checking', t('av_light'));
+    setAVStatus('mic', 'checking', t('av_mic'));
+    setAVStatus('hand', 'checking', t('av_hand'));
     // Initialize pill icons with spinners
     ['avLightIcon', 'avMicIcon'].forEach(id => {
         const el = document.getElementById(id);
@@ -630,7 +636,7 @@ function startAVChecks() {
             // ambient noise falsely ticking "Mic: working" before the user speaks.
             if (level > 12) { _micLoudFrames++; } else { _micLoudFrames = 0; }
             if (_micLoudFrames >= 3 && !avChecks.mic) {
-                setAVStatus('mic', 'good', 'Mic: working');
+                setAVStatus('mic', 'good', t('av_mic_working'));
                 avChecks.mic = true;
             }
         }
@@ -652,16 +658,16 @@ function startAVChecks() {
             document.getElementById('avLuxValue').textContent = '(' + avgBright + ')';
 
             if (avgBright < 50) {
-                setAVStatus('light', 'bad', 'Light: too dark');
+                setAVStatus('light', 'bad', t('av_light_dark'));
                 avChecks.light = false;
             } else if (avgBright < 80) {
-                setAVStatus('light', 'warn', 'Light: dim');
+                setAVStatus('light', 'warn', t('av_light_dim'));
                 avChecks.light = true; // Acceptable
             } else if (avgBright > 220) {
-                setAVStatus('light', 'warn', 'Light: too bright');
+                setAVStatus('light', 'warn', t('av_light_bright'));
                 avChecks.light = false;
             } else {
-                setAVStatus('light', 'good', 'Light: good');
+                setAVStatus('light', 'good', t('av_light_good'));
                 avChecks.light = true;
             }
 
@@ -707,9 +713,9 @@ function startAVChecks() {
                     if (!_tickNear) {
                         // Hand visible but OUTSIDE the wide tick zone — prompt to move beside cheek.
                         _handStableFrames = 0;
-                        setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block';
-                    } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
-                    else if (tooSmall) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move closer'); document.getElementById('avHandHint').textContent='Move your hand closer — fill the oval with your hand'; document.getElementById('avHandHint').style.display='block'; }
+                        setAVStatus(‘hand’,’warn’,t(‘av_hand_cheek’)); document.getElementById(‘avHandHint’).textContent=t(‘av_hint_cheek’); document.getElementById(‘avHandHint’).style.display=’block’;
+                    } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus(‘hand’,’warn’,t(‘av_hand_back’)); document.getElementById(‘avHandHint’).textContent=t(‘av_hint_back’); document.getElementById(‘avHandHint’).style.display=’block’; }
+                    else if (tooSmall) { _handStableFrames = 0; setAVStatus(‘hand’,’warn’,t(‘av_hand_closer’)); document.getElementById(‘avHandHint’).textContent=t(‘av_hint_closer’); document.getElementById(‘avHandHint’).style.display=’block’; }
                     else {
                         // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
                         // F-755d: stability gate — require 5 consecutive good frames so a flickering
@@ -719,17 +725,17 @@ function startAVChecks() {
                         if (_ckFin) {
                             _handStableFrames++;
                             if (_handStableFrames >= 5) {
-                                setAVStatus('hand','good','Hand ✓'); avChecks.hand = true; document.getElementById('avHandHint').style.display='none';
+                                setAVStatus(‘hand’,’good’,t(‘av_hand_ok’)); avChecks.hand = true; document.getElementById(‘avHandHint’).style.display=’none’;
                             } else {
-                                setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
+                                setAVStatus(‘hand’,’warn’,t(‘av_hold_steady’)); document.getElementById(‘avHandHint’).textContent=t(‘av_hold_steady’); document.getElementById(‘avHandHint’).style.display=’block’;
                             }
-                        } else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
+                        } else { _handStableFrames = 0; setAVStatus(‘hand’,’warn’,t(‘av_hand_spread’)); document.getElementById(‘avHandHint’).textContent=t(‘av_hint_spread’); document.getElementById(‘avHandHint’).style.display=’block’; }
                     }
                 } else {
                     _handStableFrames = 0;
-                    _camBox.classList.remove('hand-in-zone');
-                    document.getElementById('avHandHint').style.display='block';
-                    document.getElementById('avHandHint').textContent='Hold your hand beside your cheek — we’ll show it tracked';
+                    _camBox.classList.remove(‘hand-in-zone’);
+                    document.getElementById(‘avHandHint’).style.display=’block’;
+                    document.getElementById(‘avHandHint’).textContent=t(‘av_hint_show’);
                 }
             }
         } catch(_) { /* hand pre-flight is best-effort; never block */ }
@@ -871,11 +877,11 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         var _n0 = (typeof n === 'number' && Number.isFinite(n)) ? Math.round(n) : -1;
         // F-761: coach the pose for the ambiguous 4↔5 pair — a relaxed hand (thumb close to fingers)
         // reads as 4-or-5 unreliably. 5 → spread wide; 4 → tuck thumb. Others are visually distinct.
-        var _msg = _n0 === 0 ? 'Make a fist beside your cheek'
-                 : _n0 === 5 ? 'Show 5 — spread your fingers WIDE, beside your cheek'
-                 : _n0 === 4 ? 'Show 4 — tuck your thumb in, beside your cheek'
-                 : _n0 > 0  ? 'Hold ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's') + ' beside your cheek'
-                 :             'Hold your hand beside your cheek';
+        var _msg = _n0 === 0 ? t('canvas_fist')
+                 : _n0 === 5 ? t('canvas_show5')
+                 : _n0 === 4 ? t('canvas_show4')
+                 : _n0 > 0  ? tf('canvas_show_n')(_n0)
+                 :             t('canvas_hand');
         var _fs = Math.max(13, Math.min(Math.round(w * 0.036), 26));
         ctx.save();
         try {
@@ -985,19 +991,19 @@ const CaptureFeedback = {
             // F-563 UX: the active instruction takes over the header in YELLOW so it can't get lost
             // among the other text (Rob — "Say the greeting" was getting lost).
             var _st = ctx.byId('step2Title');
-            if (_st) { _st.textContent = (fingerFallback === 'voice') ? 'Say the phrase' : 'Say the greeting'; _st.style.color = '#fbbf24'; }
+            if (_st) { _st.textContent = (fingerFallback === 'voice') ? t('say_phrase_title') : t('say_greeting_title'); _st.style.color = '#fbbf24'; }
             // Speaking phase. FINGER mode: GREETING ONLY (numbers stripped) — the numbers are
             // spoken per-digit, each bound to its gesture (SUPP-7). VOICE-ONLY mode skips the
             // digit phase, so the user must speak the FULL phrase (incl numbers) here (codex).
             const _full = challengeData?.phrase || '';
             if (fingerFallback === 'voice') {
-                ctx.byId('challengeText').innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE PHRASE</span>"' + _full + '"';
+                ctx.byId('challengeText').innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">' + t('say_phrase_label') + '</span>"' + _full + '"';
             } else {
                 // R2 (S114): greeting ONLY — strip the trailing digits (the numbers are spoken
                 // per-gesture in the digit phase; one recording → backend still gets them). This
                 // is the fallback prompt; renderGreeting owns the primary live greeting screen.
                 var _greet = vacGreetingText() || _full.replace(/,\s*\d[\d\s,]*$/, '');   // S114: single-source greeting
-                ctx.byId('challengeText').innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">SAY THE GREETING</span>"' + _greet + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">then show each number as you say it, one take</span>';
+                ctx.byId('challengeText').innerHTML = '<span style="font-size:11px;opacity:0.6;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px">' + t('say_greeting_label') + '</span>"' + _greet + '"<span style="font-size:11px;color:var(--text-tertiary);display:block;margin-top:6px">' + t('then_show_numbers') + '</span>';
             }
         } else {
             // Finger phase
@@ -1016,7 +1022,7 @@ const CaptureFeedback = {
             // User already saw the full sequence in the challenge phrase; per-step
             // count hints created "guess by trial and error" UX when the ticked
             // count didn't match what the user thought they'd shown.
-            ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">Show next gesture from the phrase</span>';
+            ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:6px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">' + t('show_fingers_label') + '</span><div style="display:flex;justify-content:center;margin:10px 0">' + circles + '</div><span style="font-size:15px;color:#fff;font-weight:600;">' + t('show_next_gesture') + '</span>';
         }
     },
 
@@ -1052,9 +1058,9 @@ const CaptureFeedback = {
     // apart). The voice-only / gesture-only hints name the MISSING action instead of repeating the
     // mantra, so the coaching tells the user what they actually forgot (Q4 = option B).
     coachHintMsg: function(key, N) {
-        if (key === 'nearmiss')    return 'Almost — show your fingers and say it at the same time';
-        if (key === 'voiceonly')   return 'Now show your ' + N + ' finger' + (N === 1 ? '' : 's') + ' as you say “' + N + '”';
-        if (key === 'gestureonly') return 'Say “' + N + '” out loud while you hold up your fingers';
+        if (key === 'nearmiss')    return t('almost_nearmiss');
+        if (key === 'voiceonly')   return tf('voice_only_hint')(N);
+        if (key === 'gestureonly') return tf('gesture_only_hint')(N);
         return '';
     },
 
@@ -1125,14 +1131,14 @@ const CaptureFeedback = {
             ne.textContent = n;
         }
         if (opts.done) {
-            if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
+            if (promptEl) { promptEl.textContent = t('all_captured'); promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
             setSayView(false); setBigNumber(false);
             return;
         }
         if (opts.beat) {
-            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
+            if (promptEl) { promptEl.textContent = t('got_it'); promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
             setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
             setSayView(false); setBigNumber(false);
@@ -1146,62 +1152,62 @@ const CaptureFeedback = {
         if (!opts.voiceOn && opts.rearmed === false) {
             // Speech-off (degraded, no mic) + gesture confirmed but NOT re-armed: advance is BLOCKED
             // (same held pose carried from the last accept). Prompt the re-show (codex). Unchanged.
-            if (promptEl) { promptEl.textContent = 'Lower your hand, then show ' + N + ' again'; promptEl.style.color = '#fbbf24'; }
-            if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'active', '✋');
-            setLamp(vLamp, vWrap, 'pending', '🗣️');
+            if (promptEl) { promptEl.textContent = tf(‘lower_hand_reshow’)(N); promptEl.style.color = ‘#fbbf24’; }
+            if (subEl) subEl.textContent = ‘’;
+            setLamp(gLamp, gWrap, ‘active’, ‘✋’);
+            setLamp(vLamp, vWrap, ‘pending’, ‘🗣️’);
             setBigNumber(true, N);
         } else if (ctx.voiceless) {
-            // F-671 Phase B1: gesture-only fast policy (_captureVoice=false) — drop the "say it" half so
-            // the copy matches the policy (the fast tier's prior inline copy: "no need to say anything").
+            // F-671 Phase B1: gesture-only fast policy (_captureVoice=false) — drop the “say it” half so
+            // the copy matches the policy (the fast tier’s prior inline copy: “no need to say anything”).
             // Hide the voice sub-gate; the gesture lamp logic mirrors the voiced branch below. FULL path
             // never sets ctx.voiceless → this branch is skipped → rendered output stays byte-identical.
-            if (promptEl) { promptEl.textContent = 'Show ' + N + ' — hold steady'; promptEl.style.color = 'var(--text-primary)'; }
+            if (promptEl) { promptEl.textContent = tf(‘show_n_hold’)(N); promptEl.style.color = ‘var(--text-primary)’; }
             setBigNumber(true, N);
-            if (vWrap) vWrap.style.display = 'none';
+            if (vWrap) vWrap.style.display = ‘none’;
             if (!opts.handNear) {
-                if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
-                setLamp(gLamp, gWrap, 'pending', '✋');
+                if (subEl) subEl.textContent = t(‘hand_near_cheek’);
+                setLamp(gLamp, gWrap, ‘pending’, ‘✋’);
             } else if (!opts.gestureLive) {
-                if (subEl) subEl.textContent = 'Hand detected — hold steady.';
-                setLamp(gLamp, gWrap, 'ready', '✋');
+                if (subEl) subEl.textContent = t(‘hand_detected_hold’);
+                setLamp(gLamp, gWrap, ‘ready’, ‘✋’);
             } else {
-                if (subEl) subEl.textContent = 'hold steady';
-                setLamp(gLamp, gWrap, 'active', '✋');
+                if (subEl) subEl.textContent = t(‘hold_steady’);
+                setLamp(gLamp, gWrap, ‘active’, ‘✋’);
             }
         } else {
             // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
             // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
             // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
-            if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” — at the same time'; promptEl.style.color = 'var(--text-primary)'; }
+            if (promptEl) { promptEl.textContent = tf(‘show_n_and_say’)(N); promptEl.style.color = ‘var(--text-primary)’; }
             setBigNumber(true, N);
-            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
+            setLamp(vLamp, vWrap, (!opts.voiceOn ? ‘pending’ : (opts.voiceDone ? ‘done’ : ‘active’)), ‘🗣️’);
             if (!opts.handNear) {
                 // No hand, or hand outside the in-front-of-face capture zone. THIS is the silent-failure
                 // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
-                // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
+                // user got NO feedback when it wasn’t — the gesture just never registered. Keep the ✋
                 // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
-                if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
-                setLamp(gLamp, gWrap, 'pending', '✋');
+                if (subEl) subEl.textContent = t(‘hand_near_cheek’);
+                setLamp(gLamp, gWrap, ‘pending’, ‘✋’);
             } else if (!opts.gestureLive) {
-                // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
-                // ("good spot") + hold-steady guidance, so the user knows the position is right.
-                if (subEl) subEl.textContent = 'Hand detected — hold steady.';
-                setLamp(gLamp, gWrap, 'ready', '✋');
+                // Hand IS in the near-face zone but fingers aren’t reading a stable count yet → green ✋
+                // (“good spot”) + hold-steady guidance, so the user knows the position is right.
+                if (subEl) subEl.textContent = t(‘hand_detected_hold’);
+                setLamp(gLamp, gWrap, ‘ready’, ‘✋’);
             } else {
-                // Fingers live in-zone — main's existing live-sensing lamp + adaptive co-occurrence coach.
-                // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
-                // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
-                var _coachSub = opts.voiceHelp ? '' : CaptureFeedback.coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
-                if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
-                setLamp(gLamp, gWrap, 'active', '✋');
+                // Fingers live in-zone — main’s existing live-sensing lamp + adaptive co-occurrence coach.
+                // F-599: the genuinely-silent-mic help (“a bit louder”, >12s) still wins; otherwise show the
+                // debounced adaptive coaching for this digit’s near-miss state; otherwise the resting sub.
+                var _coachSub = opts.voiceHelp ? ‘’ : CaptureFeedback.coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don’t even build the coach string
+                if (subEl) subEl.textContent = opts.voiceHelp ? t(‘cant_hear’) : (_coachSub || t(‘together’));
+                setLamp(gLamp, gWrap, ‘active’, ‘✋’);
             }
         }
     },
 
     // Render finger-phase UI (preserves vac-web styling — green ticks, pulsing purple current, gray upcoming)
     renderFingerPhase: function(ctx, hint, currentDigitIndex) {
-        if (ctx.digits.length === 0) { ctx.byId('challengeText').textContent = 'Processing\u2026'; return; }
+        if (ctx.digits.length === 0) { ctx.byId('challengeText').textContent = t('processing'); return; }
         // S111 #3: per-digit number circles live in #digitStrip ABOVE the video (single source).
         // W3.5 refactor: generic per-step prompt.
         // The detection loop already advances on ANY finger > 0 (line below);
@@ -1219,11 +1225,11 @@ const CaptureFeedback = {
         // path never sets ctx.voiceless → else branch (the original expression) → byte-identical header.
         var _showNum;
         if (ctx.voiceless) {
-            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' — hold steady') : 'Show the next number';
+            _showNum = (currentDigitIndex < ctx.digits.length) ? tf('show_n_finger_hold')(_cd) : t('show_next_gesture');
         } else {
-            _showNum = (currentDigitIndex < ctx.digits.length) ? ('Show ' + _cd + ' finger' + (_cd === 1 ? '' : 's') + ' AND say “' + _cd + '” — at the same time') : 'Show the next number';
+            _showNum = (currentDigitIndex < ctx.digits.length) ? tf('show_n_finger_and_say')(_cd) : t('show_next_gesture');
         }
-        ctx.byId('challengeText').innerHTML = '<span style="font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;">SHOW FINGERS</span><span style="font-size:15px;color:var(--text-primary);font-weight:600;">' + _showNum + '</span><div style="font-size:12px;color:var(--text-secondary);margin-top:4px;">' + stepLabel + '</div>' + hintHtml;
+        ctx.byId('challengeText').innerHTML = '<span style=”font-size:12px;color:#fbbf24;display:block;margin-bottom:4px;font-family:var(--mono);letter-spacing:1px;font-weight:600;”>' + t('show_fingers_label') + '</span><span style=”font-size:15px;color:var(--text-primary);font-weight:600;”>' + _showNum + '</span><div style=”font-size:12px;color:var(--text-secondary);margin-top:4px;”>' + stepLabel + '</div>' + hintHtml;
     },
 
     // S110: detect when the hand is too close / clipped by the frame edges so we
@@ -1246,9 +1252,9 @@ const CaptureFeedback = {
         if (clipped || tooBig || tooSmall) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
         if (banner) {
             if (ctx.framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
-                banner.textContent = tooSmall ? 'Move your hand closer'
-                                  : tooBig    ? 'Move your hand back a little — keep your whole hand in view'
-                                              : 'Keep your whole hand inside the red border';
+                banner.textContent = tooSmall ? t('av_hand_closer')
+                                  : tooBig    ? t('av_hint_back')
+                                              : t('av_hint_spread');
                 banner.style.display = 'block';
             } else if (ctx.framingBadFrames === 0) {
                 banner.style.display = 'none';
@@ -1291,7 +1297,7 @@ function updateMicTips() {
         // Mic working — update prompt
         const prompt = document.getElementById('avMicPrompt');
         const promptText = document.getElementById('avMicPromptText');
-        if (promptText) promptText.textContent = 'Microphone detected';
+        if (promptText) promptText.textContent = t('mic_detected');
         // Change icon to green
         const svg = prompt?.querySelector('svg');
         if (svg) svg.setAttribute('stroke', 'var(--success)');
@@ -1307,7 +1313,7 @@ function updateMicTips() {
         tip.innerHTML = `<span style="color: var(--warning);">Mic not picking up audio?</span> ${tips[0] || 'Check your browser permissions.'}`;
         tip.style.display = 'block';
     } else if (waited > 3) {
-        tip.textContent = 'Try speaking louder or clapping';
+        tip.textContent = t('mic_louder');
         tip.style.display = 'block';
     }
 }
@@ -1332,15 +1338,15 @@ function updateAVReady() {
     if (guide) {
         const _steps = _fastStill ? 2 : 3;   // fast: light+mic; full: +hand
         if (!avChecks.light) {
-            guide.textContent = 'Step 1 of ' + _steps + ' — find good lighting so your face is clearly visible';
+            guide.textContent = tf('guide_step1')(_steps);
         } else if (!avChecks.mic) {
-            guide.textContent = 'Step 2 of ' + _steps + ' — say a few words to test your microphone';
+            guide.textContent = tf('guide_step2')(_steps);
         } else if (!_fastStill && !avChecks.hand) {
-            guide.textContent = 'Step 3 of 3 — hold your hand up beside your cheek, on the marker (you\u2019ll see it tracked)';
+            guide.textContent = t('guide_step3');
         } else if (_fastStill && !_fastDetectorReady) {
-            guide.textContent = 'Finishing setup, one moment...';
+            guide.textContent = t('guide_setup');
         } else {
-            guide.textContent = 'All set \u2713  You\u2019re ready to verify';
+            guide.textContent = t('guide_ready');
             guide.style.color = 'var(--success)';
             guide.style.borderColor = 'var(--success-border, rgba(63,185,80,0.3))';
             guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
@@ -1349,7 +1355,7 @@ function updateAVReady() {
     const allGood = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
     if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
         btn.disabled = !allGood;
-        btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
+        btn.textContent = allGood ? t('btn_start_verify') : t('btn_checks_above');
     }
     // Service-error AUTO-retry: once the (warmed) pre-flight passes, advance to the challenge
     // automatically — preserves the "retrying automatically" flow without the cold-entry race.
@@ -1395,9 +1401,9 @@ function retryAVSetup() {
         const el = document.getElementById(id);
         if (el) { el.innerHTML = AV_ICONS.spinner; el.classList.add('spinning'); }
     });
-    setAVStatus('light', 'checking', 'Light');
-    setAVStatus('mic', 'checking', 'Mic');
-    document.getElementById('avMicPromptText').textContent = 'Speak now to test your microphone';
+    setAVStatus('light', 'checking', t('av_light'));
+    setAVStatus('mic', 'checking', t('av_mic'));
+    document.getElementById('avMicPromptText').textContent = t('mic_speak_now');
     document.getElementById('avAudioLevel').style.width = '0%';
     document.getElementById('avAudioPct').textContent = '0%';
     updateAVReady();
@@ -1410,7 +1416,7 @@ function retryAVSetup() {
         })
         .catch(err => {
             console.error('[AV RETRY]', err);
-            document.getElementById('avMicTip').textContent = 'Could not access camera/mic. Check browser permissions.';
+            document.getElementById('avMicTip').textContent = t('mic_no_access');
             document.getElementById('avMicTip').style.display = 'block';
         });
 }
@@ -1699,9 +1705,9 @@ function startCountdown() {
     // appears ONLY when we're actually listening (renderGreeting, at beginRecording).
     try {
         var _ct = document.getElementById('challengeText');
-        if (_ct) _ct.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-secondary);">Get ready…</div>';
+        if (_ct) _ct.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-secondary);">' + t('get_ready') + '</div>';
         var _t2 = document.getElementById('step2Title');
-        if (_t2) { _t2.textContent = 'Get ready'; _t2.style.color = ''; }
+        if (_t2) { _t2.textContent = t('get_ready'); _t2.style.color = ''; }
     } catch(_) {}
 
     const interval = setInterval(() => {
@@ -1733,7 +1739,7 @@ function beginRecording() {
     if (_speedToggle) _speedToggle.style.display = 'none';
     document.getElementById('audioLevel').style.display = 'flex';
     document.getElementById('cameraBoxRec').classList.add('recording');
-    document.getElementById('timerLabel').textContent = 'Recording';
+    document.getElementById('timerLabel').textContent = t('timer_recording');
 
     // Start audio level monitoring
     startAudioMonitor();
@@ -1878,13 +1884,13 @@ function beginRecording() {
         // renders the FINGER branch (sec < 0 is false), so the user lands straight on the
         // skeleton+digit phase. The digits are still spoken per gesture there, so liveness/voice is
         // captured — just not as a separate phase.
-        try { var _stNV = document.getElementById('step2Title'); if (_stNV) { _stNV.textContent = 'Quick re-confirm'; _stNV.style.color = ''; } } catch(_) {}
+        try { var _stNV = document.getElementById('step2Title'); if (_stNV) { _stNV.textContent = t('quick_reconfirm'); _stNV.style.color = ''; } } catch(_) {}
         try { CaptureFeedback.updatePhasePrompt(ctx, 0); } catch(_) {}
     } else if (skipGreeting) {
         // F-648: the phrase phase RUNS (the user still SPEAKS — they say the NUMBERS, the per-session
         // anti-replay anchor), so render the phrase screen normally — renderGreeting shows the digits
         // (name-less) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
-        try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = 'Quick re-confirm'; _stG.style.color = ''; } } catch(_) {}
+        try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = t('quick_reconfirm'); _stG.style.color = ''; } } catch(_) {}
         try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }
     } else {
         try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
@@ -3862,7 +3868,7 @@ async function runRealVerification(videoBlob) {
     try { resetModalities(); } catch(_) {}
 
     // Progress animation while we wait for backend
-    stepEl.textContent = 'Uploading recording…';
+    stepEl.textContent = t('upload_recording');
     detailEl.textContent = `${(videoBlob.size / 1024).toFixed(0)} KB → verification engines`;
     ring.style.strokeDashoffset = circumference * 0.85;
 
@@ -3909,7 +3915,7 @@ async function runRealVerification(videoBlob) {
         formData.append('face_still_b64', window.__vacFaceStillB64 || '');
         formData.append('face_still_ts_ms', String(Number.isFinite(window.__vacFaceStillTsMs) ? window.__vacFaceStillTsMs : 0));
 
-        stepEl.textContent = 'Analysing biometrics…';
+        stepEl.textContent = t('analysing_biometrics');
         detailEl.textContent = 'Gemini (face) + Deepgram (voice)';
         ring.style.strokeDashoffset = circumference * 0.6;
 
@@ -3917,13 +3923,13 @@ async function runRealVerification(videoBlob) {
         var progress = 0.75;
         ring.style.strokeDashoffset = circumference * progress;
         var pSteps = [
-            {at: 0.65, text: 'Uploading recording...'},
-            {at: 0.55, text: 'Face liveness check...'},
-            {at: 0.45, text: 'Deepfake analysis...'},
-            {at: 0.35, text: 'Voice transcription...'},
-            {at: 0.25, text: 'Lip sync correlation...'},
-            {at: 0.18, text: 'Finger gesture analysis...'},
-            {at: 0.12, text: 'Computing trust score...'},
+            {at: 0.65, text: t('progress_uploading')},
+            {at: 0.55, text: t('progress_face')},
+            {at: 0.45, text: t('progress_deepfake')},
+            {at: 0.35, text: t('progress_voice')},
+            {at: 0.25, text: t('progress_lip')},
+            {at: 0.18, text: t('progress_finger')},
+            {at: 0.12, text: t('progress_score')},
         ];
         var pIdx = 0;
         var progressTimer = setInterval(function() {
@@ -3955,7 +3961,7 @@ async function runRealVerification(videoBlob) {
         for (var _uAttempt = 1; _uAttempt <= _UPLOAD_RETRIES; _uAttempt++) {
             if (_uAttempt > 1) {
                 clearInterval(progressTimer); // pause cosmetic animation during backoff wait
-                stepEl.textContent = 'Connection dropped — retrying upload (' + _uAttempt + '/' + _UPLOAD_RETRIES + ')…';
+                stepEl.textContent = tf('connection_retry')(_uAttempt, _UPLOAD_RETRIES);
                 detailEl.textContent = 'Waiting before retry…';
                 await sleep(_UPLOAD_BACKOFF_MS[_uAttempt]);
             }
@@ -4002,10 +4008,12 @@ async function runRealVerification(videoBlob) {
         authResult._challenge_id = challengeData?.challenge_id || ''; // for copilot mode biometric upgrade
         window.__vacLastVerifyBlob = null; // F-789: clear saved blob — upload succeeded
         clearInterval(progressTimer);
+        // F-823: mid-ceremony language switch on backend-detected language
+        if (_i18n && authResult && authResult.detected_language) { _i18n.switchLang(authResult.detected_language); }
 
         // Update modality displays with real results
         ring.style.strokeDashoffset = circumference * 0.2;
-        stepEl.textContent = 'Processing results…';
+        stepEl.textContent = t('processing_results');
 
         const mods = authResult.biometric_verification?.modalities || [];
         // Auto-open modality dropdown when results arrive
@@ -5443,6 +5451,7 @@ const VACReauth = {
         if (typeof opts.retryAttempts === 'number') retryAttempts = opts.retryAttempts;   // seed retry budget on a resumed retry
         try { if (window.QA && !(QA && QA.on)) QA = window.QA; } catch(_) {}   // adopt host overlay unless ?qa=1 already self-enabled (F-763c)
         renderDOM();
+        if (_i18n) _applyI18nToDOM();
         // F-687 Fix 4: context-derived verification heading. Re-auth contexts read "Confirming it's
         // still you"; auth.html's first/main auth (context:'register') keeps "Verifying You're Human".
         try { var _vst = document.getElementById('verifyStepTitle'); if (_vst && _isReauthContext()) _vst.textContent = "Confirming it's still you"; } catch(_) {}
@@ -5517,5 +5526,34 @@ window.toggleUnderHood = toggleUnderHood;
 window.retryVerification = retryVerification;
 window.setFingerFallback = setFingerFallback;
 window._dismissNoMic = _dismissNoMic;
+
+// F-823: patch static DOM strings that are baked into CEREMONY_HTML template.
+// Called once after renderDOM() so the freshly mounted elements get the active locale.
+function _applyI18nToDOM() {
+    try {
+        var _sub = document.querySelector('.camera-challenge-sub');
+        if (_sub) _sub.textContent = t('look_at_camera');
+    } catch(_) {}
+    try {
+        var _hzls = document.querySelectorAll('.hand-zone-label');
+        _hzls.forEach(function(el) { el.textContent = '✋ ' + t('hand_zone_label'); });
+    } catch(_) {}
+    try {
+        var _tl = document.getElementById('timerLabel');
+        if (_tl) _tl.textContent = t('timer_recording_in');
+    } catch(_) {}
+    try {
+        var _btn = document.getElementById('btnCamera');
+        if (_btn && _btn.textContent.indexOf('Enable') !== -1) _btn.textContent = t('btn_enable_camera');
+    } catch(_) {}
+    try {
+        var _ih = document.getElementById('challengeIntroHeadline');
+        if (_ih) _ih.innerHTML = t('intro_headline').replace('\n', '<br>');
+    } catch(_) {}
+    try {
+        var _ib = document.getElementById('challengeIntroBtn');
+        if (_ib) _ib.textContent = t('btn_ready');
+    } catch(_) {}
+}
 
 })();
