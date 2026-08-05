@@ -128,10 +128,13 @@ test('P7: renderGreeting has _ceremonyPhase guard to prevent stale-tick desync',
         i++;
     }
     const body = src.slice(fnStart, i);
+    // Use a regex to require an actual conditional return, not just string presence in a comment.
+    // Pattern: if (_ceremonyPhase !== _PHASE.GREETING) return;
+    const guardPattern = /if\s*\(\s*_ceremonyPhase\s*!==\s*_PHASE\.GREETING\s*\)\s*return/;
     assert.ok(
-        body.includes('_ceremonyPhase') && body.includes('_PHASE.GREETING'),
-        'renderGreeting() must check _ceremonyPhase === _PHASE.GREETING before writing DOM — ' +
-        'without this guard a stale phraseInterval tick paints "Say the phrase" in the digit phase (L-2246)'
+        guardPattern.test(body),
+        'renderGreeting() must contain the guard: if (_ceremonyPhase !== _PHASE.GREETING) return — ' +
+        'string presence alone can pass even if the guard is inside a comment (L-2246)'
     );
 });
 
@@ -140,7 +143,15 @@ test('P7: renderGreeting has _ceremonyPhase guard to prevent stale-tick desync',
 test('P8: startCountdown wires _setPhase for COUNTDOWN transition', function() {
     const fnStart = src.indexOf('function startCountdown()');
     assert.ok(fnStart >= 0, 'startCountdown not found');
-    const body = src.slice(fnStart, src.indexOf('\n}', fnStart) + 2);
+    // Use brace-counting (robust vs indentation) to extract the full function body
+    const braceStart = src.indexOf('{', fnStart);
+    let depth = 0, i = braceStart;
+    while (i < src.length) {
+        if (src[i] === '{') depth++;
+        else if (src[i] === '}') { depth--; if (depth === 0) { i++; break; } }
+        i++;
+    }
+    const body = src.slice(fnStart, i);
     assert.ok(
         body.includes('_setPhase') && body.includes('COUNTDOWN'),
         'startCountdown must call _setPhase(_PHASE.COUNTDOWN) to register the countdown phase'

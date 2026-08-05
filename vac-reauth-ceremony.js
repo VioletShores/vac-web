@@ -218,7 +218,7 @@ function _renderPromptOnTransition(phase) {
         var titleEl = document.getElementById('step2Title');
         if (titleEl) { titleEl.textContent = map.title; titleEl.style.color = map.color || ''; }
     } catch(_) {}
-} // F-635/F-648: profile.greeting==='skip' (the seal-gate) makes a FULL ceremony NAME-LESS — the user says ONLY the digits (no greeting, no "I am {name}"). Backend phrase is digits-only so the scorer core = the digits. The phrase phase is KEPT (user still speaks). Set per-run in run().
+}
 
 // F-654 STEP 2 — PHASE COMPOSITION IS A COPS/PID OUTPUT, not a local flag.
 // The server's challenge response now carries reauth_modality_policy (F-654 step 1):
@@ -2801,15 +2801,18 @@ function beginRecording() {
         // renders the FINGER branch (sec < 0 is false), so the user lands straight on the
         // skeleton+digit phase. The digits are still spoken per gesture there, so liveness/voice is
         // captured — just not as a separate phase.
+        _setPhase(_PHASE.DIGIT);   // L-2246: no greeting phase for policy-drop path
         try { var _stNV = document.getElementById('step2Title'); if (_stNV) { _stNV.textContent = 'Quick re-confirm'; _stNV.style.color = ''; } } catch(_) {}
         try { CaptureFeedback.updatePhasePrompt(ctx, 0); } catch(_) {}
     } else if (skipGreeting) {
         // F-648: the phrase phase RUNS (the user still SPEAKS — they say the NUMBERS, the per-session
         // anti-replay anchor), so render the phrase screen normally — renderGreeting shows the digits
         // (name-less) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
+        _setPhase(_PHASE.GREETING);   // L-2246: arm GREETING before initial render so guard passes
         try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = 'Quick re-confirm'; _stG.style.color = ''; } } catch(_) {}
         try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }
     } else {
+        _setPhase(_PHASE.GREETING);   // L-2246: arm GREETING before initial render so guard passes
         try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
     }
 
@@ -4213,7 +4216,9 @@ function _markSpeech(src, rms, onsetAt) {
     }
 
     // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
-    _setPhase(_PHASE.GREETING);   // L-2246: arm GREETING phase before the interval fires so renderGreeting() guard passes
+    // NOTE: _setPhase(GREETING) is already called above in the initial render block
+    // (before the first renderGreeting() call). It is NOT called here to avoid overwriting
+    // DIGIT on the _dropVoicePhrase path, which sets DIGIT above and advances in the first tick.
     const phraseInterval = setInterval(() => {
         if (recordingStopped) { clearInterval(phraseInterval); return; }
         elapsedMs += TICK_MS;
