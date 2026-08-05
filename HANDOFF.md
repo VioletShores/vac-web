@@ -1,3 +1,24 @@
+# VAC Web — HANDOFF (Session 21 → Session 22)
+> Updated: 6 Aug 2026 — FLASH DONE: task-prompt-state-sync-v2 merged + deployed
+
+## FLASH DONE — task-prompt-state-sync-v2 (L-2246 PROMPT/STATE SYNC)
+**Branch:** `task-prompt-state-sync-v2` → merged to main as 6d88bdd (2026-08-06)
+**Root cause fixed:** `renderGreeting()` fires on every 200ms `phraseInterval` tick. When `clearInterval(phraseInterval)` fires and the digit phase begins, a final stale tick writes "Say the phrase" to `#step2Title` while `_ceremonyPhase` is already DIGIT.
+**Fix:** Introduced single-source-of-truth phase state machine + map:
+- `_PHASE` enum — canonical phase name constants
+- `STATE_COACHING_MAP` — phase → { title, color } coaching text (one place to audit for collisions)
+- `_ceremonyPhase` — module-level current phase variable
+- `_setPhase(phase)` — transition function, calls `_renderPromptOnTransition`
+- `_renderPromptOnTransition(phase)` — writes step2Title from map; single DOM-write path
+- Guard in `renderGreeting()`: `if (_ceremonyPhase !== _PHASE.GREETING) return;` — stale ticks blocked
+- Transitions wired: COUNTDOWN (startCountdown), GREETING/DIGIT (beginRecording if/else), DIGIT (_advanceGreeting), PROCESSING (finishFingerPhase)
+**Tests:** 49/49 pass (12 new prompt-state: F0+P1-P11, plus 16 content-gate, 14 zone-geometry, 7 vad-replay)
+**Gates:** /codex PASS | /review PASS (auto-fixes: dangling comment, P7 regex, P8 brace-count, Codex P2 early-set fix) | /qa 49/49 | /browse PASS (auth.html loads clean, no JS errors) | /ship PASS
+**Byte-verify LIVE:** `STATE_COACHING_MAP`×2, `_setPhase`×9, `_renderPromptOnTransition`×2, `_ceremonyPhase`×4, `_PHASE`×11 — all confirmed at vacprotocol.org/vac-reauth-ceremony.js (537915 bytes)
+**NEXT:** Rob adversarial run — confirm that during a real ceremony the digit-phase header never shows "Say the phrase" copy after phrase-phase ends.
+
+---
+
 # VAC Web — HANDOFF (Session 20 → Session 21)
 > Updated: 6 Aug 2026 — FLASH DONE: task-voice-content-gate merged + deployed
 
