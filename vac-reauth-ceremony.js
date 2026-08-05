@@ -175,7 +175,50 @@ let authResult = null;
 let challengeData = null;
 let fingerFallback = 'none';
 let challengeSpeed = 'relaxed'; // 'relaxed', 'normal', 'fast'
-let skipGreeting = false; // F-635/F-648: profile.greeting==='skip' (the seal-gate) makes a FULL ceremony NAME-LESS — the user says ONLY the digits (no greeting, no "I am {name}"). Backend phrase is digits-only so the scorer core = the digits. The phrase phase is KEPT (user still speaks). Set per-run in run().
+let skipGreeting = false;
+
+// ── CEREMONY PHASE STATE (L-2246 prompt-state sync) ──────────────────────────
+// Single source of truth for the active ceremony phase. All transitions call
+// _setPhase(); renderGreeting() guards on _ceremonyPhase to prevent stale-tick
+// desync (the bug: a trailing phraseInterval tick painting "Say the phrase" onto
+// the digit-phase header after clearInterval fired).
+const _PHASE = {
+    IDLE:       'idle',
+    COUNTDOWN:  'countdown',
+    GREETING:   'greeting',
+    DIGIT:      'digit',
+    PROCESSING: 'processing',
+    DONE:       'done',
+    FAIL:       'fail',
+};
+
+// Phase → { title, color } for step2Title. One map = one place to audit for
+// collisions that would make a desync invisible (P2 test: digit title ≠ greeting title).
+const STATE_COACHING_MAP = {
+    idle:       { title: '',                 color: '' },
+    countdown:  { title: 'Get ready',        color: '' },
+    greeting:   { title: 'Say the phrase',   color: '#fbbf24' },
+    digit:      { title: 'Show the numbers', color: '' },
+    processing: { title: 'One moment…', color: '' },
+    done:       { title: 'Verified ✓',  color: '#22c55e' },
+    fail:       { title: 'Try again',        color: '' },
+};
+
+let _ceremonyPhase = _PHASE.IDLE;
+
+function _setPhase(phase) {
+    _ceremonyPhase = phase;
+    _renderPromptOnTransition(phase);
+}
+
+function _renderPromptOnTransition(phase) {
+    var map = STATE_COACHING_MAP[phase];
+    if (!map) return;
+    try {
+        var titleEl = document.getElementById('step2Title');
+        if (titleEl) { titleEl.textContent = map.title; titleEl.style.color = map.color || ''; }
+    } catch(_) {}
+}
 
 // F-654 STEP 2 — PHASE COMPOSITION IS A COPS/PID OUTPUT, not a local flag.
 // The server's challenge response now carries reauth_modality_policy (F-654 step 1):
@@ -2411,6 +2454,7 @@ function startCountdown() {
     // goToChallenge() left the greeting ("Say: …") in #challengeText, which tempted the user to
     // start speaking before beginRecording. Show a neutral "Get ready…" — the greeting prompt
     // appears ONLY when we're actually listening (renderGreeting, at beginRecording).
+    _setPhase(_PHASE.COUNTDOWN);   // L-2246: register COUNTDOWN before any DOM write below
     try {
         var _ct = document.getElementById('challengeText');
         if (_ct) _ct.innerHTML = '<div style="font-size:clamp(16px,4.5vw,20px);font-weight:700;color:var(--text-secondary);">Get ready…</div>';
@@ -2757,15 +2801,18 @@ function beginRecording() {
         // renders the FINGER branch (sec < 0 is false), so the user lands straight on the
         // skeleton+digit phase. The digits are still spoken per gesture there, so liveness/voice is
         // captured — just not as a separate phase.
+        _setPhase(_PHASE.DIGIT);   // L-2246: no greeting phase for policy-drop path
         try { var _stNV = document.getElementById('step2Title'); if (_stNV) { _stNV.textContent = 'Quick re-confirm'; _stNV.style.color = ''; } } catch(_) {}
         try { CaptureFeedback.updatePhasePrompt(ctx, 0); } catch(_) {}
     } else if (skipGreeting) {
         // F-648: the phrase phase RUNS (the user still SPEAKS — they say the NUMBERS, the per-session
         // anti-replay anchor), so render the phrase screen normally — renderGreeting shows the digits
         // (name-less) when skipGreeting. Set a lighter title; the live prompt comes from renderGreeting.
+        _setPhase(_PHASE.GREETING);   // L-2246: arm GREETING before initial render so guard passes
         try { var _stG = document.getElementById('step2Title'); if (_stG) { _stG.textContent = 'Quick re-confirm'; _stG.style.color = ''; } } catch(_) {}
         try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }
     } else {
+        _setPhase(_PHASE.GREETING);   // L-2246: arm GREETING before initial render so guard passes
         try { renderGreeting(); } catch(_) { CaptureFeedback.updatePhasePrompt(ctx, 0); }   // F-563: greeting first-class render (fn hoisted); fallback to the old prompt if anything's off
     }
 
@@ -3023,6 +3070,7 @@ function beginRecording() {
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
+        _setPhase(_PHASE.PROCESSING);   // L-2246: stop any stale digit-phase render loops painting coaching text
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
         try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): hide the say-cover when capture ends
@@ -4089,6 +4137,7 @@ function _markSpeech(src, rms, onsetAt) {
     // before advancing — so the user KNOWS it registered. #vacEqHost is where the live equaliser
     // mounts (F-563 piece 2). Pacing only — the phrase gate (phraseSpoke) is unchanged.
     function renderGreeting() {
+        if (_ceremonyPhase !== _PHASE.GREETING) return;   // L-2246: guard — stale phraseInterval tick must not paint greeting text in digit phase
         var _full = challengeData?.phrase || '';
         var _vo = (fingerFallback === 'voice');
         // F-563 (#4): show the FULL phrase INCLUDING the digits (say them all up front), not the
@@ -4167,6 +4216,9 @@ function _markSpeech(src, rms, onsetAt) {
     }
 
     // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
+    // NOTE: _setPhase(GREETING) is already called above in the initial render block
+    // (before the first renderGreeting() call). It is NOT called here to avoid overwriting
+    // DIGIT on the _dropVoicePhrase path, which sets DIGIT above and advances in the first tick.
     const phraseInterval = setInterval(() => {
         if (recordingStopped) { clearInterval(phraseInterval); return; }
         elapsedMs += TICK_MS;
@@ -4213,6 +4265,7 @@ function _markSpeech(src, rms, onsetAt) {
         // separate up-front phase. (Non-seal paths are unchanged: _dropVoicePhrase defaults
         // false unless the server policy affirmatively lists no voice modality.)
         if (_advanceGreeting) {
+            _setPhase(_PHASE.DIGIT);   // L-2246: transition to DIGIT before clearInterval so any final phraseInterval tick is blocked by renderGreeting's guard
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
             // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
             // doesn't run on a timeout/fail-open exit; codex).
