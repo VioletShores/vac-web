@@ -215,3 +215,36 @@ test('TC-UJ-06: no dead links — all same-origin hrefs in journey pages resolve
 
   expect(dead, 'TC-UJ-06: dead links found: ' + JSON.stringify(dead)).toHaveLength(0);
 });
+
+// ── TC-UJ-07: "Start a conversation" CTA — non-noop destination gate ──────────
+//
+// D-START-CONVERSATION-DEAD-CTA: the matters-page conversion button was a no-op
+// (plain button with no destination). The fix: wire it to the site's existing
+// mailto contact pattern (enterprise@vacprotocol.org) with prefilled source-page
+// context in the body so Rob's team immediately knows which page the lead came from.
+//
+// This test is the regression gate: it must FAIL on a bare button or a subject-only
+// mailto (no body = no source context), and PASS after the fix.
+//
+// Assertions:
+//   A: the CTA is visible (not hidden behind auth gate)
+//   B: the href is a mailto: link — not '#', 'javascript:', or a dead <button>
+//   C: the mailto includes a body= parameter with source-page context [FAILING FIXTURE]
+
+test('TC-UJ-07 [D-START-CONVERSATION-DEAD-CTA — no-op gate]: "Start a conversation" CTA has a mailto href with source-page context in the body', async ({ page }) => {
+  await page.goto(TRIBUNAL_URL);
+  await page.waitForLoadState('domcontentloaded');
+
+  // TC-UJ-07-A: CTA is present and visible (lives outside the auth-gated walkBody)
+  const ctaLink = page.locator('a.cta-btn:has-text("Start a conversation")');
+  await expect(ctaLink, 'TC-UJ-07-A: "Start a conversation" CTA must be visible').toBeVisible();
+
+  // TC-UJ-07-B: href must be a mailto: URI (not a no-op # or bare button)
+  const href = await ctaLink.getAttribute('href');
+  expect(href, 'TC-UJ-07-B: href must be a mailto: link').toMatch(/^mailto:/i);
+
+  // TC-UJ-07-C: mailto must carry a body= parameter with source-page context.
+  // A subject-only mailto gives Rob's team no signal about which page the lead came
+  // from; a prefilled body encodes the source page for attribution.
+  expect(href, 'TC-UJ-07-C: mailto must include a body= parameter (source-page context)').toContain('body=');
+});
