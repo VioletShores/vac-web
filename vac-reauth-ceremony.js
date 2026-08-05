@@ -740,10 +740,11 @@ function _activeZone() {
     }
     const hFrac = _faceAnchor.hFrac;
     const wFrac = hFrac * _FACE_ASPECT;
-    // Generous per the task-432 framing (err on accepting — Gemini is the real judge): sized
-    // off the DETECTED face, clamped to sane on-screen bounds for very close/far seating.
-    const rx = Math.max(0.11, Math.min(0.22, hFrac * 0.42));
-    const ry = Math.max(0.15, Math.min(0.30, hFrac * 0.56));
+    // Face-proportional radii (task-zone-radii-surgical / L-2446): rx off detected face WIDTH
+    // (wFrac), ry off face HEIGHT (hFrac) — fixes ovals spanning ~40% of frame and running off
+    // both edges when the old hFrac*0.42 hit its ceiling without accounting for rx in the clamp.
+    const rx = Math.max(0.08, Math.min(0.22, wFrac * 0.40));
+    const ry = Math.max(0.12, Math.min(0.30, hFrac * 0.55));
     const halfW = wFrac / 2;
     const faceCx = _faceAnchor.cx;
     // codex review (task-432): the oval's INNER edge (centre ± the full radius) must clear the
@@ -752,9 +753,9 @@ function _activeZone() {
     // server-side vision check may not be able to read cleanly.
     let cxLeft = faceCx - halfW - _FACE_SIDE_GAP - rx;
     let cxRight = faceCx + halfW + _FACE_SIDE_GAP + rx;
-    // Clamp so an edge-sitting user still gets an on-screen oval.
-    cxLeft = Math.max(0.09, Math.min(0.40, cxLeft));
-    cxRight = Math.min(0.91, Math.max(0.60, cxRight));
+    // Hard clamp: cx±rx stays within [0,1] — ovals never exceed frame bounds (L-2446).
+    cxLeft = Math.max(rx, Math.min(0.40, cxLeft));
+    cxRight = Math.min(1 - rx, Math.max(0.60, cxRight));
     return {
         ovals: [ { cx: cxLeft, cy: _faceAnchor.cy, side: 'left' }, { cx: cxRight, cy: _faceAnchor.cy, side: 'right' } ],
         rx, ry, anchored: true, faceW: wFrac,
