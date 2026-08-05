@@ -1,3 +1,18 @@
+# VAC Web — HANDOFF (Session 24 → Session 25)
+> Updated: 6 Aug 2026 — FLASH DONE: task-cta-wire merged + deployed
+
+## FLASH DONE — task-cta-wire (D-START-CONVERSATION-DEAD-CTA)
+**Branch:** `task-cta-wire` → merged to main as ceff40c (2026-08-06)
+**Root cause fixed:** "Start a conversation" CTA on tribunal-demo.html had a `mailto:` href (subject only, no body), so recipients had zero context about which page the lead came from.
+**Fix:** Added `body=Reaching%20out%20after%20the%20Trust%20%26%20Tribunal%20walkthrough%20at%20vacprotocol.org%2Ftribunal-demo.%0A%0A` parameter + `id="startConversationCta"` to the `<a>` tag. Reuses existing `enterprise@vacprotocol.org` mailto pattern.
+**Harness (TC-UJ-07):** Added to `tests/user-journey.pw.js` — red-then-green failing fixture asserting `body=` parameter present. Failed on subject-only mailto, passes on fixed version.
+**Tests:** 61 Node PASS | 8/8 Playwright PASS (1 new TC-UJ-07 fixture)
+**Gates:** /codex PASS | /review PASS (scope CLEAN, 35-line diff) | /qa PASS (8/8) | /browse PASS (desktop + mobile)
+**Byte-verify LIVE:** `mailto:enterprise@vacprotocol.org?subject=VAC%20Trust%20%26%20Tribunal...&body=Reaching%20out...` confirmed at vacprotocol.org/tribunal-demo.
+**CONFIRM:** Rob clicks "Start a conversation" — mail client opens with prefilled body.
+
+---
+
 # VAC Web — HANDOFF (Session 23 → Session 24)
 > Updated: 6 Aug 2026 — FLASH DONE: task-quickauth-zone-preshow merged + deployed
 
