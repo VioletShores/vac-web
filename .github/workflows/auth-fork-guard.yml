@@ -11,3 +11,5 @@ jobs:
       - run: node --check vac-reauth-ceremony.js
       - run: node --test tests/vad-replay.test.js
       - run: node --test tests/zone-geometry.test.js
+      - run: node --test tests/prompt-state.test.js
+      - run: node --test tests/voice-content-gate.test.js
