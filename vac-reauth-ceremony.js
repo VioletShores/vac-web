@@ -2530,13 +2530,22 @@ function _startDigitContentGate(expectedDigit, onMatch) {
             var t = evt.results[ri][0].transcript;
             if (_contentTranscriptHasDigit(t, expectedDigit)) {
                 matched = true;
+                stopped = true;              // prevent onend restart
+                try { rec.abort(); } catch(_) {}  // stop immediately; no overlap with next digit
                 try { onMatch(t); } catch(_) {}
                 return;
             }
             // Non-matching transcript — discarded here, never stored (privacy rule)
         }
     };
-    rec.onerror = function() { if (!stopped) { try { rec.abort(); } catch(_) {} } };
+    rec.onerror = function(evt) {
+        // Fatal errors don't self-recover — mark stopped so onend doesn't restart.
+        // Non-fatal (no-speech, aborted) are transient; let onend handle restart.
+        var e = evt && evt.error;
+        var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
+        if (fatal) { stopped = true; }
+        if (!stopped) { try { rec.abort(); } catch(_) {} }
+    };
     rec.onend = function() {
         // Auto-restart on natural end (recognition stops after ~1min of silence)
         if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
@@ -2563,13 +2572,20 @@ function _startPhraseContentGate(phraseTokens, onMatch) {
             var t = evt.results[ri][0].transcript;
             if (_contentTranscriptMatchesPhrase(t, phraseTokens)) {
                 matched = true;
+                stopped = true;
+                try { rec.abort(); } catch(_) {}
                 try { onMatch(t); } catch(_) {}
                 return;
             }
             // Non-matching transcript — discarded here, never stored (privacy rule)
         }
     };
-    rec.onerror = function() { if (!stopped) { try { rec.abort(); } catch(_) {} } };
+    rec.onerror = function(evt) {
+        var e = evt && evt.error;
+        var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
+        if (fatal) { stopped = true; }
+        if (!stopped) { try { rec.abort(); } catch(_) {} }
+    };
     rec.onend = function() {
         if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
     };
@@ -3043,10 +3059,13 @@ function beginRecording() {
         if (currentDigitIndex >= digits.length || speechReady[currentDigitIndex]) return;
         if (!_contentGateAvail) return; // energy fallback — no gate to start
         var targetDigit = digits[currentDigitIndex];
+        var _gateForIdx = currentDigitIndex;  // capture index; guard against stale async callback
         _contentGateDigit = currentDigitIndex;
         _contentGate = _startDigitContentGate(targetDigit, function(t) {
             _contentGate = null; _contentGateDigit = -1;
-            try { vacDebug('content_gate_fired', null, { digit_index: currentDigitIndex, digit: targetDigit, transcript: String(t).slice(0, 40) }); } catch(_) {}
+            // Guard: if digit advanced while recognition was async, discard this result.
+            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            try { vacDebug('content_gate_fired', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: String(t).slice(0, 40) }); } catch(_) {}
             _markSpeech('content', 0, null);
         });
         if (!_contentGate) {
