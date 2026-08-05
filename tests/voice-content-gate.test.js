@@ -189,10 +189,12 @@ test('C9: Full-path VAD FIRE site calls _markSpeech only in energy fallback bran
     // before any _markSpeech call — the _markSpeech must be inside an else block.
     const firedIdx = src.indexOf("'FIRED: '");
     assert.ok(firedIdx >= 0, 'VAD FIRED log must be present');
-    // Check that _markSpeech in the full path FIRED block is inside a content gate check
+    // Check that _markSpeech in the full path FIRED block is inside a content gate check.
+    // Uses session-local _sessionGateAvail (not module-level _contentGateAvail) so runtime
+    // failures don't corrupt future sessions.
     const firedBlock = src.slice(firedIdx, firedIdx + 1000);
-    assert.ok(firedBlock.includes('_contentGateAvail'),
-        'Full-path FIRED site must check _contentGateAvail before calling _markSpeech');
+    assert.ok(firedBlock.includes('_sessionGateAvail') || firedBlock.includes('_contentGateAvail'),
+        'Full-path FIRED site must check session gate avail before calling _markSpeech');
     assert.ok(firedBlock.includes('_vadEnergyDetected = true'),
         'Full-path FIRED site must set _vadEnergyDetected when content gate is available');
 });

@@ -2513,7 +2513,10 @@ var _contentGateAvail = !!(window.SpeechRecognition || window.webkitSpeechRecogn
 // This is intentional — content-match security outweighs the prior energy-only approach;
 // the challenge digits are already transcribed server-side via Deepgram anyway.
 // Non-matching interim transcripts are checked in memory and immediately discarded.
-function _startDigitContentGate(expectedDigit, onMatch) {
+// onFatal: called when a fatal STT error (not-allowed, audio-capture) kills the gate.
+// The caller uses it to null out the outer gate handle so _refreshContentGate starts a fresh gate
+// or falls back to energy-VAD instead of stalling the ceremony with a dead-but-non-null handle.
+function _startDigitContentGate(expectedDigit, onMatch, onFatal) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
@@ -2543,14 +2546,18 @@ function _startDigitContentGate(expectedDigit, onMatch) {
         // Non-fatal (no-speech, aborted) are transient; let onend handle restart.
         var e = evt && evt.error;
         var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
-        if (fatal) { stopped = true; }
+        if (fatal) { stopped = true; if (onFatal) { try { onFatal(); } catch(_) {} } }
         if (!stopped) { try { rec.abort(); } catch(_) {} }
     };
     rec.onend = function() {
         // Auto-restart on natural end (recognition stops after ~1min of silence)
         if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
     };
-    try { rec.start(); } catch(_) { return null; }
+    // Dead-man switch: if rec.start() throws, stopped stays true so onend never restarts
+    // the zombie recognizer (which would hold the mic stream indefinitely). Only flip false
+    // after a successful start so the onend auto-restart path is safe.
+    stopped = true;
+    try { rec.start(); stopped = false; } catch(_) { return null; }
     return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
 }
 
@@ -2589,7 +2596,8 @@ function _startPhraseContentGate(phraseTokens, onMatch) {
     rec.onend = function() {
         if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
     };
-    try { rec.start(); } catch(_) { return null; }
+    stopped = true;
+    try { rec.start(); stopped = false; } catch(_) { return null; }
     return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
 }
 
@@ -2846,6 +2854,9 @@ function beginRecording() {
     let _contentGate = null;         // active SpeechRecognition content gate for the current digit
     let _contentGateDigit = -1;      // digit index the active gate covers
     let _vadEnergyDetected = false;  // energy heard this digit window (health only — never triggers progression)
+    // Session-local shadow of module-level _contentGateAvail. Runtime permission failures set this
+    // to false (energy fallback) without corrupting the module-level var and degrading future sessions.
+    let _sessionGateAvail = _contentGateAvail;
 
     // S145d: shared Mic-pill VU drawer — fast attack (voice snaps the bar up), slow release
     // (decay 0.86/frame ≈ smooth fall), and color hysteresis (green at thr, back to grey only
@@ -2899,7 +2910,7 @@ function beginRecording() {
             var _sf = document.getElementById('vacStepVUfill'), _st = document.getElementById('vacStepVUtxt');
             if (_sf) { var _w2 = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _sf.style.width = _w2 + '%'; _sf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
             // D-VOICE-GATE-SPEAKER-AGNOSTIC: meter shows what the gate actually uses
-            var _gateDesc = _contentGateAvail ? 'content-gated — say the word' : 'mic health — speak past the gold line';
+            var _gateDesc = _sessionGateAvail ? 'content-gated — say the word' : 'mic health — speak past the gold line';
             if (_st) _st.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — ' + _gateDesc;
         } catch(_) {}
     }
@@ -3057,7 +3068,7 @@ function beginRecording() {
         if (recordingStopped || _speechMode !== 'vad') return;
         if (_contentGate) return; // still running for this digit
         if (currentDigitIndex >= digits.length || speechReady[currentDigitIndex]) return;
-        if (!_contentGateAvail) return; // energy fallback — no gate to start
+        if (!_sessionGateAvail) return; // energy fallback — no gate to start
         var targetDigit = digits[currentDigitIndex];
         var _gateForIdx = currentDigitIndex;  // capture index; guard against stale async callback
         _contentGateDigit = currentDigitIndex;
@@ -3065,13 +3076,17 @@ function beginRecording() {
             _contentGate = null; _contentGateDigit = -1;
             // Guard: if digit advanced while recognition was async, discard this result.
             if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
-            try { vacDebug('content_gate_fired', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: String(t).slice(0, 40) }); } catch(_) {}
+            try { vacDebug('content_gate_fired', null, { digit_index: _gateForIdx, digit: targetDigit }); } catch(_) {}
             _markSpeech('content', 0, null);
+        }, function() {
+            // Fatal STT error (not-allowed/audio-capture): null the outer handle so the
+            // VAD loop doesn't see a non-null but dead gate, and fall back to energy VAD.
+            _contentGate = null; _contentGateDigit = -1; _sessionGateAvail = false;
         });
         if (!_contentGate) {
-            // _startDigitContentGate returned null despite _contentGateAvail being set —
-            // likely a runtime permission error. Treat as unavailable this session.
-            _contentGateAvail = false;
+            // _startDigitContentGate returned null despite _sessionGateAvail being set —
+            // likely a runtime permission error. Degrade to energy fallback for this session only.
+            _sessionGateAvail = false;
             try { vacDebug('content_gate', 'runtime_unavailable', { digit: targetDigit }); } catch(_) {}
         }
     }
@@ -3102,7 +3117,7 @@ function _markSpeech(src, rms, onsetAt) {
         if (!audioAnalyser) { console.error('[VAC][VOICE] digit voice gate OFF — no audioAnalyser at speech-gate start (pacing only; Gemini still validates voice server-side)'); _speechGateOff('no_audio_analyser'); return; }  // W4.1: degrade to gesture-only + note
         if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); return; }  // user picked "Continue — skip voice" on the recovery → digits go gesture-only too
         _speechMode = 'vad';
-        try { vacDebug('speech_gate_mode', null, { mode: _contentGateAvail ? 'content+vad' : 'vad_energy_fallback' }); } catch(_) {}
+        try { vacDebug('speech_gate_mode', null, { mode: _sessionGateAvail ? 'content+vad' : 'vad_energy_fallback' }); } catch(_) {}
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: start content gate for the first digit
         _refreshContentGate();
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
@@ -3130,7 +3145,7 @@ function _markSpeech(src, rms, onsetAt) {
                 window.__vacGateArmed = true; _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
                 const _now = performance.now();
                 // D-VOICE-GATE-SPEAKER-AGNOSTIC: refresh content gate when digit advances
-                if (_contentGateAvail && _contentGateDigit !== currentDigitIndex) {
+                if (_sessionGateAvail && _contentGateDigit !== currentDigitIndex) {
                     if (_contentGate) { _contentGate.stop(); _contentGate = null; _contentGateDigit = -1; }
                     _refreshContentGate();
                 }
@@ -3223,11 +3238,11 @@ function _markSpeech(src, rms, onsetAt) {
                         // 0.194 peak now passes (needs 0.019); a flat tone at any level still fails
                         // (~zero swing); the voice-band + dual spectral checks + Gemini remain the
                         // real anti-spoof per L-2439 (client gates are pacing aids).
-                        _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', content_gated: _contentGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}  // S154 diag
+                        _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', content_gated: _sessionGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}  // S154 diag
                         // D-VOICE-GATE-SPEAKER-AGNOSTIC: energy alone is NOT a progression signal.
                         // When content gate is available, mark mic health and wait for content match.
                         // When unavailable (Firefox), fall back to energy progression (degraded).
-                        if (_contentGateAvail) {
+                        if (_sessionGateAvail) {
                             _vadEnergyDetected = true;  // mic-health indicator only
                             _refreshContentGate();      // ensure content gate is running for this digit
                         } else {
@@ -3246,8 +3261,8 @@ function _markSpeech(src, rms, onsetAt) {
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
                         && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)
                         && _voicedAboveThrFrames >= VOICE_EVIDENCE_MIN_FRAMES) {
-                        _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', content_gated: _contentGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
-                        if (_contentGateAvail) {
+                        _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', content_gated: _sessionGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
+                        if (_sessionGateAvail) {
                             _vadEnergyDetected = true;
                             _refreshContentGate();
                         } else {
@@ -4041,7 +4056,7 @@ function _markSpeech(src, rms, onsetAt) {
                 // D-VOICE-GATE-SPEAKER-AGNOSTIC: when content gate is available, energy alone
                 // does NOT set _phraseHeardVoice — content match (via _phraseContentMatched) does.
                 // Energy fallback: fire when content gate unavailable (Firefox / unsupported).
-                if (!_contentGateAvail) {
+                if (!_sessionGateAvail) {
                     // Finding 2: require SUSTAINED voiced energy (~1.4s) AND modulation — so a single ~400ms
                     // transient (cough/scrape) OR a flat continuous hum can't satisfy "greeting heard".
                     if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA) {
@@ -4130,10 +4145,9 @@ function _markSpeech(src, rms, onsetAt) {
     // the challenge phrase — both the greeting word(s) and the digit set). Fires
     // _phraseContentMatched = true when the transcript covers at least half the tokens.
     // Stopped when phraseSpoke fires (content consumed) or recording ends.
-    if (_contentGateAvail && PHRASE_DURATION > 0 && !_dropVoicePhrase) {
+    if (_sessionGateAvail && PHRASE_DURATION > 0 && !_dropVoicePhrase) {
         try {
             var _phr = challengeData && (challengeData.phrase || '');
-            var _greetWord = challengeData && challengeData.word ? [challengeData.word] : [];
             var _phrTokens = _phr.toLowerCase().split(/\s+/).filter(function(t){ return t.length >= 2; });
             // Always include digit numerals as tokens (language-tolerant: "two" OR "2")
             if (challengeData && challengeData.digits) {
@@ -4147,7 +4161,7 @@ function _markSpeech(src, rms, onsetAt) {
                 });
                 // null return = runtime permission failure; disable content gate so _phraseVadTick
                 // energy fallback activates and the phrase step can still proceed (degraded mode).
-                if (!_phraseContentGate) { _contentGateAvail = false; }
+                if (!_phraseContentGate) { _sessionGateAvail = false; }
             }
         } catch(_) {}
     }
