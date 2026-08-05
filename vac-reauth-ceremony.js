@@ -1794,14 +1794,14 @@ const CaptureFeedback = {
         if (opts.done) {
             if (promptEl) { promptEl.textContent = 'All captured ✓'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setLamp(gLamp, gWrap, 'done', 'G'); setLamp(vLamp, vWrap, 'done', 'V');
             setSayView(false); setBigNumber(false);
             return;
         }
         if (opts.beat) {
             if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
             if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'done', '✋'); setLamp(vLamp, vWrap, 'done', '🗣️');
+            setLamp(gLamp, gWrap, 'done', 'G'); setLamp(vLamp, vWrap, 'done', 'V');
             setSayView(false); setBigNumber(false);
             return;
         }
@@ -1815,8 +1815,8 @@ const CaptureFeedback = {
             // (same held pose carried from the last accept). Prompt the re-show (codex). Unchanged.
             if (promptEl) { promptEl.textContent = 'Lower your hand, then show ' + N + ' again'; promptEl.style.color = '#fbbf24'; }
             if (subEl) subEl.textContent = '';
-            setLamp(gLamp, gWrap, 'active', '✋');
-            setLamp(vLamp, vWrap, 'pending', '🗣️');
+            setLamp(gLamp, gWrap, 'active', 'G');
+            setLamp(vLamp, vWrap, 'pending', 'V');
             setBigNumber(true, N);
         } else if (ctx.voiceless) {
             // F-671 Phase B1: gesture-only fast policy (_captureVoice=false) — drop the "say it" half so
@@ -1828,40 +1828,48 @@ const CaptureFeedback = {
             if (vWrap) vWrap.style.display = 'none';
             if (!opts.handNear) {
                 if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
-                setLamp(gLamp, gWrap, 'pending', '✋');
+                setLamp(gLamp, gWrap, 'pending', 'G');
             } else if (!opts.gestureLive) {
                 if (subEl) subEl.textContent = 'Hand detected — hold steady.';
-                setLamp(gLamp, gWrap, 'ready', '✋');
+                setLamp(gLamp, gWrap, 'ready', 'G');
             } else {
                 if (subEl) subEl.textContent = 'hold steady';
-                setLamp(gLamp, gWrap, 'active', '✋');
+                setLamp(gLamp, gWrap, 'active', 'G');
             }
         } else {
             // The one simultaneous step: show N AND say N together. Camera stays ON, big number shown.
             // Gesture lamp lights while fingers are LIVE (dims if the hand drops → keep it up); voice
             // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
-            if (promptEl) { promptEl.textContent = 'Show ' + N + ' AND say “' + N + '” clearly — give it a full beat'; promptEl.style.color = 'var(--text-primary)'; }  // S145k interim coaching: sustained-voice gate rewards an unhurried digit; soften/remove once F-923 voice-band shape lands
+            // D-VOICE-GATE-SPEAKER-AGNOSTIC: when energy heard but content not matched, honest coaching
+            if (promptEl) {
+                if (opts.energyHeard && !opts.voiceDone) {
+                    promptEl.textContent = 'Listening — did not catch “' + N + '” yet — say it clearly';
+                } else {
+                    promptEl.textContent = 'Show ' + N + ' and say “' + N + '” clearly';
+                }
+                promptEl.style.color = 'var(--text-primary)';
+            }
             setBigNumber(true, N);
-            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), '🗣️');
+            setLamp(vLamp, vWrap, (!opts.voiceOn ? 'pending' : (opts.voiceDone ? 'done' : 'active')), 'V');
             if (!opts.handNear) {
                 // No hand, or hand outside the in-front-of-face capture zone. THIS is the silent-failure
                 // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
                 // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
                 // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
                 if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
-                setLamp(gLamp, gWrap, 'pending', '✋');
+                setLamp(gLamp, gWrap, 'pending', 'G');
             } else if (!opts.gestureLive) {
                 // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
                 // ("good spot") + hold-steady guidance, so the user knows the position is right.
                 if (subEl) subEl.textContent = 'Hand detected — hold steady.';
-                setLamp(gLamp, gWrap, 'ready', '✋');
+                setLamp(gLamp, gWrap, 'ready', 'G');
             } else {
                 // Fingers live in-zone — main's existing live-sensing lamp + adaptive co-occurrence coach.
                 // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
                 // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
                 var _coachSub = opts.voiceHelp ? '' : CaptureFeedback.coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
                 if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
-                setLamp(gLamp, gWrap, 'active', '✋');
+                setLamp(gLamp, gWrap, 'active', 'G');
             }
         }
     },
@@ -2444,6 +2452,147 @@ function _vadDiag(msg){
     } catch(_){}
 }
 
+// ── D-VOICE-GATE-SPEAKER-AGNOSTIC: content-gated voice progression ───────────
+// SECURITY FIX (task-voice-content-gate): Rob's daughter singing behind a closed
+// door drove RMS past the gold line and advanced the ceremony while Rob was silent.
+// Root cause: progression was energy/RMS-only — speaker- and content-agnostic.
+// Fix: gate progression on CONTENT — transcript must match the expected digit or
+// phrase tokens. Energy/RMS is DEMOTED to mic-health indicator only (never advances
+// the ceremony). Non-matching audio segments are DISCARDED, never stored (privacy).
+//
+// Numeral matching (F-823): same algorithm as engine.py normalize_words — word or
+// digit form, language-tolerant so "two" and "2" both match digit 2.
+
+const _CONTENT_DIGIT_MAP = {
+    'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,
+    'six':6,'seven':7,'eight':8,'nine':9
+};
+
+function _contentNormWord(w) {
+    w = (w || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (Object.prototype.hasOwnProperty.call(_CONTENT_DIGIT_MAP, w)) return _CONTENT_DIGIT_MAP[w];
+    if (/^\d$/.test(w)) return parseInt(w, 10);
+    return null;
+}
+
+// Returns true if transcript contains the expected digit as a word or numeral.
+// Non-matching transcripts are DISCARDED — never stored (privacy rule).
+function _contentTranscriptHasDigit(transcript, digit) {
+    if (transcript == null || digit == null) return false;
+    var words = String(transcript).toLowerCase().split(/[\s,.'!?;:]+/);
+    for (var wi = 0; wi < words.length; wi++) {
+        var w = words[wi];
+        if (!w) continue;
+        // _contentNormWord handles word form ("three"→3) and single-digit numeral ("3"→3).
+        // Multi-digit strings (e.g. "321") are rejected — substring match would let ambient
+        // speech like "thirteen" (→"13") bypass the gate for digit 3. (security: D-VOICE-GATE)
+        if (_contentNormWord(w) === digit) return true;
+    }
+    return false;
+}
+
+// Returns true if transcript contains enough phrase tokens (greeting content gate).
+// Requires at least half the content tokens to match (language-tolerant partial match).
+function _contentTranscriptMatchesPhrase(transcript, phraseTokens) {
+    if (!transcript || !phraseTokens || !phraseTokens.length) return false;
+    var norm = String(transcript).toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    var words = norm.split(/\s+/).filter(Boolean);
+    var matchCount = 0;
+    for (var ti = 0; ti < phraseTokens.length; ti++) {
+        if (words.indexOf(String(phraseTokens[ti]).toLowerCase()) >= 0) matchCount++;
+    }
+    return matchCount >= Math.ceil(phraseTokens.length * 0.5);
+}
+
+// True if the browser supports SpeechRecognition (evaluated once at module load).
+// False on Firefox — falls back to energy VAD gate for progression (degraded mode).
+var _contentGateAvail = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+
+// Starts a SpeechRecognition content gate for one digit. Returns {stop()} or null.
+// Privacy note: SpeechRecognition may stream audio to the browser vendor's STT service.
+// This is intentional — content-match security outweighs the prior energy-only approach;
+// the challenge digits are already transcribed server-side via Deepgram anyway.
+// Non-matching interim transcripts are checked in memory and immediately discarded.
+function _startDigitContentGate(expectedDigit, onMatch) {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    var stopped = false, matched = false, rec;
+    try {
+        rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        rec.lang = 'en-US';
+    } catch(_) { return null; }
+    rec.onresult = function(evt) {
+        if (matched || stopped) return;
+        for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
+            var t = evt.results[ri][0].transcript;
+            if (_contentTranscriptHasDigit(t, expectedDigit)) {
+                matched = true;
+                stopped = true;              // prevent onend restart
+                try { rec.abort(); } catch(_) {}  // stop immediately; no overlap with next digit
+                try { onMatch(t); } catch(_) {}
+                return;
+            }
+            // Non-matching transcript — discarded here, never stored (privacy rule)
+        }
+    };
+    rec.onerror = function(evt) {
+        // Fatal errors don't self-recover — mark stopped so onend doesn't restart.
+        // Non-fatal (no-speech, aborted) are transient; let onend handle restart.
+        var e = evt && evt.error;
+        var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
+        if (fatal) { stopped = true; }
+        if (!stopped) { try { rec.abort(); } catch(_) {} }
+    };
+    rec.onend = function() {
+        // Auto-restart on natural end (recognition stops after ~1min of silence)
+        if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
+    };
+    try { rec.start(); } catch(_) { return null; }
+    return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
+}
+
+// Starts a content gate for the greeting phrase. phraseTokens = key content words.
+function _startPhraseContentGate(phraseTokens, onMatch) {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return null;
+    var stopped = false, matched = false, rec;
+    try {
+        rec = new SR();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        rec.lang = 'en-US';
+    } catch(_) { return null; }
+    rec.onresult = function(evt) {
+        if (matched || stopped) return;
+        for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
+            var t = evt.results[ri][0].transcript;
+            if (_contentTranscriptMatchesPhrase(t, phraseTokens)) {
+                matched = true;
+                stopped = true;
+                try { rec.abort(); } catch(_) {}
+                try { onMatch(t); } catch(_) {}
+                return;
+            }
+            // Non-matching transcript — discarded here, never stored (privacy rule)
+        }
+    };
+    rec.onerror = function(evt) {
+        var e = evt && evt.error;
+        var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
+        if (fatal) { stopped = true; }
+        if (!stopped) { try { rec.abort(); } catch(_) {} }
+    };
+    rec.onend = function() {
+        if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
+    };
+    try { rec.start(); } catch(_) { return null; }
+    return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
+}
+
 function beginRecording() {
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
@@ -2693,6 +2842,10 @@ function beginRecording() {
     let _speechGateStarted = false;
     let _lastVadRms = 0;             // latest VAD RMS, surfaced to the QA overlay for live calibration
     let _lastVbRatio = 0;            // BUILD 379: latest voice-band ratio (85Hz-3kHz / all bins), surfaced to the QA overlay
+    // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate state (per-digit, reset on advance)
+    let _contentGate = null;         // active SpeechRecognition content gate for the current digit
+    let _contentGateDigit = -1;      // digit index the active gate covers
+    let _vadEnergyDetected = false;  // energy heard this digit window (health only — never triggers progression)
 
     // S145d: shared Mic-pill VU drawer — fast attack (voice snaps the bar up), slow release
     // (decay 0.86/frame ≈ smooth fall), and color hysteresis (green at thr, back to grey only
@@ -2745,7 +2898,9 @@ function beginRecording() {
             if (_svp && _svp.offsetParent === null) { try { _svp.remove(); } catch(_) {} }
             var _sf = document.getElementById('vacStepVUfill'), _st = document.getElementById('vacStepVUtxt');
             if (_sf) { var _w2 = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _sf.style.width = _w2 + '%'; _sf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
-            if (_st) _st.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — speak past the gold line';
+            // D-VOICE-GATE-SPEAKER-AGNOSTIC: meter shows what the gate actually uses
+            var _gateDesc = _contentGateAvail ? 'content-gated — say the word' : 'mic health — speak past the gold line';
+            if (_st) _st.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — ' + _gateDesc;
         } catch(_) {}
     }
     try { window.__vacMicPillDraw = _micPillDraw; } catch(_) {}
@@ -2881,25 +3036,55 @@ function beginRecording() {
         // actually contains footage of every digit pose before we stop + send
         // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
         try { _stopSpeechGate(); } catch(_){}
+        // D-VOICE-GATE-SPEAKER-AGNOSTIC: stop phrase content gate when recording ends
+        try { if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; } } catch(_) {}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
         _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
         setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
     }
 
-    // ── F-561 voice-pacing gate (VAD-only, on-device) ──────────────────────────
-    // D1 (S111): VAD-only — webkitSpeechRecognition is NOT used because in Chrome it
-    // streams mic audio to Google, contradicting the on-device / zero-network promise
-    // and the page's privacy copy. We only need "did they speak this digit", not the
-    // words, so on-device energy detection is sufficient. Reuses the existing
-    // audioAnalyser (startAudioMonitor) — no second AudioContext, no new getUserMedia,
-    // no permission prompt.
-    
+    // ── F-561 voice-pacing gate (content-gated, D-VOICE-GATE-SPEAKER-AGNOSTIC) ──
+    // D1 (task-voice-content-gate): SpeechRecognition is NOW used for content-gated
+    // progression — the transcript must match the expected digit/phrase. Energy/RMS is
+    // DEMOTED to mic-health indicator only (never advances the ceremony).
+    // Prior concern (S111): "webkitSpeechRecognition streams to Google" — intentional
+    // security upgrade: content-match safety > energy-only approach. The challenge digits
+    // are already transcribed server-side via Deepgram. Non-matching audio is discarded.
+    // Fallback: when SpeechRecognition unavailable (Firefox), energy VAD governs as before.
+
+    // Refresh the per-digit content gate when the digit changes or it was consumed.
+    function _refreshContentGate() {
+        if (recordingStopped || _speechMode !== 'vad') return;
+        if (_contentGate) return; // still running for this digit
+        if (currentDigitIndex >= digits.length || speechReady[currentDigitIndex]) return;
+        if (!_contentGateAvail) return; // energy fallback — no gate to start
+        var targetDigit = digits[currentDigitIndex];
+        var _gateForIdx = currentDigitIndex;  // capture index; guard against stale async callback
+        _contentGateDigit = currentDigitIndex;
+        _contentGate = _startDigitContentGate(targetDigit, function(t) {
+            _contentGate = null; _contentGateDigit = -1;
+            // Guard: if digit advanced while recognition was async, discard this result.
+            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            try { vacDebug('content_gate_fired', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: String(t).slice(0, 40) }); } catch(_) {}
+            _markSpeech('content', 0, null);
+        });
+        if (!_contentGate) {
+            // _startDigitContentGate returned null despite _contentGateAvail being set —
+            // likely a runtime permission error. Treat as unavailable this session.
+            _contentGateAvail = false;
+            try { vacDebug('content_gate', 'runtime_unavailable', { digit: targetDigit }); } catch(_) {}
+        }
+    }
+
 function _markSpeech(src, rms, onsetAt) {
         if (recordingStopped) return;
         if (currentDigitIndex >= digits.length) return;
         if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
         if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
         speechReady[currentDigitIndex] = true;
+        _vadEnergyDetected = false;  // reset health flag for next digit
+        // Content gate consumed for this digit — stop it; new gate starts on next digit
+        if (_contentGate) { _contentGate.stop(); _contentGate = null; _contentGateDigit = -1; }
         _voiceFiredAt = performance.now();   // SHOW-AS-YOU-SAY: stamp the spoken-digit moment for the co-occurrence window
         // S111 unification: a FRESH per-digit speech onset is ALSO a deliberate "new digit"
         // signal, so it satisfies the gesture re-arm — the user doesn't have to lower their
@@ -2917,7 +3102,9 @@ function _markSpeech(src, rms, onsetAt) {
         if (!audioAnalyser) { console.error('[VAC][VOICE] digit voice gate OFF — no audioAnalyser at speech-gate start (pacing only; Gemini still validates voice server-side)'); _speechGateOff('no_audio_analyser'); return; }  // W4.1: degrade to gesture-only + note
         if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); return; }  // user picked "Continue — skip voice" on the recovery → digits go gesture-only too
         _speechMode = 'vad';
-        try { vacDebug('speech_gate_mode', null, { mode: 'vad' }); } catch(_) {}
+        try { vacDebug('speech_gate_mode', null, { mode: _contentGateAvail ? 'content+vad' : 'vad_energy_fallback' }); } catch(_) {}
+        // D-VOICE-GATE-SPEAKER-AGNOSTIC: start content gate for the first digit
+        _refreshContentGate();
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
         let voiced = 0;
         let voiceMin = 1, voiceMax = 0;   // F-563 (#1): rms range over the current voiced run (the modulation check)
@@ -2942,6 +3129,11 @@ function _markSpeech(src, rms, onsetAt) {
                 _lastVbRatio = vbRatio;  // surfaced to the QA overlay
                 window.__vacGateArmed = true; _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
                 const _now = performance.now();
+                // D-VOICE-GATE-SPEAKER-AGNOSTIC: refresh content gate when digit advances
+                if (_contentGateAvail && _contentGateDigit !== currentDigitIndex) {
+                    if (_contentGate) { _contentGate.stop(); _contentGate = null; _contentGateDigit = -1; }
+                    _refreshContentGate();
+                }
                 if (rms < vadSilenceThreshold) {
                     // Track silence ALWAYS — even while the window is closed (during the confirm
                     // beat / grace). A real pause there arms the next digit, so a fresh utterance
@@ -3031,8 +3223,16 @@ function _markSpeech(src, rms, onsetAt) {
                         // 0.194 peak now passes (needs 0.019); a flat tone at any level still fails
                         // (~zero swing); the voice-band + dual spectral checks + Gemini remain the
                         // real anti-spoof per L-2439 (client gates are pacing aids).
-                        _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}  // S154 diag
-                        _markSpeech('vad', rms, _voiceOnsetAt);
+                        _vadDiag('FIRED: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', content_gated: _contentGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}  // S154 diag
+                        // D-VOICE-GATE-SPEAKER-AGNOSTIC: energy alone is NOT a progression signal.
+                        // When content gate is available, mark mic health and wait for content match.
+                        // When unavailable (Firefox), fall back to energy progression (degraded).
+                        if (_contentGateAvail) {
+                            _vadEnergyDetected = true;  // mic-health indicator only
+                            _refreshContentGate();      // ensure content gate is running for this digit
+                        } else {
+                            _markSpeech('vad', rms, _voiceOnsetAt);  // energy fallback
+                        }
                         voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false; _voicedAboveThrFrames = 0;   // consumed; a NEW silence is required to re-arm
                     }
                 } else {
@@ -3046,8 +3246,13 @@ function _markSpeech(src, rms, onsetAt) {
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
                         && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)
                         && _voicedAboveThrFrames >= VOICE_EVIDENCE_MIN_FRAMES) {
-                        _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
-                        _markSpeech('vad', voiceMax, _voiceOnsetAt);
+                        _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', content_gated: _contentGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
+                        if (_contentGateAvail) {
+                            _vadEnergyDetected = true;
+                            _refreshContentGate();
+                        } else {
+                            _markSpeech('vad', voiceMax, _voiceOnsetAt);
+                        }
                         voiced = 0; voiceMin = 1; voiceMax = 0; _sawSilence = false; _voicedAboveThrFrames = 0;
                     }
                     if (_preOnsetStart) {  // S154: tolerate brief observed dips (soft consonants) within pre-onset; only a SUSTAINED dip (> VAD_ONSET_DIP_MS) aborts — was a hard single-frame reset that rejected normal speech
@@ -3082,6 +3287,8 @@ function _markSpeech(src, rms, onsetAt) {
     }
     function _stopSpeechGate() {
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
+        // D-VOICE-GATE-SPEAKER-AGNOSTIC: stop any running content gate
+        if (_contentGate) { _contentGate.stop(); _contentGate = null; _contentGateDigit = -1; }
     }
     // Stuck-user escape (D2): gesture held ready but VAD never fires (muted/quiet mic).
     // Explicit tap, never silent auto-advance; turns the voice gate off for THIS digit
@@ -3710,7 +3917,8 @@ function _markSpeech(src, rms, onsetAt) {
                 voiceOn: (_speechMode !== 'off'),
                 voiceDone: !!speechReady[currentDigitIndex],
                 rearmed: _acceptArmed,   // speech-off: a held pose can be gesture-confirmed but NOT re-armed (blocked) — don't show "Got it"
-                voiceHelp: !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
+                voiceHelp: !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS),
+                energyHeard: _vadEnergyDetected  // D-VOICE-GATE-SPEAKER-AGNOSTIC: energy heard but content not matched yet
             });
         } catch(_) {}
 
@@ -3741,6 +3949,9 @@ function _markSpeech(src, rms, onsetAt) {
     let _phraseHeardVoice = false;
     let phraseSpoke = false;
     let _phraseHeardAt = 0;                            // F-563: when the greeting was HEARD — drives the "✓ Heard it" beat before advancing (digit parity)
+    // D-VOICE-GATE-SPEAKER-AGNOSTIC: phrase content gate state
+    let _phraseContentGate = null;
+    let _phraseContentMatched = false;
     const GREET_HEARD_BEAT_MS = 800;                  // hold the greeting ✓ this long so the user KNOWS it registered, like a digit's ✓
     // F-563 (Finding 2): the on-device VAD is a PACING gate, NOT the security check — Gemini
     // server-side is the authoritative word verifier. The old ~400ms threshold (2 ticks) fired on a
@@ -3788,6 +3999,11 @@ function _markSpeech(src, rms, onsetAt) {
 
     function _phraseVadTick() {
         if (!audioAnalyser || phraseSpoke) return;
+        // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate sets _phraseContentMatched; tick reads it
+        if (_phraseContentMatched && !_phraseHeardVoice) {
+            _phraseHeardVoice = true;
+            try { vacDebug('phrase_content_matched', null, { ticks: _phraseVoicedTicks }); } catch(_) {}
+        }
         try {
             const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);
             audioAnalyser.getByteFrequencyData(_buf);
@@ -3822,10 +4038,15 @@ function _markSpeech(src, rms, onsetAt) {
                 if (_speechSamples.length < _CAL_SPEECH_MAX) _speechSamples.push(_rms);
                 if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
                 if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
-                // Finding 2: require SUSTAINED voiced energy (~1.4s) AND modulation — so a single ~400ms
-                // transient (cough/scrape) OR a flat continuous hum can't satisfy "greeting heard".
-                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA) {
-                    _phraseHeardVoice = true;
+                // D-VOICE-GATE-SPEAKER-AGNOSTIC: when content gate is available, energy alone
+                // does NOT set _phraseHeardVoice — content match (via _phraseContentMatched) does.
+                // Energy fallback: fire when content gate unavailable (Firefox / unsupported).
+                if (!_contentGateAvail) {
+                    // Finding 2: require SUSTAINED voiced energy (~1.4s) AND modulation — so a single ~400ms
+                    // transient (cough/scrape) OR a flat continuous hum can't satisfy "greeting heard".
+                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA) {
+                        _phraseHeardVoice = true;
+                    }
                 }
             } else if (_rms < VAD_SILENCE_RMS_FALLBACK) {
                 if (!_phraseHeardVoice) {
@@ -3897,12 +4118,38 @@ function _markSpeech(src, rms, onsetAt) {
         if (_st) { _st.textContent = 'Say the phrase'; _st.style.color = '#fbbf24'; }
         var _listening = (elapsedMs / 1000) >= PHRASE_DURATION;   // past the read window → emphasise "we're listening"
         challengeEl.innerHTML =
-            '<div style="font-size:clamp(11px,3vw,12px);font-family:var(--mono);letter-spacing:1.5px;color:#fbbf24;margin-bottom:6px;">' + (_listening ? '🎙️ LISTENING — SAY IT OUT LOUD' : (_vo ? 'READ THIS OUT LOUD — INCLUDING THE NUMBERS' : 'SAY THIS OUT LOUD')) + '</div>'
+            '<div style="font-size:clamp(11px,3vw,12px);font-family:var(--mono);letter-spacing:1.5px;color:#fbbf24;margin-bottom:6px;">' + (_listening ? 'LISTENING — SAY IT OUT LOUD' : (_vo ? 'READ THIS OUT LOUD — INCLUDING THE NUMBERS' : 'SAY THIS OUT LOUD')) + '</div>'
             + '<div style="font-size:clamp(22px,6.5vw,32px);font-weight:800;color:#fbbf24;line-height:1.3;">“' + _say + '”</div>'
             + (_vo ? '' : '<div style="font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary);margin-top:6px;">then show each number as you say it, one take</div>');
         // Show the live eq (STABLE element in #challengePanel, updated every frame by startAudioMonitor)
         // — proof the mic is hearing the greeting. Hidden if there's no mic (eq can't move anyway).
         var _eq = document.getElementById('vacEqGreeting'); if (_eq) _eq.style.display = audioAnalyser ? 'flex' : 'none';
+    }
+
+    // D-VOICE-GATE-SPEAKER-AGNOSTIC: start phrase content gate (grabs key tokens from
+    // the challenge phrase — both the greeting word(s) and the digit set). Fires
+    // _phraseContentMatched = true when the transcript covers at least half the tokens.
+    // Stopped when phraseSpoke fires (content consumed) or recording ends.
+    if (_contentGateAvail && PHRASE_DURATION > 0 && !_dropVoicePhrase) {
+        try {
+            var _phr = challengeData && (challengeData.phrase || '');
+            var _greetWord = challengeData && challengeData.word ? [challengeData.word] : [];
+            var _phrTokens = _phr.toLowerCase().split(/\s+/).filter(function(t){ return t.length >= 2; });
+            // Always include digit numerals as tokens (language-tolerant: "two" OR "2")
+            if (challengeData && challengeData.digits) {
+                challengeData.digits.forEach(function(d){ _phrTokens.push(String(d)); });
+            }
+            if (_phrTokens.length) {
+                _phraseContentGate = _startPhraseContentGate(_phrTokens, function() {
+                    _phraseContentMatched = true;
+                    if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; }
+                    try { vacDebug('phrase_content_gate_matched', null, { tokens: _phrTokens.length }); } catch(_) {}
+                });
+                // null return = runtime permission failure; disable content gate so _phraseVadTick
+                // energy fallback activates and the phrase step can still proceed (degraded mode).
+                if (!_phraseContentGate) { _contentGateAvail = false; }
+            }
+        } catch(_) {}
     }
 
     // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
@@ -4182,7 +4429,9 @@ const FAST_VAD_VOICE_BAND_FRAC = 0.35; // S139-v2: mirrors VAD_VOICE_BAND_FRAC �
 function _makeQuickReauthVoiceGate(cfg) {
     var speechThr = cfg.speechThr, silenceThr = cfg.silenceThr;
     var voiceMinMs = cfg.voiceMinMs, modDelta = cfg.modDelta, gapMs = cfg.gapMs;
+    var _expectedDigit = (cfg.expectedDigit != null) ? cfg.expectedDigit : null;
     var _armed = false, _firedAt = 0, _windowStart = 0, _raf = null, _stopped = false;
+    var _fastContentGate = null;  // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate for fast tier
     var voiced = 0, vMin = 1, vMax = 0, dipStart = 0, onsetAt = 0, sawSilence = false;
     var voicedFrames = 0;   // S155: mirrors full-path _voicedAboveThrFrames — VOICE_EVIDENCE_MIN_FRAMES floor
     var preOnsetStart = 0;       // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
@@ -4261,8 +4510,17 @@ function _makeQuickReauthVoiceGate(cfg) {
                 if (voiced > 0 && now >= _windowStart
                     && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)
                     && voicedFrames >= VOICE_EVIDENCE_MIN_FRAMES) {  // S154: relative modulation (see full-path comment); S155: frame floor
-                    _vadDiag('FIRED: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% thr ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)) }); } catch(_){}  // S154 diag
-                    _armed = true; _firedAt = now;                              // sustained + modulated → FIRE
+                    _vadDiag('FIRED: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% thr ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', content_gated: _contentGateAvail && _expectedDigit != null, dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)) }); } catch(_){}  // S154 diag
+                    // D-VOICE-GATE-SPEAKER-AGNOSTIC: energy alone is NOT a progression signal.
+                    if (_contentGateAvail && _expectedDigit != null) {
+                        // Energy heard — health indicator. Content gate fires _armed when matched.
+                        if (!_fastContentGate) {
+                            _fastContentGate = _startDigitContentGate(_expectedDigit, function() { _fastContentGate = null; _armed = true; _firedAt = performance.now(); });
+                            if (!_fastContentGate) { _armed = true; _firedAt = now; }  // runtime null → energy fallback
+                        }
+                    } else {
+                        _armed = true; _firedAt = now;  // energy fallback (no content gate)
+                    }
                     voiced = 0; vMin = 1; vMax = 0; sawSilence = false; voicedFrames = 0;         // consumed; a NEW silence re-arms
                 }
             } else {
@@ -4270,8 +4528,15 @@ function _makeQuickReauthVoiceGate(cfg) {
                 if (voiced > 0 && now >= _windowStart
                     && (now - onsetAt) >= voiceMinMs && (vMax - vMin) >= Math.max(0.012, 0.10 * vMax)
                     && voicedFrames >= VOICE_EVIDENCE_MIN_FRAMES) {  // S154: dip-frame fire evaluation (mirrors full path — see comment there); S155: frame floor
-                    _vadDiag('FIRED(dip): ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', on:'dip', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)) }); } catch(_){}
-                    _armed = true; _firedAt = now;
+                    _vadDiag('FIRED(dip): ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'fast', on:'dip', content_gated: _contentGateAvail && _expectedDigit != null, dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)) }); } catch(_){}
+                    if (_contentGateAvail && _expectedDigit != null) {
+                        if (!_fastContentGate) {
+                            _fastContentGate = _startDigitContentGate(_expectedDigit, function() { _fastContentGate = null; _armed = true; _firedAt = performance.now(); });
+                            if (!_fastContentGate) { _armed = true; _firedAt = now; }  // runtime null → energy fallback
+                        }
+                    } else {
+                        _armed = true; _firedAt = now;
+                    }
                     voiced = 0; vMin = 1; vMax = 0; sawSilence = false; voicedFrames = 0;
                 }
                 if (preOnsetStart) {  // S154: tolerate brief observed dips within pre-onset (mirrors full path); sustained dip (>60ms) aborts
@@ -4297,7 +4562,12 @@ function _makeQuickReauthVoiceGate(cfg) {
             _windowStart = performance.now();
             _loop(analyser, new Uint8Array(analyser.frequencyBinCount));
         },
-        stop: function() { _stopped = true; if (_raf) { cancelAnimationFrame(_raf); _raf = null; } },
+        stop: function() {
+            _stopped = true;
+            if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
+            // D-VOICE-GATE-SPEAKER-AGNOSTIC: stop content gate
+            if (_fastContentGate) { _fastContentGate.stop(); _fastContentGate = null; }
+        },
         clearArm: function() { _armed = false; },
         get armed() { return _armed; },
         get firedAt() { return _firedAt; }
@@ -4415,7 +4685,8 @@ async function beginStillCapture() {
                 try { vacDebug('vad_calibrated', null, { at: 'arm', tier: 'fast', floor: _fastVad ? Number(_fastVad.floor.toFixed(3)) : (_fastRollingThr != null ? Number(audioNoiseFloor.toFixed(3)) : null), speech: _fastVad ? Number(_fastVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(_fastSpeechThr.toFixed(3)), sil: Number(_fastSilenceThr.toFixed(3)), fallback: !_fastVad, reason: _fastVad ? null : _micPreflightVadReason, source: _fastVad ? 'preflight' : (_fastRollingThr != null ? 'rolling_floor' : 'fallback') }); } catch(_) {}
                 _voiceGate = _makeQuickReauthVoiceGate({
                     speechThr: _fastSpeechThr, silenceThr: _fastSilenceThr,
-                    voiceMinMs: FAST_DIGIT_VOICE_MIN_MS, modDelta: FAST_DIGIT_MOD_DELTA, gapMs: FAST_DIGIT_VOICE_GAP_MS
+                    voiceMinMs: FAST_DIGIT_VOICE_MIN_MS, modDelta: FAST_DIGIT_MOD_DELTA, gapMs: FAST_DIGIT_VOICE_GAP_MS,
+                    expectedDigit: _expectFingers  // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate target
                 });
                 _voiceGate.start(audioAnalyser);
             } else {
@@ -6210,11 +6481,11 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div id="vacGuidedSub" style="font-size:clamp(12px,3.2vw,14px);color:var(--text-secondary);margin-top:4px;min-height:1.2em;"></div>
         <div style="display:flex;justify-content:center;gap:clamp(14px,5vw,28px);margin-top:8px;">
             <div id="vacGuidedGesture" style="display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0.4;transition:opacity 0.2s;">
-                <span class="vac-lamp" style="display:inline-flex;width:clamp(34px,9vw,44px);height:clamp(34px,9vw,44px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(18px,5vw,22px);">✋</span>
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(34px,9vw,44px);height:clamp(34px,9vw,44px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(18px,5vw,22px);">G</span>
                 <span style="font-size:10px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">GESTURE</span>
             </div>
             <div id="vacGuidedVoice" style="display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0.4;transition:opacity 0.2s;">
-                <span class="vac-lamp" style="display:inline-flex;width:clamp(34px,9vw,44px);height:clamp(34px,9vw,44px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(18px,5vw,22px);">🗣️</span>
+                <span class="vac-lamp" style="display:inline-flex;width:clamp(34px,9vw,44px);height:clamp(34px,9vw,44px);border-radius:50%;border:2px solid var(--border);align-items:center;justify-content:center;font-size:clamp(18px,5vw,22px);">V</span>
                 <span style="font-size:10px;font-family:var(--mono);letter-spacing:0.5px;color:var(--text-tertiary);">VOICE</span>
             </div>
         </div>
@@ -6257,7 +6528,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div id="vacSayView" style="display:none;position:absolute;inset:0;z-index:7;background:var(--bg,#0A0F1A);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;gap:10px;">
             <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-tertiary);font-family:var(--mono);letter-spacing:1.5px;">SAY IT OUT LOUD</div>
             <div id="vacSayWord" style="font-size:clamp(40px,14vw,72px);font-weight:800;color:#fbbf24;line-height:1;"></div>
-            <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening 🎙️</div>
+            <div style="font-size:clamp(13px,3.6vw,15px);color:var(--text-secondary);">Just say the number — we're listening</div>
             <div id="vacSayEq" class="vac-eq" style="display:flex;justify-content:center;align-items:flex-end;gap:5px;height:36px;margin-top:6px;"><span></span><span></span><span></span><span></span><span></span></div>
             <div id="vacSayLevelTrack" style="width:min(240px,70%);height:8px;border-radius:4px;background:rgba(255,255,255,.14);margin-top:10px;position:relative;overflow:visible;">
                 <div id="vacSayLevelFill" style="height:100%;width:0%;background:#8b97ad;border-radius:4px;transition:width 60ms linear;"></div>
