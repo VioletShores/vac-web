@@ -4820,7 +4820,10 @@ async function beginStillCapture() {
                     try { _n = FingerDetector.detect(_gv); } catch(_) {}
                     // F-654: draw the SAME hand skeleton as the full/seal finger phase (consistency,
                     // Rob) via the top-level shared drawer (the beginRecording one is out of scope).
-                    try { if (FingerDetector.landmarks) _drawHandSkeletonShared(_gv, FingerDetector.landmarks, _expectFingers); } catch(_) {}
+                    // D-QUICKAUTH-ZONE-AFFORDANCE-LATE: call unconditionally so zone ovals pre-show
+                    // before hand detection, matching the full-path's per-frame oval draw (L-2299).
+                    // _drawFingerTargetGuide handles null lm gracefully: draws ovals, skips skeleton.
+                    try { _drawHandSkeletonShared(_gv, FingerDetector.landmarks, _expectFingers); } catch(_) {}
                     // require the SAME count steady across consecutive ticks (not just presence)
                     if (typeof _n === 'number' && _n >= 0) {
                         if (_n === _lastSeen) _stable++; else _stable = 1;

@@ -113,6 +113,21 @@ test('_activeZone() is present in source and returns an anchored shape', () => {
 
 const FACE_ASPECT = constFromSource('_FACE_ASPECT');
 
+// TC-QA-ZONE-PARITY: D-QUICKAUTH-ZONE-AFFORDANCE-LATE parity fixture.
+// Quick-auth must show zone ovals BEFORE hand detection — same as full auth.
+// Verifies that the fast-path polling loop calls _drawHandSkeletonShared
+// unconditionally, not guarded by `if (FingerDetector.landmarks)`.
+// RED before fix, GREEN after.
+test('TC-QA-ZONE-PARITY: quick-path _drawHandSkeletonShared called unconditionally (ovals pre-show before hand)', () => {
+    const guarded = /if\s*\(\s*FingerDetector\.landmarks\s*\)\s*_drawHandSkeletonShared/.test(src);
+    assert.ok(
+        !guarded,
+        'D-QUICKAUTH-ZONE-AFFORDANCE-LATE: _drawHandSkeletonShared must be called unconditionally ' +
+        'in beginStillCapture polling loop — no `if (FingerDetector.landmarks)` guard — so ' +
+        'zone ovals pre-show before the user raises their hand (parity with full auth path).'
+    );
+});
+
 for (const fix of FIXTURES) {
     test(`[${fix.name}] A1: both ovals fully within frame bounds (hFrac=${fix.hFrac})`, () => {
         const z = computeZoneFromSource(fix.cx, fix.cy, fix.hFrac);
