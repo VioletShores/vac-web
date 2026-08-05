@@ -1,3 +1,22 @@
+# VAC Web — HANDOFF (Session 23 → Session 24)
+> Updated: 6 Aug 2026 — FLASH DONE: task-quickauth-zone-preshow merged + deployed
+
+## FLASH DONE — task-quickauth-zone-preshow (D-QUICKAUTH-ZONE-AFFORDANCE-LATE)
+**Branch:** `task-quickauth-zone-preshow` → merged to main as 00df479 (2026-08-06)
+**Root cause fixed:** In `beginStillCapture` fast-path polling loop (L-4823), `_drawHandSkeletonShared` was guarded by `if (FingerDetector.landmarks)` — cheek zone ovals only appeared AFTER hand detection. Full auth path calls `_drawFingerTargetGuide` unconditionally each frame, so ovals appear from frame 1.
+**Fix:** Removed `if (FingerDetector.landmarks)` guard. `_drawHandSkeletonShared` now called every 120ms tick unconditionally (still wrapped in try/catch). `_drawFingerTargetGuide` handles null lm: draws ovals (right active/bright, left inactive/faint), skips skeleton branch (`if (_lmComplete && lm)`). `_guideSide(null)` returns `'right'` safely.
+**Harness (TC-QA-ZONE-PARITY):** Added to `tests/zone-geometry.test.js` — structural parity fixture asserting the `if (FingerDetector.landmarks)` guard is absent from source. RED before fix, GREEN after.
+**Tests:** 50/50 PASS (1 new parity fixture)
+**Gates:** /codex PASS | /review PASS (scope CLEAN) | /qa 50/50 | /browse PENDING (Rob confirms live)
+**Byte-verify LIVE:** Old guard `if (FingerDetector.landmarks) _drawHandSkeletonShared` → 0 hits at vacprotocol.org/vac-reauth-ceremony.js. New unconditional call confirmed present.
+**Affordance divergence sweep (FLASH, not fixed this lane):**
+- D-QUICKAUTH-PREFLIGHT-NO-HAND: fast path intentionally skips pre-flight (L-1230, by design)
+- D-QUICKAUTH-SIDE-GUESS: pre-hand state shows right oval active vs full path both-dim (minor asymmetry)
+- D-QUICKAUTH-NO-AVDRAWHAND: fast path doesn't use `_avDrawHand` (pre-flight by design)
+**CONFIRM:** Rob opens quick-auth — zones (cheek ovals) should be visible BEFORE raising hand, same as full auth path.
+
+---
+
 # VAC Web — HANDOFF (Session 22 → Session 23)
 > Updated: 6 Aug 2026 — FLASH DONE: task-journey-harness merged + deployed
 
