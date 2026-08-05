@@ -1,3 +1,28 @@
+# VAC Web — HANDOFF (Session 20 → Session 21)
+> Updated: 6 Aug 2026 — FLASH DONE: task-voice-content-gate merged + deployed
+
+## FLASH DONE — task-voice-content-gate (D-VOICE-GATE-SPEAKER-AGNOSTIC)
+**Branch:** `task-voice-content-gate` → merged into `merge-vcg` → pushed to main as 544b80e (2026-08-06)
+**Root cause fixed:** Rob's daughter singing behind a closed door drove RMS past the gold line and advanced the ceremony while Rob was silent. Gate was energy/RMS-only.
+**Fix:** Content-gated voice progression via SpeechRecognition API. Transcript must match the expected digit (word or numeral) or phrase tokens (≥50% token match) before `_markSpeech` advances the ceremony.
+**Key changes to vac-reauth-ceremony.js:**
+- `_contentGateAvail` — module-level feature detection (SpeechRecognition || webkitSpeechRecognition)
+- `_sessionGateAvail` — session-local shadow; runtime failures degrade gracefully without poisoning next session
+- `_startDigitContentGate` / `_startPhraseContentGate` — SpeechRecognition handlers with dead-man switch
+- `_refreshContentGate` — orchestrates digit gate with onFatal callback
+- RMS/VAD demoted to mic-health indicator: sets `_vadEnergyDetected=true`, does NOT advance
+- Honest coaching: "Listening — did not catch N yet — say it clearly" when energy heard but content unmatched
+- Emoji removed: all 🎙️ / 🗣️ from coaching lines; setLamp uses 'G'/'V' text
+- Privacy: non-matching transcripts discarded in-memory, never stored or transmitted
+**Tests:** 37/37 pass (16 content-gate C1-C15+Privacy, 14 zone-geometry, 7 vad-replay)
+**Gates:** /review PASS (ghost-recognizer fix, session-local state, onFatal callback) | /cso PASS (0 findings) | /browse PASS (auth page loads, no JS errors) | /ship PASS
+**Zone geometry:** NO REGRESSION — all 14 geometry tests still pass
+**Byte-verify:** `_sessionGateAvail`, `_startDigitContentGate`, `_startPhraseContentGate`, `_contentTranscriptHasDigit`, `_contentGateAvail` all confirmed live at vacprotocol.org/vac-reauth-ceremony.js
+**PRESERVED:** F-823 i18n work (vac-ceremony-i18n.js + en/it string table) is on local branch `f823-wip` — NOT lost, not yet merged to origin/main.
+**NEXT:** Rob ambient-audio adversarial run: daughter singing/background noise should NOT advance ceremony. Only Rob saying the correct digit should advance. Confirm content gate holds.
+
+---
+
 # VAC Web — HANDOFF (Session 19 → Session 20)
 > Updated: 6 Aug 2026 — FLASH DONE: task-zone-harness-then-fix deployed to main
 
