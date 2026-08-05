@@ -1960,6 +1960,19 @@ function renderReauthResult(authz,tier){
   });
   // redirect path: auth-test ?mode=copilot&callback=/tribunal?step=verified returns here
   if(new URLSearchParams(location.search).get('step')==='verified')reveal(true);
+  // S155 continue-to-matters fix (L-JOURNEY auth state not carried / wrong landing):
+  // auth.html's "Continue to the matters" link lands on #matters but tribunal-demo has
+  // no hash+localStorage check — walkBody stays hidden, biometric re-offered (loop).
+  // Fix: #matters hash = explicit skip-to-matters intent. Honor a fresh vac_verified
+  // session if present (suppress re-offer); otherwise reveal as unauthenticated skip.
+  if(window.location.hash==='#matters'){
+    try{
+      var _lsv=JSON.parse(localStorage.getItem('vac_verified')||'{}');
+      var _fresh=!!_lsv.timestamp&&(Date.now()-_lsv.timestamp<24*60*60*1000)&&!!_lsv.email;
+      reveal(_fresh,_fresh?(_lsv.name||''):undefined,undefined,_fresh?(_lsv.email||null):undefined);
+      setTimeout(function(){var el=document.getElementById('matters');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},50);
+    }catch(_){}
+  }
 })();
 </script>
 </body>

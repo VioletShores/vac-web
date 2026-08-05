@@ -1,0 +1,28 @@
+name: journey-harness
+on:
+  push:
+    paths:
+      - 'tribunal-demo.html'
+      - 'auth.html'
+      - 'tests/user-journey.pw.js'
+      - 'playwright.config.js'
+  pull_request:
+    paths:
+      - 'tribunal-demo.html'
+      - 'auth.html'
+      - 'tests/user-journey.pw.js'
+      - 'playwright.config.js'
+jobs:
+  journey:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and browser
+        run: |
+          npm install --no-save @playwright/test
+          npx playwright install --with-deps chromium
+      - name: Run journey harness
+        run: npx playwright test tests/user-journey.pw.js --reporter=line
