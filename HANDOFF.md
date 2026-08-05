@@ -1,3 +1,32 @@
+# VAC Web — HANDOFF (Session 22 → Session 23)
+> Updated: 6 Aug 2026 — FLASH DONE: task-journey-harness merged + deployed
+
+## FLASH DONE — task-journey-harness (L-JOURNEY USER-JOURNEY HARNESS + CONTINUE-TO-MATTERS FIX)
+**Branch:** `task-journey-harness` → merged to main as 8901156 (2026-08-06)
+**Root cause fixed:** After full E2E auth on auth.html, clicking "Continue to the matters" landed on `tribunal-demo.html#matters` but the IIFE only checked `?step=verified` (query param). The `#matters` hash + localStorage were never checked on load → `walkBody` stayed hidden → `#idPre` (biometric CTAs) remained visible → "Try the live biometric" re-offered → loop.
+**Fix (S155):** Added 13-line hash check at end of idGate IIFE in tribunal-demo.html:
+- `if(window.location.hash==='#matters')` — only fires on explicit continue-to-matters navigation
+- Reads `localStorage.vac_verified`, validates 24h freshness + email presence
+- Calls `reveal(_fresh, name, undefined, email)` — either as authenticated skip (idGate.done) or unauthenticated skip
+- Smooth-scrolls to `#matters` after 50ms
+- Wrapped in try/catch — localStorage failure silently degrades (page stays in auth-required state)
+- `.textContent` used by reveal() for name — no XSS vector
+**Harness (Phase 1):** `tests/user-journey.pw.js` — 7 Playwright tests, TC-UJ family:
+- TC-UJ-F0: failing fixture (the loop) — passes after fix
+- TC-UJ-01/02: cold landing cold state assertions
+- TC-UJ-03: click skip → matters revealed without auth
+- TC-UJ-04: full journey — auth state carried, matters content rendered, no loop
+- TC-UJ-05: auth.html cold landing
+- TC-UJ-06: no dead links sweep
+**Test infrastructure:** `playwright.config.js`, `node_modules/@playwright/test/` shim (not committed), `.gitignore` updated, CI: `.github/workflows/journey-harness.yml`
+**Tests:** 56/56 pass (49 Node + 7 Playwright)
+**Gates:** /review PASS (no findings) | /cso PASS (test stub absent from prod: 0 hits) | /qa 56/56 | /browse cold-landing screenshot confirmed | /ship PASS
+**Byte-verify LIVE:** `S155 continue-to-matters fix` confirmed live at vacprotocol.org/tribunal-demo; test stub `_testAuthSession` confirmed absent (0 hits)
+**ATTEST:** Debt item L-JOURNEY closed. Recurrence pattern: prior report never became a fixture. TC-UJ-F0 is that fixture. Fix + fixture merged together.
+**NEXT:** Rob clicks "Continue to the matters" once — should land on matters content, no re-offer of biometric. Confirm no loop.
+
+---
+
 # VAC Web — HANDOFF (Session 21 → Session 22)
 > Updated: 6 Aug 2026 — FLASH DONE: task-prompt-state-sync-v2 merged + deployed
 
