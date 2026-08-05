@@ -1,5 +1,18 @@
-# VAC Web — HANDOFF (Session 18 → Session 19)
-> Updated: 5 Aug 2026 — FLASH DONE: task-handzone-faceanchored merged to main
+# VAC Web — HANDOFF (Session 19 → Session 20)
+> Updated: 6 Aug 2026 — FLASH DONE: task-zone-harness-then-fix deployed to main
+
+## FLASH DONE — task-zone-harness-then-fix (L-2446)
+**Branch:** `task-zone-harness-then-fix` → cherry-picked to main as 2791928 (2026-08-06)
+**Defect:** Ovals vanished in Rob's live run after 94ba1b9 (worse than oversized). Revert d8a1374.
+**Root cause confirmed by harness:** 94ba1b9 clamped cxLeft = Math.max(rx, ...) putting oval CENTER at rx=0.172 from left edge. At near distance: left half of oval off-screen + inner edge overlapped face by 13% face-width → visually "vanished".
+**HARNESS (Phase 1):** tests/zone-geometry.test.js — 14 assertions, node --test, no deps. Source-extract pattern: extracts _activeZone() body from source + injects synthetic _faceAnchor. Far/mid/near + edge-left/right fixtures. A1 in-frame, A2 size <= 0.55 fW, A3 gap >= 0.10 fW. CI wired (auth-fork-guard.yml).
+**PHASE 2 results:** Reverted main FAILS A1/A2/A3 (oversized). 94ba1b9 FAILS A2/A3 (vanish via edge-clamp + face-overlap). Both reproduced by harness.
+**FIX (Phase 3):** rx = Math.min(0.15, 0.22 * wFrac); ry = Math.min(0.20, 0.30 * hFrac); gap = Math.max(_FACE_SIDE_GAP, 0.15 * wFrac). Clamp: cx±rx in [0,1] with 0.5% margin. 21/21 tests green.
+**Gates:** /review PASS (no findings) | byte-verified live
+**Deploy:** Pushed to main 2026-08-06; Vercel auto-deploy triggered; byte-verified at vacprotocol.org/vac-reauth-ceremony.js
+**NEXT:** Rob ONE final live run. Confirm ovals appear naturally beside cheek at arm's length.
+
+---
 
 ## FLASH DONE — task-handzone-faceanchored (S155/S156)
 **Branch:** `task-handzone-faceanchored` (merged to main 2026-08-05)
