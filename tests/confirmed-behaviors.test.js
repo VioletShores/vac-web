@@ -64,23 +64,34 @@ function extractCalibrationBlock() {
 }
 
 // --- CB-MIC-01: time-domain RMS gate ---
+// S156 rewrite (chat-hotfix packet): the CONFIRMED BEHAVIOR is "the gate is
+// crossable by normal indoor speech (time-domain 0.05-0.25) and sits above the
+// tap/ambient floor" — NOT "the constant equals a specific value". Constant-
+// equality froze the very number the design says must adapt (spec 4.2.3 g4);
+// it failed the S156 hotfix that lowered 0.085→0.055 for a live-blocked user.
+// Exact-value pinning belongs to the calibration-hash guard (with citation),
+// never to a behavior fixture.
 
-test('CB-MIC-01: VAD_SPEECH_RMS_FALLBACK matches founding fixture (time-domain scale, task-644)', () => {
+const NORMAL_SPEECH_MIN = 0.05;   // quiet normal voice, time-domain RMS
+const AMBIENT_FLOOR_MAX = 0.030;  // tap/room noise ceiling observed on-device
+
+test('CB-MIC-01: speech fallback is crossable by normal voice and above ambient floor', () => {
     const row = fixtures.rows.find((r) => r.id === 'CB-MIC-01');
     assert.ok(row, 'CB-MIC-01 row must be present in founding-rows.json');
     const val = constFromSource('VAD_SPEECH_RMS_FALLBACK');
-    assert.equal(val, row.constants.VAD_SPEECH_RMS_FALLBACK,
-        `VAD_SPEECH_RMS_FALLBACK=${val} must equal fixture value ${row.constants.VAD_SPEECH_RMS_FALLBACK} — ` +
-        'time-domain RMS scale (was 0.115 freq-domain; 0.085 fires on normal speech 0.05-0.25 range)'
-    );
+    assert.ok(val <= NORMAL_SPEECH_MIN + 0.015,
+        `VAD_SPEECH_RMS_FALLBACK=${val} must be reachable by normal speech (<= ~${NORMAL_SPEECH_MIN + 0.015}) — Rob live-confirmed 6 Aug: raised voice must never be required`);
+    assert.ok(val > AMBIENT_FLOOR_MAX,
+        `VAD_SPEECH_RMS_FALLBACK=${val} must exceed ambient/tap floor ${AMBIENT_FLOOR_MAX}`);
 });
 
-test('CB-MIC-01: VAD_SILENCE_RMS_FALLBACK matches founding fixture (time-domain scale)', () => {
-    const row = fixtures.rows.find((r) => r.id === 'CB-MIC-01');
-    const val = constFromSource('VAD_SILENCE_RMS_FALLBACK');
-    assert.equal(val, row.constants.VAD_SILENCE_RMS_FALLBACK,
-        `VAD_SILENCE_RMS_FALLBACK=${val} must equal fixture value ${row.constants.VAD_SILENCE_RMS_FALLBACK}`
-    );
+test('CB-MIC-01: silence fallback sits strictly below the speech fallback', () => {
+    const speech = constFromSource('VAD_SPEECH_RMS_FALLBACK');
+    const silence = constFromSource('VAD_SILENCE_RMS_FALLBACK');
+    assert.ok(silence < speech,
+        `VAD_SILENCE_RMS_FALLBACK=${silence} must be strictly below speech=${speech} (hysteresis gap required for onset detection)`);
+    assert.ok(silence >= 0.015,
+        `VAD_SILENCE_RMS_FALLBACK=${silence} must stay above true-silence noise (>= 0.015)`);
 });
 
 test('CB-MIC-01: FAST_VAD_SPEECH_RMS matches founding fixture (mirrors VAD_SPEECH_RMS_FALLBACK)', () => {
