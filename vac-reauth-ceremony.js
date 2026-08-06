@@ -6582,10 +6582,19 @@ function startAudioMonitor() {
                 if (bars[i]) bars[i].style.height = h + 'px';
             }
             if (readout) {
-                // S156 provenance row-zero: the RUNNING build is visible on-device.
-                // If this tag doesn't match the latest deploy tag, the phone is on
-                // cached bytes (the ?v= pin must be bumped every ceremony-JS change).
-                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h6';
+                // S156 provenance row-zero + r6 STATE SENSOR: ctx state + the monitored
+                // track's liveness/mute rendered live, so a pinned meter self-explains:
+                //   c:r = context running, c:s = suspended · t:l = track live, t:m = MUTED,
+                //   t:e = ended, t:? = no track handle. A deaf meter with c:r/t:l means the
+                //   analyser taps a replaced (dead) stream; t:m means OS device contention.
+                var _st = 'c:?';
+                try { _st = 'c:' + (audioContext ? audioContext.state.charAt(0) : '?'); } catch(_) {}
+                var _tk = 't:?';
+                try {
+                    var _mt = (typeof monitorStream !== 'undefined' && monitorStream) ? monitorStream.getAudioTracks()[0] : null;
+                    if (_mt) _tk = 't:' + (_mt.readyState === 'ended' ? 'e' : (_mt.muted ? 'm' : 'l'));
+                } catch(_) {}
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h7 \u00b7 ' + _st + ' ' + _tk;
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
