@@ -2536,7 +2536,11 @@ function _vadDiag(msg){
 
 const _CONTENT_DIGIT_MAP = {
     'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,
-    'six':6,'seven':7,'eight':8,'nine':9
+    'six':6,'seven':7,'eight':8,'nine':9,
+    // HOTFIX S156 (chat-side, Rob live-blocked 6 Aug): iOS transcription homophones —
+    // whitelist only, no fuzzy matching (security: D-VOICE-GATE). Mirror in engine.py.
+    'for':4,'fore':4,'won':1,'to':2,'too':2,'tree':3,'free':3,
+    'fife':5,'ate':8,'oh':0,'o':0,'niner':9
 };
 
 function _contentNormWord(w) {
@@ -3002,7 +3006,7 @@ function beginRecording() {
     // FALLBACK (used until the greeting phase calibrates, or if calibration can't run). The DIGIT
     // gate reads the per-session vadSpeechThreshold / vadSilenceThreshold derived from THIS user's
     // measured noise floor + greeting loudness. NO per-device constant is shipped.
-    const VAD_SPEECH_RMS_FALLBACK = 0.085;   // task-644: 0.115→0.085 for time-domain RMS scale (getByteTimeDomainData √mean((v-128)²)/128). S145 was freq-domain; time-domain speech at normal volume reads 0.05-0.25 so 0.085 is accessible without shouting.
+    const VAD_SPEECH_RMS_FALLBACK = 0.055;   // task-644: 0.115→0.085 for time-domain RMS scale (getByteTimeDomainData √mean((v-128)²)/128). S145 was freq-domain; time-domain speech at normal volume reads 0.05-0.25 so 0.085 is accessible without shouting.
     const VAD_SILENCE_RMS_FALLBACK = 0.030;   // task-644: 0.085→0.030; time-domain ambient noise is 0.005-0.025 so 0.030 is below speech but above true silence. Hysteresis gap = "neither"; onset gate unchanged.
     // R1 (S114): the digit sustained-voice gate is TIME-based, not a frame count. The old
     // `voiced >= VAD_SPEECH_FRAMES(6)` measured rAF FRAMES, whose wall-clock varies by display
