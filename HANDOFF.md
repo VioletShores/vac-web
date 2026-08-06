@@ -1,3 +1,21 @@
+# VAC Web — HANDOFF (Session 25 → Session 26)
+> Updated: 6 Aug 2026 — FLASH DONE: task-644-mic-rms-zone-relax merged + deployed
+
+## FLASH DONE — task-644-mic-rms-zone-relax (D-644-MIC-RMS + D-644-ZONE-RELAX)
+**Branch:** `task-644-mic-rms-zone-relax` → merged to main as 22b2671 (2026-08-06)
+
+**FIX 1 MIC — Time-domain RMS (iOS Safari 26 silent gate):**
+Root cause: `getByteFrequencyData` on iOS Safari 26 returns ~0.01 across all bins during live speech (frequency-magnitude bins are empty/compressed at chip level). Voice-band ratio was 100% (correct) but the amplitude path was dead. Fix: all three VAD RMS computation sites switched to `getByteTimeDomainData` → `√mean((v-128)²)/128`. Sites: digit VAD tick, `_phraseVadTick` (greeting), fast/quick-reauth `_makeQuickReauthVoiceGate`. Preflight seed (`_ceremonyRms` in `runAVFrame`) also switched to time-domain so `_micSeededAmbientRms`/`_micSeededSpeechRms` stay in the same units as the gate ticks. `voiceBandRatio` and spectral mid-band onset checks keep their separate `getByteFrequencyData` fetch — unchanged. Fallback thresholds recalibrated to time-domain scale: `VAD_SPEECH_RMS_FALLBACK` 0.115→0.085, `VAD_SILENCE_RMS_FALLBACK` 0.085→0.030 (FAST_VAD_* mirrored). `_renderEqualiser` voiced colour cue 0.12→0.07 (display-only).
+
+**FIX 2 ZONE — Cheek-zone relax (beside-cheek natural pose):**
+Root cause: `wrist(0.65,0.66) IN only with hand overlapping face; wrist(0.72,0.78) beside cheek = OUT`. Zone was too tight — required hand to overlap face to get fingertips into the acceptance oval. Fix: `GESTURE_ZONE_SPEC.rx` 0.17→0.21, `ry` 0.22→0.26, `minTipsInside` 3→2 (palm-centre OR 2 fingertips). `_FACE_SIDE_GAP` 0.03→0.10 (face-anchored ovals pushed further from face edge → beside cheek not on it). Both drawn guide and acceptance gate read from `_activeZone()` — single source of truth maintained.
+
+**Gates:** node --check PASS | /review PASS (1 stale comment auto-fixed, no security issues)
+**Byte-verify:** `FAST_VAD_SPEECH_RMS=0.085` + `getByteTimeDomainData(_tdBuf)` in deployed vac-reauth-ceremony.js
+**ROB CONFIRM:** Test mic gate on iPhone — should read meaningful % (not 1%) while speaking normally. Test cheek zone — wrist beside cheek should now accept.
+
+---
+
 # VAC Web — HANDOFF (Session 24 → Session 25)
 > Updated: 6 Aug 2026 — FLASH DONE: task-cta-wire merged + deployed
 
