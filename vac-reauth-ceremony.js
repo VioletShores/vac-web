@@ -3034,8 +3034,16 @@ function beginRecording() {
     // (time-domain ~0.05-0.25) can cross, nor below the tap-noise floor. Silence
     // threshold must sit strictly under speech. Lane 652 replaces this with a proper
     // floor-relative recalibration; this clamp is the safety rail until then.
-    vadSpeechThreshold = Math.min(Math.max(vadSpeechThreshold, 0.040), 0.065);
-    vadSilenceThreshold = Math.min(Math.max(vadSilenceThreshold, 0.020), vadSpeechThreshold - 0.010);
+    // HOTFIX S156 r3 — FLOOR-RELATIVE INTERIM (packet-labelled INTERIM per g4;
+    // lane 652 delivers the designed continuous version): the gate rides the
+    // measured room floor instead of any fixed bar. Desktop built-in mics at
+    // sitting distance speak at 0.03-0.05 where phones read 0.10+ — no constant
+    // serves both (Rob live data: iPhone speech 0.11, MacBook floor 0.01, fixed
+    // 0.06 bar unreachable). Speech = floor + 0.028, bounded [0.028, 0.065];
+    // silence = floor + 0.008, strictly below speech.
+    var _flr = (typeof audioNoiseFloor === 'number' && audioNoiseFloor > 0 && audioNoiseFloor < 0.05) ? audioNoiseFloor : 0.010;
+    vadSpeechThreshold = Math.min(Math.max(_flr + 0.028, 0.028), 0.065);
+    vadSilenceThreshold = Math.max(Math.min(_flr + 0.008, vadSpeechThreshold - 0.008), 0.006);
     // F-595 calibration sampling state. _floorSamples = leading near-silent greeting frames
     // (the room's noise floor); _speechSamples = the voiced greeting run (this user speaking).
     // Both medians (robust to a cough/click) feed the threshold at phraseSpoke. Function-scoped,
@@ -6539,7 +6547,7 @@ function startAudioMonitor() {
                 // S156 provenance row-zero: the RUNNING build is visible on-device.
                 // If this tag doesn't match the latest deploy tag, the phone is on
                 // cached bytes (the ?v= pin must be bumped every ceremony-JS change).
-                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h3';
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h4';
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
