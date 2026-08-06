@@ -4211,8 +4211,27 @@ function _markSpeech(src, rms, onsetAt) {
         // permission revoked), show the phrase anyway — prior behaviour was always to show it, and
         // the analyser degrades gracefully (W4.1 gesture-only mode). 3s >> typical resume latency
         // and << PHRASE_DURATION (so the user still has time to speak the phrase).
-        if (audioContext && audioContext.state !== 'running' && elapsedMs < 3000) {
+        // S156 r5: resume was capped at 3s with a swallowed rejection — on macOS Chrome a
+        // context that stays suspended (resume() without a fresh user gesture rejects)
+        // left the ANALYSER permanently deaf: RMS 1% forever while the MediaRecorder
+        // (separate plumbing, no AudioContext) recorded fine — every client audio gate
+        // then walled the user against a meter reading silence. Now: retry resume on
+        // EVERY tick while non-running, bind a one-shot gesture resume (click/keydown —
+        // the reliable path on gesture-gated platforms), and surface the state honestly.
+        // Progression still falls through after 3s (gesture-only degraded mode unchanged).
+        if (audioContext && audioContext.state !== 'running') {
             try { audioContext.resume().catch(function(){}); } catch(_) {}
+            if (!window.__vacGestureResumeBound) {
+                window.__vacGestureResumeBound = true;
+                var _gr = function() {
+                    try { if (audioContext && audioContext.state !== 'running') audioContext.resume().catch(function(){}); } catch(_) {}
+                    try { if (avAudioCtx && avAudioCtx.state !== 'running') avAudioCtx.resume().catch(function(){}); } catch(_) {}
+                };
+                try { document.addEventListener('click', _gr, { passive: true }); document.addEventListener('keydown', _gr, { passive: true }); } catch(_) {}
+            }
+            try { vacDebug('audio_ctx_suspended', audioContext.state, { elapsedMs: elapsedMs }); } catch(_) {}
+        }
+        if (audioContext && audioContext.state !== 'running' && elapsedMs < 3000) {
             var _stPre = document.getElementById('step2Title');
             if (_stPre && _stPre.textContent !== 'Preparing mic…') { _stPre.textContent = 'Preparing mic…'; _stPre.style.color = '#fbbf24'; }
             return;  // re-rendered by the next phraseInterval tick once context is running (or 3s elapses)
@@ -6566,7 +6585,7 @@ function startAudioMonitor() {
                 // S156 provenance row-zero: the RUNNING build is visible on-device.
                 // If this tag doesn't match the latest deploy tag, the phone is on
                 // cached bytes (the ?v= pin must be bumped every ceremony-JS change).
-                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h5';
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h6';
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
