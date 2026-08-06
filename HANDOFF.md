@@ -1,3 +1,30 @@
+# VAC Web — HANDOFF (Session 26 → Session 27)
+> Updated: 6 Aug 2026 — FLASH DONE: task-645-confirm-fixture-loop merged + deployed
+
+## FLASH DONE — task-645-confirm-fixture-loop (PKT-S156-CEREMONY-FIXTURE-LOOP)
+**Branch:** `task-645-confirm-fixture-loop` → merged to main as a657370 (2026-08-06)
+
+**What shipped**: Confirmed-behaviors fixture loop — 3 founding fixture rows locking the task-644 behaviors as regression targets.
+
+**CB-MIC-01 (time-domain RMS gate):** Test assertions: VAD_SPEECH_RMS_FALLBACK=0.085, VAD_SILENCE_RMS_FALLBACK=0.030, FAST_VAD_SPEECH_RMS=0.085, FAST_VAD_SILENCE_RMS=0.030, getByteTimeDomainData ≥3 sites, no freq-domain RMS path. Calibration hash guard: SHA256(calibration block body) = `aff58743...` locked in fixture.
+**CB-ZONE-01 (cheek-zone relax):** GESTURE_ZONE_SPEC.rx=0.21, ry=0.26, minTipsInside=2, _FACE_SIDE_GAP=0.10.
+**CB-ZONE-02 (zone parity):** _ptInCheekZone calls _activeZone(); _handNearFaceZone delegates to _ptInCheekZone; _drawFingerTargetGuide and _avDrawHand both call _activeZone(). Single source of truth verified.
+
+**Source change (vac-reauth-ceremony.js):** BEGIN/END CALIBRATION BLOCK markers + 3 provenance comment lines only. Zero code change; node --check PASS; all existing tests still pass.
+**New files:** tests/confirmed-behaviors.test.js (15 tests), tests/fixtures/confirmed/founding-rows.json (3 rows), docs/CONFIRMED-BEHAVIORS.md
+**Workflow:** journey-harness.yml extended with confirmed-behaviors job + vac-reauth-ceremony.js path trigger. NOT a new workflow.
+
+**Gates:** node --check PASS | 15/15 confirmed-behaviors PASS | 0 regressions in existing suite | /review PASS (scope CLEAN, comment-only diff)
+**DEPENDENCY MET:** task-644 merge (22b2671) confirmed present before writing fixtures — time-domain RMS + cheek-zone relax both verified in source.
+
+**Fixture IDs + row-0 SHA:**
+- CB-MIC-01 (rev 0), CB-ZONE-01 (rev 0), CB-ZONE-02 (rev 0)
+- Row-0 calibration block SHA256: `aff58743561ae9bc961e399c226d450dc4abe90a59551816501c64a84db180bf`
+
+**NEXT:** Rob no action needed — this is a harness-only task. If he changes calibration constants or zone spec in a future fix, the confirmed-behaviors tests will catch the drift immediately with a clear error message including the new SHA to update to.
+
+---
+
 # VAC Web — HANDOFF (Session 25 → Session 26)
 > Updated: 6 Aug 2026 — FLASH DONE: task-644-mic-rms-zone-relax merged + deployed
 
