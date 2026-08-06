@@ -52,6 +52,34 @@
         "inner_linewidth_logical_min": 2
       },
       "note": "Applies to both _drawFingerTargetGuide (capture step) and _avDrawHand (full-auth step). When _avZone/_glow is true (hand accepted), reverts to solid green — no halo. Inactive (wrong cheek) oval stays faint ghost."
+    },
+    {
+      "id": "CB-DIGIT-02",
+      "rev": 0,
+      "description": "digit homophone matching + no-match fallback (task-653, Rob live-blocked 6 Aug 15:41)",
+      "claimed": "_CONTENT_DIGIT_MAP and engine.py normalize_words extended with transcription homophones; no-match fallback fires provisional client pass after >=4s of non-matching transcripts with VAD voice; server gate unchanged",
+      "homophones": {
+        "for": 4, "fore": 4,
+        "won": 1, "juan": 1,
+        "to": 2, "too": 2, "tu": 2,
+        "tree": 3, "free": 3,
+        "fife": 5,
+        "ate": 8,
+        "oh": 0, "o": 0,
+        "niner": 9
+      },
+      "no_match_fallback": {
+        "NO_MATCH_FALLBACK_MS": 4000,
+        "condition": "non-matching transcripts for >=4s while vadProbe() returns true",
+        "effect": "provisional client pass via _markSpeech('no_match_fallback')",
+        "server_gate": "unchanged — Deepgram + Gemini remain the security authority (fails closed)"
+      },
+      "test_fixtures": [
+        { "transcript": "for", "expected_digit": 4, "result": true, "label": "homophone: for→4" },
+        { "transcript": "banana", "expected_digit": 4, "result": false, "label": "no-match: banana not a digit" },
+        { "transcript": "banana", "expected_digit": 4, "after_ms": 4000, "vad": true, "result": "provisional", "label": "no-match fallback: banana >=4s with voice → provisional" }
+      ],
+      "note": "Whitelist-only — no fuzzy distance matching. Client and server maps must be kept identical. No-match fallback records go up to server; server bound-digit gate fails closed on mismatch."
     }
   ],
   "calibration_block": {

@@ -99,6 +99,47 @@ computed from the same `_activeZone()` call. No separate constant path exists fo
 
 ---
 
+## CB-DIGIT-02 — Digit homophones + no-match server fallback (task-653)
+
+**Commit**: task-653-digit-homophones  
+**Defect fixed**: Rob live-blocked 2026-08-06 15:41 — RMS 0.11 over 0.07 threshold, recognizer
+alive ("Listening — did not catch 4 yet"), no match ever credited. Root cause: (1) ASR transcribes
+"for" (iOS homophones of "four") which was missing from the digit map; (2) no escape path when
+transcripts arrive but never match the expected digit.
+
+**Correct behavior (homophones)**:
+- `_CONTENT_DIGIT_MAP` (client) and `normalize_words` (server `engine.py`) contain identical
+  transcription-homophone entries — whitelist only, no fuzzy/distance matching:
+  - `for`, `fore` → 4
+  - `won`, `juan` → 1
+  - `to`, `too`, `tu` → 2
+  - `tree`, `free` → 3
+  - `fife` → 5
+  - `ate` → 8
+  - `oh`, `o` → 0
+  - `niner` → 9
+- `six` is NOT aliased (no homophone risk); `sex` is NOT in the map
+- Standard word-form entries (`four`, `one`, `two`, etc.) are unchanged
+
+**Correct behavior (no-match fallback)**:
+- When SpeechRecognition is alive and returning transcripts that never match the expected digit
+  for `NO_MATCH_FALLBACK_MS` (4 000 ms) **while** `vadProbe()` reports sustained voice:
+  → provisional client pass via `_markSpeech('no_match_fallback', 0, null)`
+  → recording goes up; `vacDebug('content_gate_no_match_fallback', ...)` emitted
+- Server bound-digit gate (Deepgram + Gemini) is **unchanged and fails closed** on empty/mismatch
+- This is a client **pacing aid** only — security lives server-side (same design rule as all gates)
+
+**Fixture**:
+- `transcript "for"` → credits expected digit 4 ✓
+- `transcript "banana"` repeated ≥4s with VAD voice → provisional client pass; server gate
+  receives the recording and validates the actual spoken digit
+
+**Applies to**: `_CONTENT_DIGIT_MAP` constant in `vac-reauth-ceremony.js`;
+`normalize_words` function in `engine.py`; `_startDigitContentGate` / `_refreshContentGate`
+in `vac-reauth-ceremony.js`.
+
+---
+
 ## Updating these fixtures
 
 When a behavior in this document changes intentionally:

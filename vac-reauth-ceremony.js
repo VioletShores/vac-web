@@ -2537,10 +2537,16 @@ function _vadDiag(msg){
 const _CONTENT_DIGIT_MAP = {
     'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,
     'six':6,'seven':7,'eight':8,'nine':9,
-    // HOTFIX S156 (chat-side, Rob live-blocked 6 Aug): iOS transcription homophones —
-    // whitelist only, no fuzzy matching (security: D-VOICE-GATE). Mirror in engine.py.
-    'for':4,'fore':4,'won':1,'to':2,'too':2,'tree':3,'free':3,
-    'fife':5,'ate':8,'oh':0,'o':0,'niner':9
+    // task-653: iOS/ASR transcription homophones — whitelist only, no fuzzy matching
+    // (security: D-VOICE-GATE). Extend BOTH this map and engine.py normalize_words identically.
+    'for':4,'fore':4,                       // four → 4
+    'won':1,'juan':1,                        // one → 1 (juan: Spanish/multilingual ASR)
+    'to':2,'too':2,'tu':2,                   // two → 2 (tu: Spanish/multilingual ASR)
+    'tree':3,'free':3,                       // three → 3 (tree: Irish-English, free: /θ/-merger)
+    'fife':5,                                // five → 5
+    'ate':8,                                 // eight → 8
+    'oh':0,'o':0,                            // zero → 0 (single vowel phoneme)
+    'niner':9                                // nine → 9 (aviation/NATO)
 };
 
 function _contentNormWord(w) {
@@ -2591,10 +2597,15 @@ var _contentGateAvail = !!(window.SpeechRecognition || window.webkitSpeechRecogn
 // onFatal: called when a fatal STT error (not-allowed, audio-capture) kills the gate.
 // The caller uses it to null out the outer gate handle so _refreshContentGate starts a fresh gate
 // or falls back to energy-VAD instead of stalling the ceremony with a dead-but-non-null handle.
-function _startDigitContentGate(expectedDigit, onMatch, onFatal) {
+// onNoMatch (task-653): called when non-matching transcripts arrive for >=NO_MATCH_FALLBACK_MS
+// while vadProbe() returns true — provisional client pass; server bound-digit gate is authority.
+// vadProbe: optional function() → boolean; if absent, VAD check is skipped (pure transcript timing).
+var NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts + VAD voice → provisional
+function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
+    var _noMatchVoiceAt = 0;  // task-653: perf.now() when first non-matching transcript arrived with VAD active
     try {
         rec = new SR();
         rec.continuous = true;
@@ -2613,7 +2624,19 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal) {
                 try { onMatch(t); } catch(_) {}
                 return;
             }
-            // Non-matching transcript — discarded here, never stored (privacy rule)
+            // Non-matching transcript — discarded here, never stored (privacy rule).
+            // task-653 no-match fallback: transcripts arriving but never matching, with VAD
+            // confirming sustained voice for >=NO_MATCH_FALLBACK_MS → provisional client pass.
+            // Server bound-digit gate (Deepgram + Gemini) remains the security authority.
+            if (onNoMatch && (typeof vadProbe !== 'function' || vadProbe())) {
+                if (_noMatchVoiceAt === 0) _noMatchVoiceAt = performance.now();
+                else if (performance.now() - _noMatchVoiceAt >= NO_MATCH_FALLBACK_MS) {
+                    matched = true; stopped = true;
+                    try { rec.abort(); } catch(_) {}
+                    try { onNoMatch(t); } catch(_) {}
+                    return;
+                }
+            }
         }
     };
     rec.onerror = function(evt) {
@@ -3189,6 +3212,16 @@ function beginRecording() {
             // Fatal STT error (not-allowed/audio-capture): null the outer handle so the
             // VAD loop doesn't see a non-null but dead gate, and fall back to energy VAD.
             _contentGate = null; _contentGateDigit = -1; _sessionGateAvail = false;
+        }, function(t) {
+            // task-653 no-match fallback: transcripts never matched expectedDigit for >=4s
+            // with VAD confirming voice. Provisional client pass — server gate is authority.
+            _contentGate = null; _contentGateDigit = -1;
+            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            try { vacDebug('content_gate_no_match_fallback', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: t ? String(t).slice(0, 60) : null }); } catch(_) {}
+            _markSpeech('no_match_fallback', 0, null);
+        }, function() {
+            // vadProbe: is the VAD currently registering sustained voice?
+            return _vadEnergyDetected || _lastVadRms > vadSpeechThreshold;
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —

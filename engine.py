@@ -603,9 +603,20 @@ class VerificationEngine:
                 transcript_norm = transcript.lower().strip()
                 
                 # Normalize number words to digits for comparison
+                # task-653: mirror _CONTENT_DIGIT_MAP homophones (whitelist only — no fuzzy matching).
                 number_map = {"zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
                               "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
-                              "ten": "10"}
+                              "ten": "10",
+                              # transcription homophones — same list as client _CONTENT_DIGIT_MAP
+                              "for": "4", "fore": "4",         # four → 4
+                              "won": "1", "juan": "1",          # one → 1
+                              "to": "2", "too": "2", "tu": "2", # two → 2
+                              "tree": "3", "free": "3",         # three → 3
+                              "fife": "5",                      # five → 5
+                              "ate": "8",                       # eight → 8
+                              "oh": "0", "o": "0",              # zero → 0
+                              "niner": "9",                     # nine → 9 (NATO)
+                             }
                 import re
                 def normalize_words(text):
                     # Strip punctuation, normalize numbers, split concatenated digits

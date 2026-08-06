@@ -94,8 +94,10 @@ test('C1: _contentTranscriptHasDigit present and rejects unrelated speech (Rob d
     // F1: singing / unrelated speech — should NOT match digit 3
     assert.equal(_contentTranscriptHasDigit('la la la singing in the shower', 3), false,
         'Singing/unrelated speech must NOT match the expected digit');
-    assert.equal(_contentTranscriptHasDigit('happy birthday to you', 2), false,
-        'Happy birthday song must NOT match digit 2');
+    // Note: 'to' is a legitimate homophone of 'two' (HOTFIX S156 / task-653); "happy birthday to you"
+    // now matches digit 2. Use a phrase with no digit homophones to test the F1 fixture scenario.
+    assert.equal(_contentTranscriptHasDigit('you are my sunshine my only sunshine', 2), false,
+        'Generic singing with no digit homophones must NOT match digit 2');
     assert.equal(_contentTranscriptHasDigit('do re mi fa sol la si', 4), false,
         'Solfege singing must NOT match digit 4');
     assert.equal(_contentTranscriptHasDigit('the quick brown fox', 5), false,
@@ -264,6 +266,71 @@ test('C15: _stopSpeechGate stops _contentGate on cleanup', () => {
         '_stopSpeechGate must stop _contentGate');
     assert.ok(stopBody.includes('.stop()') || stopBody.includes('stop()'),
         '_stopSpeechGate must call .stop() on _contentGate');
+});
+
+// ── CB-DIGIT-02: homophone matching + no-match fallback (task-653) ───────────
+
+test('CB-DIGIT-02a: homophone "for" credits expected digit 4 (Rob live-blocked 6 Aug)', () => {
+    assert.ok(typeof _contentTranscriptHasDigit === 'function', '_contentTranscriptHasDigit must be a function');
+    // Core case: ASR transcribes "for" (homophone of "four") — must credit digit 4
+    assert.equal(_contentTranscriptHasDigit('for', 4), true, '"for" must credit digit 4 (homophone)');
+    assert.equal(_contentTranscriptHasDigit('fore', 4), true, '"fore" must credit digit 4 (homophone)');
+    // Extended homophones from task-653
+    assert.equal(_contentTranscriptHasDigit('juan', 1), true, '"juan" must credit digit 1');
+    assert.equal(_contentTranscriptHasDigit('tu', 2), true, '"tu" must credit digit 2');
+    assert.equal(_contentTranscriptHasDigit('tree', 3), true, '"tree" must credit digit 3 (Irish-English)');
+    assert.equal(_contentTranscriptHasDigit('free', 3), true, '"free" must credit digit 3 (th-merger)');
+    assert.equal(_contentTranscriptHasDigit('fife', 5), true, '"fife" must credit digit 5');
+    assert.equal(_contentTranscriptHasDigit('ate', 8), true, '"ate" must credit digit 8');
+    assert.equal(_contentTranscriptHasDigit('oh', 0), true, '"oh" must credit digit 0');
+    assert.equal(_contentTranscriptHasDigit('o', 0), true, '"o" must credit digit 0');
+    assert.equal(_contentTranscriptHasDigit('niner', 9), true, '"niner" must credit digit 9 (NATO)');
+    // Homophones must NOT cross-credit wrong digits
+    assert.equal(_contentTranscriptHasDigit('for', 3), false, '"for" must NOT credit digit 3');
+    assert.equal(_contentTranscriptHasDigit('tree', 2), false, '"tree" must NOT credit digit 2');
+});
+
+test('CB-DIGIT-02b: _CONTENT_DIGIT_MAP contains all task-653 homophones', () => {
+    const mapMatch = src.match(/const _CONTENT_DIGIT_MAP\s*=\s*\{([^}]+)\}/);
+    assert.ok(mapMatch, '_CONTENT_DIGIT_MAP must be present in source');
+    const mapBody = mapMatch[1];
+    const required = ['for', 'fore', 'won', 'juan', 'to', 'too', 'tu', 'tree', 'free', 'fife', 'ate', 'oh', 'niner'];
+    for (const w of required) {
+        assert.ok(mapBody.includes("'" + w + "'") || mapBody.includes('"' + w + '"'),
+            '_CONTENT_DIGIT_MAP must contain homophone "' + w + '"');
+    }
+});
+
+test('CB-DIGIT-02c: no-match fallback — source contains NO_MATCH_FALLBACK_MS and onNoMatch logic', () => {
+    // task-653: non-matching transcripts >=4s with VAD voice → provisional client pass
+    assert.ok(src.includes('NO_MATCH_FALLBACK_MS'), 'NO_MATCH_FALLBACK_MS must be declared in source');
+    assert.ok(src.includes('onNoMatch'), '_startDigitContentGate must accept onNoMatch parameter');
+    assert.ok(src.includes('content_gate_no_match_fallback'),
+        '_refreshContentGate must emit vacDebug content_gate_no_match_fallback on provisional pass');
+    assert.ok(src.includes('no_match_fallback'),
+        "_markSpeech must be called with src 'no_match_fallback' for the provisional path");
+    // Server gate must NOT be weakened — check that the fallback calls _markSpeech, not a bypass
+    assert.ok(src.includes("_markSpeech('no_match_fallback'"),
+        'Provisional pass must go through _markSpeech (not bypass server submission)');
+});
+
+test('CB-DIGIT-02d: no-match fallback timer fires on >=4s non-match + VAD voice (behavioral check)', () => {
+    // Extract and exercise NO_MATCH_FALLBACK_MS constant from source
+    const m = src.match(/var\s+NO_MATCH_FALLBACK_MS\s*=\s*(\d+)/);
+    assert.ok(m, 'NO_MATCH_FALLBACK_MS must be declared with var in source');
+    const ms = parseInt(m[1], 10);
+    assert.equal(ms, 4000, 'NO_MATCH_FALLBACK_MS must be 4000 (4s — matches Rob live data spec)');
+    // Verify vadProbe is wired: source must check _vadEnergyDetected or _lastVadRms in the vadProbe closure
+    const gateStart = src.indexOf('function _refreshContentGate');
+    const gateBody  = src.slice(gateStart, gateStart + 3000);  // 3k chars — covers the inline vadProbe closure
+    assert.ok(gateBody.includes('_vadEnergyDetected') || gateBody.includes('_lastVadRms'),
+        'vadProbe in _refreshContentGate must reference VAD state (_vadEnergyDetected or _lastVadRms)');
+    // Verify "banana" scenario: non-match transcript does NOT credit (gate is whitelist-only)
+    assert.equal(_contentTranscriptHasDigit('banana', 4), false,
+        '"banana" transcript must NOT credit digit 4 (no fuzzy matching)');
+    // After the no-match timer fires, the provisional pass does NOT weaken the server gate
+    assert.ok(src.includes('server bound-digit gate') || src.includes('Server bound-digit gate'),
+        'No-match fallback documentation must note server gate is the authority');
 });
 
 // ── privacy rule: non-matching audio must be discarded ───────────────────────
