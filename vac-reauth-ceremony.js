@@ -4166,6 +4166,18 @@ function _markSpeech(src, rms, onsetAt) {
                 if (_speechSamples.length < _CAL_SPEECH_MAX) _speechSamples.push(_rms);
                 if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
                 if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
+                // S156 r7: CONTENT-GATE NO-MATCH ESCAPE (phrase twin of the digit escape).
+                // Chrome's SpeechRecognition opens its OWN mic capture; under macOS device
+                // contention it can hear silence forever while THIS analyser proves sustained
+                // modulated voice (Rob, live: "RMS moves with voice but does not trigger the
+                // voice gate"). If the content gate has accumulated ~3x the voiced evidence a
+                // greeting needs and still produced no match, drop to the energy path — the
+                // server verdict still judges the recorded words (content authority unchanged).
+                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * 3) {
+                    _sessionGateAvail = false;
+                    if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
+                    try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                }
                 // D-VOICE-GATE-SPEAKER-AGNOSTIC: when content gate is available, energy alone
                 // does NOT set _phraseHeardVoice — content match (via _phraseContentMatched) does.
                 // Energy fallback: fire when content gate unavailable (Firefox / unsupported).
@@ -6594,7 +6606,7 @@ function startAudioMonitor() {
                     var _mt = (typeof monitorStream !== 'undefined' && monitorStream) ? monitorStream.getAudioTracks()[0] : null;
                     if (_mt) _tk = 't:' + (_mt.readyState === 'ended' ? 'e' : (_mt.muted ? 'm' : 'l'));
                 } catch(_) {}
-                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h7 \u00b7 ' + _st + ' ' + _tk;
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h8 \u00b7 ' + _st + ' ' + _tk;
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
