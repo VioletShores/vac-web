@@ -3028,6 +3028,14 @@ function beginRecording() {
     const _rollingCalThr = _preflightVad ? null : _fastCalThreshold(audioNoiseFloor);
     let vadSpeechThreshold = _preflightVad ? _preflightVad.speechThr : (_rollingCalThr != null ? _rollingCalThr : VAD_SPEECH_RMS_FALLBACK);
     let vadSilenceThreshold = _preflightVad ? _preflightVad.silenceThr : (_rollingCalThr != null ? _calClamp(audioNoiseFloor + _CAL_SIL_K * (_rollingCalThr - audioNoiseFloor), 0.03, _rollingCalThr) : VAD_SILENCE_RMS_FALLBACK);
+    // HOTFIX S156 (chat-side, Rob live-blocked round 2): a stale/mis-scaled preflight
+    // calibration (captured in the freq-domain-meter era) can demand more than normal
+    // speech. NO source may set the speech gate above what a normal indoor voice
+    // (time-domain ~0.05-0.25) can cross, nor below the tap-noise floor. Silence
+    // threshold must sit strictly under speech. Lane 652 replaces this with a proper
+    // floor-relative recalibration; this clamp is the safety rail until then.
+    vadSpeechThreshold = Math.min(Math.max(vadSpeechThreshold, 0.040), 0.065);
+    vadSilenceThreshold = Math.min(Math.max(vadSilenceThreshold, 0.020), vadSpeechThreshold - 0.010);
     // F-595 calibration sampling state. _floorSamples = leading near-silent greeting frames
     // (the room's noise floor); _speechSamples = the voiced greeting run (this user speaking).
     // Both medians (robust to a cough/click) feed the threshold at phraseSpoke. Function-scoped,
