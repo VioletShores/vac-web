@@ -2637,7 +2637,7 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal) {
 }
 
 // Starts a content gate for the greeting phrase. phraseTokens = key content words.
-function _startPhraseContentGate(phraseTokens, onMatch) {
+function _startPhraseContentGate(phraseTokens, onMatch, onFatal) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
@@ -2665,11 +2665,23 @@ function _startPhraseContentGate(phraseTokens, onMatch) {
     rec.onerror = function(evt) {
         var e = evt && evt.error;
         var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
-        if (fatal) { stopped = true; }
+        if (fatal) {
+            // S156 r4: a mid-flight fatal (esp. 'network' — Chrome STT streams to
+            // Google; flaky WiFi kills it) previously left the gate a silent corpse:
+            // stopped forever, no fallback, every later utterance ignored. Route it
+            // to onFatal so the caller flips to the energy fallback the Firefox
+            // path already uses; the server still judges content from the recording.
+            stopped = true;
+            try { if (onFatal) onFatal(e); } catch(_) {}
+            return;
+        }
         if (!stopped) { try { rec.abort(); } catch(_) {} }
     };
     rec.onend = function() {
-        if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
+        if (!stopped && !matched) {
+            try { rec.start(); }
+            catch(_) { stopped = true; try { if (onFatal) onFatal('restart-failed'); } catch(__) {} }
+        }
     };
     stopped = true;
     try { rec.start(); stopped = false; } catch(_) { return null; }
@@ -4274,6 +4286,13 @@ function _markSpeech(src, rms, onsetAt) {
                     _phraseContentMatched = true;
                     if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; }
                     try { vacDebug('phrase_content_gate_matched', null, { tokens: _phrTokens.length }); } catch(_) {}
+                }, function(fatalReason) {
+                    // S156 r4: recognizer died mid-flight (network STT / restart failure) —
+                    // flip to the energy fallback exactly as the startup-failure path does.
+                    // Server-side content verification of the recording remains the authority.
+                    _sessionGateAvail = false;
+                    if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
+                    try { vacDebug('phrase_content_gate_fatal', String(fatalReason || 'fatal')); } catch(_) {}
                 });
                 // null return = runtime permission failure; disable content gate so _phraseVadTick
                 // energy fallback activates and the phrase step can still proceed (degraded mode).
@@ -6547,7 +6566,7 @@ function startAudioMonitor() {
                 // S156 provenance row-zero: the RUNNING build is visible on-device.
                 // If this tag doesn't match the latest deploy tag, the phone is on
                 // cached bytes (the ?v= pin must be bumped every ceremony-JS change).
-                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h4';
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h5';
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
