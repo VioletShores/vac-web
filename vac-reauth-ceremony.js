@@ -508,7 +508,7 @@ let _micSeededSpeechLevel = 0;
 // D-VAD-UNITS (task-447, live evidence: Rob's 17:24 UTC run — thr 0.128 unreachable, greeting
 // spoken and never detected): _micSeededAmbient/_micSeededSpeechLevel above are TIME-domain peak %
 // (0-100, see `level` in runAVFrame) — a different quantity, on a different scale, from what the
-// ceremony VAD actually compares (frequency-domain RMS-of-squares, 0-1, see _ceremonyRms below and
+// ceremony VAD actually compares (time-domain RMS √mean((v-128)²)/128, 0-1, see _ceremonyRms below and
 // its verbatim twins at the digit gate ~_startSpeechGate and the phrase gate ~_phraseVadTick). The
 // task-443 fix handed the ceremony derivation `level`/100, which reads nothing like ceremony-scale
 // RMS — right idea, wrong units, unreachable threshold. These are the ceremony-RMS-scale twins,
@@ -560,7 +560,7 @@ function _calClamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 // _micPreflightVad() above needs BOTH a measured ambient floor AND a measured speech sample from
 // the pre-flight AV check; whenever the user didn't speak enough there (or the AV check never
 // qualified), both tiers previously fell straight through to a FLAT hardcoded constant
-// (VAD_SPEECH_RMS_FALLBACK / FAST_VAD_SPEECH_RMS = 0.115) — identical for every speaker and every
+// (VAD_SPEECH_RMS_FALLBACK / FAST_VAD_SPEECH_RMS = 0.085, time-domain) — identical for every speaker and every
 // room. This is a simpler, floor-ONLY formula (needs no speech sample at all) that still
 // personalises the threshold to THIS room/mic: rollingFloor is audioNoiseFloor, the continuously
 // EMA-adapting ambient estimate (startAudioMonitor, AUDIO_FLOOR_EMA_ALPHA/AUDIO_FLOOR_DRIFT_ALPHA
@@ -623,9 +623,9 @@ const GESTURE_ZONE_SPEC = Object.freeze({
         { cx: 0.18, cy: 0.48, side: 'left'  },
         { cx: 0.82, cy: 0.48, side: 'right' },
     ],
-    rx: 0.17,          // acceptance + draw radii — unified (S139 Rob live-tune: 0.15→0.20 overshot, →0.17)
-    ry: 0.22,          // acceptance + draw radii — unified (S139 Rob live-tune: 0.19→0.26 overshot, →0.22)
-    minTipsInside: 3,  // majority (3 of 5) fingertips must be inside (or the palm centre — see below)
+    rx: 0.21,          // task-644: 0.17→0.21 (relax toward beside-cheek natural pose; Gemini is the real judge)
+    ry: 0.26,          // task-644: 0.22→0.26
+    minTipsInside: 2,  // task-644: 3→2 (palm-centre OR 2 fingertips — err on accepting)
 });
 
 // task-432 Part 6 (Rob directive, "Def use MediaPipe"): FACE-BOUNDS come from a REAL detector —
@@ -636,7 +636,7 @@ const GESTURE_ZONE_SPEC = Object.freeze({
 // _activeZone() still falls back to the fixed GESTURE_ZONE_SPEC constants whenever there's no
 // confident read — never a dead zone.
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
-const _FACE_SIDE_GAP = 0.03;  // clearance between the estimated face edge and the oval's inner edge
+const _FACE_SIDE_GAP = 0.10;  // task-644: 0.03→0.10 so anchored ovals sit BESIDE the face not on it
 let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
 let _faceAnchorMissStreak = 0;
 const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame jitter
@@ -1036,15 +1036,14 @@ function startAVChecks() {
                 }
                 _speechRatio = _totalSum > 0 ? (_bandSum / _totalSum) : 0;
             }
-            // D-VAD-UNITS (task-447): the ceremony VAD's actual comparison quantity — computed
-            // VERBATIM from the same _fbuf just fetched above, mirroring _startSpeechGate's digit
-            // tick (~L2784) and _phraseVadTick's greeting tick (~L3538) byte-for-byte. Sampling it
-            // here (same analyser type, fftSize 256, same frequencyBinCount) means the ceremony
-            // derivation below hands the ceremony VAD numbers in ITS OWN units instead of the
-            // unrelated time-domain `level` the task-443 fix mistakenly reused.
+            // D-VAD-UNITS (task-447→task-644): the ceremony VAD's comparison quantity — same units
+            // as _startSpeechGate's digit tick and _phraseVadTick. task-644 switches all three from
+            // frequency-domain (was "VERBATIM from _fbuf", broken on iOS Safari where getByteFrequencyData
+            // returns ~0.01 forever) to time-domain RMS: dataArray (filled above via getByteTimeDomainData)
+            // gives √mean((v-128)²)/128, which reads real amplitude on iOS and matches the VAD gate ticks.
             let _ceremonyRms = 0;
-            for (let i = 0; i < _fbuf.length; i++) _ceremonyRms += _fbuf[i] * _fbuf[i];
-            _ceremonyRms = Math.sqrt(_ceremonyRms / _fbuf.length) / 255;
+            for (let i = 0; i < dataArray.length; i++) { const _cv = dataArray[i] - 128; _ceremonyRms += _cv * _cv; }
+            _ceremonyRms = Math.sqrt(_ceremonyRms / dataArray.length) / 128;
             // S145e (Rob): the Mic-pill VU must run in EVERY phase — greeting included — regardless
             // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
             // does, with rms computed the same way the VAD measures it (so the gold line means the
@@ -2975,8 +2974,8 @@ function beginRecording() {
     // FALLBACK (used until the greeting phase calibrates, or if calibration can't run). The DIGIT
     // gate reads the per-session vadSpeechThreshold / vadSilenceThreshold derived from THIS user's
     // measured noise floor + greeting loudness. NO per-device constant is shipped.
-    const VAD_SPEECH_RMS_FALLBACK = 0.115;   // voiced threshold fallback (rms above this = voice). S145 live-tune (Rob, quiet hotel room, iPhone+MacBook): 0.14 forced a raised voice on BOTH mics — lowered to 0.115; the 350ms sustained + modulation + hysteresis gates (and Gemini server-side) remain the real guards, so the smaller neither-band (0.03) is safe.
-    const VAD_SILENCE_RMS_FALLBACK = 0.085;   // SILENCE threshold fallback (rms below this = silence). Hysteresis gap = "neither", so a fresh utterance must cross from real silence UP through voice — greeting-tail / continuous talk (no preceding in-window silence) can't pre-satisfy a digit.
+    const VAD_SPEECH_RMS_FALLBACK = 0.085;   // task-644: 0.115→0.085 for time-domain RMS scale (getByteTimeDomainData √mean((v-128)²)/128). S145 was freq-domain; time-domain speech at normal volume reads 0.05-0.25 so 0.085 is accessible without shouting.
+    const VAD_SILENCE_RMS_FALLBACK = 0.030;   // task-644: 0.085→0.030; time-domain ambient noise is 0.005-0.025 so 0.030 is below speech but above true silence. Hysteresis gap = "neither"; onset gate unchanged.
     // R1 (S114): the digit sustained-voice gate is TIME-based, not a frame count. The old
     // `voiced >= VAD_SPEECH_FRAMES(6)` measured rAF FRAMES, whose wall-clock varies by display
     // refresh (6 frames = ~100ms@60Hz but ~50ms@120Hz). It's gone; DIGIT_VOICE_MIN_MS (below) is
@@ -3168,7 +3167,8 @@ function _markSpeech(src, rms, onsetAt) {
         try { vacDebug('speech_gate_mode', null, { mode: _sessionGateAvail ? 'content+vad' : 'vad_energy_fallback' }); } catch(_) {}
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: start content gate for the first digit
         _refreshContentGate();
-        const buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+        const buf = new Uint8Array(audioAnalyser.frequencyBinCount);    // freq-domain — voiceBandRatio only
+        const _tdBuf = new Uint8Array(audioAnalyser.fftSize);           // time-domain — RMS only (task-644)
         let voiced = 0;
         let voiceMin = 1, voiceMax = 0;   // F-563 (#1): rms range over the current voiced run (the modulation check)
         let _voicedAboveThrFrames = 0;   // S155: count of individual frames read above vadSpeechThreshold this run (VOICE_EVIDENCE_MIN_FRAMES floor) — independent of the wall-clock duration check
@@ -3184,10 +3184,12 @@ function _markSpeech(src, rms, onsetAt) {
             // waiting on voice (codex). _startSpeechGate's initial check can't catch this later choice.
             if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); _vadRAF = null; return; }
             try {
-                audioAnalyser.getByteFrequencyData(buf);
-                let rms = 0; for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
-                rms = Math.sqrt(rms / buf.length) / 255;
+                // task-644: time-domain RMS fixes iOS where getByteFrequencyData stays ~0.01 forever
+                audioAnalyser.getByteTimeDomainData(_tdBuf);
+                let rms = 0; for (let i = 0; i < _tdBuf.length; i++) { const _v = _tdBuf[i] - 128; rms += _v * _v; }
+                rms = Math.sqrt(rms / _tdBuf.length) / 128;
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
+                audioAnalyser.getByteFrequencyData(buf);   // separate fetch — voiceBandRatio needs freq data
                 const vbRatio = _voiceBandRatio(audioAnalyser, buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
                 _lastVbRatio = vbRatio;  // surfaced to the QA overlay
                 window.__vacGateArmed = true; _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
@@ -4068,10 +4070,13 @@ function _markSpeech(src, rms, onsetAt) {
             try { vacDebug('phrase_content_matched', null, { ticks: _phraseVoicedTicks }); } catch(_) {}
         }
         try {
-            const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);
+            // task-644: time-domain RMS so iOS doesn't pin at 0.01 (same fix as digit VAD tick)
+            const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);  // freq-domain — voiceBandRatio only
+            const _tdbuf = new Uint8Array(audioAnalyser.fftSize);          // time-domain — RMS only
+            audioAnalyser.getByteTimeDomainData(_tdbuf);
+            let _rms = 0; for (let i = 0; i < _tdbuf.length; i++) { const _pv = _tdbuf[i] - 128; _rms += _pv * _pv; }
+            _rms = Math.sqrt(_rms / _tdbuf.length) / 128;
             audioAnalyser.getByteFrequencyData(_buf);
-            let _rms = 0; for (let i = 0; i < _buf.length; i++) _rms += _buf[i] * _buf[i];
-            _rms = Math.sqrt(_rms / _buf.length) / 255;
             const _vbRatio = _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
             _lastVbRatio = _vbRatio;  // surfaced to the QA overlay
             window.__vacGateArmed = true; _micPillDraw(_rms, VAD_SPEECH_RMS_FALLBACK, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)
@@ -4500,8 +4505,8 @@ const VOICE_EVIDENCE_MIN_FRAMES = 8;
 // full path keeps its own inline _startSpeechGate (F-662 risk call, codex: don't refactor
 // the shipping VAD); these FAST_* constants MIRROR that inline tuning (kept separate on
 // purpose). Pacing only — the server (Deepgram) is the authoritative spoken-digit check.
-const FAST_VAD_SPEECH_RMS = 0.115;   // S154: propagate the S145 hotel field-tune (0.14->0.115 — 0.14 forced a raised voice on both mics) that reached only the full-path fallback. The fast tier has no greeting calibration, so this hard constant IS its threshold — it must carry every field-tune. Second missed propagation found today (first: 350->270ms min duration).
-const FAST_VAD_SILENCE_RMS = 0.085;  // silence threshold (rms below this = silence). Mirrors VAD_SILENCE_RMS_FALLBACK.
+const FAST_VAD_SPEECH_RMS = 0.085;   // task-644: 0.115→0.085 for time-domain RMS scale (mirrors VAD_SPEECH_RMS_FALLBACK). Fast tier has no greeting cal; this IS the threshold.
+const FAST_VAD_SILENCE_RMS = 0.030;  // task-644: 0.085→0.030 for time-domain scale. Mirrors VAD_SILENCE_RMS_FALLBACK.
 const FAST_DIGIT_VOICE_MIN_MS = 270; // S154: propagate the S145j field-tune (350→270) that reached only the full path — quick-auth kept rejecting a briskly-said digit the full path had already learned to accept. Mirrors DIGIT_VOICE_MIN_MS.
 const FAST_DIGIT_MOD_DELTA = 0.030;  // the voiced run's rms must vary at least this much — a flat tone/beep (~0 range) can't satisfy. Mirrors DIGIT_MOD_DELTA.
 const FAST_DIGIT_VOICE_GAP_MS = 200; // max sustained OBSERVED dip within one voiced run before the run breaks (spaced taps). Mirrors DIGIT_VOICE_GAP_MS.
@@ -4519,12 +4524,16 @@ function _makeQuickReauthVoiceGate(cfg) {
     var preOnsetDipStart = 0;    // S154: tolerated pre-onset dip start (mirrors full path)
     var _sampLastT = 0, _sampMax = 0;  // S154 sampler state
     var preOnsetMidChecked = false;  // S139-v2: true once the mid-window spectral re-check has run in this pre-onset window
+    var _fastTdBuf = null;           // task-644: time-domain buffer for RMS (lazy-init on first _loop call)
     function _loop(analyser, buf) {
         if (_stopped) { _raf = null; return; }
+        if (!_fastTdBuf) _fastTdBuf = new Uint8Array(analyser.fftSize);  // task-644: lazy init
         try {
+            // task-644: time-domain RMS for iOS compatibility; buf keeps freq data for spectral checks
+            analyser.getByteTimeDomainData(_fastTdBuf);
+            var rms = 0; for (var i = 0; i < _fastTdBuf.length; i++) { var _fv = _fastTdBuf[i] - 128; rms += _fv * _fv; }
+            rms = Math.sqrt(rms / _fastTdBuf.length) / 128;
             analyser.getByteFrequencyData(buf);
-            var rms = 0; for (var i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
-            rms = Math.sqrt(rms / buf.length) / 255;
             // S145 finding 5 (F-922 lock-step): the fast/quick-auth single-digit tier runs this
             // VAD but never showed the mic instrument. Arm the same overlay every speaking surface uses.
             window.__vacGateArmed = true;
@@ -6372,7 +6381,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // heights/colours; it does NOT touch the voice gate (silence→onset binding) in any way.
 function _renderEqualiser(rms) {
     var mult = [0.5, 0.85, 1, 0.85, 0.5];
-    var voiced = rms > 0.12;   // ~mirrors VAD_SPEECH_RMS_FALLBACK — a colour cue only (display-only)
+    var voiced = rms > 0.07;   // task-644: 0.12→0.07, mirrors time-domain VAD_SPEECH_RMS_FALLBACK — colour cue only
     ['vacEqGreeting', 'vacSayEq'].forEach(function(id) {
         var host = document.getElementById(id);
         if (!host) return;
