@@ -549,6 +549,9 @@ function _micQualifyFloor(_voiced) {
 // from floor to speech), so this isn't a new absolute level (L-2403) — just an earlier source for
 // the same derivation. Returns null (caller keeps its fallback constants) when the preflight never
 // measured both quantities, or the span between them is too thin to trust.
+// BEGIN CALIBRATION BLOCK (task-645) — provenance anchor for confirmed-behaviors fixture CB-MIC-01.
+// SHA256 of this block body (between markers, trimmed) is stored in tests/fixtures/confirmed/founding-rows.json.
+// Any change here must update the fixture sha256 field and add a new fixture row (see docs/CONFIRMED-BEHAVIORS.md).
 const _CAL_K = 0.32;         // mirrors the greeting calibration's _CAL_K — speech threshold sits 32% of the way from floor to speech
 const _CAL_SIL_K = 0.30;     // mirrors the greeting calibration's _CAL_SIL_K — silence threshold sits 30% of the way from floor to the speech threshold (floor < silence < speech, provably, regardless of clamping)
 const _CAL_MIN_SPAN = 0.04;  // mirrors the greeting calibration's _CAL_MIN_SPAN — reject a degenerate (near-zero) floor→speech span rather than calibrate off noise
@@ -597,6 +600,7 @@ function _micPreflightVad() {
     const silenceThr = _floor01 + _CAL_SIL_K * (speechThr - _floor01);
     return { speechThr: speechThr, silenceThr: silenceThr, floor: _floor01, speech: _speech01 };
 }
+// END CALIBRATION BLOCK (task-645)
 
 // Client-side PROXY for the server's hand_near_face anti-spoof gate, used ONLY to give the
 // user live feedback (the server still recomputes hand_near_face — this never gates auth and

@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "session": "S156",
+  "task": "task-645-confirm-fixture-loop",
+  "source_commit": "22b2671",
+  "description": "Founding confirmed-behavior rows locked at task-644 merge (22b2671, 2026-08-06). Encode the CORRECT post-fix behavior. These are regression targets — any change to a covered behavior must add a new row (bump rev) and update the sha256 field if the calibration block changed.",
+  "rows": [
+    {
+      "id": "CB-MIC-01",
+      "rev": 0,
+      "description": "time-domain RMS gate fires on normal speech — iOS Safari 26 fix (task-644)",
+      "claimed": "getByteTimeDomainData replaces getByteFrequencyData at all 3 VAD RMS compute sites; fallback thresholds recalibrated to time-domain scale (was frequency-domain 0.115, now time-domain 0.085)",
+      "constants": {
+        "VAD_SPEECH_RMS_FALLBACK": 0.085,
+        "VAD_SILENCE_RMS_FALLBACK": 0.030,
+        "FAST_VAD_SPEECH_RMS": 0.085,
+        "FAST_VAD_SILENCE_RMS": 0.030
+      },
+      "pattern_required": "getByteTimeDomainData",
+      "note": "time-domain RMS = sqrt(mean((v-128)^2))/128, range 0-1. Normal speech reads 0.05-0.25; ambient noise 0.005-0.025. Threshold 0.085 is reachable without shouting."
+    },
+    {
+      "id": "CB-ZONE-01",
+      "rev": 0,
+      "description": "beside-cheek pose accepted: wrist(0.72,0.78) with anchored face = IN; hand-overlapping-face NOT required (task-644 cheek-zone relax)",
+      "claimed": "GESTURE_ZONE_SPEC.rx 0.17->0.21, ry 0.22->0.26, minTipsInside 3->2, _FACE_SIDE_GAP 0.03->0.10 — ovals pushed further from face edge so beside-cheek pose naturally lands inside the oval",
+      "constants": {
+        "GESTURE_ZONE_SPEC_rx": 0.21,
+        "GESTURE_ZONE_SPEC_ry": 0.26,
+        "GESTURE_ZONE_SPEC_minTipsInside": 2,
+        "_FACE_SIDE_GAP": 0.10
+      },
+      "note": "Acceptance: palm-centre OR >= 2 fingertips inside oval. Face-anchored: ovals move with detected face position. Fallback to GESTURE_ZONE_SPEC fixed constants when no confident face read."
+    },
+    {
+      "id": "CB-ZONE-02",
+      "rev": 0,
+      "description": "drawn guide and acceptance gate consume identical _activeZone() numbers — single source of truth maintained",
+      "claimed": "_avDrawHand/_drawFingerTargetGuide both call _activeZone() for oval geometry; _handNearFaceZone acceptance gate also calls _activeZone(); no separate constant path exists for either",
+      "note": "Zone parity: guide scale factor is `z.rx / GESTURE_ZONE_SPEC.rx` applied to _activeZone() output — guide is always proportionally wider than acceptance gate using the SAME anchored oval centres. Any divergence would mean a visible 'green zone' different from what actually accepts."
+    }
+  ],
+  "calibration_block": {
+    "description": "mic-preflight VAD calibration block in vac-reauth-ceremony.js: _CAL_K, _CAL_SIL_K, _CAL_MIN_SPAN, _calClamp, FAST_CAL_FLOOR_MULT, FAST_CAL_THR_MIN, FAST_CAL_THR_MAX, _fastCalThreshold, _micPreflightVad",
+    "marker_start": "// BEGIN CALIBRATION BLOCK (task-645)",
+    "marker_end": "// END CALIBRATION BLOCK (task-645)",
+    "extraction": "content from the newline after the begin marker line to the newline before the end marker line, trimmed",
+    "sha256": "aff58743561ae9bc961e399c226d450dc4abe90a59551816501c64a84db180bf"
+  }
+}

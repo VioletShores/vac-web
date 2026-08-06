@@ -4,15 +4,30 @@ on:
     paths:
       - 'tribunal-demo.html'
       - 'auth.html'
+      - 'vac-reauth-ceremony.js'
       - 'tests/user-journey.pw.js'
+      - 'tests/confirmed-behaviors.test.js'
+      - 'tests/fixtures/confirmed/**'
       - 'playwright.config.js'
   pull_request:
     paths:
       - 'tribunal-demo.html'
       - 'auth.html'
+      - 'vac-reauth-ceremony.js'
       - 'tests/user-journey.pw.js'
+      - 'tests/confirmed-behaviors.test.js'
+      - 'tests/fixtures/confirmed/**'
       - 'playwright.config.js'
 jobs:
+  confirmed-behaviors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run confirmed-behaviors harness
+        run: node --test tests/confirmed-behaviors.test.js
   journey:
     runs-on: ubuntu-latest
     steps:
