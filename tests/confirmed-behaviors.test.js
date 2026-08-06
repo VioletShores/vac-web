@@ -217,6 +217,155 @@ test('CB-ZONE-02: _activeZone() called from _avDrawHand (full-auth guide uses sa
     );
 });
 
+// --- CB-ZONE-03: double-stroke halo on guide ovals (task-646) ---
+
+// Helper: extract a named top-level function body by brace-counting.
+function extractNamedFnBody(fnName) {
+    const fnStart = src.indexOf('function ' + fnName + '(');
+    assert.ok(fnStart >= 0, fnName + ' not found in source');
+    let depth = 0, i = fnStart;
+    while (i < src.length && depth === 0) { if (src[i] === '{') depth++; i++; }
+    while (i < src.length) {
+        if (src[i] === '{') depth++;
+        else if (src[i] === '}') { depth--; if (!depth) { i++; break; } }
+        i++;
+    }
+    return src.slice(fnStart, i);
+}
+
+// Spy ctx — records strokeStyle, lineWidth, and globalAlpha at the moment stroke() is called.
+function makeSpyCtx() {
+    const spy = {
+        strokes: [], dashCalls: [],
+        strokeStyle: '', lineWidth: 0, globalAlpha: 1,
+        shadowBlur: 0, shadowColor: '', shadowOffsetX: 0, shadowOffsetY: 0,
+        fillStyle: '', font: '', textAlign: '', textBaseline: '',
+        save() {}, restore() {}, beginPath() {}, fill() {},
+        translate() {}, scale() {}, fillText() {}, fillRect() {},
+        arc() {}, moveTo() {}, lineTo() {}, ellipse() {},
+        measureText() { return { width: 10 }; },
+        setLineDash(d) { if (d && d.length) spy.dashCalls.push([...d]); },
+        stroke() { spy.strokes.push({ style: String(spy.strokeStyle), width: Number(spy.lineWidth), alpha: Number(spy.globalAlpha) }); },
+    };
+    return spy;
+}
+
+// Run _drawFingerTargetGuide with zone EMPTY (lm=null, active side='right'), DPR=1.
+// performance.now() returns 600 (mid-cycle) so _pulse646 = 0.65 — clearly below the default of 1.0,
+// letting tests verify the pulse is actually applied rather than default globalAlpha being left unchanged.
+// Returns the spy ctx after execution so tests can inspect captured draw calls.
+function runDrawGuide() {
+    const fnText = extractNamedFnBody('_drawFingerTargetGuide');
+    const spyCtx = makeSpyCtx();
+    const wrapper = `
+        var _activeZone = function() {
+            return { ovals: [{ cx: 0.28, cy: 0.50, side: 'left' }, { cx: 0.72, cy: 0.50, side: 'right' }], rx: 0.21, ry: 0.26 };
+        };
+        var _handNearFaceZone = function() { return false; };
+        var _AV_HAND_CONN = [];
+        var devicePixelRatio = 1;
+        var performance = { now: function() { return 600; } };
+        ${fnText}
+        _drawFingerTargetGuide(ctx, 100, 100, 3, 'right', null);
+    `;
+    (new Function('ctx', wrapper))(spyCtx);
+    return spyCtx;
+}
+
+test('CB-ZONE-03: zone guide dark outer halo present — reads on bright camera feeds', () => {
+    const row = fixtures.rows.find((r) => r.id === 'CB-ZONE-03');
+    assert.ok(row, 'CB-ZONE-03 row must be present in founding-rows.json');
+    const { strokes } = runDrawGuide();
+    const outerColor = row.draw.outer_stroke_color;
+    assert.ok(
+        strokes.some((s) => s.style === outerColor),
+        `outer halo stroke must use "${outerColor}" — found: ${JSON.stringify(strokes.map((s) => s.style))}`
+    );
+});
+
+test('CB-ZONE-03: zone guide gold inner stroke present with opacity >= 0.9', () => {
+    const row = fixtures.rows.find((r) => r.id === 'CB-ZONE-03');
+    const { strokes } = runDrawGuide();
+    const innerColor = row.draw.inner_stroke_color;
+    const innerStroke = strokes.find((s) => s.style === innerColor);
+    assert.ok(innerStroke,
+        `inner stroke must use "${innerColor}" — found: ${JSON.stringify(strokes.map((s) => s.style))}`
+    );
+    const alphaMatch = innerColor.match(/rgba\s*\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\s*\)/);
+    const alpha = alphaMatch ? parseFloat(alphaMatch[1]) : 1;
+    assert.ok(alpha >= row.draw.inner_opacity_min,
+        `inner stroke opacity ${alpha} must be >= ${row.draw.inner_opacity_min} (task-646 legibility requirement)`
+    );
+});
+
+test('CB-ZONE-03: zone guide inner stroke lineWidth >= 2px logical (floor rule, DPR=1 in test)', () => {
+    const row = fixtures.rows.find((r) => r.id === 'CB-ZONE-03');
+    const { strokes } = runDrawGuide();
+    const innerColor = row.draw.inner_stroke_color;
+    const innerStroke = strokes.find((s) => s.style === innerColor);
+    assert.ok(innerStroke, `inner stroke "${innerColor}" not found in draw calls`);
+    assert.ok(
+        innerStroke.width >= row.draw.inner_linewidth_logical_min,
+        `inner stroke lineWidth ${innerStroke.width} must be >= ${row.draw.inner_linewidth_logical_min} (2px logical minimum at DPR=1)`
+    );
+});
+
+test('CB-ZONE-03: zone guide setLineDash called with longer dashes (first element >= 8px)', () => {
+    const row = fixtures.rows.find((r) => r.id === 'CB-ZONE-03');
+    const { dashCalls } = runDrawGuide();
+    assert.ok(
+        dashCalls.some((d) => d.length > 0 && d[0] >= row.draw.dash_length_min),
+        `setLineDash must be called with dash length >= ${row.draw.dash_length_min} — found: ${JSON.stringify(dashCalls)}`
+    );
+});
+
+test('CB-ZONE-03: outer halo lineWidth > inner lineWidth — halo is visually distinct (no floor collapse)', () => {
+    const row = fixtures.rows.find((r) => r.id === 'CB-ZONE-03');
+    const { strokes } = runDrawGuide();
+    const outerColor = row.draw.outer_stroke_color;
+    const innerColor = row.draw.inner_stroke_color;
+    const outerStroke = strokes.find((s) => s.style === outerColor);
+    const innerStroke = strokes.find((s) => s.style === innerColor);
+    assert.ok(outerStroke, `outer stroke "${outerColor}" not found`);
+    assert.ok(innerStroke, `inner stroke "${innerColor}" not found`);
+    assert.ok(
+        outerStroke.width > innerStroke.width,
+        `outer lineWidth ${outerStroke.width} must be > inner lineWidth ${innerStroke.width} — floor collapse would make the double-stroke invisible`
+    );
+});
+
+test('CB-ZONE-03: opacity pulse applied — globalAlpha < 1.0 at mid-cycle (performance.now()=600)', () => {
+    const row = fixtures.rows.find((r) => r.id === 'CB-ZONE-03');
+    const { strokes } = runDrawGuide();
+    const innerColor = row.draw.inner_stroke_color;
+    const innerStroke = strokes.find((s) => s.style === innerColor);
+    assert.ok(innerStroke, `inner stroke "${innerColor}" not found`);
+    // At t=600ms: _pulse = 0.65 + 0.35 * (1 + cos(π)) / 2 = 0.65 (minimum).
+    // Any value < 1.0 proves the pulse is wired up rather than globalAlpha left at default.
+    assert.ok(
+        innerStroke.alpha < 1.0,
+        `inner stroke globalAlpha ${innerStroke.alpha} must be < 1.0 at mid-cycle — pulse not applied`
+    );
+});
+
+test('CB-ZONE-03: _avDrawHand contains double-stroke halo colors (source structural check)', () => {
+    const row = fixtures.rows.find((r) => r.id === 'CB-ZONE-03');
+    const drawIdx = src.indexOf('function _avDrawHand');
+    assert.ok(drawIdx >= 0, '_avDrawHand must be defined');
+    let depth = 0, i = drawIdx;
+    while (i < src.length && depth === 0) { if (src[i] === '{') depth++; i++; }
+    const fnEnd = (() => { while (i < src.length) { if (src[i] === '{') depth++; else if (src[i] === '}') { depth--; if (!depth) return i + 1; } i++; } return i; })();
+    const fnBody = src.slice(drawIdx, fnEnd);
+    assert.ok(
+        fnBody.includes(row.draw.outer_stroke_color),
+        `_avDrawHand must contain outer halo color "${row.draw.outer_stroke_color}"`
+    );
+    assert.ok(
+        fnBody.includes(row.draw.inner_stroke_color),
+        `_avDrawHand must contain inner gold color "${row.draw.inner_stroke_color}"`
+    );
+});
+
 // --- CALIBRATION HASH GUARD ---
 
 test('CALIBRATION HASH GUARD: calibration block SHA256 matches founding-rows fixture (CB-MIC-01 provenance lock)', () => {

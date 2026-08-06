@@ -1400,6 +1400,11 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
     // face-anchored when a confident face read exists, else GESTURE_ZONE_SPEC's fallback).
     var _zone = _activeZone();
     var _ovals = _zone.ovals, _radX = _zone.rx, _radY = _zone.ry;
+    // task-646: double-stroke halo — precompute pulse once per frame for all ovals.
+    var _dpr646 = (typeof devicePixelRatio !== 'undefined' ? devicePixelRatio : 1);
+    var _t646 = (typeof performance !== 'undefined' ? performance.now() : 0);
+    var _pulse646 = 0.65 + 0.35 * (1 + Math.cos(2 * Math.PI * _t646 / 1200)) / 2;
+    var _dashL646 = Math.max(10, w * 0.024), _gapL646 = Math.max(5, w * 0.012);
     ctx.save();
     try {
         for (var _oi = 0; _oi < _ovals.length; _oi++) {
@@ -1413,17 +1418,23 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             ctx.beginPath();
             ctx.ellipse(_cx, _ocx2, _rx, _ry, 0, 0, 6.283);
             if (_active) {
-                // task-432 Part 3: unmissable, peripheral-vision-readable confirmation — the
-                // zone itself turns green + fills solid the instant the hand is accepted, and
-                // reverses instantly on exit (recomputed fresh every frame, no latch).
-                ctx.fillStyle = _glow ? 'rgba(0,184,148,0.32)' : 'rgba(108,92,231,0.12)';
-                ctx.shadowColor = _glow ? '#00b894' : 'transparent';
-                ctx.shadowBlur  = _glow ? Math.max(18, w * 0.04) : 0;
-                ctx.fill();
-                ctx.strokeStyle = _glow ? '#00b894' : 'rgba(108,92,231,0.75)';
-                ctx.lineWidth   = _glow ? Math.max(3, w * 0.006) : Math.max(2, w * 0.005);
-                ctx.shadowBlur  = _glow ? Math.max(10, w * 0.02) : 0;
-                ctx.stroke();
+                if (_glow) {
+                    // task-432 Part 3: hand IN zone — solid green confirmation, instant-reversing.
+                    ctx.fillStyle = 'rgba(0,184,148,0.32)'; ctx.shadowColor = '#00b894';
+                    ctx.shadowBlur = Math.max(18, w * 0.04); ctx.fill();
+                    ctx.strokeStyle = '#00b894'; ctx.lineWidth = Math.max(3, w * 0.006);
+                    ctx.shadowBlur = Math.max(10, w * 0.02); ctx.setLineDash([]); ctx.stroke();
+                } else {
+                    // task-646: zone EMPTY — double-stroke halo reads on both bright and dark feeds.
+                    ctx.fillStyle = 'rgba(108,92,231,0.12)'; ctx.shadowBlur = 0; ctx.fill();
+                    ctx.strokeStyle = 'rgba(10,15,26,0.85)';
+                    ctx.lineWidth = Math.max(3 * _dpr646, w * 0.006);
+                    ctx.setLineDash([_dashL646, _gapL646]); ctx.globalAlpha = _pulse646; ctx.stroke();
+                    ctx.strokeStyle = 'rgba(212,169,78,0.95)';
+                    ctx.lineWidth = Math.max(2 * _dpr646, w * 0.003);
+                    ctx.globalAlpha = _pulse646; ctx.stroke();
+                    ctx.globalAlpha = 1; ctx.setLineDash([]);
+                }
             } else {
                 // inactive: faint ghost only
                 ctx.fillStyle = 'rgba(108,92,231,0.03)';
@@ -1561,7 +1572,13 @@ function _avDrawHand(videoEl, lm){
         if (lm && lm.length === 21 && lm[0] && Number.isFinite(lm[0].x)) _wristX = lm[0].x;
         const _nearSide = _wristX === null ? null : (_wristX < 0.5 ? _zone.ovals[0].cx : _zone.ovals[1].cx);
         const _gzRx = _zone.rx, _gzRy = _zone.ry;
+        // task-646: double-stroke halo — precompute pulse once per frame for all ovals.
+        const _dprAv = (typeof devicePixelRatio !== 'undefined' ? devicePixelRatio : 1);
+        const _tAv = (typeof performance !== 'undefined' ? performance.now() : 0);
+        const _pulseAv = 0.65 + 0.35 * (1 + Math.cos(2 * Math.PI * _tAv / 1200)) / 2;
+        const _dashLAv = Math.max(10, w * 0.024), _gapLAv = Math.max(5, w * 0.012);
         ctx.save();
+        try {
         for (const _ov of _zone.ovals) {
             const cxN = _ov.cx;
             const _isActive = (_nearSide === null) ? null : (cxN === _nearSide);
@@ -1575,22 +1592,29 @@ function _avDrawHand(videoEl, lm){
                     ctx.strokeStyle='#00b894'; ctx.lineWidth=Math.max(3,w*0.006);
                     ctx.setLineDash([]); ctx.stroke();
                 } else {
+                    // task-646: zone EMPTY — double-stroke halo reads on both bright and dark feeds.
                     ctx.fillStyle='rgba(108,92,231,0.16)'; ctx.fill();
-                    ctx.strokeStyle='rgba(108,92,231,0.80)'; ctx.lineWidth=Math.max(2,w*0.005);
-                    ctx.setLineDash([]); ctx.stroke();
+                    ctx.strokeStyle='rgba(10,15,26,0.85)'; ctx.lineWidth=Math.max(3*_dprAv,w*0.006);
+                    ctx.setLineDash([_dashLAv,_gapLAv]); ctx.globalAlpha=_pulseAv; ctx.stroke();
+                    ctx.strokeStyle='rgba(212,169,78,0.95)'; ctx.lineWidth=Math.max(2*_dprAv,w*0.003);
+                    ctx.globalAlpha=_pulseAv; ctx.stroke();
+                    ctx.globalAlpha=1; ctx.setLineDash([]);
                 }
             } else if (_isActive === false) {
                 ctx.fillStyle='rgba(108,92,231,0.03)'; ctx.fill();
                 ctx.strokeStyle='rgba(108,92,231,0.18)'; ctx.lineWidth=Math.max(1,w*0.002);
                 ctx.setLineDash([Math.max(3,w*0.008),Math.max(3,w*0.008)]); ctx.stroke(); ctx.setLineDash([]);
             } else {
-                // no hand yet — both dim-equal, soft
+                // task-646: no hand yet — double-stroke halo on both ovals draws the eye to the targets.
                 ctx.fillStyle='rgba(108,92,231,0.07)'; ctx.fill();
-                ctx.strokeStyle='rgba(108,92,231,0.45)'; ctx.lineWidth=Math.max(2,w*0.004);
-                ctx.setLineDash([]); ctx.stroke();
+                ctx.strokeStyle='rgba(10,15,26,0.85)'; ctx.lineWidth=Math.max(3*_dprAv,w*0.006);
+                ctx.setLineDash([_dashLAv,_gapLAv]); ctx.globalAlpha=_pulseAv; ctx.stroke();
+                ctx.strokeStyle='rgba(212,169,78,0.95)'; ctx.lineWidth=Math.max(2*_dprAv,w*0.003);
+                ctx.globalAlpha=_pulseAv; ctx.stroke();
+                ctx.globalAlpha=1; ctx.setLineDash([]);
             }
         }
-        ctx.restore();
+        } finally { ctx.restore(); }
     })();
     if(!lm) {
         _avActiveStreak = Math.max(0, _avActiveStreak - 1);

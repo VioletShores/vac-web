@@ -80,6 +80,25 @@ computed from the same `_activeZone()` call. No separate constant path exists fo
 
 ---
 
+## CB-ZONE-03 — Zone guide: double-stroke halo visible on mobile (task-646)
+
+**Commit**: task-646-zone-guide-visibility  
+**Defect fixed**: Rob iPhone live test 2026-08-06: dashed cheek-zone ovals too small/faint over bright camera feed — barely visible.
+
+**Correct behavior**:
+- When zone is EMPTY (hand not yet in zone): dark outer stroke `rgba(10,15,26,0.85)` drawn first (reads on bright backgrounds), then brand gold inner stroke `rgba(212,169,78,0.95)` on top (reads on dark backgrounds)
+- Outer lineWidth: `Math.max(2 × DPR, w × 0.006)` — scales with canvas size, floor 2px logical
+- Inner lineWidth: `Math.max(2 × DPR, w × 0.003)` — visibly thinner than outer, floor 2px logical; opacity 0.95 ≥ 0.9
+- Dashes: `[max(10, w×0.024), max(5, w×0.012)]` — longer than previous `[w×0.008, w×0.008]`
+- Opacity pulse: `globalAlpha = 0.65 + 0.35 × (1 + cos(2πt/1200)) / 2` — gentle 1.2 s cosine oscillation draws the eye; range [0.65, 1.0]
+- When hand IS in zone (`_glow` / `_avZone`): solid green confirmation, no halo (unchanged)
+- Inactive oval (wrong cheek): faint ghost unchanged (no halo — avoids "use both hands" signal)
+- `zone guide: inner stroke >=2px logical, opacity >=0.9, double-stroke halo present (Rob, iPhone, 6 Aug)`
+
+**Applies to**: `_drawFingerTargetGuide` (capture step) and `_avDrawHand._drawAvCheekOvals` (full-auth step). Geometry `rx`/`ry`/`gap` untouched (lane 644 owns those constants).
+
+---
+
 ## Updating these fixtures
 
 When a behavior in this document changes intentionally:

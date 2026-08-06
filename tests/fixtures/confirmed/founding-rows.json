@@ -38,6 +38,20 @@
       "description": "drawn guide and acceptance gate consume identical _activeZone() numbers — single source of truth maintained",
       "claimed": "_avDrawHand/_drawFingerTargetGuide both call _activeZone() for oval geometry; _handNearFaceZone acceptance gate also calls _activeZone(); no separate constant path exists for either",
       "note": "Zone parity: guide scale factor is `z.rx / GESTURE_ZONE_SPEC.rx` applied to _activeZone() output — guide is always proportionally wider than acceptance gate using the SAME anchored oval centres. Any divergence would mean a visible 'green zone' different from what actually accepts."
+    },
+    {
+      "id": "CB-ZONE-03",
+      "rev": 0,
+      "description": "zone guide ovals use double-stroke halo when zone is EMPTY — reads on both bright and dark camera feeds (task-646, Rob iPhone 6 Aug)",
+      "claimed": "dark outer stroke rgba(10,15,26,0.85) drawn first, brand gold inner rgba(212,169,78,0.95) drawn on top; inner opacity >= 0.9; dashes >= 8px logical; pulse via globalAlpha cosine ~1.2s period; solid green when hand IN zone",
+      "draw": {
+        "outer_stroke_color": "rgba(10,15,26,0.85)",
+        "inner_stroke_color": "rgba(212,169,78,0.95)",
+        "dash_length_min": 8,
+        "inner_opacity_min": 0.9,
+        "inner_linewidth_logical_min": 2
+      },
+      "note": "Applies to both _drawFingerTargetGuide (capture step) and _avDrawHand (full-auth step). When _avZone/_glow is true (hand accepted), reverts to solid green — no halo. Inactive (wrong cheek) oval stays faint ghost."
     }
   ],
   "calibration_block": {
