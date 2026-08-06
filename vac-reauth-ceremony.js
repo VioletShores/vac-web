@@ -6536,7 +6536,10 @@ function startAudioMonitor() {
                 if (bars[i]) bars[i].style.height = h + 'px';
             }
             if (readout) {
-                readout.textContent = 'RMS ' + Math.round(rms * 100) + '%';
+                // S156 provenance row-zero: the RUNNING build is visible on-device.
+                // If this tag doesn't match the latest deploy tag, the phone is on
+                // cached bytes (the ?v= pin must be bumped every ceremony-JS change).
+                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h3';
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
