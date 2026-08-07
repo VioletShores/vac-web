@@ -300,6 +300,7 @@ let retryAttempts = 0;
 const MAX_RETRIES = 5;
 let audioContext = null;
 let audioAnalyser = null;
+let _monitorStream = null;  // S157 C1: module-scope so startAudioMonitor() can stop prior clone on rewire
 let audioAnimFrame = null;
 // F-755d audio-bar/equaliser display-only onset instrumentation (task-515 P0-1,
 // ported from vac-protocol b923dc3/a348465). Distinct from the real per-digit
@@ -2612,7 +2613,7 @@ var _contentGateAvail = !!(window.SpeechRecognition || window.webkitSpeechRecogn
 // onNoMatch (task-653): called when non-matching transcripts arrive for >=NO_MATCH_FALLBACK_MS
 // while vadProbe() returns true — provisional client pass; server bound-digit gate is authority.
 // vadProbe: optional function() → boolean; if absent, VAD check is skipped (pure transcript timing).
-var NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts + VAD voice → provisional
+const NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts + VAD voice → provisional
 function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
@@ -2648,6 +2649,8 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
                     try { onNoMatch(t); } catch(_) {}
                     return;
                 }
+            } else {
+                _noMatchVoiceAt = 0;  // reset timer when VAD is not active — ensures >=4s of SUSTAINED voice
             }
         }
     };
@@ -6601,6 +6604,8 @@ function startAudioMonitor() {
         // entries can't accumulate AudioContexts and hit the browser's ~6-limit (which made
         // `new AudioContext()` throw → audioAnalyser stayed null → the phrase fail-open bypass).
         if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        // Stop any prior monitor stream clone so we don't leak live audio tracks on rewire
+        if (_monitorStream) { try { _monitorStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {} _monitorStream = null; }
         if (!mediaStream) { console.error('[VAC][AUDIO] startAudioMonitor: no mediaStream — voice gate will be OFF'); return; }
         // S154 (quick-auth-after-full-ceremony deafness): the full path's teardown can END the
         // stream's audio track while the mediaStream global stays truthy — cloning an ended
@@ -6632,11 +6637,12 @@ function startAudioMonitor() {
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
         audioAnalyser.smoothingTimeConstant = 0.15;  // S139-v2: low smoothing so inter-tap dips register; default 0.8 kept two ~100ms taps' residual above threshold continuously, defeating the 250ms sustain gate
-        const monitorStream = mediaStream.clone();
-        const source = audioContext.createMediaStreamSource(monitorStream);
+        _monitorStream = mediaStream.clone();
+        const source = audioContext.createMediaStreamSource(_monitorStream);
         source.connect(audioAnalyser);
 
         audioNoiseFloor = 0.01;
+        _adaptLastFloor = 0.01;  // S157 C1: keep adapt tracking in sync with floor reset (prevents false explain-as-you-adapt)
         audioOnsetActive = false;
         const dataArray = new Uint8Array(audioAnalyser.fftSize);
         const bars = [0,1,2,3,4].map(i => document.getElementById(`ab${i}`));
@@ -6655,8 +6661,9 @@ function startAudioMonitor() {
             const rms = Math.sqrt(sumSq / dataArray.length);
 
             // S157 C1: flatline rewire — analyser tapped to dead/replaced stream.
-            // Condition: rms < 0.003 for >=1500ms, ctx running, track live → rebuild.
-            if (rms < 0.003) {
+            // Threshold 0.001 (not 0.003): Chrome injects ~0.001-0.003 privacy noise into working
+            // analysers; truly dead streams return all-128 bytes → rms = 0 exactly. 0.001 discriminates.
+            if (rms < 0.001) {
                 if (_flatlineStart === 0) _flatlineStart = performance.now();
                 if (!_audioRewireInFlight && _audioRewireCount < 3 &&
                         (performance.now() - _audioLastRewireAt) > 5000 &&
@@ -6664,7 +6671,7 @@ function startAudioMonitor() {
                     var _rwCtxOk = false, _rwTrkOk = false;
                     try { _rwCtxOk = !!(audioContext && audioContext.state === 'running'); } catch(_) {}
                     try {
-                        var _rwt = monitorStream ? monitorStream.getAudioTracks()[0] : null;
+                        var _rwt = _monitorStream ? _monitorStream.getAudioTracks()[0] : null;
                         _rwTrkOk = !!(_rwt && _rwt.readyState === 'live' && !_rwt.muted);
                     } catch(_) {}
                     if (_rwCtxOk && _rwTrkOk) {
@@ -6673,6 +6680,9 @@ function startAudioMonitor() {
                         _audioLastRewireAt = performance.now();
                         try { vacDebug('audio_rewire', null, { count: _audioRewireCount, elapsed: Math.round(performance.now() - _flatlineStart) }); } catch(_) {}
                         setTimeout(function() {
+                            // Guard: ceremony was cancelled (stopAudioMonitor → audioAnalyser = null)
+                            // before this callback fired — skip to avoid zombie AudioContext
+                            if (audioAnalyser === null && !mediaStream) { _audioRewireInFlight = false; return; }
                             try { startAudioMonitor(); } catch(_e) {}
                             _audioRewireInFlight = false;
                         }, 0);
@@ -6712,7 +6722,7 @@ function startAudioMonitor() {
                 try { _st = 'c:' + (audioContext ? audioContext.state.charAt(0) : '?'); } catch(_) {}
                 var _tk = 't:?';
                 try {
-                    var _mt = (typeof monitorStream !== 'undefined' && monitorStream) ? monitorStream.getAudioTracks()[0] : null;
+                    var _mt = _monitorStream ? _monitorStream.getAudioTracks()[0] : null;
                     if (_mt) _tk = 't:' + (_mt.readyState === 'ended' ? 'e' : (_mt.muted ? 'm' : 'l'));
                 } catch(_) {}
                 if (readout.getAttribute('data-adapt-msg')) {
@@ -6744,6 +6754,10 @@ function stopAudioMonitor() {
     audioContext = null;
     audioAnalyser = null;
     audioOnsetActive = false;
+    // S157 C1: clear adapt timer so it cannot fire into a subsequent ceremony's readout
+    if (_adaptExplainTimer) { clearTimeout(_adaptExplainTimer); _adaptExplainTimer = null; }
+    // S157 C1: stop the monitor clone so we don't leave a live audio track after ceremony end
+    if (_monitorStream) { try { _monitorStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {} _monitorStream = null; }
     document.getElementById('audioLevel').style.display = 'none';
 }
 
