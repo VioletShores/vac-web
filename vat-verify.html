@@ -820,7 +820,7 @@ function render(data, verif, budgetData) {
     if (cm && cm.length && getIntent() !== 'verify') {
         const dc = cm.filter(c => c.status === 'demonstrated').length;
         const rc = cm.length - dc;
-        h += `<div class="section"><div class="patent-trigger" onclick="togSection(this,'patentGrid')"><span>Patent Portfolio \u00b7 1028+ Claims \u00b7 16 Filings</span><div class="patent-stats"><span class="live-dot"></span><span style="color:var(--success)">${dc} live</span><span class="ref-dot"></span><span style="color:var(--text-muted)">${rc} coming</span><span class="collapse-chevron">\u25bc</span></div></div><div class="patent-body" id="patentGrid"><div class="patent-grid">`;
+        h += `<div class="section"><div class="patent-trigger" onclick="togSection(this,'patentGrid')"><span>Patent Portfolio \u00b7 1,068 Claims \u00b7 17 Filings</span><div class="patent-stats"><span class="live-dot"></span><span style="color:var(--success)">${dc} live</span><span class="ref-dot"></span><span style="color:var(--text-muted)">${rc} coming</span><span class="collapse-chevron">\u25bc</span></div></div><div class="patent-body" id="patentGrid"><div class="patent-grid">`;
         cm.forEach(c => {
             const demo = c.status === 'demonstrated';
             const cls = demo ? 'demonstrated' : 'referenced';
