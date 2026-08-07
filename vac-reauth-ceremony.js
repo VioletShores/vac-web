@@ -311,6 +311,18 @@ const AUDIO_ONSET_DELTA = 0.025;    // rms must exceed floor by this much to tri
 const AUDIO_ONSET_RELEASE = 0.012;  // hysteresis: must drop back below floor+this to release
 const AUDIO_FLOOR_EMA_ALPHA = 0.05;    // fast adaptation while quiet
 const AUDIO_FLOOR_DRIFT_ALPHA = 0.002; // slow drift while onset-active (recovery only — see a348465: a hard freeze-while-active can never release in a sustained-loud room)
+// S157 C1: continuous floor-relative VAD. Replaces INTERIM r2/r3 clamps with live re-derivation
+// per digit window (frozen during onset/voiced runs). Wide sanity guards only — not narrow bounds.
+const ADAPTIVE_SPEECH_DELTA = 0.028;    // speech threshold = floor + this (same headroom as r3, now continuous)
+const ADAPTIVE_SILENCE_DELTA = 0.008;   // silence threshold = floor + this, always < speech
+const ADAPTIVE_THR_MIN = 0.020;         // wide low guard (ultra-quiet anechoic rooms)
+const ADAPTIVE_THR_MAX = 0.150;         // wide high guard (very loud environments)
+var _adaptLastFloor = 0;                // floor value at last threshold derivation — tracks drift
+var _adaptExplainTimer = null;          // F-1025: timer to hide the explain-as-you-adapt line
+// S157 C1 rewire guard: module scope persists across startAudioMonitor() calls
+var _audioRewireCount = 0;
+var _audioLastRewireAt = 0;
+var _audioRewireInFlight = false;
 
 
 
@@ -2537,10 +2549,16 @@ function _vadDiag(msg){
 const _CONTENT_DIGIT_MAP = {
     'zero':0,'one':1,'two':2,'three':3,'four':4,'five':5,
     'six':6,'seven':7,'eight':8,'nine':9,
-    // HOTFIX S156 (chat-side, Rob live-blocked 6 Aug): iOS transcription homophones —
-    // whitelist only, no fuzzy matching (security: D-VOICE-GATE). Mirror in engine.py.
-    'for':4,'fore':4,'won':1,'to':2,'too':2,'tree':3,'free':3,
-    'fife':5,'ate':8,'oh':0,'o':0,'niner':9
+    // task-653: iOS/ASR transcription homophones — whitelist only, no fuzzy matching
+    // (security: D-VOICE-GATE). Extend BOTH this map and engine.py normalize_words identically.
+    'for':4,'fore':4,                       // four → 4
+    'won':1,'juan':1,                        // one → 1 (juan: Spanish/multilingual ASR)
+    'to':2,'too':2,'tu':2,                   // two → 2 (tu: Spanish/multilingual ASR)
+    'tree':3,'free':3,                       // three → 3 (tree: Irish-English, free: /θ/-merger)
+    'fife':5,                                // five → 5
+    'ate':8,                                 // eight → 8
+    'oh':0,'o':0,                            // zero → 0 (single vowel phoneme)
+    'niner':9                                // nine → 9 (aviation/NATO)
 };
 
 function _contentNormWord(w) {
@@ -2591,10 +2609,15 @@ var _contentGateAvail = !!(window.SpeechRecognition || window.webkitSpeechRecogn
 // onFatal: called when a fatal STT error (not-allowed, audio-capture) kills the gate.
 // The caller uses it to null out the outer gate handle so _refreshContentGate starts a fresh gate
 // or falls back to energy-VAD instead of stalling the ceremony with a dead-but-non-null handle.
-function _startDigitContentGate(expectedDigit, onMatch, onFatal) {
+// onNoMatch (task-653): called when non-matching transcripts arrive for >=NO_MATCH_FALLBACK_MS
+// while vadProbe() returns true — provisional client pass; server bound-digit gate is authority.
+// vadProbe: optional function() → boolean; if absent, VAD check is skipped (pure transcript timing).
+var NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts + VAD voice → provisional
+function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
+    var _noMatchVoiceAt = 0;  // task-653: perf.now() when first non-matching transcript arrived with VAD active
     try {
         rec = new SR();
         rec.continuous = true;
@@ -2613,7 +2636,19 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal) {
                 try { onMatch(t); } catch(_) {}
                 return;
             }
-            // Non-matching transcript — discarded here, never stored (privacy rule)
+            // Non-matching transcript — discarded here, never stored (privacy rule).
+            // task-653 no-match fallback: transcripts arriving but never matching, with VAD
+            // confirming sustained voice for >=NO_MATCH_FALLBACK_MS → provisional client pass.
+            // Server bound-digit gate (Deepgram + Gemini) remains the security authority.
+            if (onNoMatch && (typeof vadProbe !== 'function' || vadProbe())) {
+                if (_noMatchVoiceAt === 0) _noMatchVoiceAt = performance.now();
+                else if (performance.now() - _noMatchVoiceAt >= NO_MATCH_FALLBACK_MS) {
+                    matched = true; stopped = true;
+                    try { rec.abort(); } catch(_) {}
+                    try { onNoMatch(t); } catch(_) {}
+                    return;
+                }
+            }
         }
     };
     rec.onerror = function(evt) {
@@ -3036,26 +3071,27 @@ function beginRecording() {
     // quantities (AV check skipped, or the mic never qualified) AND the rolling floor is also
     // unmeasured. S155: _fastCalThreshold(audioNoiseFloor) is the PER-SPEAKER shared-helper tier —
     // used ONLY when the full preflight calibration is unavailable, never overriding it.
-    const _preflightVad = _micPreflightVad();
-    const _rollingCalThr = _preflightVad ? null : _fastCalThreshold(audioNoiseFloor);
-    let vadSpeechThreshold = _preflightVad ? _preflightVad.speechThr : (_rollingCalThr != null ? _rollingCalThr : VAD_SPEECH_RMS_FALLBACK);
-    let vadSilenceThreshold = _preflightVad ? _preflightVad.silenceThr : (_rollingCalThr != null ? _calClamp(audioNoiseFloor + _CAL_SIL_K * (_rollingCalThr - audioNoiseFloor), 0.03, _rollingCalThr) : VAD_SILENCE_RMS_FALLBACK);
-    // HOTFIX S156 (chat-side, Rob live-blocked round 2): a stale/mis-scaled preflight
-    // calibration (captured in the freq-domain-meter era) can demand more than normal
-    // speech. NO source may set the speech gate above what a normal indoor voice
-    // (time-domain ~0.05-0.25) can cross, nor below the tap-noise floor. Silence
-    // threshold must sit strictly under speech. Lane 652 replaces this with a proper
-    // floor-relative recalibration; this clamp is the safety rail until then.
-    // HOTFIX S156 r3 — FLOOR-RELATIVE INTERIM (packet-labelled INTERIM per g4;
-    // lane 652 delivers the designed continuous version): the gate rides the
-    // measured room floor instead of any fixed bar. Desktop built-in mics at
-    // sitting distance speak at 0.03-0.05 where phones read 0.10+ — no constant
-    // serves both (Rob live data: iPhone speech 0.11, MacBook floor 0.01, fixed
-    // 0.06 bar unreachable). Speech = floor + 0.028, bounded [0.028, 0.065];
-    // silence = floor + 0.008, strictly below speech.
-    var _flr = (typeof audioNoiseFloor === 'number' && audioNoiseFloor > 0 && audioNoiseFloor < 0.05) ? audioNoiseFloor : 0.010;
-    vadSpeechThreshold = Math.min(Math.max(_flr + 0.028, 0.028), 0.065);
-    vadSilenceThreshold = Math.max(Math.min(_flr + 0.008, vadSpeechThreshold - 0.008), 0.006);
+    // S157 C1: continuous floor-relative VAD. Preflight calibration is seed-only — it may warm
+    // the initial EMA floor estimate when available, but the rolling audioNoiseFloor (EMA-adapted
+    // on non-voiced frames by startAudioMonitor) is the authority. Thresholds derive from the live
+    // floor at arm time and re-derive at each new digit window while idle (frozen during onset and
+    // voiced runs so the bar cannot move mid-attempt). phraseSpoke recalibration (F-595) still runs
+    // and overrides thresholds once the greeting is measured; this is the pre-greeting starting point.
+    const _preflightVad = _micPreflightVad();  // kept for phraseSpoke recalibration path + _calIsFallback
+    // Preflight as seed: nudge audioNoiseFloor toward the preflight-measured floor (upward only — do
+    // not overwrite a live floor already adapting in a noisy room with a quieter measurement).
+    if (_preflightVad && _preflightVad.floor > audioNoiseFloor) {
+        audioNoiseFloor = _preflightVad.floor * 0.4 + audioNoiseFloor * 0.6;
+    }
+    let vadSpeechThreshold = 0, vadSilenceThreshold = 0;
+    (function _deriveThresholdsArm() {
+        var _flr = (audioNoiseFloor > 0.001) ? audioNoiseFloor : 0.010;
+        vadSpeechThreshold = Math.max(_flr + ADAPTIVE_SPEECH_DELTA, ADAPTIVE_THR_MIN);
+        if (vadSpeechThreshold > ADAPTIVE_THR_MAX) vadSpeechThreshold = ADAPTIVE_THR_MAX;
+        vadSilenceThreshold = Math.max(_flr + ADAPTIVE_SILENCE_DELTA, 0.006);
+        if (vadSilenceThreshold > vadSpeechThreshold - 0.005) vadSilenceThreshold = vadSpeechThreshold - 0.005;
+        _adaptLastFloor = _flr;
+    })();
     // F-595 calibration sampling state. _floorSamples = leading near-silent greeting frames
     // (the room's noise floor); _speechSamples = the voiced greeting run (this user speaking).
     // Both medians (robust to a cough/click) feed the threshold at phraseSpoke. Function-scoped,
@@ -3071,7 +3107,7 @@ function beginRecording() {
     // D-VAD-UNITS (task-447): floor/speech below are now ceremony-RMS-scale (0-1, same units as
     // thr/sil) — floor_pct/speech_pct carry the RAW time-domain preflight samples (0-100) alongside
     // them so a field run can verify the two quantities directly instead of inferring a conversion.
-    try { vacDebug('vad_calibrated', null, { at: 'arm', floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : (_rollingCalThr != null ? Number(audioNoiseFloor.toFixed(3)) : null), speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, reason: _preflightVad ? null : _micPreflightVadReason, source: _preflightVad ? 'preflight' : (_rollingCalThr != null ? 'rolling_floor' : 'fallback') }); } catch(_) {}
+    try { vacDebug('vad_calibrated', null, { at: 'arm', floor: Number(audioNoiseFloor.toFixed(3)), preflight_floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : null, preflight_speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, source: 'continuous_floor' }); } catch(_) {}
     // F-563 (#1): the digit say-step got the SAME tap/beep weakness the greeting had — the old
     // ~100ms (VAD_SPEECH_FRAMES) bar let a tap/beep satisfy a digit. A SPOKEN number is ~300-500ms
     // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
@@ -3189,6 +3225,16 @@ function beginRecording() {
             // Fatal STT error (not-allowed/audio-capture): null the outer handle so the
             // VAD loop doesn't see a non-null but dead gate, and fall back to energy VAD.
             _contentGate = null; _contentGateDigit = -1; _sessionGateAvail = false;
+        }, function(t) {
+            // task-653 no-match fallback: transcripts never matched expectedDigit for >=4s
+            // with VAD confirming voice. Provisional client pass — server gate is authority.
+            _contentGate = null; _contentGateDigit = -1;
+            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            try { vacDebug('content_gate_no_match_fallback', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: t ? String(t).slice(0, 60) : null }); } catch(_) {}
+            _markSpeech('no_match_fallback', 0, null);
+        }, function() {
+            // vadProbe: is the VAD currently registering sustained voice?
+            return _vadEnergyDetected || _lastVadRms > vadSpeechThreshold;
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -3254,6 +3300,35 @@ function _markSpeech(src, rms, onsetAt) {
                 _lastVbRatio = vbRatio;  // surfaced to the QA overlay
                 window.__vacGateArmed = true; _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
                 const _now = performance.now();
+                // S157 C1: continuous floor-relative threshold update. Frozen during onset
+                // (_preOnsetStart > 0) and voiced runs (voiced > 0) so the goalposts cannot
+                // shift mid-attempt. Only re-derives when the floor has moved meaningfully (>3mRMS).
+                if (voiced === 0 && !_preOnsetStart) {
+                    var _liveFlr = (audioNoiseFloor > 0.001) ? audioNoiseFloor : 0.010;
+                    if (Math.abs(_liveFlr - _adaptLastFloor) > 0.003) {
+                        var _newSpeech = Math.max(_liveFlr + ADAPTIVE_SPEECH_DELTA, ADAPTIVE_THR_MIN);
+                        if (_newSpeech > ADAPTIVE_THR_MAX) _newSpeech = ADAPTIVE_THR_MAX;
+                        var _newSil = Math.max(_liveFlr + ADAPTIVE_SILENCE_DELTA, 0.006);
+                        if (_newSil > _newSpeech - 0.005) _newSil = _newSpeech - 0.005;
+                        // F-1025 EXPLAIN-AS-YOU-ADAPT: floor shift >30% from last adaptation →
+                        // one visible coaching line. Shown in the RMS chip for 3 seconds.
+                        if (_adaptLastFloor > 0.005 && Math.abs(_liveFlr - _adaptLastFloor) > _adaptLastFloor * 0.30) {
+                            try {
+                                var _re = document.getElementById('audioRmsReadout');
+                                if (_re) {
+                                    _re.setAttribute('data-adapt-msg', '1');
+                                    clearTimeout(_adaptExplainTimer);
+                                    _adaptExplainTimer = setTimeout(function(){ try { if (_re && _re.getAttribute('data-adapt-msg')) _re.removeAttribute('data-adapt-msg'); } catch(_) {} }, 3000);
+                                }
+                            } catch(_) {}
+                            try { vacDebug('vad_adapt_explain', null, { prev_floor: Number(_adaptLastFloor.toFixed(3)), new_floor: Number(_liveFlr.toFixed(3)) }); } catch(_) {}
+                        }
+                        vadSpeechThreshold = _newSpeech;
+                        vadSilenceThreshold = _newSil;
+                        _adaptLastFloor = _liveFlr;
+                        try { vacDebug('vad_adapt', null, { floor: Number(_liveFlr.toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)) }); } catch(_) {}
+                    }
+                }
                 // D-VOICE-GATE-SPEAKER-AGNOSTIC: refresh content gate when digit advances
                 if (_sessionGateAvail && _contentGateDigit !== currentDigitIndex) {
                     if (_contentGate) { _contentGate.stop(); _contentGate = null; _contentGateDigit = -1; }
@@ -4118,7 +4193,11 @@ function _markSpeech(src, rms, onsetAt) {
             // exactly the case the preflight-derived arm value exists to cover, and it's still
             // the active pair below (D-VAD-CALIBRATION-GREETING-BOUND).
         }
-        try { vacDebug('vad_calibrated', null, { floor: _calNoiseFloor == null ? null : Number(_calNoiseFloor.toFixed(3)), speech: _calSpeechRms == null ? null : Number(_calSpeechRms.toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, floor_n: _floorSamples.length, speech_n: _speechSamples.length }); } catch(_) {}
+        // S157 C1: anchor adapt tracking to the calibrated floor so per-window re-derivation
+        // doesn't false-alarm immediately after phraseSpoke recalibration runs.
+        if (_calNoiseFloor != null) _adaptLastFloor = _calNoiseFloor;
+        else _adaptLastFloor = (audioNoiseFloor > 0.001) ? audioNoiseFloor : 0.010;
+        try { vacDebug('vad_calibrated', null, { floor: _calNoiseFloor == null ? null : Number(_calNoiseFloor.toFixed(3)), speech: _calSpeechRms == null ? null : Number(_calSpeechRms.toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, floor_n: _floorSamples.length, speech_n: _speechSamples.length, source: 'phrase_calibration' }); } catch(_) {}
         try { QA.cal({ floor: _calNoiseFloor, speech: _calSpeechRms, thr: vadSpeechThreshold, sil: vadSilenceThreshold, fallback: _calIsFallback }); } catch(_) {}
     }
 
