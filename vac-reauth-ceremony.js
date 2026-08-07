@@ -2701,7 +2701,7 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal) {
         var e = evt && evt.error;
         var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
         if (fatal) {
-            // S156 r4: a mid-flight fatal (esp. 'network' — Chrome STT streams to
+            // S157: a mid-flight fatal (esp. 'network' — Chrome STT streams to
             // Google; flaky WiFi kills it) previously left the gate a silent corpse:
             // stopped forever, no fallback, every later utterance ignored. Route it
             // to onFatal so the caller flips to the energy fallback the Firefox
@@ -4245,7 +4245,7 @@ function _markSpeech(src, rms, onsetAt) {
                 if (_speechSamples.length < _CAL_SPEECH_MAX) _speechSamples.push(_rms);
                 if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
                 if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
-                // S156 r7: CONTENT-GATE NO-MATCH ESCAPE (phrase twin of the digit escape).
+                // S157: content-gate no-match escape (phrase twin of the digit no-match path).
                 // Chrome's SpeechRecognition opens its OWN mic capture; under macOS device
                 // contention it can hear silence forever while THIS analyser proves sustained
                 // modulated voice (Rob, live: "RMS moves with voice but does not trigger the
@@ -4302,7 +4302,7 @@ function _markSpeech(src, rms, onsetAt) {
         // permission revoked), show the phrase anyway — prior behaviour was always to show it, and
         // the analyser degrades gracefully (W4.1 gesture-only mode). 3s >> typical resume latency
         // and << PHRASE_DURATION (so the user still has time to speak the phrase).
-        // S156 r5: resume was capped at 3s with a swallowed rejection — on macOS Chrome a
+        // S157: resume was capped at 3s with a swallowed rejection — on macOS Chrome a
         // context that stays suspended (resume() without a fresh user gesture rejects)
         // left the ANALYSER permanently deaf: RMS 1% forever while the MediaRecorder
         // (separate plumbing, no AudioContext) recorded fine — every client audio gate
@@ -4397,7 +4397,7 @@ function _markSpeech(src, rms, onsetAt) {
                     if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; }
                     try { vacDebug('phrase_content_gate_matched', null, { tokens: _phrTokens.length }); } catch(_) {}
                 }, function(fatalReason) {
-                    // S156 r4: recognizer died mid-flight (network STT / restart failure) —
+                    // S157: recognizer died mid-flight (network STT / restart failure) —
                     // flip to the energy fallback exactly as the startup-failure path does.
                     // Server-side content verification of the recording remains the authority.
                     _sessionGateAvail = false;
@@ -6642,6 +6642,7 @@ function startAudioMonitor() {
         const bars = [0,1,2,3,4].map(i => document.getElementById(`ab${i}`));
         const readout = document.getElementById('audioRmsReadout');
 
+        var _flatlineStart = 0;  // S157 C1: flatline start timestamp (resets on rebuild)
         function updateLevels() {
             audioAnalyser.getByteTimeDomainData(dataArray);
             // True time-domain RMS of the waveform (samples are unsigned bytes
@@ -6652,6 +6653,35 @@ function startAudioMonitor() {
                 sumSq += dev * dev;
             }
             const rms = Math.sqrt(sumSq / dataArray.length);
+
+            // S157 C1: flatline rewire — analyser tapped to dead/replaced stream.
+            // Condition: rms < 0.003 for >=1500ms, ctx running, track live → rebuild.
+            if (rms < 0.003) {
+                if (_flatlineStart === 0) _flatlineStart = performance.now();
+                if (!_audioRewireInFlight && _audioRewireCount < 3 &&
+                        (performance.now() - _audioLastRewireAt) > 5000 &&
+                        (performance.now() - _flatlineStart) >= 1500) {
+                    var _rwCtxOk = false, _rwTrkOk = false;
+                    try { _rwCtxOk = !!(audioContext && audioContext.state === 'running'); } catch(_) {}
+                    try {
+                        var _rwt = monitorStream ? monitorStream.getAudioTracks()[0] : null;
+                        _rwTrkOk = !!(_rwt && _rwt.readyState === 'live' && !_rwt.muted);
+                    } catch(_) {}
+                    if (_rwCtxOk && _rwTrkOk) {
+                        _audioRewireInFlight = true;
+                        _audioRewireCount++;
+                        _audioLastRewireAt = performance.now();
+                        try { vacDebug('audio_rewire', null, { count: _audioRewireCount, elapsed: Math.round(performance.now() - _flatlineStart) }); } catch(_) {}
+                        setTimeout(function() {
+                            try { startAudioMonitor(); } catch(_e) {}
+                            _audioRewireInFlight = false;
+                        }, 0);
+                        return;
+                    }
+                }
+            } else {
+                _flatlineStart = 0;
+            }
 
             // Onset-sensitive gate, relative to an adapting ambient floor.
             if (!audioOnsetActive && rms > audioNoiseFloor + AUDIO_ONSET_DELTA) {
@@ -6673,7 +6703,7 @@ function startAudioMonitor() {
                 if (bars[i]) bars[i].style.height = h + 'px';
             }
             if (readout) {
-                // S156 provenance row-zero + r6 STATE SENSOR: ctx state + the monitored
+                // S157: audio state sensor — ctx state + the monitored
                 // track's liveness/mute rendered live, so a pinned meter self-explains:
                 //   c:r = context running, c:s = suspended · t:l = track live, t:m = MUTED,
                 //   t:e = ended, t:? = no track handle. A deaf meter with c:r/t:l means the
@@ -6685,7 +6715,11 @@ function startAudioMonitor() {
                     var _mt = (typeof monitorStream !== 'undefined' && monitorStream) ? monitorStream.getAudioTracks()[0] : null;
                     if (_mt) _tk = 't:' + (_mt.readyState === 'ended' ? 'e' : (_mt.muted ? 'm' : 'l'));
                 } catch(_) {}
-                readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s156h8 \u00b7 ' + _st + ' ' + _tk;
+                if (readout.getAttribute('data-adapt-msg')) {
+                    readout.textContent = 'Noisy environment \u2014 listening level adjusted';
+                } else {
+                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s157c1 \u00b7 ' + _st + ' ' + _tk;
+                }
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
             audioAnimFrame = requestAnimationFrame(updateLevels);
@@ -7472,6 +7506,24 @@ const VACReauth = {
     reload: function(o){ if (CTX && CTX.onReauthReload){ try { CTX.onReauthReload(o||{}); } catch(_){} } else { console.warn('[VACReauth] reload() with no onReauthReload host handler'); } },
 };
 window.VACReauth = VACReauth;
+
+// S157 C1: full device teardown on page unload.
+// pagehide fires on all browsers; beforeunload as belt-and-suspenders for desktop.
+// iOS BFCache: pagehide fires with persisted=true when the page enters the back/forward cache
+// (NOT a real unload) — skip teardown so the page restores correctly.
+(function() {
+    function _teardownOnExit(ev) {
+        if (ev.type === 'pagehide' && ev.persisted) return;
+        try { stopAudioMonitor(); } catch(_) {}
+        try {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(function(t) { try { t.stop(); } catch(_) {} });
+            }
+        } catch(_) {}
+    }
+    window.addEventListener('pagehide', _teardownOnExit, { passive: true });
+    window.addEventListener('beforeunload', _teardownOnExit, { passive: true });
+})();
 
 // The extracted DOM uses inline onclick="fn()" for these ceremony handlers — expose them globally
 // so those attributes resolve (they were page globals in auth.html; behaviour preserved).
