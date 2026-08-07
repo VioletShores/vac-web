@@ -3257,7 +3257,10 @@ function beginRecording() {
             _markSpeech('no_match_fallback', 0, null);
         }, function() {
             // vadProbe: is the VAD currently registering sustained voice?
-            return _vadEnergyDetected || _lastVadRms > vadSpeechThreshold;
+            // Use _vadEnergyDetected only — it requires 180ms sustained onset + dual spectral
+            // checks + modulation. A single-frame _lastVadRms spike from broadband ambient noise
+            // would satisfy the OR arm and start the no-match timer incorrectly.
+            return _vadEnergyDetected;
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -6684,6 +6687,9 @@ function startAudioMonitor() {
             // Threshold 0.001 (not 0.003): Chrome injects ~0.001-0.003 privacy noise into working
             // analysers; truly dead streams return all-128 bytes → rms = 0 exactly. 0.001 discriminates.
             if (rms < 0.001) {
+                // Suspended context also produces rms=0 (iOS background, desktop power-save).
+                // Attempt resume on every flatline tick so it has time to recover before rewire fires.
+                try { if (audioContext && audioContext.state === 'suspended') audioContext.resume(); } catch(_) {}
                 if (_flatlineStart === 0) _flatlineStart = performance.now();
                 if (!_audioRewireInFlight && _audioRewireCount < 3 &&
                         (performance.now() - _audioLastRewireAt) > 5000 &&
@@ -6701,8 +6707,10 @@ function startAudioMonitor() {
                         try { vacDebug('audio_rewire', null, { count: _audioRewireCount, elapsed: Math.round(performance.now() - _flatlineStart) }); } catch(_) {}
                         setTimeout(function() {
                             // Guard: ceremony was cancelled (stopAudioMonitor → audioAnalyser = null)
-                            // before this callback fired — skip to avoid zombie AudioContext
-                            if (audioAnalyser === null && !mediaStream) { _audioRewireInFlight = false; return; }
+                            // before this callback fired — skip to avoid zombie AudioContext.
+                            // mediaStream is NOT nulled by stopAudioMonitor (only its tracks are stopped),
+                            // so test audioAnalyser alone.
+                            if (audioAnalyser === null) { _audioRewireInFlight = false; return; }
                             try { startAudioMonitor(); } catch(_e) {}
                             _audioRewireInFlight = false;
                         }, 0);
@@ -6778,6 +6786,8 @@ function stopAudioMonitor() {
     if (_adaptExplainTimer) { clearTimeout(_adaptExplainTimer); _adaptExplainTimer = null; }
     // S157 C1: stop the monitor clone so we don't leave a live audio track after ceremony end
     if (_monitorStream) { try { _monitorStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {} _monitorStream = null; }
+    // Reset rewire counters so each new ceremony gets a fresh budget of 3 recovery attempts
+    _audioRewireCount = 0; _audioLastRewireAt = 0; _audioRewireInFlight = false;
     document.getElementById('audioLevel').style.display = 'none';
 }
 
@@ -7556,7 +7566,7 @@ window.VACReauth = VACReauth;
         } catch(_) {}
     }
     window.addEventListener('pagehide', _teardownOnExit, { passive: true });
-    window.addEventListener('beforeunload', _teardownOnExit, { passive: true });
+    window.addEventListener('beforeunload', _teardownOnExit);
 })();
 
 // The extracted DOM uses inline onclick="fn()" for these ceremony handlers — expose them globally
