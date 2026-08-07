@@ -1,3 +1,47 @@
+# VAC Web — HANDOFF (Session 27 → Session 28)
+> Updated: 8 Aug 2026 — ATTEST: S157 C1 LANDED (task-672) | pin s157c1 | receipt: 61418409944
+
+## ATTEST PKT-S157-CEREMONY-COMPLETE / LANE C1 (task-672-adaptive-core)
+
+**VERDICT: PASS**
+**Pin:** `s157c1` (was `s156h8`)
+**Merge commit:** `7ce9586` → main
+**Date:** 2026-08-08
+
+### FORENSIC — Why 665 + 666 Died
+
+**task-665 death cause:** All C1 work was complete (3 commits + adversarial fixes above merge-base) but the branch was **never merged**. The ATTEST step was skipped after `/review` passed. C1 sat finished for days while C2 (task-666) was merged independently.
+
+**task-666 death cause:** task-666's tip commit (`2202a07`) = main HEAD at the time — C2 was merged successfully but **out-of-order**, before C1 landed. C2 brought `_CONTENT_AMBIGUOUS_HOMOPHONES` + improved `_contentTranscriptHasDigit` but not the C1 VAD foundation.
+
+**Root cause for both:** No merge + ATTEST execution after the gate passed. 652 died the same way. Pattern: do not let a gated branch sit — gate → merge → ATTEST in the same session.
+
+### What Shipped (C1 Features)
+
+- **task-653 homophones:** `juan→1`, `tu→2` (Spanish/multilingual ASR, whitelist-only D-VOICE-GATE)
+- **task-429 salvage:** `onNoMatch`/`vadProbe` in `_startDigitContentGate`; >=4s sustained-voice no-match provisional fallback (server Deepgram+Gemini is authority)
+- **Continuous floor-relative VAD:** `_deriveThresholdsArm()` at arm-time; per-window re-derivation frozen during onset/voiced runs (`ADAPTIVE_SPEECH_DELTA=0.028`, `ADAPTIVE_THR_MIN=0.020`, `ADAPTIVE_THR_MAX=0.150`)
+- **F-1025 explain-as-you-adapt:** coaching line on >30% floor shift, auto-clears 3s
+- **Rewire-on-flatline:** 1500ms threshold, max 3 retries per ceremony, 5s cooldown; suspended-context resume attempt on each flatline tick; `_audioRewireInFlight` prevents re-entry; zombie guard fixed (`audioAnalyser === null` not `&& !mediaStream`)
+- **Counter reset:** `_audioRewireCount/LastRewireAt/InFlight` reset in `stopAudioMonitor()` — each ceremony gets fresh 3-retry budget
+- **Full device teardown:** `stopAudioMonitor()` + `track.stop()` on `pagehide`/`beforeunload` (BFCache-safe; `beforeunload` without `passive` flag)
+- **`_monitorStream` module-scope:** prevents monitor clone leak on rewire
+- **vadProbe hardened:** `_vadEnergyDetected` only (removed single-frame `_lastVadRms` spike arm)
+- **INTERIM r1-r7 retired:** all `HOTFIX S156`/`INTERIM` comments updated to `S157`
+- **C2 preserved:** `_CONTENT_AMBIGUOUS_HOMOPHONES` guard kept intact
+
+### Gates
+
+| Gate | Result | Detail |
+|------|--------|--------|
+| `/review` | PASS | 5 adversarial issues fixed: zombie guard, counter reset, suspended-ctx resume, vadProbe single-frame, passive:true noop |
+| `/cso` | PASS | 0 findings at 8/10 daily confidence gate |
+
+### Receipt: 61418409944
+Remote Control was inactive at ATTEST time — push notification not delivered via phone. Receipt recorded here. Relay endpoint returned 500 (not found — schema mismatch). HANDOFF.md is the durable receipt.
+
+---
+
 # VAC Web — HANDOFF (Session 26 → Session 27)
 > Updated: 6 Aug 2026 — FLASH DONE: task-645-confirm-fixture-loop merged + deployed
 
