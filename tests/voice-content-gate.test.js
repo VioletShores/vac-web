@@ -65,15 +65,20 @@ function evalFn(fnName) {
         i++;
     }
     const body = src.slice(startIdx, i);
-    // Evaluate in a sandboxed context that has _CONTENT_DIGIT_MAP and _contentNormWord
+    // Evaluate in a sandboxed context that includes:
+    //   _CONTENT_DIGIT_MAP, _CONTENT_AMBIGUOUS_HOMOPHONES, _contentNormWord
     const mapStart = src.indexOf('const _CONTENT_DIGIT_MAP =');
     const mapEnd   = src.indexOf('};', mapStart) + 2;
     const mapSrc   = src.slice(mapStart, mapEnd);
+    // Extract _CONTENT_AMBIGUOUS_HOMOPHONES (var declaration, task-666)
+    const ambigStart = src.indexOf('var _CONTENT_AMBIGUOUS_HOMOPHONES =');
+    const ambigEnd   = ambigStart >= 0 ? src.indexOf(';\n', ambigStart) + 2 : -1;
+    const ambigSrc   = ambigStart >= 0 ? src.slice(ambigStart, ambigEnd) : '';
     const normStart = src.indexOf('function _contentNormWord(');
     const normEnd   = src.indexOf('\n}', normStart) + 2;
     const normSrc   = src.slice(normStart, normEnd);
     // eslint-disable-next-line no-new-func
-    return Function('"use strict";\n' + mapSrc + '\n' + normSrc + '\nreturn (' + body + ');')();
+    return Function('"use strict";\n' + mapSrc + '\n' + ambigSrc + '\n' + normSrc + '\nreturn (' + body + ');')();
 }
 
 // Extract _contentTranscriptHasDigit and _contentTranscriptMatchesPhrase

@@ -2543,6 +2543,14 @@ const _CONTENT_DIGIT_MAP = {
     'fife':5,'ate':8,'oh':0,'o':0,'niner':9
 };
 
+// Homophones that are also high-frequency English function words (prepositions,
+// infinitive marker, articles). These only match when the transcript is clearly
+// digit-focused: <= 3 total words OR >= 40% of words map to a digit.
+// Without this guard "happy birthday to you" (one digit word out of four) would
+// advance the ceremony on the digit 2 challenge — Rob's daughter scenario.
+// Canonical digit words (zero, one, two … nine) are unambiguous and always match.
+var _CONTENT_AMBIGUOUS_HOMOPHONES = new Set(['to','too','for','fore','won','o','oh']);
+
 function _contentNormWord(w) {
     w = (w || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     if (Object.prototype.hasOwnProperty.call(_CONTENT_DIGIT_MAP, w)) return _CONTENT_DIGIT_MAP[w];
@@ -2554,15 +2562,27 @@ function _contentNormWord(w) {
 // Non-matching transcripts are DISCARDED — never stored (privacy rule).
 function _contentTranscriptHasDigit(transcript, digit) {
     if (transcript == null || digit == null) return false;
-    var words = String(transcript).toLowerCase().split(/[\s,.'!?;:]+/);
+    var words = String(transcript).toLowerCase().split(/[\s,.'!?;:]+/).filter(Boolean);
+    if (!words.length) return false;
+    var digitWordCount = 0, matchedDirect = false, matchedAmbiguous = false;
     for (var wi = 0; wi < words.length; wi++) {
         var w = words[wi];
-        if (!w) continue;
         // _contentNormWord handles word form ("three"→3) and single-digit numeral ("3"→3).
         // Multi-digit strings (e.g. "321") are rejected — substring match would let ambient
         // speech like "thirteen" (→"13") bypass the gate for digit 3. (security: D-VOICE-GATE)
-        if (_contentNormWord(w) === digit) return true;
+        var mapped = _contentNormWord(w);
+        if (mapped !== null) {
+            digitWordCount++;
+            if (mapped === digit) {
+                if (_CONTENT_AMBIGUOUS_HOMOPHONES.has(w)) matchedAmbiguous = true;
+                else matchedDirect = true;
+            }
+        }
     }
+    if (matchedDirect) return true;
+    // Ambiguous homophones only accepted in focused transcripts (short or digit-dense).
+    // This prevents common English sentences from triggering on incidental homophone matches.
+    if (matchedAmbiguous) return words.length <= 3 || (digitWordCount / words.length) >= 0.4;
     return false;
 }
 
