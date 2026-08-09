@@ -77,14 +77,74 @@ test('CB-GREET-05 [D-TEARDOWN-PLAYBACK-ORDER regression]: recorder flushed befor
     );
 });
 
-// ── CB-GREET-06: pin is s158a1 in readout ────────────────────────────────────
-test('CB-GREET-06: ceremony readout pin is s158a1', () => {
+// ── CB-GREET-06: pin is s158b1 in readout ────────────────────────────────────
+test('CB-GREET-06: ceremony readout pin is s158b1', () => {
     assert.ok(
-        src.includes('s158a1'),
-        'vac-reauth-ceremony.js readout must contain pin s158a1'
+        src.includes('s158b1'),
+        'vac-reauth-ceremony.js readout must contain pin s158b1'
+    );
+    assert.ok(
+        !src.includes('s158a1'),
+        'vac-reauth-ceremony.js must not contain old pin s158a1'
     );
     assert.ok(
         !src.includes('s157c1'),
         'vac-reauth-ceremony.js must not contain old pin s157c1'
+    );
+});
+
+// ── CB-GREET-07: debug mode (?debug=1) infrastructure ────────────────────────
+test('CB-GREET-07: _DEBUG_MODE flag and _dbgUpdate function present', () => {
+    assert.ok(
+        src.includes('_DEBUG_MODE'),
+        '_DEBUG_MODE must be declared (S158b1 debug overlay)'
+    );
+    assert.ok(
+        src.includes('_dbgUpdate'),
+        '_dbgUpdate must be declared (S158b1 debug overlay update function)'
+    );
+    assert.ok(
+        src.includes("get('debug') === '1'"),
+        "debug flag must be detected from ?debug=1 URL param"
+    );
+});
+
+// ── CB-GREET-08: sound check infrastructure ───────────────────────────────────
+test('CB-GREET-08: sound check functions present in source', () => {
+    assert.ok(
+        src.includes('_playChime'),
+        '_playChime must be declared (S158b1 iOS audio chime)'
+    );
+    assert.ok(
+        src.includes('showSoundCheck'),
+        'showSoundCheck must be declared (S158b1 sound check step)'
+    );
+    assert.ok(
+        src.includes("vacDebug('sound_check_result'"),
+        "sound_check_result telemetry must be present (S158b1 human binary sensor)"
+    );
+    assert.ok(
+        src.includes("vacDebug('sound_check_shown'"),
+        "sound_check_shown telemetry must be present"
+    );
+    assert.ok(
+        src.includes("_soundCheckDone"),
+        "_soundCheckDone flag must be present (per-ceremony guard)"
+    );
+});
+
+// ── CB-GREET-09: chime uses <audio> element (media-channel, not AudioContext) ─
+test('CB-GREET-09: _playChime routes via <audio> element not AudioContext', () => {
+    assert.ok(
+        src.includes("createElement('audio')"),
+        "_playChime must use createElement('audio') for iOS media-channel routing"
+    );
+    assert.ok(
+        src.includes("setAttribute('playsinline'"),
+        "_playChime audio element must have playsinline attribute"
+    );
+    assert.ok(
+        src.includes("audio/wav"),
+        "_playChime must generate a WAV blob for the audio element"
     );
 });

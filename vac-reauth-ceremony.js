@@ -30,6 +30,65 @@ try {
     if (_qaFlag) QA = { on:true, onEvent:function(){}, frame:function(){}, cal:function(){} };
 } catch(_) {}
 
+// ── S158 ?debug=1 live sensor readout ────────────────────────────────────────
+// Floating bottom-bar: hand confidence per frame, zone-hit state, AudioContext state,
+// RMS, build pin, MediaPipe detection threshold, zone geometry. Rob's screenshot IS the
+// sensor data — no inference needed. Only active when ?debug=1 (parent-frame checked too).
+var _DEBUG_MODE = false;
+try {
+    var _dbgFlag = false;
+    try { if (new URLSearchParams(window.location.search).get('debug') === '1') _dbgFlag = true; } catch(_) {}
+    try { if (!_dbgFlag && window.top && window.top !== window && new URLSearchParams(window.top.location.search).get('debug') === '1') _dbgFlag = true; } catch(_) {}
+    _DEBUG_MODE = _dbgFlag;
+} catch(_) {}
+
+var _dbgEl = null;
+var _dbgLastHconf = null;
+var _dbgLastZoneIn = null;
+var _dbgLastRms = null;
+
+function _dbgCreate() {
+    if (!_DEBUG_MODE || _dbgEl) return;
+    var d = document.createElement('div');
+    d.id = 'vacDbgPanel';
+    d.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:9999;background:rgba(0,0,0,0.88);color:#00e676;font-family:monospace;font-size:11px;line-height:1.6;padding:5px 8px;pointer-events:none;border-top:1px solid #00e676;';
+    d.textContent = 'debug init…';
+    try { (document.body || document.documentElement).appendChild(d); } catch(_) {}
+    _dbgEl = d;
+}
+
+function _dbgUpdate(opts) {
+    if (!_DEBUG_MODE) return;
+    if (!_dbgEl) _dbgCreate();
+    if (!_dbgEl) return;
+    try {
+        var o = opts || {};
+        if (o.rms != null) _dbgLastRms = o.rms;
+        if (o.hconf !== undefined) _dbgLastHconf = o.hconf;
+        if (o.zoneIn !== undefined) _dbgLastZoneIn = o.zoneIn;
+        var ctxSt = 'c:?';
+        try { ctxSt = 'c:' + (audioContext ? audioContext.state.charAt(0) : '?'); } catch(_) {}
+        var trkSt = 't:?';
+        try {
+            var _dm = _monitorStream ? _monitorStream.getAudioTracks()[0] : null;
+            if (_dm) trkSt = 't:' + (_dm.readyState === 'ended' ? 'e' : (_dm.muted ? 'm' : 'l'));
+        } catch(_) {}
+        var zone = null;
+        try { zone = _activeZone(); } catch(_) {}
+        var hconf = _dbgLastHconf != null ? _dbgLastHconf.toFixed(2) : '--';
+        var rms = _dbgLastRms != null ? Math.round(_dbgLastRms * 100) + '%' : '--';
+        var zoneIn = _dbgLastZoneIn == null ? '--' : (_dbgLastZoneIn ? '✓IN' : '✗OUT');
+        var anchored = zone ? (zone.anchored ? 'face' : 'fallback') : '?';
+        var rx = zone ? zone.rx.toFixed(2) : String(GESTURE_ZONE_SPEC.rx);
+        var ry = zone ? zone.ry.toFixed(2) : String(GESTURE_ZONE_SPEC.ry);
+        _dbgEl.innerHTML =
+            '<b>s158b1</b> · ' + ctxSt + ' ' + trkSt + ' · rms:' + rms +
+            ' · hconf:' + hconf + ' · zone:' + zoneIn + ' (' + anchored + ')' +
+            '<br>det-thr:0.5 · zone rx:' + rx + ' ry:' + ry +
+            ' · ovals:[' + GESTURE_ZONE_SPEC.ovals.map(function(ov){ return ov.side; }).join(',') + ']';
+    } catch(_) {}
+}
+
 // Identity for the moved ceremony code (was auth.html's form-reading userData()).
 function userData(){ return (CTX && CTX.identity) || { name:'', email:'', org:'', role:'' }; }
 
@@ -2413,7 +2472,7 @@ function goToChallenge() {
 function showChallengeIntro() {
     var overlay = document.getElementById('challengeIntro');
     var digits = (fingerFallback === 'voice') ? [] : (challengeData && challengeData.digits || []);
-    if (!overlay || digits.length === 0) { setTimeout(() => startCountdown(), 800); return; }
+    if (!overlay || digits.length === 0) { setTimeout(function(){ showSoundCheck(); }, 800); return; }   // S158b1: sound check before countdown even in voice-only path
     var row = document.getElementById('challengeIntroDigits');
     if (row) {
         row.innerHTML = digits.map(function(d) {
@@ -2461,7 +2520,93 @@ function dismissChallengeIntro() {
     var overlay = document.getElementById('challengeIntro');
     if (overlay) overlay.style.display = 'none';
     try { vacDebug('challenge_intro_dismissed'); } catch(_) {}
-    startCountdown();
+    showSoundCheck();   // S158b1: iOS audio check before countdown; falls through to startCountdown()
+}
+
+// ── S158b1 iOS audio sound check ─────────────────────────────────────────────
+// Play a chime via <audio> element (media-channel route, survives iOS silent switch).
+// The user's binary tap — "I heard it" / "No sound" — is the sensor; no inference.
+// vacDebug('sound_check_result') logs it to the server trail for Rob's session.
+// Only runs once per ceremony instance; subsequent calls (e.g. on retry) skip to countdown.
+var _soundCheckDone = false;
+
+function _playChime(cb) {
+    // Generate a two-tone 440→880Hz WAV entirely in JS and play it via <audio>.
+    // This routes through the iOS media channel (not AudioContext ambient category),
+    // so it is NOT muted by the iOS silent switch, unlike speechSynthesis or
+    // an unresumed AudioContext. playsinline + webkit-playsinline ensure media routing.
+    try {
+        var sr = 22050, durS = 0.55;
+        var len = Math.round(sr * durS);
+        var buf = new ArrayBuffer(44 + len * 2);
+        var dv = new DataView(buf);
+        function _ws(o, s) { for (var i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); }
+        _ws(0, 'RIFF'); dv.setUint32(4, 36 + len * 2, true);
+        _ws(8, 'WAVE'); _ws(12, 'fmt ');
+        dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+        dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true);
+        dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+        _ws(36, 'data'); dv.setUint32(40, len * 2, true);
+        for (var i = 0; i < len; i++) {
+            var t = i / sr;
+            var hz = (t < durS / 2) ? 440 : 880;
+            var fade = Math.min(1, (len - i) / (sr * 0.08));
+            var v = Math.round(fade * 0.55 * 32767 * Math.sin(2 * Math.PI * hz * t));
+            dv.setInt16(44 + i * 2, v, true);
+        }
+        var blob = new Blob([buf], { type: 'audio/wav' });
+        var url = URL.createObjectURL(blob);
+        var au = document.createElement('audio');
+        au.setAttribute('playsinline', '');
+        au.setAttribute('webkit-playsinline', '');
+        au.src = url;
+        var _cbFired = false;
+        function _chFin() { if (!_cbFired) { _cbFired = true; try { URL.revokeObjectURL(url); } catch(_) {} if (cb) try { cb(); } catch(_) {} } }
+        au.onended = _chFin;
+        au.onerror = _chFin;
+        setTimeout(_chFin, 2000);   // failsafe — callback even if events don't fire (some mobile browsers)
+        au.play().catch(_chFin);
+    } catch(e) {
+        if (cb) try { cb(); } catch(_) {}
+    }
+}
+
+function showSoundCheck() {
+    if (_soundCheckDone) { startCountdown(); return; }
+    var overlay = document.getElementById('challengeIntro');
+    if (!overlay) { _soundCheckDone = true; startCountdown(); return; }
+    overlay.style.display = 'block';
+    overlay.innerHTML =
+        '<div style="max-width:420px;margin:0 auto;padding:clamp(28px,7vh,56px) 0;">' +
+        '<div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:1.5px;color:var(--purple,#7c5cfc);text-transform:uppercase;margin-bottom:12px;">Sound check</div>' +
+        '<div style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary,#fff);margin-bottom:12px;">Can you hear audio?</div>' +
+        '<div style="font-size:clamp(14px,3.8vw,16px);color:var(--text-secondary,#aaa);line-height:1.55;margin-bottom:24px;">Tap the button to play a short sound,<br>then confirm whether you heard it.</div>' +
+        '<button id="soundCheckPlayBtn" style="width:100%;padding:16px;background:var(--surface,#1a2030);border:2px solid var(--purple,#7c5cfc);border-radius:12px;color:var(--text-primary,#fff);font-size:17px;font-weight:600;cursor:pointer;margin-bottom:16px;-webkit-tap-highlight-color:transparent;" onclick="window._vacSoundPlay()">▶ Play sound</button>' +
+        '<div id="soundCheckResult" style="display:none;">' +
+        '<button onclick="window._vacSoundResult(true)" style="width:100%;padding:14px;background:rgba(34,197,94,0.15);border:1px solid #22c55e;border-radius:10px;color:#22c55e;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:10px;-webkit-tap-highlight-color:transparent;">✓ I heard it</button>' +
+        '<button onclick="window._vacSoundResult(false)" style="width:100%;padding:14px;background:transparent;border:1px solid var(--border,#2a3040);border-radius:10px;color:var(--text-secondary,#aaa);font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">No sound — continue anyway</button>' +
+        '</div>' +
+        '</div>';
+    window._vacSoundPlay = function() {
+        var btn = document.getElementById('soundCheckPlayBtn');
+        if (btn) { btn.disabled = true; btn.textContent = '… playing'; }
+        _playChime(function() {
+            var r = document.getElementById('soundCheckResult');
+            if (r) r.style.display = 'block';
+            if (btn) btn.style.display = 'none';
+        });
+    };
+    window._vacSoundResult = function(heard) {
+        _soundCheckDone = true;
+        try { vacDebug('sound_check_result', heard ? 'heard' : 'silent', {
+            ua: navigator.userAgent,
+            platform: navigator.platform || ''
+        }); } catch(_) {}
+        try { delete window._vacSoundPlay; delete window._vacSoundResult; } catch(_) {}
+        if (overlay) overlay.style.display = 'none';
+        startCountdown();
+    };
+    try { vacDebug('sound_check_shown'); } catch(_) {}
 }
 
 function setFingerFallback() {
@@ -3703,6 +3848,8 @@ function _markSpeech(src, rms, onsetAt) {
         // detected === -1 means no hand in frame; landmarks null otherwise.
         var _handPresent = !!FingerDetector.landmarks;
         var _handNear = _handPresent && _handNearFaceZone(FingerDetector.landmarks);
+        // S158b1: feed debug overlay with per-frame hand confidence + zone state
+        try { if (_DEBUG_MODE) _dbgUpdate({ hconf: FingerDetector.lastScore, zoneIn: _handPresent ? _handNear : null }); } catch(_) {}
         // task-432 Part 4: throttled hand_zone in/out telemetry (transition-only, no per-frame spam).
         try { _handZoneLastState = _noteHandZoneTransition(_handZoneLastState, _handNear, _activeZone()); } catch(_) {}
         // task-handzone-faceanchored: per-beat zone snapshot — fires ~every 2s with face-anchored
@@ -6772,10 +6919,11 @@ function startAudioMonitor() {
                 if (readout.getAttribute('data-adapt-msg')) {
                     readout.textContent = 'Noisy environment \u2014 listening level adjusted';
                 } else {
-                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s158a1 \u00b7 ' + _st + ' ' + _tk;
+                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s158b1 \u00b7 ' + _st + ' ' + _tk;
                 }
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
+            try { if (_DEBUG_MODE) _dbgUpdate({ rms: rms }); } catch(_) {}
             audioAnimFrame = requestAnimationFrame(updateLevels);
         }
         updateLevels();
@@ -7434,6 +7582,7 @@ function renderDOM(){
             document.body.appendChild(_qb);
         }
     } catch(_) {}
+    try { _dbgCreate(); } catch(_) {}   // S158b1: create debug panel if ?debug=1
     // F-758: scroll affordance — show a fade+chevron when the pre-flight overflows below the fold,
     // hide once the user scrolls near the bottom. Standard "there's more below" cue.
     try {
@@ -7488,6 +7637,7 @@ const VACReauth = {
             profile: opts.profile || null,
         };
         if (!CTX.mount) { console.error('[VACReauth] run() called with no mount element'); return; }
+        _soundCheckDone = false;   // S158b1: fresh sound check for each new ceremony instance
         // S120 live-test fix: fast mode → fast countdown timing (1s) so the still-capture
         // quick check isn't paced like the full relaxed ceremony. Full/omitted → unchanged.
         if (CTX.profile && CTX.profile.mode === 'fast') { challengeSpeed = 'fast'; }

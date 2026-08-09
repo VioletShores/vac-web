@@ -24,6 +24,7 @@ window.FingerDetector = (function() {
     let _framesProcessed = 0;
     let _consecutiveSlowFrames = 0;
     let _lastLandmarks = null;
+    let _lastHandScore = null;   // S158b1: MediaPipe handedness confidence [0..1]; null = no hand detected
     // Mobile first-frame cost (GPU shader compile, WASM JIT warmup) can spike
     // to 800-1500ms. Give it a warm-up grace period and require *sustained*
     // slowness before giving up — not a single bad frame.
@@ -235,8 +236,11 @@ window.FingerDetector = (function() {
                 _consecutiveSlowFrames = 0;
             }
         }
-        if (!results.landmarks || results.landmarks.length === 0) { _lastLandmarks = null; return -1; } // no hand in frame
+        if (!results.landmarks || results.landmarks.length === 0) { _lastLandmarks = null; _lastHandScore = null; return -1; }
         _lastLandmarks = results.landmarks[0];
+        // S158b1: capture handedness confidence for the debug overlay
+        _lastHandScore = (results.handednesses && results.handednesses.length > 0 && results.handednesses[0].length > 0)
+            ? results.handednesses[0][0].score : null;
         return _countFingers(results.landmarks[0]);
     }
 
@@ -292,6 +296,7 @@ window.FingerDetector = (function() {
         // run/digit starts clean — no stale committed count bleeding across).
         resetHysteresis() { _hystCommitted = null; _hystCandidate = null; _hystStreak = 0; },
         get landmarks() { return _lastLandmarks; },
+        get lastScore() { return _lastHandScore; },   // S158b1: handedness confidence for debug overlay
         get ready() { return _isReady; },
         get failed() { return _hasFailed; },
         // S110 fix: clear the slow-frame latch so a 2nd auth attempt re-engages
@@ -303,6 +308,7 @@ window.FingerDetector = (function() {
             _consecutiveSlowFrames = 0;
             _framesProcessed = 0;
             _lastLandmarks = null;
+            _lastHandScore = null;
             // F-613: also clear the hysteresis filter so a new attempt starts clean.
             _hystCommitted = null; _hystCandidate = null; _hystStreak = 0;
         },
