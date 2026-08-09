@@ -23,7 +23,6 @@
 
 const https = require('https');
 const http  = require('http');
-const url   = require('url');
 
 const API_BASE  = process.env.VAC_DEBUG_API  || 'https://vacprotocol.org/v1/auth/debug';
 const HOURS     = parseInt(process.env.HOURS || '24', 10);
@@ -33,12 +32,14 @@ const THRESHOLD = parseInt(process.env.ALERT_THRESHOLD || '3', 10);  // flag if 
 // The backend /v1/auth/debug endpoint stores events POSTed by vacDebug().
 // We query it with event=greeting_audible to get recent beacons.
 function fetchEvents(apiUrl, cb) {
-    const parsed = url.parse(apiUrl + '?event=greeting_audible&hours=' + HOURS);
+    const parsed = new URL(apiUrl);
+    parsed.searchParams.set('event', 'greeting_audible');
+    parsed.searchParams.set('hours', String(HOURS));
     const lib = parsed.protocol === 'https:' ? https : http;
     const req = lib.get({
         hostname: parsed.hostname,
-        port: parsed.port,
-        path: parsed.path,
+        port: parsed.port || undefined,
+        path: parsed.pathname + parsed.search,
         headers: { 'Accept': 'application/json', 'User-Agent': 'ceremony-health-check/s158a1' },
         timeout: 10000,
     }, function(res) {
