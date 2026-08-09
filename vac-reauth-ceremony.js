@@ -4192,6 +4192,7 @@ function _markSpeech(src, rms, onsetAt) {
     const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer — a final backstop so it can never hang
     let _phraseVoicedMin = 1, _phraseVoicedMax = 0;   // rms range during the current voiced run (the modulation check)
     let _phraseSilentRun = 0;                         // consecutive near-silent ticks (the connected-but-silent-mic detector)
+    let _phraseAnalyserFrames = 0;                    // S158: frames where audioAnalyser was live during greeting (self-audition sensor)
     // F-561 (S111): phraseSpoke = a COMPLETED greeting utterance — a sustained voiced run THEN
     // a real end-pause — not "any 600ms of voice". The greeting is greeting-only now; the NUMBERS
     // are spoken per-digit (each bound to its gesture), never in the phrase phase.
@@ -4229,6 +4230,7 @@ function _markSpeech(src, rms, onsetAt) {
 
     function _phraseVadTick() {
         if (!audioAnalyser || phraseSpoke) return;
+        _phraseAnalyserFrames++;   // S158: count live-analyser frames (greeting_audible health)
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate sets _phraseContentMatched; tick reads it
         if (_phraseContentMatched && !_phraseHeardVoice) {
             _phraseHeardVoice = true;
@@ -4487,6 +4489,20 @@ function _markSpeech(src, rms, onsetAt) {
         // separate up-front phase. (Non-seal paths are unchanged: _dropVoicePhrase defaults
         // false unless the server policy affirmatively lists no voice modality.)
         if (_advanceGreeting) {
+            // S158 sensor 1: greeting_audible — self-audition beacon emitted on every phrase exit.
+            // heard=true  → _phraseVadTick confirmed a sustained voiced run (phraseSpoke).
+            // heard=false → timed out (PHRASE_PHASE_MAX_S) or no analyser (W4.1 fail-open).
+            // analyser_frames counts how many ticks the analyser was live; 0 = analyser was dead
+            // for the whole greeting (D-GREETING-ANALYSER-SILENT-ADVANCE regression class).
+            try { vacDebug('greeting_audible', null, {
+                heard: phraseSpoke,
+                voiced_ticks: _phraseVoicedTicks,
+                analyser_frames: _phraseAnalyserFrames,
+                content_matched: _phraseContentMatched,
+                timed_out: !phraseSpoke && elapsedSec >= PHRASE_PHASE_MAX_S,
+                voice_skipped: !!window.__vacVoiceSkipped,
+                no_analyser: !audioAnalyser
+            }); } catch(_) {}
             _setPhase(_PHASE.DIGIT);   // L-2246: transition to DIGIT before clearInterval so any final phraseInterval tick is blocked by renderGreeting's guard
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
             // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
@@ -6756,7 +6772,7 @@ function startAudioMonitor() {
                 if (readout.getAttribute('data-adapt-msg')) {
                     readout.textContent = 'Noisy environment \u2014 listening level adjusted';
                 } else {
-                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s157c1 \u00b7 ' + _st + ' ' + _tk;
+                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 s158a1 \u00b7 ' + _st + ' ' + _tk;
                 }
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
@@ -7551,13 +7567,21 @@ const VACReauth = {
 };
 window.VACReauth = VACReauth;
 
-// S157 C1: full device teardown on page unload.
+// S158: full device teardown on page unload.
 // pagehide fires on all browsers; beforeunload as belt-and-suspenders for desktop.
 // iOS BFCache: pagehide fires with persisted=true when the page enters the back/forward cache
 // (NOT a real unload) — skip teardown so the page restores correctly.
+//
+// S158 regression fix (D-TEARDOWN-PLAYBACK-ORDER): task-672 stopped mediaStream tracks before
+// flushing the MediaRecorder — any buffered audio frames were discarded. Now: stop() the recorder
+// first (triggers onstop → flushes buffered chunks to recordedChunks) before stopping tracks.
+// MediaRecorder.stop() on an already-inactive recorder is a no-op, so this is safe on every
+// exit path (post-finishFingerPhase, fast-tier, or mid-ceremony).
 (function() {
     function _teardownOnExit(ev) {
         if (ev.type === 'pagehide' && ev.persisted) return;
+        // Flush the recorder FIRST so any buffered audio is captured before the source tracks stop.
+        try { if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop(); } catch(_) {}
         try { stopAudioMonitor(); } catch(_) {}
         try {
             if (mediaStream) {

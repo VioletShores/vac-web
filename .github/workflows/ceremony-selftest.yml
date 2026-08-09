@@ -1,0 +1,64 @@
+name: ceremony-selftest
+on:
+  push:
+    branches:
+      - task-690-ceremony-selftest
+      - main
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'auth.html'
+      - 'tests/greeting-audible.test.js'
+      - 'tests/ceremony-selftest.pw.js'
+      - 'scripts/ceremony-health-check.js'
+  pull_request:
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'auth.html'
+      - 'tests/greeting-audible.test.js'
+      - 'tests/ceremony-selftest.pw.js'
+
+jobs:
+  # Sensor 1: source-extract tests for greeting_audible beacon + regression guards
+  greeting-audible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run greeting-audible source tests
+        run: node --test tests/greeting-audible.test.js
+
+  # Sensor 2: Playwright browser tests — ceremony page load + pin parity
+  ceremony-playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and browser
+        run: |
+          npm install --no-save @playwright/test
+          npx playwright install --with-deps chromium
+      - name: Run ceremony self-test (Playwright)
+        run: npx playwright test tests/ceremony-selftest.pw.js --reporter=line
+
+  # Sensor 3: auto-finding — query real-session telemetry for greeting_audible problems
+  # Runs after greeting-audible passes (no point querying if the beacon isn't in source).
+  # Skip silently on forks (no backend credentials). Exit code 1 = findings above threshold.
+  ceremony-health:
+    runs-on: ubuntu-latest
+    needs: greeting-audible
+    continue-on-error: true   # health findings are advisory until baseline is established
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Auto-find greeting audio problems in real sessions
+        env:
+          VAC_DEBUG_API: ${{ secrets.VAC_DEBUG_API || 'https://vacprotocol.org/v1/auth/debug' }}
+          HOURS: '24'
+          ALERT_THRESHOLD: '3'
+        run: node scripts/ceremony-health-check.js
