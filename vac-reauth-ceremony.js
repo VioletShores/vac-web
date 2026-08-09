@@ -30,10 +30,11 @@ try {
     if (_qaFlag) QA = { on:true, onEvent:function(){}, frame:function(){}, cal:function(){} };
 } catch(_) {}
 
-// ── S158 ?debug=1 live sensor readout ────────────────────────────────────────
+// ── S158 ?debug=1 live sensor readout + task-705 telemetry beacon ────────────
 // Floating bottom-bar: hand confidence per frame, zone-hit state, AudioContext state,
 // RMS, build pin, MediaPipe detection threshold, zone geometry. Rob's screenshot IS the
 // sensor data — no inference needed. Only active when ?debug=1 (parent-frame checked too).
+// Also beams per-session sensor summary to POST /v1/ceremony/telemetry for WATCH-CEREMONY-HEALTH.
 var _DEBUG_MODE = false;
 try {
     var _dbgFlag = false;
@@ -88,6 +89,8 @@ function _dbgUpdate(opts) {
             ' · ovals:[' + GESTURE_ZONE_SPEC.ovals.map(function(ov){ return ov.side; }).join(',') + ']';
     } catch(_) {}
 }
+var _sessionTelemetry = {};
+var _sessionBeamed = false;
 
 // Identity for the moved ceremony code (was auth.html's form-reading userData()).
 function userData(){ return (CTX && CTX.identity) || { name:'', email:'', org:'', role:'' }; }
@@ -215,8 +218,30 @@ function goToStep(n){
     currentStep = n;
 }
 
+// task-705: beam ceremony sensor telemetry to POST /v1/ceremony/telemetry when ?debug=1.
+// Called on pass (_finish) and on pagehide/beforeunload so fail paths are also captured.
+// Best-effort: never blocks the ceremony. _sessionBeamed guards duplicate calls.
+function _beamCeremonyTelemetry(pinPhaseOk) {
+    if (!_DEBUG_MODE || _sessionBeamed) return;
+    _sessionBeamed = true;
+    try {
+        var payload = Object.assign({}, _sessionTelemetry, {
+            session_id: VAC_DEBUG_SESSION,
+            pin_phase_ok: !!pinPhaseOk,
+        });
+        try { if (!('audio_ctx_state' in payload) && typeof audioContext !== 'undefined' && audioContext) payload.audio_ctx_state = audioContext.state; } catch(_) {}
+        fetch(API_BASE + '/v1/ceremony/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true,
+        }).catch(function(){});
+    } catch(_) {}
+}
+
 // Terminal SUCCESS path — hand the LIVE verify result back to the host (was auth.html showSuccess()).
 function _finish(){
+    try { _beamCeremonyTelemetry(true); } catch(_) {}
     try { if (CTX && CTX.mount) CTX.mount.style.display='none'; } catch(_){}
     if (CTX && CTX.onComplete){ try { CTX.onComplete(authResult); } catch(e){ console.error('[VACReauth] onComplete error', e); } }
 }
@@ -971,6 +996,11 @@ function _noteHandZoneTransition(prevState, isIn, zone) {
             face_w: zone.faceW != null ? Number(zone.faceW.toFixed(3)) : null,
         });
     } catch(_) {}
+    // task-705: accumulate zone hits for gesture telemetry
+    try { if (_DEBUG_MODE && isIn) {
+        _sessionTelemetry.zone_hits = (_sessionTelemetry.zone_hits || 0) + 1;
+        _sessionTelemetry.gesture_detected = true;
+    } } catch(_) {}
     return isIn;
 }
 
@@ -4650,6 +4680,13 @@ function _markSpeech(src, rms, onsetAt) {
                 voice_skipped: !!window.__vacVoiceSkipped,
                 no_analyser: !audioAnalyser
             }); } catch(_) {}
+            // task-705: accumulate greeting sensor data for /v1/ceremony/telemetry beacon
+            try { if (_DEBUG_MODE) {
+                _sessionTelemetry.greeting_audible = !!phraseSpoke;
+                _sessionTelemetry.voiced_ticks = _phraseVoicedTicks || 0;
+                _sessionTelemetry.analyser_frames = _phraseAnalyserFrames || 0;
+                try { _sessionTelemetry.audio_ctx_state = (audioContext ? audioContext.state : 'none'); } catch(_e) {}
+            } } catch(_) {}
             _setPhase(_PHASE.DIGIT);   // L-2246: transition to DIGIT before clearInterval so any final phraseInterval tick is blocked by renderGreeting's guard
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
             // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
@@ -7619,6 +7656,8 @@ const VACReauth = {
     //   Only num_digits is live (→ challenge POST); omit profile entirely for prod-default behaviour.
     run: function(opts){
         opts = opts || {};
+        // task-705: reset per-run telemetry accumulator
+        try { if (_DEBUG_MODE) { _sessionTelemetry = { session_id: VAC_DEBUG_SESSION }; _sessionBeamed = false; } } catch(_) {}
         CTX = {
             identity: { name: opts.name||'', email: opts.email||'', org: opts.org||'', role: opts.role||'' },
             riskLevel: opts.riskLevel || 'medium',
@@ -7730,6 +7769,8 @@ window.VACReauth = VACReauth;
 (function() {
     function _teardownOnExit(ev) {
         if (ev.type === 'pagehide' && ev.persisted) return;
+        // task-705: beam unreported telemetry on page exit (catches fail/abandon paths)
+        try { if (_DEBUG_MODE && !_sessionBeamed && VAC_DEBUG_SESSION) { _beamCeremonyTelemetry(false); } } catch(_) {}
         // Flush the recorder FIRST so any buffered audio is captured before the source tracks stop.
         try { if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop(); } catch(_) {}
         try { stopAudioMonitor(); } catch(_) {}
