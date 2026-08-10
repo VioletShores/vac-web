@@ -86,7 +86,7 @@ function _dbgUpdate(opts) {
         var rx = zone ? zone.rx.toFixed(2) : String(GESTURE_ZONE_SPEC.rx);
         var ry = zone ? zone.ry.toFixed(2) : String(GESTURE_ZONE_SPEC.ry);
         _dbgEl.innerHTML =
-            '<b>t718</b> · ' + ctxSt + ' ' + trkSt + ' · rms:' + rms +
+            '<b>t720</b> · ' + ctxSt + ' ' + trkSt + ' · rms:' + rms +
             ' · hconf:' + hconf + ' · zone:' + zoneIn + ' (' + anchored + ')' +
             '<br>det-thr:0.5 · zone rx:' + rx + ' ry:' + ry +
             ' · ovals:[' + GESTURE_ZONE_SPEC.ovals.map(function(ov){ return ov.side; }).join(',') + ']';
@@ -437,7 +437,10 @@ async function requestCamera() {
     try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
-            audio: true,
+            // task-720 FIX 2: disable browser audio processing so the analyser reads the raw mic
+            // signal at full amplitude. iOS AGC/echoCancellation compress Rob's voice to ~1% RMS
+            // even with context:running + track:live; disabling them restores 20-60% normal speech.
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         });
         // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
         mediaStream.getTracks().forEach(function(t) {
@@ -2563,6 +2566,55 @@ function dismissChallengeIntro() {
 // Only runs once per ceremony instance; subsequent calls (e.g. on retry) skip to countdown.
 var _soundCheckDone = false;
 
+// Read the greeting phrase back to the user via the SAME media-element channel as the chime.
+// Called only when the user tapped "I heard it" — the chime proved the audio works on this
+// device, so this fires into a confirmed-working speaker. Uses a concurrent silent <audio>
+// element to keep the iOS media session alive (same category as the chime), then speaks
+// the phrase via speechSynthesis from within that active session — never bare/disconnected.
+function _playGreetingPhrase(phrase, cb) {
+    try {
+        if (!phrase || !('speechSynthesis' in window)) { if (cb) try { cb(); } catch(_) {} return; }
+        // Tiny silent WAV: keeps the iOS media session in playback mode while speechSynthesis runs,
+        // so the speech routes through the speaker rather than being muted by the silent switch.
+        var sr = 22050, silLen = Math.round(sr * 0.1);
+        var silBuf = new ArrayBuffer(44 + silLen * 2);
+        var silDv = new DataView(silBuf);
+        function _ws(o, s) { for (var i = 0; i < s.length; i++) silDv.setUint8(o + i, s.charCodeAt(i)); }
+        _ws(0, 'RIFF'); silDv.setUint32(4, 36 + silLen * 2, true);
+        _ws(8, 'WAVE'); _ws(12, 'fmt ');
+        silDv.setUint32(16, 16, true); silDv.setUint16(20, 1, true); silDv.setUint16(22, 1, true);
+        silDv.setUint32(24, sr, true); silDv.setUint32(28, sr * 2, true);
+        silDv.setUint16(32, 2, true); silDv.setUint16(34, 16, true);
+        _ws(36, 'data'); silDv.setUint32(40, silLen * 2, true);
+        var silBlob = new Blob([silBuf], { type: 'audio/wav' });
+        var silUrl = URL.createObjectURL(silBlob);
+        var bridge = document.createElement('audio');
+        bridge.setAttribute('playsinline', '');
+        bridge.setAttribute('webkit-playsinline', '');
+        bridge.loop = true;
+        bridge.src = silUrl;
+        bridge.play().catch(function(){});
+
+        var _done = false;
+        var _maxMs = Math.max(6000, phrase.length * 120);
+        function _finish() {
+            if (_done) return; _done = true;
+            try { bridge.pause(); URL.revokeObjectURL(silUrl); } catch(_) {}
+            if (cb) try { cb(); } catch(_) {}
+        }
+        var utt = new SpeechSynthesisUtterance(phrase);
+        utt.rate = 0.88;
+        utt.onend = _finish;
+        utt.onerror = _finish;
+        setTimeout(_finish, _maxMs);
+        window.speechSynthesis.cancel();   // clear any stale queue from prior runs
+        window.speechSynthesis.speak(utt);
+        try { vacDebug('greeting_tts_play', null, { phrase_len: phrase.length }); } catch(_) {}
+    } catch(e) {
+        if (cb) try { cb(); } catch(_) {}
+    }
+}
+
 function _playChime(cb) {
     // Generate a two-tone 440→880Hz WAV entirely in JS and play it via <audio>.
     // This routes through the iOS media channel (not AudioContext ambient category),
@@ -2619,6 +2671,7 @@ function showSoundCheck() {
         '<button onclick="window._vacSoundResult(true)" style="width:100%;padding:14px;background:rgba(34,197,94,0.15);border:1px solid #22c55e;border-radius:10px;color:#22c55e;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:10px;-webkit-tap-highlight-color:transparent;">✓ I heard it</button>' +
         '<button onclick="window._vacSoundResult(false)" style="width:100%;padding:14px;background:transparent;border:1px solid var(--border,#2a3040);border-radius:10px;color:var(--text-secondary,#aaa);font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">No sound — continue anyway</button>' +
         '</div>' +
+        '<div style="margin-top:14px;font-size:clamp(12px,3.2vw,13px);color:var(--text-tertiary,#6b7280);line-height:1.5;text-align:center;">This tests your speaker — if the next step is silent, we know it\'s our fault, not your phone\'s.</div>' +
         '</div>';
     window._vacSoundPlay = function() {
         var btn = document.getElementById('soundCheckPlayBtn');
@@ -2637,7 +2690,15 @@ function showSoundCheck() {
         }); } catch(_) {}
         try { delete window._vacSoundPlay; delete window._vacSoundResult; } catch(_) {}
         if (overlay) overlay.style.display = 'none';
-        startCountdown();
+        // FIX 1 (task-720): when speaker is confirmed, play the greeting phrase back via the
+        // same media-element channel as the chime — gesture is still hot (onclick), session proven.
+        // Skipped on "No sound" path so a silent device doesn't block the countdown forever.
+        if (heard) {
+            var _greet = vacGreetingText() || (challengeData && challengeData.phrase ? challengeData.phrase.replace(/,\s*\d[\d\s,]*$/, '') : '');
+            _playGreetingPhrase(_greet, startCountdown);
+        } else {
+            startCountdown();
+        }
     };
     try { vacDebug('sound_check_shown'); } catch(_) {}
 }
@@ -6841,8 +6902,9 @@ function startAudioMonitor() {
         // entries can't accumulate AudioContexts and hit the browser's ~6-limit (which made
         // `new AudioContext()` throw → audioAnalyser stayed null → the phrase fail-open bypass).
         if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
-        // Stop any prior monitor stream clone so we don't leak live audio tracks on rewire
-        if (_monitorStream) { try { _monitorStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {} _monitorStream = null; }
+        // Clear prior monitor stream reference — do NOT stop its tracks if they are the
+        // original tracks from mediaStream (task-720 FIX 2: stopping original tracks kills recording).
+        _monitorStream = null;
         if (!mediaStream) { console.error('[VAC][AUDIO] startAudioMonitor: no mediaStream — voice gate will be OFF'); return; }
         // S154 (quick-auth-after-full-ceremony deafness): the full path's teardown can END the
         // stream's audio track while the mediaStream global stays truthy — cloning an ended
@@ -6874,7 +6936,13 @@ function startAudioMonitor() {
         audioAnalyser = audioContext.createAnalyser();
         audioAnalyser.fftSize = 256;
         audioAnalyser.smoothingTimeConstant = 0.15;  // S139-v2: low smoothing so inter-tap dips register; default 0.8 kept two ~100ms taps' residual above threshold continuously, defeating the 250ms sustain gate
-        _monitorStream = mediaStream.clone();
+        // task-720 FIX 2: wrap the ORIGINAL audio track in a new MediaStream instead of cloning.
+        // iOS Safari cloned tracks return all-128 bytes (silence) even with readyState='live',
+        // so _monitorStream.clone() produced rms:1% while the recorder (on the real track) worked
+        // fine — the avAnalyser pre-flight already used this approach (line ~1094). No clone means
+        // stopAudioMonitor must NOT stop _monitorStream tracks (they belong to mediaStream).
+        var _amOrigTrk = mediaStream.getAudioTracks()[0];
+        _monitorStream = _amOrigTrk ? new MediaStream([_amOrigTrk]) : mediaStream;
         const source = audioContext.createMediaStreamSource(_monitorStream);
         source.connect(audioAnalyser);
 
@@ -6970,7 +7038,7 @@ function startAudioMonitor() {
                 if (readout.getAttribute('data-adapt-msg')) {
                     readout.textContent = 'Noisy environment \u2014 listening level adjusted';
                 } else {
-                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 t718 \u00b7 ' + _st + ' ' + _tk;
+                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 t720 \u00b7 ' + _st + ' ' + _tk;
                 }
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
@@ -6999,8 +7067,10 @@ function stopAudioMonitor() {
     audioOnsetActive = false;
     // S157 C1: clear adapt timer so it cannot fire into a subsequent ceremony's readout
     if (_adaptExplainTimer) { clearTimeout(_adaptExplainTimer); _adaptExplainTimer = null; }
-    // S157 C1: stop the monitor clone so we don't leave a live audio track after ceremony end
-    if (_monitorStream) { try { _monitorStream.getTracks().forEach(function(t){ t.stop(); }); } catch(_) {} _monitorStream = null; }
+    // task-720: _monitorStream now wraps the ORIGINAL audio track (not a clone), so do NOT
+    // stop its tracks — they belong to mediaStream and stopping them would end recording.
+    // The tracks are stopped by the ceremony's normal teardown (VACReauth.cancel / page unload).
+    _monitorStream = null;
     // Reset rewire counters so each new ceremony gets a fresh budget of 3 recovery attempts
     _audioRewireCount = 0; _audioLastRewireAt = 0; _audioRewireInFlight = false;
     document.getElementById('audioLevel').style.display = 'none';
