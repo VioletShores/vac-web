@@ -10,6 +10,9 @@
 'use strict';
 
 const API_BASE = 'https://vac-system-production.up.railway.app';
+// task-718: ceremony telemetry lives in the Athena backend, not the VAC railway app.
+// POST /v1/ceremony/telemetry is hosted at api.athenapilot.ai — separate deployment.
+const ATHENA_API_BASE = 'https://api.athenapilot.ai';
 
 // Per-run context: identity, risk level, mount, host callbacks. Set by VACReauth.run().
 let CTX = null;
@@ -230,7 +233,7 @@ function _beamCeremonyTelemetry(pinPhaseOk) {
             pin_phase_ok: !!pinPhaseOk,
         });
         try { if (!('audio_ctx_state' in payload) && typeof audioContext !== 'undefined' && audioContext) payload.audio_ctx_state = audioContext.state; } catch(_) {}
-        fetch(API_BASE + '/v1/ceremony/telemetry', {
+        fetch(ATHENA_API_BASE + '/v1/ceremony/telemetry', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -737,7 +740,7 @@ const GESTURE_ZONE_SPEC = Object.freeze({
 // _activeZone() still falls back to the fixed GESTURE_ZONE_SPEC constants whenever there's no
 // confident read — never a dead zone.
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
-const _FACE_SIDE_GAP = 0.10;  // task-644: 0.03→0.10 so anchored ovals sit BESIDE the face not on it
+const _FACE_SIDE_GAP = 0.05;  // task-718 restore: 0.10→0.05 (archaeology verdict B); ovals closer to natural hand position
 let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
 let _faceAnchorMissStreak = 0;
 const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame jitter
@@ -884,13 +887,13 @@ function _activeZone() {
     }
     const hFrac = _faceAnchor.hFrac;
     const wFrac = hFrac * _FACE_ASPECT;
-    // task-zone-harness-then-fix (L-2446, revert d8a1374): face-proportional radii so oval width
-    // stays ~44% of face width at any seating distance. The old hFrac*0.42 formula produced ovals
-    // wider than the face at close range (A2 fail) and the 94ba1b9 wFrac*0.40 attempt pushed oval
-    // centers to the screen edge (cxLeft=rx) so the inner half was invisible — "vanish" (A1/A3 fail).
-    // New: rx = 22% face width, ry = 30% face height, gap = 15% face width (all face-proportional).
-    const rx = Math.min(0.15, 0.22 * wFrac);
-    const ry = Math.min(0.20, 0.30 * hFrac);
+    // task-718 restore (archaeology verdict B): raise proportionality factor so rx never falls below
+    // the S139-tested usable floor of 0.17. BEFORE: Math.min(0.15, 0.22*wFrac) → rx≈0.06–0.09 at
+    // selfie distance (~3× too tight vs S139). NOW: Math.max(0.17, 0.22*wFrac) — face-proportional
+    // when face is large, but never tighter than the S139 usable floor. FaceLandmarker anchoring
+    // preserved; hand BESIDE face detects without overlap.
+    const rx = Math.max(0.17, 0.22 * wFrac);
+    const ry = Math.max(0.22, 0.30 * hFrac);
     // Gap is face-proportional so it stays in the [0.10, 0.50] faceW assertion band at all distances.
     const gap = Math.max(_FACE_SIDE_GAP, 0.15 * wFrac);
     const halfW = wFrac / 2;
@@ -4524,6 +4527,17 @@ function _markSpeech(src, rms, onsetAt) {
                     try { if (avAudioCtx && avAudioCtx.state !== 'running') avAudioCtx.resume().catch(function(){}); } catch(_) {}
                 };
                 try { document.addEventListener('click', _gr, { passive: true }); document.addEventListener('keydown', _gr, { passive: true }); } catch(_) {}
+                // task-718 iOS fix (archaeology verdict A): bind statechange so iOS re-suspension during
+                // the spoken phrase triggers an immediate resume attempt — user is speaking, not tapping,
+                // so click/keydown won't fire. One-shot guard (window.__vacGestureResumeBound) prevents
+                // duplicate listeners across phraseInterval ticks.
+                try {
+                    audioContext.addEventListener('statechange', function _vacCtxStateChange() {
+                        if (audioContext && audioContext.state === 'suspended') {
+                            audioContext.resume().catch(function(){});
+                        }
+                    });
+                } catch(_) {}
             }
             try { vacDebug('audio_ctx_suspended', audioContext.state, { elapsedMs: elapsedMs }); } catch(_) {}
         }
