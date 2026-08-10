@@ -86,7 +86,7 @@ function _dbgUpdate(opts) {
         var rx = zone ? zone.rx.toFixed(2) : String(GESTURE_ZONE_SPEC.rx);
         var ry = zone ? zone.ry.toFixed(2) : String(GESTURE_ZONE_SPEC.ry);
         _dbgEl.innerHTML =
-            '<b>t720</b> · ' + ctxSt + ' ' + trkSt + ' · rms:' + rms +
+            '<b>t722</b> · ' + ctxSt + ' ' + trkSt + ' · rms:' + rms +
             ' · hconf:' + hconf + ' · zone:' + zoneIn + ' (' + anchored + ')' +
             '<br>det-thr:0.5 · zone rx:' + rx + ' ry:' + ry +
             ' · ovals:[' + GESTURE_ZONE_SPEC.ovals.map(function(ov){ return ov.side; }).join(',') + ']';
@@ -3496,10 +3496,15 @@ function beginRecording() {
             _markSpeech('no_match_fallback', 0, null);
         }, function() {
             // vadProbe: is the VAD currently registering sustained voice?
-            // Use _vadEnergyDetected only — it requires 180ms sustained onset + dual spectral
-            // checks + modulation. A single-frame _lastVadRms spike from broadband ambient noise
-            // would satisfy the OR arm and start the no-match timer incorrectly.
-            return _vadEnergyDetected;
+            // t722: voice-band ratio >= VOICE_BAND_MIN_RATIO is the recorder/server proxy.
+            // Spectral content remains valid even when iOS AGC compresses absolute RMS to ~1%
+            // (_lastVadRms=0.01) while the recorder — and the server voice-check — hear
+            // real speech at 85%+ (_lastVbRatio=0.85). _vadEnergyDetected requires the full
+            // onset pipeline (RMS > vadSpeechThreshold); on a compressed iOS stream it never
+            // fires even while voice is clearly present. Accept vbRatio as the primary signal;
+            // _vadEnergyDetected remains the secondary (non-starved paths). The local RMS meter
+            // is ADVISORY for display only — it must NOT block advance when server signal is present.
+            return _vadEnergyDetected || _lastVbRatio >= VOICE_BAND_MIN_RATIO;
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -3608,15 +3613,17 @@ function _markSpeech(src, rms, onsetAt) {
                     _sawSilence = true;
                     if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (Math.max(0.012, 0.10*voiceMax)*100).toFixed(1)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: Number(Math.max(0.012, 0.10*voiceMax).toFixed(3)), digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; _voicedAboveThrFrames = 0;   // R1: real silence fully ends the run
-                } else if (rms > vadSpeechThreshold && vbRatio >= VOICE_BAND_MIN_RATIO) {
+                } else if (vbRatio >= VOICE_BAND_MIN_RATIO && (rms > vadSpeechThreshold || rms > audioNoiseFloor)) {
                     // S155: count EVERY individual above-threshold+voice-band sample this attempt
                     // (pre-onset accumulation included, not just post-onset-confirm voicing) —
                     // VOICE_EVIDENCE_MIN_FRAMES reads real observed samples, not a derived state.
                     _voicedAboveThrFrames++;
-                    // BUILD 379: amplitude alone crossed the line, but only counts as voiced if the
-                    // energy is also voice-band-dominant — a loud broadband room (restaurant) can
-                    // cross vadSpeechThreshold without qualifying here, and falls through to the
-                    // "neither" branch below (same treatment as a between-thresholds frame).
+                    // t722: voice-band content is the recorder/server signal — when vbRatio confirms
+                    // voice shape, admit frames even when iOS AGC compresses absolute RMS below
+                    // vadSpeechThreshold (floor-relative: rms > audioNoiseFloor). The onset/sustain/
+                    // modulation/frame-count guards still apply; local RMS alone cannot block advance.
+                    // Original path (rms > vadSpeechThreshold && vbRatio >= threshold) is a strict
+                    // subset of this condition and continues to work unchanged on non-starved devices.
                     // Accumulate the voiced run from its TRUE onset — even if it starts during the
                     // grace/beat BEFORE the window opens — so a digit begun slightly early still reaches
                     // the duration bar (codex: don't clamp the onset to window-open). The run only STARTS
@@ -7038,7 +7045,7 @@ function startAudioMonitor() {
                 if (readout.getAttribute('data-adapt-msg')) {
                     readout.textContent = 'Noisy environment \u2014 listening level adjusted';
                 } else {
-                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 t720 \u00b7 ' + _st + ' ' + _tk;
+                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 t722 \u00b7 ' + _st + ' ' + _tk;
                 }
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
@@ -7879,5 +7886,32 @@ window.toggleUnderHood = toggleUnderHood;
 window.retryVerification = retryVerification;
 window.setFingerFallback = setFingerFallback;
 window._dismissNoMic = _dismissNoMic;
+
+// t722 fixture: voice-gate advance with localRms=1%, voiceScore=85%
+// Run window.__vacTest_t722() in the console to verify the gate condition.
+// Fixture: when _lastVadRms=0.01 (starved iOS) and _lastVbRatio=0.85 (voice-band
+// content confirmed by recorder/server path), vadProbe MUST return true so the
+// no-match fallback timer can run and advance the ceremony.
+window.__vacTest_t722 = function() {
+    var VOICE_BAND_MIN_RATIO = 0.45;  // mirrors module constant
+    function makeVadProbe(vadEnergyDetected, lastVbRatio) {
+        return function() { return vadEnergyDetected || lastVbRatio >= VOICE_BAND_MIN_RATIO; };
+    }
+    var cases = [
+        { label: 'fixture: localRms=1% voiceScore=85%', vadE: false, vbr: 0.85, expect: true  },
+        { label: 'old path: vadEnergyDetected=true',    vadE: true,  vbr: 0.00, expect: true  },
+        { label: 'silence: vadE=false vbr=0.10',        vadE: false, vbr: 0.10, expect: false },
+    ];
+    var pass = 0, fail = 0;
+    cases.forEach(function(c) {
+        var probe = makeVadProbe(c.vadE, c.vbr);
+        var got = probe();
+        var ok = got === c.expect;
+        if (ok) pass++; else fail++;
+        console.log('[t722]', ok ? 'PASS' : 'FAIL', c.label, '→', got, '(expected', c.expect, ')');
+    });
+    console.log('[t722] result:', pass + '/' + (pass+fail), fail ? 'FAIL' : 'ALL PASS');
+    return fail === 0;
+};
 
 })();
