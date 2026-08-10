@@ -1,5 +1,29 @@
-# VAC Web — HANDOFF (Session 27 → Session 28)
-> Updated: 8 Aug 2026 — ATTEST: S157 C1 LANDED (task-672) | pin s157c1 | receipt: 61418409944
+# VAC Web — HANDOFF (Session 28 → Session 29)
+> Updated: 11 Aug 2026 — ATTEST: task-718 L0 RESTORATION LANDED | pin t718 | receipt: fb9f3a35
+
+## ATTEST task-718 — L0 CEREMONY RESTORATION
+
+**VERDICT: PASS**
+**Pin:** `t718` (was `s158b1`)
+**Merge commit:** `51704aa` → main
+**Date:** 2026-08-11
+
+### THREE VERDICTS APPLIED (vac-reauth-ceremony.js)
+
+1. **GESTURE ZONE** — `Math.min(0.15, 0.22*wFrac)` → `Math.max(0.17, 0.22*wFrac)` + `_FACE_SIDE_GAP` 0.10→0.05. Restores S139-class usable radius (0.17 floor). FaceLandmarker anchoring preserved.
+2. **iOS AUDIO** — `audioContext.addEventListener('statechange', ...)` bound inside `__vacGestureResumeBound` one-shot guard. iOS re-suspension during spoken phrase now triggers immediate resume() without requiring tap.
+3. **TELEMETRY URL** — `ATHENA_API_BASE = 'https://api.athenapilot.ai'` added. Beacon was posting to vac-system-production (404). Now 201. Rob's `?debug=1` runs will land rows.
+
+### Acceptance Artifacts
+- Zone value `Math.max(0.17, 0.22*wFrac)` in merged diff (commit 77d7747)
+- `curl -X POST api.athenapilot.ai/v1/ceremony/telemetry → {"ok":true} HTTP 201`
+- Pin bumped `s158b1→t718` (both debug overlay locations)
+- Seal chain: task-718 ATTEST hash `fb9f3a35` (6-phase PLAN→EXECUTE→VERIFY→DEPLOY→CONFIRM→ATTEST)
+
+### Test Instructions for Rob
+Go to `auth?debug=1`. Overlay should show `t718` and `rx:0.17` (or larger if face fills frame). Place hand beside cheek — should detect without needing precise overlap. For telemetry: run debug session, then `GET api.athenapilot.ai/v1/ceremony/telemetry` with `x-admin-inspect-token` to confirm rows landed.
+
+---
 
 ## ATTEST PKT-S157-CEREMONY-COMPLETE / LANE C1 (task-672-adaptive-core)
 
