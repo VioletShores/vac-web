@@ -436,6 +436,10 @@ var _audioRewireInFlight = false;
 async function requestCamera() {
     const btn = document.getElementById('btnCamera');
     const err = document.getElementById('cameraError');
+    // t732 TAP-TRACE (Rob: "click, nothing happens" — make the death visible): every stage
+    // of this tap paints to the page in debug mode, so a silent failure names itself.
+    function _tapTrace(m){ try{ if(!/[?&]debug=1/.test(location.search)) return; var el=document.getElementById('tapTrace'); if(!el){ el=document.createElement('div'); el.id='tapTrace'; el.style.cssText='position:fixed;top:4px;left:4px;z-index:99999;background:#000c;color:#7ee787;font:11px monospace;padding:3px 7px;border-radius:6px;max-width:90vw;'; document.body.appendChild(el);} el.textContent='tap: '+m; }catch(_){} }
+    _tapTrace('received → requesting camera+mic…');
     err.style.display = 'none';
     btn.disabled = true;
     btn.textContent = 'Requesting access…';
@@ -461,6 +465,7 @@ async function requestCamera() {
     }
 
     try {
+        _tapTrace('getUserMedia called — if this never changes, iOS is holding the camera (force-quit Safari)');
         mediaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
             // task-720 FIX 2: disable browser audio processing so the analyser reads the raw mic
@@ -468,6 +473,7 @@ async function requestCamera() {
             // even with context:running + track:live; disabling them restores 20-60% normal speech.
             audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
         });
+        _tapTrace('camera+mic GRANTED \u2713');
         // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
         mediaStream.getTracks().forEach(function(t) {
             t.onended = function() { try { vacDebug('track_ended', null, { kind: t.kind, label: t.label }); } catch(_) {} };
