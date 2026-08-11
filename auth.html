@@ -925,6 +925,29 @@ function goToCamera() {
             return;
         }
     } catch(e) {}
+    // t731 (Rob: entered a malformed email; the code was "sent" to nowhere and could
+    // never be retrieved): validate the FORMAT before any send. Trim + basic
+    // structural check (something@something.tld, no spaces). Inline error, no send.
+    {
+        const _em = (d.email || '').trim();
+        const _emOk = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(_em);
+        if (!_emOk) {
+            const _ie = document.getElementById('inputEmail');
+            if (_ie) { _ie.style.borderColor = 'var(--danger, #e5534b)'; _ie.focus(); }
+            let _msg = document.getElementById('emailFormatErr');
+            if (!_msg && _ie) {
+                _msg = document.createElement('div');
+                _msg.id = 'emailFormatErr';
+                _msg.style.cssText = 'color:var(--danger,#e5534b);font-size:13px;margin-top:6px;';
+                _ie.parentNode.insertBefore(_msg, _ie.nextSibling);
+            }
+            if (_msg) _msg.textContent = 'That email address doesn\u2019t look right \u2014 check the format (name@domain.com) and try again.';
+            return;
+        }
+        const _stale = document.getElementById('emailFormatErr');
+        if (_stale) _stale.remove();
+        d.email = _em;
+    }
     // Send OTP and show verification input
     const btn = document.getElementById('btnIdentity');
     btn.disabled = true;
