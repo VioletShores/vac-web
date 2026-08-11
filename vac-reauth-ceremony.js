@@ -1272,14 +1272,18 @@ function startAVChecks() {
                 // used by the collector gate above and the live meter), so this can't drift from
                 // what fed it. The local pre-run ambientMedian term is unchanged.
                 const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _micQualifyFloor(_runVoiced));
-                if (_runMedian > _qualifyFloor) {
+                // t723: iOS-starved analyser reads ~1% amplitude even during live speech; voice-band
+                // energy present (_runVoiced) proves a working mic even when _runMedian <= floor.
+                if (_runMedian > _qualifyFloor || _runVoiced) {
                     _micLastQualifyT = _nowT;
-                    // D-VAD-CALIBRATION-GREETING-BOUND: this run just proved it's THIS user's
-                    // speaking level over THIS room's ambient — persist it so the ceremony VAD
-                    // can arm from it (see _micPreflightVad).
-                    _micSeededSpeechLevel = _runMedian;
-                    const _runRmsSorted = _micRunRmsSamples.slice().sort((a, b) => a - b);
-                    _micSeededSpeechRms = _runRmsSorted.length ? _runRmsSorted[Math.floor(_runRmsSorted.length / 2)] : 0;  // D-VAD-UNITS: ceremony-scale twin of _runMedian, same run
+                    if (_runMedian > _qualifyFloor) {
+                        // D-VAD-CALIBRATION-GREETING-BOUND: this run just proved it's THIS user's
+                        // speaking level over THIS room's ambient — persist it so the ceremony VAD
+                        // can arm from it (see _micPreflightVad).
+                        _micSeededSpeechLevel = _runMedian;
+                        const _runRmsSorted = _micRunRmsSamples.slice().sort((a, b) => a - b);
+                        _micSeededSpeechRms = _runRmsSorted.length ? _runRmsSorted[Math.floor(_runRmsSorted.length / 2)] : 0;  // D-VAD-UNITS: ceremony-scale twin of _runMedian, same run
+                    }
                     if (!avChecks.mic) {
                         setAVStatus('mic', 'good', 'Mic: working');
                         avChecks.mic = true;

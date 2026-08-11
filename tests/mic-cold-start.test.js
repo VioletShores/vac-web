@@ -176,3 +176,30 @@ test('TC-MIC-C10: textContent "say the number" step2Title assignment appears AFT
         `step2Title assignment (offset ${promptIdx}) must appear AFTER _voiceGate.start (offset ${startIdx}) — the gate must arm before the prompt shows`
     );
 });
+
+// ── TC-MIC-C11: preflight gate passes on voice-band path even when amplitude starved (t723) ─
+test('TC-MIC-C11: preflight mic gate condition includes _runVoiced OR branch (iOS analyser starvation fix)', () => {
+    // The gate at _runMedian > _qualifyFloor must have an || _runVoiced alternative so iOS devices
+    // that under-report amplitude but produce voice-shaped frequency energy can still clear Step-2.
+    const qualifyBlock = src.slice(src.indexOf('_runVoiced = '), src.indexOf('if (!avChecks.mic)') + 200);
+    assert.ok(
+        /if\s*\(_runMedian\s*>\s*_qualifyFloor\s*\|\|\s*_runVoiced\s*\)/.test(qualifyBlock),
+        'preflight gate condition must be (_runMedian > _qualifyFloor || _runVoiced) — voice-band energy alone proves a working mic on iOS-starved analysers (t723)'
+    );
+});
+
+// ── TC-MIC-C12: _micSeededSpeechLevel only set in amplitude branch (no false seeding) ─────
+test('TC-MIC-C12: _micSeededSpeechLevel assignment is inside amplitude-only guard (starved run must not seed)', () => {
+    // Find the qualify block: from the || _runVoiced condition to the closing of its outer if.
+    const condIdx = src.indexOf('if (_runMedian > _qualifyFloor || _runVoiced)');
+    assert.ok(condIdx >= 0, 'outer qualify condition not found — TC-MIC-C11 would have caught this first');
+    // The _micSeededSpeechLevel assignment must be inside a nested if (_runMedian > _qualifyFloor) block.
+    const seedIdx = src.indexOf('_micSeededSpeechLevel = _runMedian', condIdx);
+    assert.ok(seedIdx >= 0, '_micSeededSpeechLevel assignment not found after qualify condition');
+    // Between the outer condition and the seed assignment there must be an inner amplitude guard.
+    const between = src.slice(condIdx, seedIdx);
+    assert.ok(
+        /if\s*\(_runMedian\s*>\s*_qualifyFloor\s*\)/.test(between),
+        '_micSeededSpeechLevel must be guarded by an inner if (_runMedian > _qualifyFloor) — voice-only path must not seed a false speech level from an iOS-starved run (t723)'
+    );
+});
