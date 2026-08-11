@@ -1049,28 +1049,33 @@ function _noteHandZoneTransition(prevState, isIn, zone) {
 // task-724: if avAudioCtx is running but avAnalyser still reads ≤1% for >2s, fall back to
 // estimating mic level from a mini MediaRecorder (OS audio path, no AudioContext dependence).
 // The recorder's blob SIZE is a proxy: silence encodes very small; speech encodes much larger.
+// codex P2 fixes: (1) audio-only stream prevents video encoding dominating blob sizes;
+// (2) rolling-minimum baseline avoids calibrating on speech if user is already talking.
 function _startAvMrFallback() {
     if (_avMrFallback) return;
     try {
+        const _fbAudioTrack = mediaStream.getAudioTracks()[0];
+        if (!_fbAudioTrack) return; // no audio track — nothing to measure
         const _fbMimes = ['audio/webm;codecs=opus', 'audio/webm', ''];
         const _fbMime = _fbMimes.find(function(m) { return !m || MediaRecorder.isTypeSupported(m); });
+        // codex P2-1: audio-only stream so blob size reflects mic energy, not video encoding
+        const _fbStream = new MediaStream([_fbAudioTrack]);
         const _fbMr = new MediaRecorder(
-            mediaStream,
+            _fbStream,
             _fbMime ? { mimeType: _fbMime } : {}
         );
-        var _fbSilenceSzSum = 0, _fbSilenceN = 0;
+        // codex P2-2: rolling minimum as the silence reference — avoids the "first chunks are
+        // speech" calibration failure. The minimum converges to the quietest window observed
+        // (brief pauses between words) so speech peaks reliably exceed it.
+        var _fbMinSz = Infinity, _fbChunkCount = 0;
         _fbMr.ondataavailable = function(ev) {
             if (!ev.data || ev.data.size === 0) return;
             var sz = ev.data.size;
-            if (_fbSilenceN < 5) {
-                // Calibrate silence baseline from first 5 chunks (user hasn't spoken yet)
-                _fbSilenceSzSum += sz; _fbSilenceN++;
-                return;
-            }
-            var silBase = _fbSilenceN ? _fbSilenceSzSum / _fbSilenceN : sz;
-            if (silBase === 0) return;
-            // ratio > 1 = louder than calibrated silence; speech typically 2-5x silence at 200ms
-            var ratio = sz / silBase;
+            _fbChunkCount++;
+            if (sz < _fbMinSz) _fbMinSz = sz; // rolling minimum = quietest observed chunk
+            if (_fbChunkCount < 3 || !isFinite(_fbMinSz) || _fbMinSz === 0) return;
+            // ratio > 1 = louder than quietest window; speech typically 2-5x silence at 200ms
+            var ratio = sz / _fbMinSz;
             _avMrLevelSynth = Math.min(100, Math.max(0, Math.round((ratio - 1) / 2 * 100)));
         };
         _fbMr.start(200);   // 200ms slices — coarser than the analyser frame rate but sufficient
