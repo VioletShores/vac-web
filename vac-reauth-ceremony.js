@@ -625,6 +625,8 @@ let avAudioCtx = null;
 let avAnalyser = null;
 let _avMrFallback = null;       // task-724: mini MediaRecorder for iOS dead-analyser fallback
 let _avMrLevelSynth = 0;        // task-724: synthetic level from MediaRecorder blob-size proxy (0-100)
+let _avVbSustain = 0;           // t725: consecutive frames with voice-band ratio >= threshold (amplitude-independent)
+let _avLevelEma = 0;            // t725: smoothed display level (Rob: the % flickers unreadably)
 let _avAnalyserDeadSince = 0;   // task-724: performance.now() when analyser starvation first detected
 let avChecks = { light: false, mic: false, hand: false };
 let _avSilentFrames = 0; // S154 fix-on-find: consecutive near-zero-input pre-flight frames while mic hasn't qualified — after ~6s, warns of a likely wrong-mic selection
@@ -1312,7 +1314,22 @@ function startAVChecks() {
             // F-941 (BUILD 393): append the voice-band ratio so the debug readout shows WHY a
             // loud-room run does or doesn't qualify at the reduced multiplier, not just the level.
             const _rmsEl = document.getElementById('avRmsReadout');
-            if (_rmsEl && !window.__vacGateArmed) _rmsEl.textContent = '(' + level + '% · voice ' + Math.round(_speechRatio * 100) + '%)';
+            // t725 ROOT RESOLUTION (Rob's phone: amplitude crushed to 1% by iOS but voice-band
+            // ratio steady at ~85% — the analyser hears the SHAPE fine, iOS kills the VOLUME):
+            // qualify the mic on SUSTAINED voice-band presence alone, amplitude-independent.
+            // ~40 frames at 60fps = ~0.7s of continuous voiced spectrum = a human speaking.
+            if (_speechRatio >= VOICE_BAND_MIN_RATIO) { _avVbSustain++; } else { _avVbSustain = Math.max(0, _avVbSustain - 2); }
+            if (_avVbSustain >= 40) {
+                _micLastQualifyT = performance.now();   // keep the 10s decay fed while speaking
+                if (!avChecks.mic) {
+                    setAVStatus('mic', 'good', 'Mic: working (voice detected)');
+                    avChecks.mic = true;
+                    updateAVReady();
+                }
+            }
+            // t725 display smoothing: EMA so the number is READABLE (was flickering per-chunk)
+            _avLevelEma = Math.round(0.75 * _avLevelEma + 0.25 * level);
+            if (_rmsEl && !window.__vacGateArmed) _rmsEl.textContent = '(' + _avLevelEma + '% · voice ' + Math.round(_speechRatio * 100) + '%)';
             if (level > 80) { bar.style.background = 'var(--error)'; }
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
