@@ -627,6 +627,7 @@ let _avMrFallback = null;       // task-724: mini MediaRecorder for iOS dead-ana
 let _avMrLevelSynth = 0;        // task-724: synthetic level from MediaRecorder blob-size proxy (0-100)
 let _avVbSustain = 0;           // t725: consecutive frames with voice-band ratio >= threshold (amplitude-independent)
 let _avLevelEma = 0;            // t725: smoothed display level (Rob: the % flickers unreadably)
+let _avVbEma = 0;               // t726: smoothed VOICE-BAND ratio — Rob: the voice % is what flickers; a jumpy ratio kept resetting the sustain counter
 let _avAnalyserDeadSince = 0;   // task-724: performance.now() when analyser starvation first detected
 let avChecks = { light: false, mic: false, hand: false };
 let _avSilentFrames = 0; // S154 fix-on-find: consecutive near-zero-input pre-flight frames while mic hasn't qualified — after ~6s, warns of a likely wrong-mic selection
@@ -1318,8 +1319,11 @@ function startAVChecks() {
             // ratio steady at ~85% — the analyser hears the SHAPE fine, iOS kills the VOLUME):
             // qualify the mic on SUSTAINED voice-band presence alone, amplitude-independent.
             // ~40 frames at 60fps = ~0.7s of continuous voiced spectrum = a human speaking.
-            if (_speechRatio >= VOICE_BAND_MIN_RATIO) { _avVbSustain++; } else { _avVbSustain = Math.max(0, _avVbSustain - 2); }
-            if (_avVbSustain >= 40) {
+            // t726: smooth the ratio FIRST (per-frame FFT ratio is inherently jumpy on iOS);
+            // qualify on the EMA so brief dips don't reset progress. Gentler decay (-1).
+            _avVbEma = 0.85 * _avVbEma + 0.15 * _speechRatio;
+            if (_avVbEma >= VOICE_BAND_MIN_RATIO) { _avVbSustain++; } else { _avVbSustain = Math.max(0, _avVbSustain - 1); }
+            if (_avVbSustain >= 25) {
                 _micLastQualifyT = performance.now();   // keep the 10s decay fed while speaking
                 if (!avChecks.mic) {
                     setAVStatus('mic', 'good', 'Mic: working (voice detected)');
