@@ -632,6 +632,7 @@ let _avMrFallback = null;       // task-724: mini MediaRecorder for iOS dead-ana
 let _avMrLevelSynth = 0;        // task-724: synthetic level from MediaRecorder blob-size proxy (0-100)
 let _avVbSustain = 0;           // t725: consecutive frames with voice-band ratio >= threshold (amplitude-independent)
 let _avLevelEma = 0;            // t725: smoothed display level (Rob: the % flickers unreadably)
+let _avDispTick = 0;            // t729: WAS UNDECLARED in the t727 display throttle — reading it threw ReferenceError, killing the AV frame loop (Rob: light/mic/gestures/chip all dead)
 let _avVbEma = 0;               // t726: smoothed VOICE-BAND ratio — Rob: the voice % is what flickers; a jumpy ratio kept resetting the sustain counter
 let _avAnalyserDeadSince = 0;   // task-724: performance.now() when analyser starvation first detected
 let avChecks = { light: false, mic: false, hand: false };
