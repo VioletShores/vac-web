@@ -4781,10 +4781,19 @@ function _markSpeech(src, rms, onsetAt) {
                 // voice gate"). If the content gate has accumulated ~3x the voiced evidence a
                 // greeting needs and still produced no match, drop to the energy path — the
                 // server verdict still judges the recorded words (content authority unchanged).
-                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * (_vadStarved ? 1.5 : 3)) {
+                // t740 (Rob's log: voiced_ticks reached EXACTLY 7 = a full greeting's evidence,
+                // but the escape demanded 7*1.5 while the recognizer heard nothing → 17s timeout,
+                // one tick from passing): once a real greeting's worth of voiced evidence exists
+                // (needed*1.0) and content produced no match, release to the energy path AND
+                // evaluate IMMEDIATELY — the server still judges the recorded words.
+                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * (_vadStarved ? 1.0 : 2)) {
                     _sessionGateAvail = false;
                     if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
                     try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
+                        _phraseHeardVoice = true;
+                        try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
+                    }
                 }
                 // D-VOICE-GATE-SPEAKER-AGNOSTIC: when content gate is available, energy alone
                 // does NOT set _phraseHeardVoice — content match (via _phraseContentMatched) does.
