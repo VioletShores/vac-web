@@ -1273,7 +1273,13 @@ function startAVChecks() {
                     _totalSum += _fbuf[i];
                     if (i >= 1 && i <= 16) _bandSum += _fbuf[i];
                 }
-                _speechRatio = _totalSum > 0 ? (_bandSum / _totalSum) : 0;
+                // t727 (Rob caught false-accept: at 1% amplitude the FFT is quantization noise,
+                // whose band-ratio is a 0↔100 coin flip — a smoothed coin flip hovers mid and
+                // passed the 45% bar on SILENCE). Ratio counts only when the spectrum carries
+                // REAL energy: mean bin energy >= 3/255. Below that, the frame is NEUTRAL —
+                // it neither builds nor decays the sustain (no signal ≠ evidence either way).
+                var _meanBin = _totalSum / _fbuf.length;
+                _speechRatio = (_meanBin >= 3) ? (_bandSum / _totalSum) : -1;  // -1 = neutral/no-energy
             }
             // D-VAD-UNITS (task-447→task-644): the ceremony VAD's comparison quantity — same units
             // as _startSpeechGate's digit tick and _phraseVadTick. task-644 switches all three from
@@ -1321,8 +1327,13 @@ function startAVChecks() {
             // ~40 frames at 60fps = ~0.7s of continuous voiced spectrum = a human speaking.
             // t726: smooth the ratio FIRST (per-frame FFT ratio is inherently jumpy on iOS);
             // qualify on the EMA so brief dips don't reset progress. Gentler decay (-1).
-            _avVbEma = 0.85 * _avVbEma + 0.15 * _speechRatio;
-            if (_avVbEma >= VOICE_BAND_MIN_RATIO) { _avVbSustain++; } else { _avVbSustain = Math.max(0, _avVbSustain - 1); }
+            if (_speechRatio >= 0) { _avVbEma = 0.85 * _avVbEma + 0.15 * _speechRatio; }
+            // t727: a frame builds the pass ONLY when (a) it carried real energy, (b) the smoothed
+            // ratio is voice-dominant, AND (c) a hearing path corroborates a human is speaking —
+            // amplitude above codec noise OR the MediaRecorder proxy (the path that provably hears).
+            var _t727Corrob = (level >= 3) || (_avMrLevelSynth >= 8);
+            if (_speechRatio >= 0 && _avVbEma >= VOICE_BAND_MIN_RATIO && _t727Corrob) { _avVbSustain++; }
+            else if (_speechRatio >= 0) { _avVbSustain = Math.max(0, _avVbSustain - 1); }
             if (_avVbSustain >= 25) {
                 _micLastQualifyT = performance.now();   // keep the 10s decay fed while speaking
                 if (!avChecks.mic) {
@@ -1333,7 +1344,7 @@ function startAVChecks() {
             }
             // t725 display smoothing: EMA so the number is READABLE (was flickering per-chunk)
             _avLevelEma = Math.round(0.75 * _avLevelEma + 0.25 * level);
-            if (_rmsEl && !window.__vacGateArmed) _rmsEl.textContent = '(' + _avLevelEma + '% · voice ' + Math.round(_speechRatio * 100) + '%)';
+            if (_rmsEl && !window.__vacGateArmed) if (_rmsEl && !window.__vacGateArmed) { _avDispTick = (_avDispTick||0)+1; if (_avDispTick % 12 === 0) _rmsEl.textContent = '(' + _avLevelEma + '% · voice ' + Math.round(_avVbEma * 100) + '%)'; }
             if (level > 80) { bar.style.background = 'var(--error)'; }
             else if (level > 50) { bar.style.background = 'var(--warning)'; }
             else if (level > 5) { bar.style.background = 'var(--success)'; }
