@@ -440,6 +440,17 @@ async function requestCamera() {
     // of this tap paints to the page in debug mode, so a silent failure names itself.
     function _tapTrace(m){ try{ if(!/[?&]debug=1/.test(location.search)) return; var el=document.getElementById('tapTrace'); if(!el){ el=document.createElement('div'); el.id='tapTrace'; el.style.cssText='position:fixed;top:4px;left:4px;z-index:99999;background:#000c;color:#7ee787;font:11px monospace;padding:3px 7px;border-radius:6px;max-width:90vw;'; document.body.appendChild(el);} el.textContent='tap: '+m; }catch(_){} }
     _tapTrace('received → requesting camera+mic…');
+    // t738: re-entry guard + release-before-request + 8s named-cause timeout
+    // (Robs Mac: infinite Requesting-access + AudioContext device error — a second
+    // call deadlocked against its own leaked first stream, per the codes own comment)
+    if (window.__vacGumInFlight) { _tapTrace('ignored — a request is already in flight'); return; }
+    window.__vacGumInFlight = true;
+    try { if (mediaStream) { mediaStream.getTracks().forEach(function(t){ try{t.stop();}catch(_){} }); mediaStream = null; _tapTrace('released previous camera/mic, re-requesting…'); } } catch(_) {}
+    window.__vacGumTimer = setTimeout(function(){
+        window.__vacGumInFlight = false;
+        _tapTrace('TIMED OUT — another tab/app is holding the camera. Close other vacprotocol tabs (and Zoom/FaceTime), then click again.');
+        try { err.textContent = 'Camera request timed out — another tab or app is likely using the camera. Close other tabs of this site and any video apps, then click Enable again.'; err.style.display='block'; btn.disabled=false; btn.textContent='Enable Camera & Microphone'; } catch(_) {}
+    }, 8000);
     err.style.display = 'none';
     btn.disabled = true;
     btn.textContent = 'Requesting access…';
@@ -474,6 +485,7 @@ async function requestCamera() {
             // every threshold in this file was calibrated for. Browser defaults restored.
             audio: true,
         });
+        try{ clearTimeout(window.__vacGumTimer); }catch(_){}; window.__vacGumInFlight = false;
         _tapTrace('camera+mic GRANTED \u2713');
         // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
         mediaStream.getTracks().forEach(function(t) {
