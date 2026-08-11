@@ -468,10 +468,11 @@ async function requestCamera() {
         _tapTrace('getUserMedia called — if this never changes, iOS is holding the camera (force-quit Safari)');
         mediaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
-            // task-720 FIX 2: disable browser audio processing so the analyser reads the raw mic
-            // signal at full amplitude. iOS AGC/echoCancellation compress Rob's voice to ~1% RMS
-            // even with context:running + track:live; disabling them restores 20-60% normal speech.
-            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+            // t733 REVERT of task-720 FIX 2 (Rob's Mac showed rms:1% too — the starvation was
+            // UNIVERSAL, not iOS): disabling autoGainControl was the cause, not the cure. Raw
+            // un-AGC'd mic input at speaking distance IS ~1-2%; AGC is what yields the 20-60%
+            // every threshold in this file was calibrated for. Browser defaults restored.
+            audio: true,
         });
         _tapTrace('camera+mic GRANTED \u2713');
         // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
@@ -632,6 +633,7 @@ function showDeviceInfo() {
 
 // --- Automated AV Checks (adapted from folioAI) ---
 let avCheckFrame = null;
+const BUILD_TAG = (function(){ try { var s=document.querySelector('script[src*="vac-reauth-ceremony"]'); var m=s&&s.src.match(/[?&]v=([A-Za-z0-9]+)/); return m?m[1]:'dev'; } catch(_) { return 'dev'; } })();  // t733: the chip reads the SERVED pin — hardcoded chip strings lied (showed t722/t724 on a t732 page)
 let avAudioCtx = null;
 let avAnalyser = null;
 let _avMrFallback = null;       // task-724: mini MediaRecorder for iOS dead-analyser fallback
