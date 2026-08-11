@@ -4722,9 +4722,18 @@ function _markSpeech(src, rms, onsetAt) {
             }
             // t728 starvation detector: ~60 consecutive crushed frames → spectral mode (sticky)
             if (_rms < 0.02) { if (++_vadStarvedRun > 60 && !_vadStarved) { _vadStarved = true; try { vacDebug('vad_starved_mode', null, { rms: _rms }); } catch(_) {} } } else if (_rms > 0.05) { _vadStarvedRun = 0; }
-            // spectral voiced: the FFT carries REAL energy (not quantization noise) AND it's voice-shaped
+            // t735 (t734 PROVED the analyser never recovers on Rob's iPhone: default constraints,
+            // c:r t:l, still rms 1% — TEN rounds of evidence): on starved devices the ceremony's
+            // EAR is the RECORDER path (the one that measured his voice at 85%). Spin the mini
+            // MediaRecorder proxy during the phrase when starved, and let ITS energy drive voiced
+            // ticks. Spectral stays as the secondary (floor lowered to 2: a crushed stream's real
+            // speech sits at meanBin 1-2; the >=3 floor was zeroing out TRUE speech in quiet rooms).
+            if (_vadStarved && !_avMrFallback) { try { _startAvMrFallback(); } catch(_) {} }
             var _mb = 0; for (var _mi = 0; _mi < _buf.length; _mi++) _mb += _buf[_mi];
-            var _spectralVoiced = _vadStarved && (_mb / _buf.length >= 3) && (_vbRatio >= VOICE_BAND_MIN_RATIO);
+            var _spectralVoiced = _vadStarved && (
+                (_avMrLevelSynth >= 8) ||
+                ((_mb / _buf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
+            );
             if (_spectralVoiced || (_rms > VAD_SPEECH_RMS_FALLBACK && _vbRatio >= VOICE_BAND_MIN_RATIO)) {
                 // BUILD 379: same voice-band gate as the digit tick — amplitude alone isn't enough
                 // in a loud broadband room; a failing vbRatio falls through to the neither-band branch.
@@ -4768,6 +4777,7 @@ function _markSpeech(src, rms, onsetAt) {
                     if (_phraseVoicedTicks === 0) { _phraseVoicedMin = 1; _phraseVoicedMax = 0; _speechSamples.length = 0; }
                 } else if (++_phraseSilenceTicks >= PHRASE_SILENCE_TICKS_NEEDED) {
                     // sustained, modulated voiced run THEN a real end-pause → utterance complete
+                    try { var _lb=document.querySelector('.listening-banner,.phrase-status'); if(_lb) _lb.textContent='Heard you \u2713'; } catch(_) {}
                     phraseSpoke = true;
                     try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
                     try { _finalizeCalibration(); } catch(_) {}   // F-595: the greeting just gave us floor + speech → set this session's digit-gate threshold
