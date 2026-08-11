@@ -487,6 +487,16 @@ async function requestCamera() {
         });
         try{ clearTimeout(window.__vacGumTimer); }catch(_){}; window.__vacGumInFlight = false;
         _tapTrace('camera+mic GRANTED \u2713');
+        try {
+            var _aud = mediaStream.getAudioTracks()[0];
+            var _lbl = _aud ? (_aud.label || 'unknown') : 'NO AUDIO TRACK';
+            var _set = _aud && _aud.getSettings ? _aud.getSettings() : {};
+            console.log('[VAC-DBG] captured_audio_device', { label: _lbl, settings: _set });
+            _tapTrace('mic device: ' + _lbl);
+            var _dv = document.getElementById('micDeviceLabel');
+            if (!_dv) { _dv = document.createElement('div'); _dv.id='micDeviceLabel'; _dv.style.cssText='position:fixed;top:26px;left:4px;z-index:99999;background:#000c;color:#e0b866;font:11px monospace;padding:2px 7px;border-radius:6px;'; document.body.appendChild(_dv); }
+            _dv.textContent = 'mic: ' + _lbl + (/(iphone|continuity|display|virtual|teams|zoom)/i.test(_lbl) ? '  \u26a0 wrong device? switch via the camera icon in the address bar' : '');
+        } catch(_) {}
         // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
         mediaStream.getTracks().forEach(function(t) {
             t.onended = function() { try { vacDebug('track_ended', null, { kind: t.kind, label: t.label }); } catch(_) {} };
