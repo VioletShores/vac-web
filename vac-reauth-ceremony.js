@@ -1064,19 +1064,25 @@ function _startAvMrFallback() {
             _fbStream,
             _fbMime ? { mimeType: _fbMime } : {}
         );
-        // codex P2-2: rolling minimum as the silence reference — avoids the "first chunks are
-        // speech" calibration failure. The minimum converges to the quietest window observed
-        // (brief pauses between words) so speech peaks reliably exceed it.
-        var _fbMinSz = Infinity, _fbChunkCount = 0;
+        // Sliding window max/min ratio: avoids the rolling-minimum collapse when the user
+        // speaks continuously (global min converges to speech level → ratio ≈ 1 → level 0).
+        // Instead, compare the peak to the trough within the last 12 chunks (~2.4 s).
+        // Natural speech has phoneme-boundary amplitude variance that keeps ratio > 1.3 even
+        // at nominally "constant" volume; true silence and static tones both stay near 1.0.
+        var _fbBuf = [], _fbChunkCount = 0;
         _fbMr.ondataavailable = function(ev) {
             if (!ev.data || ev.data.size === 0) return;
             var sz = ev.data.size;
+            _fbBuf.push(sz);
+            if (_fbBuf.length > 12) _fbBuf.shift();
             _fbChunkCount++;
-            if (sz < _fbMinSz) _fbMinSz = sz; // rolling minimum = quietest observed chunk
-            if (_fbChunkCount < 3 || !isFinite(_fbMinSz) || _fbMinSz === 0) return;
-            // ratio > 1 = louder than quietest window; speech typically 2-5x silence at 200ms
-            var ratio = sz / _fbMinSz;
-            _avMrLevelSynth = Math.min(100, Math.max(0, Math.round((ratio - 1) / 2 * 100)));
+            if (_fbChunkCount < 3 || _fbBuf.length < 5) return;
+            var wMin = Math.min.apply(null, _fbBuf);
+            var wMax = Math.max.apply(null, _fbBuf);
+            if (wMin === 0) return;
+            // (ratio - 1) / 3 * 100: ratio 1.3 → 10%, 2.0 → 33%, 4.0 → 100%
+            var ratio = wMax / wMin;
+            _avMrLevelSynth = Math.min(100, Math.max(0, Math.round((ratio - 1) / 3 * 100)));
         };
         _fbMr.start(200);   // 200ms slices — coarser than the analyser frame rate but sufficient
         _avMrFallback = _fbMr;
@@ -1225,7 +1231,13 @@ function startAVChecks() {
                         _startAvMrFallback();
                     }
                 } else if (level > 1) {
-                    _avAnalyserDeadSince = 0; // analyser is live — no fallback needed
+                    _avAnalyserDeadSince = 0;
+                    // Analyser is live — exit MR fallback so stale proxy can't override it
+                    if (_avMrFallback) {
+                        try { _avMrFallback.stop(); } catch(_) {}
+                        _avMrFallback = null;
+                    }
+                    _avMrLevelSynth = 0;
                 }
                 if (_avMrFallback && _avMrLevelSynth > 0) {
                     level = _avMrLevelSynth; // use MediaRecorder proxy level
