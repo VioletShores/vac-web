@@ -498,7 +498,7 @@ async function requestCamera() {
                     _at ? new MediaStream([_at]) : mediaStream
                 ).connect(avAnalyser);
             }
-        } catch (_aE) { console.warn('[AV] Analyser connect failed (pre-startAVChecks):', _aE); }
+        } catch (_aE) { avAnalyser = null; console.warn('[AV] Analyser connect failed (pre-startAVChecks):', _aE); }
         startAVChecks();
 
         // Fetch challenge from backend (parallel — doesn't block AV checks)
@@ -548,6 +548,11 @@ async function requestCamera() {
         // Fetch adaptive modality requirements
         fetchModalityRequirements();
     } catch (e) {
+        // Close avAudioCtx if getUserMedia failed before the analyser was connected — otherwise
+        // the OS audio session is held open with nothing wired to it until the next retry.
+        if (avAudioCtx && avAudioCtx.state !== 'closed' && !avAnalyser) {
+            try { avAudioCtx.close(); avAudioCtx = null; } catch(_) {}
+        }
         // Browser-specific troubleshooting tips
         const tips = getCameraTips(dev);
         let errHtml = `<div style="margin-bottom: 6px;">${e.message || 'Camera access denied.'}</div>`;
@@ -1087,7 +1092,11 @@ function _startAvMrFallback() {
         _fbMr.start(200);   // 200ms slices — coarser than the analyser frame rate but sufficient
         _avMrFallback = _fbMr;
         try { vacDebug('analyser_starved_mr_fallback', 'started', { ctxState: avAudioCtx ? avAudioCtx.state : 'null' }); } catch(_) {}
-    } catch (_e) { console.warn('[AV] MR fallback start failed:', _e); }
+    } catch (_e) {
+        console.warn('[AV] MR fallback start failed:', _e);
+        // Sentinel: prevents 60fps retry loop — all _avMrFallback.stop() calls are inside try/catch
+        _avMrFallback = { stop: function(){} };
+    }
 }
 
 function startAVChecks() {
@@ -1230,7 +1239,9 @@ function startAVChecks() {
                     if (_avNow - _avAnalyserDeadSince > 2000 && !_avMrFallback) {
                         _startAvMrFallback();
                     }
-                } else if (level > 1) {
+                } else if (level > 4) {
+                    // Hysteresis: >4% clears codec-quantization noise (1-3%) that would
+                    // otherwise thrash the fallback on/off while the analyser is starved.
                     _avAnalyserDeadSince = 0;
                     // Analyser is live — exit MR fallback so stale proxy can't override it
                     if (_avMrFallback) {
@@ -2436,7 +2447,7 @@ function retryAVSetup() {
                         _rAt ? new MediaStream([_rAt]) : stream
                     ).connect(avAnalyser);
                 }
-            } catch (_rAE) {}
+            } catch (_rAE) { avAnalyser = null; }
             startAVChecks();
         })
         .catch(function(err) {
