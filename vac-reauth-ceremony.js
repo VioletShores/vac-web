@@ -506,9 +506,9 @@ async function requestCamera() {
                 avAnalyser = avAudioCtx.createAnalyser();
                 avAnalyser.fftSize = 256;
                 const _at = mediaStream.getAudioTracks()[0];
-                avAudioCtx.createMediaStreamSource(
+                _pinSrc(avAudioCtx.createMediaStreamSource(
                     _at ? new MediaStream([_at]) : mediaStream
-                ).connect(avAnalyser);
+                )).connect(avAnalyser);
             }
         } catch (_aE) { avAnalyser = null; console.warn('[AV] Analyser connect failed (pre-startAVChecks):', _aE); }
         startAVChecks();
@@ -635,6 +635,14 @@ function showDeviceInfo() {
 let avCheckFrame = null;
 const BUILD_TAG = (function(){ try { var s=document.querySelector('script[src*="vac-reauth-ceremony"]'); var m=s&&s.src.match(/[?&]v=([A-Za-z0-9]+)/); return m?m[1]:'dev'; } catch(_) { return 'dev'; } })();  // t733: the chip reads the SERVED pin — hardcoded chip strings lied (showed t722/t724 on a t732 page)
 let avAudioCtx = null;
+// t736 THE ROOT (Rob's Mac console: RMS 0%, ctx running, track live, recorder fine):
+// MediaStreamAudioSourceNodes created anonymously / in local consts get GARBAGE-
+// COLLECTED by Chrome — the analyser then reads silence forever while MediaRecorder
+// keeps hearing. Every device, every build. Fix: every source node pinned for life.
+window.__vacPinnedSources = window.__vacPinnedSources || [];
+function _pinSrc(node){ try { window.__vacPinnedSources.push(node); } catch(_){} 
+  try { setTimeout(function(){ if(!avAnalyser) return; var b=new Uint8Array(avAnalyser.fftSize||2048); avAnalyser.getByteTimeDomainData(b); var s=0; for(var i=0;i<b.length;i++){var d=b[i]-128; s+=d*d;} console.log('[VAC-DBG] analyser_first_read_after_pin', {rmsRaw: Math.sqrt(s/b.length).toFixed(2)}); }, 1200); } catch(_){}
+  return node; }
 let avAnalyser = null;
 let _avMrFallback = null;       // task-724: mini MediaRecorder for iOS dead-analyser fallback
 let _avMrLevelSynth = 0;        // task-724: synthetic level from MediaRecorder blob-size proxy (0-100)
@@ -1214,7 +1222,7 @@ function startAVChecks() {
             // F-755d: do NOT clone — iOS Safari cloned track is dead (reads flat 0%).
             // Build source from the original audio track directly.
             const _atrk = mediaStream.getAudioTracks()[0];
-            const source = avAudioCtx.createMediaStreamSource(_atrk ? new MediaStream([_atrk]) : mediaStream);
+            const source = _pinSrc(avAudioCtx.createMediaStreamSource(_atrk ? new MediaStream([_atrk]) : mediaStream));
             source.connect(avAnalyser);
         } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
     }
@@ -2494,9 +2502,9 @@ function retryAVSetup() {
                     avAnalyser = avAudioCtx.createAnalyser();
                     avAnalyser.fftSize = 256;
                     const _rAt = stream.getAudioTracks()[0];
-                    avAudioCtx.createMediaStreamSource(
+                    _pinSrc(avAudioCtx.createMediaStreamSource(
                         _rAt ? new MediaStream([_rAt]) : stream
-                    ).connect(avAnalyser);
+                    )).connect(avAnalyser);
                 }
             } catch (_rAE) { avAnalyser = null; }
             startAVChecks();
