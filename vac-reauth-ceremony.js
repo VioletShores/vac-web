@@ -72,6 +72,8 @@ function _dbgUpdate(opts) {
         if (o.zoneIn !== undefined) _dbgLastZoneIn = o.zoneIn;
         var ctxSt = 'c:?';
         try { ctxSt = 'c:' + (audioContext ? audioContext.state.charAt(0) : '?'); } catch(_) {}
+        var avCtxSt = 'av:?';
+        try { avCtxSt = 'av:' + (avAudioCtx ? avAudioCtx.state.charAt(0) : '?'); } catch(_) {}
         var trkSt = 't:?';
         try {
             var _dm = _monitorStream ? _monitorStream.getAudioTracks()[0] : null;
@@ -86,7 +88,7 @@ function _dbgUpdate(opts) {
         var rx = zone ? zone.rx.toFixed(2) : String(GESTURE_ZONE_SPEC.rx);
         var ry = zone ? zone.ry.toFixed(2) : String(GESTURE_ZONE_SPEC.ry);
         _dbgEl.innerHTML =
-            '<b>t722</b> · ' + ctxSt + ' ' + trkSt + ' · rms:' + rms +
+            '<b>t724</b> · ' + ctxSt + ' ' + avCtxSt + ' ' + trkSt + ' · rms:' + rms +
             ' · hconf:' + hconf + ' · zone:' + zoneIn + ' (' + anchored + ')' +
             '<br>det-thr:0.5 · zone rx:' + rx + ' ry:' + ry +
             ' · ovals:[' + GESTURE_ZONE_SPEC.ovals.map(function(ov){ return ov.side; }).join(',') + ']';
@@ -434,6 +436,25 @@ async function requestCamera() {
     btn.textContent = 'Requesting access…';
     const dev = showDeviceInfo();
 
+    // task-724 iOS CTX ROOT FIX: create/resume avAudioCtx SYNCHRONOUSLY here — before any await —
+    // because iOS Safari only honors AudioContext.resume() when called synchronously within a
+    // user-gesture event handler. Creating it after getUserMedia() (as prior code did in
+    // startAVChecks()) means the gesture is already "spent" and iOS keeps the context suspended,
+    // leaving avAnalyser permanently deaf (~1% RMS) while MediaRecorder reads the mic fine (85%).
+    try {
+        if (!avAudioCtx || avAudioCtx.state === 'closed') {
+            avAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
+    } catch (_ctxE) { console.warn('[AV] Sync ctx create/resume failed:', _ctxE); }
+    // Bind a one-shot gesture-resume listener so the NEXT tap retries if iOS didn't honor it above.
+    if (!window.__vacAvCtxResumeBound) {
+        window.__vacAvCtxResumeBound = true;
+        document.addEventListener('click', function() {
+            try { if (avAudioCtx && avAudioCtx.state !== 'running') avAudioCtx.resume(); } catch(_) {}
+        }, { passive: true });
+    }
+
     try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } },
@@ -466,6 +487,18 @@ async function requestCamera() {
         // Show AV checks immediately — don't wait for challenge fetch
         document.getElementById('preRecordChecklist').style.display = 'block';
         document.getElementById('avAudioBar').style.display = 'block';
+        // task-724: wire avAnalyser to the gesture-resumed avAudioCtx now, while we still have the
+        // live mediaStream. startAVChecks() will skip its own setup block if avAnalyser is already set.
+        try {
+            if (avAudioCtx && !avAnalyser) {
+                avAnalyser = avAudioCtx.createAnalyser();
+                avAnalyser.fftSize = 256;
+                const _at = mediaStream.getAudioTracks()[0];
+                avAudioCtx.createMediaStreamSource(
+                    _at ? new MediaStream([_at]) : mediaStream
+                ).connect(avAnalyser);
+            }
+        } catch (_aE) { console.warn('[AV] Analyser connect failed (pre-startAVChecks):', _aE); }
         startAVChecks();
 
         // Fetch challenge from backend (parallel — doesn't block AV checks)
@@ -585,6 +618,9 @@ function showDeviceInfo() {
 let avCheckFrame = null;
 let avAudioCtx = null;
 let avAnalyser = null;
+let _avMrFallback = null;       // task-724: mini MediaRecorder for iOS dead-analyser fallback
+let _avMrLevelSynth = 0;        // task-724: synthetic level from MediaRecorder blob-size proxy (0-100)
+let _avAnalyserDeadSince = 0;   // task-724: performance.now() when analyser starvation first detected
 let avChecks = { light: false, mic: false, hand: false };
 let _avSilentFrames = 0; // S154 fix-on-find: consecutive near-zero-input pre-flight frames while mic hasn't qualified — after ~6s, warns of a likely wrong-mic selection
 let avPrevOval = null; // previous frame luminance for motion detection
@@ -1010,6 +1046,39 @@ function _noteHandZoneTransition(prevState, isIn, zone) {
     return isIn;
 }
 
+// task-724: if avAudioCtx is running but avAnalyser still reads ≤1% for >2s, fall back to
+// estimating mic level from a mini MediaRecorder (OS audio path, no AudioContext dependence).
+// The recorder's blob SIZE is a proxy: silence encodes very small; speech encodes much larger.
+function _startAvMrFallback() {
+    if (_avMrFallback) return;
+    try {
+        const _fbMimes = ['audio/webm;codecs=opus', 'audio/webm', ''];
+        const _fbMime = _fbMimes.find(function(m) { return !m || MediaRecorder.isTypeSupported(m); });
+        const _fbMr = new MediaRecorder(
+            mediaStream,
+            _fbMime ? { mimeType: _fbMime } : {}
+        );
+        var _fbSilenceSzSum = 0, _fbSilenceN = 0;
+        _fbMr.ondataavailable = function(ev) {
+            if (!ev.data || ev.data.size === 0) return;
+            var sz = ev.data.size;
+            if (_fbSilenceN < 5) {
+                // Calibrate silence baseline from first 5 chunks (user hasn't spoken yet)
+                _fbSilenceSzSum += sz; _fbSilenceN++;
+                return;
+            }
+            var silBase = _fbSilenceN ? _fbSilenceSzSum / _fbSilenceN : sz;
+            if (silBase === 0) return;
+            // ratio > 1 = louder than calibrated silence; speech typically 2-5x silence at 200ms
+            var ratio = sz / silBase;
+            _avMrLevelSynth = Math.min(100, Math.max(0, Math.round((ratio - 1) / 2 * 100)));
+        };
+        _fbMr.start(200);   // 200ms slices — coarser than the analyser frame rate but sufficient
+        _avMrFallback = _fbMr;
+        try { vacDebug('analyser_starved_mr_fallback', 'started', { ctxState: avAudioCtx ? avAudioCtx.state : 'null' }); } catch(_) {}
+    } catch (_e) { console.warn('[AV] MR fallback start failed:', _e); }
+}
+
 function startAVChecks() {
     // F-563 (3): RESET every pre-flight pill to the un-ticked "checking" state on EVERY entry.
     // On re-auth the Light/Mic/Hand pills kept the prior session's ✓ (same stale-state-on-re-entry
@@ -1041,6 +1110,10 @@ function startAVChecks() {
     _micSeeded = false;
     _avSilentFrames = 0; // S154: fresh entry/retry gets a fresh 6s wrong-mic detection window
     micWaitStart = 0; // F-755f: reset mic-wait timer so retry doesn't immediately show "Mic not picking up audio?"
+    // task-724: reset MR fallback state so a retry gets a fresh calibration window
+    _avAnalyserDeadSince = 0;
+    _avMrLevelSynth = 0;
+    if (_avMrFallback) { try { _avMrFallback.stop(); } catch(_) {} _avMrFallback = null; }
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
     setAVStatus('hand', 'checking', 'Hand');
@@ -1088,25 +1161,32 @@ function startAVChecks() {
             }
         }
     } catch(_) {}
-    // Set up audio analyser
-    try {
-        avAudioCtx = new AudioContext();
-        if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
-        avAnalyser = avAudioCtx.createAnalyser();
-        avAnalyser.fftSize = 256;
-        // F-755d: do NOT clone — iOS Safari cloned track is dead (reads flat 0%).
-        // Build source from the original audio track directly.
-        const _atrk = mediaStream.getAudioTracks()[0];
-        const source = avAudioCtx.createMediaStreamSource(_atrk ? new MediaStream([_atrk]) : mediaStream);
-        source.connect(avAnalyser);
-        // S154 fix-on-find (F-1025 spirit): show the ACTUAL input device label during
-        // pre-flight — a silent wrong-device state (browser listening on the wrong
-        // mic) was previously masked once the latched "Mic: working" chip stuck.
+    // Set up audio analyser — task-724: skip if already wired by requestCamera()'s sync gesture-resume.
+    // If avAnalyser is null here, we're on a non-gesture path (retryAVSetup/.then) or cold start;
+    // create a new context as fallback (won't be gesture-resumed on iOS, but provides a working
+    // context on desktop/Chrome where gesture-gating is not enforced).
+    if (!avAnalyser) {
         try {
-            const devEl = document.getElementById('avMicDevice');
-            if (_atrk && devEl) { devEl.textContent = 'Listening through: ' + (_atrk.label || 'default microphone'); devEl.style.display = 'block'; }
-        } catch (e2) { /* label unavailable pre-permission on some browsers */ }
-    } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
+            if (!avAudioCtx || avAudioCtx.state === 'closed') {
+                avAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
+            avAnalyser = avAudioCtx.createAnalyser();
+            avAnalyser.fftSize = 256;
+            // F-755d: do NOT clone — iOS Safari cloned track is dead (reads flat 0%).
+            // Build source from the original audio track directly.
+            const _atrk = mediaStream.getAudioTracks()[0];
+            const source = avAudioCtx.createMediaStreamSource(_atrk ? new MediaStream([_atrk]) : mediaStream);
+            source.connect(avAnalyser);
+        } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
+    }
+    // Always (re)apply device label regardless of which setup path ran.
+    // S154 fix-on-find (F-1025 spirit): show the ACTUAL input device label during pre-flight.
+    try {
+        const _atrk = mediaStream.getAudioTracks()[0];
+        const devEl = document.getElementById('avMicDevice');
+        if (_atrk && devEl) { devEl.textContent = 'Listening through: ' + (_atrk.label || 'default microphone'); devEl.style.display = 'block'; }
+    } catch (_e2) {}
 
     // Create hidden canvas for brightness analysis
     const canvas = document.createElement('canvas');
@@ -1129,7 +1209,23 @@ function startAVChecks() {
                 const dev = Math.abs(dataArray[i] - 128);
                 if (dev > maxDev) maxDev = dev;
             }
-            const level = Math.min(100, Math.round((maxDev / 128) * 100));
+            let level = Math.min(100, Math.round((maxDev / 128) * 100));
+            // task-724: detect iOS analyser starvation (state=running but output ≤1%) and fall
+            // back to the MediaRecorder blob-size proxy after 2s of confirmed starvation.
+            {
+                const _avNow = performance.now();
+                if (avAudioCtx && avAudioCtx.state === 'running' && level <= 1) {
+                    if (_avAnalyserDeadSince === 0) _avAnalyserDeadSince = _avNow;
+                    if (_avNow - _avAnalyserDeadSince > 2000 && !_avMrFallback) {
+                        _startAvMrFallback();
+                    }
+                } else if (level > 1) {
+                    _avAnalyserDeadSince = 0; // analyser is live — no fallback needed
+                }
+                if (_avMrFallback && _avMrLevelSynth > 0) {
+                    level = _avMrLevelSynth; // use MediaRecorder proxy level
+                }
+            }
             _checkMicDeviceWarn(level);
             // F-941 (BUILD 393): frequency-spectrum data pulled every frame (not just when the
             // monitor draw below needs it) so the voice-band ratio is available to the
@@ -2263,6 +2359,9 @@ function stopAVChecks() {
     if (avCheckFrame) { cancelAnimationFrame(avCheckFrame); avCheckFrame = null; }
     if (avAudioCtx) { avAudioCtx.close().catch(() => {}); avAudioCtx = null; }
     avAnalyser = null;
+    // task-724: tear down MR fallback alongside the analyser
+    if (_avMrFallback) { try { _avMrFallback.stop(); } catch(_) {} _avMrFallback = null; }
+    _avMrLevelSynth = 0; _avAnalyserDeadSince = 0;
     avPrevOval = null;
     // Clear the pre-flight hand-zone guide so #faceOval returns and the green ring
     // doesn't linger when the pre-flight stops (leaving step 1 / re-auth).
@@ -2270,7 +2369,7 @@ function stopAVChecks() {
 }
 
 function retryAVSetup() {
-    // Stop existing checks
+    // Stop existing checks (closes and nulls avAudioCtx)
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
     _micLoudFrames = 0;
@@ -2280,6 +2379,13 @@ function retryAVSetup() {
     _micRunRmsSamples = [];  // D-VAD-UNITS: ceremony-scale twin of _micRunLevels/_micRunRatios above — kept in lockstep
     _micRunStartT = 0;
     _micLastQualifyT = 0;
+    // task-724: re-create/resume avAudioCtx SYNCHRONOUSLY while still in the gesture handler —
+    // stopAVChecks() just closed it; re-creating here (before getUserMedia) keeps us in the
+    // synchronous gesture context so iOS will honor the resume().
+    try {
+        avAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
+    } catch (_ctxE) {}
     // Stop existing stream
     const video = document.getElementById('videoPreview');
     if (video && video.srcObject) {
@@ -2297,14 +2403,26 @@ function retryAVSetup() {
     document.getElementById('avAudioLevel').style.width = '0%';
     document.getElementById('avAudioPct').textContent = '0%';
     updateAVReady();
-    // Re-request camera/mic
+    // Re-request camera/mic; update global mediaStream so startAVChecks() connects to the new stream
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
-        .then(stream => {
+        .then(function(stream) {
+            mediaStream = stream;   // task-724: keep global in sync so analyser connection uses new stream
             video.srcObject = stream;
             video.play();
+            // Wire analyser to the new stream before startAVChecks() runs (same pattern as requestCamera)
+            try {
+                if (avAudioCtx && !avAnalyser) {
+                    avAnalyser = avAudioCtx.createAnalyser();
+                    avAnalyser.fftSize = 256;
+                    const _rAt = stream.getAudioTracks()[0];
+                    avAudioCtx.createMediaStreamSource(
+                        _rAt ? new MediaStream([_rAt]) : stream
+                    ).connect(avAnalyser);
+                }
+            } catch (_rAE) {}
             startAVChecks();
         })
-        .catch(err => {
+        .catch(function(err) {
             console.error('[AV RETRY]', err);
             document.getElementById('avMicTip').textContent = 'Could not access camera/mic. Check browser permissions.';
             document.getElementById('avMicTip').style.display = 'block';
