@@ -88,7 +88,7 @@ function _dbgUpdate(opts) {
         var rx = zone ? zone.rx.toFixed(2) : String(GESTURE_ZONE_SPEC.rx);
         var ry = zone ? zone.ry.toFixed(2) : String(GESTURE_ZONE_SPEC.ry);
         _dbgEl.innerHTML =
-            '<b>t724</b> · ' + ctxSt + ' ' + avCtxSt + ' ' + trkSt + ' · rms:' + rms +
+            '<b>'+BUILD_TAG+'</b> · ' + ctxSt + ' ' + avCtxSt + ' ' + trkSt + ' · rms:' + rms +
             ' · hconf:' + hconf + ' · zone:' + zoneIn + ' (' + anchored + ')' +
             '<br>det-thr:0.5 · zone rx:' + rx + ' ry:' + ry +
             ' · ovals:[' + GESTURE_ZONE_SPEC.ovals.map(function(ov){ return ov.side; }).join(',') + ']';
@@ -7259,7 +7259,7 @@ function startAudioMonitor() {
                 if (readout.getAttribute('data-adapt-msg')) {
                     readout.textContent = 'Noisy environment \u2014 listening level adjusted';
                 } else {
-                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 t722 \u00b7 ' + _st + ' ' + _tk;
+                    readout.textContent = 'RMS ' + Math.round(rms * 100) + '% \u00b7 ' + BUILD_TAG + ' \u00b7 ' + _st + ' ' + _tk;
                 }
                 readout.classList.toggle('onset-active', audioOnsetActive);
             }
