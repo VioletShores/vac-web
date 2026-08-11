@@ -633,6 +633,7 @@ let _avMrLevelSynth = 0;        // task-724: synthetic level from MediaRecorder 
 let _avVbSustain = 0;           // t725: consecutive frames with voice-band ratio >= threshold (amplitude-independent)
 let _avLevelEma = 0;            // t725: smoothed display level (Rob: the % flickers unreadably)
 let _avDispTick = 0;            // t729: WAS UNDECLARED in the t727 display throttle — reading it threw ReferenceError, killing the AV frame loop (Rob: light/mic/gestures/chip all dead)
+let _avVbSlow = 0;              // t730: slow ambient baseline of the voice-band ratio (~20s memory) — the mic passes on the RISE above ambient, not on voice-shaped background (Rob: went green before speaking)
 let _avVbEma = 0;               // t726: smoothed VOICE-BAND ratio — Rob: the voice % is what flickers; a jumpy ratio kept resetting the sustain counter
 let _avAnalyserDeadSince = 0;   // task-724: performance.now() when analyser starvation first detected
 let avChecks = { light: false, mic: false, hand: false };
@@ -1338,7 +1339,11 @@ function startAVChecks() {
             // ratio is voice-dominant, AND (c) a hearing path corroborates a human is speaking —
             // amplitude above codec noise OR the MediaRecorder proxy (the path that provably hears).
             var _t727Corrob = (level >= 3) || (_avMrLevelSynth >= 8);
-            if (_speechRatio >= 0 && _avVbEma >= VOICE_BAND_MIN_RATIO && _t727Corrob) { _avVbSustain++; }
+            if (_speechRatio >= 0) { _avVbSlow = (_avVbSlow === 0) ? _avVbEma : (0.995 * _avVbSlow + 0.005 * _avVbEma); }
+            // t730: qualify on the RISE — speech pushes the fast EMA well above the slow ambient
+            // baseline; background alone keeps them equal, so it can no longer green the tile.
+            var _t730Rise = (_avVbEma - _avVbSlow) >= 0.10;
+            if (_speechRatio >= 0 && _avVbEma >= VOICE_BAND_MIN_RATIO && _t727Corrob && _t730Rise) { _avVbSustain++; }
             else if (_speechRatio >= 0) { _avVbSustain = Math.max(0, _avVbSustain - 1); }
             if (_avVbSustain >= 25) {
                 _micLastQualifyT = performance.now();   // keep the 10s decay fed while speaking
@@ -4729,7 +4734,7 @@ function _markSpeech(src, rms, onsetAt) {
                 // voice gate"). If the content gate has accumulated ~3x the voiced evidence a
                 // greeting needs and still produced no match, drop to the energy path — the
                 // server verdict still judges the recorded words (content authority unchanged).
-                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * 3) {
+                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * (_vadStarved ? 1.5 : 3)) {
                     _sessionGateAvail = false;
                     if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
                     try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
@@ -4740,7 +4745,7 @@ function _markSpeech(src, rms, onsetAt) {
                 if (!_sessionGateAvail) {
                     // Finding 2: require SUSTAINED voiced energy (~1.4s) AND modulation — so a single ~400ms
                     // transient (cough/scrape) OR a flat continuous hum can't satisfy "greeting heard".
-                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA) {
+                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
                         _phraseHeardVoice = true;
                     }
                 }
