@@ -396,6 +396,11 @@ let audioAnimFrame = null;
 // VAD gate's own threshold state (vadSpeechThreshold/_lastVadRms etc. below) —
 // this only drives the ab0-4 bars + _renderEqualiser, never a pass/fail gate.
 let audioNoiseFloor = 0.01; // seeded low; adapts up/down to the room via EMA
+// t728 STARVED-MODE (Rob's iPhone: iOS crushes time-domain amplitude to ~1% while the
+// spectrum still modulates with speech). When rms is pinned low for ~1s, amplitude
+// comparisons (thresholds, floors, modulation) are physically meaningless — the gate
+// switches to SPECTRAL judgment: voiced = real FFT energy + voice-band dominance.
+let _vadStarvedRun = 0; let _vadStarved = false;
 let audioOnsetActive = false;
 const AUDIO_ONSET_DELTA = 0.025;    // rms must exceed floor by this much to trigger onset
 const AUDIO_ONSET_RELEASE = 0.012;  // hysteresis: must drop back below floor+this to release
@@ -2839,6 +2844,14 @@ function _playChime(cb) {
 }
 
 function showSoundCheck() {
+    // t728 (Rob: "the greeting is not supposed to speak to me — I say the greeting"):
+    // the AI-spoken greeting + chime sound-check were built on a MISREAD of "greeting
+    // not heard" — the ceremony NEVER plays audio; the user READS the phrase on screen
+    // and SPEAKS it. Nothing needs to play, so nothing needs a playback check. This
+    // function now routes straight through. (TTS/chime code kept below, dormant, for
+    // any future feature that genuinely needs playback.)
+    _soundCheckDone = true; startCountdown(); return;
+    /* dormant original: */
     if (_soundCheckDone) { startCountdown(); return; }
     var overlay = document.getElementById('challengeIntro');
     if (!overlay) { _soundCheckDone = true; startCountdown(); return; }
@@ -3795,7 +3808,7 @@ function _markSpeech(src, rms, onsetAt) {
                     _sawSilence = true;
                     if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (Math.max(0.012, 0.10*voiceMax)*100).toFixed(1)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: Number(Math.max(0.012, 0.10*voiceMax).toFixed(3)), digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; _voicedAboveThrFrames = 0;   // R1: real silence fully ends the run
-                } else if (vbRatio >= VOICE_BAND_MIN_RATIO && (rms > vadSpeechThreshold || rms > audioNoiseFloor)) {
+                } else if (vbRatio >= VOICE_BAND_MIN_RATIO && (rms > vadSpeechThreshold || rms > audioNoiseFloor || _vadStarved)) {
                     // S155: count EVERY individual above-threshold+voice-band sample this attempt
                     // (pre-onset accumulation included, not just post-onset-confirm voicing) —
                     // VOICE_EVIDENCE_MIN_FRAMES reads real observed samples, not a derived state.
@@ -3868,7 +3881,7 @@ function _markSpeech(src, rms, onsetAt) {
                     // beep/tone (no modulation) can't satisfy a digit, while a real spoken number does.
                     if (voiced > 0 && _now >= speechWindowStart
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
-                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)
+                        && (_vadStarved || (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax))
                         && _voicedAboveThrFrames >= VOICE_EVIDENCE_MIN_FRAMES) {
                         // S154 DATA-DRIVEN (vad_gate telemetry, Rob live test 14:15-14:16 UTC):
                         // every failed digit passed duration+level and failed the ABSOLUTE 0.030
@@ -3898,7 +3911,7 @@ function _markSpeech(src, rms, onsetAt) {
                     // no loosening.
                     if (voiced > 0 && _now >= speechWindowStart
                         && (_now - _voiceOnsetAt) >= DIGIT_VOICE_MIN_MS
-                        && (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax)
+                        && (_vadStarved || (voiceMax - voiceMin) >= Math.max(0.012, 0.10 * voiceMax))
                         && _voicedAboveThrFrames >= VOICE_EVIDENCE_MIN_FRAMES) {
                         _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', content_gated: _sessionGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
                         if (_sessionGateAvail) {
@@ -4693,7 +4706,12 @@ function _markSpeech(src, rms, onsetAt) {
             } else {
                 _phraseSilentRun = 0;
             }
-            if (_rms > VAD_SPEECH_RMS_FALLBACK && _vbRatio >= VOICE_BAND_MIN_RATIO) {
+            // t728 starvation detector: ~60 consecutive crushed frames → spectral mode (sticky)
+            if (_rms < 0.02) { if (++_vadStarvedRun > 60 && !_vadStarved) { _vadStarved = true; try { vacDebug('vad_starved_mode', null, { rms: _rms }); } catch(_) {} } } else if (_rms > 0.05) { _vadStarvedRun = 0; }
+            // spectral voiced: the FFT carries REAL energy (not quantization noise) AND it's voice-shaped
+            var _mb = 0; for (var _mi = 0; _mi < _buf.length; _mi++) _mb += _buf[_mi];
+            var _spectralVoiced = _vadStarved && (_mb / _buf.length >= 3) && (_vbRatio >= VOICE_BAND_MIN_RATIO);
+            if (_spectralVoiced || (_rms > VAD_SPEECH_RMS_FALLBACK && _vbRatio >= VOICE_BAND_MIN_RATIO)) {
                 // BUILD 379: same voice-band gate as the digit tick — amplitude alone isn't enough
                 // in a loud broadband room; a failing vbRatio falls through to the neither-band branch.
                 _phraseSilenceTicks = 0;
