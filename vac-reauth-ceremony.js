@@ -1589,7 +1589,7 @@ function startAVChecks() {
                             _handStableFrames = 0;
                             _handUnstableFrames = 0;
                             setAVStatus('hand','warn','Hand: beside your cheek');
-                            document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek';
+                            document.getElementById('avHandHint').textContent='Move your hand beside your cheek';
                             document.getElementById('avHandHint').style.display='block';
                         }
                     }
@@ -1605,7 +1605,7 @@ function startAVChecks() {
                     if (!_tickNear) {
                         // Hand visible but OUTSIDE the wide tick zone — prompt to move beside cheek.
                         _handStableFrames = 0;
-                        setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block';
+                        setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block';
                     } else if (clipped || tooBig) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: move back'); document.getElementById('avHandHint').textContent='Move your hand back — keep the whole hand in view'; document.getElementById('avHandHint').style.display='block'; }
                     else {
                         // F-755b: completeness floor — phantom (partial landmarks) must not pass readiness
@@ -1621,7 +1621,7 @@ function startAVChecks() {
                             } else {
                                 setAVStatus('hand','warn','Hold steady…'); document.getElementById('avHandHint').textContent='Hold steady…'; document.getElementById('avHandHint').style.display='block';
                             }
-                        } else if (_ckFin) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='✋ Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block'; }
+                        } else if (_ckFin) { _handStableFrames = 0; setAVStatus('hand','warn','Hand: beside your cheek'); document.getElementById('avHandHint').textContent='Move your hand beside your cheek'; document.getElementById('avHandHint').style.display='block'; }
                         else { _handStableFrames = 0; setAVStatus('hand','warn','Hand: spread fingers'); document.getElementById('avHandHint').textContent='Spread your fingers — make sure all are clearly visible'; document.getElementById('avHandHint').style.display='block'; }
                     }
                 } else {
@@ -2214,7 +2214,7 @@ const CaptureFeedback = {
             setBigNumber(true, N);
             if (vWrap) vWrap.style.display = 'none';
             if (!opts.handNear) {
-                if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
+                if (subEl) subEl.textContent = 'Hold your hand up beside your cheek';
                 setLamp(gLamp, gWrap, 'pending', 'G');
             } else if (!opts.gestureLive) {
                 if (subEl) subEl.textContent = 'Hand detected — hold steady.';
@@ -2243,7 +2243,7 @@ const CaptureFeedback = {
                 // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
                 // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
                 // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
-                if (subEl) subEl.textContent = '✋ Hold your hand up beside your cheek';
+                if (subEl) subEl.textContent = 'Hold your hand up beside your cheek';
                 setLamp(gLamp, gWrap, 'pending', 'G');
             } else if (!opts.gestureLive) {
                 // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
@@ -3529,7 +3529,9 @@ function beginRecording() {
             var _mf = document.getElementById('avMicBarFill');
             if (_mf) { var _w = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _mf.style.width = _w + '%'; _mf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
             var _mr = document.getElementById('avRmsReadout');
-            if (_mr) _mr.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag;
+            // D-VOICE-GATE: show percentage to match bar scale (bar normalised vs threshold*2.5).
+            // Prior form: rms.toFixed(2) showed "0.15" that read as 0-1% while bar filled.
+            if (_mr) _mr.textContent = Math.round(rms * 100) + '% / ' + Math.round(thr * 100) + '% thr ' + tag;
             // S145i: if the view swapped and our host got hidden, remove — next armed frame recreates in the visible host.
             var _svp = document.getElementById('vacStepVU');
             if (_svp && _svp.offsetParent === null) { try { _svp.remove(); } catch(_) {} }
@@ -3584,6 +3586,11 @@ function beginRecording() {
     if (_preflightVad && _preflightVad.floor > audioNoiseFloor) {
         audioNoiseFloor = _preflightVad.floor * 0.4 + audioNoiseFloor * 0.6;
     }
+    // HOTFIX S156 r3 FLOOR-RELATIVE INTERIM: no constant threshold serves all devices —
+    // no fixed bar is valid across iOS vs desktop vs hotel WiFi mic paths.
+    // Speech = floor + 0.028 (_flr + 0.028 → ADAPTIVE_SPEECH_DELTA);
+    // Silence = floor + 0.008 (_flr + 0.008 → ADAPTIVE_SILENCE_DELTA).
+    // Clamped to [ADAPTIVE_THR_MIN, ADAPTIVE_THR_MAX] so very quiet and very loud rooms converge.
     let vadSpeechThreshold = 0, vadSilenceThreshold = 0;
     (function _deriveThresholdsArm() {
         var _flr = (audioNoiseFloor > 0.001) ? audioNoiseFloor : 0.010;
@@ -4841,7 +4848,7 @@ function _markSpeech(src, rms, onsetAt) {
         // permission revoked), show the phrase anyway — prior behaviour was always to show it, and
         // the analyser degrades gracefully (W4.1 gesture-only mode). 3s >> typical resume latency
         // and << PHRASE_DURATION (so the user still has time to speak the phrase).
-        // S157: resume was capped at 3s with a swallowed rejection — on macOS Chrome a
+        // S156 r5: resume was capped at 3s with a swallowed rejection — on macOS Chrome a
         // context that stays suspended (resume() without a fresh user gesture rejects)
         // left the ANALYSER permanently deaf: RMS 1% forever while the MediaRecorder
         // (separate plumbing, no AudioContext) recorded fine — every client audio gate
