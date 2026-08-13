@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>AthenaPilot — Protocol Layers &amp; Standards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0F1A; --panel:#141C2B; --panel2:#111827; --line:#22304A; --line2:#3A4A66;
+  --ink:#F8F7F4; --dim:#8A98AD; --faint:#5F6B7E;
+  --gold:#C9A84C; --gold2:#D4A94E; --teal:#2DD4BF; --green:#5DCAA5;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:var(--bg)}
+.page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65}
+.page-shell a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(201,168,76,.4);text-underline-offset:3px}
+.page-shell a:visited{color:var(--gold)}
+.page-shell a:hover{color:var(--gold2)}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+header{padding:48px 0 36px;border-bottom:1px solid var(--line)}
+.crumb{font-family:var(--mono);font-size:12.5px;margin-bottom:22px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:12px}
+h1{font-family:var(--serif);font-weight:500;font-size:clamp(28px,4vw,40px);line-height:1.14;max-width:22ch}
+.lede{color:var(--dim);max-width:64ch;margin-top:16px;font-size:16.5px}
+section{padding:48px 0;border-bottom:1px solid var(--line)}
+h2{font-family:var(--serif);font-weight:500;font-size:25px;margin-bottom:8px}
+.sub{color:var(--faint);font-size:14px;margin-bottom:26px;max-width:70ch}
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:22px}
+.pill{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;border-radius:3px;padding:4px 10px;border:1px solid}
+.pill.adopt{color:var(--green);border-color:rgba(93,202,165,.4)}
+.pill.extend{color:var(--teal);border-color:rgba(45,212,191,.4)}
+.pill.create{color:var(--gold);border-color:rgba(201,168,76,.5)}
+/* protocol layer blocks */
+.pl{border:1px solid var(--line);border-radius:6px;background:var(--panel2);margin-bottom:16px;overflow:hidden}
+.pl-head{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:16px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.pl-head h3{font-size:16px;font-weight:600}
+.pl-head .role{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.06em}
+.pl-body{padding:16px 20px 18px}
+.pl-body>p{color:var(--dim);font-size:14px;max-width:78ch;margin-bottom:14px}
+.stds{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+.std{background:var(--panel);border:1px solid var(--line2);border-radius:5px;padding:12px 14px}
+.std .h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px}
+.std .h b{font-size:13px;font-weight:600}
+.std .h .m{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;flex:none}
+.std .m.adopt{color:var(--green)} .std .m.extend{color:var(--teal)} .std .m.create{color:var(--gold)}
+.std p{color:var(--dim);font-size:12.5px;line-height:1.55}
+.std.create-card{border-color:rgba(201,168,76,.5)}
+/* creations */
+.created{display:grid;gap:14px}
+.cr{background:var(--panel);border:1px solid rgba(201,168,76,.45);border-radius:6px;padding:20px 22px}
+.cr h3{font-family:var(--serif);font-weight:500;font-size:19px;color:var(--gold);margin-bottom:6px}
+.cr .id{font-family:var(--mono);font-size:12px;color:var(--dim);margin-bottom:10px}
+.cr p{color:var(--dim);font-size:14px;max-width:80ch}
+.why{border-left:2px solid var(--gold);padding:6px 0 6px 20px;margin-top:26px}
+.why p{color:var(--dim);font-size:14.5px;max-width:76ch}
+footer{padding:38px 0 60px;color:var(--faint);font-size:13px}
+footer .links{display:flex;flex-wrap:wrap;gap:22px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <div class="crumb"><a href="/athena-browser">← Architecture overview</a></div>
+  <div class="eyebrow">Architecture · Protocol Detail</div>
+  <h1>The protocol layers — and where they stand with the standards.</h1>
+  <p class="lede">Trust infrastructure is only credible if it composes with what the world already runs. Every layer below states plainly which standards it adopts unchanged, which it extends because verified human authority needed a way to be expressed, and which specifications we are creating and contributing through open standards bodies.</p>
+</header>
+
+<section>
+  <div class="legend">
+    <span class="pill adopt">Adopt — used as published, unchanged</span>
+    <span class="pill extend">Extend — standard base + verified-authority attributes</span>
+    <span class="pill create">Create — new specification, contributed openly</span>
+  </div>
+
+  <div class="pl">
+    <div class="pl-head"><h3>Identity &amp; Ceremony</h3><span class="role">who the human is, provably, right now</span></div>
+    <div class="pl-body">
+      <p>The root of everything above it: a live biometric ceremony establishing that a specific human is present and consenting at the moment authority is exercised — not merely that someone once knew a password.</p>
+      <div class="stds">
+        <div class="std"><div class="h"><b>NIST SP 800-63-4</b><span class="m adopt">adopt</span></div><p>Digital identity assurance tiers; each ceremony event is stamped with the assurance level it achieved.</p></div>
+        <div class="std"><div class="h"><b>ISO/IEC 30107-3</b><span class="m adopt">adopt</span></div><p>Presentation-attack detection for liveness — independently validated components in the biometric stack.</p></div>
+        <div class="std create-card"><div class="h"><b>Verified Human Root</b><span class="m create">create</span></div><p>Our Internet-Draft defining an issuance-bound assertion that a live, verified human sits at the root of an authority chain — submitted to the IETF.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pl">
+    <div class="pl-head"><h3>Authorization &amp; Delegation</h3><span class="role">what each surface, site, and agent may do</span></div>
+    <div class="pl-body">
+      <p>Authority flows outward from the verified root in explicit, provable grants. Devices pair through standard flows; sites receive standard tokens; agents act inside scopes they can demonstrate, never scopes they assert.</p>
+      <div class="stds">
+        <div class="std"><div class="h"><b>OAuth 2.0 &amp; RFC 8628</b><span class="m adopt">adopt</span></div><p>The device-authorization pattern behind browser pairing: a short code, approved on an already-trusted surface.</p></div>
+        <div class="std"><div class="h"><b>OIDC / SAML</b><span class="m adopt">adopt</span></div><p>"Sign in with VAC" issues completely standard tokens, so any existing platform accepts them with zero code change.</p></div>
+        <div class="std"><div class="h"><b>GNAP (RFC 9635)</b><span class="m extend">extend</span></div><p>Grant negotiation extended with verified-authority attributes — verification tier, delegation scope, audit chain — for platforms that want more than a bare token.</p></div>
+        <div class="std create-card"><div class="h"><b>Autonomy Governor</b><span class="m create">create</span></div><p>Our Internet-Draft for a pre-action assurance decision: the bound in force at the moment an autonomous action is attempted — submitted to the IETF.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pl">
+    <div class="pl-head"><h3>Work &amp; Governance</h3><span class="role">how a task carries its own rules</span></div>
+    <div class="pl-body">
+      <p>Every task runs as a packet through a sealed lifecycle — planned, researched, executed, verified, deployed, confirmed, attested. The packet carries its policy limits, evidence requirements, and sensor contract with it, so correctness never depends on trusting the infrastructure it happens to run on.</p>
+      <div class="stds">
+        <div class="std"><div class="h"><b>EU AI Act alignment</b><span class="m adopt">adopt</span></div><p>Packet phases map to the Act's oversight, record-keeping, and post-market-monitoring record classes by construction.</p></div>
+        <div class="std"><div class="h"><b>ISO/IEC 42001</b><span class="m adopt">adopt</span></div><p>AI-management context and risk-management records expressed through the packet's purpose and decision envelopes.</p></div>
+        <div class="std create-card"><div class="h"><b>The Packet Format</b><span class="m create">create</span></div><p>The open specification of the governed task lifecycle itself — the format any conformant executor can run — stewarded for open publication through the foundation.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pl">
+    <div class="pl-head"><h3>Attestation &amp; Evidence</h3><span class="role">the record that survives scrutiny</span></div>
+    <div class="pl-body">
+      <p>Each phase transition is sealed as a signed, hash-linked statement. The deliberate consequence of building on the standards below: an Athena seal chain is readable by standard verifiers that have never heard of Athena.</p>
+      <div class="stds">
+        <div class="std"><div class="h"><b>COSE (RFC 9052)</b><span class="m adopt">adopt</span></div><p>Signed structure for every phase seal — not a bespoke signature format.</p></div>
+        <div class="std"><div class="h"><b>SCITT</b><span class="m adopt">adopt</span></div><p>The seal chain follows the transparency-log pattern: append-only signed statements, each carrying its predecessor's hash.</p></div>
+        <div class="std"><div class="h"><b>JWS / JWT</b><span class="m adopt">adopt</span></div><p>Fallback interoperability encoding so receipts verify anywhere the web already verifies things.</p></div>
+        <div class="std"><div class="h"><b>SPIFFE</b><span class="m adopt">adopt</span></div><p>Workload identity for the executor that seals each phase — the machine leg of the chain, grounded by the human root.</p></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pl">
+    <div class="pl-head"><h3>Settlement &amp; Value</h3><span class="role">trust as an economy</span></div>
+    <div class="pl-body">
+      <p>When verified expertise crosses an organisational boundary — a custom model invoked, a trust sub-graph consulted, a proven harness rented — the exchange settles in VRT, with the authority chain deciding who may invoke what and the receipt attesting every use.</p>
+      <div class="stds">
+        <div class="std create-card"><div class="h"><b>VRT Settlement Spec</b><span class="m create">create</span></div><p>v0.1 in draft, published as a foundation specification. Deliberately structured so the standards body stewards the format and never operates the token economy — neutrality is the point.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>What we're contributing</h2>
+  <p class="sub">Specifications submitted or in draft through open bodies, under the author's name on the public record.</p>
+  <div class="created">
+    <div class="cr">
+      <h3>Verified Human Root</h3>
+      <div class="id">draft-zagarella-verified-human-root · IETF Internet-Draft</div>
+      <p>An assertion format proving a live, biometrically verified human sits at the root of an agent's authority chain — with the four properties agent identity work keeps circling: positional independence, durability, issuance independence, and attribution at the moment of action. The same pattern is designed to extend to embodied systems: a verified robot root — hardware-attested identity and provenance for physical machines — always chaining upward to human authority.</p>
+    </div>
+    <div class="cr">
+      <h3>Autonomy Governor</h3>
+      <div class="id">draft-zagarella-autonomy-governor · IETF Internet-Draft</div>
+      <p>A neutral, pre-action assurance decision profile: before an autonomous system acts, a request/response exchange establishes the bound in force — which human's authority applies, at what tier, with what limits — and seals the answer into the evidence chain.</p>
+    </div>
+    <div class="cr">
+      <h3>IETF Agent-Protocol Work</h3>
+      <div class="id">AGENTPROTO &amp; OAuth working groups · active participation</div>
+      <p>Beyond our own drafts, we contribute the verified-authority perspective inside the IETF's emerging agent-protocol and authorization work — the questions of who an agent acts for, whether that authority is still live, and how it's proven at the moment of action.</p>
+    </div>
+    <div class="cr">
+      <h3>The Packet Format &amp; VRT Settlement</h3>
+      <div class="id">Foundation specifications · aip.foundation · in draft</div>
+      <p>The governed-task lifecycle and the settlement layer for cross-boundary verified expertise, stewarded by an independent Geneva foundation so that adoption never means lock-in — to us or anyone else.</p>
+    </div>
+  </div>
+  <div class="why">
+    <p>Why this posture matters: institutions don't adopt trust infrastructure a single vendor controls. They adopt standards a neutral body stewards, implemented by whoever earns the work. Building on COSE, SCITT, OAuth, GNAP, and NIST assurance — and contributing our layers back through the same bodies — is how a protocol becomes infrastructure rather than a product.</p>
+  </div>
+</section>
+
+<footer>
+  <div><a href="/athena-browser">← Back to the architecture overview</a></div>
+  <div class="links">
+    <a href="https://athenapilot.ai">athenapilot.ai</a>
+    <a href="https://vacprotocol.org">vacprotocol.org</a>
+    <a href="https://aip.foundation">aip.foundation</a>
+  </div>
+</footer>
+
+</div>
+</div>
+</body>
+</html>

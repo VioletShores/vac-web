@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>AthenaPilot Browser Extension — Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0F1A; --panel:#141C2B; --panel2:#111827; --line:#22304A; --line2:#3A4A66;
+  --ink:#F8F7F4; --dim:#8A98AD; --faint:#5F6B7E;
+  --gold:#C9A84C; --gold2:#D4A94E; --teal:#2DD4BF; --green:#5DCAA5;
+  --serif:'Fraunces',Georgia,serif; --sans:'Inter',system-ui,sans-serif; --mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:var(--bg)}
+.page-shell{background:#0A0F1A !important;min-height:100vh;color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.65}
+.page-shell a{color:var(--gold);text-decoration:underline;text-decoration-color:rgba(201,168,76,.4);text-underline-offset:3px}
+.page-shell a:visited{color:var(--gold)}
+.page-shell a:hover{color:var(--gold2);text-decoration-color:var(--gold2)}
+.wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+header{padding:56px 0 40px;border-bottom:1px solid var(--line)}
+.mark{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+.mark .brand{font-family:var(--mono);font-size:13px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:14px}
+h1{font-family:var(--serif);font-weight:500;font-size:clamp(30px,4.6vw,46px);line-height:1.12;max-width:17ch}
+.lede{color:var(--dim);max-width:62ch;margin-top:18px;font-size:17px}
+.status{display:inline-block;margin-top:22px;font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--teal);border:1px solid rgba(45,212,191,.35);border-radius:3px;padding:5px 10px}
+section{padding:52px 0;border-bottom:1px solid var(--line)}
+h2{font-family:var(--serif);font-weight:500;font-size:26px;margin-bottom:8px}
+.sub{color:var(--faint);font-size:14px;margin-bottom:28px;max-width:68ch}
+.caps{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.cap{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:20px 20px 18px}
+.cap h3{font-size:15px;font-weight:600;margin-bottom:8px}
+.cap h3 span{color:var(--gold);font-family:var(--mono);font-size:12px;margin-right:8px}
+.cap p{color:var(--dim);font-size:14px;line-height:1.6}
+.journey{counter-reset:step;display:grid;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.step{display:grid;grid-template-columns:64px 1fr;background:var(--panel2)}
+.step+.step{border-top:1px solid var(--line)}
+.step .n{counter-increment:step;display:flex;align-items:flex-start;justify-content:center;padding-top:20px;font-family:var(--mono);color:var(--gold);font-size:14px;border-right:1px solid var(--line)}
+.step .n::before{content:counter(step,decimal-leading-zero)}
+.step .b{padding:18px 22px 20px}
+.step .b h3{font-size:15px;font-weight:600;margin-bottom:6px}
+.step .b p{color:var(--dim);font-size:14px;max-width:74ch}
+.step .b .voice{font-family:var(--mono);font-size:12.5px;color:var(--green);margin-top:10px;padding:9px 12px;background:rgba(93,202,165,.06);border-left:2px solid var(--green);border-radius:0 3px 3px 0}
+/* layered architecture */
+.arch{border:1px solid var(--line);border-radius:6px;background:var(--panel2);padding:10px 18px 18px}
+.layer{padding:16px 6px 14px;border-bottom:1px dashed var(--line)}
+.layer:last-child{border-bottom:none}
+.layer-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
+.layer-head .t{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+.layer-head .d{font-size:12.5px;color:var(--faint);text-align:right}
+.row{display:grid;gap:10px}
+.c4{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.c3{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.box{background:var(--panel);border:1px solid var(--line2);border-radius:5px;padding:13px 15px;position:relative}
+.box h4{font-size:13px;font-weight:600;letter-spacing:.01em}
+.box p{color:var(--dim);font-size:12px;line-height:1.5;margin-top:4px}
+.box.gold{border-color:rgba(201,168,76,.55)}
+.box.gold h4{color:var(--gold)}
+.box.teal{border-color:rgba(45,212,191,.45)}
+.box.teal h4{color:var(--teal)}
+.tag{position:absolute;top:-9px;right:10px;background:var(--panel2);padding:0 7px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--teal);text-transform:uppercase}
+.tag.plan{color:var(--gold)}
+.drill{margin-top:18px;font-size:14px}
+/* trust graph */
+.tg{display:grid;grid-template-columns:1.05fr .95fr;gap:28px;align-items:center}
+.tg-copy p{color:var(--dim);font-size:14.5px;max-width:56ch;margin-bottom:14px}
+.tg-copy p b{color:var(--ink);font-weight:600}
+.tgviz{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:16px}
+.tgviz .cap-line{font-family:var(--mono);font-size:11px;color:var(--faint);letter-spacing:.1em;text-transform:uppercase;margin-top:10px;text-align:center}
+.tg-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:26px}
+.fact{border-left:2px solid var(--gold);padding:4px 0 4px 16px}
+.fact h4{font-size:14px;font-weight:600;margin-bottom:4px}
+.fact p{color:var(--dim);font-size:13px}
+/* sign in with vac */
+.siv{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start}
+.code{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:18px;font-family:var(--mono);font-size:12.5px;color:var(--dim);line-height:1.8;overflow-x:auto}
+.code b{color:var(--teal);font-weight:500}
+.code i{color:var(--gold);font-style:normal}
+.uniq{display:grid;border-left:2px solid var(--gold)}
+.u{padding:18px 0 18px 24px;border-bottom:1px solid var(--line)}
+.u:last-child{border-bottom:none}
+.u h3{font-family:var(--serif);font-weight:500;font-size:19px;margin-bottom:6px}
+.u p{color:var(--dim);font-size:14.5px;max-width:74ch}
+footer{padding:40px 0 64px;color:var(--faint);font-size:13px}
+footer .links{display:flex;flex-wrap:wrap;gap:22px;margin-top:8px}
+@media(max-width:760px){.tg,.siv{grid-template-columns:1fr}.step{grid-template-columns:48px 1fr}}
+</style>
+</head>
+<body>
+<div class="page-shell">
+<div class="wrap">
+
+<header>
+  <div class="mark">
+    <svg width="40" height="40" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+      <circle cx="24" cy="24" r="22" stroke="#C9A84C" stroke-width="1.4"/>
+      <circle cx="17" cy="20" r="4.6" stroke="#C9A84C" stroke-width="1.4"/>
+      <circle cx="31" cy="20" r="4.6" stroke="#C9A84C" stroke-width="1.4"/>
+      <circle cx="17" cy="20" r="1.5" fill="#C9A84C"/><circle cx="31" cy="20" r="1.5" fill="#C9A84C"/>
+      <path d="M24 25.5 L21.8 29.5 H26.2 Z" stroke="#C9A84C" stroke-width="1.3" fill="none"/>
+      <path d="M12 13 C16 9.5 32 9.5 36 13" stroke="#C9A84C" stroke-width="1.3" fill="none"/>
+      <circle cx="24" cy="38" r="0.9" fill="#C9A84C"/><circle cx="18.5" cy="36.5" r="0.9" fill="#C9A84C"/><circle cx="29.5" cy="36.5" r="0.9" fill="#C9A84C"/>
+    </svg>
+    <span class="brand">AthenaPilot · Violet Shores</span>
+  </div>
+  <div class="eyebrow">Architecture · Surface Detail</div>
+  <h1>Your verified self, on every page you read.</h1>
+  <p class="lede">The AthenaPilot browser extension puts the same governed intelligence you talk to on WhatsApp into a sidebar on any webpage — with your identity proven, your trust graph growing with every decision, and every action sealed into a receipt.</p>
+  <span class="status">Design locked · backend in active build · pilot follows WhatsApp cohort</span>
+</header>
+
+<section>
+  <h2>What it does</h2>
+  <p class="sub">Seven capabilities, one principle: the browser becomes a trusted surface of one continuous system — not a separate app with its own memory and its own rules.</p>
+  <div class="caps">
+    <div class="cap"><h3><span>A</span>Ask about the page you're on</h3><p>The sidebar sees the page's title, address, and whatever text you select — nothing more — and answers in that context. Summarise a contract clause, sanity-check a claim, draft the reply.</p></div>
+    <div class="cap"><h3><span>B</span>One memory across every surface</h3><p>The extension reads from the same continuously-built picture of you that WhatsApp does. It knows your projects, preferences, and history from the first message — and everything you do here is remembered everywhere.</p></div>
+    <div class="cap"><h3><span>C</span>Proven identity, not a password</h3><p>The browser never asserts who you are. It borrows trust from a surface that has already verified you, and every action it takes is bound to that verified identity.</p></div>
+    <div class="cap"><h3><span>D</span>Sign in to any site, in one click</h3><p>The paired browser carries your verified credential. Any website that accepts it can be approved from the sidebar — no new password, no re-verification, and the site receives a standard token it already understands.</p></div>
+    <div class="cap"><h3><span>E</span>Governed model routing</h3><p>You never choose a model. Live trust scores select the best one for each request inside policy rails you control — and the sidebar tells you what was chosen and why.</p></div>
+    <div class="cap"><h3><span>F</span>Receipts for everything</h3><p>Each answer carries a sealed record: who asked, what context was used, which model responded, what adapted. Accountability travels with the work, not with the infrastructure.</p></div>
+    <div class="cap"><h3><span>G</span>Trust that compounds</h3><p>Every verified interaction is an edge in your trust graph. The more you use it — and the more surfaces, sites, and people that vouch for you — the more your verified identity is worth.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>The experience, end to end</h2>
+  <p class="sub">The pairing moment is the part worth pausing on: a surface that already knows you vouches for the one that doesn't. No new account, no new password — trust is extended, never re-created.</p>
+  <div class="journey">
+    <div class="step"><div class="n"></div><div class="b">
+      <h3>Install and open the sidebar</h3>
+      <p>One click from the Chrome toolbar. The sidebar opens beside any page — dark, quiet, out of the way of what you're reading.</p>
+    </div></div>
+    <div class="step"><div class="n"></div><div class="b">
+      <h3>The sidebar shows a short pairing code</h3>
+      <p>The extension doesn't ask who you are — it can't be trusted to know yet. It displays a six-character code that expires in five minutes and works exactly once.</p>
+    </div></div>
+    <div class="step"><div class="n"></div><div class="b">
+      <h3>You send the code to Athena on WhatsApp</h3>
+      <p>WhatsApp is the surface that has already verified you. By sending the code from there, your verified identity vouches for this specific browser — and the pairing is bound to it, so an overheard code is useless anywhere else. The vouching event itself becomes an edge in your trust graph.</p>
+      <div class="voice">Athena · WhatsApp — "That code matches a Chrome browser on a Mac, requested 40 seconds ago. Pair it to your account? Reply YES to approve."</div>
+    </div></div>
+    <div class="step"><div class="n"></div><div class="b">
+      <h3>The sidebar unlocks — as you</h3>
+      <p>The browser receives its own scoped, revocable credential. From now on the system derives who you are and what surface you're on from that credential — the browser is never asked, and never trusted, to say so itself.</p>
+    </div></div>
+    <div class="step"><div class="n"></div><div class="b">
+      <h3>Ask, in the context of the page</h3>
+      <p>Select a paragraph, ask a question. The answer arrives with a light narration of what the system did on your behalf — which model was chosen and why, what page context was used, whether the format adapted to the surface.</p>
+      <div class="voice">Sidebar — "Answered with the model currently ranked highest for legal analysis at comparable trust and a fraction of the cost. Page context: your selected clause only. Sealed to receipt."</div>
+    </div></div>
+    <div class="step"><div class="n"></div><div class="b">
+      <h3>Sign in to a site — without a password</h3>
+      <p>A site asks you to verify. The sidebar shows exactly what the site will receive, you approve in one click, and the site gets a standard sign-in token backed by your biometric root. Another verified event; another edge in your graph.</p>
+    </div></div>
+    <div class="step"><div class="n"></div><div class="b">
+      <h3>Walk away — the conversation follows you</h3>
+      <p>Close the laptop. On the train, WhatsApp can pick up the same thread: what you read, what you asked, what you approved. If you ever want to cut the browser loose, one message revokes its credential instantly.</p>
+    </div></div>
+  </div>
+</section>
+
+<section>
+  <h2>Your trust graph — identity that compounds</h2>
+  <div class="tg">
+    <div class="tg-copy">
+      <p>Most systems treat identity as a gate you pass once. Here it's an <b>asset you build</b>. Every verified action — a pairing approved, a decision confirmed, a site signed into, a person or system that vouches for you — is recorded as an edge in your personal trust graph, anchored to a live biometric root.</p>
+      <p><b>Vouching and references work both ways — and not only between humans.</b> A verified surface vouches for a new one; a colleague's verified identity can reference yours; and the agents you operate — software today, embodied robots tomorrow — accumulate their own provable history of acting correctly under your authority, strengthening your graph with every governed action. Trust stops being a claim and becomes a record.</p>
+      <p><b>You can always see your position.</b> The product is designed to show every user a live visual of their trust graph — the strength of their root, the freshness of their verifications, the reach of their references — and exactly which action would strengthen it next. If trust is going to gate what you can do, you deserve to watch it grow.</p>
+      <p><b>And a strong graph becomes tradable value.</b> The settlement layer under design lets verified expertise be exposed and compensated across organisational boundaries — your trust graph and proven judgment as an economic asset, settled in VRT, with the open specification stewarded by an independent foundation, deliberately separate from any token operation. Specification in draft.</p>
+    </div>
+    <div class="tgviz">
+      <svg viewBox="0 0 360 300" width="100%" aria-label="Illustrative trust graph">
+        <defs>
+          <radialGradient id="g0" cx="50%" cy="50%" r="60%">
+            <stop offset="0%" stop-color="#C9A84C" stop-opacity=".28"/><stop offset="100%" stop-color="#C9A84C" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <circle cx="180" cy="150" r="80" fill="url(#g0)"/>
+        <g stroke="#3A4A66" stroke-width="1">
+          <line x1="180" y1="150" x2="80"  y2="70"/><line x1="180" y1="150" x2="286" y2="84"/>
+          <line x1="180" y1="150" x2="60"  y2="200"/><line x1="180" y1="150" x2="300" y2="196"/>
+          <line x1="180" y1="150" x2="150" y2="262"/><line x1="180" y1="150" x2="248" y2="252"/>
+          <line x1="80" y1="70" x2="36" y2="120"/><line x1="286" y1="84" x2="330" y2="40"/>
+          <line x1="300" y1="196" x2="330" y2="252"/>
+        </g>
+        <g stroke="#C9A84C" stroke-width="1.6">
+          <line x1="180" y1="150" x2="80" y2="70"/><line x1="180" y1="150" x2="286" y2="84"/>
+        </g>
+        <circle cx="180" cy="150" r="13" fill="#0A0F1A" stroke="#C9A84C" stroke-width="2"/>
+        <circle cx="180" cy="150" r="4.5" fill="#C9A84C"/>
+        <g fill="#141C2B" stroke="#2DD4BF" stroke-width="1.4">
+          <circle cx="80"  cy="70"  r="9"/><circle cx="286" cy="84"  r="9"/>
+        </g>
+        <g fill="#141C2B" stroke="#5F6B7E" stroke-width="1.2">
+          <circle cx="60"  cy="200" r="8"/><circle cx="300" cy="196" r="8"/>
+          <circle cx="150" cy="262" r="8"/><circle cx="248" cy="252" r="8"/>
+          <circle cx="36"  cy="120" r="6"/><circle cx="330" cy="40"  r="6"/><circle cx="330" cy="252" r="6"/>
+        </g>
+        <g font-family="JetBrains Mono, monospace" font-size="9.5" fill="#8A98AD">
+          <text x="180" y="184" text-anchor="middle" fill="#C9A84C">verified human root</text>
+          <text x="80"  y="52"  text-anchor="middle">WhatsApp</text>
+          <text x="286" y="66"  text-anchor="middle">this browser</text>
+          <text x="60"  y="222" text-anchor="middle">sites approved</text>
+          <text x="300" y="218" text-anchor="middle">references</text>
+          <text x="150" y="284" text-anchor="middle">decisions sealed</text>
+          <text x="248" y="274" text-anchor="middle">agents &amp; robots</text>
+        </g>
+      </svg>
+      <div class="cap-line">Illustrative — the live per-user graph view is part of the product design</div>
+    </div>
+  </div>
+  <div class="tg-facts">
+    <div class="fact"><h4>Why strengthen it</h4><p>A stronger graph unlocks higher-stakes scopes, faster approvals, and lighter-touch verification — trust earned once keeps paying.</p></div>
+    <div class="fact"><h4>Portable by design</h4><p>Your graph belongs to your root, not to any app or employer. Verify once; carry it to every surface and site you approve.</p></div>
+    <div class="fact"><h4>Degrades honestly</h4><p>Trust decays without fresh verification. That's a feature: a live graph is only valuable because it can't be faked or frozen.</p></div>
+    <div class="fact"><h4>Becomes an asset</h4><p>The VRT settlement design lets proven expertise earn across trust boundaries — your judgment, provably yours, compensated.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Architecture — one level down</h2>
+  <p class="sub">Every layer trusts only the layer beneath it, and the bottom layer is a verified human. Surfaces and partners plug in at the top; nothing in between is trusted by default — authority travels with each unit of work. For the layer below this one, see the <a href="/athena-protocol">protocol &amp; standards detail</a>.</p>
+  <div class="arch">
+    <div class="layer">
+      <div class="layer-head"><span class="t">L6 · Surfaces &amp; Partner Ingress</span><span class="d">where people and platforms arrive</span></div>
+      <div class="row c4">
+        <div class="box"><h4>WhatsApp</h4><p>Founding surface. Ceremony home, daily assistant, voucher for new devices.</p></div>
+        <div class="box teal"><h4>Browser Extension</h4><p>Sidebar on any page; credential-bound; revocable.<span class="tag">in build</span></p></div>
+        <div class="box"><h4>Web · Voice · Next</h4><p>Any conformant surface joins the same way.</p></div>
+        <div class="box teal"><h4>Agent Platforms</h4><p>LangChain, CrewAI, n8n, UiPath — any platform that can make an HTTP call inherits governed model selection through one routing API. No more hand-picking models per workflow.</p></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-head"><span class="t">L5 · Surface Gateway</span><span class="d">the trust boundary</span></div>
+      <div class="row c3">
+        <div class="box gold"><h4>Pairing &amp; Vouching</h4><p>Single-use, device-bound codes; an already-verified surface blesses the new one.</p></div>
+        <div class="box gold"><h4>Device Credentials</h4><p>Scoped, expiring, hashed at rest, revocable in one message.</p></div>
+        <div class="box gold"><h4>Server-Derived Context</h4><p>Identity and surface come only from the credential — never from client claims.</p></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-head"><span class="t">L4 · Athena Core</span><span class="d">one system behind every window</span></div>
+      <div class="row c4">
+        <div class="box"><h4>Conversation Store</h4><p>Every turn, every surface, tagged by surface and person.</p></div>
+        <div class="box"><h4>Living User Blueprint</h4><p>A self-building picture of each person, read by every surface.</p></div>
+        <div class="box"><h4>Packet Engine</h4><p>Each task runs a sealed lifecycle — planned, verified, confirmed — with evidence per phase.</p></div>
+        <div class="box"><h4>Sentinels &amp; Watches</h4><p>Standing tasks that monitor, notify, and act — the product pings you, not the other way round.</p></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-head"><span class="t">L3 · Intelligence Selection</span><span class="d">chosen, never assumed</span></div>
+      <div class="row c3">
+        <div class="box teal"><h4>SignalRank Router</h4><p>Live trust, calibration, and cost scores pick the model per request.</p></div>
+        <div class="box teal"><h4>Policy Rails</h4><p>Selection runs inside limits only the account owner can set.</p></div>
+        <div class="box"><h4>Model Providers</h4><p>Anthropic, OpenAI, Google, DeepSeek, xAI and more — measured, interchangeable, none privileged.</p></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-head"><span class="t">L2 · Authority — VAC</span><span class="d">the Verifiable Authority Chain</span></div>
+      <div class="row c4">
+        <div class="box gold"><h4>Verified Human Root</h4><p>A live, biometrically verified person — verified at the moment of the decision.</p></div>
+        <div class="box gold"><h4>Delegation &amp; Scopes</h4><p>Explicit, provable grants: what each surface and agent may do, and nothing more.</p></div>
+        <div class="box gold"><h4>Trust Graph</h4><p>Vouches, references, and sealed decisions accumulate as provable edges.</p></div>
+        <div class="box gold"><h4>Identity Provider</h4><p>"Sign in with VAC": standard tokens any site accepts, richer attributes for sites that want them.<span class="tag plan">designed</span></p></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="layer-head"><span class="t">L1 · Attestation &amp; Settlement</span><span class="d">the record and the economy</span></div>
+      <div class="row c3">
+        <div class="box"><h4>Receipts</h4><p>Every consequential action sealed into a tamper-evident, verifiable record.</p></div>
+        <div class="box"><h4>Phase-Seal Chains</h4><p>Hash-linked, signed phase records readable by standard verifiers.</p></div>
+        <div class="box"><h4>VRT Settlement</h4><p>Cross-boundary value exchange for verified expertise.<span class="tag plan">spec in draft</span></p></div>
+      </div>
+    </div>
+  </div>
+  <p class="drill">Drill down: <a href="/athena-protocol">Protocol layers &amp; standards — what we adopt, what we extend, what we're creating →</a></p>
+</section>
+
+<section>
+  <h2>Sign in with VAC — the browser as your credential wallet</h2>
+  <p class="sub">Designed, and coming with the extension: the product that removes passwords from site-to-site life. Status: design complete, release follows the extension pilot.</p>
+  <div class="siv">
+    <div>
+      <p style="color:var(--dim);font-size:14.5px;max-width:56ch">Because the paired browser carries your verified credential, any website can request verification and receive your approval in one click from the sidebar. The site gets a completely standard sign-in token — the kind every platform already accepts, with no code changes — while sites that want more can read richer attributes: your verification tier, delegation scope, and audit chain.</p>
+      <p style="color:var(--dim);font-size:14.5px;margin-top:14px;max-width:56ch">For a developer, adding it is one line. The widget handles the ceremony, the extension supplies the credential, and every sign-in is another sealed, auditable event — and another edge in the user's trust graph.</p>
+    </div>
+    <div class="code">&lt;<b>script</b> <i>src</i>="https://vacprotocol.org/vac-verify.js"&gt;&lt;/<b>script</b>&gt;<br><br><span style="color:#5F6B7E">// that's the integration.</span><br><span style="color:#5F6B7E">// the widget verifies; the extension approves;</span><br><span style="color:#5F6B7E">// your backend receives a standard token.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>What makes this different</h2>
+  <div class="uniq">
+    <div class="u"><h3>A verified human at the root — at the moment of the decision</h3><p>Most systems verify a person once, at login, and trust everything downstream. Here the authority chain is anchored to a live, biometrically verified human, and that verification is fresh at the point where it matters. Agents and surfaces act on delegated authority they can prove — never authority they assert.</p></div>
+    <div class="u"><h3>Trust is extended, never re-created — and it compounds</h3><p>New surfaces don't get accounts; they get vouched for. Every vouch, reference, and sealed decision strengthens a trust graph that belongs to you — visible, portable, and increasingly valuable the more of your digital life runs through it.</p></div>
+    <div class="u"><h3>Nothing adapts silently</h3><p>When the system makes a choice on your behalf — a model, a format, a filter — it says so, in plain language, at the moment of the choice, and seals that explanation into the receipt. You're in control because you can always see the controls moving.</p></div>
+    <div class="u"><h3>Governance rides in the work, not the infrastructure</h3><p>Each unit of work carries its own policy limits, evidence requirements, and sealed phase records — so correctness doesn't depend on trusting any particular server, and the audit trail is complete by construction.</p></div>
+    <div class="u"><h3>Built on open standards, extended in the open</h3><p>The protocol adopts proven standards where they exist, extends them where verified human authority needs expressing, and contributes new specifications through open standards bodies — so no one, including us, can lock you in. <a href="/athena-protocol">See the full map.</a></p></div>
+  </div>
+</section>
+
+<footer>
+  <div>AthenaPilot is built by <a href="https://vacprotocol.org">Violet Shores</a> on the VAC Protocol — the Verifiable Authority Chain.</div>
+  <div class="links">
+    <a href="https://athenapilot.ai">athenapilot.ai</a>
+    <a href="https://vacprotocol.org">vacprotocol.org</a>
+    <a href="https://aip.foundation">aip.foundation</a>
+    <a href="/athena-protocol">Protocol &amp; standards detail</a>
+  </div>
+</footer>
+
+</div>
+</div>
+</body>
+</html>

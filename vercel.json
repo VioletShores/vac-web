@@ -207,6 +207,14 @@
     {
       "source": "/retrofit-console",
       "destination": "/retrofit-console.html"
+    },
+    {
+      "source": "/athena-browser",
+      "destination": "/athena-browser.html"
+    },
+    {
+      "source": "/athena-protocol",
+      "destination": "/athena-protocol.html"
     }
   ],
   "redirects": [
