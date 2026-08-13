@@ -3243,7 +3243,9 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
 }
 
 // Starts a content gate for the greeting phrase. phraseTokens = key content words.
-function _startPhraseContentGate(phraseTokens, onMatch, onFatal) {
+// onAnyTranscript (S161): called once any SR result arrives (even non-matching / interim).
+// Caller uses this to distinguish gate-dead (zero transcripts) from content-mismatch.
+function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
@@ -3256,6 +3258,8 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal) {
     } catch(_) { return null; }
     rec.onresult = function(evt) {
         if (matched || stopped) return;
+        // S161: notify caller that SR is alive and producing transcripts (even non-matching).
+        try { if (onAnyTranscript) onAnyTranscript(); } catch(_) {}
         for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
             var t = evt.results[ri][0].transcript;
             if (_contentTranscriptMatchesPhrase(t, phraseTokens)) {
@@ -4742,6 +4746,7 @@ function _markSpeech(src, rms, onsetAt) {
     // D-VOICE-GATE-SPEAKER-AGNOSTIC: phrase content gate state
     let _phraseContentGate = null;
     let _phraseContentMatched = false;
+    let _phraseHasTranscript = false;  // S161: true once SR produces any transcript (even non-matching)
     const GREET_HEARD_BEAT_MS = 800;                  // hold the greeting ✓ this long so the user KNOWS it registered, like a digit's ✓
     // F-563 (Finding 2): the on-device VAD is a PACING gate, NOT the security check — Gemini
     // server-side is the authoritative word verifier. The old ~400ms threshold (2 ticks) fired on a
@@ -4851,22 +4856,24 @@ function _markSpeech(src, rms, onsetAt) {
                 if (_speechSamples.length < _CAL_SPEECH_MAX) _speechSamples.push(_rms);
                 if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
                 if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
-                // S157: content-gate no-match escape (phrase twin of the digit no-match path).
-                // Chrome's SpeechRecognition opens its OWN mic capture; under macOS device
-                // contention it can hear silence forever while THIS analyser proves sustained
-                // modulated voice (Rob, live: "RMS moves with voice but does not trigger the
-                // voice gate"). If the content gate has accumulated ~3x the voiced evidence a
-                // greeting needs and still produced no match, drop to the energy path — the
-                // server verdict still judges the recorded words (content authority unchanged).
-                // t740 (Rob's log: voiced_ticks reached EXACTLY 7 = a full greeting's evidence,
-                // but the escape demanded 7*1.5 while the recognizer heard nothing → 17s timeout,
-                // one tick from passing): once a real greeting's worth of voiced evidence exists
-                // (needed*1.0) and content produced no match, release to the energy path AND
-                // evaluate IMMEDIATELY — the server still judges the recorded words.
-                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * (_vadStarved ? 1.0 : 2)) {
+                // S161: two distinct failure modes for the content gate:
+                //   gate-dead   = SR produced ZERO transcripts (device contention — Rob's case:
+                //                 analyser sees green meter but SR's own capture hears nothing).
+                //                 Escape at 1.0x IMMEDIATELY — no penalty; server verdict is still
+                //                 content authority on the recording (security unchanged).
+                //   mismatch    = SR is alive and produced transcripts but none matched the phrase.
+                //                 Keep 2x strictness — genuine wrong-content case.
+                // _vadStarved also escapes at 1.0x (pre-existing path: analyser itself unreliable).
+                var _phraseGateDead = !_phraseHasTranscript;
+                var _escapeMultiplier = (_vadStarved || _phraseGateDead) ? 1.0 : 2;
+                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * _escapeMultiplier) {
                     _sessionGateAvail = false;
                     if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
-                    try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                    if (_phraseGateDead && !_vadStarved) {
+                        try { vacDebug('phrase_gate_dead_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                    } else {
+                        try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                    }
                     if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
                         _phraseHeardVoice = true;
                         try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
@@ -5030,6 +5037,9 @@ function _markSpeech(src, rms, onsetAt) {
                     _sessionGateAvail = false;
                     if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
                     try { vacDebug('phrase_content_gate_fatal', String(fatalReason || 'fatal')); } catch(_) {}
+                }, function() {
+                    // S161: SR is alive and producing results — not gate-dead; mismatch path applies.
+                    _phraseHasTranscript = true;
                 });
                 // null return = runtime permission failure; disable content gate so _phraseVadTick
                 // energy fallback activates and the phrase step can still proceed (degraded mode).

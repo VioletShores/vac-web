@@ -304,3 +304,79 @@ test('SAGA-SILENT-06: testability exports exposed on window (__vacShowSilentTrac
         'window.__vacRunSyntheticAudioSelfTest must be exported for Playwright test injection'
     );
 });
+
+// ── SAGA-GREET-DEAD-07: Gate-dead vs mismatch (S161) ─────────────────────────
+//
+// Root: Rob's device (13 Aug 2026 ~12:30 UTC) — mic meter fully green while greeting
+// refused ("can't hear"). Cause: Chrome SpeechRecognition opens its OWN mic capture;
+// under macOS device contention it hears silence forever while the analyser proves
+// sustained modulated voice. With _vadStarved=false, the escape multiplier stayed 2x
+// — a normal greeting (~1x voiced evidence) timed out one condition short.
+// Fix (S161): track whether ANY transcript arrived. Zero transcripts = gate-dead (device
+// contention) → escape at 1.0x immediately. Transcripts present but mismatching = true
+// wrong-content case → keep 2x. Server verdict remains content authority (security unchanged).
+
+test('SAGA-GREET-DEAD-07: _phraseHasTranscript declared (gate-dead sensor)', () => {
+    assert.ok(
+        src.includes('_phraseHasTranscript'),
+        '_phraseHasTranscript must be declared — S161 gate-dead sensor: tracks whether SR ' +
+        'produced any transcript at all (zero = device contention, not content mismatch)'
+    );
+});
+
+test('SAGA-GREET-DEAD-07: _startPhraseContentGate accepts onAnyTranscript callback', () => {
+    assert.ok(
+        src.includes('function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript)'),
+        '_startPhraseContentGate must accept 4th param onAnyTranscript — S161: caller needs ' +
+        'to know SR is alive and producing results (even non-matching ones)'
+    );
+});
+
+test('SAGA-GREET-DEAD-07: onAnyTranscript called inside _startPhraseContentGate onresult', () => {
+    const fnIdx = src.indexOf('function _startPhraseContentGate(');
+    assert.ok(fnIdx >= 0, '_startPhraseContentGate must be defined');
+    let depth = 0, i = fnIdx;
+    while (i < src.length && depth === 0) { if (src[i] === '{') depth++; i++; }
+    while (i < src.length) { if (src[i] === '{') depth++; else if (src[i] === '}') { depth--; if (!depth) { i++; break; } } i++; }
+    const body = src.slice(fnIdx, i);
+    assert.ok(
+        body.includes('onAnyTranscript'),
+        'onAnyTranscript must be called inside _startPhraseContentGate onresult — ' +
+        'S161: fires on every SR result so caller can distinguish dead-gate from mismatch'
+    );
+});
+
+test('SAGA-GREET-DEAD-07: gate-dead escape uses 1.0x multiplier (not 2x)', () => {
+    // The key invariant: _phraseGateDead path uses multiplier 1.0, not 2.
+    // The escape condition must reference _phraseGateDead and _escapeMultiplier (or equivalent).
+    assert.ok(
+        src.includes('_phraseGateDead') && src.includes('_escapeMultiplier'),
+        '_phraseGateDead and _escapeMultiplier must both be present — S161: gate-dead uses ' +
+        '1.0x escape threshold; mismatch (transcripts present) keeps 2x strictness'
+    );
+});
+
+test('SAGA-GREET-DEAD-07: phrase_gate_dead_escape event emitted on gate-dead path', () => {
+    assert.ok(
+        src.includes("vacDebug('phrase_gate_dead_escape'"),
+        "phrase_gate_dead_escape must be emitted via vacDebug — S161: distinct telemetry event " +
+        "so Rob's telemetry can confirm the gate-dead path fired (vs nomatch_escape)"
+    );
+});
+
+test('SAGA-GREET-DEAD-07: mismatch path still emits phrase_content_gate_nomatch_escape', () => {
+    assert.ok(
+        src.includes("vacDebug('phrase_content_gate_nomatch_escape'"),
+        "phrase_content_gate_nomatch_escape must still be emitted for the mismatch path — " +
+        "S161: only gate-dead gets the new event; wrong-content transcripts keep the existing one"
+    );
+});
+
+test('SAGA-GREET-DEAD-07: _phraseHasTranscript set to true in _startPhraseContentGate callback', () => {
+    // The call site must pass a function() { _phraseHasTranscript = true } as onAnyTranscript.
+    assert.ok(
+        src.includes('_phraseHasTranscript = true'),
+        '_phraseHasTranscript = true must appear in the onAnyTranscript callback at the ' +
+        '_startPhraseContentGate call site — S161: sets the gate-dead sensor on first SR result'
+    );
+});
