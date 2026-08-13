@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="constellation-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C9A84C"/>
+      <stop offset="50%" stop-color="#E8D48B"/>
+      <stop offset="100%" stop-color="#C9A84C"/>
+    </linearGradient>
+    <linearGradient id="node-glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8D48B"/>
+      <stop offset="100%" stop-color="#C9A84C"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Connection lines -->
+  <line x1="50" y1="10" x2="25" y2="38" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/>
+  <line x1="50" y1="10" x2="75" y2="32" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/>
+  <line x1="25" y1="38" x2="14" y2="68" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/>
+  <line x1="25" y1="38" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/>
+  <line x1="75" y1="32" x2="50" y2="55" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/>
+  <line x1="75" y1="32" x2="88" y2="62" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/>
+  <line x1="50" y1="55" x2="14" y2="68" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/>
+  <line x1="50" y1="55" x2="88" y2="62" stroke="#C9A84C" stroke-width="1.2" opacity="0.4"/>
+  <line x1="50" y1="55" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.4" opacity="0.6"/>
+  <line x1="14" y1="68" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/>
+  <line x1="88" y1="62" x2="50" y2="88" stroke="#C9A84C" stroke-width="1.2" opacity="0.5"/>
+  
+  <!-- Primary node (top - Athena's star) -->
+  <circle cx="50" cy="10" r="5.5" fill="url(#constellation-grad)"/>
+  <circle cx="50" cy="10" r="9" fill="none" stroke="#C9A84C" stroke-width="0.6" opacity="0.3"/>
+  
+  <!-- Secondary nodes -->
+  <circle cx="25" cy="38" r="4" fill="url(#node-glow)"/>
+  <circle cx="75" cy="32" r="4" fill="url(#node-glow)"/>
+  
+  <!-- Central node -->
+  <circle cx="50" cy="55" r="4.5" fill="url(#constellation-grad)"/>
+  <circle cx="50" cy="55" r="8" fill="none" stroke="#C9A84C" stroke-width="0.6" opacity="0.3"/>
+  
+  <!-- Outer nodes -->
+  <circle cx="14" cy="68" r="3" fill="#C9A84C" opacity="0.8"/>
+  <circle cx="88" cy="62" r="3" fill="#C9A84C" opacity="0.8"/>
+  
+  <!-- Base node -->
+  <circle cx="50" cy="88" r="3.5" fill="url(#node-glow)"/>
+</svg>
