@@ -676,6 +676,8 @@ let _avVbEma = 0;               // t726: smoothed VOICE-BAND ratio — Rob: the 
 let _avAnalyserDeadSince = 0;   // task-724: performance.now() when analyser starvation first detected
 let avChecks = { light: false, mic: false, hand: false };
 let _avSilentFrames = 0; // S154 fix-on-find: consecutive near-zero-input pre-flight frames while mic hasn't qualified — after ~6s, warns of a likely wrong-mic selection
+let _silentTrackFrames = 0;     // SAGA-SILENT-06: consecutive frames below SILENT_TRACK_RMS_THRESHOLD
+let _silentTrackBannerShown = false; // SAGA-SILENT-06: show banner once per session
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
@@ -716,6 +718,12 @@ let _micPreflightVadReason = null;  // last _micPreflightVad() null-return reaso
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
 // see the reduced ambient multiplier at the qualify check below.
 const VOICE_BAND_MIN_RATIO = 0.45; // S148 field-tune: Rob speaking on a London street read 52% — 0.55 missed real speech; street rumble dilutes the ratio.
+// SAGA-SILENT-06: OS-level mic privacy block / wrong device yields a live-but-silent track.
+// The analyser reads zeros continuously; all VAD thresholds fail; no sensor identified cause.
+// Fix: detect via frame counter, confirm via synthetic self-test, surface via first-class banner.
+const SILENT_TRACK_RMS_THRESHOLD = 0.008;    // below this = likely silent track (codec noise floor ~0.003)
+const SILENT_TRACK_SYNTH_THRESHOLD = 0.04;   // oscillator injected into analyser must read above this
+const SILENT_TRACK_DETECT_FRAMES = 180;      // ~3s at 60fps before declaring silent track
 // S429: single source for the mic qualify floor — used by the pre-flight collector gate (what
 // counts as part of a "loud enough" run), the sustained-run qualify check, and the live meter's
 // gold line, so a given room reads the same threshold everywhere instead of drifting between an
@@ -728,6 +736,52 @@ function _micQualifyFloor(_voiced) {
     const _floor = _voiced ? 8 : 12;    // S148 field-tune: the flat 12 floor was unreachable for Rob's 9% outdoor speech; voice-shaped runs may qualify from 8
     return Math.max(_mult * _micSeededAmbient, _floor);
 }
+
+// SAGA-SILENT-06: Inject a 440Hz oscillator into the SAME avAnalyser and read back RMS.
+// If the synth tone reads below SILENT_TRACK_SYNTH_THRESHOLD, the audio graph itself is
+// broken (GC'd source node, wrong capture path). If it reads above, the graph works but
+// the OS is handing us a genuinely silent track (privacy block / wrong mic device).
+function _runSyntheticAudioSelfTest(cb) {
+    try {
+        if (!avAudioCtx || !avAnalyser) { if (cb) cb(false, 'no_ctx'); return; }
+        const osc = avAudioCtx.createOscillator();
+        const gain = avAudioCtx.createGain();
+        gain.gain.value = 0.08;
+        osc.frequency.value = 440;
+        osc.connect(gain);
+        gain.connect(avAnalyser);
+        osc.start();
+        setTimeout(function() {
+            try {
+                const buf = new Uint8Array(avAnalyser.fftSize || 2048);
+                avAnalyser.getByteTimeDomainData(buf);
+                let s = 0;
+                for (let i = 0; i < buf.length; i++) { const d = buf[i] - 128; s += d * d; }
+                const rms = Math.sqrt(s / buf.length) / 128;
+                try { osc.stop(); } catch(_) {}
+                osc.disconnect(); gain.disconnect();
+                const pass = rms >= SILENT_TRACK_SYNTH_THRESHOLD;
+                window.__vacSynthSelfTestResult = { rms: rms, pass: pass };
+                try { vacDebug('synthetic_selftest_result', null, { rms: rms.toFixed(3), pass: pass }); } catch(_) {}
+                if (cb) cb(pass, rms);
+            } catch(e) { if (cb) cb(false, String(e)); }
+        }, 200);
+    } catch(e) { if (cb) cb(false, String(e)); }
+}
+window.__vacRunSyntheticAudioSelfTest = _runSyntheticAudioSelfTest;
+
+// SAGA-SILENT-06: Surface a first-class banner when the OS delivers a silent mic track.
+// Not a debug console line — this is actionable user instruction (Mac: System Settings path).
+function _showSilentTrackBanner() {
+    if (document.getElementById('vacSilentTrackBanner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'vacSilentTrackBanner';
+    banner.setAttribute('data-testid', 'silent-track-banner');
+    banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;border:1.5px solid #fbbf24;border-radius:10px;padding:14px 18px;z-index:9999;color:#f8fafc;font-size:13px;max-width:360px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.5;';
+    banner.innerHTML = '<strong style="color:#fbbf24">Mic not sending audio.</strong><br>Mac: System Settings &rsaquo; Privacy &amp; Security &rsaquo; Microphone &rsaquo; allow this browser.<br><span style="color:#94a3b8;font-size:11px">Then reload the page to retry.</span>';
+    document.body.appendChild(banner);
+}
+window.__vacShowSilentTrackBanner = _showSilentTrackBanner;
 
 // D-VAD-CALIBRATION-GREETING-BOUND fix: the ceremony VAD (vadSpeechThreshold/vadSilenceThreshold
 // in beginRecording, FAST_VAD_SPEECH_RMS/FAST_VAD_SILENCE_RMS in the quick-reauth tier) used to
@@ -1334,6 +1388,22 @@ function startAVChecks() {
             let _ceremonyRms = 0;
             for (let i = 0; i < dataArray.length; i++) { const _cv = dataArray[i] - 128; _ceremonyRms += _cv * _cv; }
             _ceremonyRms = Math.sqrt(_ceremonyRms / dataArray.length) / 128;
+            // SAGA-SILENT-06: count consecutive silent frames; after SILENT_TRACK_DETECT_FRAMES
+            // run synthetic self-test to distinguish broken-graph vs OS-silent-track.
+            if (_ceremonyRms < SILENT_TRACK_RMS_THRESHOLD) {
+                _silentTrackFrames++;
+                if (_silentTrackFrames === SILENT_TRACK_DETECT_FRAMES && !_silentTrackBannerShown) {
+                    try { vacDebug('silent_track_detected', null, { frames: SILENT_TRACK_DETECT_FRAMES, rms: _ceremonyRms.toFixed(4) }); } catch(_) {}
+                    _runSyntheticAudioSelfTest(function(pass) {
+                        if (!pass && !_silentTrackBannerShown) {
+                            _silentTrackBannerShown = true;
+                            try { _showSilentTrackBanner(); } catch(_) {}
+                        }
+                    });
+                }
+            } else {
+                _silentTrackFrames = 0;
+            }
             // S145e (Rob): the Mic-pill VU must run in EVERY phase — greeting included — regardless
             // of which gate loop this flow uses. When no gate is driving it, this always-on monitor
             // does, with rms computed the same way the VAD measures it (so the gold line means the

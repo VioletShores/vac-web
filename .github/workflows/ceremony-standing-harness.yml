@@ -1,0 +1,110 @@
+name: ceremony-standing-harness
+# t740 Ceremony Standing Test Harness (TSH)
+# Sensor surface: synthetic audio self-test + silent-track detection + saga defect fixtures.
+# Blocks merge on any regression. Runs nightly for standing health.
+
+on:
+  push:
+    branches:
+      - task-740-ceremony-harness
+      - main
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'auth.html'
+      - 'tests/ceremony-standing-harness.test.js'
+      - 'tests/ceremony-standing-harness.pw.js'
+  pull_request:
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'auth.html'
+      - 'tests/ceremony-standing-harness.test.js'
+      - 'tests/ceremony-standing-harness.pw.js'
+  schedule:
+    # Nightly at 04:00 UTC — standing self-test; result beaconed via vacDebug
+    - cron: '0 4 * * *'
+
+jobs:
+  # Sensor A: source-extract saga defect fixtures (no browser, fast)
+  saga-defect-fixtures:
+    name: 'Saga defect fixtures (source-extract)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run saga defect regression tests
+        run: node --test tests/ceremony-standing-harness.test.js
+
+  # Sensor B: Playwright browser tests — synthetic self-test + silent-track banner
+  ceremony-browser-sensors:
+    name: 'Browser sensor tests (Playwright)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save @playwright/test
+          npx playwright install --with-deps chromium
+      - name: Run TSH browser tests
+        run: npx playwright test tests/ceremony-standing-harness.pw.js --reporter=line
+
+  # Sensor C: run the full confirmed-behaviors suite to catch zone/mic regressions
+  confirmed-behaviors:
+    name: 'Confirmed behaviors suite (regression guard)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run confirmed-behaviors harness
+        run: node --test tests/confirmed-behaviors.test.js
+
+  # Nightly health beacon: post ceremony standing status to Athena health endpoint
+  # Only runs on schedule (not on PR) and continues-on-error so a backend blip
+  # doesn't block the merge gate. Exit code 1 = findings above threshold.
+  nightly-health-beacon:
+    name: 'Nightly ceremony health beacon'
+    runs-on: ubuntu-latest
+    needs: [saga-defect-fixtures, ceremony-browser-sensors]
+    if: github.event_name == 'schedule'
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Post standing self-test summary to ceremony health beacon
+        env:
+          VAC_DEBUG_API: ${{ secrets.VAC_DEBUG_API || 'https://vacprotocol.org/v1/auth/debug' }}
+          HOURS: '24'
+          ALERT_THRESHOLD: '3'
+          TSH_RUN: 'nightly'
+        run: |
+          node -e "
+          const https = require('https');
+          const url = process.env.VAC_DEBUG_API || 'https://vacprotocol.org/v1/auth/debug';
+          const body = JSON.stringify({
+            event: 'tsh_standing_check',
+            context: {
+              run: process.env.TSH_RUN,
+              timestamp: new Date().toISOString(),
+              saga_fixtures: 'passed',
+              browser_sensors: 'passed',
+              repo: 'vac-web',
+              sha: process.env.GITHUB_SHA || 'local'
+            }
+          });
+          try {
+            const u = new URL(url);
+            const req = https.request({ hostname: u.hostname, path: u.pathname, method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+              res => { console.log('[TSH] beacon status:', res.statusCode); process.exit(res.statusCode >= 500 ? 1 : 0); });
+            req.on('error', e => { console.warn('[TSH] beacon error:', e.message); process.exit(0); });
+            req.write(body); req.end();
+          } catch(e) { console.warn('[TSH] beacon skip:', e.message); process.exit(0); }
+          "
