@@ -2856,6 +2856,19 @@ function showChallengeIntro() {
 function dismissChallengeIntro() {
     var overlay = document.getElementById('challengeIntro');
     if (overlay) overlay.style.display = 'none';
+    // gate-meter-unify: intro-dismiss is a fresh user gesture — strongest resume opportunity on
+    // gesture-gated platforms (iOS).  Attempt resume synchronously; emit result either way.
+    try {
+        if (audioContext && audioContext.state !== 'running') {
+            audioContext.resume().then(function() {
+                try { vacDebug('resume_result', null, { trigger: 'intro_dismiss', state: audioContext ? audioContext.state : 'null' }); } catch(_) {}
+            }).catch(function(_re) {
+                try { vacDebug('resume_result', null, { trigger: 'intro_dismiss', state: 'rejected', err: String(_re && _re.message || _re).slice(0, 60) }); } catch(_) {}
+            });
+        } else {
+            try { vacDebug('resume_result', null, { trigger: 'intro_dismiss', state: audioContext ? audioContext.state : 'none' }); } catch(_) {}
+        }
+    } catch(_) {}
     try { vacDebug('challenge_intro_dismissed'); } catch(_) {}
     showSoundCheck();   // S158b1: iOS audio check before countdown; falls through to startCountdown()
 }
@@ -3861,6 +3874,7 @@ function _markSpeech(src, rms, onsetAt) {
         if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); return; }  // user picked "Continue — skip voice" on the recovery → digits go gesture-only too
         _speechMode = 'vad';
         try { vacDebug('speech_gate_mode', null, { mode: _sessionGateAvail ? 'content+vad' : 'vad_energy_fallback' }); } catch(_) {}
+        try { vacDebug('gate_rms_source', null, { source: (_avMrFallback && _avMrLevelSynth > 0) ? 'mr_fallback' : 'analyser', phase: 'digit' }); } catch(_) {}
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: start content gate for the first digit
         _refreshContentGate();
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);    // freq-domain — voiceBandRatio only
@@ -3884,6 +3898,8 @@ function _markSpeech(src, rms, onsetAt) {
                 audioAnalyser.getByteTimeDomainData(_tdBuf);
                 let rms = 0; for (let i = 0; i < _tdBuf.length; i++) { const _v = _tdBuf[i] - 128; rms += _v * _v; }
                 rms = Math.sqrt(rms / _tdBuf.length) / 128;
+                // gate-meter-unify: same single source as phrase gate — MR fallback when analyser deaf.
+                if (_avMrFallback && _avMrLevelSynth > 0) { rms = _avMrLevelSynth / 100; }
                 _lastVadRms = rms;  // surfaced to the QA overlay for live threshold calibration
                 audioAnalyser.getByteFrequencyData(buf);   // separate fetch — voiceBandRatio needs freq data
                 const vbRatio = _voiceBandRatio(audioAnalyser, buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
@@ -3933,7 +3949,7 @@ function _markSpeech(src, rms, onsetAt) {
                     _sawSilence = true;
                     if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (Math.max(0.012, 0.10*voiceMax)*100).toFixed(1)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: Number(Math.max(0.012, 0.10*voiceMax).toFixed(3)), digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; _voicedAboveThrFrames = 0;   // R1: real silence fully ends the run
-                } else if (vbRatio >= VOICE_BAND_MIN_RATIO && (rms > vadSpeechThreshold || rms > audioNoiseFloor || _vadStarved)) {
+                } else if ((vbRatio >= VOICE_BAND_MIN_RATIO || (_vadStarved && _avMrLevelSynth >= 8)) && (rms > vadSpeechThreshold || rms > audioNoiseFloor || _vadStarved)) {
                     // S155: count EVERY individual above-threshold+voice-band sample this attempt
                     // (pre-onset accumulation included, not just post-onset-confirm voicing) —
                     // VOICE_EVIDENCE_MIN_FRAMES reads real observed samples, not a derived state.
@@ -3963,7 +3979,7 @@ function _markSpeech(src, rms, onsetAt) {
                                 var _mbEnd   = Math.floor(3500 * audioAnalyser.fftSize / _sr);
                                 var _mbSum = 0, _totSum = 1;
                                 for (var _si = 0; _si < buf.length; _si++) { _totSum += buf[_si]; if (_si >= _mbStart && _si <= _mbEnd) _mbSum += buf[_si]; }
-                                if (_mbSum / _totSum >= VAD_VOICE_BAND_FRAC) {
+                                if (_mbSum / _totSum >= VAD_VOICE_BAND_FRAC || (_vadStarved && _avMrLevelSynth >= 8)) {
                                     _preOnsetStart = _now; _preOnsetMidChecked = false;  // voice-like mid-band; begin sustain window
                                 } else {
                                     _rejectedTransients++; _lastRejectReason = 'spec';  // LF-heavy tap rejected at onset frame
@@ -3984,7 +4000,7 @@ function _markSpeech(src, rms, onsetAt) {
                                 var _mb2End   = Math.floor(3500 * audioAnalyser.fftSize / _sr2);
                                 var _mb2Sum = 0, _tot2Sum = 1;
                                 for (var _si2 = 0; _si2 < buf.length; _si2++) { _tot2Sum += buf[_si2]; if (_si2 >= _mb2Start && _si2 <= _mb2End) _mb2Sum += buf[_si2]; }
-                                if (_mb2Sum / _tot2Sum >= VAD_VOICE_BAND_FRAC) {
+                                if (_mb2Sum / _tot2Sum >= VAD_VOICE_BAND_FRAC || (_vadStarved && _avMrLevelSynth >= 8)) {
                                     _preOnsetMidChecked = true;  // mid-window passed; continue accumulating
                                 } else {
                                     _rejectedTransients++; _lastRejectReason = 'spec'; _preOnsetStart = 0; _preOnsetMidChecked = false;  // broadband double-tap mid-window — abort onset
@@ -4742,6 +4758,7 @@ function _markSpeech(src, rms, onsetAt) {
     let _phraseSilenceTicks = 0;
     let _phraseHeardVoice = false;
     let phraseSpoke = false;
+    let _lastGateRmsSource = '';  // gate-meter-unify: tracks source changes for telemetry
     let _phraseHeardAt = 0;                            // F-563: when the greeting was HEARD — drives the "✓ Heard it" beat before advancing (digit parity)
     // D-VOICE-GATE-SPEAKER-AGNOSTIC: phrase content gate state
     let _phraseContentGate = null;
@@ -4812,6 +4829,22 @@ function _markSpeech(src, rms, onsetAt) {
             audioAnalyser.getByteTimeDomainData(_tdbuf);
             let _rms = 0; for (let i = 0; i < _tdbuf.length; i++) { const _pv = _tdbuf[i] - 128; _rms += _pv * _pv; }
             _rms = Math.sqrt(_rms / _tdbuf.length) / 128;
+            // gate-meter-unify: ctx not running → analyser is provably deaf; don't wait the full
+            // 60-tick / 12s starvation window — start MR fallback immediately so the gate and the
+            // visible meter consume the SAME signal from the very first phrase tick.
+            if (!!(audioContext && audioContext.state !== 'running') && !_vadStarved) {
+                _vadStarved = true;
+                try { vacDebug('vad_starved_mode', null, { rms: _rms, reason: 'ctx_suspended' }); } catch(_) {}
+            }
+            if (_vadStarved && !_avMrFallback) { try { _startAvMrFallback(); } catch(_) {} }
+            // Single source of truth: overwrite _rms with the MR-blob-size proxy (0-100 → 0-1
+            // scale) so voiced/silence decisions and the visible meter read identical energy.
+            var _gateRmsSource = 'analyser';
+            if (_avMrFallback && _avMrLevelSynth > 0) { _rms = _avMrLevelSynth / 100; _gateRmsSource = 'mr_fallback'; }
+            if (_gateRmsSource !== _lastGateRmsSource) {
+                _lastGateRmsSource = _gateRmsSource;
+                try { vacDebug('gate_rms_source', null, { source: _gateRmsSource, phase: 'phrase' }); } catch(_) {}
+            }
             audioAnalyser.getByteFrequencyData(_buf);
             const _vbRatio = _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
             _lastVbRatio = _vbRatio;  // surfaced to the QA overlay

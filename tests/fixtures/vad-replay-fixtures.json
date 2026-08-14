@@ -27,6 +27,24 @@
       { "id": 17231, "created_at": "2026-08-04 10:27:03", "had_ms": 125, "need_ms": 180 }
     ]
   },
+  "rob_starved_phrase_gate": {
+    "sessions": ["sess_y7uhiwty", "sess_etn95zlg"],
+    "date": "2026-08-14",
+    "note": "Two sessions where audio_ctx_suspended fired with no recovery: audioContext.state stayed 'suspended' throughout the phrase phase. audioAnalyser read ~1% RMS while MediaRecorder fallback drove the visible meter (bar crossed threshold as Rob spoke). _phraseVadTick read the dead analyser _rms, _phraseVoicedTicks never accumulated, phrase_speech_timeout fired every attempt. Fix: ctx-not-running → _vadStarved immediately + MR fallback immediately + overwrite _rms with _avMrLevelSynth/100.",
+    "starved_mode_mr_levels": [
+      { "tick": 1,  "mr_level_synth": 0,  "comment": "MR just started, no chunks yet — _rms stays at dead analyser value" },
+      { "tick": 4,  "mr_level_synth": 12, "comment": "3+ chunks received, MR calibrated; _rms = 0.12 (above VAD_SPEECH_RMS_FALLBACK)" },
+      { "tick": 5,  "mr_level_synth": 18 },
+      { "tick": 6,  "mr_level_synth": 22 },
+      { "tick": 7,  "mr_level_synth": 15 },
+      { "tick": 8,  "mr_level_synth": 20 },
+      { "tick": 9,  "mr_level_synth": 10 },
+      { "tick": 10, "mr_level_synth": 14 }
+    ],
+    "expected_voiced_ticks_at_tick_10": 7,
+    "expected_escape": "phrase_gate_dead_escape",
+    "PHRASE_VOICED_TICKS_NEEDED": 7
+  },
   "skyssia_fast_path": {
     "session_id": "sess_osdy8boy_reauth",
     "path": "fast",

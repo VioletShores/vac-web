@@ -138,3 +138,77 @@ test('Skyssia — real fired events (louder utterances, same session) still sati
         assert.ok(e.peak > e.thr, `event ${e.id}: recorded peak=${e.peak} must exceed the threshold active at capture time=${e.thr}`);
     }
 });
+
+// ── gate-meter-unify: starved-mode MR fallback replay (14 Aug sessions) ──────
+//
+// Root sessions: sess_y7uhiwty + sess_etn95zlg. audioContext stayed suspended throughout
+// the phrase phase — analyser dead, _phraseVadTick saw ~1% RMS every tick, voiced ticks
+// never accumulated, phrase_speech_timeout fired. Fix: ctx-dead → _vadStarved + MR fallback
+// immediately; overwrite _rms with _avMrLevelSynth / 100 (gate-meter single source).
+//
+// This test replays the FIXED tick-by-tick logic against the fixture's MR level sequence
+// and asserts that (a) voiced ticks accumulate from MR energy, and (b) PHRASE_VOICED_TICKS_NEEDED
+// is reached within the fixture window — i.e. phrase_gate_dead_escape would fire.
+
+test('gate-meter-unify: starved-mode fixture — voiced ticks accumulate from MR fallback energy', () => {
+    const PHRASE_VOICED_TICKS_NEEDED = constFromSource('PHRASE_VOICED_TICKS_NEEDED');
+    const VAD_SPEECH_RMS_FALLBACK    = constFromSource('VAD_SPEECH_RMS_FALLBACK');
+    const VAD_SILENCE_RMS_FALLBACK   = constFromSource('VAD_SILENCE_RMS_FALLBACK');
+    const { starved_mode_mr_levels, expected_voiced_ticks_at_tick_10, expected_escape } = fixtures.rob_starved_phrase_gate;
+
+    // Replay _phraseVadTick's voiced/silence logic with MR-derived _rms.
+    // When _avMrFallback is active and _avMrLevelSynth > 0: _rms = _avMrLevelSynth / 100.
+    // _spectralVoiced = _vadStarved && _avMrLevelSynth >= 8 (MR proxy confirms voice).
+    // Voiced branch: _phraseVoicedTicks++ when _spectralVoiced || (_rms > speech_thr).
+    // Silence branch: _phraseVoicedTicks-- when _rms < silence_thr and !_phraseHeardVoice.
+    let voicedTicks = 0;
+    let _phraseHeardVoice = false;
+    const _vadStarved = true;  // set at tick 1 (ctx suspended → immediate fast-path)
+
+    for (const tick of starved_mode_mr_levels) {
+        const mrLevel = tick.mr_level_synth;
+        const mrActive = mrLevel > 0;
+        // gate-meter-unify substitution: _rms = _avMrLevelSynth / 100 when MR active
+        const _rms = mrActive ? mrLevel / 100 : 0.01;  // 0.01 = dead analyser value when MR not yet calibrated
+        const _spectralVoiced = _vadStarved && mrLevel >= 8;
+        const voiced = _spectralVoiced || _rms > VAD_SPEECH_RMS_FALLBACK;
+        const silent = _rms < VAD_SILENCE_RMS_FALLBACK;
+        if (voiced) {
+            voicedTicks++;
+        } else if (silent && !_phraseHeardVoice) {
+            voicedTicks = Math.max(0, voicedTicks - 1);
+        }
+        // Check phrase_heard state (simplified: no modulation check since _vadStarved bypasses it)
+        if (!_phraseHeardVoice && voicedTicks >= PHRASE_VOICED_TICKS_NEEDED) {
+            _phraseHeardVoice = true;
+        }
+    }
+
+    assert.equal(
+        voicedTicks,
+        expected_voiced_ticks_at_tick_10,
+        `starved-mode replay: voiced ticks at tick 10 must be ${expected_voiced_ticks_at_tick_10} ` +
+        `(MR energy drove accumulation); got ${voicedTicks}. ` +
+        `Root sessions sess_y7uhiwty/sess_etn95zlg had 0 — the fix is that MR-derived _rms feeds the gate.`
+    );
+    assert.ok(
+        voicedTicks >= PHRASE_VOICED_TICKS_NEEDED,
+        `voiced ticks (${voicedTicks}) must reach PHRASE_VOICED_TICKS_NEEDED (${PHRASE_VOICED_TICKS_NEEDED}) — ` +
+        `${expected_escape} must fire; without the fix it never did (phrase_speech_timeout every time)`
+    );
+    assert.equal(expected_escape, 'phrase_gate_dead_escape', 'fixture escape path must be phrase_gate_dead_escape');
+});
+
+test('gate-meter-unify: MR-rms scale (0-100 → 0-1) covers VAD_SPEECH_RMS_FALLBACK at level >= 6', () => {
+    // Sanity: _avMrLevelSynth=6 → _rms=0.06 which is above VAD_SPEECH_RMS_FALLBACK=0.055.
+    // This proves the scaling doesn't require unrealistically high MR levels to cross the gate.
+    // (The spectral path fires at level >= 8 anyway, so level 6 is conservative.)
+    const VAD_SPEECH_RMS_FALLBACK = constFromSource('VAD_SPEECH_RMS_FALLBACK');
+    const minMrLevel = Math.ceil(VAD_SPEECH_RMS_FALLBACK * 100);
+    assert.ok(
+        minMrLevel <= 8,
+        `MR level needed to cross VAD_SPEECH_RMS_FALLBACK (${VAD_SPEECH_RMS_FALLBACK}) ` +
+        `via /100 scaling is ${minMrLevel} — must be ≤ 8 (the _spectralVoiced threshold). ` +
+        `If this fails, VAD_SPEECH_RMS_FALLBACK drifted above 0.08 and the scaling needs review.`
+    );
+});

@@ -380,3 +380,132 @@ test('SAGA-GREET-DEAD-07: _phraseHasTranscript set to true in _startPhraseConten
         '_startPhraseContentGate call site — S161: sets the gate-dead sensor on first SR result'
     );
 });
+
+// ── SAGA-CTX-08: Gate-meter sensor unification (task-gate-meter-unify) ───────
+//
+// Root: sess_y7uhiwty + sess_etn95zlg (14 Aug 2026): audioContext.state = 'suspended'
+// with no recovery → audioAnalyser permanently deaf (HUD RMS ~1%) while MediaRecorder
+// fallback energy drove the VISIBLE meter green as Rob spoke.  _phraseVadTick read the
+// DEAD analyser _rms, so _phraseVoicedTicks never accumulated — every escape path
+// (phrase_gate_dead_escape / phrase_pass_on_escape / phrase_speech_confirmed) was
+// unreachable — phrase_speech_timeout fired every attempt.
+//
+// Fix (one principle: gate and meter consume ONE signal):
+//   (1) ctx not running → _vadStarved immediately + _startAvMrFallback immediately
+//       (don't wait the 60-tick / 12s starvation window).
+//   (2) _phraseVadTick + digit-gate tick overwrite _rms with _avMrLevelSynth / 100
+//       when the MR fallback is the active ear — same signal as the visible meter.
+//   (3) Digit gate spectral bypass: vbRatio dead-analyser false-0 bypassed when
+//       _vadStarved && _avMrLevelSynth >= 8 (starved+MR voiced).
+//   (4) resume_result emitted from dismissChallengeIntro (fresh gesture, best iOS window).
+//   (5) gate_rms_source telemetry emitted once per phase on source change.
+
+test('SAGA-CTX-08: _phraseVadTick overwrites _rms with _avMrLevelSynth / 100 when MR fallback active', () => {
+    // The fix: single source of truth — MR-blob proxy replaces dead-analyser _rms.
+    const phraseIdx = src.indexOf('function _phraseVadTick(');
+    assert.ok(phraseIdx >= 0, '_phraseVadTick must be defined');
+    let depth = 0, i = phraseIdx;
+    while (i < src.length && depth === 0) { if (src[i] === '{') depth++; i++; }
+    while (i < src.length) { if (src[i] === '{') depth++; else if (src[i] === '}') { depth--; if (!depth) { i++; break; } } i++; }
+    const body = src.slice(phraseIdx, i);
+    assert.ok(
+        body.includes('_avMrLevelSynth / 100'),
+        '_phraseVadTick must contain `_avMrLevelSynth / 100` — gate-meter-unify: MR proxy ' +
+        '(0-100) scaled to RMS (0-1) so gate and visible meter read the same signal'
+    );
+    assert.ok(
+        body.includes('_gateRmsSource'),
+        '_phraseVadTick must track _gateRmsSource — emitted once per phase on source change'
+    );
+});
+
+test('SAGA-CTX-08: ctx-suspended fast-paths _vadStarved without waiting 60 ticks', () => {
+    const phraseIdx = src.indexOf('function _phraseVadTick(');
+    assert.ok(phraseIdx >= 0, '_phraseVadTick must be defined');
+    let depth = 0, i = phraseIdx;
+    while (i < src.length && depth === 0) { if (src[i] === '{') depth++; i++; }
+    while (i < src.length) { if (src[i] === '{') depth++; else if (src[i] === '}') { depth--; if (!depth) { i++; break; } } i++; }
+    const body = src.slice(phraseIdx, i);
+    assert.ok(
+        body.includes("audioContext.state !== 'running'") && body.includes('_vadStarved = true'),
+        '_phraseVadTick must set _vadStarved=true when audioContext is not running — ' +
+        'gate-meter-unify: ctx suspended → analyser provably deaf; skip the 60-tick wait ' +
+        '(sess_y7uhiwty / sess_etn95zlg: phrase_speech_timeout because starvation only fired at 12s)'
+    );
+});
+
+test('SAGA-CTX-08: gate_rms_source telemetry emitted in _phraseVadTick and _startSpeechGate', () => {
+    assert.ok(
+        src.includes("vacDebug('gate_rms_source'"),
+        "gate_rms_source must be beaconed via vacDebug — telemetry proves which signal the " +
+        "gate consumed (analyser vs mr_fallback) for each session"
+    );
+    // Must appear at least twice: once for phrase phase, once for digit phase.
+    const count = (src.match(/vacDebug\('gate_rms_source'/g) || []).length;
+    assert.ok(count >= 2, `gate_rms_source must be emitted for both phrase and digit phases (found ${count} call sites)`);
+});
+
+test('SAGA-CTX-08: resume_result emitted from dismissChallengeIntro (fresh gesture)', () => {
+    const fnIdx = src.indexOf('function dismissChallengeIntro(');
+    assert.ok(fnIdx >= 0, 'dismissChallengeIntro must be defined');
+    let depth = 0, i = fnIdx;
+    while (i < src.length && depth === 0) { if (src[i] === '{') depth++; i++; }
+    while (i < src.length) { if (src[i] === '{') depth++; else if (src[i] === '}') { depth--; if (!depth) { i++; break; } } i++; }
+    const body = src.slice(fnIdx, i);
+    assert.ok(
+        body.includes("vacDebug('resume_result'"),
+        "resume_result must be emitted inside dismissChallengeIntro — gate-meter-unify: " +
+        "intro-dismiss is a fresh user gesture (best iOS AudioContext resume window); " +
+        "telemetry proves whether resume succeeded or was rejected"
+    );
+    assert.ok(
+        body.includes('audioContext.resume()'),
+        'dismissChallengeIntro must call audioContext.resume() — fresh gesture is the ' +
+        'reliable iOS resume path; click/keydown listeners bind too late (after first phraseInterval tick)'
+    );
+});
+
+test('SAGA-CTX-08: digit gate vbRatio bypass when starved + MR voiced', () => {
+    // When analyser is dead, vbRatio = 0 (all-zero FFT bins). Without this bypass the digit
+    // gate never fires — voiced ticks can never accumulate through the vbRatio >= 0.45 hard gate.
+    assert.ok(
+        src.includes('_vadStarved && _avMrLevelSynth >= 8') &&
+        src.includes('vbRatio >= VOICE_BAND_MIN_RATIO || (_vadStarved && _avMrLevelSynth >= 8)'),
+        'digit gate must bypass vbRatio when _vadStarved && _avMrLevelSynth >= 8 — ' +
+        'gate-meter-unify: dead analyser gives vbRatio=0; MR-voiced signal must be able ' +
+        'to progress the digit gate when the analyser is provably deaf'
+    );
+});
+
+test('SAGA-CTX-08: digit gate onset spectral bypass when starved + MR voiced', () => {
+    // The onset and mid-window spectral checks also read the dead analyser FFT — they would
+    // reject every onset as "LF-heavy tap" when bins are all zero. Bypass for starved+MR-voiced.
+    // Both check sites use different variable names (_mbSum/_totSum and _mb2Sum/_tot2Sum).
+    const onsetBypass    = src.includes('_mbSum / _totSum >= VAD_VOICE_BAND_FRAC || (_vadStarved && _avMrLevelSynth >= 8)');
+    const midWinBypass   = src.includes('_mb2Sum / _tot2Sum >= VAD_VOICE_BAND_FRAC || (_vadStarved && _avMrLevelSynth >= 8)');
+    assert.ok(
+        onsetBypass,
+        'onset-start spectral check must have MR-voiced bypass — ' +
+        'dead analyser FFT returns all-zero bins; bypass allows natural speech onset when starved+MR-voiced'
+    );
+    assert.ok(
+        midWinBypass,
+        'mid-window spectral check must also have MR-voiced bypass — ' +
+        'same dead-analyser problem; a tap cannot produce _avMrLevelSynth >= 8 sustained over 90ms'
+    );
+});
+
+test('SAGA-CTX-08: digit gate tick overwrites rms with _avMrLevelSynth / 100 when MR active', () => {
+    // Verify the digit gate tick (inside _startSpeechGate) also has the MR-rms substitution.
+    const fnIdx = src.indexOf('function _startSpeechGate(');
+    assert.ok(fnIdx >= 0, '_startSpeechGate must be defined');
+    let depth = 0, i = fnIdx;
+    while (i < src.length && depth === 0) { if (src[i] === '{') depth++; i++; }
+    while (i < src.length) { if (src[i] === '{') depth++; else if (src[i] === '}') { depth--; if (!depth) { i++; break; } } i++; }
+    const body = src.slice(fnIdx, i);
+    assert.ok(
+        body.includes('_avMrLevelSynth / 100'),
+        '_startSpeechGate tick must substitute rms = _avMrLevelSynth / 100 when MR fallback is ' +
+        'active — gate-meter-unify: same single source of truth as the phrase gate'
+    );
+});
