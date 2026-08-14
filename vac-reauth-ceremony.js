@@ -527,10 +527,8 @@ async function requestCamera() {
             if (avAudioCtx && !avAnalyser) {
                 avAnalyser = avAudioCtx.createAnalyser();
                 avAnalyser.fftSize = 256;
-                const _at = mediaStream.getAudioTracks()[0];
-                _pinSrc(avAudioCtx.createMediaStreamSource(
-                    _at ? new MediaStream([_at]) : mediaStream
-                )).connect(avAnalyser);
+                // task-733: ORIGINAL stream, single source per ctx — wrapper streams read flat on iOS
+                _pinSrc(_originalStreamSource(avAudioCtx, mediaStream)).connect(avAnalyser);
             }
         } catch (_aE) { avAnalyser = null; console.warn('[AV] Analyser connect failed (pre-startAVChecks):', _aE); }
         startAVChecks();
@@ -708,6 +706,24 @@ if (!window.__vacAvCtxResumeBound) {
             try { if (typeof avAudioCtx !== 'undefined' && avAudioCtx && avAudioCtx.state !== 'running') avAudioCtx.resume(); } catch(_) {}
         }, { passive: true });
     });
+}
+
+// task-733 (S163 root fix): iOS/WebKit renders a MediaStreamAudioSourceNode SILENT when it is
+// built from a SECONDARY/WRAPPER MediaStream — new MediaStream([track]) is NOT a clone (same
+// track, new stream identity) and triggers the same flatline the F-755d clone comment warns
+// about. Tonight's telemetry: track rms 0.0055 while a synthetic osc through the same analyser
+// read 0.057 and MediaRecorder heard speech. Adjudicated pattern (GPT-5.6+Opus challenge):
+// build from the ORIGINAL getUserMedia stream, ONE source node per AudioContext, fan out.
+// Callers must never stop these tracks (they belong to mediaStream).
+var _origSrcCache = (typeof WeakMap !== 'undefined') ? new WeakMap() : null;
+function _originalStreamSource(_ctx, _stream) {
+    var st = _stream || mediaStream;
+    if (!_ctx || !st) return null;
+    if (_origSrcCache) { var c = _origSrcCache.get(_ctx); if (c && c._vacStream === st) return c; }
+    var src = _ctx.createMediaStreamSource(st);
+    src._vacStream = st;
+    if (_origSrcCache) _origSrcCache.set(_ctx, src);
+    return src;
 }
 // D-VAD-UNITS (task-447, live evidence: Rob's 17:24 UTC run — thr 0.128 unreachable, greeting
 // spoken and never detected): _micSeededAmbient/_micSeededSpeechLevel above are TIME-domain peak %
@@ -1305,10 +1321,10 @@ function startAVChecks() {
             if (avAudioCtx.state === 'suspended') avAudioCtx.resume();
             avAnalyser = avAudioCtx.createAnalyser();
             avAnalyser.fftSize = 256;
-            // F-755d: do NOT clone — iOS Safari cloned track is dead (reads flat 0%).
-            // Build source from the original audio track directly.
-            const _atrk = mediaStream.getAudioTracks()[0];
-            const source = _pinSrc(avAudioCtx.createMediaStreamSource(_atrk ? new MediaStream([_atrk]) : mediaStream));
+            // F-755d + task-733: do NOT clone AND do NOT wrap — on iOS a source built from a
+            // secondary MediaStream (even around the original live track) reads flat 0%.
+            // ORIGINAL getUserMedia stream, single source per ctx.
+            const source = _pinSrc(_originalStreamSource(avAudioCtx, mediaStream));
             source.connect(avAnalyser);
         } catch (e) { console.warn('[AV] Audio analyser setup failed:', e); }
     }
@@ -2603,10 +2619,8 @@ function retryAVSetup() {
                 if (avAudioCtx && !avAnalyser) {
                     avAnalyser = avAudioCtx.createAnalyser();
                     avAnalyser.fftSize = 256;
-                    const _rAt = stream.getAudioTracks()[0];
-                    _pinSrc(avAudioCtx.createMediaStreamSource(
-                        _rAt ? new MediaStream([_rAt]) : stream
-                    )).connect(avAnalyser);
+                    // task-733: ORIGINAL stream, never a wrapper
+                    _pinSrc(_originalStreamSource(avAudioCtx, stream)).connect(avAnalyser);
                 }
             } catch (_rAE) { avAnalyser = null; }
             startAVChecks();
@@ -2885,8 +2899,8 @@ function dismissChallengeIntro() {
                     if (mediaStream && mediaStream.getAudioTracks && mediaStream.getAudioTracks().length) {
                         avAnalyser = avAudioCtx.createAnalyser();
                         avAnalyser.fftSize = 256;
-                        var _src = avAudioCtx.createMediaStreamSource(new MediaStream([mediaStream.getAudioTracks()[0]]));
-                        _src.connect(avAnalyser);
+                        var _src = _originalStreamSource(avAudioCtx, mediaStream);
+                        if (_src) _src.connect(avAnalyser);
                     }
                 }
                 try { vacDebug('reauth_gesture_resume', avAudioCtx ? avAudioCtx.state : 'null', { rewired: !!(avAnalyser) }); } catch(_) {}
@@ -7334,10 +7348,11 @@ function startAudioMonitor() {
         // so _monitorStream.clone() produced rms:1% while the recorder (on the real track) worked
         // fine — the avAnalyser pre-flight already used this approach (line ~1094). No clone means
         // stopAudioMonitor must NOT stop _monitorStream tracks (they belong to mediaStream).
-        var _amOrigTrk = mediaStream.getAudioTracks()[0];
-        _monitorStream = _amOrigTrk ? new MediaStream([_amOrigTrk]) : mediaStream;
-        const source = audioContext.createMediaStreamSource(_monitorStream);
-        source.connect(audioAnalyser);
+        // task-733: the wrapper here (task-720) traded the clone disease for the wrapper disease —
+        // same flatline class on iOS. ORIGINAL stream, single source per ctx.
+        _monitorStream = mediaStream;
+        const source = _originalStreamSource(audioContext, mediaStream);
+        if (source) source.connect(audioAnalyser);
 
         audioNoiseFloor = 0.01;
         _adaptLastFloor = 0.01;  // S157 C1: keep adapt tracking in sync with floor reset (prevents false explain-as-you-adapt)
