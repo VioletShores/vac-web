@@ -699,6 +699,16 @@ let _micSeeded = false;    // GATE-343 f2: true once the 1.5s seed window has cl
 // _micSeededAmbient so the ceremony VAD can arm from BOTH instead of starting deaf on fallback
 // constants until a greeting it can't hear over the noise recalibrates it.
 let _micSeededSpeechLevel = 0;
+// task-732: gesture-resume safety net bound at LOAD (was bound only inside requestCamera's tap —
+// the reauth auto-start path never calls it, so its suspended ctx ignored every later user tap).
+if (!window.__vacAvCtxResumeBound) {
+    window.__vacAvCtxResumeBound = true;
+    ['click','touchend'].forEach(function(_ev){
+        document.addEventListener(_ev, function() {
+            try { if (typeof avAudioCtx !== 'undefined' && avAudioCtx && avAudioCtx.state !== 'running') avAudioCtx.resume(); } catch(_) {}
+        }, { passive: true });
+    });
+}
 // D-VAD-UNITS (task-447, live evidence: Rob's 17:24 UTC run — thr 0.128 unreachable, greeting
 // spoken and never detected): _micSeededAmbient/_micSeededSpeechLevel above are TIME-domain peak %
 // (0-100, see `level` in runAVFrame) — a different quantity, on a different scale, from what the
@@ -2857,6 +2867,32 @@ function dismissChallengeIntro() {
     var overlay = document.getElementById('challengeIntro');
     if (overlay) overlay.style.display = 'none';
     try { vacDebug('challenge_intro_dismissed'); } catch(_) {}
+    // task-732 REAUTH GESTURE RESUME (root cause, Rob 14 Aug telemetry sess_y7uhiwty/etn95zlg/xrhg4v88):
+    // the quick-reauth flow AUTO-STARTS AV setup with no user gesture, so on iOS its AudioContext is
+    // created suspended and every non-gesture resume() is refused — analyser permanently deaf (~1% RMS)
+    // while the MediaRecorder meter dances. task-724 fixed this for the FULL ceremony's Enable tap only.
+    // This dismiss IS the reauth path's guaranteed gesture, and it fires before recording begins:
+    // synchronously resume — and if iOS won't revive the non-gesture context, REPLACE it and re-wire
+    // the analyser from the live audio track, exactly the task-724 pattern relocated to this path.
+    try {
+        if (avAudioCtx && avAudioCtx.state === 'suspended') { try { avAudioCtx.resume(); } catch(_) {} }
+        setTimeout(function() {
+            try {
+                if (!avAudioCtx || avAudioCtx.state !== 'running') {
+                    try { if (avAudioCtx) avAudioCtx.close(); } catch(_) {}
+                    avAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    try { if (avAudioCtx.state === 'suspended') avAudioCtx.resume(); } catch(_) {}
+                    if (mediaStream && mediaStream.getAudioTracks && mediaStream.getAudioTracks().length) {
+                        avAnalyser = avAudioCtx.createAnalyser();
+                        avAnalyser.fftSize = 256;
+                        var _src = avAudioCtx.createMediaStreamSource(new MediaStream([mediaStream.getAudioTracks()[0]]));
+                        _src.connect(avAnalyser);
+                    }
+                }
+                try { vacDebug('reauth_gesture_resume', avAudioCtx ? avAudioCtx.state : 'null', { rewired: !!(avAnalyser) }); } catch(_) {}
+            } catch(_e2) { try { vacDebug('reauth_gesture_resume', 'error', { e: String(_e2).slice(0,120) }); } catch(_) {} }
+        }, 60);
+    } catch(_) {}
     showSoundCheck();   // S158b1: iOS audio check before countdown; falls through to startCountdown()
 }
 
