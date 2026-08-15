@@ -1,30 +1,39 @@
 'use strict';
-// ceremony-gate-harness.test.js — F-1139 S164 Ceremony Liveness Gate Harness
+// ceremony-gate-harness.test.js — F-1139 S164 Ceremony Liveness Gate Harness (Node mirror tier)
 //
-// FOUNDING REQUIREMENT (L-511/L-676 anti-trap): this harness drives the REAL shipping gate,
-// not a reimplementation. Approach: "source-extract + mirror" (same pattern as vad-replay.test.js):
-//   (1) All thresholds are extracted from vac-reauth-ceremony.js by name via constFromSource().
-//   (2) Gate decision logic is mirrored line-for-line from the source (not invented separately).
-//   (3) Injection seam (window.__vacTestAudioFill added to ceremony.js) enables browser-side
-//       testing against the live code; Node harness mirrors the same decision tree for CI coverage.
-//   (4) Source-anchor assertions verify that the ceremony source still contains the expected
-//       decision patterns (halts the test if the source drifts from the mirror).
+// WHAT THIS FILE IS — AND ISN'T: this is the FAST, source-anchored MIRROR tier. It does not load
+// or execute vac-reauth-ceremony.js at all — the gate decision functions below are hand-written
+// reimplementations, cross-checked against source constants (constFromSource()) and literal source
+// text (the "Gate pattern anchor:" tests). That is useful (catches constant/pattern drift on every
+// push, in ~100ms, no browser) but it is NOT what satisfies the FOUNDING REQUIREMENT (L-511/L-676
+// anti-trap: "the harness must drive the REAL shipping gate, not a reimplementation"). An earlier
+// version of this file's header claimed it did; that was wrong and has been corrected — see
+// F1139-HARNESS-DESIGN-S164.md's "Correction to an earlier draft" note.
 //
-// INJECTION SEAM: vac-reauth-ceremony.js now exposes:
-//   window.__vacTestAudioFill(tdBuf, freqBuf) — fills both audio buffers in _phraseVadTick
-//   window.__vacSetMrLevel(n)                 — sets _avMrLevelSynth (starvation path test)
-//   window.__vacSetVadStarved(bool)            — forces _vadStarved (starved-path simulation)
-// Browser-side Playwright tests can use these to drive the REAL gate directly.
+// THE TIER THAT DOES SATISFY THE ANTI-TRAP REQUIREMENT is tests/ceremony-harness-fixtures.pw.js,
+// which sets window.__vacTestAudioFill / window.__vacTestAvAudioFill (the injection seam these
+// source-anchor tests verify exists) in a real Chromium page and drives the actual, unmodified
+// _phraseVadTick / runAVFrame mic-qualify block through the ceremony's own timers. Run both tiers;
+// treat this file's PASS as "the mirror is internally consistent and source hasn't drifted," and
+// the .pw.js file's PASS as "the real gate does this."
+//
+// INJECTION SEAM (added to vac-reauth-ceremony.js, consumed by the .pw.js tier, verified to exist
+// here by source-anchor tests):
+//   window.__vacTestAudioFill(tdBuf, freqBuf)   — fills both audio buffers in _phraseVadTick
+//   window.__vacTestAvAudioFill(tdBuf, freqBuf) — fills both audio buffers in runAVFrame mic-qualify
+//   window.__vacSetMrLevel(n)                   — sets _avMrLevelSynth (starvation path test)
+//   window.__vacSetVadStarved(bool)              — forces _vadStarved (starved-path simulation)
 //
 // SCOPE (Phase 1):
-//   - Source-injectable seam verified by source-anchor tests (F-1139 contract)
 //   - Synthetic fixtures: 8 scenarios covering liveness, silence, noise, IOS_AMPLITUDE_CRUSH
 //   - Phrase VAD gate simulation: mirrors _phraseVadTick from beginRecording()
 //   - Mic-qualify gate simulation: mirrors runAVFrame qualifying block
-//   - APCER/BPCER framing (methodologically-aligned, NOT certified — VAC-PA-001 sec 12.2)
-//   - IOS_AMPLITUDE_CRUSH DOCUMENTED as FAIL → reproduces tonight's priority bug
+//   - APCER/BPCER framing (methodologically-aligned, NOT certified — see design doc's VAC-PA-001 note)
+//   - IOS_AMPLITUDE_CRUSH DOCUMENTED as FAIL → reproduces tonight's priority bug (mirror-level;
+//     tests/ceremony-harness-fixtures.pw.js documents the same fixture against the real gate)
 //
 // Run: node --test tests/ceremony-gate-harness.test.js
+// Real-gate tier: npx playwright test tests/ceremony-harness-fixtures.pw.js
 // Design doc: docs/strategic/F1139-HARNESS-DESIGN-S164.md
 
 const test   = require('node:test');
@@ -55,6 +64,14 @@ test('F-1139 injection seam: window.__vacTestAudioFill hook present in _phraseVa
         src.includes('typeof window.__vacTestAudioFill === \'function\''),
         'F-1139 injection seam missing — window.__vacTestAudioFill hook not found in vac-reauth-ceremony.js. ' +
         'Required for browser-side fixture injection into the REAL gate (L-511 anti-trap).'
+    );
+});
+
+test('F-1139 injection seam: window.__vacTestAvAudioFill hook present in runAVFrame mic-qualify block', () => {
+    assert.ok(
+        src.includes('typeof window.__vacTestAvAudioFill === \'function\''),
+        'F-1139 injection seam missing — window.__vacTestAvAudioFill hook not found in vac-reauth-ceremony.js. ' +
+        'Required for browser-side fixture injection into the REAL AV preflight mic-qualify block (L-511 anti-trap).'
     );
 });
 
@@ -127,6 +144,28 @@ function localConstFromSource(name) {
 }
 const VAD_SPEECH_RMS_FALLBACK  = localConstFromSource('VAD_SPEECH_RMS_FALLBACK');
 const VAD_SILENCE_RMS_FALLBACK = localConstFromSource('VAD_SILENCE_RMS_FALLBACK');
+
+// VOICE_BAND_MIN_RATIO is declared TWICE in source (module scope, gates the AV preflight
+// mic-qualify block; and again inside beginRecording()'s local scope, gates the phrase gate) —
+// constFromSource('VOICE_BAND_MIN_RATIO') above only matched the FIRST (module-scope)
+// declaration, since a plain (non-global) regex .match() stops there. Both mirrors in this file
+// (makeMicQualifyState + makePhraseVadState) use the single extracted VOICE_BAND_MIN_RATIO value
+// for two DIFFERENT gates that read two DIFFERENT source declarations — if a future tune changes
+// one without the other, this constant-extraction "drift detector" would silently validate the
+// mirror against the wrong one. Assert both declarations still agree so that divergence fails
+// loudly here instead of passing silently.
+function allConstDeclarationsFromSource(name) {
+    const re = new RegExp('\\bconst\\s+' + name + '\\s*=\\s*([0-9.]+)\\s*;', 'g');
+    const values = [];
+    let m;
+    while ((m = re.exec(src)) !== null) values.push(parseFloat(m[1]));
+    return values;
+}
+test('VOICE_BAND_MIN_RATIO: both source declarations (module-scope AV gate + local phrase-gate scope) agree', () => {
+    const decls = allConstDeclarationsFromSource('VOICE_BAND_MIN_RATIO');
+    assert.equal(decls.length, 2, `expected exactly 2 "const VOICE_BAND_MIN_RATIO = ...;" declarations in source, found ${decls.length} — this test's assumption about the source has changed, update the extraction accordingly`);
+    assert.equal(decls[0], decls[1], `VOICE_BAND_MIN_RATIO declarations have diverged: module-scope=${decls[0]} (AV mic-qualify gate) vs local-scope=${decls[1]} (phrase gate) — the two mirrors in this file share one extracted value and would silently test the wrong gate against a stale constant`);
+});
 
 test('Verify extracted phrase-gate constants match expected S164 values', () => {
     assert.equal(PHRASE_VOICED_TICKS_NEEDED, 7,    'PHRASE_VOICED_TICKS_NEEDED must be 7 (~1.4s @ 200ms ticks)');

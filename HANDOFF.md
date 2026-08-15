@@ -5,44 +5,65 @@
 
 **Branch:** `task-f1139-ceremony-harness` (NO MERGE — L-2499 walkthrough owed)
 **Date:** 2026-08-16
-**Refs:** L-2503, L-2504, L-2505, VAC-PA-001 sec 12.2
+**Refs:** L-2503, L-2504, L-2505, VAC-PA-001 sec 12.2 (document not found in this repo checkout)
 
-### What Was Done
+### What Was Done (two passes on this branch — see correction below)
 
-Built the ceremony liveness gate test instrument per F-1139 spec. Two components:
+**Pass 1** built the instrument's skeleton: an injection seam in `vac-reauth-ceremony.js`
+(`window.__vacTestAudioFill`, `window.__vacSetMrLevel`, `window.__vacSetVadStarved`) plus a Node
+test harness (`tests/ceremony-gate-harness.test.js`) that mirrors the gate decision logic by hand,
+anchored to source constants/text. It shipped with a Status line claiming this satisfied the
+FOUNDING REQUIREMENT ("harness must drive the REAL shipping gate, not a reimplementation") — **that
+claim was wrong**: the seam had no consumer in that commit, so nothing in the diff actually executed
+`vac-reauth-ceremony.js`'s real `_phraseVadTick`. The 24/24-passing Node harness was testing the
+hand-written mirror against fixtures, not the shipped gate — precisely the failure mode L-511/L-676
+names.
 
-**1. Injection seam in `vac-reauth-ceremony.js`** (+8 lines, NO gate-logic change):
-- `window.__vacTestAudioFill(tdBuf, freqBuf)` — synthetic fixture fills both audio buffers in `_phraseVadTick`; live analyser path unchanged
-- `window.__vacSetMrLevel(n)` — overrides `_avMrLevelSynth` for starvation-path tests
-- `window.__vacSetVadStarved(bool)` — forces starvation state
+**Pass 2 (this update) fixes that**, and completes the SCOPE item the task actually asked for
+("runner pipes each fixture through REAL gate fns"):
+- Added a matching injection seam hook for the AV preflight mic-qualify block
+  (`window.__vacTestAvAudioFill` in `runAVFrame`, ~line 1360) — the phrase-gate seam alone didn't
+  cover the second target function named in the task (`_phraseVadTick` AND preflight mic-qualify).
+- Added `tests/ceremony-harness-fixtures.pw.js` — a Playwright test that actually drives the real,
+  unmodified `_phraseVadTick` / `runAVFrame` mic-qualify block in a real Chromium page via the
+  seam, using `--use-fake-device-for-media-stream` so `getUserMedia`/`AudioContext` are real (a
+  hand-mocked `MediaStream` fails real `createMediaStreamSource()` validation and would silently
+  null out the analyser). This is the tier that actually satisfies the anti-trap requirement.
+- Added `.github/workflows/ceremony-harness-fixtures.yml` (needs `--with-deps chromium`, sudo — CI
+  has it, this authoring sandbox doesn't; **not executed locally, CI-pending**, see design doc).
+- Rewrote the design doc, results doc, results JSON, and the Node test file's header comments to
+  accurately describe which tier proves what, and to stop overclaiming Pass 1's mirror-only result.
+- VAC-PA-001 sec 12.2: could not find this document anywhere in this repo checkout (searched
+  `docs/`, root, `HANDOFF.md` for the filename, `standards-drafts`, and all cited L-IDs) — the
+  design doc now says so explicitly instead of citing it as if it had been read.
 
-**2. Node test harness** (`tests/ceremony-gate-harness.test.js` — 23/23 PASS):
-- Source-anchor tests confirm injection seam + gate patterns present in shipped source
-- Constants extracted from source by name (drift-detects on source change)
-- Gate decision logic mirrored line-for-line with source-anchor strings
-- 8 phrase fixtures + 6 mic-qualify fixtures, all passing APCER/BPCER matrix
+### IOS_AMPLITUDE_CRUSH Bug — Confirmed (Node mirror tier; Playwright real-gate tier CI-pending)
 
-### IOS_AMPLITUDE_CRUSH Bug — Confirmed
+Root cause, verified independently by hand against `vac-reauth-ceremony.js` lines ~4863-4984 (not
+dependent on either test tier executing correctly): iOS WebKit crushes RMS to ~3% (0.031). Falls in
+the dead zone `VAD_SILENCE_RMS_FALLBACK (0.030) < 0.031 < VAD_SPEECH_RMS_FALLBACK (0.055)` — neither
+the silence branch nor the voiced branch fires. The starvation escape requires `_rms < 0.02`; not met
+at 0.031, so `_vadStarved` never arms and the spectral escape stays inactive. Phrase gate holds at 0
+voiced ticks forever.
 
-Test #13 `PHRASE [BUG REPRODUCED]: IOS_AMPLITUDE_CRUSH` PASSES (confirms bug).
+Results documented in `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` + `ceremony-harness-results-s164.json`
+— both now labeled by tier; **the Playwright real-gate tier has not run yet** (check
+`.github/workflows/ceremony-harness-fixtures.yml`'s status on this branch).
 
-Root cause: iOS WebKit crushes RMS to ~3% (0.031). Falls in dead zone (VAD_SILENCE=0.030, VAD_SPEECH=0.055). Neither branch fires. Starvation escape requires RMS < 0.02 — not met at 0.031. Phrase gate stuck at 0 ticks forever.
+### Files Created/Modified (this update, on top of Pass 1)
 
-Results documented in `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` + `ceremony-harness-results-s164.json`.
+- `vac-reauth-ceremony.js` — +6 more lines: `window.__vacTestAvAudioFill` seam in `runAVFrame`
+- `tests/ceremony-harness-fixtures.pw.js` — real-gate Playwright runner (NEW)
+- `.github/workflows/ceremony-harness-fixtures.yml` — Chromium CI job for the above (NEW)
+- `tests/ceremony-gate-harness.test.js` — header rewrite + 1 new source-anchor test (24 total)
+- `docs/strategic/F1139-HARNESS-DESIGN-S164.md` — architecture correction, honest VAC-PA-001 gap, verification-status section
+- `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` — tier labeling
+- `docs/strategic/ceremony-harness-results-s164.json` — `tier`/`tier_note` fields
 
-### Files Created/Modified
+### Next lane (genuinely out of scope here)
 
-- `vac-reauth-ceremony.js` — +8 lines injection seam
-- `tests/fixtures/ceremony-audio-fixtures.js` — fixture generator (NEW)
-- `tests/ceremony-gate-harness.test.js` — 23-test harness (NEW)
-- `docs/strategic/F1139-HARNESS-DESIGN-S164.md` — architecture + VAC-PA-001 binding (NEW)
-- `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` — APCER/BPCER matrix (NEW)
-- `docs/strategic/ceremony-harness-results-s164.json` — machine-readable results (NEW)
-- `.github/workflows/auth-fork-guard.yml` — +1 line CI integration
-
-### Phase 2 (next lane)
-
-Playwright test using `window.__vacTestAudioFill` to drive the REAL `_phraseVadTick` in live Chrome/WebKit. Fix gate first, then validate with this harness.
+The gate fix itself (see fix candidates in the results doc). Once a candidate lands, both existing
+test tiers validate it — no new harness infrastructure should be needed.
 
 ---
 

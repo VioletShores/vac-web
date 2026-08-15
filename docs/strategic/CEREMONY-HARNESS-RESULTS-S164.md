@@ -1,19 +1,28 @@
 # Ceremony Gate Harness — Results (S164)
 
-**Harness:** `tests/ceremony-gate-harness.test.js`  
+**Two test tiers — read this before citing either matrix:**
+
+| Tier | File | Status | What it proves |
+|------|------|--------|-----------------|
+| Node mirror (fast) | `tests/ceremony-gate-harness.test.js` | **25/25 PASS — executed in this review, real output below** | The mirrored decision logic, anchored to source constants/text, behaves as expected against the fixtures. Does NOT by itself prove the shipped `_phraseVadTick`/`runAVFrame` behave this way — see design doc's L-511/L-676 discussion. |
+| Playwright real-gate | `tests/ceremony-harness-fixtures.pw.js` | **NOT YET EXECUTED — CI-pending** (this sandbox has no root, cannot install headless Chromium's system libs) | Drives the actual unmodified gate functions via the F-1139 injection seam. This is the tier that closes the anti-trap gap. Check `.github/workflows/ceremony-harness-fixtures.yml`'s run status on this branch before treating it as confirmed. |
+
+The matrices below are the **Node mirror tier's** output (the only tier with real executed evidence
+as of this doc). Where the two tiers disagree once CI runs the Playwright tier, the Playwright tier
+is authoritative — it runs the real code.
+
 **Date:** 2026-08-16  
 **Sprint:** S164  
-**Refs:** F-1139, L-2503, L-2504, L-2505, VAC-PA-001 sec 12.2  
-**Tests run:** 23/23 PASS  
+**Refs:** F-1139, L-2503, L-2504, L-2505, VAC-PA-001 sec 12.2 (document not found in this repo checkout — see design doc)  
 **Gate version:** S164 sustained-voiced-run (L-2503/L-2504 fix applied)
 
-> **Methodological claim:** APCER/BPCER framing per ISO 30107-3 terminology.
+> **Methodological claim:** APCER/BPCER framing per ISO/IEC 30107-3 terminology.
 > NOT an ISO-certified evaluation. Signals are synthetic; no real-person audio used.
-> See VAC-PA-001 sec 12.2 and F1139-HARNESS-DESIGN-S164.md for scope and constraints.
+> See F1139-HARNESS-DESIGN-S164.md for scope, constraints, and the VAC-PA-001 citation gap.
 
 ---
 
-## PHRASE Gate Matrix (Greeting / Phrase Liveness)
+## PHRASE Gate Matrix (Greeting / Phrase Liveness) — Node mirror tier
 
 Gate: `_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED (7)` AND `mod >= PHRASE_MOD_DELTA (0.045)`
 
@@ -47,7 +56,7 @@ See root-cause section below. This is the S164 priority bug.
 
 ---
 
-## MIC-QUALIFY Gate Matrix (Preflight Mic Pill)
+## MIC-QUALIFY Gate Matrix (Preflight Mic Pill) — Node mirror tier
 
 Gate: Path A = `avVbSustain >= 25` (voice-band EMA sustained rise); Path B = `_micLoudFrames >= 3` with seed window protection.
 
@@ -113,14 +122,19 @@ All three candidates must be validated against the fixture suite before merging.
 
 ## JSON Output Reference
 
-Machine-readable results at `docs/strategic/ceremony-harness-results-s164.json`.
+Machine-readable results at `docs/strategic/ceremony-harness-results-s164.json` (Node mirror tier
+only — the `tier` field marks this; a Playwright-tier JSON export was not added in this lane since
+that tier hasn't executed yet).
 
 ---
 
 ## Test History
 
-| Run | Date | Tests | Result |
-|-----|------|-------|--------|
-| 1 | 2026-08-16 | 23 | 20/23 FAIL (fixture RMS design error) |
-| 2 | 2026-08-16 | 23 | 22/23 FAIL (avVbSustain cap too low: 25→35) |
-| 3 | 2026-08-16 | 23 | **23/23 PASS** |
+| Run | Date | Tier | Tests | Result |
+|-----|------|------|-------|--------|
+| 1 | 2026-08-16 | Node mirror | 23 | 20/23 FAIL (fixture RMS design error) |
+| 2 | 2026-08-16 | Node mirror | 23 | 22/23 FAIL (avVbSustain cap too low: 25→35) |
+| 3 | 2026-08-16 | Node mirror | 23 | **23/23 PASS** |
+| 4 | 2026-08-16 | Node mirror | 24 | **24/24 PASS** (re-verified after adding the AV mic-qualify injection seam + its source-anchor test — 23→24) |
+| 5 | 2026-08-16 | Node mirror | 25 | **25/25 PASS** (added VOICE_BAND_MIN_RATIO dual-declaration agreement test — a code-review finding: the constant is declared twice in source and the extractor only matched the first occurrence, 24→25) |
+| 6 | 2026-08-16 | Playwright real-gate | 15 | NOT RUN in this sandbox (see design doc "What Was and Wasn't Verified"); `--list` collection succeeds; a live run reaches and fails only at `browserType.launch` (missing system libs, no root) |

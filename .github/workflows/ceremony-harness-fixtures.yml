@@ -1,0 +1,41 @@
+name: ceremony-harness-fixtures
+# F-1139 S164: ceremony liveness gate harness — real-gate fixture runner (Playwright tier).
+# Complements tests/ceremony-gate-harness.test.js (fast Node mirror, runs in auth-fork-guard.yml)
+# with tests/ceremony-harness-fixtures.pw.js, which drives the ACTUAL production _phraseVadTick /
+# runAVFrame mic-qualify block in a real Chromium page via the F-1139 injection seam
+# (window.__vacTestAudioFill / window.__vacTestAvAudioFill in vac-reauth-ceremony.js) — see
+# docs/strategic/F1139-HARNESS-DESIGN-S164.md for why this second tier exists (L-511/L-676
+# anti-trap: a Node-only mirror can silently diverge from the shipped gate; this tier cannot).
+
+on:
+  push:
+    branches:
+      - task-f1139-ceremony-harness
+      - main
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'tests/ceremony-harness-fixtures.pw.js'
+      - 'tests/fixtures/ceremony-audio-fixtures.js'
+      - 'tests/fixtures/greeting-harness.html'
+  pull_request:
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'tests/ceremony-harness-fixtures.pw.js'
+      - 'tests/fixtures/ceremony-audio-fixtures.js'
+      - 'tests/fixtures/greeting-harness.html'
+
+jobs:
+  phrase-and-mic-qualify-fixtures:
+    name: 'Real-gate fixture runner (Playwright)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save @playwright/test
+          npx playwright install --with-deps chromium
+      - name: Run F-1139 real-gate fixture runner
+        run: npx playwright test tests/ceremony-harness-fixtures.pw.js --reporter=line

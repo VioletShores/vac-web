@@ -1357,7 +1357,10 @@ function startAVChecks() {
         if (avAnalyser) {
             if (avAudioCtx && avAudioCtx.state === 'suspended') avAudioCtx.resume();
             const dataArray = new Uint8Array(avAnalyser.fftSize);
-            avAnalyser.getByteTimeDomainData(dataArray);
+            const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
+            // F-1139 injection seam: synthetic fixture fills both AV buffers when set; live path unchanged.
+            if (typeof window.__vacTestAvAudioFill === 'function') { window.__vacTestAvAudioFill(dataArray, _fbuf); }
+            else { avAnalyser.getByteTimeDomainData(dataArray); avAnalyser.getByteFrequencyData(_fbuf); }
             let maxDev = 0;
             for (let i = 0; i < dataArray.length; i++) {
                 const dev = Math.abs(dataArray[i] - 128);
@@ -1394,9 +1397,7 @@ function startAVChecks() {
             // ambient-relative qualify check regardless of __vacGateArmed. bins 1-16 of 128
             // (fftSize 256 @ 48kHz, ~187Hz-3kHz) hold speech; a restaurant's clatter/HVAC floor
             // spreads flatter across the full spectrum, so this ratio separates "someone talking
-            // in a loud room" from "the room itself got louder."
-            const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
-            avAnalyser.getByteFrequencyData(_fbuf);
+            // in a loud room" from "the room itself got louder." (buffer filled above, alongside dataArray)
             let _speechRatio = 0;
             {
                 let _bandSum = 0, _totalSum = 0;

@@ -2,10 +2,13 @@
   "meta": {
     "sprint": "S164",
     "date": "2026-08-16",
+    "tier": "node_mirror",
+    "tier_note": "This file reports the FAST NODE MIRROR tier only (source-anchored reimplementation, not the real gate — see harness field). The real-gate tier is tests/ceremony-harness-fixtures.pw.js, which drives the actual _phraseVadTick/runAVFrame via the F-1139 injection seam in a real Chromium page; it was NOT executed in the authoring sandbox (no root, cannot install headless Chromium's system libs) and is CI-pending on .github/workflows/ceremony-harness-fixtures.yml. Do not treat this JSON as proof of the real gate's behavior.",
     "harness": "tests/ceremony-gate-harness.test.js",
+    "real_gate_harness_pending": "tests/ceremony-harness-fixtures.pw.js",
     "fixtures": "tests/fixtures/ceremony-audio-fixtures.js",
-    "tests_run": 23,
-    "tests_pass": 23,
+    "tests_run": 25,
+    "tests_pass": 25,
     "gate_version": "S164 sustained-voiced-run (L-2503/L-2504 fix)",
     "apcer_bpcer_claim": "methodologically-aligned, NOT ISO-certified"
   },
@@ -178,6 +181,7 @@
     "bugs_confirmed": ["IOS_AMPLITUDE_CRUSH"],
     "bpcer_risk_flagged": ["greeting_at_3m"],
     "apcer_exposure_documented": ["second_speaker"],
-    "next_lane": "F-1139 Phase 2 — fix gate, validate with this harness, add Playwright injection-seam test"
+    "real_gate_tier_status": "written, CI-pending — see tests/ceremony-harness-fixtures.pw.js and .github/workflows/ceremony-harness-fixtures.yml",
+    "next_lane": "Fix the gate (see phrase_gate.results[IOS_AMPLITUDE_CRUSH].fix_candidates), then validate with both existing test tiers — no new harness infrastructure needed"
   }
 }

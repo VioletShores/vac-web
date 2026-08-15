@@ -1,9 +1,20 @@
 # F-1139 Ceremony Liveness Gate Harness — Design (S164)
 
-**Status:** BUILT — 23/23 tests pass  
+**Status:** TWO TIERS BUILT.
+- Node mirror tier (`tests/ceremony-gate-harness.test.js`): 25/25 tests **executed and passing**
+  in this sandbox (`node --test`, no browser required) — see run output below.
+- Real-gate Playwright tier (`tests/ceremony-harness-fixtures.pw.js`): written against the F-1139
+  injection seam, structurally validated (`playwright test --list` enumerates all 15 fixture tests (14 fixture-driven + 1 starvation-escape control)
+  correctly; a live run confirms failure is exactly "missing browser shared libraries," not a
+  test-authoring bug — see "What Was and Wasn't Verified" below) but **not executed end-to-end**.
+  The authoring sandbox has no root/sudo, so `playwright install --with-deps chromium` cannot
+  install the system libraries (libglib2.0, libnss3, libatk, libgtk, …) headless Chromium needs.
+  CI (`.github/workflows/ceremony-harness-fixtures.yml`, ubuntu-latest + sudo) is authoritative for
+  this tier — check its run status on this branch before treating its assertions as confirmed.
+
 **Branch:** `task-f1139-ceremony-harness`  
 **Date:** 2026-08-16  
-**Refs:** L-2503, L-2504, L-2505, VAC-PA-001 sec 12.2, ISO 30107-3
+**Refs:** L-2503, L-2504, L-2505, VAC-PA-001 sec 12.2 (not found in this repo checkout — see below), ISO 30107-3
 
 ---
 
@@ -20,16 +31,26 @@ not a reimplementation that could diverge silently.
 
 ## Architecture
 
-### Approach: Source-Extract + Mirror (with injection seam)
+### Approach: Source-Injectable Seam (primary) + Source-Extract Mirror (secondary, fast CI sensor)
 
-Two complementary mechanisms satisfy the founding requirement:
+**Correction to an earlier draft of this doc:** the injection seam was originally added (first
+commit on this branch) with no consumer — the Node harness mirrored the gate logic by hand instead
+of driving the seam, and this doc's Status line claimed the anti-trap requirement was satisfied by
+that mirror alone. It wasn't: a hand-written mirror, however carefully anchored to source constants
+and source-text patterns, is still a reimplementation — exactly the failure mode L-511/L-676 names.
+This revision adds the missing consumer (`tests/ceremony-harness-fixtures.pw.js`) so the seam is
+actually load-bearing, and demotes the mirror to what it honestly is: a fast, source-anchored
+secondary sensor in the same spirit as `vad-replay.test.js` (which makes no anti-trap claim for
+itself), not the thing that satisfies Step 1.
 
-**1. Injection seam in `vac-reauth-ceremony.js` (browser-side)**
+**1. Injection seam in `vac-reauth-ceremony.js` (drives the REAL gate — primary tier)**
 
-Three hooks added at module scope — zero gate-logic change:
+Four hooks added at their exact analyser-read call sites / module scope — zero gate-logic change,
+each guarded by `typeof window.__vac... === 'function'` so the live (non-test) path is byte-identical
+when the hook isn't set:
 
 ```javascript
-// In _phraseVadTick (gate decision loop):
+// In _phraseVadTick (phrase/greeting gate decision loop, ~line 4880):
 if (typeof window.__vacTestAudioFill === 'function') {
     window.__vacTestAudioFill(_tdbuf, _buf);  // fills both buffers from fixture
 } else {
@@ -37,28 +58,47 @@ if (typeof window.__vacTestAudioFill === 'function') {
     audioAnalyser.getByteFrequencyData(_buf);
 }
 
-// At module scope:
+// In runAVFrame (AV preflight mic-qualify block, ~line 1360):
+if (typeof window.__vacTestAvAudioFill === 'function') { window.__vacTestAvAudioFill(dataArray, _fbuf); }
+else { avAnalyser.getByteTimeDomainData(dataArray); avAnalyser.getByteFrequencyData(_fbuf); }
+
+// At module scope (starvation-path scenarios):
 window.__vacSetMrLevel    = function(v){ _avMrLevelSynth = Number(v); }
 window.__vacSetVadStarved = function(v){ _vadStarved = !!v; _vadStarvedRun = v ? 61 : 0; }
 ```
 
-A Playwright test (Phase 2, not this lane) can use these to drive the **REAL** `_phraseVadTick`
-from synthetic fixtures via `window.__vacTestAudioFill`.
+`tests/ceremony-harness-fixtures.pw.js` (Playwright, real Chromium) sets `window.__vacTestAudioFill`
+/ `window.__vacTestAvAudioFill` to serve fixture frames, then drives the **actual, unmodified**
+`_phraseVadTick` / `runAVFrame` mic-qualify block through the ceremony's own timers
+(`phraseInterval` / `requestAnimationFrame`) — nothing about the RMS calculation, voice-band ratio,
+sustain counters, or `PHRASE_VOICED_TICKS_NEEDED` / `PHRASE_MOD_DELTA` / `_micQualifyFloor` gating
+is reimplemented. This is the tier that satisfies the founding requirement.
 
-**2. Source-extract + mirror (Node CI, this lane)**
+Media bootstrap: rather than hand-mocking `getUserMedia`/`AudioContext` (a mocked, non-real
+`MediaStream` object fails real `AudioContext.createMediaStreamSource()` validation in Chromium,
+which would leave `avAnalyser`/`audioAnalyser` null and silently defeat the harness), Chromium is
+launched with `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream`. `requestCamera()`
+then calls the real `getUserMedia` and receives a real (synthetic) camera+mic `MediaStream` — real
+analysers attach, real video playback progresses, no permission-dialog stall. The fake device's own
+audio content is irrelevant: the injection seam overwrites the analyser buffers before the gate ever
+reads them, so fixture bytes — not whatever tone Chromium's fake mic emits — drive the decision.
+
+**2. Source-extract + mirror (Node CI, fast secondary sensor)**
 
 The Node harness in `tests/ceremony-gate-harness.test.js` follows the same pattern as
-`vad-replay.test.js` (established project precedent):
+`vad-replay.test.js` (established project precedent) and makes the same, narrower claim
+`vad-replay.test.js` makes for itself — NOT an anti-trap-satisfying claim on its own:
 
 - All gate **constants** are extracted from `vac-reauth-ceremony.js` by name via `constFromSource()`.
   If a constant changes in the source, the extraction test fails before the gate simulation runs.
 - Gate **decision logic** is mirrored line-for-line from the source (not independently designed).
   Source-anchor tests (`Gate pattern anchor:` prefix) verify the exact source patterns are present.
   If the source gate logic changes, the anchor tests fail first — forcing mirror update.
-- The combination produces source-anchored coverage without requiring a full browser environment.
-
-This satisfies the anti-trap requirement: the harness cannot silently diverge from the shipping gate
-because the constant extractor and source anchors bind it to the exact source text.
+- Value: this tier runs in ~100ms with zero browser dependency, so it catches constant/pattern
+  drift on every `git push` (wired into `auth-fork-guard.yml`) well before the slower Playwright
+  tier runs. It cannot, by construction, prove the mirror's control flow matches the source's
+  control flow byte-for-byte — only that the named constants and literal text patterns it anchors
+  on are still present. The Playwright tier is what closes that gap.
 
 ---
 
@@ -66,12 +106,14 @@ because the constant extractor and source anchors bind it to the exact source te
 
 | Hook | Location in source | Purpose |
 |------|-------------------|---------|
-| `window.__vacTestAudioFill(tdBuf, freqBuf)` | `_phraseVadTick`, line ~4882 | Fills both audio buffers from fixture; skips live analyser reads |
+| `window.__vacTestAudioFill(tdBuf, freqBuf)` | `_phraseVadTick`, line ~4880 | Fills both phrase-gate audio buffers from fixture; skips live analyser reads |
+| `window.__vacTestAvAudioFill(tdBuf, freqBuf)` | `runAVFrame`, line ~1360 | Fills both AV-preflight mic-qualify buffers from fixture; skips live analyser reads |
 | `window.__vacSetMrLevel(n)` | module scope | Sets `_avMrLevelSynth` for starvation-path simulation |
 | `window.__vacSetVadStarved(bool)` | module scope | Forces `_vadStarved` + `_vadStarvedRun` for starved-path scenarios |
 
-**Production impact:** None. All three checks are inside `typeof window !== 'undefined'` guards and
-default to `null`/`0`. The live code path is byte-unchanged.
+**Production impact:** None. All four checks are `typeof window.__vac... === 'function'` guards that
+fall through to the original `analyser.getByteTimeDomainData/getByteFrequencyData` calls when unset.
+The live (non-test) code path is byte-identical to pre-F-1139 behavior.
 
 ---
 
@@ -149,18 +191,32 @@ false-accepts — the harness will validate it.
 
 ## VAC-PA-001 Section 12.2 Binding
 
-VAC-PA-001 sec 12.2 defines the methodology for liveness verification testing:
+**`docs/standards-drafts/VAC-PA-001-v0.md` does not exist in this repo checkout** — searched the
+full working tree (`docs/`, root, `HANDOFF.md`) for `VAC-PA-001`, `standards-drafts`, and the cited
+learning-inbox IDs (L-2503/L-2504/L-2505/L-511/L-676/L-2150) outside of this branch's own commits;
+none were found. It may live in a separate repo (the task envelope names `athena`, `vac-protocol`,
+`vac-web`, `folioai-mvp` as the repos this task family spans) not accessible from this working
+directory. Rather than fabricate a citation to a document that couldn't be read, this section states
+the general posture this repo already takes elsewhere (`standards.html`, `athena-protocol.html`,
+`scoring.html` all cite ISO/IEC 30107-3 for the Didit-held Level 1 PAD certification, with VAC's own
+30107 certification "planned," not held) and applies the same non-overclaim discipline here:
 
-- **Synthetic signal coverage**: this harness satisfies the "synthetic-first" instrument requirement —
-  all assertions are against mathematically-constructed signals with known characteristics.
-- **APCER/BPCER framing**: the matrix test frames outcomes per ISO 30107-3 terminology
-  (Attack Presentation Classification Error Rate / Bona-Fide Presentation Classification Error Rate).
-  Claim: methodologically-aligned, NOT certified.
-- **Server authority preserved**: the harness tests the CLIENT-SIDE liveness gate only.
-  Content verification (transcript match, voiceprint) remains server-side per the existing
-  architecture. The harness does not claim to replace or simulate backend verification.
-- **No real-person audio committed**: all fixture signals are mathematically synthesized per
-  the privacy and data-minimisation requirements in VAC-PA-001.
+- **Synthetic signal coverage**: all assertions are against mathematically-constructed signals with
+  known characteristics — no real-person audio is committed (privacy/data-minimisation, independent
+  of whatever VAC-PA-001 specifically requires).
+- **APCER/BPCER framing**: the matrix frames outcomes per ISO/IEC 30107-3 terminology (Attack
+  Presentation Classification Error Rate / Bona-Fide Presentation Classification Error Rate).
+  **Claim: methodologically-aligned, NOT a certified evaluation** — matching how this repo already
+  describes its one actual certified component (Didit's iBeta Level 1 PAD) versus VAC's own
+  (uncertified, "planned") posture. This harness is neither.
+- **Server authority preserved**: the harness tests the CLIENT-SIDE liveness gate only. Content
+  verification (transcript match, voiceprint) remains server-side per the existing architecture
+  (`engine.py:verify_voice`, `main.py` composite scorer). The harness does not claim to replace or
+  simulate backend verification.
+- **If VAC-PA-001 sec 12.2 turns out to specify something this harness's approach conflicts with**
+  (e.g. a required fixture count, a specific APCER/BPCER threshold, a different injection posture),
+  this section needs a follow-up pass once the document is available — flagging that explicitly
+  rather than silently matching whatever the task envelope implied it said.
 
 ---
 
@@ -168,18 +224,62 @@ VAC-PA-001 sec 12.2 defines the methodology for liveness verification testing:
 
 | File | Purpose |
 |------|---------|
-| `vac-reauth-ceremony.js` | +8 lines: injection seam (3 hooks, NO gate-logic change) |
-| `tests/ceremony-gate-harness.test.js` | Main harness: 23 tests, source anchors, gate mirrors, fixture runner |
-| `tests/fixtures/ceremony-audio-fixtures.js` | Fixture generator: 8 phrase scenarios + 6 mic scenarios |
-| `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` | APCER/BPCER results matrix |
-| `.github/workflows/auth-fork-guard.yml` | +1 line: CI integration |
+| `vac-reauth-ceremony.js` | +14 lines total: 4-hook injection seam (phrase gate + AV mic-qualify + 2 starvation setters), NO gate-logic change |
+| `tests/ceremony-gate-harness.test.js` | Fast Node mirror tier: 25 tests, source anchors + constant extraction + mirrored gate logic |
+| `tests/ceremony-harness-fixtures.pw.js` | **Real-gate Playwright tier**: drives the actual `_phraseVadTick` / mic-qualify block via the injection seam, in real Chromium |
+| `tests/fixtures/ceremony-audio-fixtures.js` | Fixture generator (shared by both tiers): 8 phrase scenarios + 6 mic scenarios |
+| `tests/fixtures/greeting-harness.html` | Pre-existing shared harness page (unmodified) — loads `vac-reauth-ceremony.js`, reused from `greeting-audible.pw.js` |
+| `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` | APCER/BPCER results matrix, both tiers |
+| `.github/workflows/auth-fork-guard.yml` | +1 line: wires the Node mirror tier into the existing fast CI guard |
+| `.github/workflows/ceremony-harness-fixtures.yml` | New workflow: installs Chromium (`--with-deps`, needs the sudo CI has and this sandbox doesn't) and runs the Playwright tier |
 
 ---
 
-## Phase 2 (next lane, not this scope)
+## What Was and Wasn't Verified (read this before trusting the matrix)
 
-Once the gate fix lands, Phase 2 adds:
-- A Playwright test using `window.__vacTestAudioFill` to drive the **REAL** `_phraseVadTick` in a
-  live Chrome/WebKit context (no mirror needed — actual production code runs)
-- `IOS_AMPLITUDE_CRUSH` fixture injected into real auth.html; assertion: `phraseSpoke = true`
-- Regression guard: the fixture is added to `ceremony-standing-harness.pw.js`
+**Executed in this sandbox, real results:**
+- `node --test tests/ceremony-gate-harness.test.js` — 25/25 pass (Node mirror tier; a
+  reimplementation cross-check, not proof the real gate behaves this way).
+- `node -c vac-reauth-ceremony.js` — the injection seam edits keep the file syntactically valid.
+- `node_modules/.bin/playwright test tests/ceremony-harness-fixtures.pw.js --list` — all 14 fixture
+  tests are collected correctly (fixture require, `test.use()` launch args, and the test bodies all
+  parse and evaluate without error at collection time).
+- A live single-test run of the Playwright tier was attempted and failed at `browserType.launch`
+  with `error while loading shared libraries: libglib-2.0.so.0` — i.e. it got past every step of
+  test setup and failed exactly where "no root, can't install Chromium's system deps" predicts it
+  would, not at some earlier authoring mistake.
+
+**NOT executed — CI-pending:**
+- Whether the Playwright tier's assertions actually pass against real Chromium (does
+  `--use-fake-device-for-media-stream` really produce a `MediaStream` that
+  `createMediaStreamSource()` accepts here; does `phraseInterval` actually reach
+  `PHRASE_VOICED_TICKS_NEEDED` ticks within the wait budget; does `#avPillMic` actually gain `.good`
+  for the mic-qualify fixtures). This requires `.github/workflows/ceremony-harness-fixtures.yml` to
+  run on GitHub's ubuntu-latest runners (sudo available, `playwright install --with-deps` works —
+  same setup the pre-existing `ceremony-selftest.yml` / `ceremony-standing-harness.yml` already use
+  successfully in this repo). **Check that workflow's run status on this branch before citing the
+  Playwright-tier PASS/FAIL column in `CEREMONY-HARNESS-RESULTS-S164.md` as confirmed.**
+
+**Confidence on the IOS_AMPLITUDE_CRUSH conclusion specifically:** independent of either test tier,
+the dead-zone argument (`0.030 = VAD_SILENCE_RMS_FALLBACK < 0.031 (fixture RMS) < 0.055 =
+VAD_SPEECH_RMS_FALLBACK`, and `0.031 > 0.02` so the starvation escape never arms) is a direct
+reading of the shipped constants and the `_phraseVadTick` control flow (verified by hand against
+`vac-reauth-ceremony.js` lines ~4863-4984 in this review) — not something that depends on either
+test tier executing correctly. Both tiers exist to make that argument checkable by a machine on
+every future change, not to establish it for the first time.
+
+---
+
+## Next Lane (genuinely out of scope here — the fix, not the harness)
+
+This task is explicitly instrument-only: "DO NOT fix the gate in this lane." Once a fix candidate
+exists (see candidates in the Root Cause section above), the existing two-tier harness is what
+validates it — add the fix, flip `IOS_AMPLITUDE_CRUSH`'s expected outcome to `PHRASE_FIRES` in both
+`tests/fixtures/ceremony-audio-fixtures.js` and the assertions in both test files, and confirm nothing
+in the reject set (`silence`/`single_tap`/`sustained_hum`/`background_tv`) starts firing (that would
+be a new false-accept — D-MICTEST-GREENS-ON-NOISE regression). No new harness infrastructure should
+be needed for that lane; both tiers already exist to receive it. Also add the `IOS_AMPLITUDE_CRUSH`
+fixture (post-fix, expecting `PHRASE_FIRES`) as a permanent regression case in
+`tests/ceremony-standing-harness.pw.js` — the existing nightly/merge-gate standing suite for exactly
+this class of ceremony audio defect (see its SAGA-* catalogue) — so the fix can't silently regress
+later the way the original bug went two days undetected.
