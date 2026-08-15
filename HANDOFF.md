@@ -1,3 +1,46 @@
+# VAC Web — HANDOFF (Session 29 → Session 30)
+> Updated: 15 Aug 2026 — BRANCH: task-greeting-diag-fe | S164 D-GREETING-CONTENT-GATE diagnostic FE | NO MERGE
+
+## S164 D-GREETING-CONTENT-GATE — Greeting Phrase STT Debug Logging
+
+**Branch:** `task-greeting-diag-fe` (NO MERGE — awaiting Rob test + backend task-857 confirmation)
+**Stamp bump:** `s163a → s164`
+**Date:** 2026-08-15
+
+### What Was Done
+
+Added `vacDebug('greeting_phrase_gate_attempt')` inside `_startPhraseContentGate`'s `onresult` handler in `vac-reauth-ceremony.js`. Logs per STT result:
+
+- `transcript` — raw STT string from browser SpeechRecognition (truncated to 300 chars)
+- `phrase_tokens` — the content words the gate checks against (server-generated greeting words)
+- `match` — boolean result of `_contentTranscriptMatchesPhrase(t, phraseTokens)`
+- `reason` — `token_match_gte_half` or `token_count_below_half`
+
+**Predicate computed once** (`var _phraseMatch = _contentTranscriptMatchesPhrase(...)`) — same value drives both the log and the gate. No re-evaluation per task constraint.
+
+**Gated on `_DEBUG_MODE` only** (`?debug=1`). POSTs to `/v1/auth/debug` via existing `vacDebug` sink. Zero production impact.
+
+### Test Steps for Rob
+
+1. Load `vacprotocol.org/auth?debug=1` (after branch merges to main — live stamp will show `s164`)
+2. Enter name + email → Continue → run quick-reauth
+3. When GREETING phase starts ("Say the phrase"), say the greeting phrase aloud
+4. In browser console, look for `[VAC-DBG] greeting_phrase_gate_attempt` entries showing transcript + match bool
+5. Backend: check `/v1/auth/debug` sink (task-857) — confirm rows arrive with `event: "greeting_phrase_gate_attempt"` and the transcript fields populated
+
+### Acceptance Criteria
+
+- `greeting_phrase_gate_attempt` rows appear in `/v1/auth/debug` with non-empty transcript
+- `match: false` rows reveal WHY the gate isn't firing (transcript content vs. token targets)
+- `match: true` row followed by `phrase_content_gate_matched` = gate fired correctly
+
+### Gates Passed
+
+- `/review` — PASS (no findings, quality score 10/10)
+- `/browse` — PASS (live site loads cleanly at `auth?debug=1`, debug events firing, no JS errors)
+
+---
+
 # VAC Web — HANDOFF (Session 28 → Session 29)
 > Updated: 11 Aug 2026 — ATTEST: task-718 L0 RESTORATION LANDED | pin t718 | receipt: fb9f3a35
 
