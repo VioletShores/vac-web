@@ -4942,15 +4942,25 @@ function _markSpeech(src, rms, onsetAt) {
                         try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
                     }
                 }
-                // D-VOICE-GATE-SPEAKER-AGNOSTIC: when content gate is available, energy alone
-                // does NOT set _phraseHeardVoice — content match (via _phraseContentMatched) does.
-                // Energy fallback: fire when content gate unavailable (Firefox / unsupported).
-                if (!_sessionGateAvail) {
-                    // Finding 2: require SUSTAINED voiced energy (~1.4s) AND modulation — so a single ~400ms
-                    // transient (cough/scrape) OR a flat continuous hum can't satisfy "greeting heard".
-                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
-                        _phraseHeardVoice = true;
+                // L-2503/L-2504 (Rob directive S164): the greeting gate is a LIVENESS gate, not a
+                // content gate. WHICH words were said is judged SERVER-SIDE (voiceprint + transcript);
+                // the frontend only needs to confirm the user is VOICING a phrase — enough to reject
+                // silence, taps, and background noise. Previously, when SR was available, energy alone
+                // did NOT advance — the code waited for a transcript token-match, which failed forever
+                // on proper-noun STT of the user's own name ("Zagarella") even though the mic, the
+                // voiced run, and the digit stage all worked. This is the SAME sustained-voiced-run
+                // gate the digit stage already uses to reject a tap (DIGIT_VOICE_MIN_MS): a real
+                // greeting is a sustained, MODULATED voiced run; a tap/hum/noise-rise is not.
+                //
+                // So: SUSTAINED MODULATED VOICED RUN is the primary gate on ALL paths. Content match,
+                // when the recognizer happens to fire, is kept only as an OPTIONAL fast-path (it lets
+                // a clearly-heard phrase advance a beat sooner) — never a REQUIREMENT. Server-side
+                // content verification of the recording remains the authority (security unchanged).
+                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
+                    if (!_phraseHeardVoice) {
+                        try { vacDebug('phrase_pass_on_voiced_run', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)), content_matched: !!_phraseContentMatched }); } catch(_) {}
                     }
+                    _phraseHeardVoice = true;
                 }
             } else if (_rms < VAD_SILENCE_RMS_FALLBACK) {
                 if (!_phraseHeardVoice) {
