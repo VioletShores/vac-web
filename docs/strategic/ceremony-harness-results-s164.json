@@ -1,0 +1,183 @@
+{
+  "meta": {
+    "sprint": "S164",
+    "date": "2026-08-16",
+    "harness": "tests/ceremony-gate-harness.test.js",
+    "fixtures": "tests/fixtures/ceremony-audio-fixtures.js",
+    "tests_run": 23,
+    "tests_pass": 23,
+    "gate_version": "S164 sustained-voiced-run (L-2503/L-2504 fix)",
+    "apcer_bpcer_claim": "methodologically-aligned, NOT ISO-certified"
+  },
+  "phrase_gate": {
+    "constants": {
+      "PHRASE_VOICED_TICKS_NEEDED": 7,
+      "PHRASE_MOD_DELTA": 0.045,
+      "VAD_SPEECH_RMS_FALLBACK": 0.055,
+      "VAD_SILENCE_RMS_FALLBACK": 0.030,
+      "VOICE_BAND_MIN_RATIO": 0.45,
+      "PHRASE_SILENCE_TICKS_NEEDED": 2
+    },
+    "results": [
+      {
+        "fixture": "clean_greeting",
+        "category": "bona_fide",
+        "rms_first_frame": 0.117,
+        "vb_ratio_first_frame": 0.85,
+        "voiced_ticks": 30,
+        "modulation": 0.047,
+        "outcome": "FIRES",
+        "expected": "FIRES",
+        "pass": true
+      },
+      {
+        "fixture": "silence",
+        "category": "reject",
+        "rms_first_frame": 0.0,
+        "vb_ratio_first_frame": 0.0,
+        "voiced_ticks": 0,
+        "modulation": -1,
+        "outcome": "STUCK",
+        "expected": "STUCK",
+        "pass": true
+      },
+      {
+        "fixture": "single_tap",
+        "category": "reject",
+        "rms_first_frame": 0.0,
+        "vb_ratio_first_frame": 0.0,
+        "voiced_ticks": 0,
+        "modulation": -1,
+        "outcome": "STUCK",
+        "expected": "STUCK",
+        "pass": true
+      },
+      {
+        "fixture": "sustained_hum",
+        "category": "reject",
+        "rms_first_frame": 0.094,
+        "vb_ratio_first_frame": 0.0,
+        "voiced_ticks": 0,
+        "modulation": -1,
+        "outcome": "STUCK",
+        "expected": "STUCK",
+        "pass": true,
+        "note": "High-amplitude hum blocked by VOICE_BAND_MIN_RATIO filter"
+      },
+      {
+        "fixture": "background_tv",
+        "category": "reject",
+        "rms_first_frame": 0.055,
+        "vb_ratio_first_frame": 0.082,
+        "voiced_ticks": 0,
+        "modulation": -1,
+        "outcome": "STUCK",
+        "expected": "STUCK",
+        "pass": true
+      },
+      {
+        "fixture": "second_speaker",
+        "category": "apcer_probe",
+        "rms_first_frame": 0.07,
+        "vb_ratio_first_frame": 0.833,
+        "voiced_ticks": 10,
+        "modulation": 0.0,
+        "outcome": "STUCK",
+        "expected": "DOCUMENTS_BEHAVIOR",
+        "pass": true,
+        "note": "Ticks accumulate but flat-amplitude fails modulation gate. Natural amplitude variation by a second speaker may pass — server content verification is authoritative defense."
+      },
+      {
+        "fixture": "greeting_at_3m",
+        "category": "bpcer_probe",
+        "rms_first_frame": 0.047,
+        "vb_ratio_first_frame": 0.85,
+        "voiced_ticks": 0,
+        "modulation": -1,
+        "outcome": "STUCK",
+        "expected": "DOCUMENTS_BEHAVIOR",
+        "pass": true,
+        "note": "RMS 0.047 < VAD_SPEECH 0.055. Legitimate user at 3m is blocked. BPCER risk documented."
+      },
+      {
+        "fixture": "IOS_AMPLITUDE_CRUSH",
+        "category": "bug",
+        "rms_first_frame": 0.031,
+        "vb_ratio_first_frame": 0.85,
+        "voiced_ticks": 0,
+        "modulation": -1,
+        "outcome": "STUCK",
+        "expected": "STUCK_BUG_REPRODUCED",
+        "pass": true,
+        "bug": true,
+        "bug_id": "D-GREETING-VAD-NOT-CONTENT",
+        "root_cause": "RMS 0.031 falls in dead zone (0.030=VAD_SILENCE < 0.031 < 0.055=VAD_SPEECH). Neither silence nor voiced branch fires. Starvation escape requires RMS < 0.02 (0.031 > 0.02 → starvation never detected). Gate holds at 0 ticks forever.",
+        "fix_candidates": [
+          "Lower VAD_SPEECH_RMS_FALLBACK from 0.055 to ~0.025",
+          "Lower starvation upper threshold from 0.02 to 0.04",
+          "Add voice-band-only tick path when vbRatio >= 0.45 regardless of amplitude"
+        ]
+      }
+    ]
+  },
+  "mic_qualify_gate": {
+    "constants": {
+      "MIC_LOUD_FRAMES_NEEDED": 3,
+      "AV_VB_SUSTAIN_NEEDED": 25,
+      "VOICE_BAND_MIN_RATIO": 0.45,
+      "SEED_WINDOW_MS": 1500
+    },
+    "results": [
+      {
+        "fixture": "clean_greeting",
+        "category": "bona_fide",
+        "outcome": "GREENS",
+        "expected": "MIC_GREENS",
+        "pass": true
+      },
+      {
+        "fixture": "silence",
+        "category": "reject",
+        "outcome": "RED",
+        "expected": "MIC_RED",
+        "pass": true
+      },
+      {
+        "fixture": "single_tap",
+        "category": "reject",
+        "outcome": "RED",
+        "expected": "MIC_RED",
+        "pass": true
+      },
+      {
+        "fixture": "sustained_hum",
+        "category": "apcer_probe",
+        "outcome": "DOCUMENTS_BEHAVIOR",
+        "expected": "DOCUMENTS_BEHAVIOR",
+        "pass": true,
+        "note": "Path A blocked (vbRatio=0). Path B may accumulate depending on seed window timing."
+      },
+      {
+        "fixture": "IOS_AMPLITUDE_CRUSH",
+        "category": "bug_probe",
+        "outcome": "DOCUMENTS_BEHAVIOR",
+        "expected": "DOCUMENTS_BEHAVIOR",
+        "pass": true,
+        "note": "At RMS=0.031, amplitude exceeds near-zero ambient floor → Path B may green. IOS crush bug may only affect phrase gate, not mic-qualify."
+      }
+    ]
+  },
+  "summary": {
+    "phrase_gate_correct_rejects": 5,
+    "phrase_gate_correct_fires": 1,
+    "phrase_gate_documented": 2,
+    "phrase_gate_bugs": 1,
+    "mic_qualify_correct_greens": 1,
+    "mic_qualify_correct_reds": 2,
+    "mic_qualify_documented": 2,
+    "bugs_confirmed": ["IOS_AMPLITUDE_CRUSH"],
+    "bpcer_risk_flagged": ["greeting_at_3m"],
+    "apcer_exposure_documented": ["second_speaker"],
+    "next_lane": "F-1139 Phase 2 — fix gate, validate with this harness, add Playwright injection-seam test"
+  }
+}

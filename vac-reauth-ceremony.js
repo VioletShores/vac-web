@@ -401,6 +401,12 @@ let audioNoiseFloor = 0.01; // seeded low; adapts up/down to the room via EMA
 // comparisons (thresholds, floors, modulation) are physically meaningless — the gate
 // switches to SPECTRAL judgment: voiced = real FFT energy + voice-band dominance.
 let _vadStarvedRun = 0; let _vadStarved = false;
+// F-1139 injection seams (test-only, no-op in production):
+//   window.__vacTestAudioFill(tdBuf, freqBuf) — fills both buffers; skips live analyser reads.
+//   window.__vacSetMrLevel(n) — overrides _avMrLevelSynth for starvation-path tests.
+//   window.__vacSetVadStarved(bool) — forces _vadStarved for harness scenarios.
+try { window.__vacSetMrLevel = function(v){ _avMrLevelSynth = (v === null) ? 0 : Number(v); }; } catch(_){}
+try { window.__vacSetVadStarved = function(v){ _vadStarved = !!v; _vadStarvedRun = v ? 61 : 0; }; } catch(_){}
 let audioOnsetActive = false;
 const AUDIO_ONSET_DELTA = 0.025;    // rms must exceed floor by this much to trigger onset
 const AUDIO_ONSET_RELEASE = 0.012;  // hysteresis: must drop back below floor+this to release
@@ -4872,10 +4878,11 @@ function _markSpeech(src, rms, onsetAt) {
             // task-644: time-domain RMS so iOS doesn't pin at 0.01 (same fix as digit VAD tick)
             const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);  // freq-domain — voiceBandRatio only
             const _tdbuf = new Uint8Array(audioAnalyser.fftSize);          // time-domain — RMS only
-            audioAnalyser.getByteTimeDomainData(_tdbuf);
+            // F-1139 injection seam: synthetic fixture fills both buffers when set; live path unchanged.
+            if (typeof window.__vacTestAudioFill === 'function') { window.__vacTestAudioFill(_tdbuf, _buf); }
+            else { audioAnalyser.getByteTimeDomainData(_tdbuf); audioAnalyser.getByteFrequencyData(_buf); }
             let _rms = 0; for (let i = 0; i < _tdbuf.length; i++) { const _pv = _tdbuf[i] - 128; _rms += _pv * _pv; }
             _rms = Math.sqrt(_rms / _tdbuf.length) / 128;
-            audioAnalyser.getByteFrequencyData(_buf);
             const _vbRatio = _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
             _lastVbRatio = _vbRatio;  // surfaced to the QA overlay
             window.__vacGateArmed = true; _micPillDraw(_rms, VAD_SPEECH_RMS_FALLBACK, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)

@@ -1,3 +1,51 @@
+# VAC Web — HANDOFF (Session 30 → Session 31)
+> Updated: 16 Aug 2026 — BRANCH: task-f1139-ceremony-harness | S164 F-1139 Phase 1 ceremony liveness gate harness | NO MERGE
+
+## S164 F-1139 Phase 1 — Ceremony Liveness Gate Harness
+
+**Branch:** `task-f1139-ceremony-harness` (NO MERGE — L-2499 walkthrough owed)
+**Date:** 2026-08-16
+**Refs:** L-2503, L-2504, L-2505, VAC-PA-001 sec 12.2
+
+### What Was Done
+
+Built the ceremony liveness gate test instrument per F-1139 spec. Two components:
+
+**1. Injection seam in `vac-reauth-ceremony.js`** (+8 lines, NO gate-logic change):
+- `window.__vacTestAudioFill(tdBuf, freqBuf)` — synthetic fixture fills both audio buffers in `_phraseVadTick`; live analyser path unchanged
+- `window.__vacSetMrLevel(n)` — overrides `_avMrLevelSynth` for starvation-path tests
+- `window.__vacSetVadStarved(bool)` — forces starvation state
+
+**2. Node test harness** (`tests/ceremony-gate-harness.test.js` — 23/23 PASS):
+- Source-anchor tests confirm injection seam + gate patterns present in shipped source
+- Constants extracted from source by name (drift-detects on source change)
+- Gate decision logic mirrored line-for-line with source-anchor strings
+- 8 phrase fixtures + 6 mic-qualify fixtures, all passing APCER/BPCER matrix
+
+### IOS_AMPLITUDE_CRUSH Bug — Confirmed
+
+Test #13 `PHRASE [BUG REPRODUCED]: IOS_AMPLITUDE_CRUSH` PASSES (confirms bug).
+
+Root cause: iOS WebKit crushes RMS to ~3% (0.031). Falls in dead zone (VAD_SILENCE=0.030, VAD_SPEECH=0.055). Neither branch fires. Starvation escape requires RMS < 0.02 — not met at 0.031. Phrase gate stuck at 0 ticks forever.
+
+Results documented in `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` + `ceremony-harness-results-s164.json`.
+
+### Files Created/Modified
+
+- `vac-reauth-ceremony.js` — +8 lines injection seam
+- `tests/fixtures/ceremony-audio-fixtures.js` — fixture generator (NEW)
+- `tests/ceremony-gate-harness.test.js` — 23-test harness (NEW)
+- `docs/strategic/F1139-HARNESS-DESIGN-S164.md` — architecture + VAC-PA-001 binding (NEW)
+- `docs/strategic/CEREMONY-HARNESS-RESULTS-S164.md` — APCER/BPCER matrix (NEW)
+- `docs/strategic/ceremony-harness-results-s164.json` — machine-readable results (NEW)
+- `.github/workflows/auth-fork-guard.yml` — +1 line CI integration
+
+### Phase 2 (next lane)
+
+Playwright test using `window.__vacTestAudioFill` to drive the REAL `_phraseVadTick` in live Chrome/WebKit. Fix gate first, then validate with this harness.
+
+---
+
 # VAC Web — HANDOFF (Session 29 → Session 30)
 > Updated: 15 Aug 2026 — BRANCH: task-greeting-diag-fe | S164 D-GREETING-CONTENT-GATE diagnostic FE | NO MERGE
 

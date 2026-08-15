@@ -14,3 +14,4 @@ jobs:
       - run: node --test tests/prompt-state.test.js
       - run: node --test tests/voice-content-gate.test.js
       - run: node --test tests/ceremony-conformance.test.js
+      - run: node --test tests/ceremony-gate-harness.test.js
