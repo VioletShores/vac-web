@@ -43,7 +43,7 @@ const { test, expect } = require('@playwright/test');
 const path = require('path');
 const { FIXTURES, MIC_FIXTURES } = require('./fixtures/ceremony-audio-fixtures');
 
-const HARNESS_URL = 'file://' + path.join(__dirname, 'fixtures', 'greeting-harness.html');
+const HARNESS_URL = 'file://' + path.join(__dirname, 'fixtures', 'greeting-harness.html') + '?debug=1';
 
 // Real fixture bootstrap needs more headroom than the 15s project default (camera grant + AV
 // settle + up to ~14s of 200ms phrase ticks per fixture).

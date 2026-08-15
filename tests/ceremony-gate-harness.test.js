@@ -236,9 +236,10 @@ function makePhraseVadState() {
             // would increment _vadStarvedRun — we don't track across sessions in this mirror
         }
 
-        // Spectral path (mirror of line ~4907-4911):
+        // Spectral path (mirror of t745/t735 — dead zone + starvation both route here):
         let _mb = 0; for (let i = 0; i < freqBuf.length; i++) _mb += freqBuf[i];
-        const _spectralVoiced = _vadStarved && (
+        const _deadZone = (_rms > VAD_SILENCE_RMS_FALLBACK) && (_rms < VAD_SPEECH_RMS_FALLBACK);
+        const _spectralVoiced = (_vadStarved || _deadZone) && (
             (_avMrLevelSynth >= 8) ||
             ((_mb / freqBuf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
         );
@@ -264,9 +265,9 @@ function makePhraseVadState() {
             if (_rms < phraseVoicedMin) phraseVoicedMin = _rms;
             if (_rms > phraseVoicedMax) phraseVoicedMax = _rms;
 
-            // Modulation check (mirror of line ~4959): sustained + modulated voiced run
+            // Modulation check: sustained + modulated voiced run; spectral path bypasses modulation
             const mod = phraseVoicedMax - phraseVoicedMin;
-            if (phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || mod >= PHRASE_MOD_DELTA)) {
+            if (phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || _spectralVoiced || mod >= PHRASE_MOD_DELTA)) {
                 phraseHeardVoice = true;
             }
         }
@@ -526,43 +527,31 @@ test('PHRASE [DOCUMENTS BEHAVIOR]: greeting_at_3m — records gate behavior at a
 
 // ── IOS_AMPLITUDE_CRUSH — PRIORITY bug fixture ───────────────────────────────
 
-test('PHRASE [BUG REPRODUCED]: IOS_AMPLITUDE_CRUSH — RMS~3% voice-band-healthy, gate STUCK (current FAIL expected)', () => {
-    // This test DOCUMENTS the bug. The IOS_AMPLITUDE_CRUSH fixture replicates Rob's 7:50
-    // screenshot: iOS WebKit crushes RMS to ~3% but voice-band spectral shape is preserved.
-    //
-    // Why it fails (gate logic trace):
-    //   _rms ≈ 0.033 → NOT > VAD_SPEECH_RMS_FALLBACK (0.055) → voiced branch doesn't fire
-    //   _vadStarved: starvation accumulator requires _rms < 0.02. At 3% (0.033 > 0.02),
-    //   _vadStarvedRun never increments → _vadStarved stays false → spectral path inactive
-    //   Dead zone: 0.02 < rms < 0.055 — neither silence nor voiced → held forever
-    //   phraseVoicedTicks never reaches PHRASE_VOICED_TICKS_NEEDED (7) → phraseSpoke = false
-    //
-    // Fix is in the NEXT lane. This fixture's FAIL outcome is the instrument proof.
+test('PHRASE [FIX VERIFIED]: IOS_AMPLITUDE_CRUSH — dead-zone voice-band path fires (RMS~3%, vbRatio healthy)', () => {
+    // t745/L-2505 fix: iOS crushes time-domain RMS to ~3% (0.031) but preserves spectral shape.
+    // The dead zone path (_deadZone = rms > VAD_SILENCE_RMS_FALLBACK && rms < VAD_SPEECH_RMS_FALLBACK)
+    // routes to the same spectral/MR check as the starvation escape — fires when vbRatio >= 0.45
+    // AND mean FFT bin >= 2 (voice-band energy present). Modulation check bypassed when _spectralVoiced.
 
     const fixture = FIXTURES.IOS_AMPLITUDE_CRUSH;
     const rms0    = rmsOfTdBuf(fixture.frames[0].tdBuf);
     const vbr0    = vbRatioOfFreqBuf(fixture.frames[0].freqBuf);
     const result  = runPhraseGate(fixture);
 
-    // Verify fixture parameters are correct (calibration check)
+    // Verify fixture parameters are correct (dead-zone calibration)
     assert.ok(rms0 < VAD_SPEECH_RMS_FALLBACK,
-        `IOS_AMPLITUDE_CRUSH: fixture RMS=${rms0.toFixed(3)} must be below VAD_SPEECH_RMS_FALLBACK=${VAD_SPEECH_RMS_FALLBACK}`);
-    assert.ok(rms0 > 0.02,
-        `IOS_AMPLITUDE_CRUSH: fixture RMS=${rms0.toFixed(3)} must be above 0.02 (starvation floor) — dead zone confirmed`);
+        `IOS_AMPLITUDE_CRUSH: fixture RMS=${rms0.toFixed(3)} must be below VAD_SPEECH_RMS_FALLBACK=${VAD_SPEECH_RMS_FALLBACK} (dead zone)`);
+    assert.ok(rms0 > VAD_SILENCE_RMS_FALLBACK,
+        `IOS_AMPLITUDE_CRUSH: fixture RMS=${rms0.toFixed(3)} must be above VAD_SILENCE_RMS_FALLBACK=${VAD_SILENCE_RMS_FALLBACK} (not silence)`);
     assert.ok(vbr0 >= VOICE_BAND_MIN_RATIO,
         `IOS_AMPLITUDE_CRUSH: voice-band ratio=${vbr0.toFixed(3)} must be >= ${VOICE_BAND_MIN_RATIO} (voice-band-healthy)`);
 
-    // The bug: phrase gate stays stuck despite healthy voice-band signature
-    assert.ok(!result.phraseSpoke,
-        `IOS_AMPLITUDE_CRUSH SHOULD BE STUCK (bug reproduced). If this fails, the fix may have landed — ` +
-        `verify the gate logic change and update this test to expect phraseSpoke=true.`);
-    assert.equal(result.phraseVoicedTicks, 0,
-        `IOS_AMPLITUDE_CRUSH: voiced tick count should be 0 — RMS ${rms0.toFixed(3)} sits in the dead zone ` +
-        `(> VAD_SILENCE_RMS_FALLBACK=${VAD_SILENCE_RMS_FALLBACK}, < VAD_SPEECH_RMS_FALLBACK=${VAD_SPEECH_RMS_FALLBACK})`);
-
-    // Confirm no silence-branch either (RMS slightly above silence threshold puts signal in neither band)
-    // This means the gate can hold indefinitely — a user talking in iOS-crushed mode never advances
-    // AND never sees recovery (phraseSilentRun never reaches SILENT_RECOVERY_TICKS either)
+    // Fix verified: dead-zone spectral path fires phraseSpoke
+    assert.ok(result.phraseSpoke,
+        `IOS_AMPLITUDE_CRUSH should fire phraseSpoke via dead-zone spectral path. ` +
+        `voicedTicks=${result.phraseVoicedTicks}, rms=${rms0.toFixed(3)}, vbr=${vbr0.toFixed(3)}`);
+    assert.ok(result.phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED,
+        `IOS_AMPLITUDE_CRUSH: expected >= ${PHRASE_VOICED_TICKS_NEEDED} voiced ticks, got ${result.phraseVoicedTicks}`);
 });
 
 test('PHRASE [STARVATION ESCAPE]: IOS_AMPLITUDE_CRUSH with _vadStarved=true AND MR level>=8 → gate fires', () => {
@@ -653,10 +642,10 @@ test('MATRIX: record APCER/BPCER classification for all phrase-gate fixtures', (
             `Liveness: ${name} must NOT fire phraseSpoke (non-bona-fide signal rejected)`);
     }
 
-    // IOS_AMPLITUDE_CRUSH: documents BPCER failure (currently fails — this is the bug)
-    assert.ok(!matrix.IOS_AMPLITUDE_CRUSH.phraseSpoke,
-        `IOS_AMPLITUDE_CRUSH BPCER failure confirmed: RMS=${matrix.IOS_AMPLITUDE_CRUSH.fixtureRms.toFixed(3)} ` +
-        `dead-zone rejection reproduces tonight's bug (fix in next lane)`);
+    // IOS_AMPLITUDE_CRUSH: dead-zone fix (t745) — bona-fide user must now fire
+    assert.ok(matrix.IOS_AMPLITUDE_CRUSH.phraseSpoke,
+        `IOS_AMPLITUDE_CRUSH: dead-zone fix must fire phraseSpoke. ` +
+        `RMS=${matrix.IOS_AMPLITUDE_CRUSH.fixtureRms.toFixed(3)} voice-band healthy → spectral path`);
 
     // Log full matrix for results doc
     // (visible in `node --test` output)

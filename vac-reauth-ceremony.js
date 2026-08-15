@@ -405,8 +405,8 @@ let _vadStarvedRun = 0; let _vadStarved = false;
 //   window.__vacTestAudioFill(tdBuf, freqBuf) — fills both buffers; skips live analyser reads.
 //   window.__vacSetMrLevel(n) — overrides _avMrLevelSynth for starvation-path tests.
 //   window.__vacSetVadStarved(bool) — forces _vadStarved for harness scenarios.
-try { window.__vacSetMrLevel = function(v){ _avMrLevelSynth = (v === null) ? 0 : Number(v); }; } catch(_){}
-try { window.__vacSetVadStarved = function(v){ _vadStarved = !!v; _vadStarvedRun = v ? 61 : 0; }; } catch(_){}
+try { if (_DEBUG_MODE) { window.__vacSetMrLevel = function(v){ _avMrLevelSynth = (v === null) ? 0 : Number(v); }; } } catch(_){}
+try { if (_DEBUG_MODE) { window.__vacSetVadStarved = function(v){ _vadStarved = !!v; _vadStarvedRun = v ? 61 : 0; }; } } catch(_){}
 let audioOnsetActive = false;
 const AUDIO_ONSET_DELTA = 0.025;    // rms must exceed floor by this much to trigger onset
 const AUDIO_ONSET_RELEASE = 0.012;  // hysteresis: must drop back below floor+this to release
@@ -1359,7 +1359,7 @@ function startAVChecks() {
             const dataArray = new Uint8Array(avAnalyser.fftSize);
             const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
             // F-1139 injection seam: synthetic fixture fills both AV buffers when set; live path unchanged.
-            if (typeof window.__vacTestAvAudioFill === 'function') { window.__vacTestAvAudioFill(dataArray, _fbuf); }
+            if (_DEBUG_MODE && typeof window.__vacTestAvAudioFill === 'function') { window.__vacTestAvAudioFill(dataArray, _fbuf); }
             else { avAnalyser.getByteTimeDomainData(dataArray); avAnalyser.getByteFrequencyData(_fbuf); }
             let maxDev = 0;
             for (let i = 0; i < dataArray.length; i++) {
@@ -4813,10 +4813,7 @@ function _markSpeech(src, rms, onsetAt) {
     let _phraseHeardVoice = false;
     let phraseSpoke = false;
     let _phraseHeardAt = 0;                            // F-563: when the greeting was HEARD — drives the "✓ Heard it" beat before advancing (digit parity)
-    // D-VOICE-GATE-SPEAKER-AGNOSTIC: phrase content gate state
-    let _phraseContentGate = null;
-    let _phraseContentMatched = false;
-    let _phraseHasTranscript = false;  // S161: true once SR produces any transcript (even non-matching)
+    let _phraseContentGate = null;  // cleanup handle — never started post-L-2505 liveness-only
     const GREET_HEARD_BEAT_MS = 800;                  // hold the greeting ✓ this long so the user KNOWS it registered, like a digit's ✓
     // F-563 (Finding 2): the on-device VAD is a PACING gate, NOT the security check — Gemini
     // server-side is the authoritative word verifier. The old ~400ms threshold (2 ticks) fired on a
@@ -4870,17 +4867,12 @@ function _markSpeech(src, rms, onsetAt) {
     function _phraseVadTick() {
         if (!audioAnalyser || phraseSpoke) return;
         _phraseAnalyserFrames++;   // S158: count live-analyser frames (greeting_audible health)
-        // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate sets _phraseContentMatched; tick reads it
-        if (_phraseContentMatched && !_phraseHeardVoice) {
-            _phraseHeardVoice = true;
-            try { vacDebug('phrase_content_matched', null, { ticks: _phraseVoicedTicks }); } catch(_) {}
-        }
         try {
             // task-644: time-domain RMS so iOS doesn't pin at 0.01 (same fix as digit VAD tick)
             const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);  // freq-domain — voiceBandRatio only
             const _tdbuf = new Uint8Array(audioAnalyser.fftSize);          // time-domain — RMS only
             // F-1139 injection seam: synthetic fixture fills both buffers when set; live path unchanged.
-            if (typeof window.__vacTestAudioFill === 'function') { window.__vacTestAudioFill(_tdbuf, _buf); }
+            if (_DEBUG_MODE && typeof window.__vacTestAudioFill === 'function') { window.__vacTestAudioFill(_tdbuf, _buf); }
             else { audioAnalyser.getByteTimeDomainData(_tdbuf); audioAnalyser.getByteFrequencyData(_buf); }
             let _rms = 0; for (let i = 0; i < _tdbuf.length; i++) { const _pv = _tdbuf[i] - 128; _rms += _pv * _pv; }
             _rms = Math.sqrt(_rms / _tdbuf.length) / 128;
@@ -4913,7 +4905,12 @@ function _markSpeech(src, rms, onsetAt) {
             // speech sits at meanBin 1-2; the >=3 floor was zeroing out TRUE speech in quiet rooms).
             if (_vadStarved && !_avMrFallback) { try { _startAvMrFallback(); } catch(_) {} }
             var _mb = 0; for (var _mi = 0; _mi < _buf.length; _mi++) _mb += _buf[_mi];
-            var _spectralVoiced = _vadStarved && (
+            // t745 (L-2505 IOS_AMPLITUDE_CRUSH fix): iOS crushes time-domain RMS to ~3% while preserving
+            // spectral shape. The dead zone (>silence floor, <speech threshold) with healthy voice-band
+            // signature routes to the t735 spectral/MR path — voiced ticks via voice-band+MR energy,
+            // not analyser RMS. Safe: vbRatio >= VOICE_BAND_MIN_RATIO still rejects hum/TV/broadband.
+            var _deadZone = (_rms > VAD_SILENCE_RMS_FALLBACK) && (_rms < VAD_SPEECH_RMS_FALLBACK);
+            var _spectralVoiced = (_vadStarved || _deadZone) && (
                 (_avMrLevelSynth >= 8) ||
                 ((_mb / _buf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
             );
@@ -4927,46 +4924,14 @@ function _markSpeech(src, rms, onsetAt) {
                 if (_speechSamples.length < _CAL_SPEECH_MAX) _speechSamples.push(_rms);
                 if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
                 if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
-                // S161: two distinct failure modes for the content gate:
-                //   gate-dead   = SR produced ZERO transcripts (device contention — Rob's case:
-                //                 analyser sees green meter but SR's own capture hears nothing).
-                //                 Escape at 1.0x IMMEDIATELY — no penalty; server verdict is still
-                //                 content authority on the recording (security unchanged).
-                //   mismatch    = SR is alive and produced transcripts but none matched the phrase.
-                //                 Keep 2x strictness — genuine wrong-content case.
-                // _vadStarved also escapes at 1.0x (pre-existing path: analyser itself unreliable).
-                var _phraseGateDead = !_phraseHasTranscript;
-                var _escapeMultiplier = (_vadStarved || _phraseGateDead) ? 1.0 : 2;
-                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * _escapeMultiplier) {
-                    _sessionGateAvail = false;
-                    if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
-                    if (_phraseGateDead && !_vadStarved) {
-                        try { vacDebug('phrase_gate_dead_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
-                    } else {
-                        try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
-                    }
-                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
-                        _phraseHeardVoice = true;
-                        try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
-                    }
-                }
-                // L-2503/L-2504 (Rob directive S164): the greeting gate is a LIVENESS gate, not a
-                // content gate. WHICH words were said is judged SERVER-SIDE (voiceprint + transcript);
-                // the frontend only needs to confirm the user is VOICING a phrase — enough to reject
-                // silence, taps, and background noise. Previously, when SR was available, energy alone
-                // did NOT advance — the code waited for a transcript token-match, which failed forever
-                // on proper-noun STT of the user's own name ("Zagarella") even though the mic, the
-                // voiced run, and the digit stage all worked. This is the SAME sustained-voiced-run
-                // gate the digit stage already uses to reject a tap (DIGIT_VOICE_MIN_MS): a real
-                // greeting is a sustained, MODULATED voiced run; a tap/hum/noise-rise is not.
-                //
-                // So: SUSTAINED MODULATED VOICED RUN is the primary gate on ALL paths. Content match,
-                // when the recognizer happens to fire, is kept only as an OPTIONAL fast-path (it lets
-                // a clearly-heard phrase advance a beat sooner) — never a REQUIREMENT. Server-side
-                // content verification of the recording remains the authority (security unchanged).
-                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
+                // L-2503/L-2504/L-2505 (Rob directive S164): the greeting gate is a pure LIVENESS gate.
+                // WHICH words were said is judged SERVER-SIDE (voiceprint + transcript); the frontend
+                // only needs to confirm the user is VOICING a phrase — enough to reject silence, taps,
+                // and background noise. Sustained modulated voiced run is the sole gate. Spectral/MR
+                // path (_spectralVoiced) bypasses the modulation check when amplitude is crushed (t745).
+                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || _spectralVoiced || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
                     if (!_phraseHeardVoice) {
-                        try { vacDebug('phrase_pass_on_voiced_run', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)), content_matched: !!_phraseContentMatched }); } catch(_) {}
+                        try { vacDebug('phrase_pass_on_voiced_run', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)), spectral: !!_spectralVoiced }); } catch(_) {}
                     }
                     _phraseHeardVoice = true;
                 }
@@ -5094,41 +5059,6 @@ function _markSpeech(src, rms, onsetAt) {
         var _eq = document.getElementById('vacEqGreeting'); if (_eq) _eq.style.display = audioAnalyser ? 'flex' : 'none';
     }
 
-    // D-VOICE-GATE-SPEAKER-AGNOSTIC: start phrase content gate (grabs key tokens from
-    // the challenge phrase — both the greeting word(s) and the digit set). Fires
-    // _phraseContentMatched = true when the transcript covers at least half the tokens.
-    // Stopped when phraseSpoke fires (content consumed) or recording ends.
-    if (_sessionGateAvail && PHRASE_DURATION > 0 && !_dropVoicePhrase) {
-        try {
-            var _phr = challengeData && (challengeData.phrase || '');
-            var _phrTokens = _phr.toLowerCase().split(/\s+/).filter(function(t){ return t.length >= 2; });
-            // Always include digit numerals as tokens (language-tolerant: "two" OR "2")
-            if (challengeData && challengeData.digits) {
-                challengeData.digits.forEach(function(d){ _phrTokens.push(String(d)); });
-            }
-            if (_phrTokens.length) {
-                _phraseContentGate = _startPhraseContentGate(_phrTokens, function() {
-                    _phraseContentMatched = true;
-                    if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; }
-                    try { vacDebug('phrase_content_gate_matched', null, { tokens: _phrTokens.length }); } catch(_) {}
-                }, function(fatalReason) {
-                    // S157: recognizer died mid-flight (network STT / restart failure) —
-                    // flip to the energy fallback exactly as the startup-failure path does.
-                    // Server-side content verification of the recording remains the authority.
-                    _sessionGateAvail = false;
-                    if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
-                    try { vacDebug('phrase_content_gate_fatal', String(fatalReason || 'fatal')); } catch(_) {}
-                }, function() {
-                    // S161: SR is alive and producing results — not gate-dead; mismatch path applies.
-                    _phraseHasTranscript = true;
-                });
-                // null return = runtime permission failure; disable content gate so _phraseVadTick
-                // energy fallback activates and the phrase step can still proceed (degraded mode).
-                if (!_phraseContentGate) { _sessionGateAvail = false; }
-            }
-        } catch(_) {}
-    }
-
     // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
     // NOTE: _setPhase(GREETING) is already called above in the initial render block
     // (before the first renderGreeting() call). It is NOT called here to avoid overwriting
@@ -5188,7 +5118,6 @@ function _markSpeech(src, rms, onsetAt) {
                 heard: phraseSpoke,
                 voiced_ticks: _phraseVoicedTicks,
                 analyser_frames: _phraseAnalyserFrames,
-                content_matched: _phraseContentMatched,
                 timed_out: !phraseSpoke && elapsedSec >= PHRASE_PHASE_MAX_S,
                 voice_skipped: !!window.__vacVoiceSkipped,
                 no_analyser: !audioAnalyser

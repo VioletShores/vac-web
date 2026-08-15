@@ -212,11 +212,14 @@ function greetingAt3m(nFrames) {
 //
 // Result: phraseVoicedTicks stays 0 forever → greeting stuck indefinitely.
 // THIS IS THE BUG. Fix is in the NEXT lane.
-// Expected test outcome: PHRASE_STUCK (current FAIL = bug reproduced)
+// Expected test outcome: PHRASE_FIRES (dead-zone fix t745: voice-band path active)
+// Silence tail: after the voiced segment, RMS drops to 0 → phraseSpoke fires when phraseHeardVoice
+// is already set (same structure as clean_greeting / greeting_at_3m).
 function iosAmplitudeCrush(nFrames) {
-    return Array.from({ length: nFrames }, () => ({
-        tdBuf:   makeTdBufRms(RMS_CRUSH),  // 0.031: dead zone confirmed
-        freqBuf: FREQ_VOICE,               // voice-band healthy: vbRatio ≈ 0.85
+    const N_VOICED = Math.min(35, Math.floor(nFrames * 0.7));
+    return Array.from({ length: nFrames }, (_, k) => ({
+        tdBuf:   makeTdBufRms(k < N_VOICED ? RMS_CRUSH : RMS_SIL),
+        freqBuf: k < N_VOICED ? FREQ_VOICE : FREQ_SILENT,
     }));
 }
 
@@ -254,7 +257,7 @@ module.exports = {
         background_tv:        annotate('background_tv',       backgroundTv(N_PHRASE_TICKS),     'PHRASE_STUCK'),
         second_speaker:       annotate('second_speaker',      secondSpeaker(N_PHRASE_TICKS),    'DOCUMENTS_BEHAVIOR'),
         greeting_at_3m:       annotate('greeting_at_3m',      greetingAt3m(N_PHRASE_TICKS),     'DOCUMENTS_BEHAVIOR'),
-        IOS_AMPLITUDE_CRUSH:  annotate('IOS_AMPLITUDE_CRUSH', iosAmplitudeCrush(N_PHRASE_TICKS),'PHRASE_STUCK'),
+        IOS_AMPLITUDE_CRUSH:  annotate('IOS_AMPLITUDE_CRUSH', iosAmplitudeCrush(N_PHRASE_TICKS),'PHRASE_FIRES'),
     },
 
     MIC_FIXTURES: {
