@@ -419,4 +419,24 @@ Rob hit a tangled cluster (needs careful evidence-led fix next session, NOT blin
 
 **Not found in accessible docs:** F-1037 and D-VERDICT-COMPOSITION (cited in the packet) don't appear in vac-web, vac-protocol, or athena's EXECUTION-DEBT.md/HANDOFF.md — only reachable via the Cowork/claude.ai layer this session can't read. Proceeded on the well-attested parts of the packet (D-VAC-VERIFY-COMPLEXITY-ROOT, the Skyssia telemetry fixture, which matched real backend data byte-for-byte) rather than blocking on unverifiable citations.
 
+## FLASH: [athena-exec] task-855 START (2026-08-15) — S164 D-GREETING-CONTENT-GATE DIAGNOSTIC WIRING ONLY (redispatch of 853, no gate behavior change), branch `task-greeting-diag`, NOT merged.
+
+**Why:** Rob's live test shows RMS rising and DIGIT stage working fine, but the GREETING phase (content-gated since D-VOICE-GATE-SPEAKER-AGNOSTIC, `vac-reauth-ceremony.js` ~line 3137) never fires "heard it." Two possible causes look identical from the outside: (a) SpeechRecognition never produces a transcript at all (recognizer dead), or (b) it produces transcripts but they don't match the greeting/name tokens (`_contentNormWord`/`_contentTranscriptMatchesPhrase`). We could not tell which without transcript-level telemetry, so this task adds READ-ONLY diagnostic logging — it does not touch matching, thresholds, or pass/fail.
+
+**What shipped (vac-web, commit `828d3dd`, this branch):**
+- `_debugPhraseMatchDetail()` (new, ~line 3299) — delegates the actual verdict to the existing `_contentTranscriptMatchesPhrase()` (never recomputes it, so the diagnostic can't drift from/lie about the real gate) and adds `matched_tokens`/`reason` detail.
+- Inside `_startPhraseContentGate`'s `rec.onresult` (~line 3341), gated behind the EXISTING `_DEBUG_MODE` (set true only when the page is loaded with `?debug=1`): on every SpeechRecognition result (interim + final) during the greeting, POSTs via the existing `vacDebug()` helper — event `greeting_content_gate_attempt` — with `{transcript, is_final, expected_tokens, matched, matched_tokens}` and a `reason` string (`empty_transcript` / `matched_N_of_M` / `below_threshold_N_of_M_required`).
+- `vacDebug()` already POSTs to `${API_BASE}/v1/auth/debug` (`https://vac-system-production.up.railway.app/v1/auth/debug`) — this task did NOT change that call, only added a new event type flowing through it.
+- Bumped `auth.html`'s cache-bust stamp: `/vac-reauth-ceremony.js?v=s163a` → `?v=s164`.
+
+**Backend gap found, NOT fixed in this repo:** `/v1/auth/debug` currently 404s in production, so none of this (or the pre-existing `phrase_content_gate_matched`/`greeting_audible` events) is landing anywhere. `backend/main.py` does not live in vac-web — spawned as sub-task **task-857** against repo `vac-protocol` to add the append-only sink + a scoped internal `GET /v1/auth/debug` (mirroring however `GET /v1/ceremony/telemetry`'s `x-admin-inspect-token` internal-read is protected, per line 24 above). Do not treat this FLASH as done until task-857 lands — the client-side logging is inert until the sink exists.
+
+**EXACT READ INSTRUCTIONS for Rob's next live test (once task-857 lands):**
+1. Go to `https://<deploy-host>/auth?debug=1` (or whatever host `auth.html` is served from) — this arms `_DEBUG_MODE`.
+2. Run the ceremony through the greeting phase (say the greeting, whether or not it fires "heard it").
+3. Pull the rows back out: `GET https://vac-system-production.up.railway.app/v1/auth/debug?event=greeting_content_gate_attempt&session_id=<VAC_DEBUG_SESSION from console>` (console logs `[VAC-DBG] greeting_content_gate_attempt ...` live too — `VAC_DEBUG_SESSION` is generated client-side per load, visible in devtools console, format `sess_xxxxxxxx_reauth`) with whatever internal-read header task-857 wires up (expected `x-admin-inspect-token`, matching the `/v1/ceremony/telemetry` pattern).
+4. Read each row's `context.transcript`: empty/absent across all rows for the session → recognizer is dead (STT never fired, case (a)); non-empty but `matched:false` with a `below_threshold_...` reason → recognizer works but transcript doesn't cover enough greeting/name tokens (case (b), and `context.matched_tokens` shows which tokens DID land).
+
+**No merge. Gates via `/review` — see review findings below this FLASH (self-review, 3 findings: 1 fixed — diagnostic now delegates to the real matcher instead of duplicating its threshold logic to avoid drift; 2 no-change-needed — intentional debug-gated transcript transmission, and a pre-existing test-scope note).**
+
 Gates: `node --check` + `check-auth-single-path.sh` + harness (7/7) + self-review + diff-scoped `/cso` pass, all green pre- and post-merge. No human test — harness is the confirmation, per the packet.
