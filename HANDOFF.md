@@ -1,7 +1,60 @@
-# VAC Web — HANDOFF (Session 30 → Session 31)
-> Updated: 16 Aug 2026 — BRANCH: task-f1139-ceremony-harness | S164 F-1139 Phase 1 ceremony liveness gate harness | NO MERGE
+# VAC Web — HANDOFF (Session 31 → Session 32)
+> Updated: 16 Aug 2026 — BRANCH: task-f1139-ceremony-harness | S164 F-1139 Phase 1 pass 3: SECURE SEAMS + FIX IOS_AMPLITUDE_CRUSH (s164c) | NO MERGE
 
-## S164 F-1139 Phase 1 — Ceremony Liveness Gate Harness
+## S164 F-1139 Phase 1 — Pass 3: Secure Seams + Fix IOS_AMPLITUDE_CRUSH (s164c)
+
+**Branch:** `task-f1139-ceremony-harness` — commit `34b8706` (pushed)
+**Date:** 2026-08-16
+**Refs:** D-HARNESS-INJECTION-UNGATED, L-2505, L-2503, L-2504
+
+### What Was Done (pass 3 — on top of passes 1 and 2)
+
+**PART A — P0 SECURE SEAMS (D-HARNESS-INJECTION-UNGATED):**
+All 4 injection hooks gated behind `_DEBUG_MODE` (checks `?debug=1` in URLSearchParams at module load):
+
+| Hook | Location | Was | Now |
+|---|---|---|---|
+| `window.__vacSetMrLevel` | line 408 | unconditional | `if (_DEBUG_MODE)` |
+| `window.__vacSetVadStarved` | line 409 | unconditional | `if (_DEBUG_MODE)` |
+| `__vacTestAvAudioFill` check | line 1362 | `typeof ... === 'function'` | `_DEBUG_MODE && typeof ...` |
+| `__vacTestAudioFill` check | line 4875 | `typeof ... === 'function'` | `_DEBUG_MODE && typeof ...` |
+
+In production: hooks not defined, console injection cannot affect gate. Playwright fixtures pass `?debug=1` via `HARNESS_URL`.
+CSO: VERIFIED FIXED. /review: CLEAR.
+
+**PART B — FIX IOS_AMPLITUDE_CRUSH + REMOVE ALL CONTENT-GATE PATHS:**
+- `_deadZone` variable: `(_rms > VAD_SILENCE_RMS_FALLBACK) && (_rms < VAD_SPEECH_RMS_FALLBACK)`
+- `_spectralVoiced` extended: `(_vadStarved || _deadZone) && (mr>=8 || (meanBin>=2 && vbRatio>=0.45))`
+- Modulation check now bypassed when `_spectralVoiced` (crushed iOS = constant amplitude)
+- Removed ALL content-gate paths (L-2505 completion): `_phraseContentMatched`, `_phraseHasTranscript`, content fast-path block, S161 escape block, `_startPhraseContentGate` startup block, `content_matched` from `greeting_audible` log
+- Greeting gate: pure liveness-only (sustained voiced run)
+- Stamp: `s164b → s164c`
+
+**Test matrix — 25/25 pass:**
+```
+clean_greeting      FIRES  rms=0.117 vbr=0.850 ticks=30 mod=0.0469
+silence             STUCK  rms=0.000 vbr=0.000 ticks=0  mod=-1
+single_tap          STUCK  rms=0.000 vbr=0.000 ticks=0  mod=-1
+sustained_hum       STUCK  rms=0.094 vbr=0.000 ticks=0  mod=-1
+background_tv       STUCK  rms=0.055 vbr=0.082 ticks=0  mod=-1
+second_speaker      STUCK  rms=0.070 vbr=0.833 ticks=10 mod=0
+greeting_at_3m      FIRES  rms=0.047 vbr=0.850 ticks=30 mod=0    (BPCER improvement)
+IOS_AMPLITUDE_CRUSH FIRES  rms=0.031 vbr=0.850 ticks=35 mod=0    (BUG FIXED)
+```
+Founding invariant holds: silence/tap/hum/tv ALL reject.
+
+### Gates: BOTH CLEAR
+
+- `/review`: No defects. Dead zone safety verified analytically and via test matrix.
+- `/cso`: CLEAR. No new attack surface. Seam fix eliminates the P0 liveness-bypass vector.
+
+### Next step
+
+Rob reviews green matrix + one live run on device. On Rob's green: merge to main.
+
+---
+
+## S164 F-1139 Phase 1 — Passes 1-2 (historical)
 
 **Branch:** `task-f1139-ceremony-harness` (NO MERGE — L-2499 walkthrough owed)
 **Date:** 2026-08-16
