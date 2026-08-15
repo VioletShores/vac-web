@@ -3312,7 +3312,20 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript
         try { if (onAnyTranscript) onAnyTranscript(); } catch(_) {}
         for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
             var t = evt.results[ri][0].transcript;
-            if (_contentTranscriptMatchesPhrase(t, phraseTokens)) {
+            // D-GREETING-CONTENT-GATE (S164): capture match result once so the same
+            // predicate value drives both the debug log and the gate — no re-evaluation.
+            var _phraseMatch = _contentTranscriptMatchesPhrase(t, phraseTokens);
+            if (_DEBUG_MODE) {
+                try {
+                    vacDebug('greeting_phrase_gate_attempt', null, {
+                        transcript: String(t).slice(0, 300),
+                        phrase_tokens: phraseTokens,
+                        match: _phraseMatch,
+                        reason: _phraseMatch ? 'token_match_gte_half' : 'token_count_below_half',
+                    });
+                } catch(_) {}
+            }
+            if (_phraseMatch) {
                 matched = true;
                 stopped = true;
                 try { rec.abort(); } catch(_) {}
