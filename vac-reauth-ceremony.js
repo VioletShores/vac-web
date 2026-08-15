@@ -3357,7 +3357,8 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript
                 try { onMatch(t); } catch(_) {}
                 return;
             }
-            // Non-matching transcript — discarded here, never stored (privacy rule)
+            // Non-matching transcript — discarded here, never stored (privacy rule).
+            // Exception: under ?debug=1, the greeting_content_gate_attempt block above logged it.
         }
     };
     rec.onerror = function(evt) {
@@ -5112,6 +5113,11 @@ function _markSpeech(src, rms, onsetAt) {
             // Always include digit numerals as tokens (language-tolerant: "two" OR "2")
             if (challengeData && challengeData.digits) {
                 challengeData.digits.forEach(function(d){ _phrTokens.push(String(d)); });
+            }
+            // S164 (task-greeting-diag): emit token list BEFORE any SR result arrives so Rob
+            // can confirm what the gate expects; complements greeting_content_gate_attempt rows.
+            if (_DEBUG_MODE) {
+                try { vacDebug('greeting_gate_arm', null, { phrase: String(_phr).slice(0, 200), tokens: _phrTokens, gate_avail: _sessionGateAvail }); } catch(_) {}
             }
             if (_phrTokens.length) {
                 _phraseContentGate = _startPhraseContentGate(_phrTokens, function() {
