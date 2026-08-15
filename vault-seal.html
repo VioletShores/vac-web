@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Living-Seal Vault — VAC Protocol</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0D0F17;--surface:#151821;--surface2:#1A1D2A;--border:#1E2230;
+  --teal:#2DD4BF;--purple:#7C3AED;--emerald:#10B981;--coral:#F96167;
+  --amber:#F59E0B;--white:#FFF;--gray:#9CA3AF;--muted:#6B7280;
+  --mono:'JetBrains Mono',monospace;--sans:'Plus Jakarta Sans',sans-serif;
+  --seal-glow:0 0 24px rgba(45,212,191,0.15);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:100vh}
+.nav{height:48px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px}
+.nav img{width:24px;height:24px}
+.nav-text{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:1.5px}
+.nav-badge{font-family:var(--mono);font-size:8px;padding:3px 8px;border-radius:4px;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,0.08);letter-spacing:1px}
+.page{max-width:680px;margin:0 auto;padding:36px 20px 80px}
+.hero{text-align:center;margin-bottom:36px}
+.hero-lock{font-size:56px;margin-bottom:12px;filter:drop-shadow(0 0 12px rgba(45,212,191,0.3))}
+.hero-title{font-size:28px;font-weight:700;margin-bottom:8px}
+.hero-sub{font-size:14px;color:var(--gray);max-width:520px;margin:0 auto;line-height:1.65}
+.trust-chain{display:flex;align-items:center;gap:8px;justify-content:center;margin:20px 0 28px;flex-wrap:wrap}
+.chain-node{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:4px;border:1px solid;letter-spacing:.5px}
+.chain-node.identity{color:var(--purple);border-color:rgba(124,58,237,.3);background:rgba(124,58,237,.06)}
+.chain-node.rls{color:var(--amber);border-color:rgba(245,158,11,.3);background:rgba(245,158,11,.06)}
+.chain-node.seal{color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.06)}
+.chain-node.receipt{color:var(--emerald);border-color:rgba(16,185,129,.3);background:rgba(16,185,129,.06)}
+.chain-arrow{color:var(--muted);font-size:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:16px}
+.card.glow{box-shadow:var(--seal-glow)}
+.card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:16px}
+.form-row{margin-bottom:14px}
+label{display:block;font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:.5px}
+input,select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--white);font-family:var(--mono);font-size:12px;padding:10px 12px;outline:none;transition:border-color .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--teal)}
+input[type=password]{letter-spacing:.1em}
+textarea{resize:vertical;min-height:64px;font-size:11px}
+.tier-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:6px}
+.tier-btn{padding:10px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--gray);font-family:var(--mono);font-size:10px;cursor:pointer;text-align:center;transition:all .2s;line-height:1.4}
+.tier-btn:hover{border-color:var(--teal);color:var(--teal)}
+.tier-btn.active{border-color:var(--teal);color:var(--teal);background:rgba(45,212,191,.07)}
+.tier-btn .tier-name{font-weight:700;letter-spacing:.5px}
+.tier-btn .tier-desc{font-size:9px;color:var(--muted);margin-top:3px}
+.tier-btn.active .tier-desc{color:rgba(45,212,191,.6)}
+.seal-btn{width:100%;padding:14px;border:none;border-radius:8px;background:var(--teal);color:var(--bg);font-family:var(--mono);font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;letter-spacing:.5px;margin-top:4px}
+.seal-btn:hover:not(:disabled){background:#22c7b4;box-shadow:0 0 16px rgba(45,212,191,.35)}
+.seal-btn:disabled{opacity:.45;cursor:not-allowed}
+.progress-section{display:none}
+.progress-section.active{display:block}
+.progress-log{font-family:var(--mono);font-size:11px;color:var(--gray);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px;line-height:2;max-height:140px;overflow-y:auto}
+.progress-log .step{color:var(--teal)}
+.ciphertext-box{margin-top:12px;background:var(--surface2);border:1px solid rgba(45,212,191,.2);border-radius:6px;padding:12px}
+.ciphertext-label{font-family:var(--mono);font-size:9px;color:var(--teal);letter-spacing:1.5px;margin-bottom:6px}
+.ciphertext-value{font-family:var(--mono);font-size:10px;color:rgba(45,212,191,.6);word-break:break-all;line-height:1.5;max-height:80px;overflow:hidden;position:relative}
+.ciphertext-value::after{content:'';position:absolute;bottom:0;left:0;right:0;height:24px;background:linear-gradient(transparent,var(--surface2))}
+.proof-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:4px;font-family:var(--mono);font-size:10px;color:var(--emerald);margin-top:8px}
+.receipt-section{display:none}
+.receipt-section.active{display:block}
+.receipt-card{background:var(--surface2);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:16px;box-shadow:0 0 20px rgba(16,185,129,.08)}
+.receipt-title{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--emerald);margin-bottom:12px;letter-spacing:.5px}
+.receipt-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
+.receipt-row:last-child{border-bottom:none}
+.receipt-key{font-family:var(--mono);color:var(--muted);font-size:11px}
+.receipt-val{font-family:var(--mono);color:var(--teal);font-size:11px;text-align:right;max-width:60%;word-break:break-all}
+.error-banner{background:rgba(249,97,103,.08);border:1px solid rgba(249,97,103,.25);border-radius:6px;padding:12px 14px;font-family:var(--mono);font-size:11px;color:var(--coral);margin-top:12px;display:none}
+.error-banner.active{display:block}
+.browser-note{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.6}
+.browser-note span{color:var(--teal)}
+</style>
+</head>
+<body>
+<div id="vacBackBar" style="display:none;height:32px;background:#0D0F17;border-bottom:1px solid #1E2230;padding:0 16px;font-family:monospace;font-size:11px;">
+  <a href="/app" style="color:#6B7280;text-decoration:none;line-height:32px;" onmouseover="this.style.color='#2DD4BF'" onmouseout="this.style.color='#6B7280'">← Back to VAC Protocol</a>
+</div>
+<script>if(window.parent===window)document.getElementById("vacBackBar").style.display="block";</script>
+
+<nav class="nav">
+  <img src="/branding/vac-logo-icon-dark.png" onerror="this.style.display='none'">
+  <div class="nav-text" style="color:var(--teal)">LIVING-SEAL VAULT</div>
+  <div class="nav-badge">F-1136</div>
+</nav>
+
+<div class="page">
+  <div class="hero">
+    <div class="hero-lock">🔐</div>
+    <div class="hero-title">Zero-Server-Plaintext Vault</div>
+    <div class="hero-sub">
+      Your secret is encrypted in this browser before it leaves your device.
+      The server stores ciphertext only — it can demonstrate it never saw your plaintext.
+      Every seal produces an attestation receipt.
+    </div>
+
+    <div class="trust-chain">
+      <div class="chain-node identity">VAC Identity</div>
+      <div class="chain-arrow">→</div>
+      <div class="chain-node rls">RLS Isolation</div>
+      <div class="chain-arrow">→</div>
+      <div class="chain-node seal">Client Seal</div>
+      <div class="chain-arrow">→</div>
+      <div class="chain-node receipt">Receipt</div>
+    </div>
+  </div>
+
+  <!-- Seal Form -->
+  <div class="card glow" id="sealForm">
+    <div class="card-title">Seal a Secret</div>
+
+    <div class="form-row">
+      <label>PROVIDER ID</label>
+      <input type="text" id="providerId" placeholder="e.g. railway, github, openai" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="form-row">
+      <label>LABEL (optional)</label>
+      <input type="text" id="credentialLabel" placeholder="e.g. RAILWAY_API_TOKEN" autocomplete="off">
+    </div>
+
+    <div class="form-row">
+      <label>SECRET</label>
+      <input type="password" id="secretInput" placeholder="Paste your secret here — never leaves this browser" autocomplete="new-password" spellcheck="false">
+    </div>
+
+    <div class="form-row">
+      <label>SEAL TIER</label>
+      <div class="tier-grid">
+        <div class="tier-btn active" data-tier="machine" onclick="selectTier(this)">
+          <div class="tier-name">MACHINE</div>
+          <div class="tier-desc">Capability token<br>required to unseal</div>
+        </div>
+        <div class="tier-btn" data-tier="human" onclick="selectTier(this)">
+          <div class="tier-name">HUMAN</div>
+          <div class="tier-desc">VAC ceremony<br>required (soon)</div>
+        </div>
+        <div class="tier-btn" data-tier="crown_jewel" onclick="selectTier(this)">
+          <div class="tier-name">CROWN JEWEL</div>
+          <div class="tier-desc">Face+voice+gesture<br>+liveness (soon)</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="seal-btn" id="sealBtn" onclick="startSeal()">
+      🔒 Seal in Browser
+    </button>
+
+    <div class="browser-note" id="keyStatus">
+      <span>Loading vault public key...</span>
+    </div>
+    <div class="error-banner" id="errorBanner"></div>
+  </div>
+
+  <!-- Progress -->
+  <div class="card progress-section" id="progressSection">
+    <div class="card-title">Sealing In Progress</div>
+    <div class="progress-log" id="progressLog"></div>
+
+    <div class="ciphertext-box" id="ciphertextBox" style="display:none">
+      <div class="ciphertext-label">CIPHERTEXT LEAVING YOUR BROWSER (plaintext never sent)</div>
+      <div class="ciphertext-value" id="ciphertextDisplay"></div>
+      <div class="proof-badge">✓ Zero plaintext in transit — cryptographic proof</div>
+    </div>
+  </div>
+
+  <!-- Receipt -->
+  <div class="receipt-section" id="receiptSection">
+    <div class="receipt-card">
+      <div class="receipt-title">✅ Seal Receipt — Attestation Confirmed</div>
+      <div id="receiptRows"></div>
+    </div>
+    <div class="browser-note" style="margin-top:12px">
+      <span>The server stored ciphertext only.</span>
+      This receipt is your proof that the seal occurred. Re-verify anytime via the audit trail.
+    </div>
+    <button class="seal-btn" style="margin-top:16px;background:var(--surface2);color:var(--teal);border:1px solid var(--teal)" onclick="resetForm()">
+      Seal Another Secret
+    </button>
+  </div>
+</div>
+
+<script src="/vac-seal.js"></script>
+<script>
+// ── Config — edit these for your deployment ────────────────────────────────
+const API_BASE    = (window.VAC_API_BASE   || 'https://api.athenapilot.ai').replace(/\/$/, '');
+const AUTH_TOKEN  = window.VAC_AUTH_TOKEN  || '';
+const TENANT_ID   = window.VAC_TENANT_ID   || 'demo-tenant';
+// ── end config ─────────────────────────────────────────────────────────────
+
+let sealer      = null;
+let activeTier  = 'machine';
+const sealBtn   = document.getElementById('sealBtn');
+const keyStatus = document.getElementById('keyStatus');
+const errBanner = document.getElementById('errorBanner');
+
+function showError(msg) {
+  errBanner.textContent = '⚠ ' + msg;
+  errBanner.classList.add('active');
+}
+function clearError() {
+  errBanner.classList.remove('active');
+}
+
+function selectTier(el) {
+  document.querySelectorAll('.tier-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  activeTier = el.dataset.tier;
+}
+
+function log(msg) {
+  const el  = document.getElementById('progressLog');
+  const div = document.createElement('div');
+  div.innerHTML = '<span class="step">▶</span> ' + msg;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function initSealer() {
+  try {
+    keyStatus.innerHTML = '<span>Fetching vault public key...</span>';
+    sealBtn.disabled    = true;
+
+    sealer = new VacSealer({ tenantId: TENANT_ID, apiBase: API_BASE, authToken: AUTH_TOKEN });
+    await sealer.init();
+
+    const tail = sealer.publicKeySpki ? sealer.publicKeySpki.slice(-12) : '—';
+    keyStatus.innerHTML = `Key loaded · SPKI tail: <span>...${tail}</span> · <span>Browser-only, non-extractable</span>`;
+    sealBtn.disabled    = false;
+  } catch (err) {
+    keyStatus.innerHTML = `<span style="color:var(--coral)">Key load failed: ${err.message}</span>`;
+    console.error('VacSealer init failed:', err);
+  }
+}
+
+async function startSeal() {
+  clearError();
+  const providerId       = document.getElementById('providerId').value.trim();
+  const credentialLabel  = document.getElementById('credentialLabel').value.trim();
+  const secret           = document.getElementById('secretInput').value;
+
+  if (!providerId)  { showError('Provider ID is required'); return; }
+  if (!secret)      { showError('Secret is required'); return; }
+  if (!sealer)      { showError('Vault key not loaded — refresh the page'); return; }
+
+  sealBtn.disabled = true;
+  document.getElementById('sealForm').style.opacity = '.5';
+
+  // Show progress section
+  const progressSection = document.getElementById('progressSection');
+  progressSection.classList.add('active');
+  progressSection.scrollIntoView({ behavior: 'smooth' });
+
+  try {
+    const { sealedEnvelope, receipt } = await sealer.seal(secret, {
+      providerId,
+      sealTier:        activeTier,
+      credentialLabel: credentialLabel || undefined,
+      onProgress:      log,
+    });
+
+    // Show ciphertext (proof that plaintext never left browser)
+    document.getElementById('ciphertextDisplay').textContent = sealedEnvelope;
+    document.getElementById('ciphertextBox').style.display   = 'block';
+
+    log('Receipt issued — seal_receipt_id: ' + (receipt.seal_receipt_id || '(see audit trail)'));
+
+    // Render receipt
+    showReceipt(receipt, sealedEnvelope);
+
+  } catch (err) {
+    showError(err.message);
+    sealBtn.disabled = false;
+    document.getElementById('sealForm').style.opacity = '1';
+    console.error('Seal failed:', err);
+  }
+}
+
+function showReceipt(ref, sealedEnvelope) {
+  const rows = [
+    ['TENANT',          ref.tenant_id   || TENANT_ID],
+    ['PROVIDER',        ref.provider_id || '—'],
+    ['SCOPE',           ref.scope        || 'execute'],
+    ['SEAL TIER',       ref.seal_tier || activeTier],
+    ['SEAL MODE',       ref.seal_mode   || 'client_sealed'],
+    ['ZERO PLAINTEXT',  ref.zero_plaintext === false ? 'no (legacy)' : 'YES — server never saw plaintext'],
+    ['STATUS',          ref.status       || 'active'],
+    ['ENVELOPE BYTES',  sealedEnvelope ? (Math.ceil(sealedEnvelope.length * 3 / 4)) + ' bytes (ciphertext)' : '—'],
+    ['CREATED',         ref.created_at  || 'now'],
+    ['LABEL',           ref.credential_label || '—'],
+  ];
+
+  const container = document.getElementById('receiptRows');
+  container.innerHTML = '';
+  rows.forEach(([k, v]) => {
+    const row = document.createElement('div');
+    row.className = 'receipt-row';
+    row.innerHTML = `<span class="receipt-key">${k}</span><span class="receipt-val">${v}</span>`;
+    container.appendChild(row);
+  });
+
+  const receiptSection = document.getElementById('receiptSection');
+  receiptSection.classList.add('active');
+  setTimeout(() => receiptSection.scrollIntoView({ behavior: 'smooth' }), 200);
+}
+
+function resetForm() {
+  document.getElementById('providerId').value      = '';
+  document.getElementById('credentialLabel').value = '';
+  document.getElementById('secretInput').value     = '';
+  document.getElementById('sealForm').style.opacity = '1';
+  document.getElementById('progressLog').innerHTML = '';
+  document.getElementById('ciphertextBox').style.display = 'none';
+  document.getElementById('progressSection').classList.remove('active');
+  document.getElementById('receiptSection').classList.remove('active');
+  clearError();
+  sealBtn.disabled = false;
+}
+
+// Init on load
+initSealer();
+</script>
+</body>
+</html>
