@@ -3292,6 +3292,27 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
     return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
 }
 
+// S164 (task-855/D-GREETING-CONTENT-GATE): diagnostic-only detail for the ?debug=1 sink,
+// explaining WHY a greeting transcript did or didn't match. Delegates the actual verdict to
+// _contentTranscriptMatchesPhrase (never recomputes the predicate) so this can't drift from —
+// or lie about — the real gate; it only adds the extra token/reason detail on top.
+function _debugPhraseMatchDetail(transcript, phraseTokens) {
+    var toks = phraseTokens || [];
+    var isMatch = _contentTranscriptMatchesPhrase(transcript, toks);
+    var norm = String(transcript || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    var words = norm.split(/\s+/).filter(Boolean);
+    var matchedTokens = [];
+    for (var ti = 0; ti < toks.length; ti++) {
+        var tok = String(toks[ti]).toLowerCase();
+        if (words.indexOf(tok) >= 0) matchedTokens.push(tok);
+    }
+    var required = Math.ceil(toks.length * 0.5);
+    var reason = !transcript ? 'empty_transcript'
+        : (isMatch ? 'matched_' + matchedTokens.length + '_of_' + toks.length
+                   : 'below_threshold_' + matchedTokens.length + '_of_' + required + '_required');
+    return { matched: isMatch, matched_tokens: matchedTokens, required: required, reason: reason };
+}
+
 // Starts a content gate for the greeting phrase. phraseTokens = key content words.
 // onAnyTranscript (S161): called once any SR result arrives (even non-matching / interim).
 // Caller uses this to distinguish gate-dead (zero transcripts) from content-mismatch.
@@ -3312,6 +3333,23 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript
         try { if (onAnyTranscript) onAnyTranscript(); } catch(_) {}
         for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
             var t = evt.results[ri][0].transcript;
+            // S164 (task-855): diagnostic-only, behind ?debug=1 — records the raw transcript,
+            // the expected match tokens, and the match verdict+reason for EVERY greeting SR
+            // result, so a live test can tell "STT never produced a transcript" apart from
+            // "transcript arrived but didn't match the name" (D-GREETING-CONTENT-GATE). Purely
+            // observational: does not touch the _contentTranscriptMatchesPhrase call below.
+            try {
+                if (_DEBUG_MODE) {
+                    var _dbgMatch = _debugPhraseMatchDetail(t, phraseTokens);
+                    vacDebug('greeting_content_gate_attempt', _dbgMatch.reason, {
+                        transcript: t,
+                        is_final: !!evt.results[ri].isFinal,
+                        expected_tokens: phraseTokens,
+                        matched: _dbgMatch.matched,
+                        matched_tokens: _dbgMatch.matched_tokens
+                    });
+                }
+            } catch(_) {}
             if (_contentTranscriptMatchesPhrase(t, phraseTokens)) {
                 matched = true;
                 stopped = true;
