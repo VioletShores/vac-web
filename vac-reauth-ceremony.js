@@ -4833,7 +4833,10 @@ function _markSpeech(src, rms, onsetAt) {
     // until we've actually heard the user speak it (pacing only — Gemini validates content).
     // Reuses the audioAnalyser from startAudioMonitor. W4.1 fallbacks (never hang): VAD
     // unavailable → timer; a hard safety cap so a silent/broken mic can't hold forever.
-    let _phraseVoicedTicks = 0;
+    // L-2503/L-2504 (S166): the run's ticks/min/max live in ONE tracker object — the same shape
+    // _voicedRunTick/_voicedRunPass (module scope) also drive for the mic preflight test, so both
+    // gates read the identical bookkeeping instead of two hand-maintained copies.
+    const _phraseVoicedState = _newVoicedRunState();
     let _phraseSilenceTicks = 0;
     let _phraseHeardVoice = false;
     let phraseSpoke = false;
@@ -4849,12 +4852,14 @@ function _markSpeech(src, rms, onsetAt) {
     // require ~1.4s of voiced energy AND that it actually varies (a flat hum has near-constant rms).
     // The spoken anchor is "[word], I am [name]" (first auth) or — in the F-648 seal gate — the
     // user saying their numbers (>=~1.5s either way), so this won't stall it. LIVE-TUNE.
-    const PHRASE_VOICED_TICKS_NEEDED = 7;             // ~1.4s of voiced energy (TICK_MS=200) — a real multi-word greeting, not a transient
-    const PHRASE_MOD_DELTA = 0.045;                  // modulation floor: the voiced run's rms range must exceed this (speech varies; a flat tone/hum doesn't). Best-effort — Gemini is authoritative.
+    // L-2503/L-2504 (S166): sourced from the shared module constants (VOICED_RUN_TICKS_NEEDED /
+    // VOICED_RUN_MOD_DELTA) — same names kept locally so the surrounding comments/call sites below
+    // read the same, but the VALUE is the shared one; it cannot drift from the mic test's copy.
+    const PHRASE_VOICED_TICKS_NEEDED = VOICED_RUN_TICKS_NEEDED;  // ~1.4s of voiced energy (TICK_MS=200) — a real multi-word greeting, not a transient
+    const PHRASE_MOD_DELTA = VOICED_RUN_MOD_DELTA;    // modulation floor: the voiced run's rms range must exceed this (speech varies; a flat tone/hum doesn't). Best-effort — Gemini is authoritative.
     const PHRASE_SILENCE_TICKS_NEEDED = 2;            // ~400ms end-pause = the greeting utterance is COMPLETE (not a mid-word dip)
     const SILENT_RECOVERY_TICKS = 28;                // ~5.6s of genuine near-silence (rms < VAD_SILENCE_RMS_FALLBACK) with NO voiced energy → surface the "we can't hear you" recovery (connected-but-silent mic), instead of silently holding to the hard cap. LIVE-TUNE.
     const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer — a final backstop so it can never hang
-    let _phraseVoicedMin = 1, _phraseVoicedMax = 0;   // rms range during the current voiced run (the modulation check)
     let _phraseSilentRun = 0;                         // consecutive near-silent ticks (the connected-but-silent-mic detector)
     let _phraseAnalyserFrames = 0;                    // S158: frames where audioAnalyser was live during greeting (self-audition sensor)
     // F-561 (S111): phraseSpoke = a COMPLETED greeting utterance — a sustained voiced run THEN
@@ -4898,7 +4903,7 @@ function _markSpeech(src, rms, onsetAt) {
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate sets _phraseContentMatched; tick reads it
         if (_phraseContentMatched && !_phraseHeardVoice) {
             _phraseHeardVoice = true;
-            try { vacDebug('phrase_content_matched', null, { ticks: _phraseVoicedTicks }); } catch(_) {}
+            try { vacDebug('phrase_content_matched', null, { ticks: _phraseVoicedState.ticks }); } catch(_) {}
         }
         try {
             // task-644: time-domain RMS so iOS doesn't pin at 0.01 (same fix as digit VAD tick)
@@ -4919,7 +4924,7 @@ function _markSpeech(src, rms, onsetAt) {
                 // first sustained voiced run. Collected passively (no blocking "getting ready" screen,
                 // no added latency: the user always takes a beat to start reading the greeting). Capped
                 // so a long pre-speech pause can't pile up; median (not mean) at finalize ignores a click.
-                if (!_phraseHeardVoice && _phraseVoicedTicks === 0 && _floorSamples.length < _CAL_FLOOR_MAX) _floorSamples.push(_rms);
+                if (!_phraseHeardVoice && _phraseVoicedState.ticks === 0 && _floorSamples.length < _CAL_FLOOR_MAX) _floorSamples.push(_rms);
                 // NOT in voice-only mode — there the user has no gesture phase to fall back on, so
                 // "skip voice" would leave nothing to verify; let voice-only hard-cap → fail → retry
                 // instead (codex). Finger mode can degrade to gesture-only, so the recovery applies.
@@ -4941,16 +4946,19 @@ function _markSpeech(src, rms, onsetAt) {
                 (_avMrLevelSynth >= 8) ||
                 ((_mb / _buf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
             );
-            if (_spectralVoiced || (_rms > VAD_SPEECH_RMS_FALLBACK && _vbRatio >= VOICE_BAND_MIN_RATIO)) {
+            const _voicedFrame = _spectralVoiced || (_rms > VAD_SPEECH_RMS_FALLBACK && _vbRatio >= VOICE_BAND_MIN_RATIO);
+            const _silenceFrame = _rms < VAD_SILENCE_RMS_FALLBACK;
+            // L-2503/L-2504 (S166): ONE shared tracker call — same _voicedRunTick the mic preflight
+            // test now drives too (runAVFrame). Decay only applies pre-heard, matching the prior
+            // "freeze the count once heard" behavior below.
+            _voicedRunTick(_phraseVoicedState, _rms, _voicedFrame, _silenceFrame && !_phraseHeardVoice);
+            if (_voicedFrame) {
                 // BUILD 379: same voice-band gate as the digit tick — amplitude alone isn't enough
                 // in a loud broadband room; a failing vbRatio falls through to the neither-band branch.
                 _phraseSilenceTicks = 0;
-                _phraseVoicedTicks++;
                 // F-595 (A3): the SPEECH sample — this user's greeting loudness on THIS mic+room.
                 // Median of the voiced run feeds the per-session threshold at phraseSpoke.
                 if (_speechSamples.length < _CAL_SPEECH_MAX) _speechSamples.push(_rms);
-                if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
-                if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
                 // S161: two distinct failure modes for the content gate:
                 //   gate-dead   = SR produced ZERO transcripts (device contention — Rob's case:
                 //                 analyser sees green meter but SR's own capture hears nothing).
@@ -4961,17 +4969,17 @@ function _markSpeech(src, rms, onsetAt) {
                 // _vadStarved also escapes at 1.0x (pre-existing path: analyser itself unreliable).
                 var _phraseGateDead = !_phraseHasTranscript;
                 var _escapeMultiplier = (_vadStarved || _phraseGateDead) ? 1.0 : 2;
-                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * _escapeMultiplier) {
+                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedState.ticks >= PHRASE_VOICED_TICKS_NEEDED * _escapeMultiplier) {
                     _sessionGateAvail = false;
                     if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
                     if (_phraseGateDead && !_vadStarved) {
-                        try { vacDebug('phrase_gate_dead_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                        try { vacDebug('phrase_gate_dead_escape', null, { voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)) }); } catch(_) {}
                     } else {
-                        try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                        try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)) }); } catch(_) {}
                     }
-                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
+                    if (_voicedRunPass(_phraseVoicedState, _vadStarved)) {
                         _phraseHeardVoice = true;
-                        try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
+                        try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedState.ticks }); } catch(_) {}
                     }
                 }
                 // L-2503/L-2504 (Rob directive S164): the greeting gate is a LIVENESS gate, not a
@@ -4988,26 +4996,26 @@ function _markSpeech(src, rms, onsetAt) {
                 // when the recognizer happens to fire, is kept only as an OPTIONAL fast-path (it lets
                 // a clearly-heard phrase advance a beat sooner) — never a REQUIREMENT. Server-side
                 // content verification of the recording remains the authority (security unchanged).
-                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
+                if (_voicedRunPass(_phraseVoicedState, _vadStarved)) {
                     if (!_phraseHeardVoice) {
-                        try { vacDebug('phrase_pass_on_voiced_run', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)), content_matched: !!_phraseContentMatched }); } catch(_) {}
+                        try { vacDebug('phrase_pass_on_voiced_run', null, { voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)), content_matched: !!_phraseContentMatched }); } catch(_) {}
                     }
                     _phraseHeardVoice = true;
                 }
-            } else if (_rms < VAD_SILENCE_RMS_FALLBACK) {
+            } else if (_silenceFrame) {
                 if (!_phraseHeardVoice) {
-                    // Not a sustained greeting yet — DECAY the voiced run so intermittent noise can't
-                    // accumulate across silences; reset the modulation window when it fully decays.
-                    _phraseVoicedTicks = Math.max(0, _phraseVoicedTicks - 1);
+                    // Not a sustained greeting yet — _voicedRunTick above already DECAYed the run so
+                    // intermittent noise can't accumulate across silences, and reset min/max once the
+                    // run fully decayed to 0.
                     // F-595 (anti-contamination): when a pre-greeting burst (cough/tap/TV/mic-test)
                     // fully decays to silence, drop its loud frames too — only the SUSTAINED run that
-                    // becomes the real greeting should feed the speech median. Mirrors the min/max reset.
-                    if (_phraseVoicedTicks === 0) { _phraseVoicedMin = 1; _phraseVoicedMax = 0; _speechSamples.length = 0; }
+                    // becomes the real greeting should feed the speech median.
+                    if (_phraseVoicedState.ticks === 0) { _speechSamples.length = 0; }
                 } else if (++_phraseSilenceTicks >= PHRASE_SILENCE_TICKS_NEEDED) {
                     // sustained, modulated voiced run THEN a real end-pause → utterance complete
                     try { var _lb=document.querySelector('.listening-banner,.phrase-status'); if(_lb) _lb.textContent='Heard you \u2713'; } catch(_) {}
                     phraseSpoke = true;
-                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)) }); } catch(_) {}
                     try { _finalizeCalibration(); } catch(_) {}   // F-595: the greeting just gave us floor + speech → set this session's digit-gate threshold
                 }
             }
@@ -5210,7 +5218,7 @@ function _markSpeech(src, rms, onsetAt) {
             // for the whole greeting (D-GREETING-ANALYSER-SILENT-ADVANCE regression class).
             try { vacDebug('greeting_audible', null, {
                 heard: phraseSpoke,
-                voiced_ticks: _phraseVoicedTicks,
+                voiced_ticks: _phraseVoicedState.ticks,
                 analyser_frames: _phraseAnalyserFrames,
                 content_matched: _phraseContentMatched,
                 timed_out: !phraseSpoke && elapsedSec >= PHRASE_PHASE_MAX_S,
@@ -5220,7 +5228,7 @@ function _markSpeech(src, rms, onsetAt) {
             // task-705: accumulate greeting sensor data for /v1/ceremony/telemetry beacon
             try { if (_DEBUG_MODE) {
                 _sessionTelemetry.greeting_audible = !!phraseSpoke;
-                _sessionTelemetry.voiced_ticks = _phraseVoicedTicks || 0;
+                _sessionTelemetry.voiced_ticks = _phraseVoicedState.ticks || 0;
                 _sessionTelemetry.analyser_frames = _phraseAnalyserFrames || 0;
                 try { _sessionTelemetry.audio_ctx_state = (audioContext ? audioContext.state : 'none'); } catch(_e) {}
             } } catch(_) {}
