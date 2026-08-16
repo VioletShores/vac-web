@@ -694,12 +694,10 @@ let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
 const AV_HAND_GRACE_MS = 3000; // F-929 (Rob, S147): bounded, VISIBLE grace after hand-drop so one-handed users can reach Start — honesty preserved by the on-chip countdown
 let _handGraceStartT = 0;      // F-929: timestamp when the current grace window opened (0 = not in grace)
-let _micLoudFrames = 0;   // F-755f: consecutive audio frames above the sustained-level threshold
+let _micVoicedState = _newVoicedRunState();  // L-2503/L-2504 (S166): the mic test's own voiced-run tracker — same shared shape/predicate the greeting gate uses (see VOICE_BAND_MIN_RATIO above)
 let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
-let _micRunLevels = [];    // T-329c: levels making up the CURRENT sustained >12% run
-let _micRunRatios = [];    // F-941: voice-band ratios paired frame-for-frame with _micRunLevels
-let _micRunStartT = 0;     // T-329c: performance.now() when the current run began
-let _micLastQualifyT = 0;  // T-329c: last time a qualifying (ambient-relative) run occurred — drives 10s regression
+let _micRunLevels = [];    // T-329c: levels making up the CURRENT qualifying voiced run (feeds the D-VAD-CALIBRATION-GREETING-BOUND seed median)
+let _micLastQualifyT = 0;  // T-329c: last time a qualifying (voiced-run) pass occurred — drives 10s regression
 let _micSeedLevels = [];   // GATE-343 f2: levels captured in the first 1.5s after mic-open, before any prompt
 let _micSeedStartT = 0;    // GATE-343 f2: performance.now() when seed collection began
 let _micSeededAmbient = 0; // GATE-343 f2: seeded ambient median — real floor when live pre-run history is thin/empty
@@ -757,6 +755,40 @@ let _micPreflightVadReason = null;  // last _micPreflightVad() null-return reaso
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
 // see the reduced ambient multiplier at the qualify check below.
 const VOICE_BAND_MIN_RATIO = 0.45; // S148 field-tune: Rob speaking on a London street read 52% — 0.55 missed real speech; street rumble dilutes the ratio.
+// L-2503/L-2504 (S166 D-MICTEST-GREENS-ON-NOISE, Rob's 3rd live specimen): the greeting liveness
+// gate (36e7c6d) already gates on a SUSTAINED, MODULATED, voice-band-dominant run — not a bare
+// energy-rise. The preflight mic test used a DIFFERENT, weaker bar (rise-above-slow-ambient /
+// rise-above-ambient-median) that a door slam, a cough, a TV, or a chair scrape also clears
+// (root cause: any of those rises above ambient too). ONE shared predicate now — _voicedRunTick
+// (per-frame bookkeeping) + _voicedRunPass (the pass/fail read) — called from BOTH the mic test
+// (runAVFrame) and the greeting gate (_phraseVadTick), so the two bars cannot drift apart again.
+const VOICED_RUN_TICKS_NEEDED = 7;   // mirrors PHRASE_VOICED_TICKS_NEEDED — ~1.4s of voiced energy at TICK_MS=200, a real utterance not a transient
+const VOICED_RUN_MOD_DELTA = 0.045;  // mirrors PHRASE_MOD_DELTA — the run's rms range must exceed this; a flat tone/hum/steady noise floor can't satisfy it
+const VOICED_RUN_SPEECH_RMS_FLOOR = 0.055;   // mirrors VAD_SPEECH_RMS_FALLBACK (ceremony-RMS scale — see D-VAD-UNITS above _micSeededAmbientRms) — the near-field amplitude gate; spectral shape alone (a far-field TV) isn't enough
+const VOICED_RUN_SILENCE_RMS_FLOOR = 0.030;  // mirrors VAD_SILENCE_RMS_FALLBACK — below this is genuine near-silence (decay); the gap between the two floors is the neutral "neither" band (hold)
+function _newVoicedRunState() { return { ticks: 0, min: 1, max: 0 }; }
+// One frame of evidence, in ceremony-RMS units (see D-VAD-UNITS above _micSeededAmbientRms): rms =
+// time-domain RMS, isVoicedFrame = near-field amplitude gate AND voice-band ratio both passed this
+// frame (or an already-proven starved-analyser fallback frame), isSilenceFrame = genuine near-
+// silence (below the silence floor). Ticks build on voiced frames, decay on silence frames, and
+// HOLD on neither (a brief mid-word formant dip can't reset an otherwise-real run).
+function _voicedRunTick(state, rms, isVoicedFrame, isSilenceFrame) {
+    if (isVoicedFrame) {
+        state.ticks++;
+        if (rms < state.min) state.min = rms;
+        if (rms > state.max) state.max = rms;
+    } else if (isSilenceFrame) {
+        state.ticks = Math.max(0, state.ticks - 1);
+        if (state.ticks === 0) { state.min = 1; state.max = 0; }
+    }
+    return state;
+}
+// modOverride: an already-proven voiced path (e.g. starved-analyser spectral/MediaRecorder proxy,
+// where amplitude itself is unreliable) skips the modulation check — mirrors the greeting gate's
+// pre-existing `_vadStarved ||` escape.
+function _voicedRunPass(state, modOverride) {
+    return state.ticks >= VOICED_RUN_TICKS_NEEDED && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
+}
 // SAGA-SILENT-06: OS-level mic privacy block / wrong device yields a live-but-silent track.
 // The analyser reads zeros continuously; all VAD thresholds fail; no sensor identified cause.
 // Fix: detect via frame counter, confirm via synthetic self-test, surface via first-class banner.
@@ -1254,11 +1286,9 @@ function startAVChecks() {
     avChecks = { face: false, light: false, mic: false, hand: false };
     _handStableFrames = 0;
     _handUnstableFrames = 0;
-    _micLoudFrames = 0;
+    _micVoicedState = _newVoicedRunState();
     _micLevelHistory = [];
     _micRunLevels = [];
-    _micRunRatios = [];
-    _micRunStartT = 0;
     _micLastQualifyT = 0;
     _micSeedLevels = [];
     _micSeedStartT = 0;
@@ -1492,13 +1522,14 @@ function startAVChecks() {
             var _t730Rise = (_avVbEma - _avVbSlow) >= 0.10;
             if (_speechRatio >= 0 && _avVbEma >= VOICE_BAND_MIN_RATIO && _t727Corrob && _t730Rise) { _avVbSustain++; }
             else if (_speechRatio >= 0) { _avVbSustain = Math.max(0, _avVbSustain - 1); }
-            if (_avVbSustain >= 25) {
-                _micLastQualifyT = performance.now();   // keep the 10s decay fed while speaking
-                if (!avChecks.mic) {
-                    setAVStatus('mic', 'good', 'Mic: working (voice detected)');
-                    avChecks.mic = true;
-                    updateAVReady();
-                }
+            // L-2503/L-2504 (S166 D-MICTEST-GREENS-ON-NOISE, Rob's 3rd live specimen): this rise-
+            // above-slow-ambient sustain is exactly the mechanism that greened on a door slam/cough/
+            // TV/chair scrape — ANY sound rises above ambient. Demoted to a mic-HEALTH indicator only
+            // ("a signal is reaching the analyser") — it must never set avChecks.mic. The shared
+            // _voicedRunTick/_voicedRunPass predicate below (same one the greeting gate uses) is the
+            // only thing allowed to green "Mic: working".
+            if (_avVbSustain >= 25 && !avChecks.mic) {
+                try { vacDebug('mic_signal_detected', null, { vb_ema: Number(_avVbEma.toFixed(3)) }); } catch(_) {}
             }
             // t725 display smoothing: EMA so the number is READABLE (was flickering per-chunk)
             _avLevelEma = Math.round(0.75 * _avLevelEma + 0.25 * level);
@@ -1531,77 +1562,52 @@ function startAVChecks() {
             }
             _micLevelHistory.push({ t: _nowT, level });
             while (_micLevelHistory.length && _micLevelHistory[0].t < _nowT - 2000) _micLevelHistory.shift();
-            // S429: collect relative to the SAME qualify floor the run is later judged against
-            // (_micQualifyFloor — ambient-relative, voice-band-aware), not a flat 12. The flat 12
-            // was an unreachable absolute for a voice-shaped run that qualifies from 8 (Rob at 9%
-            // outdoors never accumulated a single frame) — every frame below it was discarded and
-            // _micLoudFrames reset, so the lower qualify floor downstream was dead code. The strict
-            // 2x-ambient path for non-voice-shaped runs is unchanged (still floors at 12).
-            // Voice-shaped classification uses the RUN'S OWN accumulated ratio median once a run is
-            // underway (not just this single frame's instantaneous ratio) — the final qualify check
-            // already judges the whole run by its median ratio, so gating single frames on a noisy
-            // instantaneous sample let ordinary formant dips flip a frame to the stricter threshold
-            // mid-utterance and spuriously reset an otherwise-voiced run (codex adversarial review).
-            // A brand-new run (no ratio history yet) still decides on this frame's own ratio.
-            const _runRatioSoFar = _micRunRatios.length
-                ? _micRunRatios.slice().sort((a, b) => a - b)[Math.floor(_micRunRatios.length / 2)]
-                : _speechRatio;
-            if (level > _micQualifyFloor(_runRatioSoFar >= VOICE_BAND_MIN_RATIO)) {
-                if (_micLoudFrames === 0) _micRunStartT = _nowT;
-                _micLoudFrames++;
+            // L-2503/L-2504 (S166 D-MICTEST-GREENS-ON-NOISE): "Mic: working" must mean a REAL
+            // sustained, MODULATED, voice-band-dominant utterance was heard — the SAME
+            // _voicedRunTick/_voicedRunPass predicate the greeting gate uses (see VOICE_BAND_MIN_RATIO
+            // above) — never a bare rise above ambient (a door slam, cough, TV, or chair scrape rises
+            // above ambient too). _ceremonyRms is the near-field amplitude gate, in the SAME
+            // ceremony-RMS units as the greeting/digit gates (D-VAD-UNITS above _micSeededAmbientRms).
+            const _micVoicedFrame = (_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR);
+            const _micSilenceFrame = _ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR;
+            _voicedRunTick(_micVoicedState, _ceremonyRms, _micVoicedFrame, _micSilenceFrame);
+            if (_micVoicedFrame) {
+                // D-VAD-CALIBRATION-GREETING-BOUND: collect the CURRENT voiced run's levels so a
+                // passing run can seed the ceremony VAD from its median (below) — same intent as the
+                // old ambient-relative collector, now fed from the voiced run instead.
                 _micRunLevels.push(level);
-                _micRunRatios.push(_speechRatio);
                 _micRunRmsSamples.push(_ceremonyRms);  // D-VAD-UNITS: ceremony-scale twin, same qualifying run
-            } else {
-                _micLoudFrames = 0;
+            } else if (_micVoicedState.ticks === 0) {
+                // run fully decayed (genuine silence) — drop its samples, only a SUSTAINED run feeds
+                // the seed (mirrors the greeting gate's _speechSamples reset on full decay)
                 _micRunLevels = [];
-                _micRunRatios = [];
                 _micRunRmsSamples = [];
             }
-            if (_micLoudFrames >= 3 && _micSeeded) {
+            // S166 (lane 900 step 5, landed at merge): STUCK diagnostic with the SAME field shape as the
+            // pass diagnostic, throttled to ~1/s while the mic test is pending — field debugging of a
+            // mic test that never greens must show voiced_ticks/mod/vb_ratio/near-field, not amplitude.
+            if (!avChecks.mic && (_nowT - (window.__vacMicPendingT || 0)) > 1000) {
+                window.__vacMicPendingT = _nowT;
+                try { vacDebug('mic_qualify_pending', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)) }); } catch(_) {}
+            }
+            if (_micSeeded && _voicedRunPass(_micVoicedState, false)) {
                 // GATE-343 f2: hold qualification until the seed window has closed — a run
                 // completing WHILE seeding is still in progress means _micSeededAmbient is still
                 // 0 (unmeasured), which is exactly the "starting in noise" false-tick this fix
-                // targets. Withholding here means sustained ambient noise present at mic-open
-                // gets folded into _micSeededAmbient instead of slipping through on the raw floor.
-                const _ambient = _micLevelHistory.filter(e => e.t < _micRunStartT).map(e => e.level).sort((a, b) => a - b);
-                const _ambientMedian = _ambient.length ? _ambient[Math.floor(_ambient.length / 2)] : 0;
-                const _run = _micRunLevels.slice().sort((a, b) => a - b);
-                const _runMedian = _run[Math.floor(_run.length / 2)];
-                // GATE-343 f2: with no pre-run history (ceremony just started) _ambientMedian was
-                // defaulting to 0, so any 3-frame run trivially "qualified" even in sustained
-                // ambient noise. Floor the requirement at 2x the seeded startup ambient, and at an
-                // absolute minimum, so a run can't qualify against a bare 0 baseline.
-                // F-941 (BUILD 393): DUAL-PATH — a run whose energy sits mostly in the voice band
-                // (median speechRatio >= VOICE_BAND_MIN_RATIO) qualifies against a REDUCED 1.15x
-                // ambient multiplier instead of 2x, because voice-shaped energy shouldn't need to
-                // out-shout a restaurant's flat broadband floor. This is a substitution, not an
-                // added AND condition — a run that isn't voice-band-dominant still only needs the
-                // existing strict 2x path (unchanged), so loud non-speech rooms don't get easier.
-                const _ratioSorted = _micRunRatios.slice().sort((a, b) => a - b);
-                const _runRatioMedian = _ratioSorted.length ? _ratioSorted[Math.floor(_ratioSorted.length / 2)] : 0;
-                const _runVoiced = _runRatioMedian >= VOICE_BAND_MIN_RATIO;
-                const _ambientMult = _runVoiced ? 1.15 : 2;
-                // S429: seeded-ambient + floor term now lives in the shared _micQualifyFloor (also
-                // used by the collector gate above and the live meter), so this can't drift from
-                // what fed it. The local pre-run ambientMedian term is unchanged.
-                const _qualifyFloor = Math.max(_ambientMult * _ambientMedian, _micQualifyFloor(_runVoiced));
-                // t723: iOS-starved analyser reads ~1% amplitude even during live speech; voice-band
-                // energy present (_runVoiced) proves a working mic even when _runMedian <= floor.
-                if (_runMedian > _qualifyFloor || _runVoiced) {
-                    _micLastQualifyT = _nowT;
-                    if (_runMedian > _qualifyFloor) {
-                        // D-VAD-CALIBRATION-GREETING-BOUND: this run just proved it's THIS user's
-                        // speaking level over THIS room's ambient — persist it so the ceremony VAD
-                        // can arm from it (see _micPreflightVad).
-                        _micSeededSpeechLevel = _runMedian;
-                        const _runRmsSorted = _micRunRmsSamples.slice().sort((a, b) => a - b);
-                        _micSeededSpeechRms = _runRmsSorted.length ? _runRmsSorted[Math.floor(_runRmsSorted.length / 2)] : 0;  // D-VAD-UNITS: ceremony-scale twin of _runMedian, same run
-                    }
-                    if (!avChecks.mic) {
-                        setAVStatus('mic', 'good', 'Mic: working');
-                        avChecks.mic = true;
-                    }
+                // targets.
+                _micLastQualifyT = _nowT;
+                // D-VAD-CALIBRATION-GREETING-BOUND: this run just proved it's THIS user's speaking
+                // level over THIS room's ambient — persist it (median of the VOICED run, not a bare
+                // ambient-relative amplitude run) so the ceremony VAD can arm from it (see
+                // _micPreflightVad).
+                const _runLevelsSorted = _micRunLevels.slice().sort((a, b) => a - b);
+                if (_runLevelsSorted.length) _micSeededSpeechLevel = _runLevelsSorted[Math.floor(_runLevelsSorted.length / 2)];
+                const _runRmsSorted = _micRunRmsSamples.slice().sort((a, b) => a - b);
+                if (_runRmsSorted.length) _micSeededSpeechRms = _runRmsSorted[Math.floor(_runRmsSorted.length / 2)];
+                if (!avChecks.mic) {
+                    setAVStatus('mic', 'good', 'Mic: working');
+                    avChecks.mic = true;
+                    try { vacDebug('mic_pass_on_voiced_run', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)) }); } catch(_) {}
                 }
             }
             if (avChecks.mic && _nowT - _micLastQualifyT > 10000) {
@@ -2603,12 +2609,10 @@ function retryAVSetup() {
     // Stop existing checks (closes and nulls avAudioCtx)
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
-    _micLoudFrames = 0;
+    _micVoicedState = _newVoicedRunState();
     _micLevelHistory = [];
     _micRunLevels = [];
-    _micRunRatios = [];
-    _micRunRmsSamples = [];  // D-VAD-UNITS: ceremony-scale twin of _micRunLevels/_micRunRatios above — kept in lockstep
-    _micRunStartT = 0;
+    _micRunRmsSamples = [];
     _micLastQualifyT = 0;
     // task-724: re-create/resume avAudioCtx SYNCHRONOUSLY while still in the gesture handler —
     // stopAVChecks() just closed it; re-creating here (before getUserMedia) keeps us in the
@@ -3719,8 +3723,11 @@ function beginRecording() {
     // FALLBACK (used until the greeting phase calibrates, or if calibration can't run). The DIGIT
     // gate reads the per-session vadSpeechThreshold / vadSilenceThreshold derived from THIS user's
     // measured noise floor + greeting loudness. NO per-device constant is shipped.
-    const VAD_SPEECH_RMS_FALLBACK = 0.055;   // task-644: 0.115→0.085 for time-domain RMS scale (getByteTimeDomainData √mean((v-128)²)/128). S145 was freq-domain; time-domain speech at normal volume reads 0.05-0.25 so 0.085 is accessible without shouting.
-    const VAD_SILENCE_RMS_FALLBACK = 0.030;   // task-644: 0.085→0.030; time-domain ambient noise is 0.005-0.025 so 0.030 is below speech but above true silence. Hysteresis gap = "neither"; onset gate unchanged.
+    // L-2503/L-2504 (S166): sourced from the shared module constants (VOICED_RUN_SPEECH_RMS_FLOOR /
+    // VOICED_RUN_SILENCE_RMS_FLOOR) — the mic preflight test reads the SAME values, so the two
+    // gates cannot drift apart.
+    const VAD_SPEECH_RMS_FALLBACK = VOICED_RUN_SPEECH_RMS_FLOOR;   // task-644: 0.115→0.085 for time-domain RMS scale (getByteTimeDomainData √mean((v-128)²)/128). S145 was freq-domain; time-domain speech at normal volume reads 0.05-0.25 so 0.085 is accessible without shouting.
+    const VAD_SILENCE_RMS_FALLBACK = VOICED_RUN_SILENCE_RMS_FLOOR;   // task-644: 0.085→0.030; time-domain ambient noise is 0.005-0.025 so 0.030 is below speech but above true silence. Hysteresis gap = "neither"; onset gate unchanged.
     // R1 (S114): the digit sustained-voice gate is TIME-based, not a frame count. The old
     // `voiced >= VAD_SPEECH_FRAMES(6)` measured rAF FRAMES, whose wall-clock varies by display
     // refresh (6 frames = ~100ms@60Hz but ~50ms@120Hz). It's gone; DIGIT_VOICE_MIN_MS (below) is
@@ -4849,7 +4856,10 @@ function _markSpeech(src, rms, onsetAt) {
     // until we've actually heard the user speak it (pacing only — Gemini validates content).
     // Reuses the audioAnalyser from startAudioMonitor. W4.1 fallbacks (never hang): VAD
     // unavailable → timer; a hard safety cap so a silent/broken mic can't hold forever.
-    let _phraseVoicedTicks = 0;
+    // L-2503/L-2504 (S166): the run's ticks/min/max live in ONE tracker object — the same shape
+    // _voicedRunTick/_voicedRunPass (module scope) also drive for the mic preflight test, so both
+    // gates read the identical bookkeeping instead of two hand-maintained copies.
+    const _phraseVoicedState = _newVoicedRunState();
     let _phraseSilenceTicks = 0;
     let _phraseHeardVoice = false;
     let phraseSpoke = false;
@@ -4865,8 +4875,11 @@ function _markSpeech(src, rms, onsetAt) {
     // require ~1.4s of voiced energy AND that it actually varies (a flat hum has near-constant rms).
     // The spoken anchor is "[word], I am [name]" (first auth) or — in the F-648 seal gate — the
     // user saying their numbers (>=~1.5s either way), so this won't stall it. LIVE-TUNE.
-    const PHRASE_VOICED_TICKS_NEEDED = 7;             // ~1.4s of voiced energy (TICK_MS=200) — a real multi-word greeting, not a transient
-    const PHRASE_MOD_DELTA = 0.045;                  // modulation floor: the voiced run's rms range must exceed this (speech varies; a flat tone/hum doesn't). Best-effort — Gemini is authoritative.
+    // L-2503/L-2504 (S166): sourced from the shared module constants (VOICED_RUN_TICKS_NEEDED /
+    // VOICED_RUN_MOD_DELTA) — same names kept locally so the surrounding comments/call sites below
+    // read the same, but the VALUE is the shared one; it cannot drift from the mic test's copy.
+    const PHRASE_VOICED_TICKS_NEEDED = VOICED_RUN_TICKS_NEEDED;  // ~1.4s of voiced energy (TICK_MS=200) — a real multi-word greeting, not a transient
+    const PHRASE_MOD_DELTA = VOICED_RUN_MOD_DELTA;    // modulation floor: the voiced run's rms range must exceed this (speech varies; a flat tone/hum doesn't). Best-effort — Gemini is authoritative.
     const PHRASE_SILENCE_TICKS_NEEDED = 2;            // ~400ms end-pause = the greeting utterance is COMPLETE (not a mid-word dip)
     const SILENT_RECOVERY_TICKS = 28;                // ~5.6s of genuine near-silence (rms < VAD_SILENCE_RMS_FALLBACK) with NO voiced energy → surface the "we can't hear you" recovery (connected-but-silent mic), instead of silently holding to the hard cap. LIVE-TUNE.
     const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer — a final backstop so it can never hang
@@ -4881,7 +4894,6 @@ function _markSpeech(src, rms, onsetAt) {
         phrase_phase_max_s: PHRASE_PHASE_MAX_S,
         mode: (CTX && CTX.profile && CTX.profile.mode) || 'full'
     }); } catch(_) {}
-    let _phraseVoicedMin = 1, _phraseVoicedMax = 0;   // rms range during the current voiced run (the modulation check)
     let _phraseSilentRun = 0;                         // consecutive near-silent ticks (the connected-but-silent-mic detector)
     let _phraseAnalyserFrames = 0;                    // S158: frames where audioAnalyser was live during greeting (self-audition sensor)
     // S166 sensors §5: state the 2s greeting heartbeat reads — updated every _phraseVadTick call
@@ -4932,7 +4944,7 @@ function _markSpeech(src, rms, onsetAt) {
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate sets _phraseContentMatched; tick reads it
         if (_phraseContentMatched && !_phraseHeardVoice) {
             _phraseHeardVoice = true;
-            try { vacDebug('phrase_content_matched', null, { ticks: _phraseVoicedTicks }); } catch(_) {}
+            try { vacDebug('phrase_content_matched', null, { ticks: _phraseVoicedState.ticks }); } catch(_) {}
         }
         try {
             // task-644: time-domain RMS so iOS doesn't pin at 0.01 (same fix as digit VAD tick)
@@ -4958,7 +4970,7 @@ function _markSpeech(src, rms, onsetAt) {
                 // first sustained voiced run. Collected passively (no blocking "getting ready" screen,
                 // no added latency: the user always takes a beat to start reading the greeting). Capped
                 // so a long pre-speech pause can't pile up; median (not mean) at finalize ignores a click.
-                if (!_phraseHeardVoice && _phraseVoicedTicks === 0 && _floorSamples.length < _CAL_FLOOR_MAX) _floorSamples.push(_rms);
+                if (!_phraseHeardVoice && _phraseVoicedState.ticks === 0 && _floorSamples.length < _CAL_FLOOR_MAX) _floorSamples.push(_rms);
                 // NOT in voice-only mode — there the user has no gesture phase to fall back on, so
                 // "skip voice" would leave nothing to verify; let voice-only hard-cap → fail → retry
                 // instead (codex). Finger mode can degrade to gesture-only, so the recovery applies.
@@ -4985,25 +4997,21 @@ function _markSpeech(src, rms, onsetAt) {
                 (_avMrLevelSynth >= 8) ||
                 ((_mb / _buf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
             );
-            // S166 archaeology §3 fix: the greeting tick used to admit ONLY via _spectralVoiced (the
-            // 12s-latched starvation path, see above) or a raw _rms compare against the HARDCODED
-            // VAD_SPEECH_RMS_FALLBACK constant — never the arm-time calibrated vadSpeechThreshold or
-            // the floor-relative audioNoiseFloor the DIGIT gate reads (task-722, line ~3999). That's
-            // why digits pass on a starved iOS analyser (0.005-0.009 rms) and the greeting never did.
-            // Port the SAME admit predicate here (_phraseAmpThr computed above, same value the meter
-            // line now draws at) — VAD_SPEECH_RMS_FALLBACK only backstops vadSpeechThreshold when
-            // arm-time calibration never ran (_calIsFallback), since that derived floor+delta value
-            // rests on the default 0.01 floor stub rather than a real measurement in that case.
-            if (_spectralVoiced || (_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > audioNoiseFloor || _vadStarved))) {
+            // S166 archaeology §3 fix (merged with L-2503/L-2504 shared tracker): the greeting tick used
+            // to admit ONLY via _spectralVoiced or a raw _rms compare against the HARDCODED
+            // VAD_SPEECH_RMS_FALLBACK — never the arm-time calibrated threshold or the floor-relative
+            // audioNoiseFloor the DIGIT gate reads (task-722). Same admit predicate as digits here;
+            // ONE shared voiced-run tracker (_voicedRunTick) that the mic pre-check drives too.
+            const _voicedFrame = _spectralVoiced || (_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > audioNoiseFloor || _vadStarved));
+            const _silenceFrame = _rms < VAD_SILENCE_RMS_FALLBACK;
+            _voicedRunTick(_phraseVoicedState, _rms, _voicedFrame, _silenceFrame && !_phraseHeardVoice);
+            if (_voicedFrame) {
                 // BUILD 379: same voice-band gate as the digit tick — amplitude alone isn't enough
                 // in a loud broadband room; a failing vbRatio falls through to the neither-band branch.
                 _phraseSilenceTicks = 0;
-                _phraseVoicedTicks++;
                 // F-595 (A3): the SPEECH sample — this user's greeting loudness on THIS mic+room.
                 // Median of the voiced run feeds the per-session threshold at phraseSpoke.
                 if (_speechSamples.length < _CAL_SPEECH_MAX) _speechSamples.push(_rms);
-                if (_rms < _phraseVoicedMin) _phraseVoicedMin = _rms;   // track the run's range for the modulation check
-                if (_rms > _phraseVoicedMax) _phraseVoicedMax = _rms;
                 // S161: two distinct failure modes for the content gate:
                 //   gate-dead   = SR produced ZERO transcripts (device contention — Rob's case:
                 //                 analyser sees green meter but SR's own capture hears nothing).
@@ -5014,17 +5022,17 @@ function _markSpeech(src, rms, onsetAt) {
                 // _vadStarved also escapes at 1.0x (pre-existing path: analyser itself unreliable).
                 var _phraseGateDead = !_phraseHasTranscript;
                 var _escapeMultiplier = (_vadStarved || _phraseGateDead) ? 1.0 : 2;
-                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * _escapeMultiplier) {
+                if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedState.ticks >= PHRASE_VOICED_TICKS_NEEDED * _escapeMultiplier) {
                     _sessionGateAvail = false;
                     if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_e) { _reportLoopError('phraseVadTick.contentGateStop', _e); } _phraseContentGate = null; }
                     if (_phraseGateDead && !_vadStarved) {
-                        try { vacDebug('phrase_gate_dead_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                        try { vacDebug('phrase_gate_dead_escape', null, { voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)) }); } catch(_) {}
                     } else {
-                        try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                        try { vacDebug('phrase_content_gate_nomatch_escape', null, { voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)) }); } catch(_) {}
                     }
-                    if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
+                    if (_voicedRunPass(_phraseVoicedState, _vadStarved)) {
                         _phraseHeardVoice = true;
-                        try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
+                        try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedState.ticks }); } catch(_) {}
                         // S166 UX HONESTY (F-1025): this IS a pass — liveness confirmed; the words are judged
                         // server-side (L-2503). Never render it as a fail note. Say what happened.
                         try { var _lbE=document.querySelector('.listening-banner,.phrase-status'); if(_lbE) _lbE.textContent='Heard you \u2014 moving to the numbers'; } catch(_) {}
@@ -5044,26 +5052,26 @@ function _markSpeech(src, rms, onsetAt) {
                 // when the recognizer happens to fire, is kept only as an OPTIONAL fast-path (it lets
                 // a clearly-heard phrase advance a beat sooner) — never a REQUIREMENT. Server-side
                 // content verification of the recording remains the authority (security unchanged).
-                if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
+                if (_voicedRunPass(_phraseVoicedState, _vadStarved)) {
                     if (!_phraseHeardVoice) {
-                        try { vacDebug('phrase_pass_on_voiced_run', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)), content_matched: !!_phraseContentMatched }); } catch(_) {}
+                        try { vacDebug('phrase_pass_on_voiced_run', null, { voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)), content_matched: !!_phraseContentMatched }); } catch(_) {}
                     }
                     _phraseHeardVoice = true;
                 }
-            } else if (_rms < VAD_SILENCE_RMS_FALLBACK) {
+            } else if (_silenceFrame) {
                 if (!_phraseHeardVoice) {
-                    // Not a sustained greeting yet — DECAY the voiced run so intermittent noise can't
-                    // accumulate across silences; reset the modulation window when it fully decays.
-                    _phraseVoicedTicks = Math.max(0, _phraseVoicedTicks - 1);
+                    // Not a sustained greeting yet — _voicedRunTick above already DECAYed the run so
+                    // intermittent noise can't accumulate across silences, and reset min/max once the
+                    // run fully decayed to 0.
                     // F-595 (anti-contamination): when a pre-greeting burst (cough/tap/TV/mic-test)
                     // fully decays to silence, drop its loud frames too — only the SUSTAINED run that
-                    // becomes the real greeting should feed the speech median. Mirrors the min/max reset.
-                    if (_phraseVoicedTicks === 0) { _phraseVoicedMin = 1; _phraseVoicedMax = 0; _speechSamples.length = 0; }
+                    // becomes the real greeting should feed the speech median.
+                    if (_phraseVoicedState.ticks === 0) { _speechSamples.length = 0; }
                 } else if (++_phraseSilenceTicks >= PHRASE_SILENCE_TICKS_NEEDED) {
                     // sustained, modulated voiced run THEN a real end-pause → utterance complete
                     try { var _lb=document.querySelector('.listening-banner,.phrase-status'); if(_lb) _lb.textContent='Heard you \u2713'; } catch(_) {}
                     phraseSpoke = true;
-                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
+                    try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)) }); } catch(_) {}
                     try { _finalizeCalibration(); } catch(_e) { _reportLoopError('phraseVadTick.finalizeCalibration', _e); }   // F-595: the greeting just gave us floor + speech → set this session's digit-gate threshold
                 }
             }
@@ -5227,7 +5235,7 @@ function _markSpeech(src, rms, onsetAt) {
                 rms_max: Number(_hbRmsMax.toFixed(3)),
                 thr: Number(_hbThr.toFixed(3)),
                 sil: Number(vadSilenceThreshold.toFixed(3)),
-                voiced_ticks: _phraseVoicedTicks,
+                voiced_ticks: _phraseVoicedState.ticks,
                 vb_ratio: Number((_lastVbRatio || 0).toFixed(3)),
                 seed_source: _preflightVad ? 'preflight' : (_micPreflightVadReason || 'none'),
                 seed_from_voiced: !!_preflightVad,
@@ -5299,7 +5307,7 @@ function _markSpeech(src, rms, onsetAt) {
             // for the whole greeting (D-GREETING-ANALYSER-SILENT-ADVANCE regression class).
             try { vacDebug('greeting_audible', null, {
                 heard: phraseSpoke,
-                voiced_ticks: _phraseVoicedTicks,
+                voiced_ticks: _phraseVoicedState.ticks,
                 analyser_frames: _phraseAnalyserFrames,
                 content_matched: _phraseContentMatched,
                 timed_out: !phraseSpoke && elapsedSec >= PHRASE_PHASE_MAX_S,
@@ -5309,7 +5317,7 @@ function _markSpeech(src, rms, onsetAt) {
             // task-705: accumulate greeting sensor data for /v1/ceremony/telemetry beacon
             try { if (_DEBUG_MODE) {
                 _sessionTelemetry.greeting_audible = !!phraseSpoke;
-                _sessionTelemetry.voiced_ticks = _phraseVoicedTicks || 0;
+                _sessionTelemetry.voiced_ticks = _phraseVoicedState.ticks || 0;
                 _sessionTelemetry.analyser_frames = _phraseAnalyserFrames || 0;
                 try { _sessionTelemetry.audio_ctx_state = (audioContext ? audioContext.state : 'none'); } catch(_e) {}
             } } catch(_) {}
