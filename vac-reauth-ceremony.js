@@ -2890,6 +2890,18 @@ function dismissChallengeIntro() {
     // the analyser from the live audio track, exactly the task-724 pattern relocated to this path.
     try {
         if (avAudioCtx && avAudioCtx.state === 'suspended') { try { avAudioCtx.resume(); } catch(_) {} }
+        // S166 REFIRE 889 candidate fix (a): pre-warm the CEREMONY's own AudioContext (the one
+        // startAudioMonitor() would otherwise create several seconds later, from inside
+        // startCountdown's setInterval — outside this gesture, where iOS Safari can silently
+        // refuse resume() and leave the analyser deaf for the whole greeting+digit stage; L-2443).
+        // Create + resume it HERE, synchronously in the tap handler, and mark it so
+        // startAudioMonitor() reuses it instead of closing it out from under us.
+        try {
+            if (audioContext && audioContext.state !== 'closed') { try { audioContext.close(); } catch(_) {} }
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContext.resume().catch(function(){});
+            window.__vacCeremonyCtxPrewarmed = audioContext;
+        } catch(_e3) {}
         setTimeout(function() {
             try {
                 if (!avAudioCtx || avAudioCtx.state !== 'running') {
@@ -3942,6 +3954,7 @@ function _markSpeech(src, rms, onsetAt) {
             // entered the digit phase before clicking it), turn the gate off now so digits don't keep
             // waiting on voice (codex). _startSpeechGate's initial check can't catch this later choice.
             if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); _vadRAF = null; return; }
+            _ceremonyHeartbeat('digit_voice');
             try {
                 // task-644: time-domain RMS fixes iOS where getByteFrequencyData stays ~0.01 forever
                 audioAnalyser.getByteTimeDomainData(_tdBuf);
@@ -4126,7 +4139,7 @@ function _markSpeech(src, rms, onsetAt) {
                     }
                 }
                 _lastVoiceMs = (voiced > 0) ? Math.round(_now - _voiceOnsetAt) : 0;   // R1: surface continuous voiced-run ms to ?qa=1
-            } catch(_) {}
+            } catch (e) { _loopError('digit_voice', e); }   // L-2443: was a silent swallow — now surfaced (reschedule below is unconditional either way)
             _vadRAF = requestAnimationFrame(tick);
         })();
     }
@@ -4316,6 +4329,8 @@ function _markSpeech(src, rms, onsetAt) {
     let _handZoneSnapLastT = 0;    // task-handzone-faceanchored: throttle per-beat zone snapshot (2s interval)
     function runDetectionLoop() {
         if (recordingStopped) return;
+        try {
+        _ceremonyHeartbeat('digit');
         const videoEl = document.getElementById('videoPreviewRec');
         try { _maybeUpdateFaceAnchor(videoEl); } catch(_) {}   // task-432 Part 1: throttled face-anchor refresh
         const detected = FingerDetector.detect(videoEl);
@@ -4794,6 +4809,13 @@ function _markSpeech(src, rms, onsetAt) {
         // "hold hand closer" hint is wrong here — suppress it.
         CaptureFeedback.renderFingerPhase(ctx, hintShown && !_waitingVoice, currentDigitIndex);
         rafId = requestAnimationFrame(runDetectionLoop);
+        } catch (e) {
+            // L-2443: an uncaught throw here used to kill the rAF chain silently forever
+            // (rAF, unlike setInterval, does not reschedule itself) — the digit stage would
+            // freeze with zero further events. Log it and reschedule so the loop survives.
+            _loopError('digit', e);
+            if (!recordingStopped) rafId = requestAnimationFrame(runDetectionLoop);
+        }
     }
 
     // ── F-561 (S111): gate the phrase→digits transition on SPEECH, not just the timer.
@@ -4858,6 +4880,41 @@ function _markSpeech(src, rms, onsetAt) {
         else _adaptLastFloor = (audioNoiseFloor > 0.001) ? audioNoiseFloor : 0.010;
         try { vacDebug('vad_calibrated', null, { floor: _calNoiseFloor == null ? null : Number(_calNoiseFloor.toFixed(3)), speech: _calSpeechRms == null ? null : Number(_calSpeechRms.toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, floor_n: _floorSamples.length, speech_n: _speechSamples.length, source: 'phrase_calibration' }); } catch(_) {}
         try { QA.cal({ floor: _calNoiseFloor, speech: _calSpeechRms, thr: vadSpeechThreshold, sil: vadSilenceThreshold, fallback: _calIsFallback }); } catch(_) {}
+    }
+
+    // ── S166 P0 (REFIRE 889, L-2443/L-2502): the greeting+digit loops went dark for
+    // 60s+ on Rob's 16 Aug run — no heartbeat, no timeout, no fail-open, nothing after
+    // arm. A blind instrument is itself a defect: we can't tell "gate genuinely waiting"
+    // from "loop silently died" without a live signal. _ceremonyHeartbeat fires
+    // (throttled ~2s) from both the phrase interval and the digit rAF loop regardless of
+    // outcome; _loopError fires (throttled per-loop) the instant either loop's tick
+    // throws, with the message — no more silent catch(_){} swallowing a dead loop.
+    let _hbLastT = 0;
+    function _ceremonyHeartbeat(tag) {
+        var _now = performance.now();
+        if (_now - _hbLastT < 2000) return;
+        _hbLastT = _now;
+        var _src = 'none';
+        try { _src = (_vadStarved && _avMrFallback) ? 'mr_fallback' : (audioAnalyser ? 'analyser' : 'none'); } catch(_) {}
+        try {
+            vacDebug('ceremony_heartbeat', tag, {
+                ctx_state: (typeof audioContext !== 'undefined' && audioContext) ? audioContext.state : 'none',
+                analyser_src: _src,
+                rms: Number((_lastVadRms || 0).toFixed(3)),
+                voiced_ticks: _phraseVoicedTicks,
+                phase: _ceremonyPhase,
+                digit_index: currentDigitIndex,
+                elapsed_ms: Math.round(_now - _recorderStartMs)
+            });
+        } catch(_) {}
+    }
+    var _loopErrLastT = { phrase: 0, digit: 0 };
+    function _loopError(loop, e) {
+        var _now = performance.now();
+        if (_now - (_loopErrLastT[loop] || 0) < 3000) return;
+        _loopErrLastT[loop] = _now;
+        console.error('[VAC][LOOP] ' + loop + ' tick threw — loop continues, see loop_error:', e);
+        try { vacDebug('loop_error', loop, { msg: String((e && e.message) || e).slice(0, 200) }); } catch(_) {}
     }
 
     function _phraseVadTick() {
@@ -5028,6 +5085,18 @@ function _markSpeech(src, rms, onsetAt) {
                 } catch(_) {}
             }
             try { vacDebug('audio_ctx_suspended', audioContext.state, { elapsedMs: elapsedMs }); } catch(_) {}
+            // S166 REFIRE 889 candidate fix (b): a resume() issued outside the original arming
+            // gesture (e.g. from inside startCountdown's 1s setInterval, several seconds after the
+            // challenge_intro_dismissed tap) can be silently refused by iOS Safari — audioContext
+            // then never reaches 'running' for the rest of the ceremony and the analyser reads pure
+            // silence. Don't wait for _phraseVadTick's slower 12s crushed-frame starvation counter —
+            // if still suspended 1.5s after arm, switch onto the MR-fallback path NOW (same mechanism
+            // the preflight AV check already uses for a starved analyser) and log the switch.
+            if (elapsedMs > 1500 && !_vadStarved) {
+                _vadStarved = true;
+                try { vacDebug('vad_mr_fallback_forced', 'ctx_suspended', { elapsedMs: elapsedMs }); } catch(_) {}
+                try { _startAvMrFallback(); } catch(_) {}
+            }
         }
         if (audioContext && audioContext.state !== 'running' && elapsedMs < 3000) {
             var _stPre = document.getElementById('step2Title');
@@ -5127,6 +5196,8 @@ function _markSpeech(src, rms, onsetAt) {
     // DIGIT on the _dropVoicePhrase path, which sets DIGIT above and advances in the first tick.
     const phraseInterval = setInterval(() => {
         if (recordingStopped) { clearInterval(phraseInterval); return; }
+        try {
+        _ceremonyHeartbeat('phrase');
         elapsedMs += TICK_MS;
         const elapsedSec = elapsedMs / 1000;
         timerEl.textContent = Math.max(Math.ceil(totalDuration - elapsedSec), 0);
@@ -5342,6 +5413,13 @@ function _markSpeech(src, rms, onsetAt) {
             // F-563: single greeting renderer for both the reading window AND the listening state
             // (and the "✓ Heard it" beat) — replaces the old second-class text block.
             renderGreeting();
+        }
+        } catch (e) {
+            // L-2443: setInterval survives an uncaught throw in the browser (it keeps firing on
+            // schedule), but every tick was dying at the SAME point before reaching any vacDebug
+            // call below it — including the timeout/fail-open events that must fire if the loop
+            // is alive. That reads as total silence server-side. Log it so it's never invisible.
+            _loopError('phrase', e);
         }
     }, TICK_MS);
 }
@@ -7331,7 +7409,15 @@ function startAudioMonitor() {
         // protects the FIRST run and any non-reload path): close any prior context so repeated
         // entries can't accumulate AudioContexts and hit the browser's ~6-limit (which made
         // `new AudioContext()` throw → audioAnalyser stayed null → the phrase fail-open bypass).
-        if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        // S166 REFIRE 889 candidate fix (a) exception: if dismissChallengeIntro pre-warmed THIS
+        // exact context synchronously inside the tap gesture and it's already running, keep it —
+        // closing it here would throw away the one gesture-activated context and force a later
+        // non-gesture resume() that iOS can legitimately refuse (L-2443).
+        if (audioContext && audioContext === window.__vacCeremonyCtxPrewarmed && audioContext.state === 'running') {
+            try { vacDebug('ceremony_ctx_prewarm_reused', 'running', {}); } catch(_) {}
+        } else {
+            if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        }
         // Clear prior monitor stream reference — do NOT stop its tracks if they are the
         // original tracks from mediaStream (task-720 FIX 2: stopping original tracks kills recording).
         _monitorStream = null;
@@ -7358,8 +7444,10 @@ function startAudioMonitor() {
                 }).catch(function(_ge){ try { vacDebug('audio_monitor_start', 'reacquire_failed', { err: String(_ge && _ge.name || _ge).slice(0,60) }); } catch(_) {} });
             } catch(_) {}
         }
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') { audioContext.resume().catch(function(){}); }  // some browsers start suspended → no audio frames until resumed
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioContext.state === 'suspended') { audioContext.resume().catch(function(){}); }  // some browsers start suspended → no audio frames until resumed
+        }
         // Assign the analyser BEFORE the (throwable) stream clone/connect, so a failure here leaves a
         // live (if briefly disconnected) analyser → the phrase gate HOLDS for voice instead of
         // fail-opening on a null analyser.
