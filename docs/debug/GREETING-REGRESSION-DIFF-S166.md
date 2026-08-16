@@ -194,12 +194,21 @@ none confirmed:
 ## 5. Sensor plan (shipped in a separate commit, stamp `s164g`, no gate behaviour change)
 
 See commit "S166 sensors: greeting heartbeat + seed provenance + gate config dump
-(s164g)" on this branch. Summary:
+(s164g)" on this branch. Summary — base fields per the task brief, plus the fields the
+cross-model panel (§6) converged on as necessary to actually settle the source/context
+lifecycle hypothesis (Q2 rank 1-2), since the base set can narrow but not prove it:
 - 2s heartbeat during `_PHASE.GREETING`: `{ctx_state, level_source: analyser|mr|none,
   rms_now, rms_max, thr, sil, voiced_ticks, vb_ratio, seed_source, seed_from_voiced,
-  early_return_reason}`.
-- `seed_provenance` event at arm: which pre-check run seeded the VAD and whether it was
-  voiced.
+  early_return_reason, track_ready_state, track_muted, track_enabled}`.
+- `seed_provenance` event at arm: which pre-check run seeded the VAD, whether it was
+  voiced, plus `stream_id`/`track_id` identity so it can be compared against the
+  greeting-phase source later in the same session (the preflight-healthy /
+  greeting-collapsed divergence the panel flagged as the sharpest clue in the packet).
+- `audio_graph_timing` event (new, one-shot per recording attempt): source-node creation
+  timestamp, `AudioContext.resume()` call timestamp, and resume-promise resolution
+  timestamp, relative to recording start — directly targets the panel's #1-ranked
+  hypothesis (source created before the context is truly running / before the track is
+  live).
 - Throttled `loop_error` on every catch in the greeting loop (currently several bare
   `catch(_) {}` blocks in `_phraseVadTick` and `renderGreeting` swallow errors silently
   — see §7).
@@ -209,42 +218,143 @@ See commit "S166 sensors: greeting heartbeat + seed provenance + gate config dum
 
 ## 6. Cross-model review
 
-See §6 below (filled after the orchestrate step — /codex is not available as a tool in
-this environment; see notice).
+**`/codex` is not available as a tool/skill in this execution environment** (checked —
+not in the available skill list, no `codex` CLI on PATH). Substituted with the
+`/v1/orchestrate` API directly plus this document's own analysis (§1-5, Claude) as the
+explicitly-named Claude critic.
+
+**Reproduced the reported defect first.** Calling `POST /v1/orchestrate` with
+`mode=challenge, providers=[moonshot,openai,anthropic]` (the exact form used chat-side)
+returns instantly (`total_latency_ms: 97`) with `error: "All models failed"`,
+`models_queried: 0`, `models_responded: 0`, and all circuit breakers reported `closed`
+(so it isn't a breaker/rate-limit issue — the request never reached a provider at all).
+Job: `orchestrate_20260816_062337_027711_ffaa0fa6`. **This is a real defect in the
+`providers`-array request form**, confirmed independently of the chat-side report.
+
+**Found a second defect while working around the first.** Per the task's fallback
+instruction, switched to the `models` dict form (`{"moonshot":"kimi-k3",
+"openai":"gpt-5.6-terra","anthropic":"claude-sonnet-4-6"}`, confirmed valid via
+`GET /v1/orchestrate/providers`) with the packet passed in a separate `context` field.
+This queued and completed (`models_queried: 3`) but **all 3 models reported receiving
+no packet at all** — job `orchestrate_20260816_062408_257087_9172472d`. The `context`
+field is accepted by the schema (`additionalProperties: true`) but silently dropped —
+never reaches the model prompt. Recommend the orchestrate backend either reject unknown
+top-level fields or document which ones are actually wired into the prompt.
+
+**Working call:** folded the full packet directly into `prompt` (models dict form).
+Job `orchestrate_20260816_062531_037754_0be84c28`, 212s latency, $0.32, all 3 models
+responded (Claude Sonnet 4.6 / GPT-5.6 Terra / Kimi K3, real independent calls per
+`providers_used`). Full fragments + synthesis saved to this branch's job IDs above (not
+inlined in full here — reasoning traces ran long, esp. Kimi K3's chain-of-thought).
+
+### Convergence across all 3 models
+
+**Q1 (is the greeting/digit asymmetry from §3 sufficient to explain the split?)** — all
+three said yes, with the same important nuance I'd already flagged: it's sufficient to
+explain **why greeting fails and digit doesn't once the analyser is starved**, but it
+predates the regression window (confirmed present in `b25cb94`, Aug 4) so it is **not**
+itself what triggered the Aug 6 onset — it's the reason the trigger became fatal for
+greeting specifically. The synthesis (GPT-5.4 as judge) rated this the strongest framing
+over a flatter "yes, fully sufficient" reading.
+
+**Q2 (root cause of the 0.005-0.009 reads) — ranked by the synthesis:**
+1. **Greeting-startup source/context lifecycle bug around `083eb8c`** (the cold-start
+   `AudioContext.resume()` guard added to `renderGreeting()`, §2.3) — source node
+   possibly created/used before the context is fully `running` or before the track is
+   live. All three models independently flagged `083eb8c` as the leading suspect purely
+   from the git chronology (it's the only audio-path commit between the last Mac pass
+   and the first iPhone-silent run) — I hadn't told them to weight it that way beyond
+   including it in the packet.
+2. **Wrong/stale cached source/stream attachment** — `287df38` (task-733)'s "single
+   cached source per context" fix may pin a bad source for the whole session if the
+   first bind happened during the bad window, rather than actually fixing the ordering.
+3. **AGC/voice-processing compression** as the *observed signal shape* (not necessarily
+   the trigger) — 0.005-0.009 with intact voice-band spectral content (vbRatio, per
+   digit stage evidence) matches task-722's own documented "iOS AGC compresses mic RMS
+   to ~1%" description. Synthesis view: compression describes the symptom, the
+   `083eb8c`-era lifecycle issue is the more likely trigger.
+
+**Sharpest new clue surfaced by the panel** (I had this data in the packet but hadn't
+drawn the conclusion): Rob's same 16-Aug session shows **preflight measuring healthy
+speech (`preflight_speech 0.051`) followed by the greeting reading 0.005-0.009 minutes
+later, in the same session**. That's a collapse *within one run*, between preflight and
+greeting — which argues against "the mic/room is just bad" and for a greeting-phase-
+specific graph/source/session transition (new source node, different stream branch,
+context resume, or an audio-session category shift when greeting starts). The synthesis
+flagged this as one of the strongest single clues in the packet and one some of the
+individual model responses underweighted relative to the gate-asymmetry finding.
+
+**Important limitation the panel raised (acted on in §5's sensor plan below):** the
+originally-planned heartbeat fields (`ctx_state, level_source, rms_now, rms_max, thr,
+sil, voiced_ticks, vb_ratio, seed_source, seed_from_voiced, early_return_reason`) can
+narrow the hypotheses but **cannot conclusively prove** the source/context lifecycle
+hypothesis. All three models converged on the same missing fields: source-node creation
+timestamp, `resume()` call + resolution timestamps, `stream.id`, `track.id`, track
+`readyState`, track `muted`, track `enabled`. Added these to the shipped sensors.
 
 ## 7. Handoff — plain-English top block
 
+This ranking reflects my own code-grounded analysis (§3) plus the independent
+cross-model panel (§6, Claude Sonnet 4.6 + GPT-5.6 Terra + Kimi K3, converged
+independently on the same top candidates without being steered toward them).
+
 **Ranked hypotheses:**
 
-1. **(Confirmed by code read, not yet by live trace) The greeting VAD gate structurally
-   cannot use the calibrated/floor-relative admit path the digit gate uses, and its one
-   starved-mode rescue path takes ~12s to arm — long enough that the "can't hear you"
-   banner (5.6s) or the hard timeout (12-17s) ends the attempt first.** Deciding field:
-   compare `greeting_gate_config`'s dumped `VAD_SPEECH_RMS_FALLBACK`/`thr` against the
-   heartbeat's `rms_now` — if `rms_now` stays below `VAD_SPEECH_RMS_FALLBACK` (0.055)
-   for the whole greeting on a run where `thr` (the seeded/calibrated value) would have
-   been well below `rms_now`, that's the smoking gun: the gate ignored a threshold it
-   would have passed. Also watch `voiced_ticks` — it should stay at/near 0 the whole
-   time on a failing run despite the mic clearly being live (background noise floor
-   greens on pre-check).
-2. **(Open) Root cause of why the iPhone analyser reads 0.005-0.009 at all** — not
-   resolved by this pass. Deciding field: heartbeat's `level_source` and `ctx_state` —
-   if `ctx_state: running` but `level_source: analyser` with `rms_now` pinned near-zero
-   for the whole heartbeat window, the context is "running" in name but the analyser tap
-   isn't receiving real samples (points at `287df38`/task-733's territory, or a
-   regression in how the greeting phase's tap differs from the digit phase's, even
-   though both are meant to share `startAudioMonitor()`'s output).
-3. **(Low confidence, likely already ruled out on Mac)** S155/content-gate changes —
-   diff-confirmed these predate the regression window's Mac pass and are not on the
-   post-S164 critical path. Included only because the brief asked to rule them out
-   explicitly.
+1. **(Confirmed by code read — this is real regardless of what else is true) The
+   greeting VAD gate structurally cannot use the calibrated/floor-relative admit path
+   the digit gate uses (added to digits in task-722, never ported to the greeting), and
+   its one starved-mode rescue path takes ~12s to arm — long enough that the "can't hear
+   you" banner (5.6s) or the hard timeout (12-17s) ends the attempt first. This explains
+   "digit works, greeting doesn't" but predates the regression window (present since
+   `b25cb94`, Aug 4) — it is NOT what triggered the Aug 6 onset.** Deciding field:
+   compare `greeting_gate_config`'s dumped `VAD_SPEECH_RMS_FALLBACK` against the
+   heartbeat's `rms_now` and `thr` — if `rms_now` stays below 0.055 for the whole
+   greeting on a run where `thr` (the seeded/calibrated value) would have been well
+   below `rms_now`, that's the smoking gun: the gate ignored a threshold it would have
+   passed. Also watch `voiced_ticks` — it should stay at/near 0 the whole time on a
+   failing run despite the mic clearly being live (background noise floor greens on
+   pre-check).
+2. **(Open, top candidate per unanimous-independent panel ranking) Greeting-startup
+   audio graph/source-node lifecycle issue around `083eb8c`** (the cold-start
+   `AudioContext.resume()` guard added to `renderGreeting()`, 2026-08-05 22:51 UTC —
+   the only audio-path commit between the last Mac pass and the first iPhone-silent
+   run) — most likely the source node is created/used before the context is truly
+   `running` or before the track is live, and `287df38`'s later "single cached source
+   per context" fix may have pinned a bad source for the session rather than fixing the
+   ordering. **Sharpest supporting clue: Rob's own 16-Aug session shows healthy
+   preflight speech (0.051) collapsing to 0.005-0.009 by the time the greeting starts,
+   within the SAME session** — argues for a phase-transition bug, not a generally bad
+   mic/room. Deciding fields (new in this sensor pass): `audio_graph_timing`'s source-
+   creation / resume-call / resume-resolved timestamps relative to recording start, plus
+   the heartbeat's `ctx_state` — if `ctx_state` is not stably `running` from the first
+   greeting heartbeat, or the source was created before resume resolved, that's the
+   confirmation. Also compare `seed_provenance`'s `stream_id`/`track_id` (preflight)
+   against the greeting-phase source identity once surfaced.
+3. **(Open, secondary per panel) AGC/voice-processing compression as the observed
+   signal shape** (not necessarily the trigger) — 0.005-0.009 with intact voice-band
+   spectral content matches task-722's documented "iOS AGC compresses mic RMS to ~1%".
+   Deciding field: `vb_ratio` moving with speech while `rms_now`/`rms_max` stay flat and
+   low — if `vb_ratio` is clearly speech-correlated during the failing greeting, the
+   signal is present but compressed, favoring "greeting gate policy problem on top of
+   compression" over "totally dead analyser."
+4. **(Low confidence, ruled out)** S155/content-gate changes — diff-confirmed these
+   predate the regression window's Mac pass and are not on the post-S164 critical path.
+   Included only because the brief asked to rule them out explicitly.
 
 **What Rob should look for in his next run's trace:** the new `greeting_gate_config`
-line at arm (constants in force), then the 2s heartbeats — specifically whether
-`rms_now` ever exceeds `thr` (the seeded value) while `voiced_ticks` stays flat, and
+line at arm (constants in force), then the 2s heartbeats — specifically (a) whether
+`rms_now` ever exceeds `thr` (the seeded value) while `voiced_ticks` stays flat [→ #1],
+(b) whether `ctx_state` is `running` from the very first heartbeat and whether
+`audio_graph_timing` shows the source created before resume resolved [→ #2], (c)
 whether `level_source` ever flips from `analyser` to `mr` (starvation fallback engaging)
-before the run ends, and if so, how many heartbeats before `phrase_speech_timeout`/the
-recovery banner.
+before the run ends, and (d) whether `vb_ratio` tracks speech even while `rms_now` stays
+low [→ #3].
+
+**Full model responses, cost/latency, and job IDs are in this repo's job history via
+`GET /v1/orchestrate/job/{id}` for `orchestrate_20260816_062337_027711_ffaa0fa6`
+(defect repro), `orchestrate_20260816_062408_257087_9172472d` (2nd defect: dropped
+context field), and `orchestrate_20260816_062531_037754_0be84c28` (working 3-model
+review, $0.32, 212s) — not re-pasted here in full to keep this doc readable.**
 
 ## Appendix: environment note (unrelated to the diagnosis, flagged for hygiene)
 
