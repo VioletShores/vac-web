@@ -744,6 +744,38 @@ let _micPreflightVadReason = null;  // last _micPreflightVad() null-return reaso
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
 // see the reduced ambient multiplier at the qualify check below.
 const VOICE_BAND_MIN_RATIO = 0.45; // S148 field-tune: Rob speaking on a London street read 52% — 0.55 missed real speech; street rumble dilutes the ratio.
+// L-2503/L-2504 (S166 D-MICTEST-GREENS-ON-NOISE, Rob's 3rd live specimen): the greeting liveness
+// gate (36e7c6d) already gates on a SUSTAINED, MODULATED, voice-band-dominant run — not a bare
+// energy-rise. The preflight mic test used a DIFFERENT, weaker bar (rise-above-slow-ambient /
+// rise-above-ambient-median) that a door slam, a cough, a TV, or a chair scrape also clears
+// (root cause: any of those rises above ambient too). ONE shared predicate now — _voicedRunTick
+// (per-frame bookkeeping) + _voicedRunPass (the pass/fail read) — called from BOTH the mic test
+// (runAVFrame) and the greeting gate (_phraseVadTick), so the two bars cannot drift apart again.
+const VOICED_RUN_TICKS_NEEDED = 7;   // mirrors PHRASE_VOICED_TICKS_NEEDED — ~1.4s of voiced energy at TICK_MS=200, a real utterance not a transient
+const VOICED_RUN_MOD_DELTA = 0.045;  // mirrors PHRASE_MOD_DELTA — the run's rms range must exceed this; a flat tone/hum/steady noise floor can't satisfy it
+function _newVoicedRunState() { return { ticks: 0, min: 1, max: 0 }; }
+// One frame of evidence, in ceremony-RMS units (see D-VAD-UNITS above _micSeededAmbientRms): rms =
+// time-domain RMS, isVoicedFrame = near-field amplitude gate AND voice-band ratio both passed this
+// frame (or an already-proven starved-analyser fallback frame), isSilenceFrame = genuine near-
+// silence (below the silence floor). Ticks build on voiced frames, decay on silence frames, and
+// HOLD on neither (a brief mid-word formant dip can't reset an otherwise-real run).
+function _voicedRunTick(state, rms, isVoicedFrame, isSilenceFrame) {
+    if (isVoicedFrame) {
+        state.ticks++;
+        if (rms < state.min) state.min = rms;
+        if (rms > state.max) state.max = rms;
+    } else if (isSilenceFrame) {
+        state.ticks = Math.max(0, state.ticks - 1);
+        if (state.ticks === 0) { state.min = 1; state.max = 0; }
+    }
+    return state;
+}
+// modOverride: an already-proven voiced path (e.g. starved-analyser spectral/MediaRecorder proxy,
+// where amplitude itself is unreliable) skips the modulation check — mirrors the greeting gate's
+// pre-existing `_vadStarved ||` escape.
+function _voicedRunPass(state, modOverride) {
+    return state.ticks >= VOICED_RUN_TICKS_NEEDED && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
+}
 // SAGA-SILENT-06: OS-level mic privacy block / wrong device yields a live-but-silent track.
 // The analyser reads zeros continuously; all VAD thresholds fail; no sensor identified cause.
 // Fix: detect via frame counter, confirm via synthetic self-test, surface via first-class banner.
