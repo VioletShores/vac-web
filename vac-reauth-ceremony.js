@@ -1904,13 +1904,26 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
                  : _n0 > 0  ? 'Hold ' + _n0 + ' finger' + (_n0 === 1 ? '' : 's') + ' beside your cheek'
                  :             'Hold your hand beside your cheek';
         var _fs = Math.max(13, Math.min(Math.round(w * 0.036), 26));
+        // S166 (Rob ×N: "small yellow text out of proportion and squashed"): the canvas backing store is
+        // video-resolution (w×h) but CSS stretches it into a box with a DIFFERENT aspect ratio, so text
+        // drawn 1:1 renders horizontally compressed. Compensate the horizontal scale by the display
+        // ratio so glyphs keep their true proportions on any box shape.
+        var _aspX = 1;
+        try {
+            var _cvEl = ctx.canvas, _cr = _cvEl && _cvEl.getBoundingClientRect ? _cvEl.getBoundingClientRect() : null;
+            if (_cr && _cr.width > 0 && _cr.height > 0 && w > 0 && h > 0) {
+                var _sxx = _cr.width / w, _syy = _cr.height / h;
+                if (_sxx > 0 && _syy > 0) _aspX = Math.max(0.5, Math.min(2.0, _syy / _sxx));
+            }
+        } catch(_) {}
         ctx.save();
         try {
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
+            if (_aspX !== 1) { ctx.translate(w * 0.5, 0); ctx.scale(_aspX, 1); ctx.translate(-w * 0.5, 0); }
             ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
             // F-759: shrink to fit — never let the caption exceed ~90% of the canvas width (was squashing)
-            var _maxW = w * 0.9;
+            var _maxW = (w * 0.9) / _aspX;
             var _measured = ctx.measureText(_msg).width;
             if (_measured > _maxW) { _fs = Math.max(11, Math.floor(_fs * _maxW / _measured)); ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif'; }
             ctx.textAlign = 'center';
@@ -3982,7 +3995,11 @@ function _markSpeech(src, rms, onsetAt) {
                 audioAnalyser.getByteFrequencyData(buf);   // separate fetch — voiceBandRatio needs freq data
                 const vbRatio = _voiceBandRatio(audioAnalyser, buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
                 _lastVbRatio = vbRatio;  // surfaced to the QA overlay
-                window.__vacGateArmed = true; _micPillDraw(rms, vadSpeechThreshold, _calIsFallback ? 'p' : 'c');
+                // S166 (Rob run 12:43 CEST): the digit gate admits above vadSpeechThreshold OR above the
+                // noise floor (floor-relative, task-722) — the bar must draw the level the gate ACTUALLY
+                // uses, or it tells the user "speak past the line" while the gate is already passing them.
+                var _effAdmit = Math.min(vadSpeechThreshold, Math.max(audioNoiseFloor, 0.006));
+                window.__vacGateArmed = true; _micPillDraw(rms, _effAdmit, _calIsFallback ? 'p' : 'c');
                 const _now = performance.now();
                 // S157 C1: continuous floor-relative threshold update. Frozen during onset
                 // (_preOnsetStart > 0) and voiced runs (voiced > 0) so the goalposts cannot
@@ -5008,6 +5025,9 @@ function _markSpeech(src, rms, onsetAt) {
                     if (_phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED && (_vadStarved || (_phraseVoicedMax - _phraseVoicedMin) >= PHRASE_MOD_DELTA)) {
                         _phraseHeardVoice = true;
                         try { vacDebug('phrase_pass_on_escape', null, { voiced_ticks: _phraseVoicedTicks }); } catch(_) {}
+                        // S166 UX HONESTY (F-1025): this IS a pass — liveness confirmed; the words are judged
+                        // server-side (L-2503). Never render it as a fail note. Say what happened.
+                        try { var _lbE=document.querySelector('.listening-banner,.phrase-status'); if(_lbE) _lbE.textContent='Heard you \u2014 moving to the numbers'; } catch(_) {}
                     }
                 }
                 // L-2503/L-2504 (Rob directive S164): the greeting gate is a LIVENESS gate, not a
