@@ -1,4 +1,9 @@
 // vac-reauth-ceremony.js
+// stamp s164j — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
+// _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
+// overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
+// canvas-drawn caption. See tests/greeting-gate-margins.test.js.
 // VAC re-auth ceremony — the ONE shared "show-and-say N digits while the face is verified"
 // flow, extracted VERBATIM from auth.html (S117 reauth-unify, STEP 1). Behaviour is identical to
 // auth.html's inline ceremony; only the seams (identity, risk level, success/retry handoff) are
@@ -506,9 +511,14 @@ async function requestCamera() {
             var _set = _aud && _aud.getSettings ? _aud.getSettings() : {};
             console.log('[VAC-DBG] captured_audio_device', { label: _lbl, settings: _set });
             _tapTrace('mic device: ' + _lbl);
-            var _dv = document.getElementById('micDeviceLabel');
-            if (!_dv) { _dv = document.createElement('div'); _dv.id='micDeviceLabel'; _dv.style.cssText='position:fixed;top:26px;left:4px;z-index:99999;background:#000c;color:#e0b866;font:11px monospace;padding:2px 7px;border-radius:6px;'; document.body.appendChild(_dv); }
-            _dv.textContent = 'mic: ' + _lbl + (/(iphone|continuity|display|virtual|teams|zoom)/i.test(_lbl) ? '  \u26a0 wrong device? switch via the camera icon in the address bar' : '');
+            // S166j: this chip sat at top:26px, left:4px \u2014 directly over the VAC logo/header in
+            // production. It's a debug sensor readout (device label), not user-facing instruction
+            // (that's _showSilentTrackBanner, above); gate it behind ?debug=1 like the other HUD chips.
+            if (_DEBUG_MODE) {
+                var _dv = document.getElementById('micDeviceLabel');
+                if (!_dv) { _dv = document.createElement('div'); _dv.id='micDeviceLabel'; _dv.style.cssText='position:fixed;top:26px;left:4px;z-index:99999;background:#000c;color:#e0b866;font:11px monospace;padding:2px 7px;border-radius:6px;'; document.body.appendChild(_dv); }
+                _dv.textContent = 'mic: ' + _lbl + (/(iphone|continuity|display|virtual|teams|zoom)/i.test(_lbl) ? '  \u26a0 wrong device? switch via the camera icon in the address bar' : '');
+            }
         } catch(_) {}
         // F-720: self-diagnosing listeners — fires before onstop so we know which track died first.
         mediaStream.getTracks().forEach(function(t) {
@@ -1812,6 +1822,29 @@ function _guideSide(lm){
     var _sx = 0; for (var _si = 0; _si < lm.length; _si++) _sx += lm[_si].x;
     return (_sx / lm.length) < 0.5 ? 'left' : 'right';
 }
+// S166j (item 7): shared aspect-compensation helper — the canvas backing store is
+// video-resolution but CSS may stretch it into a box with a different aspect ratio, squashing
+// every canvas-drawn caption horizontally (was only applied to the pose caption pill; the zone
+// hints and coach readouts squashed the same way). ONE helper now so a future caption can't
+// reintroduce the squash by skipping it.
+function _canvasAspX(ctx, w, h) {
+    var _ax = 1;
+    try {
+        var _cv = ctx.canvas, _cr = _cv && _cv.getBoundingClientRect ? _cv.getBoundingClientRect() : null;
+        if (_cr && _cr.width > 0 && _cr.height > 0 && w > 0 && h > 0) {
+            var _sx = _cr.width / w, _sy = _cr.height / h;
+            if (_sx > 0 && _sy > 0) _ax = Math.max(0.5, Math.min(2.0, _sy / _sx));
+        }
+    } catch(_) {}
+    return _ax;
+}
+// Scales glyph width around the caller's own anchorX so this only fixes proportions — it never
+// shifts where the caption sits (a centered caption anchors at its center; a left-aligned one
+// anchors at its left edge, so growth reads to the right of the text, not off past the canvas edge).
+function _applyCanvasAspComp(ctx, anchorX, aspX) {
+    if (aspX === 1) return;
+    ctx.translate(anchorX, 0); ctx.scale(aspX, 1); ctx.translate(-anchorX, 0);
+}
 // F-755: static purple oval guide — replaces the live hand-skeleton template.
 // Two ovals, one beside each cheek (clear of the face-oval RX=0.32 RY=0.40).
 // lm (optional 6th arg): current MediaPipe landmarks; drives the confident glow when
@@ -1914,19 +1947,12 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         // video-resolution (w×h) but CSS stretches it into a box with a DIFFERENT aspect ratio, so text
         // drawn 1:1 renders horizontally compressed. Compensate the horizontal scale by the display
         // ratio so glyphs keep their true proportions on any box shape.
-        var _aspX = 1;
-        try {
-            var _cvEl = ctx.canvas, _cr = _cvEl && _cvEl.getBoundingClientRect ? _cvEl.getBoundingClientRect() : null;
-            if (_cr && _cr.width > 0 && _cr.height > 0 && w > 0 && h > 0) {
-                var _sxx = _cr.width / w, _syy = _cr.height / h;
-                if (_sxx > 0 && _syy > 0) _aspX = Math.max(0.5, Math.min(2.0, _syy / _sxx));
-            }
-        } catch(_) {}
+        var _aspX = _canvasAspX(ctx, w, h);
         ctx.save();
         try {
             ctx.translate(w, 0);
             ctx.scale(-1, 1);
-            if (_aspX !== 1) { ctx.translate(w * 0.5, 0); ctx.scale(_aspX, 1); ctx.translate(-w * 0.5, 0); }
+            _applyCanvasAspComp(ctx, w * 0.5, _aspX);
             ctx.font = 'bold ' + _fs + 'px -apple-system,BlinkMacSystemFont,sans-serif';
             // F-759: shrink to fit — never let the caption exceed ~90% of the canvas width (was squashing)
             var _maxW = (w * 0.9) / _aspX;
@@ -1951,6 +1977,7 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             ctx.save();
             try {
                 ctx.translate(w, 0); ctx.scale(-1, 1);
+                _applyCanvasAspComp(ctx, 8, _aspX);   // S166j: same squash fix as the pose caption — anchor at the left edge (x=8) so the box doesn't shift
                 var _zfs = Math.max(10, Math.min(Math.round(w * 0.028), 15));
                 ctx.font = 'bold ' + _zfs + 'px monospace';
                 ctx.textAlign = 'left';
@@ -2120,6 +2147,7 @@ function _avDrawHand(videoEl, lm){
         ctx.save();
         try {
             ctx.translate(_zw, 0); ctx.scale(-1, 1);
+            _applyCanvasAspComp(ctx, 8, _canvasAspX(ctx, _zw, _zh));   // S166j: same squash fix as the pose caption, left-edge anchored
             const _zfs = Math.max(10, Math.min(Math.round(_zw * 0.028), 15));
             ctx.font = 'bold ' + _zfs + 'px monospace';
             ctx.textAlign = 'left';
@@ -3152,6 +3180,7 @@ function startCountdown() {
 // A small fixed line reporting the last gate event with its numbers, so a missed
 // digit tells us duration/peak/threshold instead of requiring another guess cycle.
 function _vadDiag(msg){
+    if (!_DEBUG_MODE) return;   // S166j: "FIRED: …ms pk … thr …" is a debug sensor readout, gate like the other HUD chips
     try {
         var el = document.getElementById('vacVadDiag');
         if (!el) {
@@ -4352,6 +4381,7 @@ function _markSpeech(src, rms, onsetAt) {
             ctx.save();
             // counter-flip: cancel the canvas scaleX(-1) so text reads forward
             ctx.translate(cv.width, 0); ctx.scale(-1, 1);
+            _applyCanvasAspComp(ctx, 8, _canvasAspX(ctx, cv.width, cv.height));   // S166j: same squash fix as the pose caption, left-edge anchored
             ctx.font = 'bold ' + _rfsz + 'px monospace';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
@@ -4868,7 +4898,7 @@ function _markSpeech(src, rms, onsetAt) {
     let _phraseContentGate = null;
     let _phraseContentMatched = false;
     let _phraseHasTranscript = false;  // S161: true once SR produces any transcript (even non-matching)
-    const GREET_HEARD_BEAT_MS = 800;                  // hold the greeting ✓ this long so the user KNOWS it registered, like a digit's ✓
+    const GREET_HEARD_BEAT_MS = 1500;                 // S166j (item 5): hold the "Heard you — moving to the numbers" honesty copy this long (was 800ms) so the user actually reads it before phase2 transitions, not just sees it flash
     // F-563 (Finding 2): the on-device VAD is a PACING gate, NOT the security check — Gemini
     // server-side is the authoritative word verifier. The old ~400ms threshold (2 ticks) fired on a
     // single cough/scrape/hum burst. Real speech is SUSTAINED + MODULATED over the word duration, so
@@ -4955,7 +4985,12 @@ function _markSpeech(src, rms, onsetAt) {
             _rms = Math.sqrt(_rms / _tdbuf.length) / 128;
             _hbRmsNow = _rms; if (_rms > _hbRmsMax) _hbRmsMax = _rms;   // S166 sensors: heartbeat reads these
             audioAnalyser.getByteFrequencyData(_buf);
-            const _vbRatio = _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
+            // S166j (item 2): vbRatio is a RATIO of near-nothing over near-nothing at very low
+            // energy — meaningless, not merely small (mirrors the mic test's own guard: _speechRatio
+            // = -1 when meanBin < 3, see _micVoicedFrame above). Below this rms a frame must NOT be
+            // able to claim "voiced" via band ratio alone — that's exactly the false-confirm-on-
+            // silence trace (rms 0.006-0.008, vb 0.84-0.89 read as voiced).
+            const _vbRatio = (_rms < 0.012) ? -1 : _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
             _lastVbRatio = _vbRatio;  // surfaced to the QA overlay
             // S166 fix: draw the line at the SAME threshold the admit predicate below actually
             // gates on (was always VAD_SPEECH_RMS_FALLBACK even after calibration — the meter and
@@ -4993,6 +5028,10 @@ function _markSpeech(src, rms, onsetAt) {
             // speech sits at meanBin 1-2; the >=3 floor was zeroing out TRUE speech in quiet rooms).
             if (_vadStarved && !_avMrFallback) { try { _startAvMrFallback(); } catch(_e) { _reportLoopError('phraseVadTick.startAvMrFallback', _e); } }
             var _mb = 0; for (var _mi = 0; _mi < _buf.length; _mi++) _mb += _buf[_mi];
+            // S166j (item 3): the mb/vbRatio disjunct is ALSO gated by the item-2 band-ratio guard
+            // now (a low-rms frame reads _vbRatio=-1, which fails >= VOICE_BAND_MIN_RATIO on its own)
+            // — so during starvation the only remaining admit path is real MR evidence
+            // (_avMrLevelSynth >= 8) or spectral energy that clears the near-field guard.
             var _spectralVoiced = _vadStarved && (
                 (_avMrLevelSynth >= 8) ||
                 ((_mb / _buf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
@@ -5002,7 +5041,13 @@ function _markSpeech(src, rms, onsetAt) {
             // VAD_SPEECH_RMS_FALLBACK — never the arm-time calibrated threshold or the floor-relative
             // audioNoiseFloor the DIGIT gate reads (task-722). Same admit predicate as digits here;
             // ONE shared voiced-run tracker (_voicedRunTick) that the mic pre-check drives too.
-            const _voicedFrame = _spectralVoiced || (_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > audioNoiseFloor || _vadStarved));
+            // S166j (items 1+3): (a) the floor-relative admit needs a MARGIN — bare `_rms >
+            // audioNoiseFloor` admits on noise a hair above the floor; (b) the bare `|| _vadStarved`
+            // escape let ANY frame during starvation admit via vbRatio regardless of actual amplitude
+            // (the false-confirm trace: rms 0.006-0.008 admitted purely because _vadStarved was true).
+            // Starvation now admits ONLY through _spectralVoiced (MR evidence or a guarded vbRatio).
+            var _phraseFloorAdmit = Math.max(audioNoiseFloor * 2, audioNoiseFloor + 0.01);
+            const _voicedFrame = _spectralVoiced || (_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > _phraseFloorAdmit));
             const _silenceFrame = _rms < VAD_SILENCE_RMS_FALLBACK;
             _voicedRunTick(_phraseVoicedState, _rms, _voicedFrame, _silenceFrame && !_phraseHeardVoice);
             if (_voicedFrame) {
@@ -5068,8 +5113,11 @@ function _markSpeech(src, rms, onsetAt) {
                     // becomes the real greeting should feed the speech median.
                     if (_phraseVoicedState.ticks === 0) { _speechSamples.length = 0; }
                 } else if (++_phraseSilenceTicks >= PHRASE_SILENCE_TICKS_NEEDED) {
-                    // sustained, modulated voiced run THEN a real end-pause → utterance complete
-                    try { var _lb=document.querySelector('.listening-banner,.phrase-status'); if(_lb) _lb.textContent='Heard you \u2713'; } catch(_) {}
+                    // sustained, modulated voiced run THEN a real end-pause → utterance complete.
+                    // S166j (item 5): SAME honesty copy as the escape path (above) — both are a
+                    // genuine pass, just reached via a different route; the user shouldn't see two
+                    // different messages for the same outcome.
+                    try { var _lb=document.querySelector('.listening-banner,.phrase-status'); if(_lb) _lb.textContent='Heard you \u2014 moving to the numbers'; } catch(_) {}
                     phraseSpoke = true;
                     try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedState.ticks, mod: Number((_phraseVoicedState.max - _phraseVoicedState.min).toFixed(3)) }); } catch(_) {}
                     try { _finalizeCalibration(); } catch(_e) { _reportLoopError('phraseVadTick.finalizeCalibration', _e); }   // F-595: the greeting just gave us floor + speech → set this session's digit-gate threshold
