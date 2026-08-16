@@ -1,7 +1,16 @@
 # S166 Greeting Regression — Line-by-Line Archaeology + Cross-Model Review
 
-Task 890 (Rob directive S166). Diagnosis lane only — no gate-behaviour changes in this
-doc's companion commits, sensors only. Branch: `task-greeting-archaeology`.
+Task 890 (Rob directive S166), refired as **task 898** after the prior lane died on a
+Mini ECONNRESET. Diagnosis lane only — no gate-behaviour changes in this doc's companion
+commits, sensors only. Branch: `task-greeting-archaeology`.
+
+**Refire note:** this doc was written in two passes. The original (task 890, §1 and §6)
+did the cross-model review — real API spend, kept as-is. The refire (task 898) found and
+corrected a shallow-clone artifact in the original pass that made it look like 11 of 15
+brief-named commits didn't exist (§0.1) and, as a result, missed `8418de3`'s real
+contribution (§1.1, §4 item, §7 #4) and misattributed the AudioContext cold-start commit
+(§2.3.1). Read §0.1 before trusting SHA references anywhere below it that predate the
+correction.
 
 ## 0. DATA-INTEGRITY NOTICE — read this before trusting the SHAs below
 
@@ -27,6 +36,55 @@ correspondence so the two records can be cross-referenced. **This SHA fabricatio
 itself a defect worth flagging upstream** — whatever produced the task-890 brief
 (telemetry archaeology tooling / a summarizing model) invented plausible-looking hex
 strings rather than reading real git output. Recommend checking that pipeline.
+
+## 0.1 CORRECTION (task 898 refire) — §0's premise was wrong, all 15 SHAs are real
+
+Re-running this lane on a fresh checkout: the prior worker's clone was **shallow**
+(confirmed — `git rev-parse --is-shallow-repository` returned `true`, `git log --oneline`
+showed exactly 1 commit before `git fetch --unshallow`). That's why `git log --all <sha>`
+failed for 11 of the 15 SHAs and `git rev-list --count origin/main` returned 1 — not
+because the repo is squash-only or the SHAs are fabricated. After `git fetch --unshallow
+origin`, `origin/main` has **1291 commits of ordinary linear history**, and **all 15 SHAs
+from the brief resolve as real commits**, each verified an ancestor of `origin/main` via
+`git merge-base --is-ancestor <sha> origin/main`:
+
+```
+2fc7772 2026-08-03 15:33:54 +0000  S154 ROOT CAUSE (quick-auth voice dead since S145)...
+b25cb94 2026-08-04 21:38:02 +1000  S155: render-only verdict + positive-evidence floors...
+8a59660 2026-08-05 02:40:32 +1000  FLASH start + per-beat zone telemetry...
+ca8436e 2026-08-05 02:58:50 +1000  /review auto-fix: guard all 4 palm MCP landmarks...
+94ba1b9 2026-08-05 22:38:27 +1000  task-zone-radii-surgical...
+d8a1374 2026-08-05 14:22:31 +0000  Revert "task-zone-radii-surgical..."
+2791928 2026-08-06 00:46:24 +1000  task-zone-harness-then-fix...
+8418de3 2026-08-06 04:16:53 +1000  task-voice-content-gate: content-gated voice progression (D-VOICE-GATE-SPEAKER-AGNOSTIC)
+3874d9d 2026-08-06 04:38:16 +1000  task-voice-content-gate: security hardening...
+9c248c4 2026-08-06 04:43:52 +1000  task-voice-content-gate: Codex P1/P2 hardening...
+544b80e 2026-08-06 06:11:43 +1000  task-voice-content-gate: /review hardening...
+6669d99 2026-08-06 07:21:55 +1000  task-prompt-state-sync-v2 FLASH...
+2bc088a 2026-08-06 07:32:40 +1000  task-prompt-state-sync-v2: /review auto-fixes
+22179a2 2026-08-06 08:49:06 +1000  fix(quick-auth): mic readiness gate — close AudioContext cold-start race (D-QUICKAUTH-MIC-COLD-START)
+1a5d214 2026-08-06 14:26:57 +0000  fix(delivery): bump script version pin s154t2->s156h3...
+```
+
+**This matters beyond pedantry: §2.3 below misattributes the AudioContext cold-start fix
+to `083eb8c`, which is real but only touches `HANDOFF.md` (21-line status update, zero
+code) — it's the "DONE" paperwork commit for the same task, landed 2 minutes after the
+actual code commit `22179a2`, which the shallow clone didn't have. §2.3's functional
+description of the guard (fails open after 3s) is still accurate against current HEAD,
+but `22179a2`'s real diff is richer than what got attributed to its stand-in — see the
+correction at §2.3.1 below, including an EXISTING telemetry event this surfaces
+(`mic_ready_wait_start`/`mic_ready_ctx_running`/`mic_ready_done`/`mic_ready_timeout`)
+that should be checked in Rob's session history before assuming new sensors are needed
+for the cold-start-race hypothesis specifically.**
+
+The cross-model review in §6 and its cost ($0.32, real API calls, job IDs logged) are
+NOT being redone — that work is valid regardless of the chronology correction, since the
+panel was reviewing the *functional* hypotheses (asymmetry, lifecycle, AGC), which hold
+up. Only the SHA attribution for hypothesis #2 needs correcting, done at §2.3.1/§7 below.
+The reconstructed-chronology table in §1 is being kept as supplementary context (the
+extra commits it found — `67e33f7`/task-722, `287df38`/task-733 — are real and relevant,
+just weren't in the brief's list), with a corrected primary table added as §1.1 using the
+actual named commits.
 
 ## 1. Reconstructed real chronology (vac-reauth-ceremony.js, greeting-path relevant)
 
@@ -58,6 +116,26 @@ hardening did not break the greeting. The only file-touching commits between the
 Mac pass and the first iPhone-silent run are `2bc088a` (prompt/state sync, no VAD math),
 `00df479` (hand zone, unrelated), and `083eb8c` (AudioContext cold-start guard on the
 full/greeting path). None of them touch the phrase-tick VAD thresholds.
+
+## 1.1 CORRECTED primary chronology (the actual brief-named commits, verified real)
+
+| SHA | UTC | Message | Touches `_phraseVadTick`/greeting VAD? | Verdict |
+|---|---|---|---|---|
+| `2fc7772` | 08-03 15:33 | S154 ROOT CAUSE: quick-auth voice dead since S145 (`_micPillDraw` file-scope ReferenceError, empty catch swallowed it every frame) | No — fixes a *different*, already-dead quick-auth gate; establishes the `_vadDiag`/throttled-self-report pattern later code follows | Not implicated, predates window |
+| `b25cb94` | 08-04 21:38 | S155: render-only verdict + positive-evidence floors + per-speaker fast cal + replay harness | Digit/fast-tier `vadSpeechThreshold` only (see §2.1 — analysis unchanged, still correct against the real SHA) | Not implicated |
+| `8a59660`/`ca8436e`/`94ba1b9`/`d8a1374` | 08-05 | Hand-zone/palm-landmark FLASH + guards + radii + revert | No — zero VAD/RMS/greeting hits confirmed by grep on each commit's diff | Not implicated |
+| `2791928` | 08-06 00:46 | Zone geometry harness + corrected radii | No — one incidental test-naming-pattern mention | Not implicated |
+| **`8418de3`** | **08-06 04:16** | **task-voice-content-gate: content-gated voice progression (D-VOICE-GATE-SPEAKER-AGNOSTIC)** | **Yes — rewrites `_phraseVadTick` so `_phraseHeardVoice` is set ONLY by `_phraseContentMatched` (a SpeechRecognition transcript match) when `_contentGateAvail`; the energy/RMS-only pass path is disabled behind `if (!_contentGateAvail)`. No timeout in this commit.** | **Primary suspect for the Aug 6 onset — independent of, and additional to, the asymmetry in §3** |
+| `3874d9d` | 08-06 04:38 | content-gate hardening: only disables gate on hard `null`-return failure | Doesn't add an escape for "gate running but not matching yet" | Doesn't fix the stall from 8418de3 |
+| `9c248c4` | 08-06 04:43 | Codex P1/P2 hardening (restart-loop guards) | Defensive only | Not implicated (§2.2 analysis still holds) |
+| `544b80e` | 08-06 06:11 | /review hardening: `onFatal` callback for hard STT errors | Escapes only on `not-allowed`/`audio-capture` type errors, not silent non-match | Partial mitigation only |
+| `6669d99`/`2bc088a` | 08-06 07:21-07:32 | prompt/state sync v2: `_setPhase` render guards | Rendering guards, not the VAD comparison | Minor/unclear |
+| **`22179a2`** | **08-06 08:49** | **fix(quick-auth): mic readiness gate — close AudioContext cold-start race (D-QUICKAUTH-MIC-COLD-START)** | **Yes — see §2.3.1 correction below. This is the REAL commit; `083eb8c` (§2.3) only touches `HANDOFF.md`.** | **Candidate — see §2.3.1** |
+| `1a5d214` | 08-06 14:26 | version pin bump s154t2→s156h3 (phones were serving stale bytes) | Cosmetic, but establishes when the above actually reached iPhones | Confirms 8418de3/22179a2 didn't reach devices until this landed |
+
+Everything from `b3f4149` (HOTFIX S156, speech fallback 0.085→0.055) through `7f5188f`
+(HOTFIX r7) and S164 (`36e7c6d`) is unchanged from this doc's original analysis — see §3
+for the asymmetry these hotfixes patched on one side only.
 
 ## 2. Per-commit greeting-path analysis
 
@@ -103,6 +181,63 @@ what `task-722/723/732/733` (Aug 11-14) were later built to address — this gua
 report `ctx_state: running` while the audio pipeline is still effectively dead. I can't
 confirm this without a live trace; flagged as a sensor target in §5 (`ctx_state` +
 `level_source` in the heartbeat will make this directly observable on Rob's next run).
+
+### 2.3.1 CORRECTION: the real commit is `22179a2`, not `083eb8c`, and it does more
+
+`git show 083eb8c -- vac-reauth-ceremony.js` returns **empty** — it touches only
+`HANDOFF.md` (21-line status note), landed 2 minutes after the real code commit. The
+functional description above (renderGreeting's 3s fail-open guard) is accurate against
+current HEAD, but it undersells what `22179a2` actually shipped. Its real diff adds a
+**second, independent mechanism** beyond the `renderGreeting` inline guard:
+
+```js
+// D-QUICKAUTH-MIC-COLD-START: dedicated silent calibration window before the speak prompt.
+const MIC_READY_CAL_MS = 400;       // silent floor-calibration window
+const MIC_READY_TIMEOUT_MS = 2000;  // bail-out ceiling
+function _awaitMicReady(ctx, analyser, calMs) {
+    return new Promise(function(resolve) {
+        ...
+        try { vacDebug('mic_ready_wait_start', null, {
+            ctx_state: ctx ? ctx.state : 'null',
+            stream_active: (typeof mediaStream !== 'undefined' && mediaStream) ? mediaStream.active : null,
+            audio_track: (... ) ? mediaStream.getAudioTracks()[0].readyState : 'none',
+            cal_ms: calMs
+        }); } catch(_) {}
+        function _tick(tsNow) {
+            ...
+            if (ctx.state !== 'running') {
+                if (ctx.state === 'suspended' && !_resumeRequested) {
+                    _resumeRequested = true;
+                    try { ctx.resume().then(...).catch(...); } catch(_) { _resumeRequested = false; }
+                }
+                requestAnimationFrame(_tick); return;
+            }
+            if (_calStart === 0) { _calStart = now; try { vacDebug('mic_ready_ctx_running', ...); } catch(_) {} }
+            ...
+```
+
+This polls `ctx.state` via `requestAnimationFrame` (not the 200ms `phraseInterval` tick),
+resumes once, then holds a **400ms silent-floor calibration window** before resolving —
+separate from and earlier than the `renderGreeting` guard covered in §2.3. It emits FOUR
+telemetry events that already exist in the codebase and may already be in Rob's session
+history: `mic_ready_wait_start`, `mic_ready_ctx_running`, `mic_ready_done`,
+`mic_ready_timeout` — each carrying `ctx_state` and `audio_track` (readyState) at the
+moment of the check. **Before shipping new sensors, pull these four event names from the
+40 failing sessions' existing telemetry** — if `mic_ready_timeout` fires, or
+`mic_ready_wait_start`'s `audio_track` reads anything other than `'live'`, that's direct
+evidence for the lifecycle hypothesis using data that's already being collected, no new
+instrumentation needed. **Confirmed by grepping the only call site (current HEAD line
+5732): `_awaitMicReady` is invoked exclusively inside the quick-reauth/fast-tier flow (the
+block that starts the standalone `MediaRecorder`, per the surrounding
+`D-QUICKAUTH-MIC-COLD-START`/`D-VAD-CALIBRATION-GREETING-BOUND` comments), NOT from
+`beginRecording()`/`_phraseVadTick` — it does not gate the FULL ceremony greeting path
+this task is diagnosing.** The four `mic_ready_*` events are still worth pulling (some of
+Rob's iPhone sessions may be quick-auth reauth runs by name — e.g. `sess_xqqfdjen_reauth`
+— and this tells you whether that tier has the same problem), but they won't directly
+explain a FULL-ceremony greeting failure. The `renderGreeting` inline guard from
+`22179a2` (§2.3, current HEAD lines 5009-5031) is the one that actually runs on the full
+path, and it has no equivalent dedicated telemetry today — exactly what `ctx_state` in
+the new heartbeat (§5) is for.
 
 ## 3. THE KEY FINDING — greeting path vs digit path threshold source (why digits work and the greeting doesn't)
 
@@ -173,7 +308,20 @@ the digit stage that actually consults it.
 This is separate from §3 and I could not fully resolve it from static diff alone; it's
 the right target for the cross-model review (§6) and for live sensors (§5). Candidates,
 none confirmed:
-- `083eb8c`'s cold-start resume guard (§2.3) reporting `running` without a live signal.
+- **(added on the task-898 refire)** `8418de3` (§1.1) landed the same day the regression
+  starts and is a plausible SECOND source of the RMS collapse, not just the content-match
+  stall documented there: the existing `CEREMONY-GREETING-DIAGNOSIS-S161.md` diagnosis doc
+  already establishes that the phrase content gate "opens its OWN capture" (a separate
+  SpeechRecognition audio consumer) independent of the analyser tap. If that second capture
+  contends with/ducks the analyser's track for the ~`PHRASE_DURATION` window it's alive,
+  that would show up as exactly this symptom on the greeting specifically — and would also
+  explain why digit doesn't show it as badly, since the digit stage's content gate is
+  refreshed per-digit (`_refreshContentGate()`, short-lived) rather than held open for the
+  whole phrase. S164 removed the content-match *requirement* but the content gate still
+  starts and runs in parallel — if it's the contention source, S164 wouldn't have fixed
+  that. Untested; the `seed_provenance`/`stream_id`/`track_id` fields in §5 target this.
+- `22179a2`'s cold-start guard (§2.3/§2.3.1 — corrected from `083eb8c`) reporting `running`
+  without a live signal.
 - Whatever `287df38` (task-733, "ORIGINAL-stream audio sources... reads flat 0% on iOS
   WebKit") was built to fix — it converted 5 call sites to a single cached
   original-stream source per context, evidenced by `PKT-S163-CEREMONY-DEAF-ANALYSER`
@@ -258,10 +406,19 @@ greeting specifically. The synthesis (GPT-5.4 as judge) rated this the strongest
 over a flatter "yes, fully sufficient" reading.
 
 **Q2 (root cause of the 0.005-0.009 reads) — ranked by the synthesis:**
-1. **Greeting-startup source/context lifecycle bug around `083eb8c`** (the cold-start
-   `AudioContext.resume()` guard added to `renderGreeting()`, §2.3) — source node
+
+*(SHA correction on the task-898 refire — see §2.3.1: the panel was given `083eb8c` in
+the packet, which is real but only touches `HANDOFF.md`. The actual code commit is
+`22179a2`, landed 2 minutes earlier with the same task/feature, functionally the same
+`renderGreeting` guard the panel was shown — so this ranking is not invalidated, just
+needs its SHA references read as `22179a2`. `22179a2` also ships the `_awaitMicReady`
+mechanism, confirmed fast-tier-only per §2.3.1, not part of the full-path lifecycle this
+ranking is about.)*
+
+1. **Greeting-startup source/context lifecycle bug around `22179a2`** (the cold-start
+   `AudioContext.resume()` guard added to `renderGreeting()`, §2.3/§2.3.1) — source node
    possibly created/used before the context is fully `running` or before the track is
-   live. All three models independently flagged `083eb8c` as the leading suspect purely
+   live. All three models independently flagged this commit as the leading suspect purely
    from the git chronology (it's the only audio-path commit between the last Mac pass
    and the first iPhone-silent run) — I hadn't told them to weight it that way beyond
    including it in the packet.
@@ -272,7 +429,11 @@ over a flatter "yes, fully sufficient" reading.
    the trigger) — 0.005-0.009 with intact voice-band spectral content (vbRatio, per
    digit stage evidence) matches task-722's own documented "iOS AGC compresses mic RMS
    to ~1%" description. Synthesis view: compression describes the symptom, the
-   `083eb8c`-era lifecycle issue is the more likely trigger.
+   `22179a2`-era lifecycle issue is the more likely trigger.
+4. **(added on the task-898 refire, not seen by the original panel)** `8418de3`'s
+   parallel SpeechRecognition capture contending with the analyser tap — see §4. Worth a
+   second panel pass if §5's `stream_id`/`track_id` sensors show the two capture paths
+   fighting over the same track.
 
 **Sharpest new clue surfaced by the panel** (I had this data in the packet but hadn't
 drawn the conclusion): Rob's same 16-Aug session shows **preflight measuring healthy
@@ -315,9 +476,11 @@ independently on the same top candidates without being steered toward them).
    failing run despite the mic clearly being live (background noise floor greens on
    pre-check).
 2. **(Open, top candidate per unanimous-independent panel ranking) Greeting-startup
-   audio graph/source-node lifecycle issue around `083eb8c`** (the cold-start
-   `AudioContext.resume()` guard added to `renderGreeting()`, 2026-08-05 22:51 UTC —
-   the only audio-path commit between the last Mac pass and the first iPhone-silent
+   audio graph/source-node lifecycle issue around `22179a2`** (corrected from `083eb8c`
+   on the task-898 refire — see §2.3.1; `22179a2` is the real code commit, `083eb8c` is
+   its 2-minutes-later HANDOFF.md paperwork commit, same underlying change) — the
+   cold-start `AudioContext.resume()` guard added to `renderGreeting()`, 2026-08-06 08:49
+   UTC — the only audio-path commit between the last Mac pass and the first iPhone-silent
    run) — most likely the source node is created/used before the context is truly
    `running` or before the track is live, and `287df38`'s later "single cached source
    per context" fix may have pinned a bad source for the session rather than fixing the
@@ -337,9 +500,25 @@ independently on the same top candidates without being steered toward them).
    low — if `vb_ratio` is clearly speech-correlated during the failing greeting, the
    signal is present but compressed, favoring "greeting gate policy problem on top of
    compression" over "totally dead analyser."
-4. **(Low confidence, ruled out)** S155/content-gate changes — diff-confirmed these
-   predate the regression window's Mac pass and are not on the post-S164 critical path.
-   Included only because the brief asked to rule them out explicitly.
+4. **(Open, added on the task-898 refire — do NOT treat as ruled out)** `8418de3`
+   (task-voice-content-gate, 2026-08-06 04:16 UTC): rewrote `_phraseVadTick` so
+   `_phraseHeardVoice` was set only by a matched SpeechRecognition transcript when
+   `_contentGateAvail`, with no timeout — a direct, unconditional stall independent of
+   the RMS-threshold issue in #1. **The prior pass (task 890) ruled out "S155/content-gate
+   changes" on this branch, but that verdict was reached without ever seeing `8418de3`'s
+   diff — the shallow clone in that environment made it appear not to exist (§0.1), so
+   only `9c248c4` (a later hardening pass on the same lineage, correctly not implicated)
+   got analyzed.** S164 (`36e7c6d`) removed the content-*match requirement*, which should
+   have closed this specific stall — but the content gate still starts and runs for the
+   whole `PHRASE_DURATION` in parallel with the analyser, and per the existing
+   `CEREMONY-GREETING-DIAGNOSIS-S161.md` doc it "opens its OWN capture." If that capture
+   is contending with/ducking the analyser's track, S164 wouldn't have fixed that half of
+   it (see §4). Deciding field: `seed_provenance`'s `stream_id`/`track_id` compared
+   against whatever identity the content gate's own capture uses, plus whether
+   `phrase_content_gate_matched`/`phrase_gate_dead_escape`/`phrase_content_gate_nomatch_escape`
+   appear at all in the 40 failing sessions (their total absence would mean ticks never
+   accumulated far enough for the content-gate logic to matter either way, pointing back
+   to #1 as sufficient on its own).
 
 **What Rob should look for in his next run's trace:** the new `greeting_gate_config`
 line at arm (constants in force), then the 2s heartbeats — specifically (a) whether
@@ -347,8 +526,14 @@ line at arm (constants in force), then the 2s heartbeats — specifically (a) wh
 (b) whether `ctx_state` is `running` from the very first heartbeat and whether
 `audio_graph_timing` shows the source created before resume resolved [→ #2], (c)
 whether `level_source` ever flips from `analyser` to `mr` (starvation fallback engaging)
-before the run ends, and (d) whether `vb_ratio` tracks speech even while `rms_now` stays
-low [→ #3].
+before the run ends, (d) whether `vb_ratio` tracks speech even while `rms_now` stays
+low [→ #3], and (e) whether `seed_provenance`'s `stream_id`/`track_id` for the greeting
+phase match the preflight's, and whether any `phrase_content_gate_*`/`phrase_gate_dead_escape`
+events fire at all during the failing attempt [→ #4]. Also worth a one-time pull (no new
+sensor needed) of `mic_ready_wait_start`/`mic_ready_ctx_running`/`mic_ready_done`/
+`mic_ready_timeout` from existing telemetry if any of the 40 failing sessions are
+quick-auth reauth runs (§2.3.1) — free signal on whether the fast tier has a related
+problem, though it doesn't gate the full ceremony path itself.
 
 **Full model responses, cost/latency, and job IDs are in this repo's job history via
 `GET /v1/orchestrate/job/{id}` for `orchestrate_20260816_062337_027711_ffaa0fa6`
