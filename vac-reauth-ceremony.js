@@ -4878,7 +4878,11 @@ function _markSpeech(src, rms, onsetAt) {
             audioAnalyser.getByteFrequencyData(_buf);
             const _vbRatio = _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
             _lastVbRatio = _vbRatio;  // surfaced to the QA overlay
-            window.__vacGateArmed = true; _micPillDraw(_rms, VAD_SPEECH_RMS_FALLBACK, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)
+            // S166 fix: draw the line at the SAME threshold the admit predicate below actually
+            // gates on (was always VAD_SPEECH_RMS_FALLBACK even after calibration — the meter and
+            // the gate disagreed). _calIsFallback/vadSpeechThreshold are arm-time constants, cheap here.
+            var _phraseAmpThr = _calIsFallback ? Math.max(vadSpeechThreshold, VAD_SPEECH_RMS_FALLBACK) : vadSpeechThreshold;
+            window.__vacGateArmed = true; _micPillDraw(_rms, _phraseAmpThr, 'g');  // S145c/d: user settles to the line while F-595 calibration listens (kills the loud-greeting feedback loop)
             // (a) CONNECTED-BUT-SILENT mic detector: sustained genuine near-silence with NO voiced
             // energy → the mic is present but too quiet to ever satisfy the gate. Surface the "we
             // can't hear you" recovery rather than silently holding to the hard cap (Finding/silent-mic).
@@ -4895,8 +4899,13 @@ function _markSpeech(src, rms, onsetAt) {
             } else {
                 _phraseSilentRun = 0;
             }
-            // t728 starvation detector: ~60 consecutive crushed frames → spectral mode (sticky)
-            if (_rms < 0.02) { if (++_vadStarvedRun > 60 && !_vadStarved) { _vadStarved = true; try { vacDebug('vad_starved_mode', null, { rms: _rms }); } catch(_) {} } } else if (_rms > 0.05) { _vadStarvedRun = 0; }
+            // t728 starvation detector: originally ~60 consecutive crushed frames (12s) before
+            // flipping to spectral mode — but SILENT_RECOVERY_TICKS(28, 5.6s) and
+            // PHRASE_PHASE_MAX_S(12-17s) both fire before 60 ticks, so starvation mode could
+            // never arm in time to rescue a starved greeting (S166 archaeology §3). Lowered to
+            // 20 ticks (4.0s) — engages before the 5.6s "can't hear you" banner so the MR-fallback
+            // (_spectralVoiced, below) has a chance to drive voiced ticks before the banner/timeout.
+            if (_rms < 0.02) { if (++_vadStarvedRun > 20 && !_vadStarved) { _vadStarved = true; try { vacDebug('vad_starved_mode', null, { rms: _rms }); } catch(_) {} } } else if (_rms > 0.05) { _vadStarvedRun = 0; }
             // t735 (t734 PROVED the analyser never recovers on Rob's iPhone: default constraints,
             // c:r t:l, still rms 1% — TEN rounds of evidence): on starved devices the ceremony's
             // EAR is the RECORDER path (the one that measured his voice at 85%). Spin the mini
@@ -4909,7 +4918,16 @@ function _markSpeech(src, rms, onsetAt) {
                 (_avMrLevelSynth >= 8) ||
                 ((_mb / _buf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
             );
-            if (_spectralVoiced || (_rms > VAD_SPEECH_RMS_FALLBACK && _vbRatio >= VOICE_BAND_MIN_RATIO)) {
+            // S166 archaeology §3 fix: the greeting tick used to admit ONLY via _spectralVoiced (the
+            // 12s-latched starvation path, see above) or a raw _rms compare against the HARDCODED
+            // VAD_SPEECH_RMS_FALLBACK constant — never the arm-time calibrated vadSpeechThreshold or
+            // the floor-relative audioNoiseFloor the DIGIT gate reads (task-722, line ~3999). That's
+            // why digits pass on a starved iOS analyser (0.005-0.009 rms) and the greeting never did.
+            // Port the SAME admit predicate here (_phraseAmpThr computed above, same value the meter
+            // line now draws at) — VAD_SPEECH_RMS_FALLBACK only backstops vadSpeechThreshold when
+            // arm-time calibration never ran (_calIsFallback), since that derived floor+delta value
+            // rests on the default 0.01 floor stub rather than a real measurement in that case.
+            if (_spectralVoiced || (_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > audioNoiseFloor || _vadStarved))) {
                 // BUILD 379: same voice-band gate as the digit tick — amplitude alone isn't enough
                 // in a loud broadband room; a failing vbRatio falls through to the neither-band branch.
                 _phraseSilenceTicks = 0;
