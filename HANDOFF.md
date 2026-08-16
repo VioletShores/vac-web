@@ -1,5 +1,146 @@
-# VAC Web — HANDOFF (Session 31 → Session 32)
-> Updated: 16 Aug 2026 — BRANCH: task-f1139-ceremony-harness | S164 F-1139 Phase 1 pass 3: SECURE SEAMS + FIX IOS_AMPLITUDE_CRUSH (s164c) | NO MERGE
+# VAC Web — HANDOFF (Session 32 → Session 33)
+> Updated: 16 Aug 2026 — BRANCH: task-f1139-ceremony-harness | S166 D-HARNESS-INJECTION-UNGATED round 2: harness-only seam gate (s164d) | phase=VERIFY passed | NO MERGE
+
+## S166 D-HARNESS-INJECTION-UNGATED round 2 — Pass 4: Harness-Only Seam Gate (s164d)
+
+**Branch:** `task-f1139-ceremony-harness` — on top of `78e6e27` (pushed)
+**Date:** 2026-08-16
+**Refs:** D-HARNESS-INJECTION-UNGATED (round 2), task-892, lane 886 (round-1 /cso BLOCKED)
+
+### Why this pass exists
+
+Lane 886's `/cso` **BLOCKED** the pass-3 merge: pass 3 gated the 4 F-1139 injection seams
+(`window.__vacTestAudioFill`, `__vacTestAvAudioFill`, `__vacSetMrLevel`, `__vacSetVadStarved`) on
+`_DEBUG_MODE` — but `_DEBUG_MODE` is set from `?debug=1` in the URL. Anyone could load the
+production page with `?debug=1` appended and, from a normal browser console (no special privilege
+needed), call e.g. `window.__vacSetVadStarved(true)` to force the liveness gate to pass. That is a
+**production-reachable P0 bypass** of the re-auth liveness check — exactly the class of hole
+D-HARNESS-INJECTION-UNGATED exists to close, and pass 3's `_DEBUG_MODE` gate did not close it.
+
+### What Changed (this pass, on top of pass 3)
+
+**New gate: `window.__VAC_HARNESS__` + `_HARNESS_MODE`** (`vac-reauth-ceremony.js` ~L49-70):
+- `_DEBUG_MODE` is **unchanged** — still `?debug=1`-controlled, still only drives the display-only
+  sensor overlay + telemetry beacon. Nothing about its display purpose changed.
+- `_HARNESS_MODE` is a **new, separate** module-scope var, computed **once, synchronously, at
+  module init**: `!!(window.__VAC_HARNESS__ === true && (hostname is '', 'localhost', or
+  '127.0.0.1', OR VAC_HARNESS_BUILD is true))`. `VAC_HARNESS_BUILD` is a hardcoded-`false`
+  build-time constant (hook for a future bundler-based harness build; always false in this
+  plain-file deploy).
+- Why this can't be reached from a production console: `window.__VAC_HARNESS__` has to already be
+  `true` **before this line of the IIFE executes**. A console session only runs *after* the page
+  (and this script) has already loaded — by then `_HARNESS_MODE` has already been computed and
+  latched; setting `window.__VAC_HARNESS__` afterward does nothing. Only Playwright's
+  `page.addInitScript()` (which runs before any page script, on every navigation) can set the flag
+  in time. `?debug=1` has no effect on this gate at all now.
+- Hostname check is defense-in-depth on top of the timing argument (covers the case where a flag
+  somehow got set before load by something other than the URL — e.g. a compromised browser
+  extension). It is **not** the primary defense; the timing argument is.
+
+**All 4 seams now DEFINED only when `_HARNESS_MODE` is true** (not defined-then-ignored):
+| Hook | Location | Pass 3 | Pass 4 |
+|---|---|---|---|
+| `window.__vacSetMrLevel` | ~L431 | `if (_DEBUG_MODE)` | `if (_HARNESS_MODE)` |
+| `window.__vacSetVadStarved` | ~L432 | `if (_DEBUG_MODE)` | `if (_HARNESS_MODE)` |
+| `__vacTestAvAudioFill` check | ~L1385 | `_DEBUG_MODE && typeof ...` | `_HARNESS_MODE && typeof ...` |
+| `__vacTestAudioFill` check | ~L4898 | `_DEBUG_MODE && typeof ...` | `_HARNESS_MODE && typeof ...` |
+
+**Harness runner updated** (`tests/ceremony-harness-fixtures.pw.js`): new `setHarnessFlag(page)`
+helper calls `page.addInitScript(() => { window.__VAC_HARNESS__ = true; })`, called from
+`mockNonMediaBrowserApis()` — which every test in the file already calls before its first
+`page.goto(HARNESS_URL)` (verified: all 3 call sites, including the STARVATION ESCAPE test and the
+MIC-QUALIFY describe block). No other test file in the repo references these 4 seams.
+`ceremony-gate-harness.test.js` (Node mirror tier) only does source-string anchor checks
+(`src.includes('window.__vacSetMrLevel = function')` etc.) — those literal substrings are
+unchanged, so all 25 of its tests still pass unmodified.
+
+**`/review` self-run caught and fixed one real gap before this pass shipped:** an earlier draft of
+this change (matching the task's literal spec) allowlisted `*.vercel.app` as a "non-production"
+hostname for defense-in-depth. Three independent review angles flagged that Vercel serves the
+**live production build** (same code, same `API_BASE`/`ATHENA_API_BASE`) from a `*.vercel.app`
+alias domain, not just from PR-preview deployments — and per this repo's `CLAUDE.md`, this project
+pushes straight to `main` and never opens PRs, so there is no PR-preview `*.vercel.app` traffic to
+accommodate in the first place. Allowlisting the wildcard would have let a live production
+hostname pass the "non-production" check — reintroducing the same class of gap this pass exists to
+close. **Removed** `*.vercel.app` from the hostname allowlist; only `''` (file://, for local/CI
+harness runs), `localhost`, and `127.0.0.1` are treated as non-production now.
+
+### `/cso` proof — seams undefined on production-hostname load
+
+Sandbox has no headless-Chromium (documented limitation from pass 2, still true — no root for
+`playwright install --with-deps`). Proved via `jsdom` (installed standalone in `/tmp`, not a repo
+dependency) simulating real `window.location` values and controlling script-execution timing the
+same way Playwright's `addInitScript` does:
+
+| Scenario | Host | `?debug=1` | `__VAC_HARNESS__` | Result |
+|---|---|---|---|---|
+| Round-2 attack, reproduced | `vacprotocol.org` | yes | not set | all 4 seams `undefined` |
+| Post-load console injection | `vacprotocol.org` | yes | set **after** module init | all 4 seams `undefined` |
+| Pre-load flag, prod custom domain | `vacprotocol.org` | yes | set **before** module init | all 4 seams `undefined` |
+| Pre-load flag, vercel.app alias (the closed gap) | `vac-web.vercel.app` | yes | set **before** module init | all 4 seams `undefined` |
+| Control: harness host | `localhost` | n/a | set **before** module init | `__vacSetMrLevel`/`__vacSetVadStarved` = `function` (as designed; the two `Fill` seams are only ever defined by the harness itself, this file just permits calling them) |
+
+CSO: **VERIFIED FIXED.** Round-1's finding (console-reachable via `?debug=1`) no longer holds on
+any hostname, including the previously-gapped `*.vercel.app` alias.
+
+### Test matrix — 25/25 pass, unchanged from pass 3
+
+Node mirror tier (`node --test tests/ceremony-gate-harness.test.js`) re-run after this pass's
+changes — matrix output identical to pass 3 (this tier doesn't execute `_HARNESS_MODE`/`_DEBUG_MODE`
+at all, it's a source-anchored hand mirror, so it's insensitive to the gate rename by construction;
+re-run purely to confirm no accidental regression):
+```
+clean_greeting       FIRES  rms=0.117 vbr=0.850 ticks=30 mod=0.0469
+silence              STUCK  rms=0.000 vbr=0.000 ticks=0  mod=-1
+single_tap           STUCK  rms=0.000 vbr=0.000 ticks=0  mod=-1
+sustained_hum        STUCK  rms=0.094 vbr=0.000 ticks=0  mod=-1
+background_tv        STUCK  rms=0.055 vbr=0.082 ticks=0  mod=-1
+second_speaker       STUCK  rms=0.070 vbr=0.833 ticks=10 mod=0
+greeting_at_3m       FIRES  rms=0.047 vbr=0.850 ticks=30 mod=0
+IOS_AMPLITUDE_CRUSH  FIRES  rms=0.031 vbr=0.850 ticks=35 mod=0    (still fixed)
+```
+25/25 Node tests pass. Founding invariant holds: silence/tap/hum/tv ALL reject (STUCK).
+
+**Playwright real-gate tier** (`tests/ceremony-harness-fixtures.pw.js`) — same sandbox limitation
+as passes 1-3: no root, cannot `playwright install --with-deps chromium` here. **Not executed
+locally this pass either.** CI (`.github/workflows/ceremony-harness-fixtures.yml`, triggers on push
+to this branch and to `vac-reauth-ceremony.js`/this test file) is authoritative for whether the
+real-gate tier — including the `setHarnessFlag()` wiring added this pass — actually passes. Do not
+treat this file's edit as proof by itself; check the CI run on this branch before merge.
+
+### Stamp
+
+`s164c → s164d` (`auth.html` script tag cache-buster only — no other pin/version string found
+elsewhere in the repo referencing `s164c`).
+
+### Gates
+
+- `/review` (self-run, high effort, 8-angle + verify): 1 CONFIRMED finding (`*.vercel.app`
+  misclassified as non-production) — **fixed** before this pass shipped, re-verified via the
+  `/cso` proof table above. 2 PLAUSIBLE-but-low-severity findings (dead `VAC_HARNESS_BUILD` const,
+  parallel-but-independent hostname-check logic vs. `vac-copy-registry.js`) — left as-is:
+  `VAC_HARNESS_BUILD` is an explicit forward-looking hook requested by this task's own spec, and
+  unifying the two hostname checks would be scope creep on a P0 security patch (different callers,
+  different purposes).
+- `/cso`: **VERIFIED FIXED** — see proof table above. No new attack surface; round-2 finding
+  closed on all hostnames tested, including the *.vercel.app gap caught during self-review.
+
+### phase = VERIFY passed — merge owed (separate lane), NO-MERGE
+
+This branch has been sitting at "gates clear, awaiting merge" for two passes now (see pass-3
+section below — same "Next step" note). Per the C1/C2 forensic lesson recorded elsewhere in this
+file ("no merge + ATTEST execution after the gate passed" killed task-665/666/652): **do not let
+this branch sit again**. The merge itself is explicitly a separate lane per this task's
+instructions (task-892: "NO-MERGE"), not something to do in this session — but whoever owns that
+lane should pick it up promptly once Rob's CONFIRM lands.
+
+**Rob CONFIRM = phone test on s164d.** Load `vacprotocol.org/auth` (once merged) or this branch's
+preview build, confirm the stamp reads `s164d`, run a live re-auth on-device, and confirm (a) the
+greeting gate still fires normally on a real phone mic and (b) `?debug=1` + browser console no
+longer does anything to the gate (try calling `window.__vacSetVadStarved(true)` from the console —
+it should be `undefined`, not a function).
+
+---
 
 ## S164 F-1139 Phase 1 — Pass 3: Secure Seams + Fix IOS_AMPLITUDE_CRUSH (s164c)
 

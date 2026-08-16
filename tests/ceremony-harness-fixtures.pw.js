@@ -10,6 +10,13 @@
 // voice-band ratio, sustain counters, PHRASE_VOICED_TICKS_NEEDED / PHRASE_MOD_DELTA gates,
 // _micQualifyFloor, avVbSustain) is the unmodified shipped function running on our synthetic input.
 //
+// S166 D-HARNESS-INJECTION-UNGATED round 2: the seams above are gated in source on
+// window.__VAC_HARNESS__ (NOT ?debug=1 / _DEBUG_MODE — that was the round-1 finding: _DEBUG_MODE
+// is URL-controlled, so gating production-reachable seams on it left them console-reachable via
+// ?debug=1). setHarnessFlag() below sets window.__VAC_HARNESS__ = true via addInitScript, which
+// runs before any page script — the same timing a real attacker's after-load console access
+// cannot replicate. Must run before every page.goto() in this file.
+//
 // MEDIA STRATEGY: rather than hand-mocking getUserMedia/AudioContext (fragile — a fake stream
 // object fails real AudioContext.createMediaStreamSource() validation, which would leave
 // avAnalyser/audioAnalyser null and defeat the harness), Chromium is launched with
@@ -59,7 +66,17 @@ function toPlainFrames(frames) {
     return frames.map((f) => ({ tdBuf: Array.from(f.tdBuf), freqBuf: Array.from(f.freqBuf) }));
 }
 
+// S166 round 2: sets the harness-only seam gate BEFORE any page script runs. This is what
+// production console access cannot do — addInitScript is a Playwright-only hook, not something
+// reachable from a URL or a same-page console after load (see vac-reauth-ceremony.js's
+// _HARNESS_MODE comment). vac-reauth-ceremony.js additionally requires a non-production hostname
+// (or VAC_HARNESS_BUILD) before honouring this flag — file:// (this harness's protocol) qualifies.
+async function setHarnessFlag(page) {
+    await page.addInitScript(() => { window.__VAC_HARNESS__ = true; });
+}
+
 async function mockNonMediaBrowserApis(page) {
+    await setHarnessFlag(page);
     // Only mocks what has nothing to do with the audio gate under test: SpeechRecognition (so the
     // content gate is disabled and the phrase gate falls back to the energy/voice-band path this
     // harness targets — same choice greeting-audible.pw.js makes), MediaRecorder (no real

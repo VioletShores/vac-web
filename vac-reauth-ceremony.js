@@ -46,6 +46,35 @@ try {
     _DEBUG_MODE = _dbgFlag;
 } catch(_) {}
 
+// ── S166 D-HARNESS-INJECTION-UNGATED round 2: harness-only seam gate ─────────
+// _DEBUG_MODE above is URL-controlled (?debug=1) and is fine for that (display-only sensor
+// readout below). Round-1 CSO found the F-1139 test-injection seams were ALSO gated on
+// _DEBUG_MODE, which means a production console could reach them just by adding ?debug=1 to
+// the URL. window.__VAC_HARNESS__ is the replacement gate for those seams — NOT settable from
+// a URL, and not settable from the page's own console after load either: _HARNESS_MODE below
+// is computed once, synchronously, at module init, so a flag written after this line runs has
+// no effect. Only Playwright's page.addInitScript() (which runs before any page script) can
+// set window.__VAC_HARNESS__ in time. That alone isn't enough — a compromised extension or a
+// pasted bookmarklet could in principle also run before this line on some page — so this is
+// additionally gated on the page's real hostname, which in-page script cannot spoof. '' covers
+// the file:// URLs the local/CI harness fixtures load from (file:// is never internet-served,
+// so it can't become a production attack surface).
+// NOT allowlisting *.vercel.app here on purpose (deviation from an earlier draft of this task's
+// spec, caught in /review): Vercel serves the LIVE production build (same code, same
+// API_BASE/ATHENA_API_BASE) from a *.vercel.app alias domain, not just from PR-preview
+// deployments — and CLAUDE.md says this repo pushes straight to main and never opens PRs, so
+// there is no PR-preview *.vercel.app traffic to accommodate in the first place. Allowlisting
+// the wildcard would have let a live production hostname pass the "non-production" check,
+// which is exactly the class of gap this pass exists to close (see /cso proof in HANDOFF.md).
+var VAC_HARNESS_BUILD = false; // build-time constant for a future harness build pipeline; always false on main
+var _HARNESS_MODE = false;
+try {
+    var _harnessHost = false;
+    var _hh = window.location.hostname;
+    if (_hh === '' || _hh === 'localhost' || _hh === '127.0.0.1') _harnessHost = true;
+    _HARNESS_MODE = !!(window.__VAC_HARNESS__ === true && (_harnessHost || VAC_HARNESS_BUILD));
+} catch(_) {}
+
 var _dbgEl = null;
 var _dbgLastHconf = null;
 var _dbgLastZoneIn = null;
@@ -401,12 +430,13 @@ let audioNoiseFloor = 0.01; // seeded low; adapts up/down to the room via EMA
 // comparisons (thresholds, floors, modulation) are physically meaningless — the gate
 // switches to SPECTRAL judgment: voiced = real FFT energy + voice-band dominance.
 let _vadStarvedRun = 0; let _vadStarved = false;
-// F-1139 injection seams (test-only, no-op in production):
+// F-1139 injection seams (harness-only, undefined in production — gated on _HARNESS_MODE, see
+// D-HARNESS-INJECTION-UNGATED note above, NOT _DEBUG_MODE):
 //   window.__vacTestAudioFill(tdBuf, freqBuf) — fills both buffers; skips live analyser reads.
 //   window.__vacSetMrLevel(n) — overrides _avMrLevelSynth for starvation-path tests.
 //   window.__vacSetVadStarved(bool) — forces _vadStarved for harness scenarios.
-try { if (_DEBUG_MODE) { window.__vacSetMrLevel = function(v){ _avMrLevelSynth = (v === null) ? 0 : Number(v); }; } } catch(_){}
-try { if (_DEBUG_MODE) { window.__vacSetVadStarved = function(v){ _vadStarved = !!v; _vadStarvedRun = v ? 61 : 0; }; } } catch(_){}
+try { if (_HARNESS_MODE) { window.__vacSetMrLevel = function(v){ _avMrLevelSynth = (v === null) ? 0 : Number(v); }; } } catch(_){}
+try { if (_HARNESS_MODE) { window.__vacSetVadStarved = function(v){ _vadStarved = !!v; _vadStarvedRun = v ? 61 : 0; }; } } catch(_){}
 let audioOnsetActive = false;
 const AUDIO_ONSET_DELTA = 0.025;    // rms must exceed floor by this much to trigger onset
 const AUDIO_ONSET_RELEASE = 0.012;  // hysteresis: must drop back below floor+this to release
@@ -1359,7 +1389,7 @@ function startAVChecks() {
             const dataArray = new Uint8Array(avAnalyser.fftSize);
             const _fbuf = new Uint8Array(avAnalyser.frequencyBinCount);
             // F-1139 injection seam: synthetic fixture fills both AV buffers when set; live path unchanged.
-            if (_DEBUG_MODE && typeof window.__vacTestAvAudioFill === 'function') { window.__vacTestAvAudioFill(dataArray, _fbuf); }
+            if (_HARNESS_MODE && typeof window.__vacTestAvAudioFill === 'function') { window.__vacTestAvAudioFill(dataArray, _fbuf); }
             else { avAnalyser.getByteTimeDomainData(dataArray); avAnalyser.getByteFrequencyData(_fbuf); }
             let maxDev = 0;
             for (let i = 0; i < dataArray.length; i++) {
@@ -4872,7 +4902,7 @@ function _markSpeech(src, rms, onsetAt) {
             const _buf = new Uint8Array(audioAnalyser.frequencyBinCount);  // freq-domain — voiceBandRatio only
             const _tdbuf = new Uint8Array(audioAnalyser.fftSize);          // time-domain — RMS only
             // F-1139 injection seam: synthetic fixture fills both buffers when set; live path unchanged.
-            if (_DEBUG_MODE && typeof window.__vacTestAudioFill === 'function') { window.__vacTestAudioFill(_tdbuf, _buf); }
+            if (_HARNESS_MODE && typeof window.__vacTestAudioFill === 'function') { window.__vacTestAudioFill(_tdbuf, _buf); }
             else { audioAnalyser.getByteTimeDomainData(_tdbuf); audioAnalyser.getByteFrequencyData(_buf); }
             let _rms = 0; for (let i = 0; i < _tdbuf.length; i++) { const _pv = _tdbuf[i] - 128; _rms += _pv * _pv; }
             _rms = Math.sqrt(_rms / _tdbuf.length) / 128;
