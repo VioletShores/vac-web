@@ -210,6 +210,19 @@ function vacDebug(event, reason, context) {
     } catch(_) {}
 }
 
+// S166 sensors: several bare catch(_) {} blocks inside the greeting VAD loop
+// (_phraseVadTick/renderGreeting) swallow errors with zero visibility — see
+// docs/debug/GREETING-REGRESSION-DIFF-S166.md §5/§7. Throttled (one beacon per 3s
+// across all callsites) so a tight per-tick loop can't flood the debug sink if a
+// single condition throws on every tick.
+let _lastLoopErrorAt = 0;
+function _reportLoopError(where, err) {
+    const _now = performance.now();
+    if (_now - _lastLoopErrorAt < 3000) return;
+    _lastLoopErrorAt = _now;
+    try { vacDebug('loop_error', where, { message: String((err && err.message) || err).slice(0, 200) }); } catch(_) {}
+}
+
 // ── module step navigation (replaces auth.html goToStep for the ceremony's steps 1-3, scoped to
 //    the mount). Fires CTX.onStep(n) so the host can mirror its own progress dots. ──
 function goToStep(n){
@@ -3753,6 +3766,24 @@ function beginRecording() {
     // thr/sil) — floor_pct/speech_pct carry the RAW time-domain preflight samples (0-100) alongside
     // them so a field run can verify the two quantities directly instead of inferring a conversion.
     try { vacDebug('vad_calibrated', null, { at: 'arm', floor: Number(audioNoiseFloor.toFixed(3)), preflight_floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : null, preflight_speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null, floor_pct: _micSeededAmbient ? Number(_micSeededAmbient.toFixed(1)) : null, speech_pct: _micSeededSpeechLevel ? Number(_micSeededSpeechLevel.toFixed(1)) : null, thr: Number(vadSpeechThreshold.toFixed(3)), sil: Number(vadSilenceThreshold.toFixed(3)), fallback: _calIsFallback, source: 'continuous_floor' }); } catch(_) {}
+    // S166 sensors §5: seed_provenance — WHICH pre-check run seeded the VAD (preflight vs no
+    // usable preflight sample) and whether that seed came from an actual voiced speech sample,
+    // plus stream_id/track_id identity so this can be diff'd against the greeting-phase source
+    // later in the same session (§4/§6.1: preflight-healthy vs greeting-collapsed divergence).
+    try {
+        var _spTrack = null; try { _spTrack = mediaStream ? mediaStream.getAudioTracks()[0] : null; } catch(_) {}
+        vacDebug('seed_provenance', null, {
+            seed_source: _preflightVad ? 'preflight' : (_micPreflightVadReason || 'none'),
+            seed_from_voiced: !!_preflightVad,
+            preflight_floor: _preflightVad ? Number(_preflightVad.floor.toFixed(3)) : null,
+            preflight_speech: _preflightVad ? Number(_preflightVad.speech.toFixed(3)) : null,
+            stream_id: mediaStream ? mediaStream.id : null,
+            track_id: _spTrack ? _spTrack.id : null,
+            track_ready_state: _spTrack ? _spTrack.readyState : null,
+            track_muted: _spTrack ? !!_spTrack.muted : null,
+            track_enabled: _spTrack ? !!_spTrack.enabled : null
+        });
+    } catch(_) {}
     // F-563 (#1): the digit say-step got the SAME tap/beep weakness the greeting had — the old
     // ~100ms (VAD_SPEECH_FRAMES) bar let a tap/beep satisfy a digit. A SPOKEN number is ~300-500ms
     // and MODULATED (a flat beep isn't). So require SUSTAINED voiced energy over a spoken-digit
@@ -4822,9 +4853,23 @@ function _markSpeech(src, rms, onsetAt) {
     const PHRASE_SILENCE_TICKS_NEEDED = 2;            // ~400ms end-pause = the greeting utterance is COMPLETE (not a mid-word dip)
     const SILENT_RECOVERY_TICKS = 28;                // ~5.6s of genuine near-silence (rms < VAD_SILENCE_RMS_FALLBACK) with NO voiced energy → surface the "we can't hear you" recovery (connected-but-silent mic), instead of silently holding to the hard cap. LIVE-TUNE.
     const PHRASE_PHASE_MAX_S = PHRASE_DURATION + 12;  // hard cap past the timer — a final backstop so it can never hang
+    // S166 sensors §5: greeting_gate_config — one-liner dump of the constants in force for THIS
+    // attempt, at arm. Lets a field trace answer "did the gate ignore a threshold it would have
+    // passed?" by comparing this dump's vad_speech_rms_fallback against the heartbeat's rms_now/thr.
+    try { vacDebug('greeting_gate_config', null, {
+        voiced_ticks_needed: PHRASE_VOICED_TICKS_NEEDED,
+        vad_speech_rms_fallback: VAD_SPEECH_RMS_FALLBACK,
+        vad_silence_rms_fallback: VAD_SILENCE_RMS_FALLBACK,
+        silent_recovery_ticks: SILENT_RECOVERY_TICKS,
+        phrase_phase_max_s: PHRASE_PHASE_MAX_S,
+        mode: (CTX && CTX.profile && CTX.profile.mode) || 'full'
+    }); } catch(_) {}
     let _phraseVoicedMin = 1, _phraseVoicedMax = 0;   // rms range during the current voiced run (the modulation check)
     let _phraseSilentRun = 0;                         // consecutive near-silent ticks (the connected-but-silent-mic detector)
     let _phraseAnalyserFrames = 0;                    // S158: frames where audioAnalyser was live during greeting (self-audition sensor)
+    // S166 sensors §5: state the 2s greeting heartbeat reads — updated every _phraseVadTick call
+    // (including early returns, so a starved/dead tick is still visible on the heartbeat cadence).
+    let _hbRmsNow = 0, _hbRmsMax = 0, _hbEarlyReturnReason = null;
     // F-561 (S111): phraseSpoke = a COMPLETED greeting utterance — a sustained voiced run THEN
     // a real end-pause — not "any 600ms of voice". The greeting is greeting-only now; the NUMBERS
     // are spoken per-digit (each bound to its gesture), never in the phrase phase.
@@ -4861,7 +4906,11 @@ function _markSpeech(src, rms, onsetAt) {
     }
 
     function _phraseVadTick() {
-        if (!audioAnalyser || phraseSpoke) return;
+        if (!audioAnalyser || phraseSpoke) {
+            _hbEarlyReturnReason = !audioAnalyser ? 'no_audio_analyser' : 'phrase_spoke';
+            return;
+        }
+        _hbEarlyReturnReason = null;
         _phraseAnalyserFrames++;   // S158: count live-analyser frames (greeting_audible health)
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate sets _phraseContentMatched; tick reads it
         if (_phraseContentMatched && !_phraseHeardVoice) {
@@ -4875,6 +4924,7 @@ function _markSpeech(src, rms, onsetAt) {
             audioAnalyser.getByteTimeDomainData(_tdbuf);
             let _rms = 0; for (let i = 0; i < _tdbuf.length; i++) { const _pv = _tdbuf[i] - 128; _rms += _pv * _pv; }
             _rms = Math.sqrt(_rms / _tdbuf.length) / 128;
+            _hbRmsNow = _rms; if (_rms > _hbRmsMax) _hbRmsMax = _rms;   // S166 sensors: heartbeat reads these
             audioAnalyser.getByteFrequencyData(_buf);
             const _vbRatio = _voiceBandRatio(audioAnalyser, _buf);  // BUILD 379: fraction of energy in the 85Hz-3kHz voice band
             _lastVbRatio = _vbRatio;  // surfaced to the QA overlay
@@ -4912,7 +4962,7 @@ function _markSpeech(src, rms, onsetAt) {
             // MediaRecorder proxy during the phrase when starved, and let ITS energy drive voiced
             // ticks. Spectral stays as the secondary (floor lowered to 2: a crushed stream's real
             // speech sits at meanBin 1-2; the >=3 floor was zeroing out TRUE speech in quiet rooms).
-            if (_vadStarved && !_avMrFallback) { try { _startAvMrFallback(); } catch(_) {} }
+            if (_vadStarved && !_avMrFallback) { try { _startAvMrFallback(); } catch(_e) { _reportLoopError('phraseVadTick.startAvMrFallback', _e); } }
             var _mb = 0; for (var _mi = 0; _mi < _buf.length; _mi++) _mb += _buf[_mi];
             var _spectralVoiced = _vadStarved && (
                 (_avMrLevelSynth >= 8) ||
@@ -4949,7 +4999,7 @@ function _markSpeech(src, rms, onsetAt) {
                 var _escapeMultiplier = (_vadStarved || _phraseGateDead) ? 1.0 : 2;
                 if (_sessionGateAvail && !_phraseContentMatched && _phraseVoicedTicks >= PHRASE_VOICED_TICKS_NEEDED * _escapeMultiplier) {
                     _sessionGateAvail = false;
-                    if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_) {} _phraseContentGate = null; }
+                    if (_phraseContentGate) { try { _phraseContentGate.stop(); } catch(_e) { _reportLoopError('phraseVadTick.contentGateStop', _e); } _phraseContentGate = null; }
                     if (_phraseGateDead && !_vadStarved) {
                         try { vacDebug('phrase_gate_dead_escape', null, { voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
                     } else {
@@ -4994,11 +5044,11 @@ function _markSpeech(src, rms, onsetAt) {
                     try { var _lb=document.querySelector('.listening-banner,.phrase-status'); if(_lb) _lb.textContent='Heard you \u2713'; } catch(_) {}
                     phraseSpoke = true;
                     try { vacDebug('phrase_speech_confirmed', null, { rms: Number(_rms.toFixed(3)), voiced_ticks: _phraseVoicedTicks, mod: Number((_phraseVoicedMax - _phraseVoicedMin).toFixed(3)) }); } catch(_) {}
-                    try { _finalizeCalibration(); } catch(_) {}   // F-595: the greeting just gave us floor + speech → set this session's digit-gate threshold
+                    try { _finalizeCalibration(); } catch(_e) { _reportLoopError('phraseVadTick.finalizeCalibration', _e); }   // F-595: the greeting just gave us floor + speech → set this session's digit-gate threshold
                 }
             }
             // 0.085–0.14 band (neither): hold counters
-        } catch(_) {}
+        } catch(_e) { _reportLoopError('phraseVadTick', _e); }
     }
 
     // F-563 (greeting = first-class gate): the greeting now gets the SAME show→listen→✓ treatment
@@ -5025,12 +5075,15 @@ function _markSpeech(src, rms, onsetAt) {
         // the reliable path on gesture-gated platforms), and surface the state honestly.
         // Progression still falls through after 3s (gesture-only degraded mode unchanged).
         if (audioContext && audioContext.state !== 'running') {
-            try { audioContext.resume().catch(function(){}); } catch(_) {}
+            // S166 sensors §5/§7: these resume() rejections/throws were bare-swallowed — the
+            // leading cold-start-race hypothesis (§2.3/§6.1) is exactly "resume silently doesn't
+            // land"; a swallowed rejection here would hide the smoking gun.
+            try { audioContext.resume().catch(function(_e){ _reportLoopError('renderGreeting.resume', _e); }); } catch(_e) { _reportLoopError('renderGreeting.resumeCall', _e); }
             if (!window.__vacGestureResumeBound) {
                 window.__vacGestureResumeBound = true;
                 var _gr = function() {
-                    try { if (audioContext && audioContext.state !== 'running') audioContext.resume().catch(function(){}); } catch(_) {}
-                    try { if (avAudioCtx && avAudioCtx.state !== 'running') avAudioCtx.resume().catch(function(){}); } catch(_) {}
+                    try { if (audioContext && audioContext.state !== 'running') audioContext.resume().catch(function(_e){ _reportLoopError('renderGreeting.gestureResume', _e); }); } catch(_e) { _reportLoopError('renderGreeting.gestureResumeCall', _e); }
+                    try { if (avAudioCtx && avAudioCtx.state !== 'running') avAudioCtx.resume().catch(function(_e){ _reportLoopError('renderGreeting.gestureResumeAv', _e); }); } catch(_e) { _reportLoopError('renderGreeting.gestureResumeAvCall', _e); }
                 };
                 try { document.addEventListener('click', _gr, { passive: true }); document.addEventListener('keydown', _gr, { passive: true }); } catch(_) {}
                 // task-718 iOS fix (archaeology verdict A): bind statechange so iOS re-suspension during
@@ -5040,10 +5093,10 @@ function _markSpeech(src, rms, onsetAt) {
                 try {
                     audioContext.addEventListener('statechange', function _vacCtxStateChange() {
                         if (audioContext && audioContext.state === 'suspended') {
-                            audioContext.resume().catch(function(){});
+                            audioContext.resume().catch(function(_e){ _reportLoopError('renderGreeting.statechangeResume', _e); });
                         }
                     });
-                } catch(_) {}
+                } catch(_e) { _reportLoopError('renderGreeting.statechangeBind', _e); }
             }
             try { vacDebug('audio_ctx_suspended', audioContext.state, { elapsedMs: elapsedMs }); } catch(_) {}
         }
@@ -5139,6 +5192,33 @@ function _markSpeech(src, rms, onsetAt) {
         } catch(_) {}
     }
 
+    // S166 sensors §5: 2s heartbeat during the GREETING phase — fires whether or not
+    // _phraseVadTick actually admitted the frame (early_return_reason covers the dead cases),
+    // so a stuck greeting has SOMETHING in the trail every 2s instead of one event at the end.
+    function _emitGreetingHeartbeat() {
+        try {
+            var _hbTrack = null; try { _hbTrack = mediaStream ? mediaStream.getAudioTracks()[0] : null; } catch(_) {}
+            var _hbLevelSource = !audioAnalyser ? 'none' : ((_vadStarved && _avMrFallback) ? 'mr' : 'analyser');
+            var _hbThr = _calIsFallback ? Math.max(vadSpeechThreshold, VAD_SPEECH_RMS_FALLBACK) : vadSpeechThreshold;
+            vacDebug('greeting_heartbeat', null, {
+                ctx_state: audioContext ? audioContext.state : 'null',
+                level_source: _hbLevelSource,
+                rms_now: Number(_hbRmsNow.toFixed(3)),
+                rms_max: Number(_hbRmsMax.toFixed(3)),
+                thr: Number(_hbThr.toFixed(3)),
+                sil: Number(vadSilenceThreshold.toFixed(3)),
+                voiced_ticks: _phraseVoicedTicks,
+                vb_ratio: Number((_lastVbRatio || 0).toFixed(3)),
+                seed_source: _preflightVad ? 'preflight' : (_micPreflightVadReason || 'none'),
+                seed_from_voiced: !!_preflightVad,
+                early_return_reason: _hbEarlyReturnReason,
+                track_ready_state: _hbTrack ? _hbTrack.readyState : null,
+                track_muted: _hbTrack ? !!_hbTrack.muted : null,
+                track_enabled: _hbTrack ? !!_hbTrack.enabled : null
+            });
+        } catch(_e) { _reportLoopError('emitGreetingHeartbeat', _e); }
+    }
+
     // ── Phase 1: phrase timer + speech gate (user speaks the challenge phrase) ───────────
     // NOTE: _setPhase(GREETING) is already called above in the initial render block
     // (before the first renderGreeting() call). It is NOT called here to avoid overwriting
@@ -5147,6 +5227,9 @@ function _markSpeech(src, rms, onsetAt) {
         if (recordingStopped) { clearInterval(phraseInterval); return; }
         elapsedMs += TICK_MS;
         const elapsedSec = elapsedMs / 1000;
+        // S166 sensors §5: 2s cadence (TICK_MS=200 * 10), only while the GREETING phase is live —
+        // avoids a stray beat after the phase advances but this interval hasn't cleared yet.
+        if (_ceremonyPhase === _PHASE.GREETING && elapsedMs % 2000 === 0) { _emitGreetingHeartbeat(); }
         timerEl.textContent = Math.max(Math.ceil(totalDuration - elapsedSec), 0);
         ringFill.style.strokeDashoffset = circumference * (elapsedSec / totalDuration);
         // F-563 recoverability: if there's genuinely no mic, surface the recovery NOW (during the
@@ -7376,8 +7459,27 @@ function startAudioMonitor() {
                 }).catch(function(_ge){ try { vacDebug('audio_monitor_start', 'reacquire_failed', { err: String(_ge && _ge.name || _ge).slice(0,60) }); } catch(_) {} });
             } catch(_) {}
         }
+        // S166 sensors §5: audio_graph_timing — source-node creation / resume() call / resume-promise
+        // resolution timestamps, relative to this attempt's setup start. Targets the §2.3/§6.1 panel
+        // hypothesis (source created/used before the context is truly running or the track is live).
+        var _agtT0 = performance.now();
+        var _agtResumeCallMs = null, _agtSourceCreateMs = null;
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') { audioContext.resume().catch(function(){}); }  // some browsers start suspended → no audio frames until resumed
+        var _agtCtxCreateMs = Math.round(performance.now() - _agtT0);
+        if (audioContext.state === 'suspended') {
+            // some browsers start suspended → no audio frames until resumed
+            _agtResumeCallMs = Math.round(performance.now() - _agtT0);
+            audioContext.resume().then(function(){
+                var _agtResumeResolvedMs = Math.round(performance.now() - _agtT0);
+                try { vacDebug('audio_graph_timing', null, {
+                    ctx_create_ms: _agtCtxCreateMs,
+                    source_create_ms: _agtSourceCreateMs,
+                    resume_call_ms: _agtResumeCallMs,
+                    resume_resolved_ms: _agtResumeResolvedMs,
+                    source_created_before_resume_resolved: (_agtSourceCreateMs != null) ? (_agtSourceCreateMs < _agtResumeResolvedMs) : null
+                }); } catch(_e) { _reportLoopError('audioGraphTiming.resumeThen', _e); }
+            }).catch(function(){});
+        }
         // Assign the analyser BEFORE the (throwable) stream clone/connect, so a failure here leaves a
         // live (if briefly disconnected) analyser → the phrase gate HOLDS for voice instead of
         // fail-opening on a null analyser.
@@ -7393,7 +7495,18 @@ function startAudioMonitor() {
         // same flatline class on iOS. ORIGINAL stream, single source per ctx.
         _monitorStream = mediaStream;
         const source = _originalStreamSource(audioContext, mediaStream);
+        _agtSourceCreateMs = Math.round(performance.now() - _agtT0);
         if (source) source.connect(audioAnalyser);
+        if (audioContext.state !== 'suspended') {
+            // context was already running (or never suspended) — no resume wait, emit now
+            try { vacDebug('audio_graph_timing', null, {
+                ctx_create_ms: _agtCtxCreateMs,
+                source_create_ms: _agtSourceCreateMs,
+                resume_call_ms: null,
+                resume_resolved_ms: null,
+                source_created_before_resume_resolved: null
+            }); } catch(_e) { _reportLoopError('audioGraphTiming.sync', _e); }
+        }
 
         audioNoiseFloor = 0.01;
         _adaptLastFloor = 0.01;  // S157 C1: keep adapt tracking in sync with floor reset (prevents false explain-as-you-adapt)
