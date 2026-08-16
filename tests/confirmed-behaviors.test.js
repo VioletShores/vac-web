@@ -38,7 +38,15 @@ const fixtures = JSON.parse(fs.readFileSync(FIXTURE_PATH, 'utf8'));
 function constFromSource(name) {
     const m = src.match(new RegExp('const\\s+' + name + '\\s*=\\s*([^;]+);'));
     assert.ok(m, `expected "const ${name} = ...;" in ${SRC_PATH} — fixture and source have diverged`);
-    const value = Function('"use strict"; return (' + m[1] + ');')();
+    const rhs = m[1].trim();
+    // S166 (D-MICTEST-GREENS-ON-NOISE, 6264406): some constants are now defined as a reference to
+    // another shared const (e.g. VAD_SPEECH_RMS_FALLBACK = VOICED_RUN_SPEECH_RMS_FLOOR, so the
+    // greeting gate and the mic preflight test can't drift apart) rather than a literal — resolve
+    // one level of that indirection instead of letting the bare identifier throw in Function().
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(rhs) && rhs !== name) {
+        return constFromSource(rhs);
+    }
+    const value = Function('"use strict"; return (' + rhs + ');')();
     return value;
 }
 
