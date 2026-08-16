@@ -453,11 +453,72 @@ hypothesis. All three models converged on the same missing fields: source-node c
 timestamp, `resume()` call + resolution timestamps, `stream.id`, `track.id`, track
 `readyState`, track `muted`, track `enabled`. Added these to the shipped sensors.
 
+### 6.1 Follow-up panel round (task-898 refire) — 8418de3 re-ranked to #1
+
+Ran a second, targeted (not full-repeat) `/v1/orchestrate` call — same 3 models, `models`
+dict form (confirmed working), packet folded into `prompt` — presenting the §4/§1.1
+finding that `8418de3` opens a long-lived parallel `SpeechRecognition` capture for the
+whole `PHRASE_DURATION` (vs. the digit stage's short-lived per-digit refresh), asking
+whether this changes the Q2 ranking. Job `orch_1786866940_6731696a`, $0.10, ~106s
+per-model latency, all 3 responded.
+
+**Unanimous re-rank: `8418de3` displaces `22179a2` as the #1 candidate for the RMS
+collapse itself** (not just the pass/fail stall already covered in §1.1/§7#4). Reasoning,
+converged across all three independently:
+- A `SpeechRecognition` session opening its own capture forces an OS-level audio-session
+  renegotiation (iOS `AVAudioSession` category change / Android voice-communication
+  routing) — AGC/gain staging is device-wide, so the analyser's independent
+  `getUserMedia` tap can get re-gained ("ducked") by a second consumer, even though the
+  analyser's own graph is perfectly healthy.
+- **The observed RMS shape argues for ducking over a dead graph:** 0.005-0.009 is live,
+  nonzero, sustained — a suspended `AudioContext` (`22179a2`) or a stale/ended source
+  (`287df38`) would be expected to read flat 0.000 or frozen, not a low-but-live value.
+  (Synthesis flagged this as *supportive, not dispositive* — still needs the log fields
+  below to confirm, browser audio bugs can present messy partial-failure states too.)
+- **Maps exactly onto the greeting/digit asymmetry independent of §3's threshold gap**:
+  greeting holds one continuous multi-second SR session; digit tears down and rebuilds
+  `_refreshContentGate()` per-digit, sub-second windows that plausibly recover between
+  reads before AGC re-targets.
+- Chronologically, `8418de3` (04:16 UTC) precedes `22179a2` (08:49 UTC) by 4.5 hours on
+  the same regression-onset day — it was already in scope, just not analyzed for this
+  angle in the original round.
+- One model's confirmatory check: *"if S164 removed the capture itself (not just the
+  match requirement) and greeting RMS normalized, 8418de3 is convicted outright"* — it
+  did NOT remove the capture (confirmed in §1.1/current HEAD: content gate still starts
+  and runs, S164 only removed the match *requirement*), consistent with Rob's 16 Aug
+  trace still showing the collapse post-S164.
+
+**New discriminating log fields, converged across all three (folded into §5's sensor
+plan below):**
+- `SpeechRecognition` `.start()`/`.stop()` and `audiostart`/`audioend` timestamps,
+  relative to the RMS collapse onset — collapse locked to `audiostart`, recovery at gate
+  close → convicts `8418de3`. Onset at context construction/resume instead → convicts
+  `22179a2`.
+- `track.muted` + mute/unmute event timestamps (OS-level contention should flip
+  `muted=true` at SR start) vs `track.enabled` (app-side disable, different mechanism).
+- `stream.id`/`track.id` identity, same across the analyser and the SR-owned capture, if
+  observable — identical + collapse coincides with SR start = ducking; changed/mismatched
+  = stale source (`287df38`).
+- `track.readyState`, `stream.active`.
+- `track.getSettings()` pre/post SR start — a `sampleRate`/`echoCancellation`/
+  `autoGainControl` flip would mean the second consumer renegotiated the device.
+- `audioContext.state` + `statechange` events + `currentTime` progression, to separate
+  "frozen/suspended at collapse" (lifecycle) from "running throughout" (contention).
+
+This doesn't overturn §1.1/§7#4's structural point (the content-match requirement itself
+was a hard stall, independent of any RMS mechanism) — it sharpens *why* RMS collapses in
+the first place, which was the open question in §4. Full model texts in
+`/tmp/orchestrate_final.json` on the worker that ran this (not persisted to the repo;
+job ID above is the durable reference via `GET /v1/orchestrate/job/{id}`).
+
 ## 7. Handoff — plain-English top block
 
-This ranking reflects my own code-grounded analysis (§3) plus the independent
-cross-model panel (§6, Claude Sonnet 4.6 + GPT-5.6 Terra + Kimi K3, converged
-independently on the same top candidates without being steered toward them).
+This ranking reflects my own code-grounded analysis (§3) plus two rounds of the
+independent cross-model panel (§6, §6.1 — Claude Sonnet 4.6 + GPT-5.6 Terra + Kimi K3,
+converged independently on the same top candidates both rounds without being steered).
+The panel's own follow-up round (§6.1) re-ranked its root-cause candidate after seeing
+the `8418de3` evidence, so hypothesis #2 below supersedes the panel's original #1 — kept
+in ranked order reflecting that update, not the original round's ordering.
 
 **Ranked hypotheses:**
 
@@ -475,65 +536,80 @@ independently on the same top candidates without being steered toward them).
    passed. Also watch `voiced_ticks` — it should stay at/near 0 the whole time on a
    failing run despite the mic clearly being live (background noise floor greens on
    pre-check).
-2. **(Open, top candidate per unanimous-independent panel ranking) Greeting-startup
-   audio graph/source-node lifecycle issue around `22179a2`** (corrected from `083eb8c`
-   on the task-898 refire — see §2.3.1; `22179a2` is the real code commit, `083eb8c` is
-   its 2-minutes-later HANDOFF.md paperwork commit, same underlying change) — the
-   cold-start `AudioContext.resume()` guard added to `renderGreeting()`, 2026-08-06 08:49
-   UTC — the only audio-path commit between the last Mac pass and the first iPhone-silent
-   run) — most likely the source node is created/used before the context is truly
-   `running` or before the track is live, and `287df38`'s later "single cached source
-   per context" fix may have pinned a bad source for the session rather than fixing the
-   ordering. **Sharpest supporting clue: Rob's own 16-Aug session shows healthy
-   preflight speech (0.051) collapsing to 0.005-0.009 by the time the greeting starts,
-   within the SAME session** — argues for a phase-transition bug, not a generally bad
-   mic/room. Deciding fields (new in this sensor pass): `audio_graph_timing`'s source-
-   creation / resume-call / resume-resolved timestamps relative to recording start, plus
-   the heartbeat's `ctx_state` — if `ctx_state` is not stably `running` from the first
-   greeting heartbeat, or the source was created before resume resolved, that's the
-   confirmation. Also compare `seed_provenance`'s `stream_id`/`track_id` (preflight)
-   against the greeting-phase source identity once surfaced.
-3. **(Open, secondary per panel) AGC/voice-processing compression as the observed
-   signal shape** (not necessarily the trigger) — 0.005-0.009 with intact voice-band
-   spectral content matches task-722's documented "iOS AGC compresses mic RMS to ~1%".
-   Deciding field: `vb_ratio` moving with speech while `rms_now`/`rms_max` stay flat and
-   low — if `vb_ratio` is clearly speech-correlated during the failing greeting, the
-   signal is present but compressed, favoring "greeting gate policy problem on top of
-   compression" over "totally dead analyser."
-4. **(Open, added on the task-898 refire — do NOT treat as ruled out)** `8418de3`
-   (task-voice-content-gate, 2026-08-06 04:16 UTC): rewrote `_phraseVadTick` so
-   `_phraseHeardVoice` was set only by a matched SpeechRecognition transcript when
-   `_contentGateAvail`, with no timeout — a direct, unconditional stall independent of
-   the RMS-threshold issue in #1. **The prior pass (task 890) ruled out "S155/content-gate
-   changes" on this branch, but that verdict was reached without ever seeing `8418de3`'s
-   diff — the shallow clone in that environment made it appear not to exist (§0.1), so
-   only `9c248c4` (a later hardening pass on the same lineage, correctly not implicated)
-   got analyzed.** S164 (`36e7c6d`) removed the content-*match requirement*, which should
-   have closed this specific stall — but the content gate still starts and runs for the
-   whole `PHRASE_DURATION` in parallel with the analyser, and per the existing
-   `CEREMONY-GREETING-DIAGNOSIS-S161.md` doc it "opens its OWN capture." If that capture
-   is contending with/ducking the analyser's track, S164 wouldn't have fixed that half of
-   it (see §4). Deciding field: `seed_provenance`'s `stream_id`/`track_id` compared
-   against whatever identity the content gate's own capture uses, plus whether
-   `phrase_content_gate_matched`/`phrase_gate_dead_escape`/`phrase_content_gate_nomatch_escape`
-   appear at all in the 40 failing sessions (their total absence would mean ticks never
-   accumulated far enough for the content-gate logic to matter either way, pointing back
-   to #1 as sufficient on its own).
+2. **(Panel's #1 candidate for the RMS-collapse mechanism, per the §6.1 follow-up round
+   — supersedes the original round's `22179a2` ranking) `8418de3`'s long-lived parallel
+   SpeechRecognition capture ducking the analyser.** `8418de3` (task-voice-content-gate,
+   2026-08-06 04:16 UTC, 4.5h before `22179a2`) rewrote `_phraseVadTick` so progression
+   required a matched SR transcript, with no timeout — a direct, unconditional stall,
+   independent of #1's threshold gap. Per the existing `CEREMONY-GREETING-DIAGNOSIS-S161.md`
+   doc, that content gate "opens its OWN capture," and unlike the digit stage (which tears
+   down/rebuilds its content gate per-digit via `_refreshContentGate()`, sub-second
+   windows), the greeting holds ONE continuous SR session open for the whole
+   `PHRASE_DURATION`. All 3 panel models converged that a second concurrent
+   `getUserMedia`/SR consumer can force an OS-level audio-session renegotiation
+   (AGC/gain re-targeting), ducking the analyser's independently-tapped track even though
+   its own Web Audio graph is perfectly healthy — and that the observed signal (0.005-0.009,
+   live and nonzero, not flat/frozen) fits ducking better than a dead graph. S164 removed
+   only the content-*match requirement*; the capture itself still runs, consistent with
+   the collapse persisting post-S164. **The prior pass (task 890) ruled out
+   "S155/content-gate changes," but never saw `8418de3`'s diff — the shallow clone in that
+   environment made it appear not to exist (§0.1); only `9c248c4` (unrelated hardening on
+   the same lineage) got analyzed.** Deciding fields (§6.1, new in this sensor pass):
+   SR `.start()`/`.stop()`/`audiostart`/`audioend` timestamps relative to the RMS
+   collapse — onset locked to `audiostart`, recovery at gate close, convicts this
+   hypothesis; onset at context construction instead points to #3. Also `track.muted` +
+   mute-event timestamps, `stream.id`/`track.id` identity vs the SR capture's own, and
+   `track.getSettings()` pre/post SR start for an `autoGainControl`/`echoCancellation`
+   flip. Whether `phrase_content_gate_matched`/`phrase_gate_dead_escape`/
+   `phrase_content_gate_nomatch_escape` fire at all in the 40 failing sessions is also
+   informative (their total absence would mean ticks never accumulated far enough for
+   content-gate logic to matter either way, pointing back to #1 as sufficient on its own).
+3. **(Panel's #2 after the follow-up round) Greeting-startup audio graph/source-node
+   lifecycle issue around `22179a2`** (corrected from `083eb8c` on the task-898 refire —
+   see §2.3.1; `22179a2` is the real code commit, `083eb8c` is its 2-minutes-later
+   HANDOFF.md paperwork commit) — the cold-start `AudioContext.resume()` guard added to
+   `renderGreeting()`, 2026-08-06 08:49 UTC. Most likely the source node is created/used
+   before the context is truly `running` or before the track is live, and `287df38`'s
+   later "single cached source per context" fix may have pinned a bad source for the
+   session rather than fixing the ordering. **Sharpest supporting clue: Rob's own 16-Aug
+   session shows healthy preflight speech (0.051) collapsing to 0.005-0.009 by the time
+   the greeting starts, within the SAME session** — argues for a phase-transition bug,
+   not a generally bad mic/room (this clue is also consistent with #2 above; it doesn't
+   distinguish the two without the timestamp fields). Deciding fields: `audio_graph_timing`'s
+   source-creation / resume-call / resume-resolved timestamps relative to recording start,
+   plus the heartbeat's `ctx_state` — if `ctx_state` is not stably `running` from the
+   first greeting heartbeat, or the source was created before resume resolved, and this
+   does NOT correlate with SR start/stop timing from #2, that's the confirmation.
+4. **(Now understood as the likely MECHANISM of #2, not an independent cause — per §6.1
+   synthesis) AGC/voice-processing compression as the observed signal shape** —
+   0.005-0.009 with intact voice-band spectral content matches task-722's documented
+   "iOS AGC compresses mic RMS to ~1%". Deciding field: `vb_ratio` moving with speech
+   while `rms_now`/`rms_max` stay flat and low confirms the signal is present but
+   compressed, rather than a totally dead analyser — but per the synthesis, treat this as
+   supporting detail for whichever of #2/#3 the timestamp fields convict, not a fourth
+   independent branch.
 
 **What Rob should look for in his next run's trace:** the new `greeting_gate_config`
-line at arm (constants in force), then the 2s heartbeats — specifically (a) whether
-`rms_now` ever exceeds `thr` (the seeded value) while `voiced_ticks` stays flat [→ #1],
-(b) whether `ctx_state` is `running` from the very first heartbeat and whether
-`audio_graph_timing` shows the source created before resume resolved [→ #2], (c)
-whether `level_source` ever flips from `analyser` to `mr` (starvation fallback engaging)
-before the run ends, (d) whether `vb_ratio` tracks speech even while `rms_now` stays
-low [→ #3], and (e) whether `seed_provenance`'s `stream_id`/`track_id` for the greeting
-phase match the preflight's, and whether any `phrase_content_gate_*`/`phrase_gate_dead_escape`
-events fire at all during the failing attempt [→ #4]. Also worth a one-time pull (no new
-sensor needed) of `mic_ready_wait_start`/`mic_ready_ctx_running`/`mic_ready_done`/
-`mic_ready_timeout` from existing telemetry if any of the 40 failing sessions are
-quick-auth reauth runs (§2.3.1) — free signal on whether the fast tier has a related
-problem, though it doesn't gate the full ceremony path itself.
+line at arm (constants in force), then the 2s heartbeats — specifically:
+(a) whether `rms_now` ever exceeds `thr` (the seeded value) while `voiced_ticks` stays
+flat [→ #1, the structural asymmetry — true regardless of what else is going on];
+(b) whether the RMS collapse timestamp lines up with `sr_start`/`sr_stop`/`audiostart`/
+`audioend` from the content gate, and whether `track_muted` flips at that same moment
+[→ #2, the panel's new leading candidate];
+(c) whether instead `ctx_state` is not stably `running` from the very first heartbeat, or
+`audio_graph_timing` shows the source created before resume resolved, WITHOUT
+correlating to the SR timestamps in (b) [→ #3];
+(d) whether `vb_ratio` tracks speech even while `rms_now` stays low [→ #4, supporting
+detail for whichever of #2/#3 wins];
+(e) whether `level_source` ever flips from `analyser` to `mr` (starvation fallback
+engaging) before the run ends; and
+(f) whether `seed_provenance`'s `stream_id`/`track_id` for the greeting phase match the
+preflight's, and whether any `phrase_content_gate_*`/`phrase_gate_dead_escape` events
+fire at all during the failing attempt. Also worth a one-time pull (no new sensor needed)
+of `mic_ready_wait_start`/`mic_ready_ctx_running`/`mic_ready_done`/`mic_ready_timeout`
+from existing telemetry if any of the 40 failing sessions are quick-auth reauth runs
+(§2.3.1) — free signal on whether the fast tier has a related problem, though it doesn't
+gate the full ceremony path itself.
 
 **Full model responses, cost/latency, and job IDs are in this repo's job history via
 `GET /v1/orchestrate/job/{id}` for `orchestrate_20260816_062337_027711_ffaa0fa6`
