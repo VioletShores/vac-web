@@ -284,6 +284,11 @@ function runDrawGuide() {
         var _AV_HAND_CONN = [];
         var devicePixelRatio = 1;
         var performance = { now: function() { return 600; } };
+        // S166j (item 7): _drawFingerTargetGuide now calls the shared aspect-compensation helper
+        // (vac-reauth-ceremony.js, top-level) — inject it verbatim so this extracted-function
+        // sandbox stays a faithful mirror instead of stubbing it out.
+        ${extractNamedFnBody('_canvasAspX')}
+        ${extractNamedFnBody('_applyCanvasAspComp')}
         ${fnText}
         _drawFingerTargetGuide(ctx, 100, 100, 3, 'right', null);
     `;
