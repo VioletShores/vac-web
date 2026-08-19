@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s164j — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s164k — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -5353,8 +5353,21 @@ function _markSpeech(src, rms, onsetAt) {
             // heard=false → timed out (PHRASE_PHASE_MAX_S) or no analyser (W4.1 fail-open).
             // analyser_frames counts how many ticks the analyser was live; 0 = analyser was dead
             // for the whole greeting (D-GREETING-ANALYSER-SILENT-ADVANCE regression class).
+            // S167 (Rob directive; L-2529): "heard" must reflect whether the mic actually caught a
+            // voice, NOT whether the end-pause detector fired. When the analyser was live for the
+            // stage (analyser_frames>0) AND a sustained voiced run reached the required tick count,
+            // the user WAS heard — a mid-utterance graph death (iOS flatline) that swallows the
+            // end-pause is a transport artefact, not a deaf mic. Reporting heard=false there gave the
+            // user a false "fail" screen and made WATCH-CEREMONY-HEALTH scream "greeting deaf" every
+            // hour on sessions that actually reached the digit stage. Server-side voiceprint remains
+            // the security authority (this beacon is UX/telemetry only).
+            var _heardBySustainedRun = (_phraseAnalyserFrames > 0) &&
+                (_phraseVoicedState && _phraseVoicedState.ticks >= PHRASE_VOICED_TICKS_NEEDED);
+            var _greetingHeard = !!(phraseSpoke || _phraseHeardVoice || _heardBySustainedRun);
             try { vacDebug('greeting_audible', null, {
-                heard: phraseSpoke,
+                heard: _greetingHeard,
+                heard_via: phraseSpoke ? 'end_pause' : (_phraseHeardVoice ? 'voiced_pass' : (_heardBySustainedRun ? 'sustained_run_graphdeath' : 'not_heard')),
+                phrase_spoke: phraseSpoke,
                 voiced_ticks: _phraseVoicedState.ticks,
                 analyser_frames: _phraseAnalyserFrames,
                 content_matched: _phraseContentMatched,
@@ -5364,7 +5377,7 @@ function _markSpeech(src, rms, onsetAt) {
             }); } catch(_) {}
             // task-705: accumulate greeting sensor data for /v1/ceremony/telemetry beacon
             try { if (_DEBUG_MODE) {
-                _sessionTelemetry.greeting_audible = !!phraseSpoke;
+                _sessionTelemetry.greeting_audible = !!_greetingHeard;
                 _sessionTelemetry.voiced_ticks = _phraseVoicedState.ticks || 0;
                 _sessionTelemetry.analyser_frames = _phraseAnalyserFrames || 0;
                 try { _sessionTelemetry.audio_ctx_state = (audioContext ? audioContext.state : 'none'); } catch(_e) {}
@@ -7611,9 +7624,15 @@ function startAudioMonitor() {
                 // Attempt resume on every flatline tick so it has time to recover before rewire fires.
                 try { if (audioContext && audioContext.state === 'suspended') audioContext.resume(); } catch(_) {}
                 if (_flatlineStart === 0) _flatlineStart = performance.now();
+                // S167 (Rob demo-blocker): the re-auth path's analyser flatlines to exactly 0 after
+                // the first word while the track still reads readyState='live' (iOS wrapper/clone
+                // silence, task-720/733 class). Waiting 1500ms x3 meant the whole greeting stage ran
+                // on a dead graph and timed out as heard=false even though the user spoke. First
+                // rewire now fires at 400ms so recovery happens within the stage, not after it.
+                var _flatlineRewireMs = (_audioRewireCount === 0) ? 400 : 1200;
                 if (!_audioRewireInFlight && _audioRewireCount < 3 &&
-                        (performance.now() - _audioLastRewireAt) > 5000 &&
-                        (performance.now() - _flatlineStart) >= 1500) {
+                        (performance.now() - _audioLastRewireAt) > 3000 &&
+                        (performance.now() - _flatlineStart) >= _flatlineRewireMs) {
                     var _rwCtxOk = false, _rwTrkOk = false;
                     try { _rwCtxOk = !!(audioContext && audioContext.state === 'running'); } catch(_) {}
                     try {
