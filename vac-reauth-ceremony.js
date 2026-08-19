@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s172 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s173 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -7554,16 +7554,29 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 // user always has proof "we hear you" (and a mic-dead indicator: speak, bars don't move = no mic,
 // complementing the no-mic recovery). DISPLAY-ONLY — it reads the audio level and writes only bar
 // heights/colours; it does NOT touch the voice gate (silence→onset binding) in any way.
+// S167: the equaliser is a DISPLAY-ONLY calmness cue (never a gate). Raw per-frame rms made the
+// bars jitter (Rob: "jittery, gives a sense of issues not calmness"). Smooth the displayed level with
+// an asymmetric EMA — quick to RISE (feels responsive to speech onset) but slow to FALL (no flicker on
+// the inter-syllable dips) — plus hysteresis on the voiced colour so it doesn't strobe teal/grey.
+var _eqSmoothed = 0;      // smoothed display level (0-1)
+var _eqVoicedLatched = false;
 function _renderEqualiser(rms) {
     var mult = [0.5, 0.85, 1, 0.85, 0.5];
-    var voiced = rms > 0.07;   // task-644: 0.12→0.07, mirrors time-domain VAD_SPEECH_RMS_FALLBACK — colour cue only
+    // asymmetric smoothing: rise fast (0.5), fall slow (0.12) — calm decay, responsive attack
+    var _a = (rms > _eqSmoothed) ? 0.5 : 0.12;
+    _eqSmoothed = _eqSmoothed + _a * (rms - _eqSmoothed);
+    // hysteresis on the colour: turn teal at 0.08, only drop to grey below 0.045 (no strobe at the edge)
+    if (!_eqVoicedLatched && _eqSmoothed > 0.08) _eqVoicedLatched = true;
+    else if (_eqVoicedLatched && _eqSmoothed < 0.045) _eqVoicedLatched = false;
+    var voiced = _eqVoicedLatched;
     ['vacEqGreeting', 'vacSayEq'].forEach(function(id) {
         var host = document.getElementById(id);
         if (!host) return;
         var bars = host.children;
         for (var i = 0; i < bars.length; i++) {
-            var h = Math.max(3, Math.min(28, rms * 130 * (mult[i] || 1)));
+            var h = Math.max(3, Math.min(28, _eqSmoothed * 130 * (mult[i] || 1)));
             bars[i].style.height = h + 'px';
+            bars[i].style.transition = 'height 90ms ease-out, background 160ms ease';  // CSS easing = extra calmness between rAF updates
             bars[i].style.background = voiced ? 'var(--teal,#2dd4bf)' : 'var(--text-quaternary,#6E7681)';
         }
     });
