@@ -2729,6 +2729,19 @@ function challengeIncomplete() {
 
 // STEP 1 → 2: Challenge
 function goToChallenge() {
+    // S167 (L-2541, D-FAST-REAUTH-AUDIO-ACQUIRE): resume/create the AudioContext SYNCHRONOUSLY here, inside the
+    // user tap (goToChallenge is btn.onclick — a real gesture). iOS Safari ONLY honors AudioContext.resume()
+    // when called synchronously within a user gesture; the fast path's later resume() inside _awaitMicReady's
+    // rAF loop is OFF-gesture and iOS ignores it, so the analyser came up DEAF (rms=0 for the whole window →
+    // no digit audio → server 401, sink sess_mlcjgkxw). Creating+resuming now, in the tap, primes a running
+    // context the analyser can read from frame 1. Persisted on window so startAudioMonitor reuses it.
+    try {
+        if (!window.__vacTapAudioCtx || window.__vacTapAudioCtx.state === 'closed') {
+            window.__vacTapAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (window.__vacTapAudioCtx.state === 'suspended') { window.__vacTapAudioCtx.resume(); }  // MUST be sync-in-gesture (no await)
+        try { vacDebug('tap_audio_resume', null, { state: window.__vacTapAudioCtx.state }); } catch(_) {}
+    } catch(_e) { try { vacDebug('tap_audio_resume', 'threw', { msg: String((_e && _e.message) || _e) }); } catch(_) {} }
     // S111: never start recording against an incomplete challenge — missing phrase
     // guarantees a Challenge-Response failure, and a digit-less challenge in finger
     // mode skips the AND-gate (bypass #1). Block + offer a retry that re-fetches,
@@ -7605,7 +7618,16 @@ function startAudioMonitor() {
         // hypothesis (source created/used before the context is truly running or the track is live).
         var _agtT0 = performance.now();
         var _agtResumeCallMs = null, _agtSourceCreateMs = null;
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // S167 (L-2541): prefer the tap-resumed context (created SYNCHRONOUSLY in goToChallenge's gesture).
+        // iOS only unlocks audio when resume() runs in the gesture; a fresh context created here (post-await,
+        // off-gesture) stays suspended and the analyser reads zeros (deaf → server 401). Reuse the running
+        // tap context so the analyser is live from frame 1.
+        if (window.__vacTapAudioCtx && window.__vacTapAudioCtx.state === 'running') {
+            audioContext = window.__vacTapAudioCtx;
+            try { vacDebug('audio_graph_timing', 'reused_tap_ctx', { state: audioContext.state }); } catch(_) {}
+        } else {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
         var _agtCtxCreateMs = Math.round(performance.now() - _agtT0);
         if (audioContext.state === 'suspended') {
             // some browsers start suspended → no audio frames until resumed
