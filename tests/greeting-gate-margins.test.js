@@ -234,6 +234,6 @@ test('iphone_intermittent_greeting: PRE-FIX predicate reproduces the production 
     );
 });
 
-test('stamp: s166 present in source', () => {
-    assert.ok(src.includes('s166'), 'vac-reauth-ceremony.js readout must contain pin s166');
+test('stamp: s167 present in source', () => {
+    assert.ok(src.includes('s167'), 'vac-reauth-ceremony.js readout must contain pin s167');
 });

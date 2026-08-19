@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s166 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s167 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -5651,6 +5651,7 @@ function _makeQuickReauthVoiceGate(cfg) {
     var preOnsetStart = 0;       // S139: perf.now() when continuous above-threshold pre-onset began; reset on any non-above-threshold frame
     var preOnsetDipStart = 0;    // S154: tolerated pre-onset dip start (mirrors full path)
     var _sampLastT = 0, _sampMax = 0;  // S154 sampler state
+    var _winMaxRms = 0, _winFrames = 0;  // S167 L-2537: never-reset window max + frame count → detect a starved-deaf analyser (iOS resume ignored off-gesture)
     var preOnsetMidChecked = false;  // S139-v2: true once the mid-window spectral re-check has run in this pre-onset window
     var _fastTdBuf = null;           // task-644: time-domain buffer for RMS (lazy-init on first _loop call)
     function _loop(analyser, buf) {
@@ -5676,6 +5677,7 @@ function _makeQuickReauthVoiceGate(cfg) {
             // never even started a run; only live state distinguishes never-silent vs
             // onset-aborting vs tick-dead). 1.5s cadence, window-max level, full gate state.
             _sampMax = Math.max(_sampMax, rms);
+            _winMaxRms = Math.max(_winMaxRms, rms); _winFrames++;  // S167 L-2537
             if (now - _sampLastT >= 1500) {
                 try { vacDebug('vad_gate', 'fast_sample', { path:'fast', rms_now: Number(rms.toFixed(3)), rms_max: Number(_sampMax.toFixed(3)), thr: Number(speechThr.toFixed(3)), sil: Number(silenceThr.toFixed(3)), saw_sil: !!sawSilence, voiced: voiced, pre_onset: preOnsetStart !== 0 }); } catch(_){}
                 _sampLastT = now; _sampMax = 0;
@@ -5788,7 +5790,15 @@ function _makeQuickReauthVoiceGate(cfg) {
         },
         clearArm: function() { _armed = false; },
         get armed() { return _armed; },
-        get firedAt() { return _firedAt; }
+        get firedAt() { return _firedAt; },
+        // S167 (L-2537): analyser is live but has only ever read ~silence across the whole window
+        // (iOS AudioContext.resume() is ignored when called off-gesture in _awaitMicReady, so the
+        // analyser stays deaf and returns zeros — sink sess_uaef7cro: every fast vad_gate rms_max:0).
+        // Distinguish a DEAF analyser from a merely quiet user: enough frames sampled AND the loudest
+        // frame across the entire window never cleared a floor. When true, the caller degrades to
+        // gesture + server voice-check (server is the voice authority, L-2503).
+        starved: function() { return (_winFrames >= _STARVE_MIN_FRAMES) && (_winMaxRms < _STARVE_RMS_CEIL); },
+        get winMaxRms() { return _winMaxRms; }
     };
 }
 
@@ -5801,6 +5811,8 @@ function _makeQuickReauthVoiceGate(cfg) {
 // dedicated silent window so the EMA floor settles before the gate arms. The speak prompt
 // shows ONLY after this resolves. No user speech is consumed by the calibration window.
 const MIC_READY_CAL_MS = 400;       // silent floor-calibration window (EMA settles, ~24 rAF frames at 60 fps)
+const _STARVE_MIN_FRAMES = 45;   // S167 L-2537: ~0.75s of frames before trusting a starved verdict
+const _STARVE_RMS_CEIL = 0.006;  // if the loudest frame across the whole window never cleared this, the analyser is deaf (not a quiet user)
 const MIC_READY_TIMEOUT_MS = 2000;  // bail-out ceiling — permanent suspension is unrecoverable
 // analyser param reserved for future analyser-data calibration; current calibration is time-based
 // (EMA floor settles passively via startAudioMonitor's updateLevels rAF loop — no explicit read needed here).
@@ -6108,7 +6120,17 @@ async function beginStillCapture() {
                     //    so the audio window contains the utterance before the still is taken.
                     // 3. Gesture-only policy (_captureVoice=false): unchanged show-only steadiness.
                     var _captureNow;
-                    if (_voiceGate) {
+                    if (_voiceGate && typeof _voiceGate.starved === 'function' && _voiceGate.starved()) {
+                        // S167 (L-2537): the analyser came up DEAF — rms=0 for the whole window though
+                        // the user is speaking (iOS resume ignored off-gesture; sink sess_uaef7cro).
+                        // Do NOT wait for a voice arm that can never fire (that hang was the failure).
+                        // Degrade EXACTLY like the no-analyser case: advance on a stable gesture; the
+                        // spoken digit is in the recording and the SERVER voice-check is authority
+                        // (L-2503) — same fail-open-to-server posture the full ceremony uses.
+                        var _audioElapsedS = _audioStartMs ? (performance.now() - _audioStartMs) : _MIN_AUDIO_BEFORE_CAPTURE_MS;
+                        _captureNow = (_stable >= _STABLE_NEEDED) && (typeof _n === 'number' && _n > 0) && (_audioElapsedS >= _MIN_AUDIO_BEFORE_CAPTURE_MS);
+                        if (_captureNow) { try { vacDebug('fast_starved_gesture_advance', null, { win_max_rms: Number((_voiceGate.winMaxRms||0).toFixed(4)), audio_ms: Math.round(_audioElapsedS) }); } catch(_) {} }
+                    } else if (_voiceGate) {
                         var _g = _cooccurAdvanceDecision({
                             speechMode: 'vad',
                             voiceArmed: _voiceGate.armed,
