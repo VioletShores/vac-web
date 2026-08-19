@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s170b — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s171 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -407,6 +407,7 @@ let retryAttempts = 0;
 const MAX_RETRIES = 5;
 let audioContext = null;
 let audioAnalyser = null;
+let _audioCtxIsShared = false;  // S167 L-2543: true when audioContext is the SHARED avAudioCtx — stopAudioMonitor must NOT close it
 let _monitorStream = null;  // S157 C1: module-scope so startAudioMonitor() can stop prior clone on rewire
 let audioAnimFrame = null;
 // F-755d audio-bar/equaliser display-only onset instrumentation (task-515 P0-1,
@@ -2735,12 +2736,16 @@ function goToChallenge() {
     // rAF loop is OFF-gesture and iOS ignores it, so the analyser came up DEAF (rms=0 for the whole window →
     // no digit audio → server 401, sink sess_mlcjgkxw). Creating+resuming now, in the tap, primes a running
     // context the analyser can read from frame 1. Persisted on window so startAudioMonitor reuses it.
+    // S167 (L-2543): resume the SHARED avAudioCtx SYNCHRONOUSLY here in the tap (goToChallenge is
+    // btn.onclick). This is the same graph the full path uses (task-724). The fast path may not run the
+    // AV-checks warm that normally resumes avAudioCtx, so guarantee it here — iOS only honors resume()
+    // synchronously in a gesture, and startAudioMonitor (below) now reuses THIS resumed avAudioCtx.
     try {
-        if (!window.__vacTapAudioCtx || window.__vacTapAudioCtx.state === 'closed') {
-            window.__vacTapAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (typeof avAudioCtx === 'undefined' || !avAudioCtx || avAudioCtx.state === 'closed') {
+            avAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
         }
-        if (window.__vacTapAudioCtx.state === 'suspended') { window.__vacTapAudioCtx.resume(); }  // MUST be sync-in-gesture (no await)
-        try { vacDebug('tap_audio_resume', null, { state: window.__vacTapAudioCtx.state }); } catch(_) {}
+        if (avAudioCtx.state === 'suspended') { avAudioCtx.resume(); }  // MUST be sync-in-gesture (no await)
+        try { vacDebug('tap_audio_resume', null, { state: avAudioCtx.state, graph: 'avAudioCtx' }); } catch(_) {}
     } catch(_e) { try { vacDebug('tap_audio_resume', 'threw', { msg: String((_e && _e.message) || _e) }); } catch(_) {} }
     // S111: never start recording against an incomplete challenge — missing phrase
     // guarantees a Challenge-Response failure, and a digit-less challenge in finger
@@ -7580,7 +7585,7 @@ function startAudioMonitor() {
         // protects the FIRST run and any non-reload path): close any prior context so repeated
         // entries can't accumulate AudioContexts and hit the browser's ~6-limit (which made
         // `new AudioContext()` throw → audioAnalyser stayed null → the phrase fail-open bypass).
-        if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        if (audioContext && !_audioCtxIsShared) { try { audioContext.close(); } catch(_) {} } audioContext = null; _audioCtxIsShared = false;
         // Clear prior monitor stream reference — do NOT stop its tracks if they are the
         // original tracks from mediaStream (task-720 FIX 2: stopping original tracks kills recording).
         _monitorStream = null;
@@ -7616,11 +7621,22 @@ function startAudioMonitor() {
         // iOS only unlocks audio when resume() runs in the gesture; a fresh context created here (post-await,
         // off-gesture) stays suspended and the analyser reads zeros (deaf → server 401). Reuse the running
         // tap context so the analyser is live from frame 1.
-        if (window.__vacTapAudioCtx && window.__vacTapAudioCtx.state === 'running') {
-            audioContext = window.__vacTapAudioCtx;
-            try { vacDebug('audio_graph_timing', 'reused_tap_ctx', { state: audioContext.state }); } catch(_) {}
+        // S167 (L-2543): reuse the ALREADY-RESUMED avAudioCtx — the AV-checks graph that got the
+        // task-724 SYNCHRONOUS in-gesture resume (line ~477) and is the reason the FULL path hears
+        // audio on iOS. startAudioMonitor previously made a FRESH audioContext here, post-await and
+        // OFF-gesture, which iOS leaves effectively deaf (analyser reads 0 → fast-reauth server 401,
+        // sink sess_m0ndnz48: ctx 'running' but rms 0 because the analyser was on the WRONG, unresumed
+        // graph). Inheriting avAudioCtx = the fast path now uses the SAME proven audio graph as the full
+        // path (unification in miniature; full fix = D-CEREMONY-PATH-UNIFICATION post-Murray).
+        if (typeof avAudioCtx !== 'undefined' && avAudioCtx && avAudioCtx.state === 'running') {
+            audioContext = avAudioCtx; _audioCtxIsShared = true;
+            try { vacDebug('audio_graph_timing', 'reused_av_ctx', { state: audioContext.state }); } catch(_) {}
+        } else if (typeof avAudioCtx !== 'undefined' && avAudioCtx && avAudioCtx.state === 'suspended') {
+            audioContext = avAudioCtx; _audioCtxIsShared = true;
+            try { audioContext.resume(); } catch(_) {}
+            try { vacDebug('audio_graph_timing', 'reused_av_ctx_resumed', { state: audioContext.state }); } catch(_) {}
         } else {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContext = new (window.AudioContext || window.webkitAudioContext)(); _audioCtxIsShared = false;
         }
         var _agtCtxCreateMs = Math.round(performance.now() - _agtT0);
         if (audioContext.state === 'suspended') {
@@ -7778,7 +7794,7 @@ function startAudioMonitor() {
         // intended W4.1 graceful degradation (gesture-only + "(voice gate off)" note) + the loud log
         // (codex). The accumulation root is fixed by close-prior-context above + the re-auth reload.
         audioAnalyser = null;
-        if (audioContext) { try { audioContext.close(); } catch(_) {} audioContext = null; }
+        if (audioContext && !_audioCtxIsShared) { try { audioContext.close(); } catch(_) {} } audioContext = null; _audioCtxIsShared = false;
         console.error('[VAC][AUDIO] startAudioMonitor FAILED — voice gate degrades to off:', e);
         try { vacDebug('audio_monitor_failed', String(e && e.message || e), { has_stream: !!mediaStream }); } catch(_) {}
     }
@@ -7786,8 +7802,10 @@ function startAudioMonitor() {
 
 function stopAudioMonitor() {
     if (audioAnimFrame) cancelAnimationFrame(audioAnimFrame);
-    if (audioContext) audioContext.close().catch(() => {});
-    audioContext = null;
+    // S167 L-2543: never close the SHARED avAudioCtx here — stopAVChecks/AV lifecycle owns it; closing
+    // it would break the full path (which reuses the same graph). Only close a context WE created.
+    if (audioContext && !_audioCtxIsShared) audioContext.close().catch(() => {});
+    audioContext = null; _audioCtxIsShared = false;
     audioAnalyser = null;
     audioOnsetActive = false;
     // S157 C1: clear adapt timer so it cannot fire into a subsequent ceremony's readout
