@@ -799,6 +799,18 @@ function _voicedRunTick(state, rms, isVoicedFrame, isSilenceFrame) {
 function _voicedRunPass(state, modOverride) {
     return state.ticks >= VOICED_RUN_TICKS_NEEDED && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
 }
+// task-832/943 (CEREMONY GATE-METER SENSOR UNIFICATION, root: sess_y7uhiwty + sess_etn95zlg 14 Aug):
+// observability only — records which energy signal actually gated admission this phase, so a
+// starved-analyser session shows up in telemetry as 'mr_fallback' instead of looking identical to
+// a healthy 'analyser' read. One event per phase, re-emitted only if the source flips mid-phase
+// (starvation onset/recovery).
+var _gateRmsSourceByPhase = {};
+function _emitGateRmsSource(phase) {
+    var source = (_vadStarved && _avMrFallback) ? 'mr_fallback' : 'analyser';
+    if (_gateRmsSourceByPhase[phase] === source) return;
+    _gateRmsSourceByPhase[phase] = source;
+    try { vacDebug('gate_rms_source', source, { phase: phase }); } catch(_) {}
+}
 // SAGA-SILENT-06: OS-level mic privacy block / wrong device yields a live-but-silent track.
 // The analyser reads zeros continuously; all VAD thresholds fail; no sensor identified cause.
 // Fix: detect via frame counter, confirm via synthetic self-test, surface via first-class banner.
@@ -2627,6 +2639,7 @@ function stopAVChecks() {
     // task-724: tear down MR fallback alongside the analyser
     if (_avMrFallback) { try { _avMrFallback.stop(); } catch(_) {} _avMrFallback = null; }
     _avMrLevelSynth = 0; _avAnalyserDeadSince = 0;
+    _gateRmsSourceByPhase = {};   // task-832/943: fresh attempt re-emits gate_rms_source instead of staying suppressed on a stale value
     avPrevOval = null;
     // Clear the pre-flight hand-zone guide so #faceOval returns and the green ring
     // doesn't linger when the pre-flight stops (leaving step 1 / re-auth).
@@ -4036,6 +4049,7 @@ function _markSpeech(src, rms, onsetAt) {
                 // uses, or it tells the user "speak past the line" while the gate is already passing them.
                 var _effAdmit = Math.min(vadSpeechThreshold, Math.max(audioNoiseFloor, 0.006));
                 window.__vacGateArmed = true; _micPillDraw(rms, _effAdmit, _calIsFallback ? 'p' : 'c');
+                _emitGateRmsSource('digits');
                 const _now = performance.now();
                 // S157 C1: continuous floor-relative threshold update. Frozen during onset
                 // (_preOnsetStart > 0) and voiced runs (voiced > 0) so the goalposts cannot
@@ -5027,6 +5041,7 @@ function _markSpeech(src, rms, onsetAt) {
             // ticks. Spectral stays as the secondary (floor lowered to 2: a crushed stream's real
             // speech sits at meanBin 1-2; the >=3 floor was zeroing out TRUE speech in quiet rooms).
             if (_vadStarved && !_avMrFallback) { try { _startAvMrFallback(); } catch(_e) { _reportLoopError('phraseVadTick.startAvMrFallback', _e); } }
+            _emitGateRmsSource('greeting');
             var _mb = 0; for (var _mi = 0; _mi < _buf.length; _mi++) _mb += _buf[_mi];
             // S166j (item 3): the mb/vbRatio disjunct is ALSO gated by the item-2 band-ratio guard
             // now (a low-rms frame reads _vbRatio=-1, which fails >= VOICE_BAND_MIN_RATIO on its own)
