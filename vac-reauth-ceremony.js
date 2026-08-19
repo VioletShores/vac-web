@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s171 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s172 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -5681,6 +5681,19 @@ function _makeQuickReauthVoiceGate(cfg) {
             var rms = 0; for (var i = 0; i < _fastTdBuf.length; i++) { var _fv = _fastTdBuf[i] - 128; rms += _fv * _fv; }
             rms = Math.sqrt(rms / _fastTdBuf.length) / 128;
             analyser.getByteFrequencyData(buf);
+            // S167 (L-2544): COMPRESSED-VOICE ADMIT — computed HERE (before the sampler/debug that reads it).
+            // iOS AGC crushes Rob's spoken digit to rms~0.006 (sink sess_bh786ty8), below silenceThr(0.03),
+            // so it was counted as SILENCE and the run never built. The analyser is LIVE now (s171 graph fix)
+            // and the voice band is strong — mirror the full path (VOICE_BAND_STRONG_RATIO): count a frame as
+            // voiced when the mid-band voice fraction is clearly voice, regardless of compressed rms. Server
+            // (Deepgram + bound-digit) stays the content/identity authority (L-2503).
+            var _fcvSr = (analyser.context && analyser.context.sampleRate) || 48000;
+            var _fcvStart = Math.ceil(300 * analyser.fftSize / _fcvSr);
+            var _fcvEnd = Math.floor(3500 * analyser.fftSize / _fcvSr);
+            var _fcvMb = 0, _fcvTot = 1;
+            for (var _fcvi = 0; _fcvi < buf.length; _fcvi++) { _fcvTot += buf[_fcvi]; if (_fcvi >= _fcvStart && _fcvi <= _fcvEnd) _fcvMb += buf[_fcvi]; }
+            var _fcvRatio = _fcvMb / _fcvTot;
+            var _fastCompressedVoice = (rms < speechThr) && (rms > 0.0035) && (_fcvRatio >= FAST_VAD_VOICE_BAND_FRAC);
             // S145 finding 5 (F-922 lock-step): the fast/quick-auth single-digit tier runs this
             // VAD but never showed the mic instrument. Arm the same overlay every speaking surface uses.
             window.__vacGateArmed = true;
@@ -5697,16 +5710,16 @@ function _makeQuickReauthVoiceGate(cfg) {
             _sampMax = Math.max(_sampMax, rms);
             _winMaxRms = Math.max(_winMaxRms, rms); _winFrames++;  // S167 L-2537
             if (now - _sampLastT >= 1500) {
-                try { vacDebug('vad_gate', 'fast_sample', { path:'fast', rms_now: Number(rms.toFixed(3)), rms_max: Number(_sampMax.toFixed(3)), thr: Number(speechThr.toFixed(3)), sil: Number(silenceThr.toFixed(3)), saw_sil: !!sawSilence, voiced: voiced, pre_onset: preOnsetStart !== 0 }); } catch(_){}
+                try { vacDebug('vad_gate', 'fast_sample', { path:'fast', rms_now: Number(rms.toFixed(3)), rms_max: Number(_sampMax.toFixed(3)), thr: Number(speechThr.toFixed(3)), sil: Number(silenceThr.toFixed(3)), saw_sil: !!sawSilence, voiced: voiced, pre_onset: preOnsetStart !== 0, vb: Number(_fcvRatio.toFixed(2)), cvoice: !!_fastCompressedVoice }); } catch(_){}
                 _sampLastT = now; _sampMax = 0;
             }
-            if (rms < silenceThr) {
+            if (rms < silenceThr && !_fastCompressedVoice) {
                 preOnsetStart = 0; preOnsetMidChecked = false; preOnsetDipStart = 0;  // S139: silence aborts pre-onset (S154: dip tracker cleared)
                 sawSilence = true;
                 if (voiced > 0) { _vadDiag('run ended: ' + Math.round(now - onsetAt) + 'ms pk ' + (vMax*100).toFixed(0) + '% | need ' + voiceMinMs + 'ms above ' + (speechThr*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'run_ended', { path:'fast', dur_ms: Math.round(now - onsetAt), peak: Number(vMax.toFixed(3)), thr: Number(speechThr.toFixed(3)), need_ms: voiceMinMs }); } catch(_){} }  // S154 diag
                 voiced = 0; vMin = 1; vMax = 0; dipStart = 0; voicedFrames = 0;   // real silence fully ends the run
-            } else if (rms > speechThr) {
-                voicedFrames++;   // S155: every above-threshold sample this attempt, pre-onset included
+            } else if (rms > speechThr || _fastCompressedVoice) {
+                voicedFrames++;   // S155: every above-threshold sample this attempt, pre-onset included (S167 L-2544: compressed-voice frames count too)
                 if (voiced === 0) {
                     // S139 onset gate: require SUSTAINED above-threshold for FAST_VAD_ONSET_SUSTAIN_MS.
                     if (sawSilence) {
