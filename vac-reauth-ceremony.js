@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s170 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s170b — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -6133,17 +6133,11 @@ async function beginStillCapture() {
                     //    so the audio window contains the utterance before the still is taken.
                     // 3. Gesture-only policy (_captureVoice=false): unchanged show-only steadiness.
                     var _captureNow;
-                    if (_voiceGate && typeof _voiceGate.starved === 'function' && _voiceGate.starved()) {
-                        // S167 (L-2537): the analyser came up DEAF — rms=0 for the whole window though
-                        // the user is speaking (iOS resume ignored off-gesture; sink sess_uaef7cro).
-                        // Do NOT wait for a voice arm that can never fire (that hang was the failure).
-                        // Degrade EXACTLY like the no-analyser case: advance on a stable gesture; the
-                        // spoken digit is in the recording and the SERVER voice-check is authority
-                        // (L-2503) — same fail-open-to-server posture the full ceremony uses.
-                        var _audioElapsedS = _audioStartMs ? (performance.now() - _audioStartMs) : _MIN_AUDIO_BEFORE_CAPTURE_MS;
-                        _captureNow = (_stable >= _STABLE_NEEDED) && (typeof _n === 'number' && _n > 0) && (_audioElapsedS >= _MIN_AUDIO_BEFORE_CAPTURE_MS);
-                        if (_captureNow) { try { vacDebug('fast_starved_gesture_advance', null, { win_max_rms: Number((_voiceGate.winMaxRms||0).toFixed(4)), audio_ms: Math.round(_audioElapsedS) }); } catch(_) {} }
-                    } else if (_voiceGate) {
+                    // S167 (L-2540): starved-gesture-advance REMOVED — it advanced before the user spoke,
+                    // so the server got no digit audio and denied 401. A deaf analyser can't be rescued
+                    // client-side (server shares the dead audio source). The real fix is audio ACQUISITION
+                    // (s170: sync AudioContext.resume in the goToChallenge tap) so the analyser is live.
+                    if (_voiceGate) {
                         var _g = _cooccurAdvanceDecision({
                             speechMode: 'vad',
                             voiceArmed: _voiceGate.armed,
