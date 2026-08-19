@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s164k — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s165 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -765,6 +765,11 @@ let _micPreflightVadReason = null;  // last _micPreflightVad() null-return reaso
 // mostly in that voice band shouldn't have to out-shout the room the way flat noise would —
 // see the reduced ambient multiplier at the qualify check below.
 const VOICE_BAND_MIN_RATIO = 0.45; // S148 field-tune: Rob speaking on a London street read 52% — 0.55 missed real speech; street rumble dilutes the ratio.
+// S167 (L-2534): a voice-band ratio at/above this is UNAMBIGUOUS speech (well clear of the 0.45
+// street-tuned floor and of broadband noise), strong enough to count a greeting voiced frame on
+// its own when iOS AGC has crushed absolute RMS into the 0.02-0.05 dead zone. Anti-false-confirm
+// is preserved by the sustained-modulated-run PASS gate (_voicedRunPass), not by amplitude.
+const VOICE_BAND_STRONG_RATIO = 0.62;
 // L-2503/L-2504 (S166 D-MICTEST-GREENS-ON-NOISE, Rob's 3rd live specimen): the greeting liveness
 // gate (36e7c6d) already gates on a SUSTAINED, MODULATED, voice-band-dominant run — not a bare
 // energy-rise. The preflight mic test used a DIFFERENT, weaker bar (rise-above-slow-ambient /
@@ -5047,7 +5052,23 @@ function _markSpeech(src, rms, onsetAt) {
             // (the false-confirm trace: rms 0.006-0.008 admitted purely because _vadStarved was true).
             // Starvation now admits ONLY through _spectralVoiced (MR evidence or a guarded vbRatio).
             var _phraseFloorAdmit = Math.max(audioNoiseFloor * 2, audioNoiseFloor + 0.01);
-            const _voicedFrame = _spectralVoiced || (_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > _phraseFloorAdmit));
+            // S167 (L-2534, ceremony-debug ledger): iOS AGC compresses Rob's speech RMS into the
+            // 0.02-0.05 DEAD ZONE — too loud to latch _vadStarved (needs rms<0.02 x20 frames, line ~5022),
+            // too quiet to clear _phraseAmpThr/_phraseFloorAdmit. Result: vbRatio reads ~85% (clearly
+            // speech, server hears it fine) but the greeting NEVER counts a voiced frame, so it will not
+            // advance to "Heard you" though the mic is plainly capturing the voice. The DIGIT stage does
+            // not have this hole — it advances on vbRatio alone (line ~3970: "local RMS meter is ADVISORY
+            // ... must NOT block advance when server signal is present"). Give the greeting the SAME
+            // escape: a STRONG, MODULATED voice-band ratio counts as a voiced frame regardless of RMS.
+            // This does NOT weaken anti-false-confirm: it requires vbRatio well above the speech floor
+            // (VOICE_BAND_STRONG_RATIO) AND the sustained-modulated-run gate (_voicedRunPass: 7 ticks +
+            // mod delta) still governs the PASS. Silence/tap/hum read vbRatio<0 or unmodulated and fail.
+            // The greeting is a LIVENESS gate (L-2503); server voiceprint judges the words.
+            var _strongVoiceBand = (_vbRatio >= VOICE_BAND_STRONG_RATIO) && (_rms > audioNoiseFloor);
+            const _voicedFrame = _spectralVoiced || _strongVoiceBand || (_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > _phraseFloorAdmit));
+            if (_strongVoiceBand && !(_vbRatio >= VOICE_BAND_MIN_RATIO && (_rms > _phraseAmpThr || _rms > _phraseFloorAdmit))) {
+                try { vacDebug('phrase_voiceband_admit', null, { vb_ratio: Number(_vbRatio.toFixed(2)), rms: Number(_rms.toFixed(3)), floor: Number(audioNoiseFloor.toFixed(3)), amp_thr: Number((_phraseAmpThr||0).toFixed(3)), ticks: _phraseVoicedState.ticks }); } catch(_) {}
+            }
             const _silenceFrame = _rms < VAD_SILENCE_RMS_FALLBACK;
             _voicedRunTick(_phraseVoicedState, _rms, _voicedFrame, _silenceFrame && !_phraseHeardVoice);
             if (_voicedFrame) {
