@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s165 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s166 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
@@ -5260,12 +5260,21 @@ function _markSpeech(src, rms, onsetAt) {
     // Stopped when phraseSpoke fires (content consumed) or recording ends.
     if (_sessionGateAvail && PHRASE_DURATION > 0 && !_dropVoicePhrase) {
         try {
-            var _phr = challengeData && (challengeData.phrase || '');
-            var _phrTokens = _phr.toLowerCase().split(/\s+/).filter(function(t){ return t.length >= 2; });
-            // Always include digit numerals as tokens (language-tolerant: "two" OR "2")
-            if (challengeData && challengeData.digits) {
-                challengeData.digits.forEach(function(d){ _phrTokens.push(String(d)); });
-            }
+            // S167 (L-2535, DEFINITIVE greeting false-block fix from Rob's sink telemetry sess_u95w62ac):
+            // the greeting gate was built from the FULL challenge phrase ("Good morning, I am Robert
+            // Zagarella, 5 3 1") AND then explicitly pushed the digit set (5,3,1) as tokens. But at the
+            // GREETING stage the user speaks ONLY the greeting — the digits are spoken later, per finger.
+            // So the transcript ("Good morning I'm Robert Zagarella" — PERFECT) could match at most 5 of
+            // 8 tokens, never reaching the >=50% bar → reason:"token_count_below_half" on EVERY attempt →
+            // forced 17s phrase_speech_timeout, showing "we can't hear you" though he was heard perfectly.
+            // FIX: the greeting gate uses GREETING TOKENS ONLY. Strip the trailing digit clause (same
+            // regex already used for display at ~line 3119) and DO NOT push the digit set. The digits are
+            // gated separately, per-digit, in the finger phase. (Greeting is a liveness gate anyway —
+            // L-2503 — server judges the words; this content match is only a fast-path.)
+            var _phrRaw = (challengeData && (challengeData.phrase || '')) || '';
+            var _phrGreetingOnly = _phrRaw.replace(/,\s*\d[\d\s,]*$/, '');  // drop trailing ", 5 3 1"
+            var _phrTokens = _phrGreetingOnly.toLowerCase().split(/\s+/).filter(function(t){ return t.length >= 2; });
+            // NOTE: digit tokens intentionally NOT added here (they belong to the per-digit finger gate).
             if (_phrTokens.length) {
                 _phraseContentGate = _startPhraseContentGate(_phrTokens, function() {
                     _phraseContentMatched = true;
