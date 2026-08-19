@@ -1,5 +1,5 @@
 // vac-reauth-ceremony.js
-// stamp s168 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
+// stamp s170 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
 // overlays gated behind ?debug=1, and shared canvas aspect-compensation helper for every
