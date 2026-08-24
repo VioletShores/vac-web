@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>VAC — Grant Merge Authority</title>
+<style>
+:root{
+  --bg:#0A0F1A; --surface:#111826; --surface-raised:#161F31; --border:#232E42; --border-light:#2E3B54;
+  --text:#E8EDF5; --text-dim:#93A1B8; --text-quiet:#5E6B82;
+  --gold:#C9A227; --gold-bg:rgba(201,162,39,0.08); --gold-border:rgba(201,162,39,0.3);
+  --red:#EF4444; --red-bg:rgba(239,68,68,0.08); --red-border:rgba(239,68,68,0.3);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --mono:'SF Mono',SFMono-Regular,Menlo,ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);}
+.page-shell{background:var(--bg)!important;min-height:100vh;color:var(--text-dim);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 60px;}
+.wrap{max-width:520px;margin:0 auto;padding:0 20px;}
+a{color:var(--gold);}
+
+header.top{border-bottom:1px solid var(--border);padding:20px 0;margin-bottom:40px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.mark{width:32px;height:32px;flex:0 0 32px;}
+.brand-name{font-weight:700;color:var(--text);font-size:16px;letter-spacing:-0.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-quiet);letter-spacing:1px;}
+.nav-mode{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-border);}
+
+h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin-bottom:6px;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px;}
+.p{font-size:13.5px;color:var(--text-dim);line-height:1.6;}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-top:8px;}
+.scope-list{list-style:none;margin:16px 0;padding:0;font-family:var(--mono);font-size:12.5px;color:var(--text-dim);}
+.scope-list li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--border);}
+.scope-list li:last-child{border-bottom:none;}
+.scope-list .k{color:var(--text-quiet);}
+.scope-list .v{color:var(--text);text-align:right;}
+
+.btn{width:100%;padding:14px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;margin-top:18px;font-family:var(--font);}
+.btn-gold{background:var(--gold);color:#181205;}
+.btn-gold:hover:not(:disabled){background:#B8952A;}
+.btn-gold:disabled{opacity:0.5;cursor:not-allowed;}
+
+.gate-msg{background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--text-dim);margin-bottom:16px;}
+.gate-msg strong{color:var(--gold);}
+
+.jti-box{background:#080C15;border:1px solid var(--border-light);border-radius:8px;padding:14px 16px;margin:16px 0 6px;word-break:break-all;font-family:var(--mono);font-size:16px;color:var(--text);}
+.copy-btn{font-family:var(--mono);font-size:11px;color:var(--text-dim);background:transparent;border:1px solid var(--border-light);border-radius:6px;padding:6px 12px;cursor:pointer;margin-bottom:14px;}
+.copy-btn:hover{color:var(--text);border-color:var(--gold-border);}
+.copy-btn.copied{color:var(--gold);border-color:var(--gold-border);}
+
+.verify-link{display:block;font-family:var(--mono);font-size:12.5px;margin-top:4px;word-break:break-all;}
+
+.warn-box{background:var(--red-bg);border:1px solid var(--red-border);border-radius:10px;padding:14px 16px;margin:16px 0;font-size:13px;color:#FCA5A5;font-weight:600;}
+
+.err-box{background:var(--red-bg);border:1px solid var(--red-border);border-radius:10px;padding:14px 16px;font-size:13px;color:#FCA5A5;font-family:var(--mono);word-break:break-word;}
+
+.attest-list{list-style:none;margin:14px 0 0;padding:0;font-family:var(--mono);font-size:12px;color:var(--text-quiet);}
+.attest-list li{display:flex;justify-content:space-between;padding:4px 0;}
+.attest-list .v{color:var(--text-dim);}
+
+.note{font-family:var(--mono);font-size:11px;color:var(--text-quiet);line-height:1.6;margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="page-shell">
+  <header class="top"><div class="wrap"><div class="top-row">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="#C9A227" stroke-width="1.5"/><path d="M20 8 L20 32 M11 14 L29 26 M29 14 L11 26" stroke="#B8952A" stroke-width="1.2" opacity="0.55"/><circle cx="20" cy="20" r="4.5" fill="#C9A227"/></svg>
+      <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
+    </div>
+    <span class="nav-mode">GRANT</span>
+  </div></div></header>
+
+  <div class="wrap">
+    <div class="eyebrow">Athena permit v1</div>
+    <h1 id="pageTitle">Grant merge authority</h1>
+    <div id="stage"></div>
+    <div class="note" id="explainNote"></div>
+  </div>
+</div>
+
+<script src="/vac-auth.js"></script>
+<script>
+'use strict';
+var API_BASE = 'https://vac-system-production.up.railway.app';
+var RETURN_PATH = '/grant';
+var REPO_RESOURCE = 'repo:VioletShores/athena';
+
+var stageEl = document.getElementById('stage');
+var explainEl = document.getElementById('explainNote');
+
+function setExplain(text) { explainEl.textContent = text; }
+
+// ============================================================
+// Pure, testable helpers (no DOM access) — see tests/grant-page.test.js
+// ============================================================
+
+// Builds the POST body for /v1/vat/issue per the IssueVATReq schema. `token` is the raw
+// session token string; it is placed on the request only, never rendered by any caller.
+function buildIssueBody(user, token) {
+  return {
+    human_identity: user.email,
+    agent_id: 'athena-merge-lane',
+    resources: ['repo:VioletShores/athena'],
+    actions: ['merge'],
+    verification_method: 'multi_modal',
+    expiry_seconds: 86400,
+    max_depth: 1,
+    sensitivity: 'high',
+    context: { surface: 'grant', purpose: 'athena permit v1 merge scope' },
+    authorising_session_token: token
+  };
+}
+
+// A minted token only counts as trustworthy if the server itself attests to a full-tier
+// ceremony — a client-asserted or non-server attestation must render as untrusted.
+function isServerAttestedFull(vacAuthorisation) {
+  return !!vacAuthorisation &&
+    vacAuthorisation.attested_by === 'server' &&
+    vacAuthorisation.auth_level === 'full';
+}
+
+// ============================================================
+// Session bridge — the production full ceremony (auth.html, top-level tab) persists its
+// result to localStorage('vac_verified' / 'vac_last_verified'), NOT to vac-auth.js's own
+// 'vac_session' key (the two are separate stores; auth.html is frozen and out of scope to
+// change). If vac-auth.js has no session yet, copy a ceremony result across so VAC.getToken()
+// / VAC.isAuthenticated() work as the single source of truth from here on. The bridged token
+// is then re-validated server-side below — this step only decides what to validate.
+// ============================================================
+function bridgeCeremonySession() {
+  try {
+    if (localStorage.getItem('vac_session')) return;
+  } catch (e) { return; }
+
+  var token = null, email = '', name = '';
+  try {
+    var lv = JSON.parse(localStorage.getItem('vac_last_verified') || 'null');
+    if (lv && lv.session_token) { token = lv.session_token; email = lv.email || ''; name = lv.name || ''; }
+  } catch (e) {}
+
+  if (!token) {
+    try {
+      var vv = JSON.parse(localStorage.getItem('vac_verified') || 'null');
+      if (vv && vv.authResult) {
+        var sess = vv.authResult.session || null;
+        token = vv.authResult.session_token || (sess && sess.token) || null;
+        email = vv.email || '';
+        name = vv.name || '';
+      }
+    } catch (e) {}
+  }
+
+  if (token) {
+    try {
+      localStorage.setItem('vac_session', token);
+      localStorage.setItem('vac_user', JSON.stringify({ email: email, name: name }));
+    } catch (e) {}
+  }
+}
+
+// ============================================================
+// Render states
+// ============================================================
+
+function renderGate(insufficientTier) {
+  var authUrl = '/auth?return=' + encodeURIComponent(RETURN_PATH);
+  var msg = insufficientTier
+    ? 'Your session isn’t full-tier. Quick re-auth is not accepted here — minting merge authority requires your own full verification ceremony (identity + live biometric).'
+    : 'No verified session found. Minting merge authority requires your own full verification ceremony (identity + live biometric) — quick tier is not acceptable.';
+  stageEl.innerHTML =
+    '<div class="gate-msg"><strong>Full ceremony required.</strong> ' + msg + '</div>' +
+    '<button class="btn btn-gold" id="startCeremonyBtn" type="button">Start full verification</button>';
+  document.getElementById('startCeremonyBtn').addEventListener('click', function () {
+    window.location.href = authUrl;
+  });
+  setExplain('This page checked your VAC session and found none at full tier, so it sent you to the full biometric ceremony instead of minting anything.');
+}
+
+function renderMintCard(user) {
+  stageEl.innerHTML =
+    '<div class="card">' +
+      '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:14px;">Mint merge authority for VioletShores/athena</div>' +
+      '<ul class="scope-list">' +
+        '<li><span class="k">actions</span><span class="v">merge</span></li>' +
+        '<li><span class="k">resources</span><span class="v">' + REPO_RESOURCE + '</span></li>' +
+        '<li><span class="k">expiry</span><span class="v">24h</span></li>' +
+        '<li><span class="k">max_depth</span><span class="v">1</span></li>' +
+      '</ul>' +
+      '<button class="btn btn-gold" id="mintBtn" type="button">Mint merge-scope VAT</button>' +
+    '</div>';
+  document.getElementById('mintBtn').addEventListener('click', function () { mintToken(user); });
+  setExplain('This page verified you hold a full-tier VAC session for ' + user.email + ' and is ready to mint a 24h merge-scope token bound to that identity — your session token is read in-browser and sent only inside the signed mint request, never shown or logged.');
+}
+
+function renderResult(data) {
+  var jti = data.jti || '';
+  var verifyUrl = data.verify_url || (jti ? ('/vat/verify/' + jti + '?intent=verify') : '');
+  var vacAuth = data.vac_authorisation || {};
+  var trusted = isServerAttestedFull(vacAuth);
+
+  var html = '<div class="card">' +
+    '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge-scope VAT minted</div>';
+
+  if (!trusted) {
+    html += '<div class="warn-box">not L3 - re-run the full ceremony</div>';
+  }
+
+  html += '<div class="jti-box" id="jtiBox">' + escapeHtml(jti || '(no jti returned)') + '</div>';
+  if (trusted && jti) {
+    html += '<button class="copy-btn" id="copyJtiBtn" type="button">Copy jti</button>';
+  }
+  if (verifyUrl) {
+    html += '<a class="verify-link" href="' + escapeAttr(verifyUrl) + '" target="_blank" rel="noopener">' + escapeHtml(verifyUrl) + '</a>';
+  }
+  html += '<ul class="attest-list">' +
+    '<li><span class="k">attested_by</span><span class="v">' + escapeHtml(String(vacAuth.attested_by || '(none)')) + '</span></li>' +
+    '<li><span class="k">auth_level</span><span class="v">' + escapeHtml(String(vacAuth.auth_level || '(none)')) + '</span></li>' +
+  '</ul>';
+  html += '</div>';
+
+  stageEl.innerHTML = html;
+
+  var copyBtn = document.getElementById('copyJtiBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(jti).then(function () {
+        copyBtn.textContent = 'Copied';
+        copyBtn.classList.add('copied');
+        setTimeout(function () { copyBtn.textContent = 'Copy jti'; copyBtn.classList.remove('copied'); }, 1500);
+      }).catch(function () {});
+    });
+  }
+
+  setExplain('This page minted a 24h merge-scope VAT for VioletShores/athena and is showing the server’s own attestation of the ceremony — it never renders your session token, only the jti the server returned.');
+}
+
+function renderMintError(message) {
+  stageEl.innerHTML = '<div class="err-box">Mint failed: ' + escapeHtml(message) + '</div>' +
+    '<button class="btn btn-gold" id="retryBtn" type="button">Try again</button>';
+  document.getElementById('retryBtn').addEventListener('click', checkSessionAndRender);
+  setExplain('The mint request to /v1/vat/issue failed — nothing was granted.');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+// ============================================================
+// Mint flow
+// ============================================================
+
+function mintToken(user) {
+  var token = VAC.getToken();
+  if (!token) { renderGate(); return; }
+  var btn = document.getElementById('mintBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Minting…'; }
+
+  var body = buildIssueBody(user, token);
+  fetch(API_BASE + '/v1/vat/issue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (data) {
+      if (!r.ok) throw new Error((data && (data.detail || data.error)) || ('HTTP ' + r.status));
+      return data;
+    });
+  }).then(renderResult).catch(function (e) {
+    renderMintError((e && e.message) || 'unknown error');
+  });
+}
+
+// ============================================================
+// Boot
+// ============================================================
+
+function checkSessionAndRender() {
+  stageEl.innerHTML = '<div class="p">Checking your VAC session…</div>';
+  bridgeCeremonySession();
+
+  if (typeof VAC === 'undefined') {
+    stageEl.innerHTML = '<div class="err-box">VAC auth SDK failed to load.</div>';
+    setExplain('vac-auth.js did not load, so the session could not be checked.');
+    return;
+  }
+
+  VAC.isAuthenticated().then(function (ok) {
+    var user = VAC.getUser();
+    if (!ok || !user || !user.email) { renderGate(false); return; }
+    if (user.auth_level !== 'full') { renderGate(true); return; }
+    renderMintCard(user);
+  }).catch(function () {
+    renderGate(false);
+  });
+}
+
+checkSessionAndRender();
+</script>
+</body>
+</html>
