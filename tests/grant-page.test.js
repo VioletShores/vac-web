@@ -37,9 +37,9 @@ function extractNamedFnBody(fnName) {
     return src.slice(fnStart, i);
 }
 
-function loadFn(fnName) {
-    const body = extractNamedFnBody(fnName);
-    const wrapper = `${body}\nreturn ${fnName};`;
+function loadFn(fnName, ...deps) {
+    const bodies = [fnName, ...deps].map(extractNamedFnBody).join('\n');
+    const wrapper = `${bodies}\nreturn ${fnName};`;
     return new Function(wrapper)();
 }
 
@@ -111,6 +111,35 @@ const FIXTURES = {
         vac_authorisation: { attested_by: 'client_asserted', auth_level: 'full' }
     }
 };
+
+test('sanitizeHref rejects javascript: and other non-http(s) schemes', () => {
+    const sanitizeHref = loadFn('sanitizeHref', 'escapeHtml');
+    assert.equal(sanitizeHref('javascript:alert(document.cookie)'), '');
+    assert.equal(sanitizeHref('data:text/html,<script>alert(1)</script>'), '');
+    assert.equal(sanitizeHref('vbscript:msgbox(1)'), '');
+});
+
+test('sanitizeHref allows same-origin relative paths and http(s) URLs', () => {
+    const sanitizeHref = loadFn('sanitizeHref', 'escapeHtml');
+    assert.equal(sanitizeHref('/vat/verify/vat_abc?intent=verify'), '/vat/verify/vat_abc?intent=verify');
+    assert.equal(sanitizeHref('https://vac-system-production.up.railway.app/vat/verify/vat_abc'),
+        'https://vac-system-production.up.railway.app/vat/verify/vat_abc');
+    assert.equal(sanitizeHref('http://example.com/x'), 'http://example.com/x');
+});
+
+test('sanitizeHref rejects protocol-relative and double-slash paths', () => {
+    const sanitizeHref = loadFn('sanitizeHref', 'escapeHtml');
+    assert.equal(sanitizeHref('//evil.example.com/steal'), '');
+});
+
+test('errorMessageFromBody unwraps a FastAPI-style object/array detail instead of stringifying to [object Object]', () => {
+    const errorMessageFromBody = loadFn('errorMessageFromBody');
+    assert.equal(errorMessageFromBody({ detail: 'plain string' }, 400), 'plain string');
+    assert.equal(errorMessageFromBody({ detail: { message: 'nested reason' } }, 400), 'nested reason');
+    const arrayDetail = [{ loc: ['body', 'actions'], msg: 'field required', type: 'value_error' }];
+    assert.equal(errorMessageFromBody({ detail: arrayDetail }, 422), JSON.stringify(arrayDetail));
+    assert.equal(errorMessageFromBody({}, 500), 'HTTP 500');
+});
 
 test('fixture: server/full attestation is the trusted case', () => {
     const isServerAttestedFull = loadFn('isServerAttestedFull');

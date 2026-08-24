@@ -174,7 +174,8 @@ function renderGate(insufficientTier) {
     : 'No verified session found. Minting merge authority requires your own full verification ceremony (identity + live biometric) — quick tier is not acceptable.';
   stageEl.innerHTML =
     '<div class="gate-msg"><strong>Full ceremony required.</strong> ' + msg + '</div>' +
-    '<button class="btn btn-gold" id="startCeremonyBtn" type="button">Start full verification</button>';
+    '<button class="btn btn-gold" id="startCeremonyBtn" type="button">Start full verification</button>' +
+    '<div class="note">After verifying, use the “← Back to the demo” link at the top of that page to return here — the button at the bottom of that page goes elsewhere.</div>';
   document.getElementById('startCeremonyBtn').addEventListener('click', function () {
     window.location.href = authUrl;
   });
@@ -214,8 +215,9 @@ function renderResult(data) {
   if (trusted && jti) {
     html += '<button class="copy-btn" id="copyJtiBtn" type="button">Copy jti</button>';
   }
-  if (verifyUrl) {
-    html += '<a class="verify-link" href="' + escapeAttr(verifyUrl) + '" target="_blank" rel="noopener">' + escapeHtml(verifyUrl) + '</a>';
+  var safeVerifyUrl = sanitizeHref(verifyUrl);
+  if (safeVerifyUrl) {
+    html += '<a class="verify-link" href="' + safeVerifyUrl + '" target="_blank" rel="noopener">' + escapeHtml(verifyUrl) + '</a>';
   }
   html += '<ul class="attest-list">' +
     '<li><span class="k">attested_by</span><span class="v">' + escapeHtml(String(vacAuth.attested_by || '(none)')) + '</span></li>' +
@@ -228,6 +230,10 @@ function renderResult(data) {
   var copyBtn = document.getElementById('copyJtiBtn');
   if (copyBtn) {
     copyBtn.addEventListener('click', function () {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        copyBtn.textContent = 'Copy unavailable';
+        return;
+      }
       navigator.clipboard.writeText(jti).then(function () {
         copyBtn.textContent = 'Copied';
         copyBtn.classList.add('copied');
@@ -251,15 +257,35 @@ function escapeHtml(s) {
     return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
   });
 }
-function escapeAttr(s) { return escapeHtml(s); }
+
+// Entity-escaping alone is not enough for an href sink — a javascript: (or other
+// non-http(s)) scheme survives entity-escaping untouched. Only allow relative paths
+// or explicit http(s) URLs; anything else is dropped rather than rendered as a link.
+function sanitizeHref(url) {
+  var s = String(url || '');
+  if (/^\/(?!\/)/.test(s)) return escapeHtml(s); // same-origin relative path
+  if (/^https?:\/\//i.test(s)) return escapeHtml(s);
+  return '';
+}
 
 // ============================================================
 // Mint flow
 // ============================================================
 
+// FastAPI validation/auth errors often return `detail` as an object or array
+// (pydantic error list), not a string — mirror vac-auth.js's own _api() unwrap
+// so those render as readable text instead of "[object Object]".
+function errorMessageFromBody(data, status) {
+  var msg = (data && (data.detail || data.error)) || ('HTTP ' + status);
+  if (typeof msg === 'object') {
+    try { return msg.message || JSON.stringify(msg); } catch (e) { return 'HTTP ' + status; }
+  }
+  return msg;
+}
+
 function mintToken(user) {
   var token = VAC.getToken();
-  if (!token) { renderGate(); return; }
+  if (!token) { renderGate(false); return; }
   var btn = document.getElementById('mintBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Minting…'; }
 
@@ -270,7 +296,7 @@ function mintToken(user) {
     body: JSON.stringify(body)
   }).then(function (r) {
     return r.json().catch(function () { return {}; }).then(function (data) {
-      if (!r.ok) throw new Error((data && (data.detail || data.error)) || ('HTTP ' + r.status));
+      if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
       return data;
     });
   }).then(renderResult).catch(function (e) {
