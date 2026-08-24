@@ -3314,11 +3314,32 @@ var _contentGateAvail = !!(window.SpeechRecognition || window.webkitSpeechRecogn
 // while vadProbe() returns true — provisional client pass; server bound-digit gate is authority.
 // vadProbe: optional function() → boolean; if absent, VAD check is skipped (pure transcript timing).
 const NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts + VAD voice → provisional
-function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe) {
+// CONTENT_GATE_LOW_CONF_THR (S173): diagnostic-only label threshold used to pick the
+// content_gate_miss 'reason' string. It does NOT gate accept/reject — the gate still only
+// accepts on an actual digit-word match; this just distinguishes, in telemetry, a low-confidence
+// final transcript from a confidently-wrong one.
+const CONTENT_GATE_LOW_CONF_THR = 0.5;
+function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe, onMiss) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
     var _noMatchVoiceAt = 0;  // task-653: perf.now() when first non-matching transcript arrived with VAD active
+    var _gateStartAt = performance.now();  // S173: content_gate_miss dur_ms is measured from here
+    // S173 (sess_htt6ipqp_reauth): a passing VAD attempt whose content gate never matched left
+    // NOTHING in telemetry explaining why — surface every non-firing evaluation via onMiss so a
+    // full-tier debug pull can show the reason instead of just a gap. Optional: fast-tier call
+    // sites below don't pass onMiss, so they emit nothing here (unchanged behaviour).
+    function _emitMiss(t, reason, conf) {
+        if (!onMiss) return;
+        try {
+            onMiss(reason, {
+                transcript: t ? String(t).slice(0, 60) : null,
+                confidence: (typeof conf === 'number') ? Number(conf.toFixed(3)) : null,
+                provider: (SR === window.webkitSpeechRecognition) ? 'webkit' : 'standard',
+                dur_ms: Math.round(performance.now() - _gateStartAt)
+            });
+        } catch(_) {}
+    }
     try {
         rec = new SR();
         rec.continuous = true;
@@ -3338,6 +3359,16 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
                 return;
             }
             // Non-matching transcript — discarded here, never stored (privacy rule).
+            // S173: only label FINAL results — interim transcripts are provisional (and their
+            // confidence is meaningless per spec), so scoring them would spam a miss per keystroke
+            // of partial speech rather than one per completed evaluation.
+            if (evt.results[ri].isFinal) {
+                var _conf = evt.results[ri][0].confidence;
+                var _reason = (!t || !String(t).trim()) ? 'no_transcript'
+                    : (typeof _conf === 'number' && _conf > 0 && _conf < CONTENT_GATE_LOW_CONF_THR) ? 'low_confidence'
+                    : 'wrong_content';
+                _emitMiss(t, _reason, _conf);
+            }
             // task-653 no-match fallback: transcripts arriving but never matching, with VAD
             // confirming sustained voice for >=NO_MATCH_FALLBACK_MS → provisional client pass.
             // Server bound-digit gate (Deepgram + Gemini) remains the security authority.
@@ -3359,7 +3390,11 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         // Non-fatal (no-speech, aborted) are transient; let onend handle restart.
         var e = evt && evt.error;
         var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
-        if (fatal) { stopped = true; if (onFatal) { try { onFatal(); } catch(_) {} } }
+        if (fatal) {
+            stopped = true;
+            _emitMiss(null, 'provider_error', null);
+            if (onFatal) { try { onFatal(); } catch(_) {} }
+        }
         if (!stopped) { try { rec.abort(); } catch(_) {} }
     };
     rec.onend = function() {
@@ -3991,6 +4026,10 @@ function beginRecording() {
             // _vadEnergyDetected remains the secondary (non-starved paths). The local RMS meter
             // is ADVISORY for display only — it must NOT block advance when server signal is present.
             return _vadEnergyDetected || _lastVbRatio >= VOICE_BAND_MIN_RATIO;
+        }, function(reason, info) {
+            // S173: content gate evaluated a chunk and did NOT fire — the previously-silent case.
+            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            try { vacDebug('content_gate_miss', reason, Object.assign({ digit_index: _gateForIdx, expected_digit: targetDigit, reason: reason }, info)); } catch(_) {}
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
