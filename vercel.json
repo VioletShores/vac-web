@@ -181,6 +181,10 @@
       "destination": "/financial-demo.html"
     },
     {
+      "source": "/grant",
+      "destination": "/grant.html"
+    },
+    {
       "source": "/trusted-water-demo",
       "destination": "/trusted-water-demo.html"
     },
