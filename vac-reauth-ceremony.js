@@ -3364,6 +3364,9 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
             // of partial speech rather than one per completed evaluation.
             if (evt.results[ri].isFinal) {
                 var _conf = evt.results[ri][0].confidence;
+                // _conf > 0 excludes an exact-0 confidence: several engines (Chrome included)
+                // use 0 as an "unscored" placeholder rather than a genuine low-confidence value,
+                // so treating it as low_confidence would mislabel most finals on those engines.
                 var _reason = (!t || !String(t).trim()) ? 'no_transcript'
                     : (typeof _conf === 'number' && _conf > 0 && _conf < CONTENT_GATE_LOW_CONF_THR) ? 'low_confidence'
                     : 'wrong_content';
