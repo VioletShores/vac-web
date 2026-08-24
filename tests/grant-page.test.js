@@ -98,17 +98,57 @@ test('isServerAttestedFull: missing/undefined block is not trusted', () => {
     assert.equal(isServerAttestedFull({}), false);
 });
 
-// Fixture-driven: stubbed /v1/vat/issue responses, mirroring what renderResult() receives.
+test('isServerAttestedFull: server + full + explicit vac_assurance_level "L3" is trusted', () => {
+    const isServerAttestedFull = loadFn('isServerAttestedFull');
+    assert.equal(isServerAttestedFull({ attested_by: 'server', auth_level: 'full' }, 'L3'), true);
+});
+
+test('isServerAttestedFull: server + full + a non-L3 vac_assurance_level is not trusted', () => {
+    const isServerAttestedFull = loadFn('isServerAttestedFull');
+    assert.equal(isServerAttestedFull({ attested_by: 'server', auth_level: 'full' }, 'L2'), false);
+});
+
+test('isServerAttestedFull: server + full + no vac_assurance_level field at all is still trusted (older response shape)', () => {
+    const isServerAttestedFull = loadFn('isServerAttestedFull');
+    assert.equal(isServerAttestedFull({ attested_by: 'server', auth_level: 'full' }, undefined), true);
+});
+
+// Fixture-driven: stubbed /v1/vat/issue responses, mirroring the real shape the endpoint
+// returns — {jti, compact_jwt, claims, verify_url} — with the ceremony attestation nested
+// at claims.context.vac_authorisation and assurance level at claims.vac_assurance_level.
 const FIXTURES = {
     serverFull: {
         jti: 'vat_grant_fixture_server_full',
+        compact_jwt: 'eyJhbGciOiJFUzI1NiJ9.fixture.sig',
         verify_url: '/vat/verify/vat_grant_fixture_server_full',
-        vac_authorisation: { attested_by: 'server', auth_level: 'full' }
+        claims: {
+            vac_assurance_level: 'L3',
+            context: {
+                vac_authorisation: { attested_by: 'server', auth_level: 'full', assurance_basis: 'live_biometric' }
+            }
+        }
     },
     clientAsserted: {
         jti: 'vat_grant_fixture_client_asserted',
+        compact_jwt: 'eyJhbGciOiJFUzI1NiJ9.fixture.sig',
         verify_url: '/vat/verify/vat_grant_fixture_client_asserted',
-        vac_authorisation: { attested_by: 'client_asserted', auth_level: 'full' }
+        claims: {
+            vac_assurance_level: 'L3',
+            context: {
+                vac_authorisation: { attested_by: 'client_asserted', auth_level: 'full' }
+            }
+        }
+    },
+    serverFullNotL3: {
+        jti: 'vat_grant_fixture_server_full_not_l3',
+        compact_jwt: 'eyJhbGciOiJFUzI1NiJ9.fixture.sig',
+        verify_url: '/vat/verify/vat_grant_fixture_server_full_not_l3',
+        claims: {
+            vac_assurance_level: 'L2',
+            context: {
+                vac_authorisation: { attested_by: 'server', auth_level: 'full' }
+            }
+        }
     }
 };
 
@@ -141,20 +181,49 @@ test('errorMessageFromBody unwraps a FastAPI-style object/array detail instead o
     assert.equal(errorMessageFromBody({}, 500), 'HTTP 500');
 });
 
-test('fixture: server/full attestation is the trusted case', () => {
+test('fixture: server/full attestation nested at claims.context.vac_authorisation is the trusted case', () => {
     const isServerAttestedFull = loadFn('isServerAttestedFull');
-    assert.equal(isServerAttestedFull(FIXTURES.serverFull.vac_authorisation), true);
+    const vacAuth = FIXTURES.serverFull.claims.context.vac_authorisation;
+    const assuranceLevel = FIXTURES.serverFull.claims.vac_assurance_level;
+    assert.equal(isServerAttestedFull(vacAuth, assuranceLevel), true);
 });
 
 test('fixture: client_asserted attestation must trip the warning path', () => {
     const isServerAttestedFull = loadFn('isServerAttestedFull');
-    assert.equal(isServerAttestedFull(FIXTURES.clientAsserted.vac_authorisation), false);
+    const vacAuth = FIXTURES.clientAsserted.claims.context.vac_authorisation;
+    const assuranceLevel = FIXTURES.clientAsserted.claims.vac_assurance_level;
+    assert.equal(isServerAttestedFull(vacAuth, assuranceLevel), false);
+});
+
+test('fixture: server/full attestation at a non-L3 assurance level must trip the warning path', () => {
+    const isServerAttestedFull = loadFn('isServerAttestedFull');
+    const vacAuth = FIXTURES.serverFullNotL3.claims.context.vac_authorisation;
+    const assuranceLevel = FIXTURES.serverFullNotL3.claims.vac_assurance_level;
+    assert.equal(isServerAttestedFull(vacAuth, assuranceLevel), false);
 });
 
 test('renderResult only emits a copy button when server-attested full (source-level check)', () => {
     const body = extractNamedFnBody('renderResult');
     assert.ok(/if\s*\(\s*trusted\s*&&\s*jti\s*\)/.test(body), 'copy button must be gated on the trusted (server+full) check');
     assert.ok(/not L3 - re-run the full ceremony/.test(body), 'warning copy must match the spec text exactly');
+});
+
+test('renderResult reads vac_authorisation from claims.context, falling back to top-level (source-level check)', () => {
+    const body = extractNamedFnBody('renderResult');
+    assert.ok(
+        /claims\.context\s*&&\s*claims\.context\.vac_authorisation/.test(body),
+        'renderResult must read the attestation from claims.context.vac_authorisation'
+    );
+    assert.ok(
+        /\|\|\s*data\.vac_authorisation/.test(body),
+        'renderResult must fall back to a top-level vac_authorisation for older response shapes'
+    );
+});
+
+test('renderResult renders vac_assurance_level and, when present, assurance_basis (source-level check)', () => {
+    const body = extractNamedFnBody('renderResult');
+    assert.ok(/vac_assurance_level/.test(body), 'renderResult must render vac_assurance_level');
+    assert.ok(/assurance_basis/.test(body), 'renderResult must render assurance_basis when present');
 });
 
 test('vercel.json has a rewrite for /grant -> /grant.html', () => {

@@ -117,11 +117,14 @@ function buildIssueBody(user, token) {
 }
 
 // A minted token only counts as trustworthy if the server itself attests to a full-tier
-// ceremony — a client-asserted or non-server attestation must render as untrusted.
-function isServerAttestedFull(vacAuthorisation) {
+// ceremony — a client-asserted or non-server attestation must render as untrusted. When the
+// response carries an explicit vac_assurance_level, it must be L3; older responses that don't
+// carry the field at all are treated as trusted on attestation alone (fallback for compatibility).
+function isServerAttestedFull(vacAuthorisation, vacAssuranceLevel) {
   return !!vacAuthorisation &&
     vacAuthorisation.attested_by === 'server' &&
-    vacAuthorisation.auth_level === 'full';
+    vacAuthorisation.auth_level === 'full' &&
+    (vacAssuranceLevel === undefined || vacAssuranceLevel === null || vacAssuranceLevel === 'L3');
 }
 
 // ============================================================
@@ -201,8 +204,12 @@ function renderMintCard(user) {
 function renderResult(data) {
   var jti = data.jti || '';
   var verifyUrl = data.verify_url || (jti ? ('/vat/verify/' + jti + '?intent=verify') : '');
-  var vacAuth = data.vac_authorisation || {};
-  var trusted = isServerAttestedFull(vacAuth);
+  // /v1/vat/issue nests the ceremony attestation under claims.context.vac_authorisation;
+  // fall back to a top-level vac_authorisation for older response shapes.
+  var claims = data.claims || {};
+  var vacAuth = (claims.context && claims.context.vac_authorisation) || data.vac_authorisation || {};
+  var assuranceLevel = claims.vac_assurance_level;
+  var trusted = isServerAttestedFull(vacAuth, assuranceLevel);
 
   var html = '<div class="card">' +
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge-scope VAT minted</div>';
@@ -222,7 +229,11 @@ function renderResult(data) {
   html += '<ul class="attest-list">' +
     '<li><span class="k">attested_by</span><span class="v">' + escapeHtml(String(vacAuth.attested_by || '(none)')) + '</span></li>' +
     '<li><span class="k">auth_level</span><span class="v">' + escapeHtml(String(vacAuth.auth_level || '(none)')) + '</span></li>' +
-  '</ul>';
+    '<li><span class="k">vac_assurance_level</span><span class="v">' + escapeHtml(String(assuranceLevel || '(none)')) + '</span></li>';
+  if (vacAuth.assurance_basis) {
+    html += '<li><span class="k">assurance_basis</span><span class="v">' + escapeHtml(String(vacAuth.assurance_basis)) + '</span></li>';
+  }
+  html += '</ul>';
   html += '</div>';
 
   stageEl.innerHTML = html;
