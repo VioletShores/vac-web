@@ -62,6 +62,16 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
 .attest-list li{display:flex;justify-content:space-between;padding:4px 0;}
 .attest-list .v{color:var(--text-dim);}
 
+.candidate-list{list-style:none;margin:14px 0 0;padding:0;}
+.candidate-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px;color:var(--text-dim);cursor:pointer;}
+.candidate-row:last-child{border-bottom:none;}
+.candidate-row-greyed{opacity:0.5;}
+.candidate-branch{color:var(--text);font-weight:600;}
+.candidate-sha{color:var(--text-quiet);}
+.candidate-pr{color:var(--text-dim);}
+.candidate-verdict{margin-left:auto;text-transform:uppercase;font-size:10px;letter-spacing:0.5px;}
+.candidate-reason{width:100%;color:var(--text-quiet);font-size:11px;}
+
 .note{font-family:var(--mono);font-size:11px;color:var(--text-quiet);line-height:1.6;margin-top:16px;}
 </style>
 </head>
@@ -138,11 +148,14 @@ function isHumanRootedAuthority(authorityClass) {
 // mint response, placed on the request only — see the in-memory-only handling around
 // renderGrantCard/grantAuthority; it must never reach localStorage or the DOM. `nowIso` is
 // passed in (rather than read via `new Date()` inside) so this stays a pure, testable function.
-function buildGrantBody(user, vat, nowIso) {
+// `branches` is the caller-supplied {name, sha} list — content-bound per F-1205 slice 3; the
+// caller (grantAuthority) is responsible for never invoking this with an empty list, since the
+// API correctly refuses a wildcard/empty branches array.
+function buildGrantBody(user, vat, branches, nowIso) {
   return {
     vat: vat,
     repo: 'VioletShores/athena',
-    branches: [],
+    branches: branches,
     reason: 'granted from /grant by ' + user.email + ' ' + nowIso
   };
 }
@@ -297,8 +310,53 @@ function renderMintError(message) {
 }
 
 // ============================================================
-// Second tap: by-vat merge permit
+// Second tap: by-vat merge permit, content-bound to merge-candidates (F-1205 slice 3)
 // ============================================================
+
+// Pure: true only for the literal 'passed' verdict — 'unknown'/'failed'/missing must all
+// default to unchecked so a candidate is never preselected without a passing gate.
+function isGateVerdictPassed(gates) {
+  return !!gates && gates.verdict === 'passed';
+}
+
+function shortSha(sha) {
+  return String(sha || '').slice(0, 7);
+}
+
+// Builds one candidate row's HTML. Pure/testable — string building only, no DOM access.
+// data-name/data-sha on the checkbox are what grantAuthority reads back to build the
+// {name, sha} pairs for the POST body; they must be the exact values the fleet compared
+// against, not a re-derived shortSha.
+function candidateRowHtml(candidate) {
+  var branch = String(candidate.branch || '');
+  var sha = String(candidate.sha || '');
+  var pr = candidate.pr || {};
+  var gates = candidate.gates || {};
+  var passed = isGateVerdictPassed(gates);
+  var rowClass = passed ? 'candidate-row' : 'candidate-row candidate-row-greyed';
+  var prLabel = pr.number ? ('#' + pr.number + (pr.title ? ' ' + pr.title : '')) : '(no PR)';
+  var verdictLabel = String(gates.verdict || 'unknown');
+
+  var html = '<label class="' + rowClass + '">' +
+    '<input type="checkbox" class="candidate-checkbox" data-name="' + escapeHtml(branch) + '" data-sha="' + escapeHtml(sha) + '"' + (passed ? ' checked' : '') + '>' +
+    '<span class="candidate-branch">' + escapeHtml(branch) + '</span>' +
+    '<span class="candidate-sha">' + escapeHtml(shortSha(sha)) + '</span>' +
+    '<span class="candidate-pr">' + escapeHtml(prLabel) + '</span>' +
+    '<span class="candidate-verdict">' + escapeHtml(verdictLabel) + '</span>';
+  if (!passed && gates.reason) {
+    html += '<span class="candidate-reason">' + escapeHtml(String(gates.reason)) + '</span>';
+  }
+  html += '</label>';
+  return html;
+}
+
+// Builds the full candidate-list HTML from a merge-candidates response. Pure/testable.
+function renderCandidateListHtml(candidates) {
+  if (!candidates || !candidates.length) {
+    return '<div class="p">No merge candidates found.</div>';
+  }
+  return '<div class="candidate-list">' + candidates.map(candidateRowHtml).join('') + '</div>';
+}
 
 function renderGrantCard(user, vat) {
   var el = document.createElement('div');
@@ -308,21 +366,76 @@ function renderGrantCard(user, vat) {
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:14px;">Grant merge authority to the fleet</div>' +
     '<ul class="scope-list">' +
       '<li><span class="k">repo</span><span class="v">VioletShores/athena</span></li>' +
-      '<li><span class="k">branches</span><span class="v">all</span></li>' +
       '<li><span class="k">action</span><span class="v">merge</span></li>' +
     '</ul>' +
-    '<button class="btn btn-gold" id="grantBtn" type="button">Grant</button>';
+    '<div id="candidateList" class="p">Loading merge candidates…</div>' +
+    '<button class="btn btn-gold" id="grantBtn" type="button" disabled>Grant</button>';
   stageEl.appendChild(el);
   document.getElementById('grantBtn').addEventListener('click', function () {
     grantAuthority(user, vat);
   });
+  loadMergeCandidates();
+}
+
+// Grant only ever becomes enabled once at least one candidate checkbox is checked — this is
+// the DOM-facing mirror of "never send branches:[]" (the API-enforced invariant this whole
+// slice exists to satisfy client-side too).
+function updateGrantButtonState() {
+  var btn = document.getElementById('grantBtn');
+  if (!btn) return;
+  btn.disabled = document.querySelectorAll('.candidate-checkbox:checked').length === 0;
+}
+
+// The merge-candidates route may not exist yet on prod (404) or may error — either way,
+// render an explicit "unavailable" state and keep Grant disabled rather than falling back
+// to any all-branches behavior.
+function renderCandidatesUnavailable() {
+  var listEl = document.getElementById('candidateList');
+  if (listEl) listEl.textContent = 'no candidate list available yet';
+  var btn = document.getElementById('grantBtn');
+  if (btn) btn.disabled = true;
+}
+
+function loadMergeCandidates() {
+  var listEl = document.getElementById('candidateList');
+  fetch(ATHENA_API + '/v1/mac/merge-candidates?repo=' + encodeURIComponent('VioletShores/athena'))
+    .then(function (r) {
+      if (r.status === 404) { renderCandidatesUnavailable(); return null; }
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
+        return data;
+      });
+    })
+    .then(function (data) {
+      if (data === null) return;
+      var candidates = (data && data.candidates) || [];
+      if (listEl) listEl.innerHTML = renderCandidateListHtml(candidates);
+      Array.prototype.forEach.call(document.querySelectorAll('.candidate-checkbox'), function (cb) {
+        cb.addEventListener('change', updateGrantButtonState);
+      });
+      updateGrantButtonState();
+    })
+    .catch(function () {
+      renderCandidatesUnavailable();
+    });
 }
 
 function grantAuthority(user, vat) {
   var btn = document.getElementById('grantBtn');
+  var checkedBoxes = Array.prototype.filter.call(document.querySelectorAll('.candidate-checkbox'), function (cb) { return cb.checked; });
+
+  // Filtering on data-name/data-sha (not just checked-count) guards against a malformed
+  // merge-candidates response — an empty/missing name or sha must never reach the POST body,
+  // even if such a row somehow rendered as checked.
+  var branches = checkedBoxes.map(function (cb) {
+    return { name: cb.getAttribute('data-name') || '', sha: cb.getAttribute('data-sha') || '' };
+  }).filter(function (b) { return b.name && b.sha; });
+
+  if (!branches.length) return; // Grant is disabled whenever this is true; defensive no-op
+
   if (btn) { btn.disabled = true; btn.textContent = 'Granting…'; }
 
-  var body = buildGrantBody(user, vat, new Date().toISOString());
+  var body = buildGrantBody(user, vat, branches, new Date().toISOString());
   fetch(ATHENA_API + '/v1/mac/authorizations/by-vat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -332,16 +445,17 @@ function grantAuthority(user, vat) {
       if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
       return data;
     });
-  }).then(renderGrantResult).catch(function (e) {
+  }).then(function (data) { renderGrantResult(data, branches); }).catch(function (e) {
     renderGrantError((e && e.message) || 'unknown error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Grant'; }
   });
 }
 
-function renderGrantResult(data) {
+function renderGrantResult(data, branches) {
   var authorityClass = data.authority_class || '';
   var humanRooted = isHumanRootedAuthority(authorityClass);
-  var vac = data.vac_verdict || {};
   var expiresAt = data.expires_at || '(unknown)';
+  var grantedBranches = branches || [];
 
   var html = '<div class="card" id="grantResultCard">' +
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge authority granted</div>';
@@ -354,14 +468,19 @@ function renderGrantResult(data) {
     '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(data.id || '(none)')) + '</span></li>' +
     '<li><span class="k">authority_class</span><span class="v">' + escapeHtml(String(authorityClass || '(none)')) + '</span></li>' +
     '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(expiresAt)) + '</span></li>' +
-    '<li><span class="k">vac verdict</span><span class="v">assurance ' + escapeHtml(String(vac.assurance_level || '(none)')) + ', possession ' + escapeHtml(String(vac.possession)) + '</span></li>' +
-  '</ul></div>';
+  '</ul>';
+
+  html += '<ul class="attest-list" id="grantedBranchList">' + grantedBranches.map(function (b) {
+    return '<li><span class="k">branch</span><span class="v">' + escapeHtml(String(b.name)) + '@' + escapeHtml(shortSha(b.sha)) + '</span></li>';
+  }).join('') + '</ul>';
+
+  html += '</div>';
 
   // grantCard is guaranteed present here — this only runs off the click listener that
   // renderGrantCard itself attached, so the card it's replacing is still in the DOM.
   document.getElementById('grantCard').outerHTML = html;
 
-  setExplain('Any merge lane on VioletShores/athena claimed before ' + expiresAt + ' runs under your authority; the fleet re-checks VAC at use time.');
+  setExplain('These ' + grantedBranches.length + ' branches at these exact SHAs may be merged by the fleet before ' + expiresAt + '; any new commit on them needs a new grant.');
 }
 
 function renderGrantError(message) {

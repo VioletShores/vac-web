@@ -1,4 +1,4 @@
-// grant-page.test.js — task-grant-page-permit-v1
+// grant-page.test.js — task-grant-page-content-bound (F-1205 slice 3)
 //
 // grant.html is a plain HTML page (no bundler, no framework), so this follows the same
 // source-extract pattern as confirmed-behaviors.test.js: pull the named top-level functions
@@ -246,21 +246,112 @@ test('renderResult renders vac_assurance_level and, when present, assurance_basi
 });
 
 // ============================================================
-// Second tap: by-vat merge permit (F-1205)
+// Second tap: by-vat merge permit, content-bound to merge-candidates (F-1205 slice 3)
 // ============================================================
 
-test('buildGrantBody carries `vat` (not `vat_jti`) plus repo/branches/reason per the by-vat schema', () => {
+const CANDIDATE_FIXTURES = {
+    passed: {
+        branch: 'feature/oauth-fix',
+        sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0',
+        pr: { number: 42, title: 'Fix OAuth redirect loop' },
+        gates: { verdict: 'passed', reason: null }
+    },
+    unknown: {
+        branch: 'feature/risky-refactor',
+        sha: '9f8e7d6c5b4a3928170695847362514031201f0',
+        pr: { number: 43, title: 'Refactor auth core' },
+        gates: { verdict: 'unknown', reason: 'checks still running' }
+    },
+    failed: {
+        branch: 'feature/broken-thing',
+        sha: 'deadbeefcafefeed1234567890abcdef1234567',
+        pr: { number: 44, title: 'WIP: do not merge' },
+        gates: { verdict: 'failed', reason: 'CI red' }
+    }
+};
+
+test('isGateVerdictPassed: only the literal "passed" verdict is trusted', () => {
+    const isGateVerdictPassed = loadFn('isGateVerdictPassed');
+    assert.equal(isGateVerdictPassed({ verdict: 'passed' }), true);
+    assert.equal(isGateVerdictPassed({ verdict: 'unknown' }), false);
+    assert.equal(isGateVerdictPassed({ verdict: 'failed' }), false);
+    assert.equal(isGateVerdictPassed(undefined), false);
+});
+
+test('shortSha truncates to 7 characters', () => {
+    const shortSha = loadFn('shortSha');
+    assert.equal(shortSha('a1b2c3d4e5f6'), 'a1b2c3d');
+    assert.equal(shortSha(''), '');
+    assert.equal(shortSha(undefined), '');
+});
+
+test('candidateRowHtml: a passed candidate is preselected (checked) and not greyed', () => {
+    const candidateRowHtml = loadFn('candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
+    const html = candidateRowHtml(CANDIDATE_FIXTURES.passed, 0);
+    assert.ok(html.includes('checked'), 'passed candidate must be preselected');
+    assert.ok(!html.includes('candidate-row-greyed'), 'passed candidate must not be greyed');
+    assert.ok(html.includes('feature/oauth-fix'), 'must render the branch name');
+    assert.ok(html.includes('a1b2c3d'), 'must render the short sha');
+    assert.ok(html.includes('#42'), 'must render the PR number');
+    assert.ok(html.includes('Fix OAuth redirect loop'), 'must render the PR title');
+    assert.ok(html.includes('passed'), 'must render the gates verdict');
+});
+
+test('candidateRowHtml: unknown/failed candidates are unchecked, greyed, and show the reason', () => {
+    const candidateRowHtml = loadFn('candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
+    for (const key of ['unknown', 'failed']) {
+        const html = candidateRowHtml(CANDIDATE_FIXTURES[key], 0);
+        assert.ok(!html.includes('checked'), key + ' candidate must not be preselected');
+        assert.ok(html.includes('candidate-row-greyed'), key + ' candidate must be greyed');
+        assert.ok(html.includes(CANDIDATE_FIXTURES[key].gates.reason), key + ' candidate must show its reason');
+    }
+});
+
+test('candidateRowHtml: data-name/data-sha carry the exact branch/sha for the POST body, not the shortened sha', () => {
+    const candidateRowHtml = loadFn('candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
+    const html = candidateRowHtml(CANDIDATE_FIXTURES.passed, 0);
+    assert.ok(html.includes('data-name="feature/oauth-fix"'));
+    assert.ok(html.includes('data-sha="' + CANDIDATE_FIXTURES.passed.sha + '"'));
+});
+
+test('renderCandidateListHtml: renders a row per candidate from a stubbed response', () => {
+    const renderCandidateListHtml = loadFn('renderCandidateListHtml', 'candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
+    const html = renderCandidateListHtml([CANDIDATE_FIXTURES.passed, CANDIDATE_FIXTURES.unknown, CANDIDATE_FIXTURES.failed]);
+    assert.ok(html.includes('feature/oauth-fix'));
+    assert.ok(html.includes('feature/risky-refactor'));
+    assert.ok(html.includes('feature/broken-thing'));
+    assert.equal((html.match(/candidate-checkbox/g) || []).length, 3);
+});
+
+test('renderCandidateListHtml: an empty candidate list renders a "no candidates" message and no checkboxes', () => {
+    const renderCandidateListHtml = loadFn('renderCandidateListHtml', 'candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
+    const html = renderCandidateListHtml([]);
+    assert.ok(!html.includes('candidate-checkbox'));
+    assert.ok(/no merge candidates/i.test(html));
+});
+
+test('buildGrantBody carries `vat` (not `vat_jti`) plus repo/branches/reason per the by-vat schema, content-bound to the given branches', () => {
     const buildGrantBody = loadFn('buildGrantBody');
     const user = { email: 'rob@example.com' };
     const vat = 'eyJhbGciOiJFUzI1NiJ9.fixture.sig';
     const nowIso = '2026-08-25T12:00:00.000Z';
-    const body = buildGrantBody(user, vat, nowIso);
+    const branches = [{ name: 'feature/oauth-fix', sha: CANDIDATE_FIXTURES.passed.sha }];
+    const body = buildGrantBody(user, vat, branches, nowIso);
 
     assert.equal(body.vat, vat);
     assert.equal(body.vat_jti, undefined);
     assert.equal(body.repo, 'VioletShores/athena');
-    assert.deepEqual(body.branches, []);
+    assert.deepEqual(body.branches, branches);
     assert.equal(body.reason, 'granted from /grant by rob@example.com 2026-08-25T12:00:00.000Z');
+});
+
+test('buildGrantBody never silently defaults branches to an empty/wildcard list', () => {
+    const buildGrantBody = loadFn('buildGrantBody');
+    const user = { email: 'rob@example.com' };
+    const branches = [{ name: 'a', sha: '1'.repeat(40) }, { name: 'b', sha: '2'.repeat(40) }];
+    const body = buildGrantBody(user, 'vat', branches, '2026-08-25T12:00:00.000Z');
+    assert.deepEqual(body.branches, branches);
+    assert.equal(body.branches.length, 2);
 });
 
 test('isHumanRootedAuthority: only the literal "human_rooted" class is trusted', () => {
@@ -279,8 +370,51 @@ test('renderResult only shows the second (grant) card after a trusted mint (sour
     );
 });
 
+test('renderGrantCard fetches merge-candidates and starts with Grant disabled (source-level check)', () => {
+    const cardBody = extractNamedFnBody('renderGrantCard');
+    assert.ok(/id="grantBtn"[^>]*\bdisabled\b/.test(cardBody), 'Grant button must start disabled, before any candidates have loaded');
+    assert.ok(/loadMergeCandidates\(\)/.test(cardBody), 'renderGrantCard must kick off the merge-candidates fetch');
+
+    const loadBody = extractNamedFnBody('loadMergeCandidates');
+    assert.ok(/ATHENA_API\s*\+\s*'\/v1\/mac\/merge-candidates\?repo='/.test(loadBody), 'must fetch ATHENA_API + /v1/mac/merge-candidates?repo=...');
+    assert.ok(/VioletShores%2Fathena|VioletShores\/athena/.test(loadBody), 'must scope the request to VioletShores/athena');
+});
+
+test('a 404 (or any failure) from merge-candidates disables Grant and shows the unavailable message, never falling back to all-branches (source-level check)', () => {
+    const loadBody = extractNamedFnBody('loadMergeCandidates');
+    assert.ok(/r\.status\s*===\s*404/.test(loadBody), 'must special-case a 404 from the route');
+    assert.ok(/renderCandidatesUnavailable/.test(loadBody), 'must route both 404 and other failures to renderCandidatesUnavailable');
+
+    const unavailableBody = extractNamedFnBody('renderCandidatesUnavailable');
+    assert.ok(/no candidate list available yet/.test(unavailableBody), 'unavailable message must match the spec text');
+    assert.ok(/btn\.disabled\s*=\s*true/.test(unavailableBody), 'Grant must be disabled when candidates are unavailable');
+});
+
+test('updateGrantButtonState disables Grant unless at least one candidate checkbox is checked (source-level check)', () => {
+    const body = extractNamedFnBody('updateGrantButtonState');
+    assert.ok(/candidate-checkbox:checked/.test(body));
+    assert.ok(/length\s*===\s*0/.test(body));
+});
+
+test('grantAuthority reads checked candidate checkboxes into {name, sha} pairs from data-name/data-sha and posts them as branches (source-level check)', () => {
+    assert.ok(/ATHENA_API\s*=\s*'https:\/\/api\.athenapilot\.ai'/.test(src), 'ATHENA_API must be set to https://api.athenapilot.ai');
+    const body = extractNamedFnBody('grantAuthority');
+    assert.ok(/ATHENA_API\s*\+\s*'\/v1\/mac\/authorizations\/by-vat'/.test(body), 'grantAuthority must POST to ATHENA_API + /v1/mac/authorizations/by-vat');
+    assert.ok(/candidate-checkbox/.test(body), 'grantAuthority must read the checked candidate checkboxes');
+    assert.ok(/getAttribute\('data-name'\)/.test(body) && /getAttribute\('data-sha'\)/.test(body), 'grantAuthority must build branches from data-name/data-sha, not re-derive them');
+    assert.ok(/if\s*\(\s*!branches\.length\s*\)\s*return/.test(body), 'grantAuthority must no-op (never POST) when no valid branch is selected, i.e. never send branches:[]');
+});
+
+test('grantAuthority drops any checked candidate whose data-name/data-sha is empty before counting it toward the never-empty guard (source-level check)', () => {
+    const body = extractNamedFnBody('grantAuthority');
+    assert.ok(
+        /\.filter\(function\s*\(b\)\s*\{\s*return\s*b\.name\s*&&\s*b\.sha;\s*\}\)/.test(body),
+        'grantAuthority must filter out branches with an empty name or sha, not just count checked boxes, so a malformed candidate response cannot slip an empty pair into the POST'
+    );
+});
+
 test('the compact_jwt/vat never reaches localStorage — grant-flow functions must not reference storage', () => {
-    const fns = ['renderGrantCard', 'grantAuthority', 'renderGrantResult', 'buildGrantBody']
+    const fns = ['renderGrantCard', 'grantAuthority', 'renderGrantResult', 'buildGrantBody', 'loadMergeCandidates']
         .map(fn => extractNamedFnBody(fn)).join('\n');
     assert.ok(!/localStorage/.test(fns), 'a grant-flow function references localStorage — the vat must stay in memory only');
 });
@@ -301,22 +435,15 @@ test('the compact_jwt/vat is never rendered — grant-flow render functions must
     assert.ok(!/\bvat\b/.test(stripStrings(htmlBuildSection)), 'renderGrantCard must not interpolate `vat` into the card HTML it builds');
 });
 
-test('grantAuthority posts to ATHENA_API + /v1/mac/authorizations/by-vat (source-level check)', () => {
-    assert.ok(/ATHENA_API\s*=\s*'https:\/\/api\.athenapilot\.ai'/.test(src), 'ATHENA_API must be set to https://api.athenapilot.ai');
-    const body = extractNamedFnBody('grantAuthority');
-    assert.ok(/ATHENA_API\s*\+\s*'\/v1\/mac\/authorizations\/by-vat'/.test(body), 'grantAuthority must POST to ATHENA_API + /v1/mac/authorizations/by-vat');
-});
-
-test('renderGrantResult renders permit id, authority_class, expires_at, and the VAC verdict, plus the explain line', () => {
+test('renderGrantResult renders permit id, authority_class, expires_at, the granted branch@sha list, and the exact explain line', () => {
     const body = extractNamedFnBody('renderGrantResult');
     assert.ok(/data\.id/.test(body), 'must render the permit id');
     assert.ok(/authority_class/.test(body), 'must render authority_class');
     assert.ok(/expires_at/.test(body), 'must render expires_at');
-    assert.ok(/vac_verdict/.test(body) || /assurance_level/.test(body), 'must render a VAC verdict (assurance level)');
-    assert.ok(/possession/.test(body), 'must render possession');
     assert.ok(/!humanRooted/.test(body), 'a non-human-rooted authority_class must trip a warning');
+    assert.ok(/grantedBranches\.map/.test(body), 'must render the list of granted branches');
     assert.ok(
-        /Any merge lane on VioletShores\/athena claimed before ' \+ expiresAt \+ ' runs under your authority; the fleet re-checks VAC at use time\./.test(body),
+        /'These ' \+ grantedBranches\.length \+ ' branches at these exact SHAs may be merged by the fleet before ' \+ expiresAt \+ '; any new commit on them needs a new grant\.'/.test(body),
         'explain line must match the spec text exactly'
     );
 });
