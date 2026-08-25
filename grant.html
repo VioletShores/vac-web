@@ -140,8 +140,11 @@ function isServerAttestedFull(vacAuthorisation, vacAssuranceLevel) {
 
 // The by-vat permit only counts as rooted in a human if the fleet's own response says so —
 // anything else (service-issued, unknown) must render as a warning rather than a quiet pass.
+// The live /v1/mac/authorizations/by-vat route (backend/permits.py _authority_class) emits
+// the hyphenated 'human-rooted' (vs. 'shared-secret' for a v0 master-secret permit) — not an
+// underscored 'human_rooted'.
 function isHumanRootedAuthority(authorityClass) {
-  return authorityClass === 'human_rooted';
+  return authorityClass === 'human-rooted';
 }
 
 // Builds the POST body for /v1/mac/authorizations/by-vat. `vat` is the compact_jwt from the
@@ -470,11 +473,20 @@ function grantAuthority(user, vat) {
   });
 }
 
+// The live /v1/mac/authorizations/by-vat route (backend/main.py mac_authorizations_by_vat)
+// returns {permit: {id, expires_at, branches, authority_class, ...}, authority_class,
+// vac_verdict, receipt} — id and expires_at only exist nested under `permit`, never
+// top-level. authority_class is duplicated at both the top level and inside `permit`; read
+// the nested one first since it's the field of record, falling back to the top-level copy
+// for robustness. `permit.branches` is the server's own record of what was granted, so it's
+// preferred over the client-tracked `branches` argument (which only reflects what was asked
+// for) when present.
 function renderGrantResult(data, branches) {
-  var authorityClass = data.authority_class || '';
+  var permit = data.permit || {};
+  var authorityClass = permit.authority_class || data.authority_class || '';
   var humanRooted = isHumanRootedAuthority(authorityClass);
-  var expiresAt = data.expires_at || '(unknown)';
-  var grantedBranches = branches || [];
+  var expiresAt = permit.expires_at || '(unknown)';
+  var grantedBranches = (permit.branches && permit.branches.length) ? permit.branches : (branches || []);
 
   var html = '<div class="card" id="grantResultCard">' +
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge authority granted</div>';
@@ -484,7 +496,7 @@ function renderGrantResult(data, branches) {
   }
 
   html += '<ul class="attest-list">' +
-    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(data.id || '(none)')) + '</span></li>' +
+    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(permit.id || '(none)')) + '</span></li>' +
     '<li><span class="k">authority_class</span><span class="v">' + escapeHtml(String(authorityClass || '(none)')) + '</span></li>' +
     '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(expiresAt)) + '</span></li>' +
   '</ul>';
