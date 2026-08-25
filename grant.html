@@ -313,10 +313,20 @@ function renderMintError(message) {
 // Second tap: by-vat merge permit, content-bound to merge-candidates (F-1205 slice 3)
 // ============================================================
 
-// Pure: true only for the literal 'passed' verdict — 'unknown'/'failed'/missing must all
-// default to unchecked so a candidate is never preselected without a passing gate.
-function isGateVerdictPassed(gates) {
-  return !!gates && gates.verdict === 'passed';
+// Pure: the live /v1/mac/merge-candidates route nests the gate result at gates.status
+// ('passed'|'failed'|'unknown'); gates.verdict is kept as a fallback for any older/other
+// shape that still uses that key. Missing/unknown gates always resolve to 'unknown'.
+function gatesStatus(gates) {
+  gates = gates || {};
+  return gates.status || gates.verdict || 'unknown';
+}
+
+// Pure: a candidate is ready to preselect when the route says so directly (ready: true) or,
+// failing that, when its gates resolve to 'passed' — 'unknown'/'failed'/missing must all
+// default to unchecked so a candidate is never preselected without a passing signal.
+function isCandidateReady(candidate) {
+  candidate = candidate || {};
+  return candidate.ready === true || gatesStatus(candidate.gates) === 'passed';
 }
 
 function shortSha(sha) {
@@ -326,24 +336,26 @@ function shortSha(sha) {
 // Builds one candidate row's HTML. Pure/testable — string building only, no DOM access.
 // data-name/data-sha on the checkbox are what grantAuthority reads back to build the
 // {name, sha} pairs for the POST body; they must be the exact values the fleet compared
-// against, not a re-derived shortSha.
+// against, not a re-derived shortSha. `name` falls back to `branch` for compatibility with
+// an older shape; `pr` is a bare number on the live route, not an object.
 function candidateRowHtml(candidate) {
-  var branch = String(candidate.branch || '');
+  var name = String(candidate.name || candidate.branch || '');
   var sha = String(candidate.sha || '');
-  var pr = candidate.pr || {};
+  var pr = candidate.pr;
+  var title = candidate.title || '';
   var gates = candidate.gates || {};
-  var passed = isGateVerdictPassed(gates);
-  var rowClass = passed ? 'candidate-row' : 'candidate-row candidate-row-greyed';
-  var prLabel = pr.number ? ('#' + pr.number + (pr.title ? ' ' + pr.title : '')) : '(no PR)';
-  var verdictLabel = String(gates.verdict || 'unknown');
+  var status = gatesStatus(gates);
+  var ready = isCandidateReady(candidate);
+  var rowClass = ready ? 'candidate-row' : 'candidate-row candidate-row-greyed';
+  var prLabel = pr ? ('#' + pr + (title ? ' ' + title : '')) : '(no PR)';
 
   var html = '<label class="' + rowClass + '">' +
-    '<input type="checkbox" class="candidate-checkbox" data-name="' + escapeHtml(branch) + '" data-sha="' + escapeHtml(sha) + '"' + (passed ? ' checked' : '') + '>' +
-    '<span class="candidate-branch">' + escapeHtml(branch) + '</span>' +
+    '<input type="checkbox" class="candidate-checkbox" data-name="' + escapeHtml(name) + '" data-sha="' + escapeHtml(sha) + '"' + (ready ? ' checked' : '') + '>' +
+    '<span class="candidate-branch">' + escapeHtml(name) + '</span>' +
     '<span class="candidate-sha">' + escapeHtml(shortSha(sha)) + '</span>' +
     '<span class="candidate-pr">' + escapeHtml(prLabel) + '</span>' +
-    '<span class="candidate-verdict">' + escapeHtml(verdictLabel) + '</span>';
-  if (!passed && gates.reason) {
+    '<span class="candidate-verdict">' + escapeHtml(status) + '</span>';
+  if (!ready && gates.reason) {
     html += '<span class="candidate-reason">' + escapeHtml(String(gates.reason)) + '</span>';
   }
   html += '</label>';
@@ -396,6 +408,13 @@ function renderCandidatesUnavailable() {
   if (btn) btn.disabled = true;
 }
 
+// The route wraps rows in {candidates: [...]}; fall back to treating the payload itself as
+// the row array in case a caller (or a future route revision) returns a bare array.
+function unwrapCandidates(data) {
+  if (Array.isArray(data)) return data;
+  return (data && data.candidates) || [];
+}
+
 function loadMergeCandidates() {
   var listEl = document.getElementById('candidateList');
   fetch(ATHENA_API + '/v1/mac/merge-candidates?repo=' + encodeURIComponent('VioletShores/athena'))
@@ -408,7 +427,7 @@ function loadMergeCandidates() {
     })
     .then(function (data) {
       if (data === null) return;
-      var candidates = (data && data.candidates) || [];
+      var candidates = unwrapCandidates(data);
       if (listEl) listEl.innerHTML = renderCandidateListHtml(candidates);
       Array.prototype.forEach.call(document.querySelectorAll('.candidate-checkbox'), function (cb) {
         cb.addEventListener('change', updateGrantButtonState);

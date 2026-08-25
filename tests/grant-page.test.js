@@ -249,33 +249,77 @@ test('renderResult renders vac_assurance_level and, when present, assurance_basi
 // Second tap: by-vat merge permit, content-bound to merge-candidates (F-1205 slice 3)
 // ============================================================
 
+// Real response from GET https://api.athenapilot.ai/v1/mac/merge-candidates?repo=VioletShores/athena
+// (curled 2026-08-25, live shape this fixture set is coded against):
+// {"repo":"VioletShores/athena","candidates":[{"name":"task-alert-hygiene-verdict-s173",
+//   "sha":"2d9eb66a705678923edfb64274aa2b23215aa3a4","pr":148,
+//   "title":"alert hygiene: dedupe+recovery, orphan≠stall, calibration grace, outcome-class pushes",
+//   "gates":{"status":"passed","source":"pr-comment"},"updated_at":"2026-08-25T02:55:54Z","ready":true},
+//  {"name":"task-wa-parity-sentinel-s173","sha":"138568b0ee9d59634b25ac47e96b272dbf0bd7a0","pr":146,
+//   "title":"F-1207 WA parity sentinel — live WA answer vs best frontier-with-search, nightly, alarmed",
+//   "gates":{"status":"passed","source":"pr-comment"},"updated_at":"2026-08-25T02:57:19Z","ready":true}]}
 const CANDIDATE_FIXTURES = {
-    passed: {
-        branch: 'feature/oauth-fix',
-        sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0',
-        pr: { number: 42, title: 'Fix OAuth redirect loop' },
-        gates: { verdict: 'passed', reason: null }
+    ready: {
+        name: 'task-alert-hygiene-verdict-s173',
+        sha: '2d9eb66a705678923edfb64274aa2b23215aa3a4',
+        pr: 148,
+        title: 'alert hygiene: dedupe+recovery, orphan≠stall, calibration grace, outcome-class pushes',
+        gates: { status: 'passed', source: 'pr-comment' },
+        updated_at: '2026-08-25T02:55:54Z',
+        ready: true
     },
     unknown: {
-        branch: 'feature/risky-refactor',
+        name: 'feature/risky-refactor',
         sha: '9f8e7d6c5b4a3928170695847362514031201f0',
-        pr: { number: 43, title: 'Refactor auth core' },
-        gates: { verdict: 'unknown', reason: 'checks still running' }
+        pr: 43,
+        title: 'Refactor auth core',
+        gates: { status: 'unknown', reason: 'checks still running' },
+        ready: false
     },
     failed: {
-        branch: 'feature/broken-thing',
+        name: 'feature/broken-thing',
         sha: 'deadbeefcafefeed1234567890abcdef1234567',
-        pr: { number: 44, title: 'WIP: do not merge' },
-        gates: { verdict: 'failed', reason: 'CI red' }
+        pr: 44,
+        title: 'WIP: do not merge',
+        gates: { status: 'failed', reason: 'CI red' },
+        ready: false
+    },
+    // Older/alternate shape: no top-level `pr`/`ready` fields, name under `branch`, gate
+    // status under `verdict` — must still resolve via the fallbacks.
+    legacyShape: {
+        branch: 'feature/oauth-fix',
+        sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0',
+        gates: { verdict: 'passed' }
     }
 };
 
-test('isGateVerdictPassed: only the literal "passed" verdict is trusted', () => {
-    const isGateVerdictPassed = loadFn('isGateVerdictPassed');
-    assert.equal(isGateVerdictPassed({ verdict: 'passed' }), true);
-    assert.equal(isGateVerdictPassed({ verdict: 'unknown' }), false);
-    assert.equal(isGateVerdictPassed({ verdict: 'failed' }), false);
-    assert.equal(isGateVerdictPassed(undefined), false);
+test('gatesStatus: reads gates.status, falling back to gates.verdict, then "unknown"', () => {
+    const gatesStatus = loadFn('gatesStatus');
+    assert.equal(gatesStatus({ status: 'passed' }), 'passed');
+    assert.equal(gatesStatus({ verdict: 'passed' }), 'passed');
+    assert.equal(gatesStatus({ status: 'failed', verdict: 'passed' }), 'failed');
+    assert.equal(gatesStatus({}), 'unknown');
+    assert.equal(gatesStatus(undefined), 'unknown');
+});
+
+test('isCandidateReady: ready:true preselects regardless of gate status', () => {
+    const isCandidateReady = loadFn('isCandidateReady', 'gatesStatus');
+    assert.equal(isCandidateReady({ ready: true, gates: { status: 'unknown' } }), true);
+});
+
+test('isCandidateReady: falls back to gates.status/verdict === "passed" when ready is absent', () => {
+    const isCandidateReady = loadFn('isCandidateReady', 'gatesStatus');
+    assert.equal(isCandidateReady({ gates: { status: 'passed' } }), true);
+    assert.equal(isCandidateReady({ gates: { verdict: 'passed' } }), true);
+    assert.equal(isCandidateReady({ gates: { status: 'unknown' } }), false);
+    assert.equal(isCandidateReady({ gates: { status: 'failed' } }), false);
+    assert.equal(isCandidateReady({}), false);
+    assert.equal(isCandidateReady(undefined), false);
+});
+
+test('isCandidateReady: ready:false does not override a passing gate status', () => {
+    const isCandidateReady = loadFn('isCandidateReady', 'gatesStatus');
+    assert.equal(isCandidateReady({ ready: false, gates: { status: 'passed' } }), true);
 });
 
 test('shortSha truncates to 7 characters', () => {
@@ -285,20 +329,20 @@ test('shortSha truncates to 7 characters', () => {
     assert.equal(shortSha(undefined), '');
 });
 
-test('candidateRowHtml: a passed candidate is preselected (checked) and not greyed', () => {
-    const candidateRowHtml = loadFn('candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
-    const html = candidateRowHtml(CANDIDATE_FIXTURES.passed, 0);
-    assert.ok(html.includes('checked'), 'passed candidate must be preselected');
-    assert.ok(!html.includes('candidate-row-greyed'), 'passed candidate must not be greyed');
-    assert.ok(html.includes('feature/oauth-fix'), 'must render the branch name');
-    assert.ok(html.includes('a1b2c3d'), 'must render the short sha');
-    assert.ok(html.includes('#42'), 'must render the PR number');
-    assert.ok(html.includes('Fix OAuth redirect loop'), 'must render the PR title');
-    assert.ok(html.includes('passed'), 'must render the gates verdict');
+test('candidateRowHtml: a ready candidate is preselected (checked) and not greyed', () => {
+    const candidateRowHtml = loadFn('candidateRowHtml', 'isCandidateReady', 'gatesStatus', 'shortSha', 'escapeHtml');
+    const html = candidateRowHtml(CANDIDATE_FIXTURES.ready, 0);
+    assert.ok(html.includes('checked'), 'ready candidate must be preselected');
+    assert.ok(!html.includes('candidate-row-greyed'), 'ready candidate must not be greyed');
+    assert.ok(html.includes('task-alert-hygiene-verdict-s173'), 'must render the name');
+    assert.ok(html.includes('2d9eb66'), 'must render the short sha');
+    assert.ok(html.includes('#148'), 'must render the PR number');
+    assert.ok(html.includes('alert hygiene: dedupe+recovery'), 'must render the PR title');
+    assert.ok(html.includes('passed'), 'must render the gates status');
 });
 
 test('candidateRowHtml: unknown/failed candidates are unchecked, greyed, and show the reason', () => {
-    const candidateRowHtml = loadFn('candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
+    const candidateRowHtml = loadFn('candidateRowHtml', 'isCandidateReady', 'gatesStatus', 'shortSha', 'escapeHtml');
     for (const key of ['unknown', 'failed']) {
         const html = candidateRowHtml(CANDIDATE_FIXTURES[key], 0);
         assert.ok(!html.includes('checked'), key + ' candidate must not be preselected');
@@ -307,24 +351,32 @@ test('candidateRowHtml: unknown/failed candidates are unchecked, greyed, and sho
     }
 });
 
-test('candidateRowHtml: data-name/data-sha carry the exact branch/sha for the POST body, not the shortened sha', () => {
-    const candidateRowHtml = loadFn('candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
-    const html = candidateRowHtml(CANDIDATE_FIXTURES.passed, 0);
-    assert.ok(html.includes('data-name="feature/oauth-fix"'));
-    assert.ok(html.includes('data-sha="' + CANDIDATE_FIXTURES.passed.sha + '"'));
+test('candidateRowHtml: data-name/data-sha carry the exact name/sha for the POST body, not the shortened sha', () => {
+    const candidateRowHtml = loadFn('candidateRowHtml', 'isCandidateReady', 'gatesStatus', 'shortSha', 'escapeHtml');
+    const html = candidateRowHtml(CANDIDATE_FIXTURES.ready, 0);
+    assert.ok(html.includes('data-name="task-alert-hygiene-verdict-s173"'));
+    assert.ok(html.includes('data-sha="' + CANDIDATE_FIXTURES.ready.sha + '"'));
+});
+
+test('candidateRowHtml: falls back to `branch` for the name and `gates.verdict` for the status (legacy shape)', () => {
+    const candidateRowHtml = loadFn('candidateRowHtml', 'isCandidateReady', 'gatesStatus', 'shortSha', 'escapeHtml');
+    const html = candidateRowHtml(CANDIDATE_FIXTURES.legacyShape, 0);
+    assert.ok(html.includes('data-name="feature/oauth-fix"'), 'must fall back to `branch` for the name');
+    assert.ok(html.includes('checked'), 'must preselect via the gates.verdict fallback');
+    assert.ok(html.includes('(no PR)'), 'must show (no PR) when `pr` is absent');
 });
 
 test('renderCandidateListHtml: renders a row per candidate from a stubbed response', () => {
-    const renderCandidateListHtml = loadFn('renderCandidateListHtml', 'candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
-    const html = renderCandidateListHtml([CANDIDATE_FIXTURES.passed, CANDIDATE_FIXTURES.unknown, CANDIDATE_FIXTURES.failed]);
-    assert.ok(html.includes('feature/oauth-fix'));
+    const renderCandidateListHtml = loadFn('renderCandidateListHtml', 'candidateRowHtml', 'isCandidateReady', 'gatesStatus', 'shortSha', 'escapeHtml');
+    const html = renderCandidateListHtml([CANDIDATE_FIXTURES.ready, CANDIDATE_FIXTURES.unknown, CANDIDATE_FIXTURES.failed]);
+    assert.ok(html.includes('task-alert-hygiene-verdict-s173'));
     assert.ok(html.includes('feature/risky-refactor'));
     assert.ok(html.includes('feature/broken-thing'));
     assert.equal((html.match(/candidate-checkbox/g) || []).length, 3);
 });
 
 test('renderCandidateListHtml: an empty candidate list renders a "no candidates" message and no checkboxes', () => {
-    const renderCandidateListHtml = loadFn('renderCandidateListHtml', 'candidateRowHtml', 'isGateVerdictPassed', 'shortSha', 'escapeHtml');
+    const renderCandidateListHtml = loadFn('renderCandidateListHtml', 'candidateRowHtml', 'isCandidateReady', 'gatesStatus', 'shortSha', 'escapeHtml');
     const html = renderCandidateListHtml([]);
     assert.ok(!html.includes('candidate-checkbox'));
     assert.ok(/no merge candidates/i.test(html));
@@ -335,7 +387,7 @@ test('buildGrantBody carries `vat` (not `vat_jti`) plus repo/branches/reason per
     const user = { email: 'rob@example.com' };
     const vat = 'eyJhbGciOiJFUzI1NiJ9.fixture.sig';
     const nowIso = '2026-08-25T12:00:00.000Z';
-    const branches = [{ name: 'feature/oauth-fix', sha: CANDIDATE_FIXTURES.passed.sha }];
+    const branches = [{ name: 'feature/oauth-fix', sha: CANDIDATE_FIXTURES.legacyShape.sha }];
     const body = buildGrantBody(user, vat, branches, nowIso);
 
     assert.equal(body.vat, vat);
@@ -378,6 +430,19 @@ test('renderGrantCard fetches merge-candidates and starts with Grant disabled (s
     const loadBody = extractNamedFnBody('loadMergeCandidates');
     assert.ok(/ATHENA_API\s*\+\s*'\/v1\/mac\/merge-candidates\?repo='/.test(loadBody), 'must fetch ATHENA_API + /v1/mac/merge-candidates?repo=...');
     assert.ok(/VioletShores%2Fathena|VioletShores\/athena/.test(loadBody), 'must scope the request to VioletShores/athena');
+});
+
+test('unwrapCandidates: unwraps {candidates: [...]} (the live shape), falling back to a bare array', () => {
+    const unwrapCandidates = loadFn('unwrapCandidates');
+    assert.deepEqual(unwrapCandidates({ repo: 'VioletShores/athena', candidates: [CANDIDATE_FIXTURES.ready] }), [CANDIDATE_FIXTURES.ready]);
+    assert.deepEqual(unwrapCandidates([CANDIDATE_FIXTURES.ready]), [CANDIDATE_FIXTURES.ready]);
+    assert.deepEqual(unwrapCandidates({}), []);
+    assert.deepEqual(unwrapCandidates(null), []);
+});
+
+test('loadMergeCandidates unwraps the response via unwrapCandidates rather than reading data.candidates directly (source-level check)', () => {
+    const loadBody = extractNamedFnBody('loadMergeCandidates');
+    assert.ok(/unwrapCandidates\(data\)/.test(loadBody), 'loadMergeCandidates must unwrap the response through unwrapCandidates');
 });
 
 test('a 404 (or any failure) from merge-candidates disables Grant and shows the unavailable message, never falling back to all-branches (source-level check)', () => {
