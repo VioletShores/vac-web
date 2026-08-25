@@ -115,7 +115,7 @@ test('isServerAttestedFull: server + full + no vac_assurance_level field at all 
 
 // Fixture-driven: stubbed /v1/vat/issue responses, mirroring the real shape the endpoint
 // returns — {jti, compact_jwt, claims, verify_url} — with the ceremony attestation nested
-// at claims.context.vac_authorisation and assurance level at claims.vac_assurance_level.
+// at claims.vac_context.vac_authorisation and assurance level at claims.vac_assurance_level.
 const FIXTURES = {
     serverFull: {
         jti: 'vat_grant_fixture_server_full',
@@ -123,7 +123,7 @@ const FIXTURES = {
         verify_url: '/vat/verify/vat_grant_fixture_server_full',
         claims: {
             vac_assurance_level: 'L3',
-            context: {
+            vac_context: {
                 vac_authorisation: { attested_by: 'server', auth_level: 'full', assurance_basis: 'live_biometric' }
             }
         }
@@ -134,7 +134,7 @@ const FIXTURES = {
         verify_url: '/vat/verify/vat_grant_fixture_client_asserted',
         claims: {
             vac_assurance_level: 'L3',
-            context: {
+            vac_context: {
                 vac_authorisation: { attested_by: 'client_asserted', auth_level: 'full' }
             }
         }
@@ -145,7 +145,7 @@ const FIXTURES = {
         verify_url: '/vat/verify/vat_grant_fixture_server_full_not_l3',
         claims: {
             vac_assurance_level: 'L2',
-            context: {
+            vac_context: {
                 vac_authorisation: { attested_by: 'server', auth_level: 'full' }
             }
         }
@@ -181,23 +181,23 @@ test('errorMessageFromBody unwraps a FastAPI-style object/array detail instead o
     assert.equal(errorMessageFromBody({}, 500), 'HTTP 500');
 });
 
-test('fixture: server/full attestation nested at claims.context.vac_authorisation is the trusted case', () => {
+test('fixture: server/full attestation nested at claims.vac_context.vac_authorisation is the trusted case', () => {
     const isServerAttestedFull = loadFn('isServerAttestedFull');
-    const vacAuth = FIXTURES.serverFull.claims.context.vac_authorisation;
+    const vacAuth = FIXTURES.serverFull.claims.vac_context.vac_authorisation;
     const assuranceLevel = FIXTURES.serverFull.claims.vac_assurance_level;
     assert.equal(isServerAttestedFull(vacAuth, assuranceLevel), true);
 });
 
 test('fixture: client_asserted attestation must trip the warning path', () => {
     const isServerAttestedFull = loadFn('isServerAttestedFull');
-    const vacAuth = FIXTURES.clientAsserted.claims.context.vac_authorisation;
+    const vacAuth = FIXTURES.clientAsserted.claims.vac_context.vac_authorisation;
     const assuranceLevel = FIXTURES.clientAsserted.claims.vac_assurance_level;
     assert.equal(isServerAttestedFull(vacAuth, assuranceLevel), false);
 });
 
 test('fixture: server/full attestation at a non-L3 assurance level must trip the warning path', () => {
     const isServerAttestedFull = loadFn('isServerAttestedFull');
-    const vacAuth = FIXTURES.serverFullNotL3.claims.context.vac_authorisation;
+    const vacAuth = FIXTURES.serverFullNotL3.claims.vac_context.vac_authorisation;
     const assuranceLevel = FIXTURES.serverFullNotL3.claims.vac_assurance_level;
     assert.equal(isServerAttestedFull(vacAuth, assuranceLevel), false);
 });
@@ -208,11 +208,17 @@ test('renderResult only emits a copy button when server-attested full (source-le
     assert.ok(/not L3 - re-run the full ceremony/.test(body), 'warning copy must match the spec text exactly');
 });
 
-test('renderResult reads vac_authorisation from claims.context, falling back to top-level (source-level check)', () => {
+test('renderResult reads vac_authorisation from claims.vac_context, falling back to claims.context then top-level (source-level check)', () => {
+    // Two conflicting claims exist about the real /v1/vat/issue response shape (see the comment
+    // above renderResult in grant.html) — this checks both nested shapes are tried, not just one.
     const body = extractNamedFnBody('renderResult');
     assert.ok(
+        /claims\.vac_context\s*&&\s*claims\.vac_context\.vac_authorisation/.test(body),
+        'renderResult must read the attestation from claims.vac_context.vac_authorisation'
+    );
+    assert.ok(
         /claims\.context\s*&&\s*claims\.context\.vac_authorisation/.test(body),
-        'renderResult must read the attestation from claims.context.vac_authorisation'
+        'renderResult must fall back to claims.context.vac_authorisation (the previously evidenced shape)'
     );
     assert.ok(
         /\|\|\s*data\.vac_authorisation/.test(body),
@@ -220,10 +226,99 @@ test('renderResult reads vac_authorisation from claims.context, falling back to 
     );
 });
 
+test('fixture: attestation nested at claims.context (the older-evidenced shape) still resolves as trusted', () => {
+    const isServerAttestedFull = loadFn('isServerAttestedFull');
+    const legacyShape = {
+        claims: {
+            vac_assurance_level: 'L3',
+            context: { vac_authorisation: { attested_by: 'server', auth_level: 'full' } }
+        }
+    };
+    const vacAuth = (legacyShape.claims.vac_context && legacyShape.claims.vac_context.vac_authorisation) ||
+        (legacyShape.claims.context && legacyShape.claims.context.vac_authorisation);
+    assert.equal(isServerAttestedFull(vacAuth, legacyShape.claims.vac_assurance_level), true);
+});
+
 test('renderResult renders vac_assurance_level and, when present, assurance_basis (source-level check)', () => {
     const body = extractNamedFnBody('renderResult');
     assert.ok(/vac_assurance_level/.test(body), 'renderResult must render vac_assurance_level');
     assert.ok(/assurance_basis/.test(body), 'renderResult must render assurance_basis when present');
+});
+
+// ============================================================
+// Second tap: by-vat merge permit (F-1205)
+// ============================================================
+
+test('buildGrantBody carries `vat` (not `vat_jti`) plus repo/branches/reason per the by-vat schema', () => {
+    const buildGrantBody = loadFn('buildGrantBody');
+    const user = { email: 'rob@example.com' };
+    const vat = 'eyJhbGciOiJFUzI1NiJ9.fixture.sig';
+    const nowIso = '2026-08-25T12:00:00.000Z';
+    const body = buildGrantBody(user, vat, nowIso);
+
+    assert.equal(body.vat, vat);
+    assert.equal(body.vat_jti, undefined);
+    assert.equal(body.repo, 'VioletShores/athena');
+    assert.deepEqual(body.branches, []);
+    assert.equal(body.reason, 'granted from /grant by rob@example.com 2026-08-25T12:00:00.000Z');
+});
+
+test('isHumanRootedAuthority: only the literal "human_rooted" class is trusted', () => {
+    const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
+    assert.equal(isHumanRootedAuthority('human_rooted'), true);
+    assert.equal(isHumanRootedAuthority('service_issued'), false);
+    assert.equal(isHumanRootedAuthority(''), false);
+    assert.equal(isHumanRootedAuthority(undefined), false);
+});
+
+test('renderResult only shows the second (grant) card after a trusted mint (source-level check)', () => {
+    const body = extractNamedFnBody('renderResult');
+    assert.ok(
+        /if\s*\(\s*trusted\s*&&\s*data\.compact_jwt\s*\)\s*\{\s*renderGrantCard\(/.test(body),
+        'renderGrantCard must be gated on the trusted (server+full+L3) check, not called unconditionally'
+    );
+});
+
+test('the compact_jwt/vat never reaches localStorage — grant-flow functions must not reference storage', () => {
+    const fns = ['renderGrantCard', 'grantAuthority', 'renderGrantResult', 'buildGrantBody']
+        .map(fn => extractNamedFnBody(fn)).join('\n');
+    assert.ok(!/localStorage/.test(fns), 'a grant-flow function references localStorage — the vat must stay in memory only');
+});
+
+test('the compact_jwt/vat is never rendered — grant-flow render functions must not interpolate it into innerHTML', () => {
+    // renderGrantCard legitimately holds `vat` as a parameter so its click handler can forward
+    // it to grantAuthority(user, vat) — that's the "in memory only" plumbing, not rendering.
+    // What must never happen is `vat` being interpolated into the HTML string it builds, and
+    // renderGrantResult/renderGrantError (which only ever see the server's response/an error
+    // message) must not reference it at all.
+    const stripStrings = s => s.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"/g, '');
+    const noVatFns = ['renderGrantResult', 'renderGrantError']
+        .map(fn => stripStrings(extractNamedFnBody(fn))).join('\n');
+    assert.ok(!/\bvat\b/.test(noVatFns), 'renderGrantResult/renderGrantError must not reference `vat` — the server response never round-trips it');
+
+    const cardBody = extractNamedFnBody('renderGrantCard');
+    const htmlBuildSection = cardBody.slice(cardBody.indexOf('el.innerHTML'), cardBody.indexOf('stageEl.appendChild'));
+    assert.ok(!/\bvat\b/.test(stripStrings(htmlBuildSection)), 'renderGrantCard must not interpolate `vat` into the card HTML it builds');
+});
+
+test('grantAuthority posts to ATHENA_API + /v1/mac/authorizations/by-vat (source-level check)', () => {
+    assert.ok(/ATHENA_API\s*=\s*'https:\/\/api\.athenapilot\.ai'/.test(src), 'ATHENA_API must be set to https://api.athenapilot.ai');
+    const body = extractNamedFnBody('grantAuthority');
+    assert.ok(/ATHENA_API\s*\+\s*'\/v1\/mac\/authorizations\/by-vat'/.test(body), 'grantAuthority must POST to ATHENA_API + /v1/mac/authorizations/by-vat');
+});
+
+test('renderGrantResult renders permit id, authority_class, expires_at, and the VAC verdict, plus the explain line', () => {
+    const body = extractNamedFnBody('renderGrantResult');
+    assert.ok(/data\.id/.test(body), 'must render the permit id');
+    assert.ok(/authority_class/.test(body), 'must render authority_class');
+    assert.ok(/expires_at/.test(body), 'must render expires_at');
+    assert.ok(/vac_verdict/.test(body) || /assurance_level/.test(body), 'must render a VAC verdict (assurance level)');
+    assert.ok(/possession/.test(body), 'must render possession');
+    assert.ok(/!humanRooted/.test(body), 'a non-human-rooted authority_class must trip a warning');
+    assert.ok(
+        /Any merge lane on VioletShores\/athena claimed before ' \+ expiresAt \+ ' runs under your authority; the fleet re-checks VAC at use time\./.test(body),
+        'explain line must match the spec text exactly'
+    );
 });
 
 test('vercel.json has a rewrite for /grant -> /grant.html', () => {

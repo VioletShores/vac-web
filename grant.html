@@ -87,6 +87,7 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
 <script>
 'use strict';
 var API_BASE = 'https://vac-system-production.up.railway.app';
+var ATHENA_API = 'https://api.athenapilot.ai';
 var RETURN_PATH = '/grant';
 var REPO_RESOURCE = 'repo:VioletShores/athena';
 
@@ -125,6 +126,25 @@ function isServerAttestedFull(vacAuthorisation, vacAssuranceLevel) {
     vacAuthorisation.attested_by === 'server' &&
     vacAuthorisation.auth_level === 'full' &&
     (vacAssuranceLevel === undefined || vacAssuranceLevel === null || vacAssuranceLevel === 'L3');
+}
+
+// The by-vat permit only counts as rooted in a human if the fleet's own response says so —
+// anything else (service-issued, unknown) must render as a warning rather than a quiet pass.
+function isHumanRootedAuthority(authorityClass) {
+  return authorityClass === 'human_rooted';
+}
+
+// Builds the POST body for /v1/mac/authorizations/by-vat. `vat` is the compact_jwt from the
+// mint response, placed on the request only — see the in-memory-only handling around
+// renderGrantCard/grantAuthority; it must never reach localStorage or the DOM. `nowIso` is
+// passed in (rather than read via `new Date()` inside) so this stays a pure, testable function.
+function buildGrantBody(user, vat, nowIso) {
+  return {
+    vat: vat,
+    repo: 'VioletShores/athena',
+    branches: [],
+    reason: 'granted from /grant by ' + user.email + ' ' + nowIso
+  };
 }
 
 // ============================================================
@@ -201,13 +221,19 @@ function renderMintCard(user) {
   setExplain('This page verified you hold a full-tier VAC session for ' + user.email + ' and is ready to mint a 24h merge-scope token bound to that identity — your session token is read in-browser and sent only inside the signed mint request, never shown or logged.');
 }
 
-function renderResult(data) {
+function renderResult(data, user) {
   var jti = data.jti || '';
   var verifyUrl = data.verify_url || (jti ? ('/vat/verify/' + jti + '?intent=verify') : '');
-  // /v1/vat/issue nests the ceremony attestation under claims.context.vac_authorisation;
-  // fall back to a top-level vac_authorisation for older response shapes.
+  // Two conflicting claims exist about where /v1/vat/issue nests the ceremony attestation:
+  // commit 6b19d1b (this repo, two commits back) fixed an *observed* false-not-L3 render bug
+  // by reading claims.context.vac_authorisation; this task packet asserts that was wrong and
+  // the real path is claims.vac_context.vac_authorisation, with no reproduction evidence given.
+  // Unresolved — read both nested shapes (new claim first) plus the top-level fallback so the
+  // trust gate (and the by-vat grant flow gated on it) keeps working under either shape. Flagged
+  // for the orchestrator/reviewer to confirm against the live response before merge.
   var claims = data.claims || {};
-  var vacAuth = (claims.context && claims.context.vac_authorisation) || data.vac_authorisation || {};
+  var vacAuth = (claims.vac_context && claims.vac_context.vac_authorisation) ||
+    (claims.context && claims.context.vac_authorisation) || data.vac_authorisation || {};
   var assuranceLevel = claims.vac_assurance_level;
   var trusted = isServerAttestedFull(vacAuth, assuranceLevel);
 
@@ -254,6 +280,13 @@ function renderResult(data) {
   }
 
   setExplain('This page minted a 24h merge-scope VAT for VioletShores/athena and is showing the server’s own attestation of the ceremony — it never renders your session token, only the jti the server returned.');
+
+  // The compact_jwt lives only in this closure from here on — passed into renderGrantCard
+  // and then grantAuthority/buildGrantBody, never assigned to a module-level variable,
+  // never written to localStorage, never rendered.
+  if (trusted && data.compact_jwt) {
+    renderGrantCard(user, data.compact_jwt);
+  }
 }
 
 function renderMintError(message) {
@@ -261,6 +294,84 @@ function renderMintError(message) {
     '<button class="btn btn-gold" id="retryBtn" type="button">Try again</button>';
   document.getElementById('retryBtn').addEventListener('click', checkSessionAndRender);
   setExplain('The mint request to /v1/vat/issue failed — nothing was granted.');
+}
+
+// ============================================================
+// Second tap: by-vat merge permit
+// ============================================================
+
+function renderGrantCard(user, vat) {
+  var el = document.createElement('div');
+  el.className = 'card';
+  el.id = 'grantCard';
+  el.innerHTML =
+    '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:14px;">Grant merge authority to the fleet</div>' +
+    '<ul class="scope-list">' +
+      '<li><span class="k">repo</span><span class="v">VioletShores/athena</span></li>' +
+      '<li><span class="k">branches</span><span class="v">all</span></li>' +
+      '<li><span class="k">action</span><span class="v">merge</span></li>' +
+    '</ul>' +
+    '<button class="btn btn-gold" id="grantBtn" type="button">Grant</button>';
+  stageEl.appendChild(el);
+  document.getElementById('grantBtn').addEventListener('click', function () {
+    grantAuthority(user, vat);
+  });
+}
+
+function grantAuthority(user, vat) {
+  var btn = document.getElementById('grantBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Granting…'; }
+
+  var body = buildGrantBody(user, vat, new Date().toISOString());
+  fetch(ATHENA_API + '/v1/mac/authorizations/by-vat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; }).then(function (data) {
+      if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
+      return data;
+    });
+  }).then(renderGrantResult).catch(function (e) {
+    renderGrantError((e && e.message) || 'unknown error');
+  });
+}
+
+function renderGrantResult(data) {
+  var authorityClass = data.authority_class || '';
+  var humanRooted = isHumanRootedAuthority(authorityClass);
+  var vac = data.vac_verdict || {};
+  var expiresAt = data.expires_at || '(unknown)';
+
+  var html = '<div class="card" id="grantResultCard">' +
+    '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge authority granted</div>';
+
+  if (!humanRooted) {
+    html += '<div class="warn-box">authority_class is not human-rooted</div>';
+  }
+
+  html += '<ul class="attest-list">' +
+    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(data.id || '(none)')) + '</span></li>' +
+    '<li><span class="k">authority_class</span><span class="v">' + escapeHtml(String(authorityClass || '(none)')) + '</span></li>' +
+    '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(expiresAt)) + '</span></li>' +
+    '<li><span class="k">vac verdict</span><span class="v">assurance ' + escapeHtml(String(vac.assurance_level || '(none)')) + ', possession ' + escapeHtml(String(vac.possession)) + '</span></li>' +
+  '</ul></div>';
+
+  // grantCard is guaranteed present here — this only runs off the click listener that
+  // renderGrantCard itself attached, so the card it's replacing is still in the DOM.
+  document.getElementById('grantCard').outerHTML = html;
+
+  setExplain('Any merge lane on VioletShores/athena claimed before ' + expiresAt + ' runs under your authority; the fleet re-checks VAC at use time.');
+}
+
+function renderGrantError(message) {
+  var existing = document.getElementById('grantErrBox');
+  if (existing) { existing.remove(); }
+  var html = '<div class="err-box" id="grantErrBox">Grant failed: ' + escapeHtml(message) + '</div>';
+  document.getElementById('grantCard').insertAdjacentHTML('afterend', html);
+  var btn = document.getElementById('grantBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Grant'; }
+  setExplain('The grant request to /v1/mac/authorizations/by-vat failed — no merge authority was created.');
 }
 
 function escapeHtml(s) {
@@ -310,7 +421,7 @@ function mintToken(user) {
       if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
       return data;
     });
-  }).then(renderResult).catch(function (e) {
+  }).then(function (data) { renderResult(data, user); }).catch(function (e) {
     renderMintError((e && e.message) || 'unknown error');
   });
 }
