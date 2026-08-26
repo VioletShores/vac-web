@@ -140,8 +140,11 @@ function isServerAttestedFull(vacAuthorisation, vacAssuranceLevel) {
 
 // The by-vat permit only counts as rooted in a human if the fleet's own response says so —
 // anything else (service-issued, unknown) must render as a warning rather than a quiet pass.
+// The athena backend's POST /v1/mac/authorizations/by-vat returns this as the hyphenated
+// literal below; 'human_rooted' (underscore) is accepted too for compatibility with older shapes.
+var HUMAN_ROOTED_AUTHORITY_CLASS = 'human-rooted';
 function isHumanRootedAuthority(authorityClass) {
-  return authorityClass === 'human_rooted';
+  return authorityClass === HUMAN_ROOTED_AUTHORITY_CLASS || authorityClass === 'human_rooted';
 }
 
 // Builds the POST body for /v1/mac/authorizations/by-vat. `vat` is the compact_jwt from the
@@ -471,27 +474,41 @@ function grantAuthority(user, vat) {
 }
 
 function renderGrantResult(data, branches) {
-  var authorityClass = data.authority_class || '';
+  // The grant endpoint (see grantAuthority above) nests id/expires_at/vac_verdict under
+  // `permit`; fall back to the top level for older/alternate response shapes.
+  var permit = data.permit || null;
+  var authorityClass = data.authority_class || (permit && permit.authority_class) || '';
   var humanRooted = isHumanRootedAuthority(authorityClass);
-  var expiresAt = data.expires_at || '(unknown)';
+  // `!= null` (not `||`) so a legitimately falsy field (e.g. vac_verdict: false, a denial)
+  // isn't mistaken for "missing" and silently overwritten by a stale top-level value.
+  var permitId = permit && permit.id != null ? permit.id : data.id;
+  var expiresAt = (permit && permit.expires_at != null ? permit.expires_at : data.expires_at) || '(unknown)';
+  var vacVerdict = permit && permit.vac_verdict != null ? permit.vac_verdict : data.vac_verdict;
   var grantedBranches = branches || [];
 
   var html = '<div class="card" id="grantResultCard">' +
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge authority granted</div>';
 
-  if (!humanRooted) {
+  if (!permit) {
+    html += '<div class="warn-box">no permit in response (keys: ' + escapeHtml(Object.keys(data).join(', ') || 'none') + ')</div>';
+  } else if (!humanRooted) {
     html += '<div class="warn-box">authority_class is not human-rooted</div>';
   }
 
   html += '<ul class="attest-list">' +
-    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(data.id || '(none)')) + '</span></li>' +
+    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(permitId || '(none)')) + '</span></li>' +
     '<li><span class="k">authority_class</span><span class="v">' + escapeHtml(String(authorityClass || '(none)')) + '</span></li>' +
     '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(expiresAt)) + '</span></li>' +
+    (vacVerdict !== undefined ? '<li><span class="k">vac_verdict</span><span class="v">' + escapeHtml(String(vacVerdict)) + '</span></li>' : '') +
   '</ul>';
 
   html += '<ul class="attest-list" id="grantedBranchList">' + grantedBranches.map(function (b) {
     return '<li><span class="k">branch</span><span class="v">' + escapeHtml(String(b.name)) + '@' + escapeHtml(shortSha(b.sha)) + '</span></li>';
   }).join('') + '</ul>';
+
+  if (data.receipt) {
+    html += '<div class="note" id="grantReceipt">' + escapeHtml(String(data.receipt)) + '</div>';
+  }
 
   html += '</div>';
 
