@@ -494,6 +494,19 @@ async function requestCamera() {
         }, { passive: true });
     }
 
+    // F-1202 device diagnosis: enumerate before getUserMedia so the catch block can produce
+    // a precise first line ("no camera found" vs "blocked" vs "in use") rather than a raw
+    // browser error string. AudioContext is already created above (synchronous gesture slot
+    // is spent); this await is safe after that point.
+    let _devCounts = { videoinput: -1, audioinput: -1 };
+    try {
+        const _devList = await navigator.mediaDevices.enumerateDevices();
+        _devCounts = {
+            videoinput: _devList.filter(function(d) { return d.kind === 'videoinput'; }).length,
+            audioinput: _devList.filter(function(d) { return d.kind === 'audioinput'; }).length,
+        };
+    } catch(_) {}
+
     try {
         _tapTrace('getUserMedia called — if this never changes, iOS is holding the camera (force-quit Safari)');
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -609,15 +622,40 @@ async function requestCamera() {
         if (avAudioCtx && avAudioCtx.state !== 'closed' && !avAnalyser) {
             try { avAudioCtx.close(); avAudioCtx = null; } catch(_) {}
         }
-        // Browser-specific troubleshooting tips
-        const tips = getCameraTips(dev);
-        let errHtml = `<div style="margin-bottom: 6px;">${e.message || 'Camera access denied.'}</div>`;
-        if (tips.length > 0) {
-            errHtml += `<div style="font-size: 11px; color: var(--text-tertiary); line-height: 1.5;">`;
-            tips.forEach(t => { errHtml += `<div style="margin-top: 3px;">→ ${t}</div>`; });
-            errHtml += `</div>`;
+        const _errName = (e && e.name) || '';
+        try { vacDebug('device_diagnosis', _errName || null, { videoinput: _devCounts.videoinput, audioinput: _devCounts.audioinput, error_name: _errName }); } catch(_) {}
+
+        let _firstLine = '';
+        let _detailHtml = '';
+        if (_devCounts.videoinput === 0) {
+            _firstLine = "I can’t find a camera on this machine — is one plugged in? When it is, tap Retry.";
+        } else if (_devCounts.audioinput === 0) {
+            _firstLine = "I can’t find a microphone on this machine — is one plugged in? When it is, tap Retry.";
+        } else if (_errName === 'NotAllowedError' || _errName === 'PermissionDeniedError') {
+            _firstLine = 'Your browser is blocking the camera. Tap Allow when it asks — or use the lock icon in the address bar.';
+            const _tips = getCameraTips(dev);
+            if (_tips.length > 0) {
+                _detailHtml = '<details style="margin-top:6px;font-size:11px;color:var(--text-tertiary);line-height:1.6;"><summary style="cursor:pointer;user-select:none;">Show me where</summary>';
+                _tips.forEach(function(t) { _detailHtml += '<div style="margin-top:3px;">→ ' + t + '</div>'; });
+                _detailHtml += '</details>';
+            }
+        } else if (_errName === 'NotReadableError' || _errName === 'AbortError') {
+            _firstLine = 'Another app is using your camera. Close it, then tap Retry.';
+        } else if (_errName === 'NotFoundError' || _errName === 'DevicesNotFoundError') {
+            _firstLine = "I can’t find a camera on this machine — is one plugged in? When it is, tap Retry.";
+        } else {
+            // Fallback: show raw message + browser tips
+            const _tips = getCameraTips(dev);
+            _firstLine = e.message || 'Camera access denied.';
+            if (_tips.length > 0) {
+                _detailHtml = '<div style="font-size:11px;color:var(--text-tertiary);line-height:1.5;">';
+                _tips.forEach(function(t) { _detailHtml += '<div style="margin-top:3px;">→ ' + t + '</div>'; });
+                _detailHtml += '</div>';
+            }
         }
-        err.innerHTML = errHtml;
+        var _errHtml = '<div style="margin-bottom:6px;">' + _firstLine + '</div>' + _detailHtml;
+        _errHtml += '<div style="margin-top:8px;font-size:10px;color:var(--text-tertiary);">Checked: devices your browser can see</div>';
+        err.innerHTML = _errHtml;
         err.style.display = 'block';
         btn.textContent = 'Retry Camera Access';
         btn.disabled = false;
