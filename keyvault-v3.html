@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#0A0F1A">
 <title>VAC — Bitcoin Seed Vault v3 (Posture C)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0A0F1A;
@@ -15,7 +16,8 @@
   --text:#E8EDF5;
   --text-dim:#93A1B8;
   --text-quiet:#5E6B82;
-  --gold:#C9A227;
+  --gold:#C9A227;      /* primary gold — reserved for the hexagon mark (BRAND.md) */
+  --gold2:#D4A94E;     /* secondary gold — links + body accents */
   --gold-bg:rgba(201,162,39,0.08);
   --gold-border:rgba(201,162,39,0.3);
   --red:#EF4444;
@@ -29,14 +31,15 @@
   --blue-border:rgba(59,130,246,0.3);
   --orange:#F7931A;
   --muted:#5E6B82;
-  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-  --mono:'SF Mono',SFMono-Regular,Menlo,ui-monospace,monospace;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --serif:'Fraunces',Georgia,serif;
+  --mono:'JetBrains Mono','SF Mono',SFMono-Regular,Menlo,ui-monospace,monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;-webkit-font-smoothing:antialiased;}
 .page-shell{min-height:100vh;padding:0 0 80px;}
 .wrap{max-width:540px;margin:0 auto;padding:0 20px;}
-a{color:var(--gold);}
+a{color:var(--gold2);}
 
 /* Nav */
 header.top{border-bottom:1px solid var(--border);padding:20px 0;margin-bottom:32px;}
@@ -45,7 +48,7 @@ header.top{border-bottom:1px solid var(--border);padding:20px 0;margin-bottom:32
 .mark{width:32px;height:32px;flex:0 0 32px;}
 .brand-name{font-weight:700;color:var(--text);font-size:16px;letter-spacing:-0.2px;}
 .brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-quiet);letter-spacing:1px;}
-.nav-badge{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--gold);background:var(--gold-bg);border:1px solid var(--gold-border);}
+.nav-badge{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--gold2);background:var(--gold-bg);border:1px solid var(--gold-border);}
 
 /* Honesty banner */
 .banner{padding:12px 16px;border-radius:10px;margin-bottom:24px;border:1px solid var(--border-light);background:rgba(255,255,255,0.02);font-size:12.5px;color:var(--text-quiet);line-height:1.6;}
@@ -72,34 +75,34 @@ select.input{cursor:pointer;}
 
 /* Buttons */
 .btn{width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all 0.15s;margin-top:4px;}
-.btn-gold{background:var(--gold);color:#18100A;}
+.btn-gold{background:var(--gold2);color:#18100A;}
 .btn-gold:hover:not(:disabled){background:#B8952A;}
 .btn-outline{background:transparent;border:1px solid var(--border-light);color:var(--text-dim);}
-.btn-outline:hover:not(:disabled){border-color:var(--gold-border);color:var(--gold);}
+.btn-outline:hover:not(:disabled){border-color:var(--gold-border);color:var(--gold2);}
 .btn:disabled{opacity:0.45;cursor:not-allowed;}
 .btn-sm{width:auto;padding:8px 16px;font-size:12px;border-radius:7px;}
 
 /* Status indicators */
 .status-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;font-family:var(--mono);font-size:12px;margin-bottom:12px;}
 .status-row.ok{background:var(--green-bg);border:1px solid var(--green-border);color:var(--green);}
-.status-row.warn{background:var(--gold-bg);border:1px solid var(--gold-border);color:var(--gold);}
+.status-row.warn{background:var(--gold-bg);border:1px solid var(--gold-border);color:var(--gold2);}
 .status-row.err{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red);}
 .status-row.info{background:var(--blue-bg);border:1px solid var(--blue-border);color:var(--blue);}
 .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 .dot.green{background:var(--green);}
-.dot.gold{background:var(--gold);}
+.dot.gold{background:var(--gold2);}
 .dot.red{background:var(--red);}
 .dot.blue{background:var(--blue);}
 
 /* Narrative (F-1025) */
 .narrative{background:rgba(201,162,39,0.04);border:1px solid rgba(201,162,39,0.15);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:var(--text-quiet);line-height:1.65;}
-.narrative .n-label{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
+.narrative .n-label{font-family:var(--mono);font-size:10px;color:var(--gold2);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
 
 /* Word grid */
 .word-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;}
 .word-cell{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;padding:8px 6px;text-align:center;font-family:var(--mono);font-size:11px;}
 .word-cell .w-num{color:var(--text-quiet);font-size:9px;margin-bottom:2px;}
-.word-cell .w-word{color:var(--gold);font-size:12px;font-weight:600;}
+.word-cell .w-word{color:var(--gold2);font-size:12px;font-weight:600;}
 .word-cell.valid{border-color:var(--green-border);}
 .word-cell.invalid{border-color:var(--red-border);}
 .word-cell.hidden .w-word{color:var(--text-quiet);filter:blur(4px);}
@@ -108,10 +111,10 @@ select.input{cursor:pointer;}
 /* Reveal strip */
 .reveal-word{text-align:center;padding:32px 20px;border-radius:12px;background:var(--gold-bg);border:2px solid var(--gold-border);margin-bottom:16px;}
 .reveal-word .rw-num{font-family:var(--mono);font-size:11px;color:var(--text-quiet);margin-bottom:8px;}
-.reveal-word .rw-word{font-family:var(--mono);font-size:36px;font-weight:700;color:var(--gold);letter-spacing:2px;margin-bottom:8px;}
+.reveal-word .rw-word{font-family:var(--mono);font-size:36px;font-weight:700;color:var(--gold2);letter-spacing:2px;margin-bottom:8px;}
 .reveal-word .rw-timer{font-family:var(--mono);font-size:12px;color:var(--text-quiet);}
 .reveal-progress{height:3px;background:var(--border);border-radius:2px;margin-bottom:20px;}
-.reveal-progress-fill{height:100%;background:var(--gold);border-radius:2px;transition:width 1s linear;}
+.reveal-progress-fill{height:100%;background:var(--gold2);border-radius:2px;transition:width 1s linear;}
 
 /* Roadmap section */
 .roadmap-label{display:inline-block;font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-weight:700;border:1px solid var(--border-light);color:var(--text-quiet);background:rgba(255,255,255,0.02);margin-left:8px;vertical-align:middle;}
@@ -124,7 +127,7 @@ select.input{cursor:pointer;}
 .prov{font-family:var(--mono);font-size:11px;color:var(--text-quiet);background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;line-height:1.8;word-break:break-all;white-space:pre-wrap;}
 .prov .pk{color:var(--text-quiet);}
 .prov .pv{color:var(--text-dim);}
-.prov .pg{color:var(--gold);}
+.prov .pg{color:var(--gold2);}
 
 /* Seam note */
 .seam{background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:10.5px;color:#93B4D8;line-height:1.6;margin-top:12px;}
@@ -134,7 +137,7 @@ select.input{cursor:pointer;}
 .text-center{text-align:center;}
 .mt{margin-top:16px;}
 .hidden{display:none!important;}
-h2{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;}
+h2{font-family:var(--serif);font-size:19px;font-weight:650;letter-spacing:-0.2px;color:var(--text);margin-bottom:6px;}
 .sub{font-size:13.5px;color:var(--text-dim);line-height:1.55;margin-bottom:20px;}
 .mono{font-family:var(--mono);}
 .tag-orange{color:var(--orange);font-family:var(--mono);font-size:12px;}
@@ -146,7 +149,7 @@ h2{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;}
 <header class="top">
   <div class="wrap"><div class="top-row">
     <div class="brand">
-      <img class="mark" src="/branding/vac-logo-icon-dark.png" alt="VAC" onerror="this.style.display='none'">
+      <img class="mark" src="/assets/brand/vac-hexagon.svg" alt="VAC Protocol" onerror="this.style.display='none'">
       <div>
         <div class="brand-name">Bitcoin Seed Vault</div>
         <div class="brand-sub">VAC PROTOCOL &middot; v3</div>
