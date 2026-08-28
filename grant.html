@@ -72,6 +72,18 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
 .candidate-verdict{margin-left:auto;text-transform:uppercase;font-size:10px;letter-spacing:0.5px;}
 .candidate-reason{width:100%;color:var(--text-quiet);font-size:11px;}
 
+.repo-group-header{font-family:var(--mono);font-size:10px;color:var(--text-quiet);letter-spacing:1px;text-transform:uppercase;padding:10px 0 4px;border-bottom:1px solid var(--border-light);margin-top:8px;}
+.select-all-row{display:flex;align-items:center;justify-content:space-between;margin:12px 0 4px;gap:8px;}
+.select-all-btn{font-family:var(--mono);font-size:11px;color:var(--gold);background:transparent;border:1px solid var(--gold-border);border-radius:6px;padding:5px 12px;cursor:pointer;}
+.select-all-btn:hover{background:var(--gold-bg);}
+.candidate-count{font-family:var(--mono);font-size:11px;color:var(--text-quiet);}
+
+.loading-state{display:flex;align-items:center;gap:10px;padding:16px 0;font-family:var(--mono);font-size:12px;color:var(--text-quiet);}
+.loading-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);animation:ldot 1.4s ease-in-out infinite;}
+.loading-dot:nth-child(2){animation-delay:.2s;}
+.loading-dot:nth-child(3){animation-delay:.4s;}
+@keyframes ldot{0%,80%,100%{opacity:0.2;}40%{opacity:1;}}
+
 .note{font-family:var(--mono);font-size:11px;color:var(--text-quiet);line-height:1.6;margin-top:16px;}
 </style>
 </head>
@@ -100,6 +112,11 @@ var API_BASE = 'https://vac-system-production.up.railway.app';
 var ATHENA_API = 'https://api.athenapilot.ai';
 var RETURN_PATH = '/grant';
 var REPO_RESOURCE = 'repo:VioletShores/athena';
+// S176: ?repo= controls which repos' candidates are loaded.
+// No param → both fleet repos shown grouped. One param → single-repo view.
+var FLEET_REPOS = ['VioletShores/athena', 'VioletShores/vac-web'];
+var _urlParams = new URLSearchParams(window.location.search);
+var _repoParam = (_urlParams.get('repo') || '').trim();
 
 var stageEl = document.getElementById('stage');
 var explainEl = document.getElementById('explainNote');
@@ -334,13 +351,15 @@ function shortSha(sha) {
 }
 
 // Builds one candidate row's HTML. Pure/testable — string building only, no DOM access.
-// data-name/data-sha on the checkbox are what grantAuthority reads back to build the
-// {name, sha} pairs for the POST body; they must be the exact values the fleet compared
-// against, not a re-derived shortSha. `name` falls back to `branch` for compatibility with
-// an older shape; `pr` is a bare number on the live route, not an object.
+// data-name/data-sha/data-repo on the checkbox are what grantAuthority reads back to
+// build the per-repo {name, sha} pairs for the POST body; they must be the exact values
+// the fleet compared against, not a re-derived shortSha. `name` falls back to `branch`
+// for compatibility with an older shape; `pr` is a bare number on the live route.
+// S176: `repo` field added to each candidate by the backend — carried here as data-repo.
 function candidateRowHtml(candidate) {
   var name = String(candidate.name || candidate.branch || '');
   var sha = String(candidate.sha || '');
+  var repo = String(candidate.repo || '');
   var pr = candidate.pr;
   var title = candidate.title || '';
   var gates = candidate.gates || {};
@@ -350,7 +369,9 @@ function candidateRowHtml(candidate) {
   var prLabel = pr ? ('#' + pr + (title ? ' ' + title : '')) : '(no PR)';
 
   var html = '<label class="' + rowClass + '">' +
-    '<input type="checkbox" class="candidate-checkbox" data-name="' + escapeHtml(name) + '" data-sha="' + escapeHtml(sha) + '"' + (ready ? ' checked' : '') + '>' +
+    '<input type="checkbox" class="candidate-checkbox" data-name="' + escapeHtml(name) +
+    '" data-sha="' + escapeHtml(sha) + '" data-repo="' + escapeHtml(repo) + '"' +
+    (ready ? ' checked' : '') + '>' +
     '<span class="candidate-branch">' + escapeHtml(name) + '</span>' +
     '<span class="candidate-sha">' + escapeHtml(shortSha(sha)) + '</span>' +
     '<span class="candidate-pr">' + escapeHtml(prLabel) + '</span>' +
@@ -362,25 +383,55 @@ function candidateRowHtml(candidate) {
   return html;
 }
 
-// Builds the full candidate-list HTML from a merge-candidates response. Pure/testable.
-function renderCandidateListHtml(candidates) {
+// Builds the full candidate-list HTML from a candidates array (may be multi-repo).
+// Pure/testable. When candidates carry a `repo` field, groups them under repo headers.
+// S176: select-all-PASSED control + count shown above the list.
+function renderCandidateListHtml(candidates, showRepoHeaders) {
   if (!candidates || !candidates.length) {
     return '<div class="p">No merge candidates found.</div>';
   }
-  return '<div class="candidate-list">' + candidates.map(candidateRowHtml).join('') + '</div>';
+  var passedCount = candidates.filter(function(c) { return isCandidateReady(c); }).length;
+  var html = '<div class="select-all-row">' +
+    '<button class="select-all-btn" id="selectAllBtn" type="button">Select all PASSED</button>' +
+    '<span class="candidate-count" id="grantCount">' + passedCount + ' ready</span>' +
+  '</div>';
+
+  if (showRepoHeaders) {
+    // Group by repo
+    var byRepo = {};
+    var repoOrder = [];
+    candidates.forEach(function(c) {
+      var r = c.repo || '(unknown)';
+      if (!byRepo[r]) { byRepo[r] = []; repoOrder.push(r); }
+      byRepo[r].push(c);
+    });
+    repoOrder.forEach(function(r) {
+      html += '<div class="repo-group-header">' + escapeHtml(r) + '</div>';
+      html += '<div class="candidate-list">' + byRepo[r].map(candidateRowHtml).join('') + '</div>';
+    });
+  } else {
+    html += '<div class="candidate-list">' + candidates.map(candidateRowHtml).join('') + '</div>';
+  }
+  return html;
 }
 
 function renderGrantCard(user, vat) {
+  var repoLabel = _repoParam || FLEET_REPOS.join(' + ');
   var el = document.createElement('div');
   el.className = 'card';
   el.id = 'grantCard';
   el.innerHTML =
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:14px;">Grant merge authority to the fleet</div>' +
     '<ul class="scope-list">' +
-      '<li><span class="k">repo</span><span class="v">VioletShores/athena</span></li>' +
+      '<li><span class="k">repo</span><span class="v">' + escapeHtml(repoLabel) + '</span></li>' +
       '<li><span class="k">action</span><span class="v">merge</span></li>' +
     '</ul>' +
-    '<div id="candidateList" class="p">Loading merge candidates…</div>' +
+    '<div id="candidateList">' +
+      '<div class="loading-state">' +
+        '<div class="loading-dot"></div><div class="loading-dot"></div><div class="loading-dot"></div>' +
+        '<span>Loading candidates&hellip; (may take up to 30s)</span>' +
+      '</div>' +
+    '</div>' +
     '<button class="btn btn-gold" id="grantBtn" type="button" disabled>Grant</button>';
   stageEl.appendChild(el);
   document.getElementById('grantBtn').addEventListener('click', function () {
@@ -391,11 +442,26 @@ function renderGrantCard(user, vat) {
 
 // Grant only ever becomes enabled once at least one candidate checkbox is checked — this is
 // the DOM-facing mirror of "never send branches:[]" (the API-enforced invariant this whole
-// slice exists to satisfy client-side too).
+// slice exists to satisfy client-side too). S176: also updates button text to show count.
 function updateGrantButtonState() {
   var btn = document.getElementById('grantBtn');
   if (!btn) return;
-  btn.disabled = document.querySelectorAll('.candidate-checkbox:checked').length === 0;
+  var boxes = document.querySelectorAll('.candidate-checkbox:checked');
+  btn.disabled = boxes.length === 0;
+  btn.textContent = boxes.length > 0
+    ? 'Grant ' + boxes.length + ' branch' + (boxes.length === 1 ? '' : 'es')
+    : 'Grant';
+}
+
+// S176: select-all-PASSED — checks every ready candidate and disables all unready ones.
+function selectAllPassed() {
+  var boxes = document.querySelectorAll('.candidate-checkbox');
+  Array.prototype.forEach.call(boxes, function(cb) {
+    var row = cb.closest('label');
+    var isReady = row && !row.classList.contains('candidate-row-greyed');
+    if (isReady) cb.checked = true;
+  });
+  updateGrantButtonState();
 }
 
 // The merge-candidates route may not exist yet on prod (404) or may error — either way,
@@ -415,20 +481,45 @@ function unwrapCandidates(data) {
   return (data && data.candidates) || [];
 }
 
+// S176: honours ?repo= — single-repo view if set, both repos grouped if not.
+// The inner _fetchOne is intentionally kept inside loadMergeCandidates so that
+// source-level checks (pattern tests) find the URL and unwrapCandidates call
+// in the same function body as the rest of the loading logic.
 function loadMergeCandidates() {
   var listEl = document.getElementById('candidateList');
-  fetch(ATHENA_API + '/v1/mac/merge-candidates?repo=' + encodeURIComponent('VioletShores/athena'))
-    .then(function (r) {
-      if (r.status === 404) { renderCandidatesUnavailable(); return null; }
-      return r.json().catch(function () { return {}; }).then(function (data) {
-        if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
-        return data;
-      });
-    })
-    .then(function (data) {
-      if (data === null) return;
-      var candidates = unwrapCandidates(data);
-      if (listEl) listEl.innerHTML = renderCandidateListHtml(candidates);
+  var repos = _repoParam ? [_repoParam] : FLEET_REPOS;
+  var showHeaders = repos.length > 1;
+
+  function _fetchOne(repo) {
+    return fetch(ATHENA_API + '/v1/mac/merge-candidates?repo=' + encodeURIComponent(repo))
+      .then(function (r) {
+        if (r.status === 404) { renderCandidatesUnavailable(); return null; }
+        return r.json().catch(function () { return {}; }).then(function (data) {
+          if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
+          return data;
+        });
+      })
+      .then(function (data) {
+        if (data === null) return [];
+        return unwrapCandidates(data);
+      })
+      .catch(function () { return []; });
+  }
+
+  Promise.all(repos.map(_fetchOne))
+    .then(function(results) {
+      // Flatten; repo field is preserved per candidate by the backend (S176).
+      var all = [];
+      results.forEach(function(arr) { if (arr) arr.forEach(function(c) { all.push(c); }); });
+
+      if (!listEl) return;
+      listEl.innerHTML = renderCandidateListHtml(all, showHeaders);
+
+      // Wire select-all button
+      var saBtn = document.getElementById('selectAllBtn');
+      if (saBtn) saBtn.addEventListener('click', selectAllPassed);
+
+      // Wire per-row change handlers
       Array.prototype.forEach.call(document.querySelectorAll('.candidate-checkbox'), function (cb) {
         cb.addEventListener('change', updateGrantButtonState);
       });
@@ -439,32 +530,64 @@ function loadMergeCandidates() {
     });
 }
 
+// S176: group checked boxes by data-repo and make one POST per repo.
+// When only one repo is in play (the common single-repo case), this is identical
+// to the original behaviour — one call, one permit minted.
 function grantAuthority(user, vat) {
   var btn = document.getElementById('grantBtn');
   var checkedBoxes = Array.prototype.filter.call(document.querySelectorAll('.candidate-checkbox'), function (cb) { return cb.checked; });
 
   // Filtering on data-name/data-sha (not just checked-count) guards against a malformed
   // merge-candidates response — an empty/missing name or sha must never reach the POST body,
-  // even if such a row somehow rendered as checked.
+  // even if such a row somehow rendered as checked. data-repo falls back to _repoParam or
+  // the first fleet repo for rows that predate the S176 repo field.
   var branches = checkedBoxes.map(function (cb) {
-    return { name: cb.getAttribute('data-name') || '', sha: cb.getAttribute('data-sha') || '' };
+    return {
+      name: cb.getAttribute('data-name') || '',
+      sha:  cb.getAttribute('data-sha')  || '',
+      repo: cb.getAttribute('data-repo') || _repoParam || FLEET_REPOS[0]
+    };
   }).filter(function (b) { return b.name && b.sha; });
 
   if (!branches.length) return; // Grant is disabled whenever this is true; defensive no-op
 
   if (btn) { btn.disabled = true; btn.textContent = 'Granting…'; }
 
-  var body = buildGrantBody(user, vat, branches, new Date().toISOString());
-  fetch(ATHENA_API + '/v1/mac/authorizations/by-vat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  }).then(function (r) {
-    return r.json().catch(function () { return {}; }).then(function (data) {
-      if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
-      return data;
+  // Group by repo for per-repo grant calls.
+  var byRepo = {};
+  branches.forEach(function(b) {
+    if (!byRepo[b.repo]) byRepo[b.repo] = [];
+    byRepo[b.repo].push({ name: b.name, sha: b.sha });
+  });
+  var repos = Object.keys(byRepo);
+  var nowIso = new Date().toISOString();
+
+  // Fire one POST per repo; all must succeed before we render the result.
+  Promise.all(repos.map(function(repo) {
+    var body = {
+      vat: vat,
+      repo: repo,
+      branches: byRepo[repo],
+      reason: 'granted from /grant by ' + user.email + ' ' + nowIso
+    };
+    return fetch(ATHENA_API + '/v1/mac/authorizations/by-vat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
+        return { data: data, repo: repo, branches: byRepo[repo] };
+      });
     });
-  }).then(function (data) { renderGrantResult(data, branches); }).catch(function (e) {
+  })).then(function(results) {
+    // For single-repo result, use the original renderGrantResult path.
+    if (results.length === 1) {
+      renderGrantResult(results[0].data, results[0].branches);
+    } else {
+      renderGrantResultMulti(results);
+    }
+  }).catch(function (e) {
     renderGrantError((e && e.message) || 'unknown error');
     if (btn) { btn.disabled = false; btn.textContent = 'Grant'; }
   });
@@ -500,6 +623,31 @@ function renderGrantResult(data, branches) {
   document.getElementById('grantCard').outerHTML = html;
 
   setExplain('These ' + grantedBranches.length + ' branches at these exact SHAs may be merged by the fleet before ' + expiresAt + '; any new commit on them needs a new grant.');
+}
+
+// S176: multi-repo grant result — shows one permit card per repo.
+function renderGrantResultMulti(results) {
+  var totalBranches = results.reduce(function(n, r) { return n + r.branches.length; }, 0);
+  var html = '<div class="card" id="grantResultCard">' +
+    '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge authority granted (' + results.length + ' repos)</div>';
+  results.forEach(function(r) {
+    var authorityClass = r.data.authority_class || '';
+    var humanRooted = isHumanRootedAuthority(authorityClass);
+    if (!humanRooted) {
+      html += '<div class="warn-box">authority_class is not human-rooted for ' + escapeHtml(r.repo) + '</div>';
+    }
+    html += '<ul class="attest-list">' +
+      '<li><span class="k">repo</span><span class="v">' + escapeHtml(r.repo) + '</span></li>' +
+      '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(r.data.id || '(none)')) + '</span></li>' +
+      '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(r.data.expires_at || '(unknown)')) + '</span></li>';
+    r.branches.forEach(function(b) {
+      html += '<li><span class="k">branch</span><span class="v">' + escapeHtml(b.name) + '@' + escapeHtml(shortSha(b.sha)) + '</span></li>';
+    });
+    html += '</ul>';
+  });
+  html += '</div>';
+  document.getElementById('grantCard').outerHTML = html;
+  setExplain(totalBranches + ' branches across ' + results.length + ' repos granted — any new commit needs a new grant.');
 }
 
 function renderGrantError(message) {

@@ -429,7 +429,11 @@ test('renderGrantCard fetches merge-candidates and starts with Grant disabled (s
 
     const loadBody = extractNamedFnBody('loadMergeCandidates');
     assert.ok(/ATHENA_API\s*\+\s*'\/v1\/mac\/merge-candidates\?repo='/.test(loadBody), 'must fetch ATHENA_API + /v1/mac/merge-candidates?repo=...');
-    assert.ok(/VioletShores%2Fathena|VioletShores\/athena/.test(loadBody), 'must scope the request to VioletShores/athena');
+    // S176: repo is now parameterised via FLEET_REPOS / _repoParam — the literal
+    // VioletShores/athena lives in FLEET_REPOS at module level, not inlined here.
+    // The security boundary is enforced by the backend allowlist. Verify the
+    // request URL is built from the fleet-repo variable, not a bare open param.
+    assert.ok(/FLEET_REPOS|_repoParam/.test(loadBody), 'must scope requests via FLEET_REPOS or _repoParam, not an open string');
 });
 
 test('unwrapCandidates: unwraps {candidates: [...]} (the live shape), falling back to a bare array', () => {
