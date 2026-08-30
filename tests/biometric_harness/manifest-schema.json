@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vacprotocol.org/schemas/biometric-model-manifest.json",
+  "title": "VAC Biometric Model Manifest (F-1202)",
+  "description": "Describes one scoreable model/heuristic behind a biometric_harness stage adapter — either a real trained model (e.g. a future speaker-verification embedding model landing per vac-protocol/research/speaker-verification-eval's adapter pattern) or, as with today's reference adapter, a client-side heuristic gate wrapped in the same contract. adapter-interface.js refuses to construct an adapter for a manifest that fails this shape.",
+  "type": "object",
+  "required": ["model_id", "version", "stage", "adapter", "provenance", "thresholds"],
+  "additionalProperties": false,
+  "properties": {
+    "model_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable identifier for the model/heuristic, e.g. 'vac-web:digit-voice-gate' or a future '@vladmandic/speaker-verify@1.0.0:ecapa-tdnn'."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Semver or source-anchored version string. For a heuristic (no model weights), the version of the GATE LOGIC it wraps."
+    },
+    "stage": {
+      "type": "string",
+      "enum": ["mic_qualify", "phrase_gate", "digit_voice", "face_embed", "finger_gesture", "speaker_verification"],
+      "description": "Which biometric_harness stage this manifest scores. 'speaker_verification' is reserved for the real speaker-embedding model tracked in vac-protocol/research/speaker-verification-eval; it does not exist in vac-web yet."
+    },
+    "adapter": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Module path (relative to tests/biometric_harness/adapters/) implementing the BiometricAdapter interface for this manifest."
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source", "note"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "minLength": 1, "description": "Where this model/heuristic comes from, e.g. a file path + line range, or an external model registry URL." },
+        "note": { "type": "string", "minLength": 1 }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Stage-specific named thresholds this manifest asserts (mirrors, but does not replace, the source-anchored constants each stage module reads directly).",
+      "minProperties": 1,
+      "additionalProperties": { "type": "number" }
+    },
+    "input_shape": {
+      "type": "string",
+      "description": "Human-readable description of the expected fixture input shape for this stage, e.g. '[{tdBuf:Uint8Array(256), freqBuf:Uint8Array(128)}]' or '[float32 x 128]'."
+    },
+    "created": {
+      "type": "string",
+      "format": "date",
+      "description": "YYYY-MM-DD this manifest was authored/last reviewed."
+    }
+  }
+}
