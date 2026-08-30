@@ -1480,6 +1480,17 @@ function renderReauthResult(authz,tier){
   });
   // redirect path: auth-test ?mode=copilot&callback=/tribunal?step=verified returns here
   if(new URLSearchParams(location.search).get('step')==='verified')reveal(true);
+  // D-632 (S155-FIN): auth.html's "Continue to the scenario" deep-links #matters, but
+  // financial-demo had no hash+localStorage check — walkBody stayed hidden, biometric
+  // re-offered (same loop tribunal-demo had before S155). Mirror the tribunal fix here.
+  if(window.location.hash==='#matters'){
+    try{
+      var _lsv=JSON.parse(localStorage.getItem('vac_verified')||'{}');
+      var _fresh=!!_lsv.timestamp&&(Date.now()-_lsv.timestamp<24*60*60*1000)&&!!_lsv.email;
+      reveal(_fresh,_fresh?(_lsv.name||''):undefined,undefined,_fresh?(_lsv.email||null):undefined);
+      setTimeout(function(){var el=document.getElementById('matters');if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},50);
+    }catch(_){}
+  }
 })();
 </script>
 </body>

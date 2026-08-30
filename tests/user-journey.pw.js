@@ -27,8 +27,9 @@ const path = require('path');
 const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..');
-const TRIBUNAL_URL = 'file://' + path.join(ROOT, 'tribunal-demo.html');
-const AUTH_URL     = 'file://' + path.join(ROOT, 'auth.html');
+const TRIBUNAL_URL  = 'file://' + path.join(ROOT, 'tribunal-demo.html');
+const FINANCIAL_URL = 'file://' + path.join(ROOT, 'financial-demo.html');
+const AUTH_URL      = 'file://' + path.join(ROOT, 'auth.html');
 
 // TEST-ONLY auth stub — mirrors what auth.html writes to localStorage on biometric success.
 // MUST NOT appear in any production code path. /cso gate verifies unreachable in prod.
@@ -247,4 +248,91 @@ test('TC-UJ-07 [D-START-CONVERSATION-DEAD-CTA — no-op gate]: "Start a conversa
   // A subject-only mailto gives Rob's team no signal about which page the lead came
   // from; a prefilled body encodes the source page for attribution.
   expect(href, 'TC-UJ-07-C: mailto must include a body= parameter (source-page context)').toContain('body=');
+});
+
+// ── TC-UJ-F1: financial-demo FAILING FIXTURE (D-632) ─────────────────────────
+//
+// Reproduces the financial-demo loop: auth.html "Continue to the scenario"
+// lands on financial-demo.html#matters, but before D-632 there was no
+// #matters hash check — walkBody stayed hidden, biometric re-offered.
+// This test must FAIL on unfixed code and PASS after the D-632 fix.
+
+test('TC-UJ-F1 [financial-demo return-nav loop — failing fixture]: vac_verified + #matters → walkBody revealed, biometric NOT re-offered', async ({ page }) => {
+  await page.addInitScript(session => {
+    try { window.localStorage.setItem('vac_verified', JSON.stringify(session)); } catch(_) {}
+  }, _testAuthSession());
+
+  await page.goto(FINANCIAL_URL + '#matters');
+  await page.waitForLoadState('domcontentloaded');
+
+  // TC-UJ-F1-A: walkBody visible
+  const walkBody = page.locator('#walkBody');
+  await expect(walkBody, 'TC-UJ-F1-A: walkBody must be visible after auth return via #matters').not.toHaveAttribute('hidden');
+
+  // TC-UJ-F1-B: gate marked done (auth recognised)
+  const gate = page.locator('#idGate');
+  await expect(gate, 'TC-UJ-F1-B: idGate must carry class done').toHaveClass(/\bdone\b/);
+
+  // TC-UJ-F1-C: biometric CTA not re-offered
+  const idVerifyBtn = page.locator('#idVerifyBtn');
+  await expect(idVerifyBtn, 'TC-UJ-F1-C: idVerifyBtn must not be visible (biometric not re-offered)').not.toBeVisible();
+
+  // TC-UJ-F1-D: verified badge shown
+  const idVerified = page.locator('#idVerified');
+  await expect(idVerified, 'TC-UJ-F1-D: idVerified badge must be visible').not.toHaveAttribute('hidden');
+});
+
+// ── TC-UJ-08: financial-demo cold landing ─────────────────────────────────────
+
+test('TC-UJ-08: financial-demo cold landing — biometric CTA and skip present', async ({ page }) => {
+  await page.goto(FINANCIAL_URL);
+  await page.waitForLoadState('domcontentloaded');
+
+  // TC-UJ-08-A: idVerifyBtn present
+  const btn = page.locator('#idVerifyBtn');
+  await expect(btn, 'TC-UJ-08-A: idVerifyBtn must be visible on cold landing').toBeVisible();
+  await expect(btn, 'TC-UJ-08-A: button text').toContainText('Try the live biometric');
+
+  // TC-UJ-08-B: idSkip present
+  const skip = page.locator('#idSkip');
+  await expect(skip, 'TC-UJ-08-B: idSkip must be visible on cold landing').toBeVisible();
+  await expect(skip, 'TC-UJ-08-B: skip text').toContainText('Continue to the scenario');
+
+  // TC-UJ-08-C: walkBody starts hidden
+  const walkBody = page.locator('#walkBody');
+  await expect(walkBody, 'TC-UJ-08-C: walkBody must start hidden').toHaveAttribute('hidden');
+});
+
+// ── TC-UJ-09: financial-demo full return-nav journey POST-FIX ─────────────────
+
+test('TC-UJ-09: financial-demo — auth state carried via #matters, scenario content rendered, no loop', async ({ page }) => {
+  // Step 1: cold landing — biometric CTA present
+  await page.goto(FINANCIAL_URL);
+  await page.waitForLoadState('domcontentloaded');
+  await expect(page.locator('#idVerifyBtn'), 'TC-UJ-09-A: biometric CTA present on cold landing').toBeVisible();
+
+  // Step 2: simulate auth success by writing vac_verified to localStorage
+  await page.evaluate(session => {
+    try { window.localStorage.setItem('vac_verified', JSON.stringify(session)); } catch(_) {}
+  }, _testAuthSession({ name: 'Financial Test User' }));
+
+  // Step 3: navigate to #matters (auth.html's "Continue to the scenario" destination).
+  // Same base + different hash = same-document nav in Chrome — scripts don't re-run.
+  // Bounce through about:blank to force a full cross-document load (mirrors the real
+  // auth.html → financial-demo cross-page navigation).
+  await page.goto('about:blank');
+  await page.goto(FINANCIAL_URL + '#matters');
+  await page.waitForLoadState('domcontentloaded');
+
+  // TC-UJ-09-B: scenario content rendered
+  await expect(page.locator('#walkBody'), 'TC-UJ-09-B: walkBody must be visible').not.toHaveAttribute('hidden');
+
+  // TC-UJ-09-C: auth recognised — gate done, idPre collapsed
+  await expect(page.locator('#idGate'), 'TC-UJ-09-C: idGate must have class done').toHaveClass(/\bdone\b/);
+
+  // TC-UJ-09-D: biometric not re-offered
+  await expect(page.locator('#idVerifyBtn'), 'TC-UJ-09-D: biometric CTA must not be visible (no loop)').not.toBeVisible();
+
+  // TC-UJ-09-E: verified badge visible
+  await expect(page.locator('#idVerified'), 'TC-UJ-09-E: verified badge must be visible').not.toHaveAttribute('hidden');
 });
