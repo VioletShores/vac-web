@@ -1,3 +1,27 @@
+# VAC Web — HANDOFF (Session 30 → Session 31)
+> Updated: 31 Aug 2026 — FLASH DONE: D-632 financial-demo #matters return-nav reconcile | MERGED main 1be9c64
+
+## FLASH DONE — D-632: financial-demo #matters return-nav reconcile
+
+**Branch:** main → 1be9c64 (2026-08-31)
+**Root cause fixed:** auth.html's "Continue to the scenario" deep-links `financial-demo.html#matters` when `?return=` or referrer is financial-demo (added in S154). But financial-demo.html had no `#matters` hash+localStorage check — `walkBody` stayed hidden, biometric re-offered (same loop tribunal-demo had before S155). tribunal-demo got S155 in task-journey-harness; financial-demo was missed.
+**Fix (S155-FIN):** Added 11-line hash check at end of financial-demo.html's idGate IIFE (after the `?step=verified` redirect path):
+- `if(window.location.hash==='#matters')` — only fires on explicit return-nav
+- Reads `localStorage.vac_verified`, validates 24h freshness + email presence
+- Calls `reveal(_fresh, name, undefined, email)` — authenticated or unauthenticated skip
+- Smooth-scrolls to `#matters` after 50ms
+- Wrapped in try/catch — localStorage failure silently degrades
+**Tests:** TC-UJ harness extended (file: `tests/user-journey.pw.js`):
+- TC-UJ-F1: failing fixture for financial-demo loop — passes after fix
+- TC-UJ-08: financial-demo cold landing (biometric CTA + skip present, walkBody hidden)
+- TC-UJ-09: full return-nav journey — auth state carried, scenario revealed, no loop
+  (uses about:blank-equivalent bounce: page.evaluate + page.goto from different base)
+- Total: 11/11 TC-UJ tests pass
+**Gates:** /review CLEAN (no findings) | /cso PASS (_testAuthSession absent from prod, .textContent not innerHTML) | /qa 11/11 | /browse cross-doc nav confirmed (walkBody revealed, idGate.done, badge visible on local file://)
+**ATTEST:** D-CONTINUE-TO-MATTERS-LOOP fully closed for both demo pages. TC-UJ harness now covers tribunal-demo (F0/01-07) and financial-demo (F1/08-09). No re-invention — extends existing TC-UJ family as specified.
+
+---
+
 # VAC Web — HANDOFF (Session 29 → Session 30)
 > Updated: 15 Aug 2026 — BRANCH: task-greeting-diag-fe | S164 D-GREETING-CONTENT-GATE diagnostic FE | NO MERGE
 
