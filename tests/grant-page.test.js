@@ -519,3 +519,52 @@ test('vercel.json has a rewrite for /grant -> /grant.html', () => {
     assert.ok(match, '/grant rewrite missing from vercel.json');
     assert.equal(match.destination, '/grant.html');
 });
+
+// ============================================================
+// S179 return-nav + load-ux fixes
+// ============================================================
+
+const AUTH_SRC_PATH = path.join(__dirname, '..', 'auth.html');
+const authHtml = fs.readFileSync(AUTH_SRC_PATH, 'utf8');
+
+test('auth.html return-nav: recognizes /grant and does NOT append #matters (source-level check)', () => {
+    // The return-nav block in auth.html must handle /grant as a recognized destination:
+    //   - regex must include /grant(\.html)?
+    //   - _hash must be set to '' for grant (no #matters anchor on the grant page)
+    //   - label must be 'Return to grant →'
+    assert.ok(/\/grant\(\\\.html\)\?/.test(authHtml),
+        'auth.html must include /grant(\\.html)? in the return-nav regex');
+    assert.ok(/'Return to grant/.test(authHtml),
+        'auth.html must set the label to "Return to grant" for the /grant destination');
+    assert.ok(/_hash\s*=\s*''/.test(authHtml),
+        'auth.html must set _hash to empty string for /grant (no #matters anchor)');
+    assert.ok(/_cb\.href\s*=\s*_dest\s*\+\s*_hash/.test(authHtml),
+        'auth.html must build the CTA href as _dest + _hash so /grant lands without a fragment');
+});
+
+test('auth.html return-nav: tribunal-demo and financial-demo still use #matters (regression check)', () => {
+    // Fixing /grant must not break the existing #matters deep-link for the demo pages.
+    assert.ok(/\/(tribunal-demo|financial-demo)/.test(authHtml),
+        'auth.html must still handle tribunal-demo and financial-demo');
+    assert.ok(/_hash\s*=\s*'#matters'/.test(authHtml),
+        'auth.html must initialise _hash as "#matters" (default for the demo pages)');
+});
+
+test('grant.html load-ux: stage div has an inline loading state before JS runs (source-level check)', () => {
+    // Before this fix, <div id="stage"></div> was empty until JS ran — the user saw a blank
+    // area for the auth check duration. The static HTML must now carry a "Checking session…"
+    // placeholder so there's no blank flash.
+    assert.ok(/id="stage"[^>]*>.*Checking session/.test(html.replace(/\n/g, ' ')),
+        'grant.html #stage must carry a "Checking session…" placeholder in the static HTML');
+});
+
+test('grant.html renderGate note: updated to match the new return-nav CTA (source-level check)', () => {
+    // The old note said "the button at the bottom of that page goes elsewhere" — that was true
+    // before auth.html was taught about /grant. Now the button says "Return to grant →" and
+    // links directly back. The note must reflect the updated flow.
+    const gateBody = extractNamedFnBody('renderGate');
+    assert.ok(!/goes elsewhere/.test(gateBody),
+        'renderGate note must not say "goes elsewhere" — auth.html now routes back to /grant correctly');
+    assert.ok(/Return to grant/.test(gateBody),
+        'renderGate note must name the new CTA label "Return to grant →" so the user knows what to tap');
+});

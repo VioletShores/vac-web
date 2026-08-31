@@ -1135,19 +1135,23 @@ function showSuccess() {
                 // Context-aware: honor ?return= (same-origin allowlist), else same-origin
                 // referrer, else the tribunal default — always deep-linked to #matters with a
                 // label matching the destination's own vocabulary.
-                var _dest='https://vacprotocol.org/tribunal-demo', _lbl='Continue to the matters \u2192';
+                var _dest='https://vacprotocol.org/tribunal-demo', _lbl='Continue to the matters \u2192', _hash='#matters';
                 try {
                     var _rp=new URLSearchParams(window.location.search).get('return');
                     var _cand=_rp||document.referrer||'';
                     if (_cand) {
                         var _u=new URL(_cand, window.location.origin);
-                        if (_u.origin===window.location.origin && /^\/(tribunal-demo|financial-demo)(\.html)?$/.test(_u.pathname)) {
-                            _dest=_u.origin+_u.pathname;
-                            _lbl=/financial/.test(_u.pathname)?'Continue to the scenario \u2192':'Continue to the matters \u2192';
+                        if (_u.origin===window.location.origin) {
+                            if (/^\/(tribunal-demo|financial-demo)(\.html)?$/.test(_u.pathname)) {
+                                _dest=_u.origin+_u.pathname;
+                                _lbl=/financial/.test(_u.pathname)?'Continue to the scenario \u2192':'Continue to the matters \u2192';
+                            } else if (/^\/grant(\.html)?$/.test(_u.pathname)) {
+                                _dest=_u.origin+_u.pathname; _lbl='Return to grant \u2192'; _hash='';
+                            }
                         }
                     }
                 } catch(_re){}
-                _cb.href=_dest+'#matters';
+                _cb.href=_dest+_hash;
                 _cb.textContent=_lbl;
                 _cb.style.cssText='display:block;margin:18px auto 0;max-width:420px;text-align:center;padding:15px 22px;border-radius:12px;background:#2DD4BF;color:#06121C;font-size:16px;font-weight:800;text-decoration:none;';
                 var _tn2=document.querySelector('#successName')||document.querySelector('.success-name');

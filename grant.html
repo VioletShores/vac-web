@@ -88,7 +88,7 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
   <div class="wrap">
     <div class="eyebrow">Athena permit v1</div>
     <h1 id="pageTitle">Grant merge authority</h1>
-    <div id="stage"></div>
+    <div id="stage"><div class="p" style="color:var(--text-quiet)">Checking session…</div></div>
     <div class="note" id="explainNote"></div>
   </div>
 </div>
@@ -210,8 +210,8 @@ function renderGate(insufficientTier) {
     : 'No verified session found. Minting merge authority requires your own full verification ceremony (identity + live biometric) — quick tier is not acceptable.';
   stageEl.innerHTML =
     '<div class="gate-msg"><strong>Full ceremony required.</strong> ' + msg + '</div>' +
-    '<button class="btn btn-gold" id="startCeremonyBtn" type="button">Start full verification</button>' +
-    '<div class="note">After verifying, use the “← Back to the demo” link at the top of that page to return here — the button at the bottom of that page goes elsewhere.</div>';
+    '<button class=”btn btn-gold” id=”startCeremonyBtn” type=”button”>Start full verification</button>' +
+    '<div class=”note”>After verifying, tap “Return to grant →” on the success screen to come back here and mint the token.</div>';
   document.getElementById('startCeremonyBtn').addEventListener('click', function () {
     window.location.href = authUrl;
   });
