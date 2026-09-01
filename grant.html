@@ -73,6 +73,15 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
 .candidate-reason{width:100%;color:var(--text-quiet);font-size:11px;}
 
 .note{font-family:var(--mono);font-size:11px;color:var(--text-quiet);line-height:1.6;margin-top:16px;}
+
+.repo-switcher{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0 0;}
+.repo-label{font-family:var(--mono);font-size:10px;color:var(--text-quiet);letter-spacing:0.5px;}
+.repo-link{font-family:var(--mono);font-size:11px;color:var(--text-quiet);text-decoration:none;padding:3px 8px;border-radius:5px;border:1px solid transparent;letter-spacing:0.3px;}
+.repo-link:hover{color:var(--gold);border-color:var(--gold-border);}
+.repo-link.active{color:var(--gold);border-color:var(--gold-border);background:var(--gold-bg);}
+
+.progress-line{font-family:var(--mono);font-size:12px;color:var(--text-quiet);}
+.permit-note{font-family:var(--mono);font-size:11px;color:var(--text-quiet);margin-top:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;}
 </style>
 </head>
 <body>
@@ -83,7 +92,9 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
       <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
     </div>
     <span class="nav-mode">GRANT</span>
-  </div></div></header>
+  </div>
+  <div class="repo-switcher" id="repoSwitcher"></div>
+  </div></header>
 
   <div class="wrap">
     <div class="eyebrow">Athena permit v1</div>
@@ -99,7 +110,30 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
 var API_BASE = 'https://vac-system-production.up.railway.app';
 var ATHENA_API = 'https://api.athenapilot.ai';
 var RETURN_PATH = '/grant';
-var REPO_RESOURCE = 'repo:VioletShores/athena';
+
+var REPO_ALLOWLIST = ['VioletShores/athena', 'VioletShores/vac-web', 'VioletShores/vac-protocol'];
+var DEFAULT_REPO = 'VioletShores/athena';
+
+function getRepoParam() {
+  try {
+    var r = new URLSearchParams(window.location.search).get('repo') || '';
+    return REPO_ALLOWLIST.indexOf(r) !== -1 ? r : DEFAULT_REPO;
+  } catch (e) { return DEFAULT_REPO; }
+}
+
+var currentRepo = getRepoParam();
+var REPO_RESOURCE = 'repo:' + currentRepo;
+
+(function initRepoSwitcher() {
+  var el = document.getElementById('repoSwitcher');
+  if (!el) return;
+  var html = '<span class="repo-label">Repo:</span>';
+  REPO_ALLOWLIST.forEach(function (r) {
+    var active = r === currentRepo ? ' active' : '';
+    html += '<a class="repo-link' + active + '" href="/grant?repo=' + encodeURIComponent(r) + '">' + r + '</a>';
+  });
+  el.innerHTML = html;
+})();
 
 var stageEl = document.getElementById('stage');
 var explainEl = document.getElementById('explainNote');
@@ -113,10 +147,11 @@ function setExplain(text) { explainEl.textContent = text; }
 // Builds the POST body for /v1/vat/issue per the IssueVATReq schema. `token` is the raw
 // session token string; it is placed on the request only, never rendered by any caller.
 function buildIssueBody(user, token) {
+  var resource = typeof REPO_RESOURCE !== 'undefined' ? REPO_RESOURCE : 'repo:VioletShores/athena';
   return {
     human_identity: user.email,
     agent_id: 'athena-merge-lane',
-    resources: ['repo:VioletShores/athena'],
+    resources: [resource],
     actions: ['merge'],
     verification_method: 'multi_modal',
     expiry_seconds: 86400,
@@ -140,8 +175,9 @@ function isServerAttestedFull(vacAuthorisation, vacAssuranceLevel) {
 
 // The by-vat permit only counts as rooted in a human if the fleet's own response says so —
 // anything else (service-issued, unknown) must render as a warning rather than a quiet pass.
+// Canonical form is 'human-rooted' (hyphen); 'human_rooted' is accepted for compat (#34).
 function isHumanRootedAuthority(authorityClass) {
-  return authorityClass === 'human_rooted';
+  return authorityClass === 'human-rooted' || authorityClass === 'human_rooted';
 }
 
 // Builds the POST body for /v1/mac/authorizations/by-vat. `vat` is the compact_jwt from the
@@ -152,9 +188,10 @@ function isHumanRootedAuthority(authorityClass) {
 // caller (grantAuthority) is responsible for never invoking this with an empty list, since the
 // API correctly refuses a wildcard/empty branches array.
 function buildGrantBody(user, vat, branches, nowIso) {
+  var repo = typeof currentRepo !== 'undefined' ? currentRepo : 'VioletShores/athena';
   return {
     vat: vat,
-    repo: 'VioletShores/athena',
+    repo: repo,
     branches: branches,
     reason: 'granted from /grant by ' + user.email + ' ' + nowIso
   };
@@ -221,7 +258,7 @@ function renderGate(insufficientTier) {
 function renderMintCard(user) {
   stageEl.innerHTML =
     '<div class="card">' +
-      '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:14px;">Mint merge authority for VioletShores/athena</div>' +
+      '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:14px;">Mint merge authority for ' + escapeHtml(currentRepo) + '</div>' +
       '<ul class="scope-list">' +
         '<li><span class="k">actions</span><span class="v">merge</span></li>' +
         '<li><span class="k">resources</span><span class="v">' + REPO_RESOURCE + '</span></li>' +
@@ -292,7 +329,7 @@ function renderResult(data, user) {
     });
   }
 
-  setExplain('This page minted a 24h merge-scope VAT for VioletShores/athena and is showing the server’s own attestation of the ceremony — it never renders your session token, only the jti the server returned.');
+  setExplain("This page minted a 24h merge-scope VAT for " + currentRepo + " and is showing the server's own attestation of the ceremony — it never renders your session token, only the jti the server returned.");
 
   // The compact_jwt lives only in this closure from here on — passed into renderGrantCard
   // and then grantAuthority/buildGrantBody, never assigned to a module-level variable,
@@ -377,7 +414,7 @@ function renderGrantCard(user, vat) {
   el.innerHTML =
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:14px;">Grant merge authority to the fleet</div>' +
     '<ul class="scope-list">' +
-      '<li><span class="k">repo</span><span class="v">VioletShores/athena</span></li>' +
+      '<li><span class="k">repo</span><span class="v">' + escapeHtml(currentRepo) + '</span></li>' +
       '<li><span class="k">action</span><span class="v">merge</span></li>' +
     '</ul>' +
     '<div id="candidateList" class="p">Loading merge candidates…</div>' +
@@ -415,28 +452,102 @@ function unwrapCandidates(data) {
   return (data && data.candidates) || [];
 }
 
+var _candidateProgressTimer = null;
+var _candidateProgressCount = 0;
+
+function _startCandidateProgress(listEl, total) {
+  _candidateProgressCount = 0;
+  _candidateProgressTimer = setInterval(function () {
+    _candidateProgressCount++;
+    var label = total
+      ? 'Checking ' + Math.min(_candidateProgressCount, total) + ' of ' + total + ' PRs…'
+      : 'Checking ' + _candidateProgressCount + ' PR' + (_candidateProgressCount !== 1 ? 's' : '') + '…';
+    if (listEl) listEl.innerHTML = '<span class="progress-line">' + label + '</span>';
+  }, 200);
+}
+
+function _stopCandidateProgress() {
+  if (_candidateProgressTimer) { clearInterval(_candidateProgressTimer); _candidateProgressTimer = null; }
+}
+
+// Returns a promise resolving to a Set of branch names that already hold active permits,
+// or {gated: true} if the endpoint requires authentication.
+function _fetchActivePermitBranches() {
+  return fetch(ATHENA_API + '/v1/mac/authorizations?repo=' + encodeURIComponent(currentRepo))
+    .then(function (r) {
+      if (r.status === 401 || r.status === 403) return { gated: true };
+      if (!r.ok) return { gated: false, branches: new Set() };
+      return r.json().then(function (data) {
+        var perms = Array.isArray(data) ? data : (data.authorizations || []);
+        var names = new Set();
+        perms.forEach(function (p) {
+          (p.branches || []).forEach(function (b) { names.add(b.name || b); });
+        });
+        return { gated: false, branches: names };
+      }).catch(function () { return { gated: false, branches: new Set() }; });
+    })
+    .catch(function () { return { gated: false, branches: new Set() }; });
+}
+
 function loadMergeCandidates() {
   var listEl = document.getElementById('candidateList');
-  fetch(ATHENA_API + '/v1/mac/merge-candidates?repo=' + encodeURIComponent('VioletShores/athena'))
+  if (listEl) listEl.innerHTML = '<span class="progress-line">Checking PRs…</span>';
+
+  var candidatesPromise = fetch(ATHENA_API + '/v1/mac/merge-candidates?repo=' + encodeURIComponent(currentRepo || 'VioletShores/athena'))
     .then(function (r) {
-      if (r.status === 404) { renderCandidatesUnavailable(); return null; }
+      if (r.status === 404) { _stopCandidateProgress(); renderCandidatesUnavailable(); return null; }
       return r.json().catch(function () { return {}; }).then(function (data) {
         if (!r.ok) throw new Error(errorMessageFromBody(data, r.status));
         return data;
       });
-    })
-    .then(function (data) {
+    });
+
+  var permitsPromise = _fetchActivePermitBranches();
+
+  Promise.all([candidatesPromise, permitsPromise])
+    .then(function (results) {
+      var data = results[0];
+      var permitsInfo = results[1];
+      _stopCandidateProgress();
       if (data === null) return;
+
       var candidates = unwrapCandidates(data);
-      if (listEl) listEl.innerHTML = renderCandidateListHtml(candidates);
+      var total = data.total_prs || data.total || null;
+      if (total && listEl) listEl.innerHTML = '<span class="progress-line">Checking ' + candidates.length + ' of ' + total + ' PRs…</span>';
+
+      var activeBranches = permitsInfo.gated ? null : (permitsInfo.branches || new Set());
+      var filtered = candidates;
+      var hiddenCount = 0;
+      if (activeBranches !== null && activeBranches.size > 0) {
+        filtered = candidates.filter(function (c) {
+          var name = c.name || c.branch || '';
+          if (activeBranches.has(name)) { hiddenCount++; return false; }
+          return true;
+        });
+      }
+
+      if (listEl) {
+        var html = renderCandidateListHtml(filtered);
+        if (permitsInfo.gated) {
+          html += '<div class="permit-note">Active permit check unavailable — authentication required on GET /v1/mac/authorizations.</div>';
+        } else if (hiddenCount > 0) {
+          html += '<div class="permit-note">' + hiddenCount + ' branch' + (hiddenCount !== 1 ? 'es' : '') + ' hidden — already hold an active permit.</div>';
+        }
+        listEl.innerHTML = html;
+      }
+
       Array.prototype.forEach.call(document.querySelectorAll('.candidate-checkbox'), function (cb) {
         cb.addEventListener('change', updateGrantButtonState);
       });
       updateGrantButtonState();
     })
     .catch(function () {
+      _stopCandidateProgress();
       renderCandidatesUnavailable();
     });
+
+  // Start progress ticker after both promises are set up (uses total=null initially)
+  _startCandidateProgress(listEl, null);
 }
 
 function grantAuthority(user, vat) {
@@ -471,23 +582,38 @@ function grantAuthority(user, vat) {
 }
 
 function renderGrantResult(data, branches) {
-  var authorityClass = data.authority_class || '';
+  // PR #34: the grant endpoint nests id/expires_at/authority_class/branches/vac_verdict
+  // under `permit`; fall back to top-level for older/alternate shapes.
+  var permit = data.permit || {};
+  var permitId = permit.id || data.id || '(none)';
+  var authorityClass = permit.authority_class || data.authority_class || '';
   var humanRooted = isHumanRootedAuthority(authorityClass);
-  var expiresAt = data.expires_at || '(unknown)';
-  var grantedBranches = branches || [];
+  var expiresAt = permit.expires_at || data.expires_at || '(unknown)';
+  var vacVerdict = permit.vac_verdict || data.vac_verdict || '';
+  var receipt = data.receipt || '';
+  // Prefer server-recorded permit.branches over the client-tracked argument (#34).
+  var grantedBranches = (permit.branches && permit.branches.length ? permit.branches : null) || branches || [];
 
   var html = '<div class="card" id="grantResultCard">' +
     '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge authority granted</div>';
 
-  if (!humanRooted) {
+  if (!data.permit && !data.id) {
+    html += '<div class="warn-box">No permit object in response — grant may not have completed.</div>';
+  } else if (!humanRooted) {
     html += '<div class="warn-box">authority_class is not human-rooted</div>';
   }
 
   html += '<ul class="attest-list">' +
-    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(data.id || '(none)')) + '</span></li>' +
+    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(permitId)) + '</span></li>' +
     '<li><span class="k">authority_class</span><span class="v">' + escapeHtml(String(authorityClass || '(none)')) + '</span></li>' +
-    '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(expiresAt)) + '</span></li>' +
-  '</ul>';
+    '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(expiresAt)) + '</span></li>';
+  if (vacVerdict) {
+    html += '<li><span class="k">vac_verdict</span><span class="v">' + escapeHtml(String(vacVerdict)) + '</span></li>';
+  }
+  if (receipt) {
+    html += '<li><span class="k">receipt</span><span class="v">' + escapeHtml(String(receipt)) + '</span></li>';
+  }
+  html += '</ul>';
 
   html += '<ul class="attest-list" id="grantedBranchList">' + grantedBranches.map(function (b) {
     return '<li><span class="k">branch</span><span class="v">' + escapeHtml(String(b.name)) + '@' + escapeHtml(shortSha(b.sha)) + '</span></li>';
