@@ -406,10 +406,20 @@ test('buildGrantBody never silently defaults branches to an empty/wildcard list'
     assert.equal(body.branches.length, 2);
 });
 
-test('isHumanRootedAuthority: only the literal "human_rooted" class is trusted', () => {
+test('isHumanRootedAuthority: the canonical hyphenated "human-rooted" class (the live /v1/mac/authorizations/by-vat shape) is trusted', () => {
+    const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
+    assert.equal(isHumanRootedAuthority('human-rooted'), true);
+});
+
+test('isHumanRootedAuthority: the underscored "human_rooted" class is accepted for compatibility with older shapes', () => {
     const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
     assert.equal(isHumanRootedAuthority('human_rooted'), true);
+});
+
+test('isHumanRootedAuthority: anything else (service-issued, shared-secret, empty, missing) is not trusted', () => {
+    const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
     assert.equal(isHumanRootedAuthority('service_issued'), false);
+    assert.equal(isHumanRootedAuthority('shared-secret'), false);
     assert.equal(isHumanRootedAuthority(''), false);
     assert.equal(isHumanRootedAuthority(undefined), false);
 });
@@ -502,15 +512,83 @@ test('the compact_jwt/vat is never rendered — grant-flow render functions must
 
 test('renderGrantResult renders permit id, authority_class, expires_at, the granted branch@sha list, and the exact explain line', () => {
     const body = extractNamedFnBody('renderGrantResult');
-    assert.ok(/data\.id/.test(body), 'must render the permit id');
+    assert.ok(/permit\.id/.test(body), 'must render the permit id from the nested permit object');
     assert.ok(/authority_class/.test(body), 'must render authority_class');
-    assert.ok(/expires_at/.test(body), 'must render expires_at');
+    assert.ok(/permit\.expires_at/.test(body), 'must render expires_at from the nested permit object');
     assert.ok(/!humanRooted/.test(body), 'a non-human-rooted authority_class must trip a warning');
     assert.ok(/grantedBranches\.map/.test(body), 'must render the list of granted branches');
     assert.ok(
         /'These ' \+ grantedBranches\.length \+ ' branches at these exact SHAs may be merged by the fleet before ' \+ expiresAt \+ '; any new commit on them needs a new grant\.'/.test(body),
         'explain line must match the spec text exactly'
     );
+});
+
+// Real response from POST https://api.athenapilot.ai/v1/mac/authorizations/by-vat
+// (backend/main.py mac_authorizations_by_vat, backend/permits.py create_permit/
+// _authority_class): {permit: {id, expires_at, branches, authority_class, ...},
+// authority_class, vac_verdict, receipt} — id/expires_at/vac_verdict exist ONLY nested under
+// `permit`, never top-level; authority_class is duplicated at both the top level and inside
+// `permit` (L-2609/L-2610).
+test('renderGrantResult reads id/expires_at/vac_verdict/branches from the nested `permit` object (source-level check)', () => {
+    const body = extractNamedFnBody('renderGrantResult');
+    assert.ok(/permit\s*&&\s*permit\.id/.test(body), 'must read the permit id from data.permit');
+    assert.ok(/permit\s*&&\s*permit\.expires_at/.test(body), 'must read expires_at from data.permit');
+    assert.ok(/permit\s*&&\s*permit\.vac_verdict/.test(body), 'must read vac_verdict from data.permit');
+    assert.ok(/permit\s*&&\s*permit\.branches/.test(body), 'must prefer the server-recorded branches from data.permit.branches');
+});
+
+test('renderGrantResult shows the actual response keys, not a guessed message, when `permit` is entirely absent (source-level check)', () => {
+    const body = extractNamedFnBody('renderGrantResult');
+    assert.ok(/!permit/.test(body), 'must special-case a response with no permit');
+    assert.ok(/Object\.keys\(data\)/.test(body), 'must render the actual top-level response keys when permit is missing');
+});
+
+test('renderGrantResult renders the server\'s receipt string under the branch list (source-level check)', () => {
+    const body = extractNamedFnBody('renderGrantResult');
+    const branchListIdx = body.indexOf('grantedBranchList');
+    const receiptIdx = body.indexOf('data.receipt');
+    assert.ok(branchListIdx >= 0 && receiptIdx > branchListIdx, 'receipt must render after (under) the branch list');
+});
+
+test('fixture: the live by-vat response shape (nested permit.{id,expires_at,authority_class}, top-level authority_class/vac_verdict/receipt) resolves human-rooted with a real permit id', () => {
+    // Mirrors renderGrantResult's own fallback logic against the exact specimen shape (Rob
+    // specimen, 2026-08-26), without requiring a DOM (renderGrantResult itself touches
+    // document.getElementById).
+    const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
+    const data = {
+        permit: {
+            id: 'permit_9f3a2b1c',
+            expires_at: '2026-08-27T04:00:00Z',
+            authority_class: 'human-rooted',
+            branches: [{ name: 'task-alert-hygiene-verdict-s173', sha: '2d9eb66a705678923edfb64274aa2b23215aa3a4' }]
+        },
+        authority_class: 'human-rooted',
+        vac_verdict: 'approved',
+        receipt: 'receipt_7e21'
+    };
+    const permit = data.permit || null;
+    const authorityClass = (permit && permit.authority_class) || data.authority_class || '';
+    const permitId = permit && permit.id != null ? permit.id : data.id;
+    const expiresAt = (permit && permit.expires_at != null ? permit.expires_at : data.expires_at) || '(unknown)';
+    const vacVerdict = permit && permit.vac_verdict != null ? permit.vac_verdict : data.vac_verdict;
+
+    assert.equal(isHumanRootedAuthority(authorityClass), true, 'humanRooted must be true for the live response shape');
+    assert.notEqual(String(permitId || '(none)'), '(none)', 'permit id must resolve to the real id, not the (none) placeholder');
+    assert.equal(permitId, 'permit_9f3a2b1c');
+    assert.equal(expiresAt, '2026-08-27T04:00:00Z');
+    assert.equal(vacVerdict, 'approved');
+    assert.equal(data.receipt, 'receipt_7e21');
+});
+
+test('fixture: a shared-secret permit trips the not-human-rooted warning', () => {
+    const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
+    const data = {
+        permit: { id: 513, expires_at: '2026-08-25T16:00:00Z', authority_class: 'shared-secret' },
+        authority_class: 'shared-secret'
+    };
+    const permit = data.permit || null;
+    const authorityClass = (permit && permit.authority_class) || data.authority_class || '';
+    assert.equal(isHumanRootedAuthority(authorityClass), false);
 });
 
 test('vercel.json has a rewrite for /grant -> /grant.html', () => {
