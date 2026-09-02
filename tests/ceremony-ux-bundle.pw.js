@@ -137,6 +137,7 @@ test('TC-UX-03: auth.html shows the expiry note (and keeps the identity pre-fill
   await expect(page.locator('#inputEmail')).toHaveValue('rob@example.com');
   expect(await page.evaluate(() => localStorage.getItem('vac_verified'))).toBeNull();
   expect(EMOJI.test(await note.innerText())).toBe(false);
+  await page.waitForTimeout(900);   // step-section fade-in settles
   await page.screenshot({ path: path.join(SHOTS, 'ux-03-auth-expiry.png'), fullPage: true });
 });
 
@@ -160,6 +161,7 @@ test('TC-UX-04: auth.html post-capture stages — verifying cover over the camer
   // the cover sits above the skeleton canvas
   const z = await page.evaluate(() => [getComputedStyle(document.getElementById('vacPostCapture')).zIndex, getComputedStyle(document.getElementById('handOverlay')).zIndex]);
   expect(Number(z[0])).toBeGreaterThan(Number(z[1]));
+  await page.waitForTimeout(900);
   await page.screenshot({ path: path.join(SHOTS, 'ux-04a-stages-verifying.png'), fullPage: true });
 
   await page.evaluate(() => {
@@ -174,5 +176,6 @@ test('TC-UX-04: auth.html post-capture stages — verifying cover over the camer
   const gold = await list.locator('.vac-stage.active .vac-stage-title').count();
   expect(gold).toBe(0);   // nothing is "active" once done
   expect(EMOJI.test(await list.innerText())).toBe(false);
+  await page.waitForTimeout(900);
   await page.screenshot({ path: path.join(SHOTS, 'ux-04b-stages-done.png'), fullPage: true });
 });

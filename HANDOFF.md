@@ -1,3 +1,36 @@
+# VAC Web — HANDOFF (Session 31 → Session 32)
+> Updated: 2 Sep 2026 — CEREMONY UX FIX BUNDLE (stamp s182) | branch Schemo512/ceremony-ux-fix-bundle → MERGED main
+
+## Ceremony UX fix bundle — five fixes, one fixture each, browser-verified
+
+**Spec source:** `docs/strategic/CEREMONY-MIC-DIAGNOSIS-2026-08-20.md` (athena repo) for the mic root cause; the rest from the lane brief.
+
+### 1. Mic: `analyser_starved_mr_fallback` root fix (vac-reauth-ceremony.js)
+**Root cause (confirmed against the diagnosis, no threshold touched):** task-724 creates `avAudioCtx` INSIDE the tap, BEFORE `getUserMedia`. Opening the mic on iOS can switch the audio session's hardware sample rate; a context built at the old rate keeps state `running` while its source node delivers ~1% RMS — the analyser is starved, MediaRecorder hears fine. Cold grants (fresh permission = route switch) starve, warm runs don't: the exact variability the telemetry showed.
+**Fix:**
+- `_rebuildAvAnalyserGraph(reason)` — new context built AFTER the stream (post-switch rate), original-stream source (task-733), pinned (SAGA-GC-01), old context closed. Called (a) in `requestCamera` when `avAudioCtx.sampleRate !== track.getSettings().sampleRate` (`reason:'rate_mismatch'`), (b) once per starvation episode from the runAVFrame detector alongside the MediaRecorder proxy (`reason:'starved'`). Sensor: `analyser_graph_rebuilt {ctx_sr_before, ctx_sr_after, track_sr, state}`.
+- Fallback-path PARITY (§4 "make the fallback qualify as fast as the primary path"): while `_micOnFallback` (2s confirmed starvation + proxy engaged), proxy frames at `MR_FALLBACK_VOICED_LEVEL` (= the hoisted t727 literal 8) feed the SAME `_voicedRunTick/_voicedRunPass`; spectrum must agree when readable. Pass tagged `path:'mr'` on `mic_pass_on_voiced_run`, label "Mic: working (fallback path)", `client_mic_path` appended to the verify upload (backend persistence into the receipt = vac-protocol lane, NOT done here).
+- Narration (F-1025): "Mic: starting, one moment" + "Microphone starting, one moment. Keep speaking normally." replaces the confident 0% while starved; reverts when the analyser wakes.
+**Harness:** `tests/fixtures/mic-starved-analyser-fixtures.js` (the starved-analyser specimen §4a asked for) + `tests/mic-starved-fallback.test.js` (14 tests; TC-MSF-03 is the failing fixture on the pre-s182 classifier, TC-MSF-04 proves pass < 1.5s of proxy start). Older guards updated to the GATED contract: `tests/mic-cold-start.test.js` C11/C12, `tests/mic-voiced-run.test.js` classifier/diag/guard.
+**Still owed (diagnosis §3/§4b):** `/v1/auth/debug` `context_json` read gap (backend); COPS/PID controller-governed mic attributes (architecture); receipt persistence of `client_mic_path` (backend). Rob's live iPhone cold-grant run is the CONFIRM step — watch for `analyser_graph_rebuilt` then `mic_pass_on_voiced_run path:analyser`.
+
+### 2. Post-capture authority progress screen (vac-reauth-ceremony.js)
+`finishFingerPhase` now clears `#handOverlay` (the stuck dots) and covers the frozen feed with `#vacPostCapture`; step 3 carries `#vacAuthorityStages` above the ring. Stages: Verifying your ceremony → Minting your authority → Done + `_authorityGrantsText()` (tier from `result.session.auth_level`, use derived from `?return=`: grant page / demo sealing / generic). Success path: minting 450ms → done 1.1s → `_finish`. Fail/capture-death hide the list. Fast tier renders the same list. QA hook `VACReauth.renderAuthorityStages(stage, opts)` (display-only). **Harness:** `tests/ceremony-post-progress.test.js` (9).
+
+### 3. Expiry narration (auth.html + grant.html)
+"Your previous authority expired after 24 hours. Quick renewal is not yet enabled, so a full ceremony is required." — auth.html `#vacExpiryNote` on step 0 when the 24h `vac_verified` purge fires (identity pre-fill kept); grant.html `#expiryNote` in the gate via `priorAuthoritySnapshot`/`expiryNarration` (aged blob purged BEFORE bridging so a stale token is never copied into `vac_session`). **Harness:** `tests/auth-expiry-narration.test.js` (5) + grant-page additions.
+
+### 4. grant.html copy VAT → VRT
+Button/heading/explain lines say VRT (Verifiable Root Token, F-804). ids (`mintBtn`, `jtiBox`), `/v1/vat/issue`, `/v1/mac/authorizations/by-vat`, `/vat/verify/`, request key `vat` untouched. Site-wide VAT copy elsewhere (index, simulation, roadmap, vat-verify…) is OUT of this bundle.
+
+### 5. D-GRANT-PAGE-RESULT-PATHS (grant.html) — false red `authority_class` banner
+Live by-vat shape is `{permit:{id,expires_at,authority_class}, authority_class, vac_verdict, receipt}` and the literal is `human-rooted` (backend/permits.py). Page compared `human_rooted` and read id/expires at the top level → red banner + "(none)/(unknown)". Now `permitResultFields()` + hyphen/underscore-tolerant `isHumanRootedAuthority`. Mark the debt entry closed in athena `docs/EXECUTION-DEBT.md` (not edited from this repo).
+
+**Pin:** `?v=s182` on all 5 loaders; `tests/ceremony-selftest.pw.js` tracks s182.
+**Gates:** node `--test tests/*.test.js` 221/234 (13 failures all pre-existing: DA-01, CB-ZONE-01, CB-GREET-06 s158b1, s167 stamp, TC-MIC-C8, zone A2/A3, vadStarved item 3); Playwright 25/29 (4 pre-existing: TSH-02/03, GA-01/02; the 3 pin tests now pass). Visual: `tests/ceremony-ux-bundle.pw.js` 4/4, screenshots in `test-results/ux-bundle/` reviewed by eye (expiry gate, grant result without banner, auth expiry note, stages verifying/done).
+
+---
+
 # VAC Web — HANDOFF (Session 30 → Session 31)
 > Updated: 31 Aug 2026 — FLASH DONE: D-632 financial-demo #matters return-nav reconcile | MERGED main 1be9c64
 
