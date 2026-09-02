@@ -6,7 +6,7 @@
 //
 // What Playwright tests can verify in headless file:// mode:
 //   - The ceremony page loads with no fatal JS errors
-//   - The ceremony script tag carries the correct pin (s158b1)
+//   - The ceremony script tag carries the correct pin (s182)
 //   - The ceremony DOM mount point and step structure is intact
 //   - Pin parity: all loader pages reference the same pin
 //
@@ -55,8 +55,8 @@ test('TC-CS-01: auth.html loads without fatal JS errors', async ({ page }) => {
   expect(fatal, 'TC-CS-01: fatal JS errors on auth.html load: ' + JSON.stringify(fatal)).toHaveLength(0);
 });
 
-// ── TC-CS-02: ceremony script tag carries pin s158b1 ─────────────────────────
-test('TC-CS-02: auth.html ceremony script tag carries pin s158b1', async ({ page }) => {
+// ── TC-CS-02: ceremony script tag carries pin s182 ─────────────────────────
+test('TC-CS-02: auth.html ceremony script tag carries pin s182', async ({ page }) => {
   await page.goto(AUTH_URL);
   await page.waitForLoadState('domcontentloaded');
 
@@ -67,8 +67,8 @@ test('TC-CS-02: auth.html ceremony script tag carries pin s158b1', async ({ page
   });
 
   expect(scriptSrc, 'TC-CS-02: ceremony script tag not found in auth.html').not.toBeNull();
-  expect(scriptSrc, 'TC-CS-02: ceremony script must carry pin s158b1').toContain('s158b1');
-  expect(scriptSrc, 'TC-CS-02: ceremony script must not carry old pin s157c1').not.toContain('s157c1');
+  expect(scriptSrc, 'TC-CS-02: ceremony script must carry pin s182').toContain('s182');
+  expect(scriptSrc, 'TC-CS-02: ceremony script must not carry old pin s173').not.toContain('s173');
 });
 
 // ── TC-CS-03: ceremony step DOM structure is present ─────────────────────────
@@ -92,11 +92,11 @@ test('TC-CS-03: auth.html has ceremony step sections in DOM', async ({ page }) =
 // ── TC-CS-04: pin parity — all loader pages carry the same pin ───────────────
 //
 // Source-level check (not Playwright browser — avoids the 5× page load overhead).
-// Verifies that every page that loads the ceremony script uses the same pin (s158b1).
+// Verifies that every page that loads the ceremony script uses the same pin (s182).
 // A pin mismatch causes cache-busting to serve different ceremony versions on different
 // pages — the "frozen-pin disease" that caused the s156h8→s157c1 regression (cbf0415).
 
-test('TC-CS-04: pin parity — all ceremony loader pages reference s158b1', async () => {
+test('TC-CS-04: pin parity — all ceremony loader pages reference s182', async () => {
   const pinRe = /vac-reauth-ceremony\.js\?v=([a-z0-9]+)/g;
   const mismatches = [];
 
@@ -107,26 +107,26 @@ test('TC-CS-04: pin parity — all ceremony loader pages reference s158b1', asyn
     while ((m = pinRe.exec(src)) !== null) pins.add(m[1]);
     pinRe.lastIndex = 0;
 
-    if (!pins.has('s158b1')) {
+    if (!pins.has('s182')) {
       mismatches.push({ file, found: [...pins] });
     }
   }
 
   expect(
     mismatches,
-    'TC-CS-04: pin mismatch — these files do not reference s158b1: ' + JSON.stringify(mismatches)
+    'TC-CS-04: pin mismatch — these files do not reference s182: ' + JSON.stringify(mismatches)
   ).toHaveLength(0);
 });
 
 // ── TC-CS-05: ceremony source has no old pin (belt-and-suspenders) ───────────
-test('TC-CS-05: vac-reauth-ceremony.js source does not contain old pin s157c1', async () => {
+test('TC-CS-05: vac-reauth-ceremony.js source carries the s182 stamp and no s157c1 pin', async () => {
   const src = fs.readFileSync(path.join(ROOT, 'vac-reauth-ceremony.js'), 'utf8');
   expect(
     src.includes('s157c1'),
     'TC-CS-05: vac-reauth-ceremony.js must not contain the old s157c1 pin'
   ).toBe(false);
   expect(
-    src.includes('s158b1'),
-    'TC-CS-05: vac-reauth-ceremony.js must contain the new s158b1 pin'
+    src.includes('s182'),
+    'TC-CS-05: vac-reauth-ceremony.js must contain the new s182 pin'
   ).toBe(true);
 });

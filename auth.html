@@ -342,7 +342,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
      display derivation, shared with test_verdict_reasons.node.js. Must load
      before vac-reauth-ceremony.js's showRetry() calls it. -->
 <script src="/verdict-reasons.js"></script>
-<script src="/vac-reauth-ceremony.js?v=s173"></script>
+<script src="/vac-reauth-ceremony.js?v=s182"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
@@ -395,6 +395,12 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="header-eyebrow">Step 1 of 4</div>
         <div class="header-title">Verify You're a Real Human</div>
         <div class="header-sub">Prove you're a real human. Your verified identity becomes a cryptographic credential that agents, services, and people can trust.</div>
+    </div>
+    <!-- Ceremony UX bundle: expiry narration. A prior verified authority older than 24h is purged
+         on load (see the pre-fill IIFE at the bottom); say so here instead of silently dropping it. -->
+    <div id="vacExpiryNote" style="display:none;background:var(--surface);border:1px solid rgba(201,162,39,0.3);border-left:3px solid #C9A227;border-radius:10px;padding:13px 15px;margin:0 0 16px;font-size:13.5px;line-height:1.55;color:var(--text-primary);">
+        <div style="font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:#C9A227;margin-bottom:6px;">Previous authority</div>
+        <span id="vacExpiryNoteText"></span>
     </div>
     <div class="form-group">
         <label class="form-label">Full Name</label>
@@ -1747,6 +1753,22 @@ function maybeResumeReauth() {
     else _run();
 })();
 
+// Ceremony UX bundle: expiry narration (pure, extracted by tests/auth-expiry-narration.test.js).
+// A stored ceremony result older than VAC_AUTHORITY_TTL_MS is dropped below; this is the sentence
+// the user sees instead of a silent reset to the identity form. Returns '' when nothing expired.
+var VAC_AUTHORITY_TTL_MS = 24 * 60 * 60 * 1000;
+function vacExpiryNarration(savedTs, now) {
+    if (typeof savedTs !== 'number' || !(savedTs > 0)) return '';
+    if ((now - savedTs) <= VAC_AUTHORITY_TTL_MS) return '';
+    return 'Your previous authority expired after 24 hours. Quick renewal is not yet enabled, so a full ceremony is required.';
+}
+function vacShowExpiryNote(text) {
+    var box = document.getElementById('vacExpiryNote'), t = document.getElementById('vacExpiryNoteText');
+    if (!box || !t || !text) return;
+    t.textContent = text;
+    box.style.display = 'block';
+}
+
 // F-563 (c): pre-fill identity from a prior verified session, but do NOT resurrect the verified
 // SCREEN on a plain page load. The old IIFE auto-routed to showSuccess()+goToStep(4) whenever
 // vac_verified existed (<24h), so a RAW URL refresh landed back on the verified page instead of
@@ -1757,7 +1779,18 @@ function maybeResumeReauth() {
         const saved = localStorage.getItem('vac_verified');
         if (!saved) return;
         const data = JSON.parse(saved);
-        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) { localStorage.removeItem('vac_verified'); return; }
+        var _expiryText = vacExpiryNarration(data.timestamp, Date.now());
+        if (_expiryText) {
+            localStorage.removeItem('vac_verified');
+            try { localStorage.removeItem('vac_last_verified'); } catch(_) {}
+            // Keep the identity pre-fill (convenience only) but tell the user the authority is gone.
+            try {
+                var _xn = document.getElementById('inputName');  if (_xn && data.name)  _xn.value = data.name;
+                var _xe = document.getElementById('inputEmail'); if (_xe && data.email) _xe.value = data.email;
+            } catch(_) {}
+            vacShowExpiryNote(_expiryText);
+            return;
+        }
         if (!data.email) return;
         // Convenience pre-fill only (so the user doesn't re-type) — NO auto-route to the success screen.
         var _n = document.getElementById('inputName');  if (_n) _n.value = data.name || '';

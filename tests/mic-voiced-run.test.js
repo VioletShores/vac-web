@@ -47,20 +47,28 @@ test('shared voiced-run constants match what this mirror/fixture set was built a
     assert.equal(constFromSource('VOICE_BAND_MIN_RATIO'), VOICE_BAND_MIN_RATIO);
 });
 
-test('mic-qualify frame classifier matches source verbatim', () => {
+test('mic-qualify frame classifier matches source verbatim (primary branch; s182 adds a starvation-gated proxy branch)', () => {
+    // The mirror below models the PRIMARY (analyser) branch. s182 ORs in a MediaRecorder-proxy
+    // branch that is only reachable when _micOnFallback (2s confirmed starvation) — mirrored and
+    // fixture-tested in tests/mic-starved-fallback.test.js. With _micOnFallback false the source
+    // classifier reduces exactly to the expressions this file mirrors.
     assert.ok(
-        src.includes('const _micVoicedFrame = (_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR);'),
+        src.includes('const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR));'),
         '_micVoicedFrame classifier expression not found or changed — mirror is stale'
     );
     assert.ok(
-        src.includes('const _micSilenceFrame = _ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR;'),
+        src.includes('const _micSilenceFrame = _micOnFallback ? (_avMrLevelSynth === 0 && !_mrVoicedFrame) : (_ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR);'),
         '_micSilenceFrame classifier expression not found or changed — mirror is stale'
+    );
+    assert.ok(
+        src.includes('const _mrVoicedFrame = _micOnFallback && (_avMrLevelSynth >= MR_FALLBACK_VOICED_LEVEL) && (_speechRatio < 0 || _speechRatio >= VOICE_BAND_MIN_RATIO);'),
+        'the proxy branch must stay gated on _micOnFallback'
     );
 });
 
 test('D-MICTEST-DIAG-NOT-AMPLITUDE-ONLY: pending (stuck) diagnostic carries the same voiced_ticks/mod/vb_ratio/near_field_rms shape as the pass diagnostic', () => {
     assert.ok(
-        src.includes("vacDebug('mic_qualify_pending', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)) })"),
+        src.includes("vacDebug('mic_qualify_pending', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)), path: _micOnFallback ? 'mr' : 'analyser', mr_level: _avMrLevelSynth, rebuilt: _avGraphRebuilt })"),
         'mic_qualify_pending diagnostic missing or its field shape changed — field debugging of a STUCK mic test needs the same voiced_ticks/mod/vb_ratio/near_field_rms fields as the pass path, not amplitude alone'
     );
 });
@@ -72,7 +80,7 @@ test('D-MICTEST-GREENS-ON-NOISE regression guard: avChecks.mic is set ONLY from 
     const trueAssignments = src.match(/avChecks\.mic\s*=\s*true/g) || [];
     assert.equal(trueAssignments.length, 1, `expected exactly 1 "avChecks.mic = true" assignment in source, found ${trueAssignments.length}`);
     const idx = src.indexOf('avChecks.mic = true');
-    const windowBefore = src.slice(Math.max(0, idx - 1500), idx);
+    const windowBefore = src.slice(Math.max(0, idx - 2200), idx);   // s182 added the path-record line + comment inside the block
     assert.ok(
         windowBefore.includes('_voicedRunPass(_micVoicedState'),
         'avChecks.mic = true is not gated by _voicedRunPass(_micVoicedState, ...) — the mic gate may have regressed to the ambient-rise path'

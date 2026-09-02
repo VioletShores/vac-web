@@ -177,32 +177,26 @@ test('TC-MIC-C10: textContent "say the number" step2Title assignment appears AFT
     );
 });
 
-// ── TC-MIC-C11: SUPERSEDED by S166 D-MICTEST-GREENS-ON-NOISE (commit 2aa40b2) ───────────────────
-// The _runVoiced/_runMedian/_qualifyFloor local-run pattern this test originally guarded (t723's
-// iOS-analyser-starvation escape: voice-band shape alone, no amplitude required, could qualify the
-// preflight mic tile) was REMOVED by 2aa40b2 — the ambient-relative qualify path it lived in greened
-// on a door slam/cough/TV/chair scrape just as easily as on real speech (Rob's 3rd live specimen),
-// so it was replaced wholesale by the shared _voicedRunTick/_voicedRunPass predicate (same one the
-// greeting gate uses), which has NO starvation/spectral-only escape at the mic-qualify call site
-// (_voicedRunPass(_micVoicedState, false) — modOverride hardcoded false, unlike the phrase gate's
-// _voicedRunPass(_phraseVoicedState, _vadStarved)).
-//
-// KNOWN GAP this leaves open (not fixed here — out of scope for S166 task-mictest-voiced-only steps
-// 4-5, flagged in HANDOFF.md for a follow-up task): a device hitting IOS_AMPLITUDE_CRUSH (t723/t745
-// — iOS WebKit under-reporting getByteTimeDomainData RMS to ~3% during real speech while the
-// voice-band spectral shape stays intact) has no escape route at the PREFLIGHT "Mic: working" tile
-// anymore — _micVoicedFrame requires _ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR unconditionally, so
-// the tile can sit "checking" forever on such a device even though the downstream greeting/phrase
-// gate WOULD still fire for the same user (it keeps its _vadStarved escape). This test now documents
-// that gap instead of asserting the removed escape exists.
-test('TC-MIC-C11 (superseded): preflight mic-qualify has NO starvation/spectral-only escape — _voicedRunPass(_micVoicedState, false) hardcodes modOverride=false', () => {
+// ── TC-MIC-C11: SUPERSEDED twice — S166 D-MICTEST-GREENS-ON-NOISE (2aa40b2) then s182 ────────────
+// S166 removed the t723 iOS-analyser-starvation escape (voice-band shape alone could green the tile,
+// and so could a door slam/cough/TV) and hardcoded _voicedRunPass(_micVoicedState, false). That left
+// the KNOWN GAP the old note recorded: a starved analyser (IOS_AMPLITUDE_CRUSH / rate-mismatched
+// tap-created context) could never clear the near-field floor, so the tile sat "checking" until the
+// user shouted — Rob's 20 Aug telemetry (21x analyser_starved_mr_fallback, diagnosed in
+// docs/strategic/CEREMONY-MIC-DIAGNOSIS-2026-08-20.md). s182 closes the gap in GATED form: the
+// modulation override is `_micOnFallback` — true only after 2s of confirmed starvation with the
+// MediaRecorder proxy engaged — never a bare `_vadStarved`, never `true`, never spectral-only.
+// See tests/mic-starved-fallback.test.js for the fixture-driven proof.
+test('TC-MIC-C11 (superseded x2): preflight mic-qualify escape exists ONLY under confirmed starvation (_micOnFallback), never bare', () => {
     assert.ok(
-        src.includes('_voicedRunPass(_micVoicedState, false)'),
-        'expected the mic-qualify call site to read _voicedRunPass(_micVoicedState, false) — if this changed, TC-MIC-C11/C12 history above may be stale in a new way; update this test to match'
+        src.includes('_voicedRunPass(_micVoicedState, _micOnFallback)'),
+        'expected the mic-qualify call site to read _voicedRunPass(_micVoicedState, _micOnFallback) (s182 gated fallback parity)'
     );
+    assert.ok(!src.includes('_voicedRunPass(_micVoicedState, true)'), 'modOverride must never be hardcoded true at the mic tile');
+    assert.ok(!src.includes('_voicedRunPass(_micVoicedState, _vadStarved)'), 'the phrase gate\'s bare _vadStarved escape must not leak into the mic tile');
     assert.ok(
         !/_runVoiced|_runMedian|_qualifyFloor/.test(src),
-        'the old _runVoiced/_runMedian/_qualifyFloor pattern reappeared in source — if the iOS-starvation escape was restored at the preflight mic-qualify level, this documentation test (and its KNOWN GAP note) is now stale and should be updated/removed'
+        'the old _runVoiced/_runMedian/_qualifyFloor spectral-only pattern must not reappear'
     );
 });
 
@@ -212,7 +206,7 @@ test('TC-MIC-C11 (superseded): preflight mic-qualify has NO starvation/spectral-
 // required _ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR — so a starved run can no longer reach the
 // seed assignment at all (stronger guarantee than the old nested-if it replaced).
 test('TC-MIC-C12 (superseded): _micSeededSpeechLevel/_micSeededSpeechRms are set only inside a _voicedRunPass-qualified block', () => {
-    const condIdx = src.indexOf('if (_micSeeded && _voicedRunPass(_micVoicedState, false))');
+    const condIdx = src.indexOf('if (_micSeeded && _voicedRunPass(_micVoicedState, _micOnFallback))');
     assert.ok(condIdx >= 0, '_micSeeded && _voicedRunPass(...) qualify condition not found — mic-qualify block may have changed shape');
     const seedIdx = src.indexOf('_micSeededSpeechLevel = _runLevelsSorted', condIdx);
     assert.ok(seedIdx >= 0, '_micSeededSpeechLevel assignment not found inside the qualify block');

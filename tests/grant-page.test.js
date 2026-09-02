@@ -406,12 +406,111 @@ test('buildGrantBody never silently defaults branches to an empty/wildcard list'
     assert.equal(body.branches.length, 2);
 });
 
-test('isHumanRootedAuthority: only the literal "human_rooted" class is trusted', () => {
+test('isHumanRootedAuthority: the fleet literal "human-rooted" (backend/permits.py) is trusted; nothing else is', () => {
     const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
+    // D-GRANT-PAGE-RESULT-PATHS: the page compared against 'human_rooted' while the route emits
+    // 'human-rooted' — every genuine grant tripped the red banner. Both spellings now pass.
+    assert.equal(isHumanRootedAuthority('human-rooted'), true);
     assert.equal(isHumanRootedAuthority('human_rooted'), true);
+    assert.equal(isHumanRootedAuthority('shared-secret'), false);
     assert.equal(isHumanRootedAuthority('service_issued'), false);
     assert.equal(isHumanRootedAuthority(''), false);
     assert.equal(isHumanRootedAuthority(undefined), false);
+});
+
+// Live specimen shape of POST /v1/mac/authorizations/by-vat (athena backend/main.py ~5974):
+// { permit: {...}, authority_class, vac_verdict, receipt } — id/expires_at nest under permit.
+const LIVE_BY_VAT_RESPONSE = {
+    permit: {
+        id: 'permit_7f3a9c',
+        repo: 'VioletShores/athena',
+        expires_at: '2026-09-03T04:00:00+00:00',
+        authority_class: 'human-rooted',
+        vat_jti: 'jti_abc',
+        scope: 'merge',
+    },
+    authority_class: 'human-rooted',
+    vac_verdict: { valid: true },
+    receipt: 'permit permit_7f3a9c granted for VioletShores/athena by rob@example.com',
+};
+
+test('permitResultFields reads id/expires_at from the nested permit and authority_class from the top level (live by-vat shape)', () => {
+    const permitResultFields = loadFn('permitResultFields');
+    const f = permitResultFields(LIVE_BY_VAT_RESPONSE);
+    assert.equal(f.id, 'permit_7f3a9c');
+    assert.equal(f.expiresAt, '2026-09-03T04:00:00+00:00');
+    assert.equal(f.authorityClass, 'human-rooted');
+});
+
+test('permitResultFields tolerates a flattened/older shape and a missing body', () => {
+    const permitResultFields = loadFn('permitResultFields');
+    const flat = permitResultFields({ id: 'p1', expires_at: 'x', authority_class: 'shared-secret' });
+    assert.deepEqual(flat, { id: 'p1', expiresAt: 'x', authorityClass: 'shared-secret' });
+    const none = permitResultFields(undefined);
+    assert.deepEqual(none, { id: '', expiresAt: '', authorityClass: '' });
+});
+
+test('a live human-rooted by-vat response must NOT trip the red not-human-rooted warning (D-GRANT-PAGE-RESULT-PATHS)', () => {
+    const permitResultFields = loadFn('permitResultFields');
+    const isHumanRootedAuthority = loadFn('isHumanRootedAuthority');
+    assert.equal(isHumanRootedAuthority(permitResultFields(LIVE_BY_VAT_RESPONSE).authorityClass), true);
+    const shared = Object.assign({}, LIVE_BY_VAT_RESPONSE, { authority_class: 'shared-secret', permit: Object.assign({}, LIVE_BY_VAT_RESPONSE.permit, { authority_class: 'shared-secret' }) });
+    assert.equal(isHumanRootedAuthority(permitResultFields(shared).authorityClass), false, 'a shared-secret permit must still warn');
+});
+
+test('expiryNarration: aged (>24h) prior authority narrates the 24h expiry + no quick renewal + full ceremony', () => {
+    const ttl = src.match(/var AUTHORITY_TTL_MS = ([^;]+);/);
+    assert.ok(ttl && Function('return ' + ttl[1])() === 24 * 60 * 60 * 1000, 'AUTHORITY_TTL_MS is 24h');
+    const expiryNarration = new Function('var AUTHORITY_TTL_MS = ' + ttl[1] + ';\n' + extractNamedFnBody('expiryNarration') + '\nreturn expiryNarration;')();
+    const now = Date.parse('2026-09-02T10:00:00Z');
+    const H = 60 * 60 * 1000;
+    const aged = expiryNarration({ had: true, ts: now - 25 * H }, now);
+    assert.match(aged, /expired after 24 hours/);
+    assert.match(aged, /Quick renewal is not yet enabled/);
+    assert.match(aged, /full ceremony is required/);
+    const rejected = expiryNarration({ had: true, ts: now - 2 * H }, now);
+    assert.match(rejected, /no longer valid/);
+    assert.match(rejected, /Quick renewal is not yet enabled, so a full ceremony is required/);
+    assert.equal(expiryNarration({ had: false, ts: 0 }, now), '');
+    assert.equal(expiryNarration(null, now), '');
+    assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(aged + rejected), 'no emoji in the narration');
+});
+
+test('priorAuthoritySnapshot reads vac_verified.timestamp / vac_last_verified.ts / vac_session without touching tokens', () => {
+    const priorAuthoritySnapshot = loadFn('priorAuthoritySnapshot');
+    const store = (map) => ({ getItem: (k) => (k in map ? map[k] : null) });
+    assert.deepEqual(priorAuthoritySnapshot(store({})), { had: false, ts: 0 });
+    assert.deepEqual(priorAuthoritySnapshot(store({ vac_verified: JSON.stringify({ timestamp: 1000, authResult: { session_token: 'secret' } }) })), { had: true, ts: 1000 });
+    assert.deepEqual(priorAuthoritySnapshot(store({ vac_last_verified: JSON.stringify({ ts: 2000 }) , vac_verified: JSON.stringify({ timestamp: 1500 }) })), { had: true, ts: 2000 });
+    assert.deepEqual(priorAuthoritySnapshot(store({ vac_session: 'tok' })), { had: true, ts: 0 });
+    assert.deepEqual(priorAuthoritySnapshot(store({ vac_verified: '{not json' })), { had: true, ts: 0 });
+});
+
+test('renderGate narrates an expired prior authority in a dark gold-accented note (source-level check)', () => {
+    const body = extractNamedFnBody('renderGate');
+    assert.ok(/function renderGate\(insufficientTier, narration\)/.test(body), 'renderGate must accept the narration');
+    assert.ok(/id="expiryNote"/.test(body), 'narration renders into #expiryNote');
+    assert.ok(/escapeHtml\(narration\)/.test(body), 'narration text must be escaped');
+    assert.ok(/\.expiry-note\{[^}]*border-left:3px solid var\(--gold\)/.test(html), 'expiry note uses the gold accent');
+    const boot = extractNamedFnBody('checkSessionAndRender');
+    assert.ok(/priorAuthoritySnapshot\(localStorage\)/.test(boot), 'boot snapshots the prior authority before bridging');
+    assert.ok(/renderGate\(false, narration\)/.test(boot), 'a failed session check renders the narration');
+    assert.ok(/removeItem\('vac_verified'\)/.test(boot), 'an aged ceremony blob is purged before bridging');
+});
+
+test('page copy says VRT (Verifiable Root Token), never VAT; ids, endpoints and response keys are untouched', () => {
+    assert.ok(html.includes('Mint merge-scope VRT'), 'mint button copy');
+    assert.ok(html.includes('Merge-scope VRT minted'), 'mint result heading');
+    assert.ok(html.includes('merge-scope VRT (Verifiable Root Token)'), 'the acronym is expanded once');
+    assert.ok(!/\bVAT\b/.test(html), 'no bare VAT word anywhere in grant.html (F-804 rename)');
+    assert.ok(html.includes("id=\"mintBtn\""), 'mintBtn id untouched');
+    assert.ok(html.includes("id=\"jtiBox\""), 'jtiBox id untouched');
+    assert.ok(html.includes('/v1/mac/authorizations/by-vat'), 'by-vat endpoint untouched');
+    assert.ok(html.includes('/v1/vat/issue'), 'issue endpoint untouched');
+    assert.ok(html.includes("'/vat/verify/'"), 'verify URL untouched');
+    assert.ok(/vat: vat,/.test(html), 'by-vat request key untouched');
+    assert.ok(/\.page-shell\{background:var\(--bg\)!important/.test(html), '.page-shell stays dark');
+    assert.ok(/a\{color:var\(--gold\);\}/.test(html) && /--gold:#C9A227/.test(html), 'links are gold #C9A227');
 });
 
 test('renderResult only shows the second (grant) card after a trusted mint (source-level check)', () => {
@@ -502,7 +601,8 @@ test('the compact_jwt/vat is never rendered — grant-flow render functions must
 
 test('renderGrantResult renders permit id, authority_class, expires_at, the granted branch@sha list, and the exact explain line', () => {
     const body = extractNamedFnBody('renderGrantResult');
-    assert.ok(/data\.id/.test(body), 'must render the permit id');
+    assert.ok(/permitResultFields\(data\)/.test(body), 'must read the live nested permit shape via permitResultFields');
+    assert.ok(/permitId/.test(body), 'must render the permit id');
     assert.ok(/authority_class/.test(body), 'must render authority_class');
     assert.ok(/expires_at/.test(body), 'must render expires_at');
     assert.ok(/!humanRooted/.test(body), 'a non-human-rooted authority_class must trip a warning');
