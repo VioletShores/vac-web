@@ -1,0 +1,119 @@
+# tests/fixtures/biometric/manifest.yaml — F-1202/S179 biometric harness slice 1
+#
+# Regression-specimen manifest for tests/biometric_harness. This file is METADATA
+# only (id/stage/kind/expectedOutcome/description) — the actual derived-feature
+# data (frame buffers / landmark sets / embedding vectors) lives alongside it in
+# derived-features.js, keyed by the same `id`. Parsed by tests/biometric_harness/lib/mini-yaml.js
+# (this repo has no YAML dependency — see that file's header for why).
+#
+# "derived features preferred; synthetic TTS/noise permitted and labelled" (task
+# brief): every specimen here is `kind: synthetic` — math-generated per the
+# existing tests/fixtures/mic-test-audio-fixtures.js technique (exact-RMS /
+# exact-vbRatio buffers, synthetic landmark coordinates, synthetic embedding
+# vectors). No recorded human audio/video/biometric sample is used anywhere in
+# this harness.
+version: 1
+provenance:
+  note: >
+    Built for F-1202 biometric harness slice 1 (S179, corrected geography —
+    stage implementations live in vac-web, not athena or vac-protocol). Specimen
+    set covers the six regression scenarios named in the task brief plus one
+    genuine/impostor derived-feature pair for the face-embed stage.
+
+specimens:
+  - id: crisp_267ms_digit
+    stage: digit_voice
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      A spoken digit sustained continuously for 267ms with normal modulation.
+      Regression guard for the S173 DIGIT_VOICE_MIN_MS relaxation (a 270ms
+      floor rejected a real 247ms digit; the current 200ms floor keeps ~2x
+      margin) — 267ms clears the floor with room to spare.
+
+  - id: silence
+    stage: [mic_qualify, digit_voice, phrase_gate]
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      True near-zero input for the whole window. Must never qualify on any
+      voice-driven stage.
+
+  - id: greeting_token
+    stage: phrase_gate
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      Sustained, modulated, voice-band-dominant greeting utterance long enough
+      to accumulate PHRASE_VOICED_TICKS_NEEDED (7, shared with the mic-qualify
+      voiced-run predicate) ticks before the trailing silence.
+
+  - id: noisy_room
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      Ambient room noise: voice-band-shaped energy that rises above the
+      silence floor but never clears the near-field speech RMS floor (the
+      "neither" dead zone). Same class of scenario D-MICTEST-GREENS-ON-NOISE
+      was written to reject (far_field_tv_speech in
+      tests/fixtures/mic-test-audio-fixtures.js).
+
+  - id: ios_reencode
+    stage: digit_voice
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      A digit re-encoded through a lossy mobile codec: raised noise floor plus
+      one attenuated frame near onset. Robustness fixture (not a named-bug
+      regression guard) — confirms the DIGIT_VOICE_GAP_MS dip tolerance
+      absorbs a single re-encode artifact without killing the run.
+
+  - id: replay
+    stage: digit_voice
+    kind: synthetic
+    expectedOutcome: CLIENT_GATE_PASSES_SERVER_AUTHORITATIVE
+    description: >
+      A prior genuine digit capture replayed through a speaker and
+      re-recorded: energy/voice-band/modulation shape survives the replay
+      path, so the client-side voice gate cannot and does not reject it. This
+      fixture documents that trust boundary rather than pretending a client
+      energy gate is an anti-replay control — liveness/anti-spoof is a
+      server-side concern (Gemini + the speaker-verification research track),
+      matching the TRUST BOUNDARY note in vac-face-embed.js for the face
+      stage.
+
+  - id: genuine_pair
+    stage: face_embed
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      Two derived 128-D embeddings from the same synthetic identity (small
+      per-dimension jitter). Euclidean distance must land under the 0.6
+      LFW-calibrated threshold documented in vac-face-embed.js.
+
+  - id: impostor_pair
+    stage: face_embed
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      Two derived 128-D embeddings from different synthetic identities
+      (independently seeded). Euclidean distance must land at/over 0.6.
+
+  - id: clear_five_fingers
+    stage: finger_gesture
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      Canonical open-hand landmark set — all five digits extended past the
+      live thumb (bend/spread) and four-finger (bend) thresholds.
+
+  - id: flicker_noise
+    stage: finger_gesture
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      A steady true count of 1 with brief flicker to 3 injected every few
+      frames (the MediaPipe error-burst pattern F-613's hysteresis was built
+      for). The committed count must hold through the flicker instead of
+      chasing it.
