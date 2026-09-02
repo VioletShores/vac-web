@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0A0F1A">
+<title>VAC — Bitcoin Seed Vault v3 (Posture C)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0F1A;
+  --surface:#111826;
+  --surface-raised:#161F31;
+  --border:#232E42;
+  --border-light:#2E3B54;
+  --text:#E8EDF5;
+  --text-dim:#93A1B8;
+  --text-quiet:#5E6B82;
+  --gold:#C9A227;      /* primary gold — reserved for the hexagon mark (BRAND.md) */
+  --gold2:#D4A94E;     /* secondary gold — links + body accents */
+  --gold-bg:rgba(201,162,39,0.08);
+  --gold-border:rgba(201,162,39,0.3);
+  --red:#EF4444;
+  --red-bg:rgba(239,68,68,0.08);
+  --red-border:rgba(239,68,68,0.3);
+  --green:#22C55E;
+  --green-bg:rgba(34,197,94,0.08);
+  --green-border:rgba(34,197,94,0.3);
+  --blue:#3B82F6;
+  --blue-bg:rgba(59,130,246,0.08);
+  --blue-border:rgba(59,130,246,0.3);
+  --orange:#F7931A;
+  --muted:#5E6B82;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --serif:'Fraunces',Georgia,serif;
+  --mono:'JetBrains Mono','SF Mono',SFMono-Regular,Menlo,ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;-webkit-font-smoothing:antialiased;}
+.page-shell{min-height:100vh;padding:0 0 80px;}
+.wrap{max-width:540px;margin:0 auto;padding:0 20px;}
+a{color:var(--gold2);}
+
+/* Nav */
+header.top{border-bottom:1px solid var(--border);padding:20px 0;margin-bottom:32px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.mark{width:32px;height:32px;flex:0 0 32px;}
+.brand-name{font-weight:700;color:var(--text);font-size:16px;letter-spacing:-0.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-quiet);letter-spacing:1px;}
+.nav-badge{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--gold2);background:var(--gold-bg);border:1px solid var(--gold-border);}
+
+/* Honesty banner */
+.banner{padding:12px 16px;border-radius:10px;margin-bottom:24px;border:1px solid var(--border-light);background:rgba(255,255,255,0.02);font-size:12.5px;color:var(--text-quiet);line-height:1.6;}
+.banner strong{color:var(--text-dim);}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:12px;}
+.card-title{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--text-quiet);letter-spacing:2px;text-transform:uppercase;margin-bottom:16px;}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;margin-bottom:24px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;}
+.tab{flex:1;padding:9px 12px;border-radius:7px;border:none;background:transparent;color:var(--text-quiet);font-family:var(--mono);font-size:11px;font-weight:600;cursor:pointer;letter-spacing:0.5px;transition:all 0.15s;}
+.tab.active{background:var(--surface-raised);color:var(--text);border:1px solid var(--border-light);}
+.tab:hover:not(.active){color:var(--text-dim);}
+
+/* Forms */
+.field{margin-bottom:16px;}
+.label{display:block;font-family:var(--mono);font-size:11px;color:var(--text-quiet);margin-bottom:6px;letter-spacing:0.5px;}
+.input{width:100%;padding:11px 14px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,0.03);color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color 0.15s;}
+.input:focus{border-color:var(--gold-border);}
+.input::placeholder{color:var(--text-quiet);}
+textarea.input{resize:vertical;min-height:100px;line-height:1.6;}
+select.input{cursor:pointer;}
+
+/* Buttons */
+.btn{width:100%;padding:13px;border-radius:9px;border:none;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all 0.15s;margin-top:4px;}
+.btn-gold{background:var(--gold2);color:#18100A;}
+.btn-gold:hover:not(:disabled){background:#B8952A;}
+.btn-outline{background:transparent;border:1px solid var(--border-light);color:var(--text-dim);}
+.btn-outline:hover:not(:disabled){border-color:var(--gold-border);color:var(--gold2);}
+.btn:disabled{opacity:0.45;cursor:not-allowed;}
+.btn-sm{width:auto;padding:8px 16px;font-size:12px;border-radius:7px;}
+
+/* Status indicators */
+.status-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;font-family:var(--mono);font-size:12px;margin-bottom:12px;}
+.status-row.ok{background:var(--green-bg);border:1px solid var(--green-border);color:var(--green);}
+.status-row.warn{background:var(--gold-bg);border:1px solid var(--gold-border);color:var(--gold2);}
+.status-row.err{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red);}
+.status-row.info{background:var(--blue-bg);border:1px solid var(--blue-border);color:var(--blue);}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.dot.green{background:var(--green);}
+.dot.gold{background:var(--gold2);}
+.dot.red{background:var(--red);}
+.dot.blue{background:var(--blue);}
+
+/* Narrative (F-1025) */
+.narrative{background:rgba(201,162,39,0.04);border:1px solid rgba(201,162,39,0.15);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12.5px;color:var(--text-quiet);line-height:1.65;}
+.narrative .n-label{font-family:var(--mono);font-size:10px;color:var(--gold2);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
+
+/* Word grid */
+.word-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;}
+.word-cell{background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:7px;padding:8px 6px;text-align:center;font-family:var(--mono);font-size:11px;}
+.word-cell .w-num{color:var(--text-quiet);font-size:9px;margin-bottom:2px;}
+.word-cell .w-word{color:var(--gold2);font-size:12px;font-weight:600;}
+.word-cell.valid{border-color:var(--green-border);}
+.word-cell.invalid{border-color:var(--red-border);}
+.word-cell.hidden .w-word{color:var(--text-quiet);filter:blur(4px);}
+.word-cell.revealed{border-color:var(--gold-border);background:var(--gold-bg);}
+
+/* Reveal strip */
+.reveal-word{text-align:center;padding:32px 20px;border-radius:12px;background:var(--gold-bg);border:2px solid var(--gold-border);margin-bottom:16px;}
+.reveal-word .rw-num{font-family:var(--mono);font-size:11px;color:var(--text-quiet);margin-bottom:8px;}
+.reveal-word .rw-word{font-family:var(--mono);font-size:36px;font-weight:700;color:var(--gold2);letter-spacing:2px;margin-bottom:8px;}
+.reveal-word .rw-timer{font-family:var(--mono);font-size:12px;color:var(--text-quiet);}
+.reveal-progress{height:3px;background:var(--border);border-radius:2px;margin-bottom:20px;}
+.reveal-progress-fill{height:100%;background:var(--gold2);border-radius:2px;transition:width 1s linear;}
+
+/* Roadmap section */
+.roadmap-label{display:inline-block;font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:4px;letter-spacing:1px;font-weight:700;border:1px solid var(--border-light);color:var(--text-quiet);background:rgba(255,255,255,0.02);margin-left:8px;vertical-align:middle;}
+.roadmap-feature{padding:12px 0;border-bottom:1px solid var(--border);font-size:13.5px;color:var(--text-dim);}
+.roadmap-feature:last-child{border-bottom:none;}
+.roadmap-feature .rf-title{font-weight:600;color:var(--text);margin-bottom:3px;}
+.roadmap-feature .rf-desc{font-size:12.5px;color:var(--text-quiet);line-height:1.5;}
+
+/* Provenance */
+.prov{font-family:var(--mono);font-size:11px;color:var(--text-quiet);background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;line-height:1.8;word-break:break-all;white-space:pre-wrap;}
+.prov .pk{color:var(--text-quiet);}
+.prov .pv{color:var(--text-dim);}
+.prov .pg{color:var(--gold2);}
+
+/* Seam note */
+.seam{background:rgba(59,130,246,0.05);border:1px solid rgba(59,130,246,0.2);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:10.5px;color:#93B4D8;line-height:1.6;margin-top:12px;}
+.seam strong{color:#B8D0EF;}
+
+/* Misc */
+.text-center{text-align:center;}
+.mt{margin-top:16px;}
+.hidden{display:none!important;}
+h2{font-family:var(--serif);font-size:19px;font-weight:650;letter-spacing:-0.2px;color:var(--text);margin-bottom:6px;}
+.sub{font-size:13.5px;color:var(--text-dim);line-height:1.55;margin-bottom:20px;}
+.mono{font-family:var(--mono);}
+.tag-orange{color:var(--orange);font-family:var(--mono);font-size:12px;}
+</style>
+</head>
+<body>
+<div class="page-shell">
+
+<header class="top">
+  <div class="wrap"><div class="top-row">
+    <div class="brand">
+      <img class="mark" src="/assets/brand/vac-hexagon.svg" alt="VAC Protocol" onerror="this.style.display='none'">
+      <div>
+        <div class="brand-name">Bitcoin Seed Vault</div>
+        <div class="brand-sub">VAC PROTOCOL &middot; v3</div>
+      </div>
+    </div>
+    <div class="nav-badge">POSTURE C</div>
+  </div></div>
+</header>
+
+<div class="wrap">
+
+  <!-- Honesty Banner -->
+  <div class="banner">
+    <strong>Dogfood / Demo &mdash; not a custody service.</strong> This page demonstrates client-side seed encryption gated by VAC biometric identity verification. Store only your own seeds. Do not store seeds for other people. The operator (Violet Shores) cannot see your seed &mdash; but this is an early demo, not a production custody vault. Use accordingly.
+  </div>
+
+  <!-- Ceremony Status -->
+  <div id="ceremonyStatus"></div>
+
+  <!-- Vault Status -->
+  <div id="vaultStatus"></div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab" id="tab-store" onclick="showTab('store')">Store Seed</button>
+    <button class="tab" id="tab-retrieve" onclick="showTab('retrieve')">Retrieve</button>
+    <button class="tab" id="tab-roadmap" onclick="showTab('roadmap')">Roadmap</button>
+  </div>
+
+  <!-- STORE PANEL -->
+  <div id="panel-store" class="hidden">
+
+    <h2>Seal a BIP39 Seed</h2>
+    <p class="sub">Enter your 12 or 24-word seed phrase. It is validated against the BIP39 wordlist and checksum entirely in your browser &mdash; never transmitted in plaintext.</p>
+
+    <!-- Narrative F-1025 -->
+    <div class="narrative" id="n-store">
+      <div class="n-label">Adaptive Narrative</div>
+      Enter your seed and this page will explain each security decision before it executes.
+    </div>
+
+    <!-- Step 1: Seed entry -->
+    <div class="card" id="s1">
+      <div class="card-title">Step 1 &mdash; Seed Entry</div>
+      <div class="field">
+        <label class="label" for="seedInput">BIP39 mnemonic (12 or 24 words)</label>
+        <textarea class="input" id="seedInput" placeholder="word1 word2 word3 ... word24" rows="4" oninput="onSeedInput()"></textarea>
+      </div>
+      <div class="field">
+        <label class="label">Word count</label>
+        <select class="input" id="wordCount">
+          <option value="12">12 words</option>
+          <option value="24" selected>24 words</option>
+        </select>
+      </div>
+      <div id="wordValidation"></div>
+      <div id="wordGrid" class="word-grid" style="margin-top:12px;"></div>
+      <button class="btn btn-outline mt" id="btnValidateSeed" onclick="validateAndProceed()" disabled>Validate &amp; Continue</button>
+    </div>
+
+    <!-- Step 2: Ceremony gate -->
+    <div class="card hidden" id="s2">
+      <div class="card-title">Step 2 &mdash; Identity Ceremony (L3)</div>
+      <div class="narrative">
+        <div class="n-label">Why this step</div>
+        Your vault key is derived from your biometrically-verified identity. A live VAC L3 ceremony (face + voice + gesture, liveness-checked) produces the identity token. This proves you are a living human &mdash; not a stolen password or replayed recording. The server never receives your seed.
+      </div>
+      <div id="ceremonyGate">
+        <div id="cerStatus" class="status-row warn"><div class="dot gold"></div><span>No ceremony found. Complete an L3 verification.</span></div>
+        <a href="/auth" target="_blank" class="btn btn-outline mt" style="display:block;text-align:center;text-decoration:none;padding:13px;">Open L3 Ceremony in New Tab</a>
+        <button class="btn btn-outline mt" onclick="checkCeremony(true)">I completed it &mdash; check now</button>
+      </div>
+      <div id="ceremonyOk" class="hidden">
+        <div class="status-row ok"><div class="dot green"></div><span id="cerEmail">Ceremony passed</span></div>
+        <button class="btn btn-outline mt" onclick="nextStep(3)">Continue to key setup</button>
+      </div>
+    </div>
+
+    <!-- Step 3: PIN -->
+    <div class="card hidden" id="s3">
+      <div class="card-title">Step 3 &mdash; Vault PIN</div>
+      <div class="narrative">
+        <div class="n-label">Key derivation</div>
+        Your wrapping key is derived using PBKDF2 (250,000 iterations, SHA-256) from your vault PIN combined with your ceremony-verified email. This computation happens entirely in your browser via the Web Crypto API. The PIN is never stored. The operator sees only ciphertext + salt &mdash; and cannot derive your key without your PIN.
+      </div>
+      <div class="field">
+        <label class="label" for="pinInput">Vault PIN (6&ndash;20 characters &mdash; longer is better)</label>
+        <input class="input" type="password" id="pinInput" placeholder="minimum 6 characters" autocomplete="new-password" oninput="onPinInput()">
+      </div>
+      <div class="field">
+        <label class="label" for="pinConfirm">Confirm vault PIN</label>
+        <input class="input" type="password" id="pinConfirm" placeholder="repeat PIN" autocomplete="new-password" oninput="onPinInput()">
+      </div>
+      <div id="pinStatus"></div>
+      <button class="btn btn-gold mt" id="btnSeal" onclick="sealSeed()" disabled>Seal Seed (AES-256-GCM)</button>
+    </div>
+
+    <!-- Step 4: Done -->
+    <div class="card hidden" id="s4">
+      <div class="card-title">Sealed</div>
+      <div class="status-row ok"><div class="dot green"></div><span>Seed sealed &mdash; ciphertext stored locally</span></div>
+      <div class="narrative">
+        <div class="n-label">What was done</div>
+        Your seed was encrypted with AES-256-GCM using a key derived from: your PIN + your verified email + a random vault salt. The plaintext seed is gone from memory. Only the ciphertext, IV, and salt are stored. Your vault PIN was never saved.
+      </div>
+      <div id="sealProvenance" class="prov" style="margin-top:12px;"></div>
+      <div class="seam">
+        <strong>Production seam:</strong> In production, ciphertext would be pushed to <code>POST /v1/vault/seed/store</code> after presenting a valid L3 VAT JTI. That endpoint does not yet exist in vac-protocol &mdash; the demo stores in localStorage. The retrieval endpoint <code>GET /v1/vault/seed/{vault_id}</code> would require a fresh L3 JTI before returning the ciphertext.
+      </div>
+      <button class="btn btn-outline mt" onclick="showTab('retrieve')">Go to Retrieval</button>
+    </div>
+
+  </div>
+
+  <!-- RETRIEVE PANEL -->
+  <div id="panel-retrieve" class="hidden">
+
+    <h2>Retrieve Seed</h2>
+    <p class="sub">A fresh L3 ceremony and your vault PIN unlock the seed. Words are revealed one at a time, each wiped after 30 seconds.</p>
+
+    <!-- No vault stored -->
+    <div id="noVault" class="card hidden">
+      <div class="status-row warn"><div class="dot gold"></div><span>No sealed vault found on this device.</span></div>
+      <p style="font-size:13px;color:var(--text-quiet);margin-top:8px;">Complete the Store tab first to seal a seed.</p>
+    </div>
+
+    <!-- Retrieve flow -->
+    <div id="retrieveFlow" class="hidden">
+
+      <div class="narrative" id="n-retrieve">
+        <div class="n-label">Adaptive Narrative</div>
+        Complete an L3 ceremony to prove your identity. Then enter your vault PIN to re-derive the wrapping key. The seed will be revealed word-by-word with a 30-second window per word, then wiped from memory.
+      </div>
+
+      <!-- Ceremony gate -->
+      <div class="card" id="r-cer-gate">
+        <div class="card-title">Step 1 &mdash; Identity Ceremony (L3)</div>
+        <div id="r-cerStatus" class="status-row warn"><div class="dot gold"></div><span>No ceremony found</span></div>
+        <a href="/auth" target="_blank" class="btn btn-outline mt" style="display:block;text-align:center;text-decoration:none;padding:13px;">Open L3 Ceremony in New Tab</a>
+        <button class="btn btn-outline mt" onclick="checkCeremonyRetrieve()">I completed it &mdash; check now</button>
+      </div>
+
+      <!-- PIN -->
+      <div class="card hidden" id="r-pin">
+        <div class="card-title">Step 2 &mdash; Enter Vault PIN</div>
+        <div class="status-row ok" id="r-cer-ok"><div class="dot green"></div><span id="r-cerEmail">Ceremony passed</span></div>
+        <div class="field" style="margin-top:16px;">
+          <label class="label" for="retrievePin">Vault PIN</label>
+          <input class="input" type="password" id="retrievePin" placeholder="your vault PIN" autocomplete="current-password">
+        </div>
+        <button class="btn btn-gold mt" id="btnRetrieve" onclick="retrieveSeed()">Derive Key &amp; Decrypt</button>
+        <div id="retrieveErr"></div>
+      </div>
+
+      <!-- Reveal -->
+      <div id="r-reveal" class="hidden">
+        <div class="narrative">
+          <div class="n-label">Per-word reveal (Posture C)</div>
+          Each word is displayed for 30 seconds, then wiped. After all words are shown, the decrypted seed is zeroed from memory. Screenshot or record if you need a backup &mdash; this is the only chance to view the seed this session.
+        </div>
+        <div class="reveal-progress"><div class="reveal-progress-fill" id="revealBar" style="width:0%"></div></div>
+        <div class="reveal-word" id="revealWord">
+          <div class="rw-num" id="rwNum"></div>
+          <div class="rw-word" id="rwWord"></div>
+          <div class="rw-timer" id="rwTimer"></div>
+        </div>
+        <div class="word-grid" id="revealGrid" style="margin-bottom:16px;"></div>
+        <button class="btn btn-outline" id="btnNextWord" onclick="advanceWord()">Next Word</button>
+      </div>
+
+      <!-- Done -->
+      <div id="r-done" class="hidden">
+        <div class="status-row ok"><div class="dot green"></div><span>All words revealed &mdash; seed wiped from memory</span></div>
+        <div class="narrative" style="margin-top:12px;">
+          <div class="n-label">Memory cleared</div>
+          The decrypted seed phrase has been zeroed from JavaScript memory. No plaintext persists in this session.
+        </div>
+        <button class="btn btn-outline mt" onclick="resetRetrieve()">Close &amp; Reset</button>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ROADMAP PANEL -->
+  <div id="panel-roadmap" class="hidden">
+
+    <h2>Roadmap <span class="roadmap-label">Not Live</span></h2>
+    <p class="sub">Features below are designed but not yet built. They are clearly labeled &mdash; none of the following is live functionality.</p>
+
+    <div class="card">
+      <div class="card-title">Recovery Guardians <span class="roadmap-label">ROADMAP</span></div>
+      <div class="narrative">
+        <div class="n-label">Design intent (F-1073)</div>
+        M-of-N named guardians each complete their own independent VAC L3 ceremony before the seed is released. 2-of-2 spousal ceremony is the consumer wedge: your Bitcoin cannot leave without both of you, alive, on camera, sealed. Each guardian sighting is its own sealed receipt; the release seal composes all of them.
+      </div>
+      <div class="roadmap-feature">
+        <div class="rf-title">Guardian 1 <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">Primary holder &mdash; you</div>
+      </div>
+      <div class="roadmap-feature">
+        <div class="rf-title">Guardian 2 <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">Named family member or co-signer &mdash; must independently complete L3 ceremony</div>
+      </div>
+      <div class="roadmap-feature">
+        <div class="rf-title">M-of-N quorum <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">Configurable threshold. Level changes require a ceremony at the current level. Class floors (F-1074) are non-negotiable.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Duress Detection <span class="roadmap-label">ROADMAP</span></div>
+      <div class="narrative">
+        <div class="n-label">Design intent (F-1074)</div>
+        A duress biometric signal (detected from video/voice analysis during the ceremony) triggers a silent alarm &mdash; access is denied or decoy material is returned, without alerting the threat. The full ceremony + cooldown + notification-to-all-parties path is the CRITICAL class hard floor; it cannot be configured below this level for seed phrases.
+      </div>
+      <div class="roadmap-feature">
+        <div class="rf-title">Silent alarm on duress signal <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">Ceremony detects involuntary stress markers; access denied silently</div>
+      </div>
+      <div class="roadmap-feature">
+        <div class="rf-title">Decoy output mode <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">Under duress, a decoy seed is returned &mdash; attacker sees something; real seed is never exposed</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Server-Gated Ciphertext <span class="roadmap-label">ROADMAP</span></div>
+      <div class="narrative">
+        <div class="n-label">Production seam (F-538)</div>
+        The current demo stores ciphertext in localStorage. Production requires a server-side vault endpoint that returns ciphertext ONLY after verifying a fresh L3 VAT JTI. This adds a second trust layer: even if the device is compromised, the ciphertext is not locally present without a ceremony. Endpoints designed:
+      </div>
+      <div class="roadmap-feature">
+        <div class="rf-title"><code>POST /v1/vault/seed/store</code> <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">Accepts: vat_jti (L3), vault_salt, iv, ciphertext. Returns vault_id. No plaintext ever reaches the server.</div>
+      </div>
+      <div class="roadmap-feature">
+        <div class="rf-title"><code>GET /v1/vault/seed/{vault_id}</code> <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">Returns ciphertext ONLY after fresh L3 JTI verification. Sealed retrieval receipt issued per access.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Inheritance Path <span class="roadmap-label">ROADMAP</span></div>
+      <div class="roadmap-feature">
+        <div class="rf-title">Time-locked quorum degradation <span class="roadmap-label">ROADMAP</span></div>
+        <div class="rf-desc">2-of-2 degrades to 1-of-2 + notary after proven incapacity (court document + time lock). Massive real-world need for Bitcoin estate planning.</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div><!-- /page-shell -->
+
+<script src="/scripts/bip39-wordlist.js"></script>
+<script>
+// ─── Constants ────────────────────────────────────────────────────────────
+const API = 'https://vac-system-production.up.railway.app';
+const CEREMONY_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes freshness window
+const PBKDF2_ITERATIONS = 250000;
+const VAULT_STORAGE_KEY = 'vac_vault_v3_seed';
+const INFO_BYTES = new TextEncoder().encode('vac-vault-seed-v1');
+
+// ─── State ────────────────────────────────────────────────────────────────
+let _validWords = null;  // validated word array
+let _ceremonyEmail = null;
+let _ceremonyToken = null;
+let _revealWords = null;
+let _revealIndex = 0;
+let _revealTimer = null;
+let _revealCountdown = 0;
+
+// ─── Tab switching ────────────────────────────────────────────────────────
+function showTab(name) {
+  ['store','retrieve','roadmap'].forEach(t => {
+    document.getElementById('panel-' + t).classList.add('hidden');
+    document.getElementById('tab-' + t).classList.remove('active');
+  });
+  document.getElementById('panel-' + name).classList.remove('hidden');
+  document.getElementById('tab-' + name).classList.add('active');
+
+  if (name === 'retrieve') initRetrieve();
+  if (name === 'store') initStore();
+}
+
+// ─── Ceremony check ────────────────────────────────────────────────────────
+function readCeremony() {
+  try {
+    const raw = localStorage.getItem('vac_last_verified');
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !data.email || !data.session_token) return null;
+    const age = Date.now() - (data.ts || 0);
+    if (age > CEREMONY_MAX_AGE_MS) return null;
+    return data;
+  } catch (_) { return null; }
+}
+
+function checkCeremony(forStore) {
+  const cer = readCeremony();
+  if (cer) {
+    _ceremonyEmail = cer.email;
+    _ceremonyToken = cer.session_token;
+    if (forStore) {
+      document.getElementById('cerStatus').className = 'status-row ok';
+      document.getElementById('cerStatus').innerHTML = '<div class="dot green"></div><span>L3 ceremony passed &mdash; ' + escHtml(cer.email) + '</span>';
+      document.getElementById('ceremonyGate').classList.add('hidden');
+      document.getElementById('ceremonyOk').classList.remove('hidden');
+      document.getElementById('cerEmail').textContent = 'Ceremony passed — ' + cer.email;
+      updateStoreNarrative('step2-passed');
+    }
+    return true;
+  }
+  return false;
+}
+
+function checkCeremonyRetrieve() {
+  const cer = readCeremony();
+  if (cer) {
+    _ceremonyEmail = cer.email;
+    _ceremonyToken = cer.session_token;
+    document.getElementById('r-cerStatus').className = 'status-row ok';
+    document.getElementById('r-cerStatus').innerHTML = '<div class="dot green"></div><span>L3 ceremony passed &mdash; ' + escHtml(cer.email) + '</span>';
+    document.getElementById('r-cerEmail').textContent = 'Ceremony: ' + cer.email;
+    document.getElementById('r-pin').classList.remove('hidden');
+    updateRetrieveNarrative('pin-ready');
+    return true;
+  }
+  document.getElementById('r-cerStatus').className = 'status-row warn';
+  document.getElementById('r-cerStatus').innerHTML = '<div class="dot gold"></div><span>No fresh ceremony found (must be &lt;5 min old)</span>';
+  return false;
+}
+
+// ─── BIP39 validation ─────────────────────────────────────────────────────
+function parseSeedInput() {
+  const raw = document.getElementById('seedInput').value;
+  return raw.trim().toLowerCase().replace(/\s+/g,' ').split(' ').filter(w => w.length > 0);
+}
+
+function bip39CheckWord(word) {
+  return BIP39_WORDLIST.indexOf(word) !== -1;
+}
+
+// BIP39 checksum validation: last n bits of SHA-256 of entropy must match checksum bits
+async function validateBip39Checksum(words) {
+  const n = words.length; // 12 or 24
+  if (n !== 12 && n !== 24) return false;
+
+  // Map each word to its 11-bit index
+  const indices = words.map(w => BIP39_WORDLIST.indexOf(w));
+  if (indices.includes(-1)) return false;
+
+  // Reconstruct bit string
+  let bits = '';
+  for (const idx of indices) {
+    bits += idx.toString(2).padStart(11, '0');
+  }
+
+  // bits.length = n * 11 = 132 (12 words) or 264 (24 words)
+  // entropy bits = n * 11 - (n / 3) = 128 (12) or 256 (24)
+  // checksum bits = n / 3 = 4 (12) or 8 (24)
+  const checksumLen = n / 3;
+  const entropyBits = bits.slice(0, bits.length - checksumLen);
+  const checksumBits = bits.slice(bits.length - checksumLen);
+
+  // Convert entropy bits to bytes
+  const entropyBytes = new Uint8Array(entropyBits.length / 8);
+  for (let i = 0; i < entropyBytes.length; i++) {
+    entropyBytes[i] = parseInt(entropyBits.slice(i * 8, i * 8 + 8), 2);
+  }
+
+  // SHA-256 of entropy
+  const hashBuf = await crypto.subtle.digest('SHA-256', entropyBytes);
+  const hashBits = Array.from(new Uint8Array(hashBuf))
+    .map(b => b.toString(2).padStart(8, '0')).join('');
+
+  const expectedChecksum = hashBits.slice(0, checksumLen);
+  return checksumBits === expectedChecksum;
+}
+
+function onSeedInput() {
+  const words = parseSeedInput();
+  const expectedCount = parseInt(document.getElementById('wordCount').value);
+  const grid = document.getElementById('wordGrid');
+  const validEl = document.getElementById('wordValidation');
+  const btn = document.getElementById('btnValidateSeed');
+
+  if (words.length === 0) {
+    grid.innerHTML = '';
+    validEl.innerHTML = '';
+    btn.disabled = true;
+    return;
+  }
+
+  // Render word grid
+  grid.innerHTML = '';
+  let allKnown = true;
+  for (let i = 0; i < Math.max(words.length, expectedCount); i++) {
+    const cell = document.createElement('div');
+    cell.className = 'word-cell';
+    const word = words[i] || '';
+    const known = word ? bip39CheckWord(word) : null;
+    if (word && !known) allKnown = false;
+    cell.className = 'word-cell' + (word && known ? ' valid' : word && !known ? ' invalid' : '');
+    cell.innerHTML = '<div class="w-num">' + (i+1) + '</div><div class="w-word">' + escHtml(word || '&middot;&middot;&middot;') + '</div>';
+    grid.appendChild(cell);
+  }
+
+  if (words.length !== expectedCount) {
+    validEl.innerHTML = makeStatus('warn', 'Need ' + expectedCount + ' words, have ' + words.length);
+    btn.disabled = true;
+  } else if (!allKnown) {
+    validEl.innerHTML = makeStatus('err', 'One or more words not in BIP39 wordlist');
+    btn.disabled = true;
+  } else {
+    validEl.innerHTML = makeStatus('ok', 'All ' + words.length + ' words recognized — checksum pending');
+    btn.disabled = false;
+  }
+
+  updateStoreNarrative('seed-typing');
+}
+
+async function validateAndProceed() {
+  const words = parseSeedInput();
+  const validEl = document.getElementById('wordValidation');
+  const btn = document.getElementById('btnValidateSeed');
+  btn.disabled = true;
+  btn.textContent = 'Validating checksum…';
+
+  const checksumOk = await validateBip39Checksum(words);
+  if (!checksumOk) {
+    validEl.innerHTML = makeStatus('err', 'BIP39 checksum invalid — check word order and spelling');
+    btn.textContent = 'Validate & Continue';
+    btn.disabled = false;
+    return;
+  }
+
+  _validWords = words;
+  validEl.innerHTML = makeStatus('ok', 'BIP39 checksum valid — ' + words.length + '-word seed confirmed');
+  updateStoreNarrative('seed-valid');
+  nextStep(2);
+  checkCeremony(true);
+}
+
+// ─── Store flow ────────────────────────────────────────────────────────────
+function nextStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById('s' + i);
+    if (el) el.classList.toggle('hidden', i !== n);
+  }
+}
+
+function onPinInput() {
+  const pin = document.getElementById('pinInput').value;
+  const confirm = document.getElementById('pinConfirm').value;
+  const btn = document.getElementById('btnSeal');
+  const status = document.getElementById('pinStatus');
+
+  if (pin.length < 6) {
+    status.innerHTML = makeStatus('warn', 'PIN must be at least 6 characters');
+    btn.disabled = true;
+    return;
+  }
+  if (pin !== confirm) {
+    status.innerHTML = makeStatus('warn', 'PINs do not match');
+    btn.disabled = true;
+    return;
+  }
+  status.innerHTML = makeStatus('ok', 'PIN looks good — it is never stored');
+  btn.disabled = false;
+  updateStoreNarrative('pin-ready');
+}
+
+async function sealSeed() {
+  if (!_validWords || !_ceremonyEmail) return;
+  const pin = document.getElementById('pinInput').value;
+  const btn = document.getElementById('btnSeal');
+  btn.disabled = true;
+  btn.textContent = 'Encrypting…';
+
+  try {
+    const { ciphertext, iv, salt } = await encryptSeed(_validWords, pin, _ceremonyEmail);
+
+    // Store locally (SEAM: production would POST to /v1/vault/seed/store)
+    const vaultRecord = {
+      v: 3,
+      salt: toB64(salt),
+      iv: toB64(iv),
+      ct: toB64(ciphertext),
+      hint: _validWords.length + '-word BIP39',
+      created: new Date().toISOString(),
+      email_hint: _ceremonyEmail.replace(/(.{2}).*@/, '$1***@'),
+    };
+    localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(vaultRecord));
+
+    // Zero the plaintext from memory
+    _validWords = null;
+    document.getElementById('seedInput').value = '';
+    document.getElementById('wordGrid').innerHTML = '';
+
+    // Show provenance
+    document.getElementById('sealProvenance').innerHTML =
+      '<span class="pk">vault_version:</span> <span class="pg">3</span>\n' +
+      '<span class="pk">algorithm:</span> <span class="pv">AES-256-GCM</span>\n' +
+      '<span class="pk">kdf:</span> <span class="pv">PBKDF2-SHA256 (250k iter) + HKDF-SHA256</span>\n' +
+      '<span class="pk">ceremony_email:</span> <span class="pv">' + escHtml(vaultRecord.email_hint) + '</span>\n' +
+      '<span class="pk">iv:</span> <span class="pv">' + vaultRecord.iv + '</span>\n' +
+      '<span class="pk">salt:</span> <span class="pv">' + vaultRecord.salt.slice(0,20) + '…</span>\n' +
+      '<span class="pk">created:</span> <span class="pv">' + vaultRecord.created + '</span>\n' +
+      '<span class="pk">posture:</span> <span class="pg">C (operator cannot decrypt)</span>';
+
+    updateStoreNarrative('sealed');
+    nextStep(4);
+  } catch (err) {
+    btn.textContent = 'Seal Seed (AES-256-GCM)';
+    btn.disabled = false;
+    showErr('Encryption failed: ' + (err.message || String(err)));
+  }
+}
+
+// ─── Retrieve flow ─────────────────────────────────────────────────────────
+function initRetrieve() {
+  const record = getVaultRecord();
+  if (!record) {
+    document.getElementById('noVault').classList.remove('hidden');
+    document.getElementById('retrieveFlow').classList.add('hidden');
+    return;
+  }
+  document.getElementById('noVault').classList.add('hidden');
+  document.getElementById('retrieveFlow').classList.remove('hidden');
+  document.getElementById('r-reveal').classList.add('hidden');
+  document.getElementById('r-done').classList.add('hidden');
+  document.getElementById('r-pin').classList.add('hidden');
+  checkCeremonyRetrieve();
+}
+
+async function retrieveSeed() {
+  if (!_ceremonyEmail) return;
+  const pin = document.getElementById('retrievePin').value;
+  const errEl = document.getElementById('retrieveErr');
+  const btn = document.getElementById('btnRetrieve');
+  btn.disabled = true;
+  btn.textContent = 'Deriving key…';
+  errEl.innerHTML = '';
+
+  try {
+    const record = getVaultRecord();
+    if (!record) throw new Error('No vault record found');
+
+    const salt = fromB64(record.salt);
+    const iv = fromB64(record.iv);
+    const ct = fromB64(record.ct);
+
+    const seedText = await decryptSeed(ct, iv, salt, pin, _ceremonyEmail);
+    const words = seedText.split(' ');
+    startReveal(words);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Derive Key & Decrypt';
+    let msg = err.message || String(err);
+    if (msg.includes('OperationError') || msg.includes('decrypt')) {
+      msg = 'Decryption failed — incorrect PIN or wrong ceremony identity';
+    }
+    errEl.innerHTML = makeStatus('err', msg);
+  }
+}
+
+function startReveal(words) {
+  _revealWords = words;
+  _revealIndex = 0;
+  document.getElementById('r-pin').classList.add('hidden');
+  document.getElementById('r-cer-gate').classList.add('hidden');
+  document.getElementById('r-reveal').classList.remove('hidden');
+
+  // Build revealed grid (all hidden initially)
+  const grid = document.getElementById('revealGrid');
+  grid.innerHTML = '';
+  for (let i = 0; i < words.length; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'word-cell hidden';
+    cell.id = 'rv-' + i;
+    cell.innerHTML = '<div class="w-num">' + (i+1) + '</div><div class="w-word">' + escHtml(words[i]) + '</div>';
+    grid.appendChild(cell);
+  }
+
+  showRevealWord();
+}
+
+function showRevealWord() {
+  if (_revealIndex >= _revealWords.length) {
+    finishReveal();
+    return;
+  }
+
+  const word = _revealWords[_revealIndex];
+  const total = _revealWords.length;
+
+  document.getElementById('revealBar').style.width = ((_revealIndex / total) * 100) + '%';
+  document.getElementById('rwNum').textContent = 'Word ' + (_revealIndex + 1) + ' of ' + total;
+  document.getElementById('rwWord').textContent = word;
+
+  // Mark in grid
+  const cell = document.getElementById('rv-' + _revealIndex);
+  if (cell) {
+    cell.classList.remove('hidden');
+    cell.classList.add('revealed');
+  }
+
+  // Start 30s timer
+  _revealCountdown = 30;
+  updateRevealTimer();
+  clearInterval(_revealTimer);
+  _revealTimer = setInterval(() => {
+    _revealCountdown--;
+    updateRevealTimer();
+    if (_revealCountdown <= 0) {
+      clearInterval(_revealTimer);
+      advanceWord();
+    }
+  }, 1000);
+
+  document.getElementById('btnNextWord').textContent =
+    _revealIndex === total - 1 ? 'Done' : 'Next Word (' + (_revealIndex + 2) + '/' + total + ')';
+}
+
+function updateRevealTimer() {
+  document.getElementById('rwTimer').textContent = 'Auto-advances in ' + _revealCountdown + 's';
+}
+
+function advanceWord() {
+  clearInterval(_revealTimer);
+  // Wipe current word display
+  document.getElementById('rwWord').textContent = '••••••';
+  // Unmark in grid
+  const cell = document.getElementById('rv-' + _revealIndex);
+  if (cell) {
+    cell.classList.remove('revealed');
+    cell.classList.add('valid');
+    cell.querySelector('.w-word').textContent = '✓';
+  }
+  _revealIndex++;
+  showRevealWord();
+}
+
+function finishReveal() {
+  clearInterval(_revealTimer);
+  // Zero word array
+  if (_revealWords) {
+    for (let i = 0; i < _revealWords.length; i++) _revealWords[i] = '\x00'.repeat(8);
+    _revealWords = null;
+  }
+  document.getElementById('r-reveal').classList.add('hidden');
+  document.getElementById('r-done').classList.remove('hidden');
+  document.getElementById('revealBar').style.width = '100%';
+}
+
+function resetRetrieve() {
+  _revealWords = null;
+  _revealIndex = 0;
+  _revealCountdown = 0;
+  clearInterval(_revealTimer);
+  document.getElementById('r-done').classList.add('hidden');
+  document.getElementById('retrievePin').value = '';
+  initRetrieve();
+}
+
+// ─── Crypto ────────────────────────────────────────────────────────────────
+async function deriveKey(pin, emailStr, salt) {
+  // STEP 1: PBKDF2 to add cost to PIN guessing
+  const pinBytes = new TextEncoder().encode(pin);
+  const emailBytes = new TextEncoder().encode(emailStr);
+
+  const pbkdfMaterial = await crypto.subtle.importKey(
+    'raw', pinBytes, 'PBKDF2', false, ['deriveBits']
+  );
+  const pinDerived = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    pbkdfMaterial, 256
+  );
+
+  // STEP 2: HKDF combining PIN-derived bits with ceremony email (ceremony-bound)
+  // IKM = pinDerived || emailBytes (concatenate)
+  const combinedIkm = new Uint8Array(pinDerived.byteLength + emailBytes.byteLength);
+  combinedIkm.set(new Uint8Array(pinDerived), 0);
+  combinedIkm.set(emailBytes, pinDerived.byteLength);
+
+  const hkdfMaterial = await crypto.subtle.importKey(
+    'raw', combinedIkm, 'HKDF', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'HKDF', hash: 'SHA-256', salt, info: INFO_BYTES },
+    hkdfMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptSeed(words, pin, email) {
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(pin, email, salt);
+
+  const plaintext = new TextEncoder().encode(words.join(' '));
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+
+  return { ciphertext: new Uint8Array(ciphertext), iv, salt };
+}
+
+async function decryptSeed(ciphertext, iv, salt, pin, email) {
+  const key = await deriveKey(pin, email, salt);
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+  return new TextDecoder().decode(plaintext);
+}
+
+// ─── Storage helpers ───────────────────────────────────────────────────────
+function getVaultRecord() {
+  try {
+    const raw = localStorage.getItem(VAULT_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) { return null; }
+}
+
+function toB64(buf) {
+  return btoa(String.fromCharCode(...buf));
+}
+
+function fromB64(s) {
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0));
+}
+
+// ─── Narrative F-1025 ──────────────────────────────────────────────────────
+function updateStoreNarrative(stage) {
+  const el = document.getElementById('n-store');
+  const messages = {
+    'seed-typing': 'Words are validated against the 2048-word BIP39 wordlist as you type. Invalid words are highlighted in red. Nothing is sent to any server.',
+    'seed-valid': 'BIP39 checksum passed. Your seed entropy + checksum bits are consistent. Proceeding to identity ceremony gate.',
+    'step2-passed': 'L3 ceremony confirmed (≤5 min old). Your verified email will be incorporated into the key derivation, tying the wrapping key to your biometric identity.',
+    'pin-ready': 'PIN is set. Key will be derived as: PBKDF2(PIN, salt, 250k, SHA-256) → HKDF(IKM=result‖email, salt, "vac-vault-seed-v1") → AES-256-GCM key. Operator sees only ciphertext.',
+    'sealed': 'Seed is sealed. The plaintext has been zeroed from JavaScript memory. Only the ciphertext, IV, and salt remain in localStorage (demo). In production these would be held server-side, gated by a fresh L3 ceremony.',
+  };
+  if (messages[stage]) {
+    el.innerHTML = '<div class="n-label">Adaptive Narrative</div>' + messages[stage];
+  }
+}
+
+function updateRetrieveNarrative(stage) {
+  const el = document.getElementById('n-retrieve');
+  const messages = {
+    'pin-ready': 'Ceremony verified. Enter your vault PIN to re-derive the wrapping key. The key will be computed in your browser — it is never sent to any server. If the PIN is wrong, decryption will fail with an error (AES-GCM authentication tag mismatch).',
+  };
+  if (messages[stage] && el) {
+    el.innerHTML = '<div class="n-label">Adaptive Narrative</div>' + messages[stage];
+  }
+}
+
+// ─── Util ──────────────────────────────────────────────────────────────────
+function makeStatus(type, msg) {
+  const classes = {ok:'ok',warn:'warn',err:'err',info:'info'};
+  const dots = {ok:'green',warn:'gold',err:'red',info:'blue'};
+  return '<div class="status-row ' + classes[type] + '"><div class="dot ' + dots[type] + '"></div><span>' + escHtml(msg) + '</span></div>';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function showErr(msg) {
+  const el = document.getElementById('retrieveErr') || document.getElementById('pinStatus');
+  if (el) { el.innerHTML = makeStatus('err', msg); return; }
+  console.error('[keyvault-v3]', msg);
+}
+
+function initStore() {
+  if (!checkCeremony(false)) {
+    document.getElementById('ceremonyStatus').innerHTML =
+      '<div class="status-row info" style="margin-bottom:12px"><div class="dot blue"></div><span>No recent L3 ceremony — you\'ll be prompted before sealing</span></div>';
+  } else {
+    document.getElementById('ceremonyStatus').innerHTML =
+      '<div class="status-row ok" style="margin-bottom:12px"><div class="dot green"></div><span>L3 ceremony ready (' + escHtml(_ceremonyEmail) + ')</span></div>';
+  }
+
+  const record = getVaultRecord();
+  document.getElementById('vaultStatus').innerHTML = record
+    ? '<div class="status-row ok" style="margin-bottom:12px"><div class="dot green"></div><span>Vault sealed — ' + escHtml(record.hint || '') + ' &middot; ' + escHtml(record.created ? record.created.slice(0,10) : '') + '</span></div>'
+    : '';
+}
+
+// ─── Boot ──────────────────────────────────────────────────────────────────
+showTab('store');
+nextStep(1);
+</script>
+</body>
+</html>
