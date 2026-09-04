@@ -362,11 +362,35 @@
     max-width: 1100px; margin: 0 auto;
     padding: 3rem 2rem;
     border-top: 1px solid var(--border);
-    display: flex; justify-content: space-between; align-items: center;
+    display: flex; flex-direction: column; gap: 1.5rem;
   }
   footer p { font-size: 13px; color: var(--muted); }
   footer a { color: var(--muted); text-decoration: none; }
   footer a:hover { color: var(--ink); }
+  .footer-bottom-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
+  /* Cross-site stack nav — canonical teal->emerald->blue gradient accent on the paper theme */
+  .stack-nav {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);
+  }
+  .stack-nav-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .stack-nav-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: linear-gradient(90deg, #2DD4BF, #10B981, #3B82F6);
+  }
+  .stack-nav-links { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .stack-nav-links a {
+    font-family: var(--mono); font-size: 12px; padding: 5px 12px; border-radius: 999px;
+    border: 1px solid rgba(16,185,129,0.35);
+    background: linear-gradient(90deg, rgba(45,212,191,0.08), rgba(16,185,129,0.08), rgba(59,130,246,0.08));
+    color: var(--ink) !important;
+    transition: border-color 0.2s;
+  }
+  .stack-nav-links a:hover { border-color: #10B981; }
+  .stack-nav-links a.current { border-color: #10B981; font-weight: 600; }
 
   /* === ANIMATIONS === */
   @keyframes fadeUp {
@@ -820,9 +844,20 @@
 
 <!-- FOOTER -->
 <footer>
-  <p>Part of <a href="https://aiinternet.ai" style="color: var(--accent);">The AI Internet</a> &mdash; identity, trust, and routing infrastructure for AI agents.</p>
-  <p>&copy; 2026 Violet Shores Pty Ltd. All rights reserved.</p>
-  <p><a href="mailto:hello@vacprotocol.org">hello@vacprotocol.org</a></p>
+  <div class="stack-nav">
+    <span class="stack-nav-label">The AI Internet stack</span>
+    <span class="stack-nav-dot"></span>
+    <div class="stack-nav-links">
+      <a href="https://aiinternet.ai">aiinternet.ai</a>
+      <a href="https://athenapilot.ai">athenapilot.ai</a>
+      <a href="/" class="current">vacprotocol.org</a>
+    </div>
+  </div>
+  <div class="footer-bottom-row">
+    <p>Part of <a href="https://aiinternet.ai" style="color: var(--accent);">The AI Internet</a> &mdash; identity, trust, and routing infrastructure for AI agents.</p>
+    <p>&copy; 2026 Violet Shores Pty Ltd. All rights reserved.</p>
+    <p><a href="mailto:hello@vacprotocol.org">hello@vacprotocol.org</a></p>
+  </div>
 </footer>
 
 <script>
