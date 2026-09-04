@@ -368,7 +368,9 @@
   footer a { color: var(--muted); text-decoration: none; }
   footer a:hover { color: var(--ink); }
   .footer-bottom-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
-  /* Cross-site stack nav — canonical teal->emerald->blue gradient accent on the paper theme */
+  /* Cross-site stack nav — canonical teal->emerald->blue gradient accent on the paper theme.
+     Sibling copies: aiinternet-ai/athena-dna.css, athenapilot-ai/athena-dna.css (dark theme),
+     Schemo512/vacprotocol.org/index.html (same light-theme variant) — update all 4 in lockstep. */
   .stack-nav {
     display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
     padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);
@@ -386,11 +388,11 @@
     font-family: var(--mono); font-size: 12px; padding: 5px 12px; border-radius: 999px;
     border: 1px solid rgba(16,185,129,0.35);
     background: linear-gradient(90deg, rgba(45,212,191,0.08), rgba(16,185,129,0.08), rgba(59,130,246,0.08));
-    color: var(--ink) !important;
-    transition: border-color 0.2s;
+    color: var(--ink);
+    transition: border-color 0.2s, color 0.2s;
   }
-  .stack-nav-links a:hover { border-color: #10B981; }
-  .stack-nav-links a.current { border-color: #10B981; font-weight: 600; }
+  .stack-nav-links a:hover { border-color: #10B981; color: #047857; }
+  .stack-nav-links a.current { border-color: #10B981; color: #047857; font-weight: 600; }
 
   /* === ANIMATIONS === */
   @keyframes fadeUp {
