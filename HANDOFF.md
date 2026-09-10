@@ -1,3 +1,42 @@
+# VAC Web — HANDOFF (Session 32 → Session 33)
+> Updated: 10 Sep 2026 — Lane 632 / D-CONTINUE-TO-MATTERS-LOOP re-dispatch: verified already closed, one coverage gap filled | branch task-3170-d632-matters-reconcile → NOT YET MERGED (no ATHENA_PERMIT_JSON on this run)
+
+## D-632 / D-CONTINUE-TO-MATTERS-LOOP re-dispatch (Lane 632, task 3170)
+
+Dispatched again as "VAC matters-page return nav reconcile, consumes F-691 TC-UJ checks
+(not re-invented)." Verified against current main rather than re-implementing: the fix
+described in the Session 30→31 entry below (financial-demo.html `#matters` hash+localStorage
+check, D-632/S155-FIN) is present and correct in both `financial-demo.html:1483-1493` and
+`tribunal-demo.html:1968-1972` — byte-identical hash/freshness/reveal logic in both, and
+`auth.html`'s `?return=` allowlist only ever targets these two pages, so there is no third
+matters-page left unwired.
+
+**What was actually missing:** `tests/user-journey.pw.js` TC-UJ-06 (no-dead-links source
+check) still only scanned `tribunal-demo.html` + `auth.html` — `financial-demo.html` joined
+the same `#matters` journey family under D-632 but was never added to that guard. Extended
+the existing array rather than adding a new test (0 dead links found once added, so this is
+a coverage fix, not a bugfix).
+
+**Gates:**
+- `node --test tests/*.test.js`: 221/234 pass — identical failure set to the one recorded in
+  the Session 30→31 entry (DA-01, CB-ZONE-01, CB-GREET-06, s167 stamp, TC-MIC-C8, vadStarved
+  item 3, zone A2/A3 ×6). No drift, no regressions from this change.
+- Playwright (`tests/*.pw.js`, incl. TC-UJ family): **could not execute in this sandbox** —
+  `chrome-headless-shell` fails to launch, missing `libglib-2.0.so.0` and no root/apt access
+  to install it. This is an environment gap, not a code issue; confirmed by testing both the
+  freshly-downloaded chromium build and one already cached in `~/.cache/ms-playwright`, both
+  fail identically. TC-UJ-06 itself doesn't need a browser (`fs.existsSync` only) and was
+  verified directly with `node -e`.
+- `/code-review`: clean, no findings (one-line array extension + comment in a test file).
+- `/browse` visual QA: not performed — no working browser in this sandbox (see above).
+
+**For the next session:** if this lane gets dispatched a third time, there is no remaining
+`#matters` reconcile work — check this entry first before re-diagnosing. If Playwright
+coverage needs to actually run, the executing environment needs `libglib2.0-0` (and the
+usual Chrome headless shared-lib set) installed with root, which this sandbox didn't have.
+
+---
+
 # VAC Web — HANDOFF (Session 31 → Session 32)
 > Updated: 2 Sep 2026 — CEREMONY UX FIX BUNDLE (stamp s182) | branch Schemo512/ceremony-ux-fix-bundle → MERGED main
 

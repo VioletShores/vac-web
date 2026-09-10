@@ -189,11 +189,14 @@ test('TC-UJ-05: auth.html cold landing — biometric form entry point is present
 
 // ── TC-UJ-06: No dead links on journey pages ──────────────────────────────────
 //
-// Source-level check: all same-origin hrefs in tribunal-demo.html and auth.html
-// must resolve to existing files in the project root.
+// Source-level check: all same-origin hrefs in tribunal-demo.html, financial-demo.html
+// and auth.html must resolve to existing files in the project root.
+// financial-demo.html joined the #matters return-nav journey family under D-632
+// (S155-FIN) but was never added to this dead-link guard — added here so the
+// existing TC-UJ-06 check covers both matters-pages, not just tribunal-demo.
 
 test('TC-UJ-06: no dead links — all same-origin hrefs in journey pages resolve to existing files', async () => {
-  const journeyFiles = ['tribunal-demo.html', 'auth.html'];
+  const journeyFiles = ['tribunal-demo.html', 'financial-demo.html', 'auth.html'];
   const dead = [];
 
   for (const file of journeyFiles) {
