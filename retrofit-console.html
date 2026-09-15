@@ -80,6 +80,8 @@ label.field-label{display:block;font-family:var(--mono);font-size:11px;color:var
 label.field-label:first-of-type{margin-top:0;}
 select.vac-select{width:100%;background:var(--card-raised);border:1px solid var(--border-light);border-radius:7px;color:var(--ink);font-family:var(--font);font-size:14px;padding:10px 14px;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238B8FA3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
 select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg);}
+input.vac-input{width:100%;background:var(--card-raised);border:1px solid var(--border-light);border-radius:7px;color:var(--ink);font-family:var(--font);font-size:14px;padding:10px 14px;}
+input.vac-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg);}
 
 /* Multi-select checklist */
 .check-group{display:flex;flex-direction:column;gap:8px;}
@@ -105,6 +107,20 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
 .authority-row{background:var(--card-raised);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
 .authority-role{font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;}
 .authority-note{font-family:var(--mono);font-size:10.5px;color:var(--quiet);margin-top:6px;}
+
+/* Entra illustrative roster table */
+.entra-table{display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:7px 14px;font-family:var(--mono);font-size:11.5px;color:var(--dim);margin-top:14px;align-items:center;}
+.entra-table .eh{color:var(--quiet);text-transform:uppercase;font-size:10px;letter-spacing:.08em;padding-bottom:6px;border-bottom:1px solid var(--border);}
+.illustrative-badge{font-family:var(--mono);font-size:9px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 6px;letter-spacing:.04em;white-space:nowrap;}
+@media(max-width:540px){.entra-table{grid-template-columns:1fr 1fr;font-size:11px;}}
+
+/* Autonomy step */
+.autonomy-group{display:flex;flex-direction:column;gap:14px;}
+.autonomy-row{background:var(--card-raised);border:1px solid var(--border);border-radius:8px;padding:14px 16px;}
+.autonomy-decision{font-size:13.5px;color:var(--ink);font-weight:600;margin-bottom:10px;}
+.autonomy-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.autonomy-controls label{font-family:var(--mono);font-size:10px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;display:block;}
+@media(max-width:540px){.autonomy-controls{grid-template-columns:1fr;}}
 
 /* Rails step */
 .rails-row{background:var(--card-raised);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;}
@@ -274,13 +290,15 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <div class="wdot" id="wdot-4" title="Authority">4</div>
     <div class="wline" id="wline-4"></div>
     <div class="wdot" id="wdot-5" title="Rails">5</div>
+    <div class="wline" id="wline-5"></div>
+    <div class="wdot" id="wdot-6" title="Autonomy">6</div>
   </div>
 
   <!-- STEP 1: Your system -->
   <div class="step-card active" id="step-1" role="region" aria-labelledby="step1-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 1 of 5</div>
+        <div class="step-num">Step 1 of 6</div>
         <h2 id="step1-title">Your system</h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -306,7 +324,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-2" role="region" aria-labelledby="step2-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 2 of 5</div>
+        <div class="step-num">Step 2 of 6</div>
         <h2 id="step2-title">Decision points</h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -326,7 +344,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-3" role="region" aria-labelledby="step3-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 3 of 5</div>
+        <div class="step-num">Step 3 of 6</div>
         <h2 id="step3-title" style="display:flex;align-items:center;">Assurance tiers<button class="info-btn" type="button" onclick="showInfoPop(this,'art14')" aria-label="Art. 14 — effective oversight"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -345,7 +363,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-4" role="region" aria-labelledby="step4-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 4 of 5</div>
+        <div class="step-num">Step 4 of 6</div>
         <h2 id="step4-title" style="display:flex;align-items:center;">Authority<button class="info-btn" type="button" onclick="showInfoPop(this,'art26')" aria-label="Art. 26 — competence and authority"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -357,6 +375,14 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <div style="font-family:var(--mono);font-size:11px;color:var(--quiet);margin-top:14px;padding:10px 14px;background:var(--card-raised);border:1px solid var(--border);border-radius:6px;">
       Production: delegate roster ingested from your SSO via SCIM. Identity verified per ceremony tier.
     </div>
+    <div style="margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-ghost" type="button" onclick="importEntraRoster()">Import roster from Microsoft Entra</button>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <div id="entraRosterWrap"></div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--quiet);margin-top:12px;line-height:1.6;">
+      Entra login is the root (AAL1). A decision above the tier's threshold steps up to a VAC ceremony at the moment of signing.
+    </div>
     <div class="step-nav">
       <button class="btn btn-ghost" onclick="goTo(3)">&larr; Back</button>
       <button class="btn btn-primary" onclick="goTo(5)">Next &rarr;</button>
@@ -367,7 +393,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-5" role="region" aria-labelledby="step5-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 5 of 5</div>
+        <div class="step-num">Step 5 of 6</div>
         <h2 id="step5-title">Rails</h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -397,7 +423,37 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
 
     <div class="step-nav">
       <button class="btn btn-ghost" onclick="goTo(4)">&larr; Back</button>
+      <button class="btn btn-primary" onclick="goTo(6)">Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- STEP 6: Autonomy -->
+  <div class="step-card" id="step-6" role="region" aria-labelledby="step6-title">
+    <div class="step-head">
+      <div>
+        <div class="step-num">Step 6 of 6</div>
+        <h2 id="step6-title">Autonomy</h2>
+      </div>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:14px;line-height:1.65;">
+      Start at zero, earn autonomy. For each decision point set a floor it can never go below, a ceiling it can never
+      go above, and the level it starts at &mdash; every decision point starts at Stop on day one.
+    </p>
+    <div class="autonomy-group" id="autonomyGroup"></div>
+    <div class="rails-caption">One verification failure tightens immediately. Loosening needs a sustained pass rate held across configured cycles (default 20). Fast down, slow up.</div>
+    <label class="field-label" for="passRateInput">Pass-rate threshold (loosen when sustained above)</label>
+    <input class="vac-input" type="number" id="passRateInput" min="0" max="1" step="0.01" value="0.97" oninput="onPassRateChange(this.value)">
+    <label class="field-label" for="cyclesInput">Cycles required (sustained pass window)</label>
+    <input class="vac-input" type="number" id="cyclesInput" min="1" step="1" value="20" oninput="onCyclesChange(this.value)">
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goTo(5)">&larr; Back</button>
       <button class="btn btn-primary" onclick="buildDashboard()">Build deployment manifest &rarr;</button>
+      <button class="btn btn-ghost" onclick="openGovernorDemo()">Watch the governor run this manifest</button>
+    </div>
+    <div style="font-family:var(--mono);font-size:11px;color:var(--quiet);margin-top:10px;line-height:1.6;">
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+      &mdash; illustrative decision classes and floor/ceiling values are passed to the governor demo.
     </div>
   </div>
 
@@ -593,6 +649,25 @@ const TIER_TEMPLATES = [
   { value:'tf', label:'Financial approval (Tier 2 + threshold step-up)', req:'Tier 2 base. If amount exceeds configured threshold: automatic step-up to Tier 3 + second authority required.' },
 ];
 
+// The governor's four levels, from most to least restrictive.
+const AUTONOMY_LEVELS = [
+  { value:'stop', label:'Stop — escalate to human' },
+  { value:'escalate', label:'Escalate' },
+  { value:'proceed-with-review', label:'Proceed with review' },
+  { value:'proceed', label:'Proceed' },
+];
+
+// Higher assurance tier -> lower default ceiling (never above).
+const TIER_CEILING_DEFAULT = { t2:'proceed', tf:'proceed-with-review', t3:'escalate' };
+
+const ENTRA_ILLUSTRATIVE_ROSTER = [
+  { name:'A. Rahman', role:'NOC engineer', entra:'entra://aal1/8f2c1a-b91e' },
+  { name:'M. Brennan', role:'Duty manager', entra:'entra://aal1/3a91e0-4dc2' },
+  { name:'P. Vasquez', role:'Compliance officer', entra:'entra://aal1/c774f2-2a09' },
+  { name:'J. Park', role:'NOC engineer (backup)', entra:'entra://aal1/519d7c-6b31' },
+  { name:'L. Torres', role:'Duty manager (backup)', entra:'entra://aal1/ae0299-b1f5' },
+];
+
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let state = {
@@ -601,6 +676,11 @@ let state = {
   tiers: {},        // decision id → tier value
   authority: {},    // role key → delegate name
   jurisdiction: 'eu',
+  autonomy: {
+    byDecision: {},  // decision id → { floor, ceiling, start }
+    passRate: 0.97,
+    cycles: 20,
+  },
 };
 
 // ── Step 1 ────────────────────────────────────────────────────────────────────
@@ -699,58 +779,112 @@ function buildAuthorityRows() {
   });
 }
 
+function importEntraRoster() {
+  const wrap = document.getElementById('entraRosterWrap');
+  const rows = ENTRA_ILLUSTRATIVE_ROSTER.map(r => `
+      <div>${r.name}</div>
+      <div>${r.role}</div>
+      <div style="color:var(--quiet);">${r.entra}</div>
+      <div><span class="illustrative-badge">ILLUSTRATIVE</span></div>
+  `).join('');
+  wrap.innerHTML = `
+    <div class="entra-table">
+      <div class="eh">Name</div><div class="eh">Role</div><div class="eh">Entra object</div><div class="eh"></div>
+      ${rows}
+    </div>`;
+}
+
+// ── Step 6 ────────────────────────────────────────────────────────────────────
+
+function buildAutonomyRows() {
+  const pts = (DECISION_POINTS[state.system] || []).filter(p => state.selectedDecisions.has(p.id));
+  const wrap = document.getElementById('autonomyGroup');
+  wrap.innerHTML = pts.map(p => {
+    const tier = state.tiers[p.id] || 't2';
+    const cur = state.autonomy.byDecision[p.id] || {};
+    const floor = cur.floor || 'stop';
+    const ceiling = cur.ceiling || TIER_CEILING_DEFAULT[tier] || 'proceed-with-review';
+    const start = cur.start || 'stop';
+    state.autonomy.byDecision[p.id] = { floor, ceiling, start };
+    const opts = (val) => AUTONOMY_LEVELS.map(l =>
+      `<option value="${l.value}" ${val === l.value ? 'selected' : ''}>${l.label}</option>`
+    ).join('');
+    return `
+    <div class="autonomy-row">
+      <div class="autonomy-decision">${p.label}</div>
+      <div class="autonomy-controls">
+        <div><label>Floor</label><select class="vac-select" onchange="onAutonomyChange('${p.id}','floor',this.value)">${opts(floor)}</select></div>
+        <div><label>Ceiling</label><select class="vac-select" onchange="onAutonomyChange('${p.id}','ceiling',this.value)">${opts(ceiling)}</select></div>
+        <div><label>Start</label><select class="vac-select" onchange="onAutonomyChange('${p.id}','start',this.value)">${opts(start)}</select></div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('passRateInput').value = state.autonomy.passRate;
+  document.getElementById('cyclesInput').value = state.autonomy.cycles;
+}
+
+function onAutonomyChange(id, field, val) {
+  if (!state.autonomy.byDecision[id]) state.autonomy.byDecision[id] = {};
+  state.autonomy.byDecision[id][field] = val;
+}
+
+function onPassRateChange(v) {
+  const n = parseFloat(v);
+  state.autonomy.passRate = isNaN(n) ? 0.97 : n;
+}
+
+function onCyclesChange(v) {
+  const n = parseInt(v, 10);
+  state.autonomy.cycles = isNaN(n) ? 20 : n;
+}
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 function goTo(n) {
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 6; i++) {
     document.getElementById(`step-${i}`).classList.toggle('active', i === n);
     const dot = document.getElementById(`wdot-${i}`);
     dot.classList.remove('active', 'done');
     if (i < n) dot.classList.add('done');
     else if (i === n) dot.classList.add('active');
-    if (i < 5) {
+    if (i < 6) {
       document.getElementById(`wline-${i}`).classList.toggle('done', i < n);
     }
   }
   if (n === 2) buildDecisionChecks();
   if (n === 3) buildTierRows();
   if (n === 4) buildAuthorityRows();
+  if (n === 6) buildAutonomyRows();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-function buildDashboard() {
-  // Mark all wizard dots done
-  for (let i = 1; i <= 5; i++) {
-    const dot = document.getElementById(`wdot-${i}`);
-    dot.classList.remove('active');
-    dot.classList.add('done');
-    if (i < 5) document.getElementById(`wline-${i}`).classList.add('done');
-  }
-  // Hide all step cards
-  for (let i = 1; i <= 5; i++) {
-    document.getElementById(`step-${i}`).classList.remove('active');
-  }
-
-  state.jurisdiction = document.getElementById('jurisdictionSelect').value;
-
-  const manifestId = 'vac-manifest-' + pseudoId();
+function buildManifestObject() {
+  const manifestId = state._manifestId || (state._manifestId = 'vac-manifest-' + pseudoId());
   const pts = (DECISION_POINTS[state.system] || []).filter(p => state.selectedDecisions.has(p.id));
-  const firstAction = pts[0] ? pts[0].id : 'decision_point_1';
-
-  // (a) Manifest JSON
-  const manifest = {
+  return {
     manifest_id: manifestId,
     schema_version: 'vac/manifest/v1',
     system: state.system,
     generated: '2026-07-19T00:00:00Z',
-    decision_points: pts.map(p => ({
-      action: p.id,
-      label: p.label,
-      tier: state.tiers[p.id] || 't2',
-      ceremony: getTierCeremonyShort(state.tiers[p.id] || 't2'),
-    })),
+    decision_points: pts.map(p => {
+      const tier = state.tiers[p.id] || 't2';
+      const auto = state.autonomy.byDecision[p.id] || {};
+      return {
+        action: p.id,
+        label: p.label,
+        tier: tier,
+        ceremony: getTierCeremonyShort(tier),
+        autonomy: {
+          floor: auto.floor || 'stop',
+          ceiling: auto.ceiling || TIER_CEILING_DEFAULT[tier] || 'proceed-with-review',
+          start: auto.start || 'stop',
+          pass_rate: state.autonomy.passRate,
+          cycles: state.autonomy.cycles,
+        },
+      };
+    }),
     authority: Object.entries(state.authority).map(([role, delegate]) => ({ role, delegate })),
     rails: {
       eu_ai_act: 'eu-ai-act-pack-v1-2026-08',
@@ -758,6 +892,49 @@ function buildDashboard() {
     },
     sealed_on_issue: true,
   };
+}
+
+// Opens the governor demo with the manifest's decision classes and floor/ceiling
+// contract passed as a single URL-encoded JSON query param. The demo endpoint may
+// not yet read this parameter — the contract is the parameter shape, not today's
+// server behavior.
+function openGovernorDemo() {
+  const manifest = buildManifestObject();
+  const payload = {
+    manifest_id: manifest.manifest_id,
+    decision_classes: manifest.decision_points.map(p => ({
+      action: p.action,
+      tier: p.tier,
+      floor: p.autonomy.floor,
+      ceiling: p.autonomy.ceiling,
+      start: p.autonomy.start,
+    })),
+  };
+  const url = 'https://api.athenapilot.ai/docs/arch/cops-pid-demo?manifest=' + encodeURIComponent(JSON.stringify(payload));
+  window.open(url, '_blank', 'noopener');
+}
+
+function buildDashboard() {
+  // Mark all wizard dots done
+  for (let i = 1; i <= 6; i++) {
+    const dot = document.getElementById(`wdot-${i}`);
+    dot.classList.remove('active');
+    dot.classList.add('done');
+    if (i < 6) document.getElementById(`wline-${i}`).classList.add('done');
+  }
+  // Hide all step cards
+  for (let i = 1; i <= 6; i++) {
+    document.getElementById(`step-${i}`).classList.remove('active');
+  }
+
+  state.jurisdiction = document.getElementById('jurisdictionSelect').value;
+
+  const pts = (DECISION_POINTS[state.system] || []).filter(p => state.selectedDecisions.has(p.id));
+  const firstAction = pts[0] ? pts[0].id : 'decision_point_1';
+
+  // (a) Manifest JSON
+  const manifest = buildManifestObject();
+  const manifestId = manifest.manifest_id;
 
   const json = jsonColorize(JSON.stringify(manifest, null, 2));
   document.getElementById('manifestJson').innerHTML = json;
