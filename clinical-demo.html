@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>VAC — Clinical Imaging Sign-off (Preview)</title>
+<style>
+:root{
+  --bg:#0D1117; --surface:#161B22; --surface-raised:#1C2128; --border:#30363D; --border-light:#3D444D;
+  --text-primary:#F0F6FC; --text-secondary:#C9D1D9; --text-tertiary:#8B949E; --text-quaternary:#6E7681;
+  --purple:#6C5CE7; --purple-dim:#5A4BD1; --purple-bg:rgba(108,92,231,0.08); --purple-border:rgba(108,92,231,0.25);
+  --teal:#00CEC9; --teal-bg:rgba(0,206,201,0.08); --teal-border:rgba(0,206,201,0.2);
+  --success:#3FB950; --success-bg:rgba(63,185,80,0.08); --success-border:rgba(63,185,80,0.2);
+  --amber:#D29922; --amber-bg:rgba(210,153,34,0.08); --amber-border:rgba(210,153,34,0.25);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+.page-shell{background:var(--bg);min-height:100vh;color:var(--text-secondary);font-family:var(--font);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;padding:0 0 80px;}
+.wrap{max-width:880px;margin:0 auto;padding:0 clamp(16px,4vw,24px);}
+
+.preview-banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:10px 24px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;}
+
+header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40px;}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.mark{width:34px;height:34px;flex:0 0 34px;}
+.brand-name{font-weight:700;color:var(--text-primary);font-size:17px;letter-spacing:-0.2px;}
+.brand-sub{font-family:var(--mono);font-size:10px;color:var(--text-tertiary);letter-spacing:1px;}
+.nav-mode{font-family:var(--mono);font-size:10px;padding:4px 10px;border-radius:5px;letter-spacing:0.5px;font-weight:600;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);}
+
+.hero{margin-bottom:40px;}
+.eyebrow{font-family:var(--mono);font-size:11px;color:var(--teal);letter-spacing:2px;text-transform:uppercase;margin-bottom:14px;}
+.hero h1{font-size:clamp(24px,5vw,34px);line-height:1.18;color:var(--text-primary);font-weight:700;letter-spacing:-0.6px;margin-bottom:16px;max-width:720px;}
+.hero-lede{font-size:clamp(14.5px,3.8vw,16px);color:var(--text-secondary);max-width:680px;margin-bottom:20px;}
+.hero-lede .pull{color:var(--text-primary);font-weight:600;}
+.brief{background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--teal);border-radius:8px;padding:16px 18px;margin-bottom:20px;max-width:720px;}
+.brief-label{font-family:var(--mono);font-size:10px;color:var(--teal);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;}
+.brief p{font-size:13.5px;color:var(--text-secondary);line-height:1.65;}
+.brief p+p{margin-top:10px;}
+.brief .pull{color:var(--text-primary);font-weight:600;}
+.brief .scenario-label{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:1px;text-transform:uppercase;background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:2px 7px;display:inline-block;margin-bottom:10px;}
+
+.section-label{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:1.5px;text-transform:uppercase;margin:0 0 16px;}
+
+/* walkthrough steps */
+.stage{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:clamp(16px,4.5vw,28px);margin-bottom:24px;}
+.stage-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.stage-head h2{font-size:clamp(17px,4.5vw,19px);color:var(--text-primary);font-weight:700;letter-spacing:-0.3px;}
+.stage-badge{font-family:var(--mono);font-size:10px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:2px 8px;letter-spacing:1px;}
+.anchor-line{background:linear-gradient(135deg,var(--purple-bg),var(--surface-raised));border:1px solid var(--purple-border);border-radius:8px;padding:14px 16px;margin-bottom:22px;}
+.anchor-line p{font-size:clamp(13.5px,3.7vw,15px);color:var(--text-secondary);font-style:italic;line-height:1.6;}
+.anchor-line .pull{color:var(--text-primary);font-weight:600;font-style:normal;}
+
+.steps{display:flex;flex-direction:column;gap:0;}
+.step{display:flex;gap:16px;padding:0 0 4px;position:relative;}
+.step-rail{display:flex;flex-direction:column;align-items:center;flex:0 0 28px;}
+.step-dot{width:28px;height:28px;border-radius:50%;border:2px solid var(--border-light);background:var(--surface-raised);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;color:var(--text-quaternary);transition:all .3s;flex:0 0 28px;}
+.step-dot.active{border-color:var(--purple);color:var(--purple);box-shadow:0 0 10px rgba(108,92,231,0.35);}
+.step-dot.done{border-color:var(--success);background:var(--success-bg);color:var(--success);}
+.step-conn{width:2px;flex:1;background:var(--border);min-height:18px;margin:2px 0;}
+.step-conn.done{background:var(--success);}
+.step-body{padding-bottom:22px;flex:1;min-width:0;}
+.step-body h3{font-size:14.5px;color:var(--text-primary);font-weight:600;margin-bottom:3px;}
+.step-meta{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);}
+.step-detail{font-size:13.5px;color:var(--text-secondary);margin-top:8px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--purple);border-radius:6px;padding:11px 13px;display:none;overflow-wrap:break-word;line-height:1.65;}
+.step.revealed .step-detail{display:block;}
+.step.hero-step .step-detail{border-left-color:var(--teal);}
+.step.seal-step .step-detail{border-left-color:var(--amber);}
+.step.receipt-step .step-detail{border-left-color:var(--success);}
+.policy-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--teal);background:var(--teal-bg);border:1px solid var(--teal-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.amber-chip{display:inline-block;font-family:var(--mono);font-size:11px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;}
+.hil{color:var(--amber);font-weight:600;}
+.hil-teal{color:var(--teal);font-weight:600;}
+
+.controls{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;}
+.btn{font-family:var(--font);font-size:14px;font-weight:600;border-radius:7px;padding:11px 20px;cursor:pointer;border:1px solid transparent;transition:all .15s;}
+.btn-primary{background:var(--purple);color:#fff;}
+.btn-primary:hover{background:var(--purple-dim);}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;}
+.btn-ghost{background:transparent;border-color:var(--border-light);color:var(--text-secondary);}
+.btn-ghost:hover{border-color:var(--text-tertiary);color:var(--text-primary);}
+
+/* sealed receipt */
+.receipt{margin-top:20px;background:var(--surface-raised);border:1px solid var(--success-border);border-radius:10px;padding:20px;display:none;}
+.receipt.show{display:block;animation:fade .35s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.receipt-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.receipt-head .seal{width:30px;height:30px;flex:0 0 30px;}
+.receipt-head h3{color:var(--success);font-size:15px;font-weight:700;}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 14px;font-size:13px;}
+.kv dt{font-family:var(--mono);font-size:11px;color:var(--text-tertiary);letter-spacing:.5px;}
+.kv dd{font-family:var(--mono);font-size:12px;color:var(--text-secondary);word-break:break-all;}
+.kv dd.hl{color:var(--text-primary);}
+.audit{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
+.audit-line{font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);padding:3px 0;display:flex;gap:10px;}
+.audit-line .t{color:var(--teal);flex:0 0 auto;}
+.verify-link{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--teal);text-decoration:none;border:1.5px solid var(--teal);background:var(--teal-bg);border-radius:8px;padding:10px 16px;margin-top:14px;transition:all .15s;cursor:pointer;}
+.verify-link:hover{background:var(--teal);color:#0A0F1A;border-color:var(--teal);box-shadow:0 2px 12px -2px var(--teal);}
+.real-badge{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:4px;padding:2px 7px;letter-spacing:.5px;margin-left:8px;}
+
+/* honesty note */
+.fwd-note{margin:0 0 22px;background:var(--surface-raised);border:1px solid var(--border);border-left:2px solid var(--amber);border-radius:8px;padding:13px 16px;font-size:13px;color:var(--text-secondary);overflow-wrap:break-word;}
+.fwd-note strong{color:var(--text-primary);}
+
+/* AI recommendation panel */
+.ai-rec{background:var(--surface-raised);border:1px solid var(--border-light);border-left:2px solid var(--purple);border-radius:8px;padding:14px 16px;margin-bottom:14px;}
+.ai-rec-label{font-family:var(--mono);font-size:10px;color:var(--purple);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:8px;}
+.ai-rec-body{font-size:13.5px;color:var(--text-secondary);line-height:1.65;}
+.ai-rec-body strong{color:var(--text-primary);}
+
+/* footer */
+.foot{margin-top:48px;border-top:1px solid var(--border);padding-top:24px;font-size:13px;color:var(--text-tertiary);}
+.foot strong{color:var(--text-secondary);}
+.foot .posture{font-family:var(--mono);font-size:11px;margin-top:10px;color:var(--text-quaternary);}
+.foot-link{color:var(--teal);text-decoration:none;}
+.foot-link:hover{text-decoration:underline;}
+
+/* more domains CTA */
+.domains-cta{margin-top:40px;background:linear-gradient(135deg,var(--purple-bg),var(--teal-bg));border:1px solid var(--purple-border);border-radius:12px;padding:clamp(16px,4.5vw,22px) clamp(16px,5vw,24px);display:block;}
+.domains-cta-text .cta-h{font-size:15px;font-weight:700;color:var(--text-primary);margin-bottom:4px;}
+.domains-cta-text .cta-d{font-size:13.5px;color:var(--text-secondary);margin-bottom:2px;}
+.cta-btn{display:inline-block;margin:14px 0 4px;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;border:none;cursor:pointer;}
+.cta-btn:hover{background:var(--purple-dim);}
+
+@media(max-width:560px){
+  .kv{grid-template-columns:1fr;}
+  .step{gap:12px;}
+}
+</style>
+<script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+<div class="page-shell">
+  <div class="preview-banner">Illustrative scenario &mdash; the seal and receipt mechanics are real VAC system output. Scenario data is illustrative and labeled as such.</div>
+
+  <header class="top"><div class="wrap"><div class="top-row">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="18" stroke="#6C5CE7" stroke-width="1.5"/><path d="M20 8 L20 32 M11 14 L29 26 M29 14 L11 26" stroke="#00CEC9" stroke-width="1.2" opacity="0.55"/><circle cx="20" cy="20" r="4.5" fill="#6C5CE7"/></svg>
+      <div><div class="brand-name">VAC Protocol</div><div class="brand-sub">VERIFIABLE AUTHORITY CHAIN</div></div>
+    </div>
+    <span class="nav-mode">CLINICAL IMAGING &middot; PREVIEW</span>
+  </div></div></header>
+
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow">AI-assisted radiology &middot; Diagnostic imaging sign-off</div>
+      <h1>The AI model flags a finding. The radiologist reviews the images and signs. VAC seals who held reporting authority to accept it &mdash; and proves it, years after the report is filed.</h1>
+      <p class="hero-lede">It starts in the imaging study: an AI model reviewing a scan flags a suspected finding and proposes it for the report, the reporting radiologist reviews that proposal against the actual images, and a human decides &mdash; in moments, audited over years. When an AI model proposes adding a finding to a diagnostic report, the clinical and regulatory question is not <span class="pull">what the model detected</span> &mdash; it is <span class="pull">who held reporting authority to accept it, for this modality and this institution, and whether that record has been altered since.</span> VAC is the trust layer on top of the reporting workflow: it proves acceptance, authority, and provenance with a sealed, independently-verifiable receipt.</p>
+
+      <div class="brief">
+        <div class="scenario-label">Illustrative scenario</div>
+        <div class="brief-label">Westbridge Medical Imaging &mdash; Radiology Reporting &middot; 09:42 AEST</div>
+        <p>A chest CT study (accession WMI-CT-central) is read first by an AI review model, which flags a suspected finding and <span class="pull">proposes it be added to the report</span>: an 8mm solid pulmonary nodule in the right upper lobe, flagged at 0.87 confidence. The study is then opened by <span class="pull">the reporting radiologist</span>, who reviews the AI's proposal against the actual imaging series &mdash; not the model's summary of it.</p>
+        <p>The radiologist accepts the finding, in their own wording, for inclusion in the signed report. VAC is the mechanism that seals <span class="pull">which study, which model and model version proposed the finding, who accepted it, and at exactly what time</span> &mdash; producing an audit-grade receipt that the institution, a regulator, or a later reviewer can verify against the production backend, without needing to trust VAC's word for it.</p>
+      </div>
+
+      <p class="section-label" style="margin-bottom:0;">Walk through the sign-off, step by step</p>
+    </section>
+
+    <!-- 5-step guided walkthrough -->
+    <section class="stage" id="stage">
+      <div class="stage-head">
+        <h2>Sealed sign-off walkthrough</h2>
+        <span class="stage-badge">LIVE SEAL MECHANICS</span>
+      </div>
+
+      <div class="anchor-line">
+        <p><span class="pull">"The part of the system that checks the work is never the part that did the work."</span> The AI model that flagged the finding does not sign the report. The radiologist who signs does not operate the seal. The regulator or later reviewer who audits holds a receipt that neither party can alter after the fact.</p>
+      </div>
+
+      <div class="steps" id="steps">
+
+        <!-- Step 1: Scenario -->
+        <div class="step hero-step" id="step-1">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-1">1</div>
+            <div class="step-conn" id="conn-1"></div>
+          </div>
+          <div class="step-body">
+            <h3>Scenario &mdash; AI model flags a suspected finding</h3>
+            <div class="step-meta">Imaging review model &middot; automated finding proposal &middot; no reporting authority exercised at this stage</div>
+            <div class="step-detail" id="detail-1">
+              <div class="ai-rec">
+                <div class="ai-rec-label">AI model proposal &middot; 09:38:41 AEST</div>
+                <div class="ai-rec-body">
+                  <strong>Study WMI-CT-central &mdash; chest CT, patient study review.</strong><br><br>
+                  Model: <strong>PulmoNet-CAD v4.2.1</strong>. Finding flagged: <strong>solid pulmonary nodule, right upper lobe, 8mm</strong> (confidence 0.87).<br>
+                  No prior comparison study on file. Nodule morphology consistent with a Fleischner-category finding warranting reporting review.<br><br>
+                  <strong>Proposal complete.</strong> The model proposes the finding be added to the report, with a recommended follow-up interval per standard nodule-management guidance.<br><br>
+                  Proposed action: <strong>Add finding to report, recommend 6-month follow-up CT.</strong> This is a proposal only &mdash; the model does not write to the report.
+                </div>
+              </div>
+              <p>The AI model's flagged finding and proposed wording are automated outputs &mdash; no reporting authority is exercised here. Authority begins the moment a radiologist reviews the study and decides to accept the finding into the signed report. That is the step VAC seals.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">study: WMI-CT-central</span>
+                <span class="policy-chip">modality: CT</span>
+                <span class="policy-chip">model: PulmoNet-CAD v4.2.1</span>
+                <span class="policy-chip">confidence: 0.87</span>
+                <span class="amber-chip">finding pending radiologist review</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Decision -->
+        <div class="step" id="step-2">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-2">2</div>
+            <div class="step-conn" id="conn-2"></div>
+          </div>
+          <div class="step-body">
+            <h3>Decision &mdash; reporting radiologist reviews and accepts</h3>
+            <div class="step-meta">Human decision &middot; identity not yet verified &middot; authority not yet sealed</div>
+            <div class="step-detail" id="detail-2">
+              <p>The reporting radiologist opens the study, reviews the AI model's proposed finding against the actual imaging series, and accepts it &mdash; in their own wording, for the signed report: <span class="pull">"Confirmed. 8mm solid nodule, right upper lobe. Recommend 6-month follow-up CT per Fleischner criteria."</span></p>
+              <p style="margin-top:10px;">At this point a decision has been made &mdash; but <span class="hil">no reporting authority has been verified and no record has been sealed.</span> If the acceptance were logged only in the reporting system, the audit trail would rest on that system's integrity. VAC replaces that assumption with a cryptographic proof: not just who clicked accept, but who held current reporting privileges for this modality at this institution, at this moment.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">decision: accept finding</span>
+                <span class="policy-chip">wording: radiologist's own</span>
+                <span class="amber-chip">identity not yet verified</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Authority -->
+        <div class="step" id="step-3">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-3">3</div>
+            <div class="step-conn" id="conn-3"></div>
+          </div>
+          <div class="step-body">
+            <h3>Authority &mdash; VAC verifies current reporting privileges</h3>
+            <div class="step-meta">VAC credential gate &middot; policy-encoded conditions &middot; authority chain minted</div>
+            <div class="step-detail" id="detail-3">
+              <p>VAC checks that the radiologist is:</p>
+              <ul style="margin:10px 0 10px 18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-secondary);">
+                <li>Holding <strong style="color:var(--text-primary);">current professional registration</strong> &mdash; not lapsed, not suspended, confirmed at the moment of sign-off.</li>
+                <li>Holding <strong style="color:var(--text-primary);">reporting privileges for this modality</strong> (CT) <strong style="color:var(--text-primary);">at this institution</strong> (Westbridge Medical Imaging), encoded in the radiologist's VAC credential, not asserted by the reporting system.</li>
+                <li>Acting <strong style="color:var(--text-primary);">at this moment</strong> &mdash; the credential check is performed at the point of acceptance, not read from a stale roster.</li>
+              </ul>
+              <p>The policy conditions &mdash; registration status, modality scope, institutional privileges &mdash; travel with the authority chain. Not stored separately in a credentialing system that must be trusted; not asserted by the radiologist. <span class="hil-teal">The part of the system that checks the work is never the part that did the work.</span></p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">registration: current</span>
+                <span class="policy-chip">privileges: CT reporting, Westbridge</span>
+                <span class="policy-chip">checked: at moment of accept</span>
+                <span class="policy-chip">policy: embedded in token</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Seal -->
+        <div class="step seal-step" id="step-4">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-4">4</div>
+            <div class="step-conn" id="conn-4"></div>
+          </div>
+          <div class="step-body">
+            <h3>Seal &mdash; VAC seals who, which study, and when</h3>
+            <div class="step-meta">Ed25519 signed token &middot; live production backend &middot; independently verifiable</div>
+            <div class="step-detail" id="detail-4">
+              <p>VAC mints a signed token (Ed25519 + JWT) that binds together:</p>
+              <ul style="margin:10px 0 10px 18px;display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--text-secondary);">
+                <li><strong style="color:var(--text-primary);">Who</strong> &mdash; the verified radiologist identity who accepted the finding</li>
+                <li><strong style="color:var(--text-primary);">Which study</strong> &mdash; the specific accession accepted: WMI-CT-central, chest CT, right upper lobe finding</li>
+                <li><strong style="color:var(--text-primary);">Which model, which version</strong> &mdash; PulmoNet-CAD v4.2.1, the model that proposed the finding</li>
+                <li><strong style="color:var(--text-primary);">When</strong> &mdash; the exact timestamp, immutable, signed into the token &mdash; queryable in an audit years after the report is filed</li>
+              </ul>
+              <p>The token is signed by the VAC production backend. <span class="hil">No party &mdash; not the radiologist, not the reporting system, not VAC &mdash; can alter this record after the fact without the signature failing verification.</span> The model proposes; VAC proves who accepted.</p>
+              <div style="margin-top:10px;">
+                <span class="policy-chip">algorithm: Ed25519</span>
+                <span class="policy-chip">format: JWT</span>
+                <span class="amber-chip">sealing now...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: Receipt -->
+        <div class="step receipt-step" id="step-5">
+          <div class="step-rail">
+            <div class="step-dot" id="dot-5">5</div>
+          </div>
+          <div class="step-body">
+            <h3>Receipt &mdash; audit-grade sealed receipt, queryable after the fact</h3>
+            <div class="step-meta">Live token &middot; verifiable by JTI &middot; tamper-evident</div>
+            <div class="step-detail" id="detail-5">
+              <p>The sealed receipt is queryable by anyone who holds the JTI &mdash; the institution, a regulator, or a later reviewer &mdash; against the live VAC backend. No trust in VAC required: the Ed25519 signature either verifies or it does not.</p>
+              <p style="margin-top:10px;"><strong style="color:var(--text-primary);">What a later review looks like with this receipt:</strong> the reviewer queries the JTI &mdash; months or years after the report was filed. The backend returns the signed token. The reviewer verifies the signature against VAC's public key. The token's claims show the verified radiologist identity, which study and finding were accepted, which model and model version proposed it, the registration and privilege conditions that authorised the sign-off, and the immutable timestamp. No internal PACS or reporting-system access required. No trust chain back to the reporting log. The model proposed; the record proves who accepted, and under what authority.</p>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /steps -->
+
+      <div class="controls">
+        <button class="btn btn-primary" id="advance" type="button">Begin walkthrough</button>
+        <button class="btn btn-ghost" id="reset" type="button">Reset</button>
+      </div>
+
+      <div class="receipt" id="receipt">
+        <div class="receipt-head">
+          <svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3>Sign-off sealed &amp; lodged</h3>
+        </div>
+        <dl class="kv" id="receiptKv"></dl>
+        <div class="audit" id="auditLog"></div>
+      </div>
+    </section>
+
+    <div class="fwd-note">
+      <strong>Honest scope.</strong> The scenario above &mdash; Westbridge Medical Imaging, the study accession, the AI model's flagged finding, the radiologist identity &mdash; is illustrative and labeled as such. The seal and receipt mechanics are real VAC system output: the token is genuinely minted, Ed25519-signed, and independently verifiable at the URL shown in the receipt. The registration and reporting-privilege conditions encoded in this token are illustrative placeholders; encoding an institution's actual credentialing records and PACS/RIS integration for a specific radiology group is the integration build done with that institution's clinical governance team.
+    </div>
+
+    <section class="domains-cta">
+      <div class="domains-cta-text">
+        <div class="cta-h">See how VAC applies across other domains</div>
+        <div class="cta-d">The same two primitives &mdash; verified authority and a sealed, auditable decision trail &mdash; applied to smart water network operations and to legal trust &amp; tribunal matters.</div>
+        <a class="cta-btn" href="/trusted-water-demo">See the water network demo &rarr;</a>
+        <a class="cta-btn" href="/tribunal" style="margin-left:8px">See the trust &amp; tribunal demo &rarr;</a>
+      </div>
+    </section>
+
+    <div class="foot">
+      <strong>What the seal proves:</strong> a verified reporting radiologist held current registration and reporting privileges for this modality at this institution, and accepted this specific AI-proposed finding at this specific time &mdash; with a tamper-evident record the institution or a regulator can query independently, years after the event.
+      <div class="posture">Honest scope &middot; VAC is the trust layer on top of the reporting workflow: it proves acceptance, authority, and provenance. It does not read images and does not make a diagnosis. The finding in this scenario is accepted by a human; clinical responsibility for the report remains with the reporting radiologist. The AI model proposes &mdash; VAC seals who decided to accept it. Cryptographic seal = tamper-evident provenance + audit-grade trail, not a diagnostic opinion.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'https://vac-system-production.up.railway.app';
+
+let SEAL_TOKEN = { jti: null, minted: false };
+
+async function mintClinicalToken() {
+  const constraints = {
+    _demo: true,
+    _conditions_are_illustrative: true,
+    _note_for_evaluator: 'Token is real and verifiable. Scenario conditions (study, model, radiologist credential) are illustrative. Encoding actual institutional credentialing and PACS/RIS integration is the integration build with the radiology group.',
+    scenario: 'clinical_imaging_ai_signoff',
+    modality: 'CT',
+    study_accession: 'WMI-CT-central',
+    finding_proposed: 'solid pulmonary nodule, right upper lobe, 8mm',
+    model_id: 'PulmoNet-CAD',
+    model_version: '4.2.1',
+    ai_confidence: 0.87,
+    human_in_the_loop: true,
+    release_condition: 'authorised_radiologist_current_registration_and_privileges'
+  };
+  const body = {
+    human_identity: 'reporting-radiologist@westbridgeimaging.demo',
+    agent_id: 'clinical-demo',
+    resources: ['imaging:study:WMI-CT-central'],
+    actions: ['authorise_report_signoff', 'view_credential'],
+    verification_method: 'credential_check',
+    sensitivity: 'high',
+    constraints,
+    context: {
+      surface: 'clinical-demo',
+      scenario: 'Chest CT AI-flagged finding, radiologist sign-off — illustrative scenario',
+      authorised_at: new Date().toISOString()
+    }
+  };
+
+  try {
+    const r = await fetch(API_BASE + '/v1/vat/issue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('issue ' + r.status);
+    const data = await r.json();
+    if (!data || !data.jti) throw new Error('no jti');
+    const verifyUrl = data.verify_url || ('/vat/verify/' + data.jti);
+    SEAL_TOKEN = {
+      jti: data.jti,
+      trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
+      verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify',
+      minted: true
+    };
+    return true;
+  } catch (e) {
+    console.warn('[clinical-demo] live mint failed:', e && e.message);
+    SEAL_TOKEN = { jti: null, minted: false };
+    return false;
+  }
+}
+
+let stepIdx = -1;
+let sealing = false;
+
+function dot(n) { return document.getElementById('dot-' + n); }
+function conn(n) { return document.getElementById('conn-' + n); }
+function detail(n) { return document.getElementById('detail-' + n); }
+function stepEl(n) { return document.getElementById('step-' + n); }
+
+function renderStep(n) {
+  const el = stepEl(n);
+  el.classList.add('revealed');
+  dot(n).classList.add('active');
+}
+
+function completeStep(n) {
+  dot(n).classList.remove('active');
+  dot(n).classList.add('done');
+  if (n < 5) { conn(n).classList.add('done'); }
+}
+
+const STEP_BTN_LABELS = [
+  'See the AI-flagged finding',
+  'Radiologist reviews and decides',
+  'VAC checks reporting privileges',
+  'Seal the sign-off',
+  'View the sealed receipt'
+];
+
+async function advance() {
+  const btn = document.getElementById('advance');
+  if (sealing) return;
+
+  stepIdx++;
+
+  if (stepIdx < 5) {
+    renderStep(stepIdx + 1);
+    if (stepIdx > 0) completeStep(stepIdx);
+
+    if (stepIdx === 3) {
+      // Step 4: Seal — mint live token
+      sealing = true;
+      btn.disabled = true;
+      btn.textContent = 'Sealing...';
+      await mintClinicalToken();
+      sealing = false;
+      btn.disabled = false;
+    }
+
+    if (stepIdx < 4) {
+      btn.textContent = STEP_BTN_LABELS[stepIdx + 1];
+    } else if (stepIdx === 4) {
+      // All steps revealed, show receipt
+      completeStep(5);
+      showReceipt();
+      btn.style.display = 'none';
+    }
+  }
+}
+
+function showReceipt() {
+  const tok = SEAL_TOKEN;
+  const now = new Date();
+  const ts = now.toISOString().replace('T', ' ').slice(0, 19) + ' AEST';
+
+  const kvPairs = [
+    ['Study', 'WMI-CT-central · Chest CT · right upper lobe finding'],
+    ['Finding accepted', 'Confirmed. 8mm solid nodule, RUL. Recommend 6-month follow-up CT per Fleischner criteria.'],
+    ['Model, version', 'PulmoNet-CAD v4.2.1'],
+    ['Authorised by', 'Verified reporting radiologist (illustrative scenario)'],
+    ['Authority scope', 'CT reporting privileges, Westbridge Medical Imaging'],
+    ['Policy basis', 'Current registration confirmed · reporting privileges within scope · checked at moment of accept'],
+    ['Sealed at', ts],
+    ['Token (JTI)', tok.minted ? tok.jti : 'unavailable — live mint failed'],
+    ['Token status', tok.minted ? 'Live mint — freshly signed' : 'Live mint unavailable'],
+    ['Signature', 'Ed25519 · VAC production backend']
+  ];
+
+  const kvEl = document.getElementById('receiptKv');
+  kvEl.innerHTML = kvPairs.map(([k, v]) =>
+    `<dt>${k}</dt><dd${['Token (JTI)', 'Token status', 'Signature'].includes(k) ? ' class="hl"' : ''}>${esc(v)}</dd>`
+  ).join('');
+
+  const auditEl = document.getElementById('auditLog');
+  const auditLines = [
+    { t: '09:38:41', e: 'AI model proposal — PulmoNet-CAD v4.2.1 flagged suspected RUL pulmonary nodule, confidence 0.87' },
+    { t: '09:41:02', e: 'Reporting radiologist opened study WMI-CT-central for review' },
+    { t: '09:42:15', e: 'Radiologist accepted finding — VAC credential gate initiated' },
+    { t: '09:42:17', e: 'VAC authority verified — registration current, CT reporting privileges confirmed at Westbridge' },
+    { t: now.toISOString().replace('T', ' ').slice(0, 19), e: tok.minted ? ('Sign-off sealed — JTI: ' + tok.jti) : 'Sign-off attempted — live mint unavailable' }
+  ];
+  auditEl.innerHTML = auditLines.map(l =>
+    `<div class="audit-line"><span class="t">${esc(l.t)}</span><span>${esc(l.e)}</span></div>`
+  ).join('');
+
+  const verifyDiv = document.createElement('div');
+  verifyDiv.style.marginTop = '14px';
+  if (tok.minted) {
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
+  } else {
+    verifyDiv.innerHTML = `<div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);">Live mint unavailable — could not reach the VAC production backend for this run. The seal mechanics are real; reset and try again.</div>`;
+  }
+  auditEl.appendChild(verifyDiv);
+
+  document.getElementById('receipt').classList.add('show');
+}
+
+function reset() {
+  stepIdx = -1;
+  sealing = false;
+  for (let n = 1; n <= 5; n++) {
+    const d = dot(n); if (d) { d.classList.remove('active', 'done'); }
+    const c = conn(n); if (c) { c.classList.remove('done'); }
+    const el = stepEl(n); if (el) { el.classList.remove('revealed'); }
+  }
+  const receipt = document.getElementById('receipt');
+  receipt.classList.remove('show');
+  receipt.innerHTML = `<div class="receipt-head"><svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Sign-off sealed &amp; lodged</h3></div><dl class="kv" id="receiptKv"></dl><div class="audit" id="auditLog"></div>`;
+  const btn = document.getElementById('advance');
+  btn.style.display = '';
+  btn.disabled = false;
+  btn.textContent = 'Begin walkthrough';
+  SEAL_TOKEN = { jti: null, minted: false };
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function safeHref(url) {
+  const s = String(url);
+  return /^(https?:\/\/|\/)/.test(s) ? s : '#';
+}
+
+document.getElementById('advance').onclick = advance;
+document.getElementById('reset').onclick = reset;
+</script>
+
+<div style="position:fixed;bottom:6px;right:8px;z-index:2000;font-family:monospace;font-size:10px;color:#3a4658;pointer-events:none;">build c3-1615</div>
+<script>try{navigator.sendBeacon&&navigator.sendBeacon('https://api.athenapilot.ai/v1/telemetry/view',JSON.stringify({page:location.pathname}))}catch(e){}</script>
+<script>
+/* S167 pattern: when this page runs embedded (iframed) in a deck modal, internal
+   deep-dive CTAs would replace the iframe and strand the viewer (no Back).
+   Force those to open in a new tab so this page stays put in the modal.
+   Standalone (not iframed) behaviour is unchanged. */
+(function(){
+  try{
+    if(window.self===window.top) return; // not embedded — leave as-is
+    document.querySelectorAll('a.cta-btn[href]').forEach(function(a){
+      var h=a.getAttribute('href')||'';
+      if(h && h[0]!=='#' && !/^https?:\/\//i.test(h) || /vacprotocol\.org/i.test(h)){
+        a.setAttribute('target','_blank'); a.setAttribute('rel','noopener');
+      }
+    });
+  }catch(e){}
+})();
+</script>
+</body>
+</html>
