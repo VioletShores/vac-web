@@ -497,7 +497,7 @@ input.vac-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px
         <span class="dash-card-badge badge-real">Developer docs</span>
       </div>
       <p style="font-size:13.5px;color:var(--dim);margin-bottom:16px;line-height:1.65;">
-        Wire VAC into your pipeline using the REST API or the <code style="font-family:var(--mono);font-size:12px;color:var(--teal);">@vacprotocol/verify</code> SDK. Issue, authorize, and verify in three calls.
+        Wire VAC into your pipeline using the REST API. Issue, authorize, and verify in three calls. SDK in private preview &mdash; ask for access.
       </p>
       <a class="act-link-btn" href="/developers">
         Developers: API and SDK
@@ -511,7 +511,7 @@ input.vac-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px
         <div class="dash-card-title">Regulatory evidence</div>
         <span class="dash-card-badge badge-real">Live document</span>
       </div>
-      <a class="evidence-link" href="/eu-ai-act" target="_blank">
+      <a class="evidence-link" href="/eu-ai-act.html" target="_blank">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h4v1.5H3.5v7h7V9H12v4H2V2z" fill="currentColor"/><path d="M8 2h4v4h-1.5V4.06L6.03 8.53 4.97 7.47 9.44 3H8V2z" fill="currentColor"/></svg>
         EU AI Act evidence page
       </a>
@@ -901,7 +901,7 @@ function watchGovernorRun() {
       cycles: dp.autonomy.cycles,
     })),
   };
-  const url = 'https://api.athenapilot.ai/docs/arch/cops-pid-demo?manifest=' + encodeURIComponent(JSON.stringify(payload));
+  const url = 'https://api.athenapilot.ai/docs/preview/governor-demo?manifest=' + encodeURIComponent(JSON.stringify(payload));
   window.open(url, '_blank', 'noopener');
 }
 

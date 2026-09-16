@@ -108,7 +108,7 @@ h2{font-size:28px;margin-bottom:16px}
   <div class="hero-stats">
     <div class="hero-stat"><div class="hero-stat-val">L1</div><div class="hero-stat-label">one API call to start</div></div>
     <div class="hero-stat"><div class="hero-stat-val">Ed25519</div><div class="hero-stat-label">signed tokens</div></div>
-    <div class="hero-stat"><div class="hero-stat-val">1,068</div><div class="hero-stat-label">patent claims</div></div>
+    <div class="hero-stat"><div class="hero-stat-val">Filed</div><div class="hero-stat-label">patent-pending, AU and US filings</div></div>
   </div>
   <div class="cta-row">
     <a href="#signup" class="btn btn-primary">Request access</a>
@@ -153,7 +153,8 @@ curl -X POST https://vac-system-production.up.railway.app/v1/vat/aar/AAR_ID/feed
   -d <span class="str">'{"rating":"approved","note":"Result was correct"}'</span>
 
 <span class="comment"># 4. Check agent reputation (built from execution + feedback)</span>
-curl https://vac-system-production.up.railway.app/v1/vat/reputation/my-agent
+<span class="comment"># Note: the agent id is returned with the "agent:" prefix — use it as-is</span>
+curl https://vac-system-production.up.railway.app/v1/vat/reputation/agent:my-agent
 <span class="comment"># Returns: { execution_score: 1.0, feedback_score: 1.0, combined_reputation: 1.0 }</span>
     </div>
   </div>
@@ -186,8 +187,8 @@ requests.<span class="fn">post</span>(f<span class="str">"{BASE}/v1/vat/aar/{aar
     <span class="str">"rating"</span>: <span class="str">"approved"</span>
 })
 
-<span class="comment"># 4. Check reputation</span>
-rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/reputation/my-agent"</span>).<span class="fn">json</span>()
+<span class="comment"># 4. Check reputation — the agent id is returned with the "agent:" prefix</span>
+rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/reputation/agent:my-agent"</span>).<span class="fn">json</span>()
 <span class="fn">print</span>(f<span class="str">"Reputation: {rep['combined_reputation']}"</span>)
     </div>
   </div>
@@ -216,8 +217,8 @@ rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/rep
 <span class="comment">// 3. Human feedback</span>
 <span class="kw">await</span> <span class="fn">post</span>(<span class="str">`/v1/vat/aar/${aar.aar_id}/feedback`</span>, { rating: <span class="str">'approved'</span> });
 
-<span class="comment">// 4. Reputation</span>
-<span class="kw">const</span> rep = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${BASE}/v1/vat/reputation/my-agent`</span>).<span class="fn">then</span>(r => r.<span class="fn">json</span>());
+<span class="comment">// 4. Reputation — the agent id is returned with the "agent:" prefix</span>
+<span class="kw">const</span> rep = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${BASE}/v1/vat/reputation/agent:my-agent`</span>).<span class="fn">then</span>(r => r.<span class="fn">json</span>());
 <span class="fn">console.log</span>(<span class="str">`Reputation: ${rep.combined_reputation}`</span>);
     </div>
   </div>
@@ -227,9 +228,9 @@ rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/rep
 <div class="section">
   <div class="section-title">Use Cases</div>
   <div class="step-grid">
-    <div class="step"><div class="step-num" style="font-size:24px">🤖</div><div class="step-title">Multi-Agent Workflows</div><div class="step-desc">Delegate authority from human to agent to sub-agent. Scope narrows at every level. One revoke kills the entire chain.</div></div>
-    <div class="step"><div class="step-num" style="font-size:24px">📊</div><div class="step-title">Execution Graph</div><div class="step-desc">Every action recorded. Query by workflow (provenance_ref), agent, action type, or time range. Agent reputation builds from real data.</div></div>
-    <div class="step"><div class="step-num" style="font-size:24px">🏥</div><div class="step-title">Regulated Industries</div><div class="step-desc">Healthcare, finance, legal, defence. Tamper-evident audit trail with human feedback ratings. Policy assertions (HIPAA, SOC2, NIST ZTA) in every token.</div></div>
+    <div class="step"><div class="step-num" style="color:var(--teal)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="5" r="2.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="19" cy="19" r="2.5"/><line x1="7" y1="6.5" x2="10" y2="10.5"/><line x1="14" y1="13.5" x2="17" y2="17.5"/></svg></div><div class="step-title">Multi-Agent Workflows</div><div class="step-desc">Delegate authority from human to agent to sub-agent. Scope narrows at every level. One revoke kills the entire chain.</div></div>
+    <div class="step"><div class="step-num" style="color:var(--teal)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="20" x2="20" y2="20"/><line x1="7" y1="20" x2="7" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="17" y1="20" x2="17" y2="15"/></svg></div><div class="step-title">Execution Graph</div><div class="step-desc">Every action recorded. Query by workflow (provenance_ref), agent, action type, or time range. Agent reputation builds from real data.</div></div>
+    <div class="step"><div class="step-num" style="color:var(--teal)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div><div class="step-title">Regulated Industries</div><div class="step-desc">Healthcare, finance, legal, defence. Tamper-evident audit trail with human feedback ratings. Policy assertions (HIPAA, SOC2, NIST ZTA) in every token.</div></div>
   </div>
 </div>
 
@@ -353,7 +354,7 @@ rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/rep
   </div>
 
   <div style="text-align:center;padding:16px">
-    <a href="/api" style="font-family:var(--mono);font-size:13px;color:var(--teal);text-decoration:none">View all 68+ endpoints →</a>
+    <a href="/api" style="font-family:var(--mono);font-size:13px;color:var(--teal);text-decoration:none">View all 198 endpoints →</a>
   </div>
 </div>
 
@@ -369,7 +370,7 @@ rep = requests.<span class="fn">get</span>(f<span class="str">"{BASE}/v1/vat/rep
 
 <!-- IP NOTICE -->
 <div class="section" style="text-align:center">
-  <p style="color:var(--muted);font-size:13px">VAC Protocol — Patent Pending (1,068 claims, 17 filings with IP Australia)</p>
+  <p style="color:var(--muted);font-size:13px">VAC Protocol — Patent-pending, AU and US filings</p>
   <p style="color:var(--muted);font-size:13px;margin-top:4px">Submitted to NIST NCCoE AI Agent Identity and Authorization project</p>
   <p style="color:var(--muted);font-size:13px;margin-top:4px"><a href="/sdk" style="color:var(--teal);text-decoration:none">SDK Overview</a> · <a href="/api" style="color:var(--teal);text-decoration:none">Full API Docs</a> · <a href="/auth" style="color:var(--teal);text-decoration:none">Try Biometric Verification</a></p>
 </div>
