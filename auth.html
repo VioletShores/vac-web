@@ -1147,9 +1147,9 @@ function showSuccess() {
                     var _cand=_rp||document.referrer||'';
                     if (_cand) {
                         var _u=new URL(_cand, window.location.origin);
-                        if (_u.origin===window.location.origin && /^\/(tribunal-demo|financial-demo)(\.html)?$/.test(_u.pathname)) {
+                        if (_u.origin===window.location.origin && /^\/(tribunal-demo|financial-demo|trusted-water-demo|clinical-demo)(\.html)?$/.test(_u.pathname)) {
                             _dest=_u.origin+_u.pathname;
-                            _lbl=/financial/.test(_u.pathname)?'Continue to the scenario \u2192':'Continue to the matters \u2192';
+                            _lbl=/tribunal/.test(_u.pathname)?'Continue to the matters \u2192':'Continue to the scenario \u2192';
                         }
                     }
                 } catch(_re){}
