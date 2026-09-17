@@ -909,6 +909,32 @@ function startReauthCeremony(opts) {
     });
 }
 
+// F-1402 slice 1 (S194, "one email, one ceremony"): a server-issued 'otp' session from the
+// email-code step — this page's own, or one handed over in the link fragment (#vac_session=…,
+// never sent to any server by the browser) — lets the biometric step start without a SECOND code
+// while the server still says it is valid. The server decides; nothing here is trusted on its own.
+(function captureFragmentSession(){
+    try {
+        const m = (window.location.hash || '').match(/(?:^#|[&])vac_session=([^&]+)/);
+        if (m && m[1]) {
+            sessionStorage.setItem('vac_otp_session', decodeURIComponent(m[1]));
+            const clean = window.location.hash.replace(/(^#|&)vac_session=[^&]*/, '$1').replace(/^#&/, '#');
+            history.replaceState(null, '', window.location.pathname + window.location.search + (clean === '#' ? '' : clean));
+        }
+    } catch (_) {}
+})();
+function _storedOtpSession() {
+    try { return sessionStorage.getItem('vac_otp_session') || localStorage.getItem('vac_otp_session') || ''; } catch (_) { return ''; }
+}
+function _serverOtpSessionFor(email) {
+    const tok = _storedOtpSession();
+    if (!tok) return Promise.resolve(false);
+    return fetch(API_BASE + '/v1/session/verify', { headers: { 'Authorization': 'Bearer ' + tok } })
+        .then(r => r.ok ? r.json() : null)
+        .then(j => !!(j && j.valid && String(j.email || '').toLowerCase() === String(email || '').toLowerCase()))
+        .catch(() => false);
+}
+
 function goToCamera() {
     const d = userData();
     const errEl = document.getElementById('identityError');
@@ -958,7 +984,16 @@ function goToCamera() {
     const btn = document.getElementById('btnIdentity');
     btn.disabled = true;
     btn.textContent = 'Sending code...';
-    
+
+    // F-1402: an email code already proven in the last few minutes (server-checked) covers this step.
+    _serverOtpSessionFor(d.email).then(function (ok) {
+    if (ok) {
+        try { vacDebug && vacDebug('otp_skipped_server_session'); } catch (_) {}
+        btn.disabled = false;
+        btn.textContent = 'Continue';
+        startReauthCeremony();
+        return;
+    }
     fetch(API_BASE + '/v1/auth/request-otp', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -984,6 +1019,7 @@ function goToCamera() {
         errEl.style.display = 'block';
         btn.disabled = false;
         btn.textContent = 'Continue';
+    });
     });
 }
 
@@ -1025,6 +1061,8 @@ function verifyAuthOTP() {
                 confirmed[userData().email.toLowerCase()] = Date.now();
                 localStorage.setItem('vac_otp_confirmed', JSON.stringify(confirmed));
             } catch(e) {}
+            // F-1402: keep the server's short-lived 'otp' session for the rest of this visit.
+            try { if (data.session_token) { sessionStorage.setItem('vac_otp_session', data.session_token); localStorage.setItem('vac_otp_session', data.session_token); } } catch(e) {}
             startReauthCeremony();
         }
     })
