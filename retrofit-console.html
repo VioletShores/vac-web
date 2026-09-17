@@ -1209,6 +1209,19 @@ function showSealReceipt({ jti, trust, verifyPath, action, email }) {
   receipt.classList.add('show');
   receipt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
+// S194: opened from a sector demo (?system=pharma / water / scada / case), start on that system
+// instead of a blank picker. The picker still lets the viewer change it.
+(function () {
+  try {
+    var want = new URLSearchParams(window.location.search).get('system');
+    var sel = document.getElementById('systemSelect');
+    if (!want || !sel) return;
+    if (!Array.prototype.some.call(sel.options, function (o) { return o.value && o.value === want; })) return;
+    sel.value = want;
+    onSystemChange();
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>

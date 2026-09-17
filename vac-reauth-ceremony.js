@@ -790,6 +790,15 @@ let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-read
 // voice on every step — the latch only stops the Start button disappearing under the pointer.
 const PREFLIGHT_LATCH_MS = 120000;
 let _preflightPassedAt = 0;
+// S194 (IDSIA meeting: "no one will read the small print"): once light + mic + hand pass, the
+// ceremony moves on by itself after a short beat — no Start tap to miss. Safe on iOS because the
+// next screen (the numbers preview) needs an "I'm ready" tap, which is the gesture that resumes
+// audio (dismissChallengeIntro). The Start button still works for anyone who taps first.
+let _preflightAutoStarted = false;
+const PREFLIGHT_AUTOSTART_MS = 900;
+// The pre-flight mic test only proves the microphone hears speech; the greeting and digit gates
+// keep the full VOICED_RUN_TICKS_NEEDED bar. ~0.8s of voice at TICK_MS=200.
+const MIC_PREFLIGHT_TICKS_NEEDED = 4;   // used via _micVoicedState.need (see _newVoicedRunState)
 function _preflightLatched() {
     return !!_preflightPassedAt && (performance.now() - _preflightPassedAt) < PREFLIGHT_LATCH_MS;
 }
@@ -841,7 +850,7 @@ function _installPreflightGestureResume() {
 }
 const AV_HAND_GRACE_MS = 3000; // F-929 (Rob, S147): bounded, VISIBLE grace after hand-drop so one-handed users can reach Start — honesty preserved by the on-chip countdown
 let _handGraceStartT = 0;      // F-929: timestamp when the current grace window opened (0 = not in grace)
-let _micVoicedState = _newVoicedRunState();  // L-2503/L-2504 (S166): the mic test's own voiced-run tracker — same shared shape/predicate the greeting gate uses (see VOICE_BAND_MIN_RATIO above)
+let _micVoicedState = _newVoicedRunState(MIC_PREFLIGHT_TICKS_NEEDED);  // L-2503/L-2504 (S166): the mic test's own voiced-run tracker — same shared shape/predicate the greeting gate uses (see VOICE_BAND_MIN_RATIO above)
 let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
 let _micRunLevels = [];    // T-329c: levels making up the CURRENT qualifying voiced run (feeds the D-VAD-CALIBRATION-GREETING-BOUND seed median)
 let _micLastQualifyT = 0;  // T-329c: last time a qualifying (voiced-run) pass occurred — drives 10s regression
@@ -918,7 +927,7 @@ const VOICED_RUN_TICKS_NEEDED = 7;   // mirrors PHRASE_VOICED_TICKS_NEEDED — ~
 const VOICED_RUN_MOD_DELTA = 0.045;  // mirrors PHRASE_MOD_DELTA — the run's rms range must exceed this; a flat tone/hum/steady noise floor can't satisfy it
 const VOICED_RUN_SPEECH_RMS_FLOOR = 0.055;   // mirrors VAD_SPEECH_RMS_FALLBACK (ceremony-RMS scale — see D-VAD-UNITS above _micSeededAmbientRms) — the near-field amplitude gate; spectral shape alone (a far-field TV) isn't enough
 const VOICED_RUN_SILENCE_RMS_FLOOR = 0.030;  // mirrors VAD_SILENCE_RMS_FALLBACK — below this is genuine near-silence (decay); the gap between the two floors is the neutral "neither" band (hold)
-function _newVoicedRunState() { return { ticks: 0, min: 1, max: 0 }; }
+function _newVoicedRunState(need) { return { ticks: 0, min: 1, max: 0, need: need || 0 }; }
 // One frame of evidence, in ceremony-RMS units (see D-VAD-UNITS above _micSeededAmbientRms): rms =
 // time-domain RMS, isVoicedFrame = near-field amplitude gate AND voice-band ratio both passed this
 // frame (or an already-proven starved-analyser fallback frame), isSilenceFrame = genuine near-
@@ -939,7 +948,7 @@ function _voicedRunTick(state, rms, isVoicedFrame, isSilenceFrame) {
 // where amplitude itself is unreliable) skips the modulation check — mirrors the greeting gate's
 // pre-existing `_vadStarved ||` escape.
 function _voicedRunPass(state, modOverride) {
-    return state.ticks >= VOICED_RUN_TICKS_NEEDED && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
+    return state.ticks >= (state.need || VOICED_RUN_TICKS_NEEDED) && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
 }
 // SAGA-SILENT-06: OS-level mic privacy block / wrong device yields a live-but-silent track.
 // The analyser reads zeros continuously; all VAD thresholds fail; no sensor identified cause.
@@ -1480,11 +1489,11 @@ function startAVChecks() {
     // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
-    _preflightPassedAt = 0;
+    _preflightPassedAt = 0; _preflightAutoStarted = false;
     _installPreflightGestureResume();
     _handStableFrames = 0;
     _handUnstableFrames = 0;
-    _micVoicedState = _newVoicedRunState();
+    _micVoicedState = _newVoicedRunState(MIC_PREFLIGHT_TICKS_NEEDED);
     _micLevelHistory = [];
     _micRunLevels = [];
     _micLastQualifyT = 0;
@@ -1646,7 +1655,7 @@ function startAVChecks() {
                     _micFallbackNarrated = false;
                     setAVStatus('mic', 'checking', 'Mic');
                     const _mpr = document.getElementById('avMicPromptText');
-                    if (_mpr) _mpr.textContent = 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
+                    if (_mpr) _mpr.textContent = 'Say your name out loud';
                 }
             }
             // F-941 (BUILD 393): frequency-spectrum data pulled every frame (not just when the
@@ -1808,8 +1817,8 @@ function startAVChecks() {
             if (!avChecks.mic && !(_micOnFallback && _micFallbackNarrated)) {
                 const _mpp = document.getElementById('avMicPromptText');
                 if (_mpp) {
-                    const _pct = Math.min(99, Math.round((_micVoicedState.ticks / VOICED_RUN_TICKS_NEEDED) * 100));
-                    const _want = _micVoicedState.ticks > 0 ? ('Listening\u2026 keep talking (' + _pct + '%)') : 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
+                    const _pct = Math.min(99, Math.round((_micVoicedState.ticks / MIC_PREFLIGHT_TICKS_NEEDED) * 100));
+                    const _want = _micVoicedState.ticks > 0 ? ('Listening\u2026 keep talking (' + _pct + '%)') : 'Say your name out loud';
                     if (_mpp.textContent !== _want) _mpp.textContent = _want;
                 }
             }
@@ -1860,7 +1869,7 @@ function startAVChecks() {
                 _micLastQualifyT = 0;
                 setAVStatus('mic', 'checking', 'Mic');
                 const _mpt = document.getElementById('avMicPromptText');
-                if (_mpt) _mpt.textContent = 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
+                if (_mpt) _mpt.textContent = 'Say your name out loud';
                 micWaitStart = 0;
             }
         }
@@ -2764,7 +2773,7 @@ function updateMicTips() {
         tip.innerHTML = `<span style="color: var(--warning);">Mic not picking up audio?</span> ${tips[0] || 'Check your browser permissions.'}`;
         tip.style.display = 'block';
     } else if (waited > 3) {
-        tip.textContent = 'Keep talking in a normal voice, close to the device, for about 2 seconds';
+        tip.textContent = 'Speak in a normal voice, close to the device';
         tip.style.display = 'block';
     }
 }
@@ -2819,14 +2828,14 @@ function updateAVReady() {
     if (guide) {
         const _steps = _fastStill ? 2 : 3;   // fast: light+mic; full: +hand
         if (_preflightLatched()) {
-            guide.textContent = 'All set \u2713  Press Start verification when you\u2019re ready';
+            guide.textContent = 'All set \u2713  Starting\u2026';
             guide.style.color = 'var(--success)';
             guide.style.borderColor = 'var(--success-border, rgba(63,185,80,0.3))';
             guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
         } else if (!avChecks.light) {
             guide.textContent = 'Step 1 of ' + _steps + ' — find good lighting so your face is clearly visible';
         } else if (!avChecks.mic) {
-            guide.textContent = 'Step 2 of ' + _steps + ' — say a full sentence (your name and today\u2019s date) to test your microphone';
+            guide.textContent = 'Step 2 of ' + _steps + ' — say your name out loud';
         } else if (!_fastStill && !avChecks.hand) {
             guide.textContent = 'Step 3 of 3 — hold your hand up beside your cheek, on the marker (you\u2019ll see it tracked)';
         } else if (_fastStill && !_fastDetectorReady) {
@@ -2851,6 +2860,23 @@ function updateAVReady() {
         if (btn.disabled !== !allGood) btn.disabled = !allGood;
         if (btn.textContent !== _wantText) btn.textContent = _wantText;
     }
+    // S194: auto-start once the checks have held for a short beat (see _preflightAutoStarted).
+    // Full ceremony only, and only when the numbers preview will show (its "I'm ready" tap is the
+    // audio gesture on iOS). Fast/still and voice-only paths keep the Start tap.
+    try {
+        if (allGood && !_preflightAutoStarted && _preflightPassedAt && !_fastStill
+            && !window.__vacAutoProceedChallenge && !window.__vacSkipExplainer
+            && btn && !btn.disabled && btn.textContent === 'Start verification'
+            && btn.onclick !== requestCamera
+            && fingerFallback !== 'voice'
+            && challengeData && challengeData.digits && challengeData.digits.length
+            && !challengeIncomplete()
+            && (performance.now() - _preflightPassedAt) >= PREFLIGHT_AUTOSTART_MS) {
+            _preflightAutoStarted = true;
+            try { vacDebug('preflight_autostart', null, { held_ms: Math.round(performance.now() - _preflightPassedAt) }); } catch (_) {}
+            setTimeout(function(){ try { goToChallenge(); } catch(_) {} }, 0);
+        }
+    } catch (_) {}
     // Service-error AUTO-retry: once the (warmed) pre-flight passes, advance to the challenge
     // automatically — preserves the "retrying automatically" flow without the cold-entry race.
     // Auto-proceed only when the challenge is ALSO loaded — requestCamera() clears challengeData
@@ -2888,8 +2914,8 @@ function retryAVSetup() {
     // Stop existing checks (closes and nulls avAudioCtx)
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
-    _preflightPassedAt = 0;
-    _micVoicedState = _newVoicedRunState();
+    _preflightPassedAt = 0; _preflightAutoStarted = false;
+    _micVoicedState = _newVoicedRunState(MIC_PREFLIGHT_TICKS_NEEDED);
     _micLevelHistory = [];
     _micRunLevels = [];
     _micRunRmsSamples = [];
@@ -2914,7 +2940,7 @@ function retryAVSetup() {
     });
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
-    document.getElementById('avMicPromptText').textContent = 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
+    document.getElementById('avMicPromptText').textContent = 'Say your name out loud';
     document.getElementById('avAudioLevel').style.width = '0%';
     document.getElementById('avAudioPct').textContent = '0%';
     updateAVReady();
@@ -7791,7 +7817,7 @@ function resetBiometricUI(preserveRetryBudget) {
     // 3. Reset the AV preflight gate so light/mic/hand must re-pass — this is what
     //    re-runs the hand preflight that warms the detector.
     avChecks = { face: false, light: false, mic: false, hand: false };
-    _preflightPassedAt = 0;
+    _preflightPassedAt = 0; _preflightAutoStarted = false;
     // 4. Restore the camera button to its first-run entry point. Run 1 rewired
     //    btnCamera.onclick to goToChallenge (requestCamera resets it again at its end).
     var btnCam = document.getElementById('btnCamera');
@@ -8200,7 +8226,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div id="avAudioBar" style="display:none; margin-bottom: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
             <div id="avMicPrompt" style="display: flex; align-items: center; gap: 8px; font-size: clamp(12px, 1.4vw, 14px); color: var(--text-primary); font-weight: 500; margin-bottom: 8px;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                <span id="avMicPromptText">Keep talking for about 2 seconds — say your name and today’s date</span>
+                <span id="avMicPromptText">Say your name out loud</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">

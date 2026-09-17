@@ -356,7 +356,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <div class="domains-cta-text">
         <div class="cta-h">The regulatory backdrop &mdash; EU GMP Annex 16 and Qualified Person certification</div>
         <div class="cta-d">Annex 16 sets out the QP's personal responsibility for certifying that each batch has been manufactured and checked in compliance with EU GMP and the marketing authorisation, before it is released. A QP's certification decision is a named, individually accountable act &mdash; and inspectors expect that accountability to be provable, not merely asserted in a quality system record. Here is how a sealed-certification mechanism maps to that requirement &mdash; and it retrofits: the quality system and batch record process stay exactly as they are, and provable QP authority adds at the certification point through simple APIs. No rebuild required.</div>
-        <a class="cta-btn" href="/eu-ai-act.html">The Act, mapped &rarr;</a> <a class="cta-btn" href="/p/capabilities-226cb031f36e.html" style="margin-left:8px">Platform capability map &rarr;</a> <a class="cta-btn" href="/retrofit-console.html" style="margin-left:8px">Configure the retrofit &rarr;</a>
+        <a class="cta-btn" href="/eu-ai-act.html">The Act, mapped &rarr;</a> <a class="cta-btn" href="/p/capabilities-226cb031f36e.html" style="margin-left:8px">Platform capability map &rarr;</a> <a class="cta-btn" href="/retrofit-console.html?system=pharma" style="margin-left:8px">Configure the retrofit &rarr;</a>
       </div>
       <div style="height:22px"></div>
       <div>
@@ -401,7 +401,7 @@ const SAMPLE_QP_IDENTITY = 'qp@pharma-demo.vac';
 //                    human_identity bound to the verified email (fails closed without one, same
 //                    rule financial-demo.html's mintMatterToken uses — a name-only token can't
 //                    bind the authorize re-auth's email-derived human_ref).
-// mode.live=false → "Skip the live check (demo only)": verification_method 'credential_check',
+// mode.live=false → "Skip the live check (demo only)": verification_method 'simulated',
 //                    human_identity is the labelled sample QP identity, no session token.
 async function mintPharmaToken(mode) {
   mode = mode || {};
@@ -416,7 +416,9 @@ async function mintPharmaToken(mode) {
     return false;
   }
 
-  const verificationMethod = live ? 'multi_modal' : 'credential_check';
+  // S194: a skipped live check is 'simulated' (30%, L1) — the same score the water demo's skip
+  // shows, so the two demos never disagree about what "no live check" is worth.
+  const verificationMethod = live ? 'multi_modal' : 'simulated';
   const humanIdentity = live ? cerEmail : SAMPLE_QP_IDENTITY;
 
   const constraints = {
@@ -531,7 +533,35 @@ async function authorizeSeal() {
 // page's own JS memory (window.__vacVerified) — no query/hash/sessionStorage marker is needed,
 // mirroring exactly how financial-demo.html preserves state across its own seal-gate round trip.
 const VERIFY_SRC = '/auth.html';
-function sealReauthGate(onPass, onCancel) {
+// S194 (IDSIA meeting): after a successful check inside the overlay, the "You're Authenticated"
+// screen had no way on — the overlay stayed open. A clear button in the overlay header now closes
+// it and takes the viewer to the next step.
+function hideOverlayContinue() {
+  const b = document.getElementById('voContinue'); if (b) b.hidden = true;
+}
+function showOverlayContinue(label, onContinue) {
+  const head = document.querySelector('#verifyOverlay .vo-head');
+  if (!head) return;
+  let b = document.getElementById('voContinue');
+  if (!b) {
+    b = document.createElement('button');
+    b.id = 'voContinue'; b.type = 'button';
+    b.style.cssText = 'margin-left:auto;margin-right:12px;padding:10px 18px;border-radius:10px;border:0;background:#2DD4BF;color:#06121C;font-weight:800;font-size:15px;letter-spacing:0;text-transform:none;font-family:inherit;cursor:pointer;';
+    const close = document.getElementById('voClose');
+    head.insertBefore(b, close || null);
+  }
+  b.textContent = label;
+  b.hidden = false;
+  b.onclick = function () {
+    const overlay = document.getElementById('verifyOverlay');
+    const frame = document.getElementById('voFrame');
+    try { overlay.hidden = true; frame.src = 'about:blank'; document.body.style.overflow = ''; } catch (e) {}
+    b.hidden = true;
+    try { if (typeof onContinue === 'function') onContinue(); } catch (e) {}
+  };
+}
+function sealReauthGate(onPass, onCancel, opts) {
+  opts = opts || {};
   window.__vacGateActive = true;
   let settled = false;
   const overlay = document.getElementById('verifyOverlay');
@@ -555,6 +585,7 @@ function sealReauthGate(onPass, onCancel) {
           }, { once: true });
         }
       } catch (e) {}
+      showOverlayContinue(opts.continueLabel || 'Continue to the seal \u2192', opts.onContinue);
       onPass();
     }
   }
@@ -571,7 +602,10 @@ function sealReauthGate(onPass, onCancel) {
       if (!_vEmail && _vv.email) _vEmail = _vv.email;
     } catch (_) {}
   }
-  var _reauthQS = '?greeting=skip&reauth=1'
+  hideOverlayContinue();
+  // S194: the first live check on this page ("Try it yourself") runs the FULL ceremony, greeting
+  // included ("Hi, I'm <name>"). Only the seal step's second check, in the same session, drops it.
+  var _reauthQS = (opts.fullGreeting ? '?reauth=1' : '?greeting=skip&reauth=1')
       + (_vName ? '&name=' + encodeURIComponent(_vName) : '')
       + (_vEmail ? '&email=' + encodeURIComponent(_vEmail) : '');
   frame.src = VERIFY_SRC + _reauthQS; overlay.hidden = false; document.body.style.overflow = 'hidden';
@@ -689,7 +723,9 @@ document.getElementById('sealLiveBtn').addEventListener('click', function () {
     () => {
       if (liveBtn) liveBtn.disabled = false;
       if (status) status.textContent = 'Live check cancelled — run it again, or skip (demo only).';
-    }
+    },
+    { continueLabel: 'See your sealed receipt \u2192',
+      onContinue: function () { const rc = document.getElementById('receipt'); if (rc) rc.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
   );
 });
 
@@ -717,7 +753,7 @@ function showReceipt() {
     : 'Reference token — pre-minted';
   const liveCheckRow = tok.liveCeremony
     ? 'Yes — multi-modal biometric ceremony, run live against the VAC production backend'
-    : 'Skipped (demo only) — verification_method: credential_check, sample identity';
+    : 'Skipped (demo only) — verification_method: simulated, sample identity';
 
   // S194 critique-gate resolution (c): if the server explicitly refused seal_decision, this
   // receipt must not present the seal as authorised — swap the heading/status to an honest
@@ -880,12 +916,14 @@ document.getElementById('reset').onclick = reset;
         }
         chip.scrollIntoView({ behavior: 'smooth', block: 'center' });
       },
-      () => {}
+      () => {},
+      { fullGreeting: true, continueLabel: 'Continue to the decision \u2192',
+        onContinue: function () { const c = document.getElementById('pharmaBioChip'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
     );
   });
 })();
 </script>
-<div style="position:fixed;bottom:6px;right:8px;z-index:2000;font-family:monospace;font-size:10px;color:#3a4658;pointer-events:none;">build c3-1615</div>
+<div style="position:fixed;bottom:6px;right:8px;z-index:2000;font-family:monospace;font-size:10px;color:#3a4658;pointer-events:none;">build c3-1616</div>
 <script>try{navigator.sendBeacon&&navigator.sendBeacon('https://api.athenapilot.ai/v1/telemetry/view',JSON.stringify({page:location.pathname}))}catch(e){}</script>
 <script>
 (function(){
