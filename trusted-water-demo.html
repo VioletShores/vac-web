@@ -144,6 +144,12 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .vo-frame{flex:1 1 auto;width:100%;border:none;background:#0A0F1A;}
 .bio-verified-chip{display:none;margin-top:10px;font-family:var(--mono);font-size:12px;color:#22c55e;border:1px solid rgba(34,197,94,.45);border-radius:8px;padding:8px 12px;}
 @media(max-width:560px){.vo{padding:0;}.vo-card{width:100%;height:100%;border-radius:0;border:none;}}
+/* S194: seal-step choice — live check or labelled demo skip (same pattern as pharma-demo) */
+.seal-gate{margin-top:14px;border-top:1px dashed var(--amber-border, rgba(210,153,34,.35));padding-top:14px;}
+.seal-gate[hidden]{display:none;}
+.seal-gate-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
+.seal-skip-link{font-family:var(--mono);font-size:12.5px;color:var(--text-tertiary);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.seal-gate-status{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);min-height:14px;}
 </style>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
@@ -294,6 +300,14 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
                 <span class="policy-chip">format: JWT</span>
                 <span class="amber-chip">sealing now...</span>
               </div>
+              <div class="seal-gate" id="sealGate" hidden>
+                <p style="margin:0;font-size:13.5px;color:var(--text-secondary);">In a deployment the engineer passes a live face-and-voice check before the seal. Try it yourself (about a minute), or skip it for a quick look.</p>
+                <div class="seal-gate-actions">
+                  <button class="btn btn-primary" id="sealLiveBtn" type="button">Run the live check &amp; seal &rarr;</button>
+                  <a href="#" id="sealSkipLink" class="seal-skip-link">Skip the live check (demo only)</a>
+                </div>
+                <div class="seal-gate-status" id="sealGateStatus"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -428,7 +442,8 @@ async function mintWaterToken() {
       trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
       verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify' + (data.compact_jwt ? ('#jwt=' + encodeURIComponent(data.compact_jwt)) : ''),
       minted: true,
-      liveCeremony: !!(cerEmail && cerSession)
+      // S194: 'live' only when the server accepted the session (a rejected session comes back 'simulated')
+      liveCeremony: !!(cerEmail && cerSession && data.claims && data.claims.vac_verification_method && data.claims.vac_verification_method !== 'simulated')
     };
     return true;
   } catch (e) {
@@ -474,6 +489,27 @@ function completeStep(n) {
   if (n < 5) { conn(n).classList.add('done'); }
 }
 
+async function sealAndFinish() {
+  // Called from the seal-gate choice: mint (live if a session is in hand), then show the receipt.
+  const btn = document.getElementById('advance');
+  const gate = document.getElementById('sealGate');
+  sealing = true;
+  renderStep(4);
+  completeStep(3);
+  const st = document.getElementById('sealGateStatus');
+  if (st) st.textContent = 'Sealing…';
+  await mintWaterToken();
+  sealing = false;
+  if (gate) gate.hidden = true;
+  stepIdx = 4;
+  renderStep(5);
+  completeStep(4);
+  completeStep(5);
+  showReceipt();
+  btn.style.display = 'none';
+  const rc = document.getElementById('receipt'); if (rc) rc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 async function advance() {
   const btn = document.getElementById('advance');
   if (sealing) return;
@@ -484,6 +520,16 @@ async function advance() {
     renderStep(stepIdx + 1);
     if (stepIdx > 0) completeStep(stepIdx);
 
+    if (stepIdx === 3 && !(window.__vacVerified && window.__vacVerified.session_token)) {
+      // S194: no live session yet — offer the live check or a labelled demo skip before sealing.
+      const gate = document.getElementById('sealGate');
+      if (gate) {
+        gate.hidden = false;
+        btn.style.display = 'none';
+        gate.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+    }
     if (stepIdx === 3) {
       // Step 4: Seal — mint live token
       sealing = true;
@@ -505,6 +551,20 @@ async function advance() {
   }
 }
 
+document.addEventListener('DOMContentLoaded', function () {
+  const live = document.getElementById('sealLiveBtn');
+  const skip = document.getElementById('sealSkipLink');
+  if (live) live.addEventListener('click', function () {
+    try { sessionStorage.setItem('waterSealPending', '1'); } catch (e) {}
+    if (typeof window.waterOpenVerify === 'function') window.waterOpenVerify();
+  });
+  if (skip) skip.addEventListener('click', function (e) {
+    e.preventDefault();
+    window.__waterSkipLive = true;
+    sealAndFinish();
+  });
+});
+
 function showReceipt() {
   try{ sessionStorage.setItem('waterWalkDone','1'); }catch(e){}
   const tok = SEAL_TOKEN;
@@ -514,7 +574,7 @@ function showReceipt() {
   const vv = window.__vacVerified || null;
   const authBy = (tok.liveCeremony && vv && vv.email)
     ? String(vv.email).trim() + ' · verified live (VAC)'
-    : 'Verified NOC engineer (representative scenario)';
+    : (window.__waterSkipLive ? 'Sample engineer — live check skipped (demo only)' : 'Verified NOC engineer (representative scenario)');
   const tokStatus = tok.minted
     ? (tok.liveCeremony ? 'Live mint — minted under this live session' : 'Live mint — freshly signed')
     : 'Reference token — pre-minted';
@@ -580,6 +640,9 @@ function reset() {
   btn.disabled = false;
   btn.textContent = 'Begin walkthrough';
   SEAL_TOKEN = REAL_TOKEN;
+  window.__waterSkipLive = false;
+  const _g = document.getElementById('sealGate'); if (_g) _g.hidden = true;
+  const _gs = document.getElementById('sealGateStatus'); if (_gs) _gs.textContent = '';
 }
 
 function esc(s) {
@@ -648,6 +711,16 @@ document.getElementById('reset').onclick = reset;
             setTimeout(function(){ adv.style.boxShadow='none'; }, 2600); }
         }; }
         chip.scrollIntoView({behavior:'smooth', block:'center'});
+        // S194: the user chose "Run the live check & seal" at step 4 — seal straight away under this session.
+        var _pending=false; try{ _pending = sessionStorage.getItem('waterSealPending')==='1'; sessionStorage.removeItem('waterSealPending'); }catch(e){}
+        if(_pending && typeof sealAndFinish==='function'){
+          chip.innerHTML='Identity verified live — sealing under your live session…';
+          setTimeout(async function(){
+            try{ window.__waterSkipLive=false; reset(); await advance(); await advance(); await advance(); await sealAndFinish();
+                 chip.innerHTML=(SEAL_TOKEN && SEAL_TOKEN.liveCeremony) ? 'Identity verified live — sealed under your live session. Receipt below ↓' : 'Sealed — but the server did not accept the live session, so this is a demo-level seal. Receipt below ↓'; }
+            catch(e){ chip.innerHTML='Verified — tap Begin walkthrough to seal under your live session.'; }
+          }, 300);
+        }
       }
       return true;
     } catch(e){ return false; }

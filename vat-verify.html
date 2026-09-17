@@ -436,7 +436,7 @@ body {
 <script src="/vac-finger-detect.js"></script>
 <!-- S120 unify (F-624 Rung 2): shared VACReauth ceremony — fast mode for the credential re-verify. -->
 <script src="/vac-copy-registry.js"></script>
-<script src="/vac-reauth-ceremony.js?v=s194b"></script>
+<script src="/vac-reauth-ceremony.js?v=s194c"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
@@ -491,7 +491,7 @@ body {
 </div>
 
 <!-- Theme system — loaded before main script -->
-<script src="vac-themes.js"></script>
+<script src="/vac-themes.js"></script>
 
 <script>
 const API_BASE = window.VAC_API_BASE || 'https://vac-system-production.up.railway.app';
@@ -590,7 +590,7 @@ function renderSigResult(res) {
         return `<div style="font-size:13px;color:var(--text-muted);">Signature check not available in this browser.</div>`;
     }
     if (res.reason === 'unparseable') {
-        return `<div style="font-size:13px;color:var(--error);">That doesn't look like a valid compact JWT.</div>`;
+        return `<div style="font-size:13px;color:var(--error);line-height:1.5;">The token in this link is damaged or incomplete, so its signature can't be checked. Open the receipt's <b>Check it yourself</b> link again, or paste the full token below.</div>`;
     }
     const badge = res.ok
         ? '<span style="color:var(--success);font-weight:700;">PASS</span>'
@@ -705,18 +705,22 @@ function render(data, verif, budgetData, sigResult, jwtRaw) {
     // The server only reports expiry/revocation; if the token in hand does not
     // verify against the published key, it was altered — never show it as verified.
     const sigFail = !!(sigResult && sigResult.ok === false);
+    const sigDamaged = !!(sigResult && sigResult.reason === 'unparseable' && jwtRaw);
     if (sigFail) {
         v.errors = (Array.isArray(v.errors) ? v.errors.slice() : []);
         v.errors.unshift('Signature check failed in your browser: this token was altered after it was sealed.');
+    } else if (sigDamaged) {
+        v.errors = (Array.isArray(v.errors) ? v.errors.slice() : []);
+        v.errors.unshift('The token in this link is damaged, so this page cannot confirm it.');
     }
-    const ok = v.valid && !sigFail;
+    const ok = v.valid && !sigFail && !sigDamaged;
     const isExpiry = !ok && Array.isArray(v.errors) && v.errors.length > 0 &&
         v.errors.every(e => /expired/i.test(String(e))) &&
         !v.errors.some(e => /signature|tamper/i.test(String(e)));
     const nb = document.getElementById('nav-badge');
     if (!ok) {
         if (isExpiry) { nb.textContent = 'EXPIRED'; nb.className = 'nav-badge expired'; }
-        else { nb.textContent = sigFail ? 'TAMPERED' : 'INVALID'; nb.className = 'nav-badge invalid'; }
+        else { nb.textContent = sigFail ? 'TAMPERED' : (sigDamaged ? 'CAN\u2019T CHECK' : 'INVALID'); nb.className = 'nav-badge invalid'; }
     }
 
     const root = cd.find(n => n.is_root);
@@ -785,7 +789,7 @@ function render(data, verif, budgetData, sigResult, jwtRaw) {
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div class="hero-tagline" style="color:var(--warning)">Authority expired</div>
-            <div class="hero-sub">Server status: not revoked · parent links present · authority expired — authority in VAC is time-bounded by design. Signature not checked here.</div>
+            <div class="hero-sub">Server status: not revoked · parent links present · authority expired — authority in VAC is time-bounded by design. ${sigResult && sigResult.ok === true ? 'Signature: PASS (checked in your browser, below) — the record is genuine; only the permission has lapsed.' : 'Signature: see the check below.'}</div>
         </div>`;
     } else {
         const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

@@ -799,8 +799,39 @@ let _preflightGestureResumeInstalled = false;
 function _installPreflightGestureResume() {
     if (_preflightGestureResumeInstalled) return;
     _preflightGestureResumeInstalled = true;
-    const _resume = function () {
+    let _lastTapLogT = 0;
+    const _resume = function (ev) {
         try { if (avAudioCtx && avAudioCtx.state === 'suspended') { avAudioCtx.resume(); try { vacDebug('preflight_gesture_resume', null, { state: avAudioCtx.state }); } catch (_) {} } } catch (_) {}
+        // S194 diagnostic: where do taps land while the Start button is on screen? (a tap that never
+        // reaches the button — covered, disabled, or off-target — is invisible otherwise). ≤1 per 2 s.
+        try {
+            const _btn = document.getElementById('btnCamera');
+            const _now = performance.now();
+            if (_btn && _btn.offsetParent !== null && (_now - _lastTapLogT) > 2000 && ev && ev.type === 'pointerdown') {
+                _lastTapLogT = _now;
+                const _t = ev.target;
+                const _r = _btn.getBoundingClientRect();
+                const _inBtn = ev.clientX >= _r.left && ev.clientX <= _r.right && ev.clientY >= _r.top && ev.clientY <= _r.bottom;
+                vacDebug('preflight_tap', null, {
+                    target: _t ? ((_t.id ? '#' + _t.id : '') || (_t.tagName || '').toLowerCase()) : null,
+                    on_button: !!(_t && (_t === _btn || _btn.contains(_t))),
+                    in_button_rect: _inBtn,
+                    button_disabled: !!_btn.disabled,
+                    button_text: String(_btn.textContent || '').slice(0, 40),
+                    pointer: ev.pointerType || null,
+                    latched: _preflightLatched(),
+                    checks: { light: !!avChecks.light, mic: !!avChecks.mic, hand: !!avChecks.hand },
+                });
+            }
+            // If something is layered over the Start button, a tap inside its rectangle still starts.
+            if (_btn && _btn.offsetParent !== null && !_btn.disabled && ev && ev.type === 'pointerdown' && ev.target && ev.target !== _btn && !_btn.contains(ev.target)) {
+                const _r2 = _btn.getBoundingClientRect();
+                if (ev.clientX >= _r2.left && ev.clientX <= _r2.right && ev.clientY >= _r2.top && ev.clientY <= _r2.bottom) {
+                    try { vacDebug('preflight_tap_forwarded', null, { target: ev.target.id || ev.target.tagName }); } catch (_) {}
+                    _btn.click();
+                }
+            }
+        } catch (_) {}
     };
     try {
         document.addEventListener('pointerdown', _resume, { passive: true, capture: true });
