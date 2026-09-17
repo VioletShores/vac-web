@@ -2,3 +2,5 @@
 node_modules/
 test-results/
 playwright-report/
+tests/biometric_harness/reports/*.json
+tests/biometric_harness/reports/*.md

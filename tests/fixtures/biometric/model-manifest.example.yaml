@@ -1,0 +1,27 @@
+# model-manifest.example.yaml — F-1202/S179
+#
+# Example MODEL MANIFEST (manifest-schema.json) for the harness's one reference
+# adapter (adapters/reference-digit-voice-adapter.js). vac-web has no real
+# speaker-embedding model today — the "current speaker path" this slice can wrap
+# is the digit-voice energy/VAD gate (vac-reauth-ceremony.js), the client-side
+# stage closest to speaker identity timing in the ceremony. When a real
+# speaker-verification model lands (tracked separately in
+# vac-protocol/research/speaker-verification-eval per its benchmark.py/adapters.py
+# pattern), it gets its own manifest with stage: speaker_verification and a new
+# adapter — this one stays the reference example for the heuristic-gate case.
+model_id: vac-web:digit-voice-gate
+version: S173
+stage: digit_voice
+adapter: reference-digit-voice-adapter.js
+provenance:
+  source: vac-reauth-ceremony.js beginRecording()/_startSpeechGate tick, ~L4140-4280
+  note: >
+    Client-side energy/VAD heuristic (not a trained model) — pacing aid only, per
+    L-2503; the real per-digit identity/content decision is server-side (Gemini).
+    Wrapped here so the adapter interface has a working reference before a real
+    speaker-verification model manifest exists.
+thresholds:
+  digit_voice_min_ms: 200
+  digit_voice_gap_ms: 200
+  voice_evidence_min_frames: 8
+created: 2026-08-30

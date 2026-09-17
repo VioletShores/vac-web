@@ -1,0 +1,87 @@
+name: biometric-harness
+# F-1202/S179 Biometric harness slice 1 — fixture-driven JS stage harness (mic
+# qualify, phrase gate, digit, face embed, finger/gesture), MODEL MANIFEST +
+# adapter interface, baseline.
+#
+# Node-only (no Playwright): every stage in tests/biometric_harness/stages/ either
+# source-anchors against vac-reauth-ceremony.js's inline logic (mic-qualify,
+# phrase-gate, digit-voice — a live AudioContext isn't needed to check the mirror
+# still matches shipped source) or loads the real vac-face-embed.js/
+# vac-finger-detect.js module in a Node vm sandbox and executes it directly
+# (finger-gesture, face-embed) — none of the five stages need a real DOM/browser.
+#
+# REPORT-ONLY: this workflow does not gate merge. The harness self-tests
+# (harness.test.js) are a real assertion suite, but the job as a whole always
+# succeeds — a fixture mismatch is surfaced via the uploaded report artifact +
+# job summary for a human to look at, not a merge block. See BASELINE-S179.md for
+# how to read a mismatch.
+
+on:
+  push:
+    branches:
+      - task-biometric-harness-s179
+      - main
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'vac-face-embed.js'
+      - 'vac-finger-detect.js'
+      - 'tests/biometric_harness/**'
+      - 'tests/fixtures/biometric/**'
+      - '.github/workflows/biometric-harness.yml'
+  pull_request:
+    paths:
+      - 'vac-reauth-ceremony.js'
+      - 'vac-face-embed.js'
+      - 'vac-finger-detect.js'
+      - 'tests/biometric_harness/**'
+      - 'tests/fixtures/biometric/**'
+      - '.github/workflows/biometric-harness.yml'
+
+jobs:
+  biometric-harness:
+    name: 'Biometric harness (fixture set, report-only)'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Harness self-tests (parser, source-anchoring, adapter contract)
+        id: selftest
+        continue-on-error: true
+        run: node --test tests/biometric_harness/harness.test.js
+
+      - name: Run fixture set + generate report
+        id: report
+        continue-on-error: true
+        run: node tests/biometric_harness/run.js
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo '## Biometric harness (F-1202/S179)' >> "$GITHUB_STEP_SUMMARY"
+          if [ -f tests/biometric_harness/reports/latest.md ]; then
+            cat tests/biometric_harness/reports/latest.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No report generated — run.js itself failed, see the "Run fixture set" step log.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biometric-harness-report
+          path: tests/biometric_harness/reports/
+          if-no-files-found: warn
+
+      - name: Report-only — never fail the job
+        if: always()
+        run: |
+          if [ "${{ steps.selftest.outcome }}" != "success" ]; then
+            echo "::warning::biometric harness self-tests failed — see the 'Harness self-tests' step log (report-only, not blocking)"
+          fi
+          if [ "${{ steps.report.outcome }}" != "success" ]; then
+            echo "::warning::biometric harness fixture run failed — see the 'Run fixture set' step log (report-only, not blocking)"
+          fi
+          exit 0
