@@ -701,14 +701,22 @@ function render(data, verif, budgetData, sigResult, jwtRaw) {
     }
 
     const { chain_display: cd, claim_mapping: cm, verification: v } = data;
-    const ok = v.valid;
+    // S194 night: a failed in-browser signature check overrides the server status.
+    // The server only reports expiry/revocation; if the token in hand does not
+    // verify against the published key, it was altered — never show it as verified.
+    const sigFail = !!(sigResult && sigResult.ok === false);
+    if (sigFail) {
+        v.errors = (Array.isArray(v.errors) ? v.errors.slice() : []);
+        v.errors.unshift('Signature check failed in your browser: this token was altered after it was sealed.');
+    }
+    const ok = v.valid && !sigFail;
     const isExpiry = !ok && Array.isArray(v.errors) && v.errors.length > 0 &&
         v.errors.every(e => /expired/i.test(String(e))) &&
         !v.errors.some(e => /signature|tamper/i.test(String(e)));
     const nb = document.getElementById('nav-badge');
     if (!ok) {
         if (isExpiry) { nb.textContent = 'EXPIRED'; nb.className = 'nav-badge expired'; }
-        else { nb.textContent = 'INVALID'; nb.className = 'nav-badge invalid'; }
+        else { nb.textContent = sigFail ? 'TAMPERED' : 'INVALID'; nb.className = 'nav-badge invalid'; }
     }
 
     const root = cd.find(n => n.is_root);
@@ -1252,7 +1260,13 @@ async function init() {
     const params = new URLSearchParams(window.location.search);
 
     const jwtRaw = getJWTFromPage();
-    const sigResult = jwtRaw ? await verifyCompactJWT(jwtRaw) : null;
+    let sigResult = jwtRaw ? await verifyCompactJWT(jwtRaw) : null;
+    // S194 night: a token carried over from another page (sessionStorage) must not be
+    // reported against this receipt. Only check the token whose receipt number matches.
+    if (sigResult && jti && sigResult.jti && sigResult.jti !== jti) {
+        try { sessionStorage.removeItem('vac_verify_jwt'); } catch (_) {}
+        sigResult = null;
+    }
 
     if (jti) {
         const [c, v, b] = await Promise.all([fetchChain(jti), fetchVerif(jti), fetchBudget(jti)]);
