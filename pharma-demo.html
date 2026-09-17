@@ -124,6 +124,15 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 .cta-btn{flex:0 0 auto;font-family:var(--font);font-size:14px;font-weight:600;background:var(--purple);color:#fff;border-radius:8px;padding:12px 22px;text-decoration:none;transition:background .15s;white-space:nowrap;border:none;cursor:pointer;}
 .cta-btn:hover{background:var(--purple-dim);}
 
+/* live ceremony seal gate (S194) — pauses the Seal step on an explicit live-check-or-skip choice */
+.seal-gate{margin-top:14px;border-top:1px dashed var(--amber-border);padding-top:14px;}
+.seal-gate[hidden]{display:none;}
+.seal-gate-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
+.seal-skip-link{font-family:var(--mono);font-size:12.5px;color:var(--text-tertiary);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+.seal-skip-link:hover{color:var(--text-secondary);}
+.seal-gate-status{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--text-tertiary);min-height:14px;}
+.receipt.failed{border-color:var(--amber-border);}
+
 @media(max-width:560px){
   .kv{grid-template-columns:1fr;}
   .domains-cta{flex-direction:column;align-items:flex-start;}
@@ -150,7 +159,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 </head>
 <body>
 <div class="page-shell">
-  <div class="preview-banner">Representative scenario &mdash; the seal and receipt mechanics are real VAC system output. Scenario data is illustrative and labeled as such.</div>
+  <div class="preview-banner">Representative scenario &mdash; the seal and receipt mechanics are real VAC system output. The certify step runs a live biometric ceremony against the production backend before sealing (or a clearly-labelled skip for a demo-only seal). Scenario data is illustrative and labeled as such.</div>
 
   <header class="top"><div class="wrap"><div class="top-row">
     <div class="brand">
@@ -290,7 +299,18 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
               <div style="margin-top:10px;">
                 <span class="policy-chip">algorithm: Ed25519</span>
                 <span class="policy-chip">format: JWT</span>
-                <span class="amber-chip">sealing now...</span>
+              </div>
+
+              <!-- S194: the certify step now runs financial-demo's live ceremony hand-off
+                   (sealReauthGate) before minting, instead of minting unconditionally the
+                   moment this step is revealed. See docs/PKT-S194-PHARMA-LIVE-QP.md. -->
+              <div class="seal-gate" id="sealGate" hidden>
+                <p style="font-size:13.5px;color:var(--text-secondary);">Certifying this release requires the Qualified Person to pass a live, multi-modal biometric ceremony &mdash; the same live re-auth financial-demo and tribunal-demo run at their sign-off/seal moment &mdash; right here, before the token is minted.</p>
+                <div class="seal-gate-actions">
+                  <button class="btn btn-primary" id="sealLiveBtn" type="button">Run the live check &amp; seal &rarr;</button>
+                  <a href="#" id="sealSkipLink" class="seal-skip-link">Skip the live check (demo only)</a>
+                </div>
+                <div class="seal-gate-status" id="sealGateStatus"></div>
               </div>
             </div>
           </div>
@@ -329,7 +349,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
     </section>
 
     <div class="fwd-note">
-      <strong>Honest scope.</strong> The scenario above — Lot SX-2291-B, the bioburden hold-time deviation, the batch record details, the QP identity — is representative and labeled as such. The seal and receipt mechanics are real VAC system output: the token is genuinely minted, Ed25519-signed, and independently verifiable at the URL shown in the receipt. The QP authorisation matrix and release conditions encoded in this token are illustrative placeholders; encoding a specific site's actual QP authorisation register, product-category scope, and deviation-classification rules is the integration build done with that site's Quality Unit.
+      <strong>Honest scope.</strong> The scenario above — Lot SX-2291-B, the bioburden hold-time deviation, the batch record details, the QP identity — is representative and labeled as such. The seal and receipt mechanics are real VAC system output: the token is genuinely minted, Ed25519-signed, and independently verifiable at the URL shown in the receipt. Certifying the batch (step 4) now runs the same live, multi-modal biometric ceremony financial-demo and tribunal-demo run at their sign-off/seal moment, and — when that ceremony completes — a genuine, server-audited <code>/v1/vat/authorize</code> gate call before the seal is presented as authorised; a clearly-labelled "Skip the live check (demo only)" link mints the same real, verifiable token under a sample identity instead, and the receipt states plainly which path produced it. The QP authorisation matrix and release conditions encoded in this token are illustrative placeholders; encoding a specific site's actual QP authorisation register, product-category scope, and deviation-classification rules is the integration build done with that site's Quality Unit.
     </div>
 
     <section class="domains-cta">
@@ -341,9 +361,9 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
       <div style="height:22px"></div>
       <div>
         <div class="cta-h">The identity gate &mdash; try it yourself, live</div>
-        <div class="cta-d">The Qualified Person in this scenario doesn't type a password &mdash; they pass a live multi-modal biometric ceremony: face match, passive liveness, and a spoken-and-shown number challenge, run against the VAC production backend. This is the same gate, live, on your device (~60 seconds; the recording is analysed in real time and discarded &mdash; no photos or video retained). In a site deployment, the session this ceremony mints is what binds the QP's certification to the sealed token below.</div>
-        <a class="cta-btn" href="#" id="pharmaBioBtn" onclick="pharmaOpenVerify();return false;">Try the live biometric &rarr;</a>
-        <div class="bio-verified-chip" id="pharmaBioChip">&#10003; Verified, live, against production &mdash; in a deployment, this session now signs the certification</div>
+        <div class="cta-d">The Qualified Person in this scenario doesn't type a password &mdash; they pass a live multi-modal biometric ceremony: face match, passive liveness, and a spoken-and-shown number challenge, run against the VAC production backend. This is the same ceremony the certify step (step 4, Seal) now runs before it will mint a live-bound seal (~60 seconds; the recording is analysed in real time and discarded &mdash; no photos or video retained). The session this ceremony mints is what binds the QP's certification to the sealed token below.</div>
+        <a class="cta-btn" href="#" id="pharmaBioBtn">Try the live biometric &rarr;</a>
+        <div class="bio-verified-chip" id="pharmaBioChip">&#10003; Verified, live, against production &mdash; this session now signs the certification</div>
       </div>
       <div style="height:22px"></div>
       <div>
@@ -355,7 +375,7 @@ header.top{border-bottom:1px solid var(--border);padding:22px 0;margin-bottom:40
 
     <div class="foot">
       <strong>What the seal proves:</strong> a verified, living Qualified Person held current authorisation for this product category at this site and certified this specific lot for release at this specific time &mdash; with a tamper-evident record an inspector can query independently, years after the event.
-      <div class="posture">Honest scope &middot; VAC is the trust layer under the certification: it proves authority, identity, and provenance. It does not run the batch record system and does not perform the quality investigation. The release decision in this scenario is made by the Qualified Person; the batch record and deviation investigation remain with the site's quality system. The quality system documents what happened &mdash; VAC seals who certified it. Cryptographic seal = tamper-evident provenance + regulator-grade audit trail, not a quality decision itself.</div>
+      <div class="posture">Honest scope &middot; VAC is the trust layer under the certification: it proves authority, identity, and provenance. It does not run the batch record system and does not perform the quality investigation. The release decision in this scenario is made by the Qualified Person; the batch record and deviation investigation remain with the site's quality system. The quality system documents what happened &mdash; VAC seals who certified it. Cryptographic seal = tamper-evident provenance + regulator-grade audit trail, not a quality decision itself. The certify step's live check and its "skip (demo only)" alternative both mint a genuine, verifiable token; only the live path is bound to a verified human and carries a server-authorised <code>seal_decision</code> gate &amp; audit record &mdash; the receipt states plainly which one produced it.</div>
     </div>
   </div>
 </div>
@@ -372,11 +392,32 @@ const REAL_TOKEN = {
 };
 
 let SEAL_TOKEN = REAL_TOKEN;
+// Server verdict on the /v1/vat/authorize seal_decision call — set by authorizeSeal(), read
+// verbatim by showReceipt(). Mirrors financial-demo.html's SEAL_AUTHZ (financial-demo.html:563).
+let SEAL_AUTHZ = null;
+const SAMPLE_QP_IDENTITY = 'qp@pharma-demo.vac';
 
-async function mintPharmaToken() {
-  const vv = window.__vacVerified || null;
+// mode.live=true  → the ceremony (sealReauthGate) completed: verification_method 'multi_modal',
+//                    human_identity bound to the verified email (fails closed without one, same
+//                    rule financial-demo.html's mintMatterToken uses — a name-only token can't
+//                    bind the authorize re-auth's email-derived human_ref).
+// mode.live=false → "Skip the live check (demo only)": verification_method 'credential_check',
+//                    human_identity is the labelled sample QP identity, no session token.
+async function mintPharmaToken(mode) {
+  mode = mode || {};
+  const live = !!mode.live;
+  const vv = live ? (window.__vacVerified || null) : null;
   const cerEmail = (vv && vv.email) ? String(vv.email).trim() : '';
   const cerSession = (vv && vv.session_token) ? vv.session_token : null;
+
+  if (live && !cerEmail) {
+    console.warn('[pharma-demo] live seal requested but no verified email from the ceremony — refusing to mint a fake live binding');
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false, liveCeremony: false, verificationMethod: 'multi_modal' });
+    return false;
+  }
+
+  const verificationMethod = live ? 'multi_modal' : 'credential_check';
+  const humanIdentity = live ? cerEmail : SAMPLE_QP_IDENTITY;
 
   const constraints = {
     _demo: true,
@@ -391,17 +432,21 @@ async function mintPharmaToken() {
     release_condition: 'qp_authorised_within_scope'
   };
   const body = {
-    human_identity: cerEmail || 'qp@pharma-demo.vac',
+    human_identity: humanIdentity,
     agent_id: 'pharma-demo',
     resources: ['pharma:site:qp_release'],
-    actions: ['certify_batch_release', 'view_credential'],
-    verification_method: 'multi_modal',
+    // seal_decision must be in scope for the authorizeSeal() /v1/vat/authorize call below —
+    // pre-S194 this token only listed certify_batch_release/view_credential and no authorize
+    // call was ever made (see docs/PKT-S194-PHARMA-LIVE-QP.md).
+    actions: ['seal_decision', 'certify_batch_release', 'view_credential'],
+    verification_method: verificationMethod,
     sensitivity: 'high',
     constraints,
     context: {
       surface: 'pharma-demo',
       scenario: 'Batch release certification — representative scenario',
-      authorised_at: new Date().toISOString()
+      authorised_at: new Date().toISOString(),
+      live_ceremony: live
     }
   };
   if (cerSession) body.authorising_session_token = cerSession;
@@ -421,15 +466,116 @@ async function mintPharmaToken() {
       trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
       verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify',
       minted: true,
-      liveCeremony: !!(cerEmail && cerSession)
+      liveCeremony: live,
+      verificationMethod: verificationMethod
     };
     return true;
   } catch (e) {
     console.warn('[pharma-demo] live mint failed:', e && e.message, '— using reference token');
-    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false, liveCeremony: false });
+    SEAL_TOKEN = Object.assign({}, REAL_TOKEN, { minted: false, liveCeremony: false, verificationMethod: verificationMethod });
     return false;
   }
 }
+
+// Authorise the SEALING ACTION server-side (mirrors financial-demo.html:564-595 /
+// tribunal-demo.html's authorizeSeal — action seal_decision is 'critical' in config.py, so this
+// is what actually fires the hard gate + AAR). Honesty (critique-gate resolution c): if this
+// comes back server-attested and explicitly refused, showReceipt() below must NOT present the
+// seal as authorised. No session token (the skip path) fails closed honestly rather than faking
+// a verdict — same as financial-demo.html.
+async function authorizeSeal() {
+  const tok = (window.__vacVerified && window.__vacVerified.session_token) ? window.__vacVerified.session_token : null;
+  const jti = (SEAL_TOKEN && SEAL_TOKEN.jti) ? SEAL_TOKEN.jti : null;
+  if (!tok || !jti) {
+    SEAL_AUTHZ = { authorized: false, reason: !tok ? 'no_session_token' : 'no_jti', server_attested: false };
+    return;
+  }
+  try {
+    const r = await fetch(API_BASE + '/v1/vat/authorize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vat_jti: jti,
+        action: 'seal_decision',
+        resource: 'pharma:site:qp_release',
+        authorising_session_token: tok,
+        metadata: { surface: 'pharma-demo', _demo: true }
+      })
+    });
+    const data = await r.json().catch(() => ({}));
+    SEAL_AUTHZ = {
+      authorized: !!data.authorized,
+      reason: data.reason || null,
+      aar_id: data.aar_id || null,
+      server_attested: true
+    };
+  } catch (e) {
+    SEAL_AUTHZ = { authorized: false, reason: 'authorize_call_failed', server_attested: false };
+  }
+}
+
+// ---- Live ceremony hand-off (S194) ----
+// Copied from financial-demo.html:814-887 (== tribunal-demo.html:1209-1282) as a named function
+// of the same name, per this lane's binding critique-gate resolution (a): reuse financial-demo's
+// ceremony hand-off and return-handling code path rather than inventing a new one. Two branches
+// specific to financial-demo's OTHER surface (the post-seal FAST proportional-reauth widget —
+// `resetDemoSurface('full')` and the `#voContinue`/`#voContinueBar` repaint) are omitted: pharma-
+// demo.html has no competing FAST-reauth mount to guard against and no #voContinue button in its
+// .vo-head markup, and the remaining references below were already `if (el)`-guarded in the
+// source, so nothing needed rewriting to drop them safely. See docs/PKT-S194-PHARMA-LIVE-QP.md.
+//
+// Because this opens the identity check as an IFRAME overlay (not a page navigation — unlike the
+// old pharmaOpenVerify redirect flow this replaces), state survives the round trip purely in this
+// page's own JS memory (window.__vacVerified) — no query/hash/sessionStorage marker is needed,
+// mirroring exactly how financial-demo.html preserves state across its own seal-gate round trip.
+const VERIFY_SRC = '/auth.html';
+function sealReauthGate(onPass, onCancel) {
+  window.__vacGateActive = true;
+  let settled = false;
+  const overlay = document.getElementById('verifyOverlay');
+  const frame = document.getElementById('voFrame');
+  function cleanup() { window.removeEventListener('message', onMsg); window.__vacGateActive = false; }
+  function onMsg(ev) {
+    if (ev.origin !== window.location.origin) return;
+    const d = ev.data || {};
+    // Accept the FULL-auth message only — vac-auth-success is the only message carrying the
+    // verified email + session_token this seal gate needs (mirrors financial-demo.html's guard
+    // against settling on an unrelated same-origin postMessage, e.g. a vouch-poll heartbeat).
+    if (d.type === 'vac-auth-success') {
+      if (settled) return; settled = true;
+      window.__vacVerified = { name: (d.name || '').trim(), email: (d.email || null), session_token: (d.session_token || null), auth_level: (d.auth_level || null) };
+      cleanup();
+      try {
+        if (closeBtn) {
+          closeBtn.removeEventListener('click', onClose);
+          closeBtn.addEventListener('click', function () {
+            try { overlay.hidden = true; frame.src = 'about:blank'; document.body.style.overflow = ''; } catch (e) {}
+          }, { once: true });
+        }
+      } catch (e) {}
+      onPass();
+    }
+  }
+  const closeBtn = document.getElementById('voClose');
+  function onClose() { if (settled) return; settled = true; cleanup(); if (closeBtn) closeBtn.removeEventListener('click', onClose); onCancel(); }
+  if (closeBtn) closeBtn.addEventListener('click', onClose);
+  window.addEventListener('message', onMsg);
+  var _vName = (window.__vacVerified && window.__vacVerified.name) ? window.__vacVerified.name : '';
+  var _vEmail = (window.__vacVerified && window.__vacVerified.email) ? window.__vacVerified.email : '';
+  if (!_vName || !_vEmail) {
+    try {
+      var _vv = JSON.parse(localStorage.getItem('vac_verified') || '{}');
+      if (!_vName && _vv.name) _vName = _vv.name;
+      if (!_vEmail && _vv.email) _vEmail = _vv.email;
+    } catch (_) {}
+  }
+  var _reauthQS = '?greeting=skip&reauth=1'
+      + (_vName ? '&name=' + encodeURIComponent(_vName) : '')
+      + (_vEmail ? '&email=' + encodeURIComponent(_vEmail) : '');
+  frame.src = VERIFY_SRC + _reauthQS; overlay.hidden = false; document.body.style.overflow = 'hidden';
+}
+// NOTE: the permanent voClose "hide the overlay" listener is bound further down, in the script
+// block after the #verifyOverlay markup itself (that markup lives later in the DOM than this
+// <script> block) — see the comment there for why sealReauthGate's own onClose doesn't do this.
 
 const STEPS = [
   { id: 1, label: 'Scenario', meta: 'Batch record review · automated flag' },
@@ -478,13 +624,13 @@ async function advance() {
     if (stepIdx > 0) completeStep(stepIdx);
 
     if (stepIdx === 3) {
-      // Step 4: Seal — mint live token
+      // Step 4: Seal — S194: don't auto-mint. Pause here on the seal gate (live check or
+      // skip); the two seal-gate buttons drive mint + authorize + the rest of the flow from
+      // finishSealFlow() below. See docs/PKT-S194-PHARMA-LIVE-QP.md.
       sealing = true;
-      btn.disabled = true;
-      btn.textContent = 'Sealing...';
-      await mintPharmaToken();
-      sealing = false;
-      btn.disabled = false;
+      btn.style.display = 'none';
+      showSealGate();
+      return;
     }
 
     if (stepIdx < 4) {
@@ -498,6 +644,61 @@ async function advance() {
   }
 }
 
+function showSealGate() {
+  const gate = document.getElementById('sealGate');
+  const status = document.getElementById('sealGateStatus');
+  if (status) status.textContent = '';
+  if (gate) gate.hidden = false;
+}
+
+function hideSealGate() {
+  const gate = document.getElementById('sealGate');
+  if (gate) gate.hidden = true;
+}
+
+// Completes step 4 (Seal) and reveals step 5 (Receipt) — the tail end of what advance()'s
+// stepIdx===4 branch used to do on the NEXT click, now run automatically once the seal gate
+// (live check or skip) resolves.
+function finishSealFlow() {
+  hideSealGate();
+  sealing = false;
+  stepIdx = 4;
+  renderStep(5);
+  completeStep(4);
+  completeStep(5);
+  showReceipt();
+  const btn = document.getElementById('advance');
+  if (btn) btn.style.display = 'none';
+}
+
+document.getElementById('sealLiveBtn').addEventListener('click', function () {
+  const status = document.getElementById('sealGateStatus');
+  const liveBtn = document.getElementById('sealLiveBtn');
+  if (status) status.textContent = 'Opening the live biometric ceremony…';
+  if (liveBtn) liveBtn.disabled = true;
+  sealReauthGate(
+    async () => {
+      if (status) status.textContent = 'Verified live — minting the seal…';
+      await mintPharmaToken({ live: true });
+      await authorizeSeal();
+      finishSealFlow();
+    },
+    () => {
+      if (liveBtn) liveBtn.disabled = false;
+      if (status) status.textContent = 'Live check cancelled — run it again, or skip (demo only).';
+    }
+  );
+});
+
+document.getElementById('sealSkipLink').addEventListener('click', async function (e) {
+  e.preventDefault();
+  const status = document.getElementById('sealGateStatus');
+  if (status) status.textContent = 'Skipping the live check — minting under the sample identity…';
+  await mintPharmaToken({ live: false });
+  await authorizeSeal();
+  finishSealFlow();
+});
+
 function showReceipt() {
   try{ sessionStorage.setItem('pharmaWalkDone','1'); }catch(e){}
   const tok = SEAL_TOKEN;
@@ -507,26 +708,49 @@ function showReceipt() {
   const vv = window.__vacVerified || null;
   const authBy = (tok.liveCeremony && vv && vv.email)
     ? String(vv.email).trim() + ' · verified live (VAC)'
-    : 'Verified Qualified Person (representative scenario)';
+    : SAMPLE_QP_IDENTITY + ' · sample identity — live check was skipped (demo only)';
   const tokStatus = tok.minted
-    ? (tok.liveCeremony ? 'Live mint — minted under this live session' : 'Live mint — freshly signed')
+    ? (tok.liveCeremony ? 'Live mint — minted under this live session' : 'Live mint — freshly signed, sample identity')
     : 'Reference token — pre-minted';
+  const liveCheckRow = tok.liveCeremony
+    ? 'Yes — multi-modal biometric ceremony, run live against the VAC production backend'
+    : 'Skipped (demo only) — verification_method: credential_check, sample identity';
+
+  // S194 critique-gate resolution (c): if the server explicitly refused seal_decision, this
+  // receipt must not present the seal as authorised — swap the heading/status to an honest
+  // refusal state instead of the default success copy.
+  const sealRefused = !!(SEAL_AUTHZ && SEAL_AUTHZ.server_attested && !SEAL_AUTHZ.authorized);
+  const headEl = document.querySelector('.receipt-head h3');
+  if (headEl) headEl.textContent = sealRefused ? 'Authorisation NOT sealed — request refused' : 'Authorisation sealed & lodged';
+  document.getElementById('receipt').classList.toggle('failed', sealRefused);
+  const statusTxt = sealRefused ? 'NOT AUTHORISED · server refused: ' + (SEAL_AUTHZ.reason || 'reauth_required') : 'SEALED · LODGED · AUDITABLE';
+
+  const gateRow = (SEAL_AUTHZ && SEAL_AUTHZ.server_attested && SEAL_AUTHZ.authorized)
+    ? 'GATED (full re-auth) &amp; AUDITED' + (SEAL_AUTHZ.aar_id ? ' · AAR ' + esc(String(SEAL_AUTHZ.aar_id)) : '') + ' <span class="real-badge">LIVE</span>'
+    : (SEAL_AUTHZ && SEAL_AUTHZ.server_attested && !SEAL_AUTHZ.authorized)
+      ? 'server refused: ' + esc(String(SEAL_AUTHZ.reason || 'reauth_required'))
+      : 'not server-authorised in this preview (' + (SEAL_AUTHZ && SEAL_AUTHZ.reason === 'no_session_token' ? 'no live session — skip path' : 'no live session token') + ')';
 
   const kvPairs = [
     ['Scenario', 'Lot SX-2291-B — finished-product sterile injectable · batch release certification'],
     ['Deviation certified', 'In-process bioburden hold-time excursion · investigated and closed, minor, no sterility impact'],
     ['Authorised by', authBy],
+    ['Live check', liveCheckRow],
     ['Authority scope', 'Qualified Person · finished-product sterile injectable · site release authority'],
     ['Policy basis', 'EU GMP Annex 16 · deviation investigation closed · release specification met'],
     ['Sealed at', ts],
     ['Token (JTI)', tok.jti],
     ['Token status', tokStatus],
-    ['Signature', 'Ed25519 · VAC production backend']
+    ['Signature', 'Ed25519 · VAC production backend'],
+    ['Action gate + audit', gateRow],
+    ['Status', statusTxt]
   ];
 
+  const RAW_HTML_ROWS = ['Action gate + audit'];
+  const HL_ROWS = ['Token (JTI)', 'Token status', 'Signature', 'Status'];
   const kvEl = document.getElementById('receiptKv');
   kvEl.innerHTML = kvPairs.map(([k, v]) =>
-    `<dt>${k}</dt><dd${['Token (JTI)', 'Token status', 'Signature'].includes(k) ? ' class="hl"' : ''}>${esc(v)}</dd>`
+    `<dt>${k}</dt><dd${HL_ROWS.includes(k) ? ' class="hl"' : ''}${sealRefused && k === 'Status' ? ' style="color:var(--amber)"' : ''}>${RAW_HTML_ROWS.includes(k) ? v : esc(v)}</dd>`
   ).join('');
 
   const auditEl = document.getElementById('auditLog');
@@ -565,14 +789,18 @@ function reset() {
     const c = conn(n); if (c) { c.classList.remove('done'); }
     const el = stepEl(n); if (el) { el.classList.remove('revealed'); }
   }
+  hideSealGate();
+  const sealLiveBtn = document.getElementById('sealLiveBtn'); if (sealLiveBtn) sealLiveBtn.disabled = false;
+  const sealStatus = document.getElementById('sealGateStatus'); if (sealStatus) sealStatus.textContent = '';
   const receipt = document.getElementById('receipt');
-  receipt.classList.remove('show');
+  receipt.classList.remove('show', 'failed');
   receipt.innerHTML = `<div class="receipt-head"><svg class="seal" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="13" stroke="#3FB950" stroke-width="1.5"/><path d="M10 16 l4 4 l8 -9" stroke="#3FB950" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>Authorisation sealed &amp; lodged</h3></div><dl class="kv" id="receiptKv"></dl><div class="audit" id="auditLog"></div>`;
   const btn = document.getElementById('advance');
   btn.style.display = '';
   btn.disabled = false;
   btn.textContent = 'Begin walkthrough';
   SEAL_TOKEN = REAL_TOKEN;
+  SEAL_AUTHZ = null;
 }
 
 function esc(s) {
@@ -594,65 +822,63 @@ document.getElementById('reset').onclick = reset;
   </div>
 </div>
 <script>
+// S194: the outer "Try the live biometric" Authority beat now runs through the SAME
+// sealReauthGate() ceremony hand-off as the certify step, instead of the old full-page-
+// navigation flow (location.assign('/auth?return=/pharma-demo') + a localStorage('vac_last_
+// verified') mirror polled on pageshow/visibilitychange/storage). That removed a second,
+// competing code path listening for the same 'vac-auth-success' postMessage — there is now
+// exactly one ceremony hand-off on this page. See docs/PKT-S194-PHARMA-LIVE-QP.md.
 (function(){
-  var overlay=document.getElementById('verifyOverlay');
-  var frame=document.getElementById('voFrame');
-  var openedAt=0;
-  window.pharmaOpenVerify=function(){
-    openedAt=Date.now();
-    try { localStorage.removeItem('vac_last_verified'); } catch(e){}
-    location.assign('/auth?return=/pharma-demo');
-  };
-  function consumeVerifiedMirror(){
-    try {
-      var raw=localStorage.getItem('vac_last_verified');
-      if(!raw) return false;
-      var v=JSON.parse(raw);
-      if(!v || (Date.now()-(v.ts||0))>300000) return false;
-      window.__vacVerified={ name:(v.name||'').trim(), email:(v.email||null), session_token:(v.session_token||null) };
-      localStorage.removeItem('vac_last_verified');
-      var chip=document.getElementById('pharmaBioChip');
-      if(chip){
-        chip.style.display='block';
-        var walkDone=false; try{ walkDone = sessionStorage.getItem('pharmaWalkDone')==='1'; }catch(e){}
-        var actionLabel = walkDone ? 'Seal it under your live session →' : 'Now walk the decision and seal it →';
-        chip.innerHTML='Identity verified live — your seal will be minted under this session.'
-          + '<br><a href="#" id="chipGoSeal" style="display:inline-block;margin-top:10px;background:var(--purple,#7C6FF0);color:#fff;font-weight:600;font-size:13px;padding:10px 18px;border-radius:8px;text-decoration:none;">'+actionLabel+'</a>';
-        var go=document.getElementById('chipGoSeal');
-        if(go){ go.onclick=async function(ev){ ev.preventDefault();
-          if(walkDone){
-            go.textContent='Sealing under your live session...';
-            try { await mintPharmaToken(); showReceipt();
-              var rc=document.getElementById('receipt'); if(rc){ rc.scrollIntoView({behavior:'smooth', block:'start'}); }
-              go.textContent='Sealed — receipt below ↓';
-            } catch(e){ go.textContent='Seal failed — try the walkthrough'; }
-            return;
-          }
-          var adv=document.getElementById('advance');
-          if(adv){ adv.scrollIntoView({behavior:'smooth', block:'center'});
-            adv.style.transition='box-shadow .3s'; adv.style.boxShadow='0 0 0 3px rgba(124,111,240,.8)';
-            setTimeout(function(){ adv.style.boxShadow='none'; }, 2600); }
-        }; }
-        chip.scrollIntoView({behavior:'smooth', block:'center'});
-      }
-      return true;
-    } catch(e){ return false; }
-  }
-  window.addEventListener('storage', function(ev){ if(ev.key==='vac_last_verified' && ev.newValue) consumeVerifiedMirror(); });
-  window.addEventListener('pageshow', function(){ consumeVerifiedMirror(); });
-  document.addEventListener('visibilitychange', function(){ if(!document.hidden) consumeVerifiedMirror(); });
-  function close(){ overlay.hidden=true; frame.src='about:blank'; document.body.style.overflow=''; }
-  document.getElementById('voClose').addEventListener('click', close);
-  window.addEventListener('message', function(ev){
-    if(ev.origin!==window.location.origin) return;
-    var d=ev.data||{};
-    if(d.type==='vac-auth-success'){
-      if(Date.now()-openedAt < 8000) return;
-      close();
-      window.__vacVerified={ name:(d.name||'').trim(), email:(d.email||null), session_token:(d.session_token||null) };
-      var chip=document.getElementById('pharmaBioChip');
-      if(chip){ chip.style.display='block'; chip.scrollIntoView({behavior:'smooth', block:'center'}); }
-    }
+  // financial-demo.html hides #verifyOverlay on close via a PERMANENT listener that belongs to
+  // its separate, upfront identity-gate step (financial-demo.html:1439/1444) — sealReauthGate's
+  // own onClose only settles the cancel callback, relying on that other listener to actually
+  // hide the overlay. pharma-demo.html has no such upfront gate, so bind that permanent
+  // hide-on-close here once (now that #verifyOverlay/#voFrame exist in the DOM), rather than
+  // duplicating it inside sealReauthGate itself.
+  const overlay = document.getElementById('verifyOverlay');
+  const frame = document.getElementById('voFrame');
+  document.getElementById('voClose').addEventListener('click', function () {
+    overlay.hidden = true; frame.src = 'about:blank'; document.body.style.overflow = '';
+  });
+
+  document.getElementById('pharmaBioBtn').addEventListener('click', function(e){
+    e.preventDefault();
+    const chip = document.getElementById('pharmaBioChip');
+    sealReauthGate(
+      () => {
+        if (!chip) return;
+        chip.style.display = 'block';
+        let walkDone = false; try { walkDone = sessionStorage.getItem('pharmaWalkDone') === '1'; } catch (e) {}
+        const actionLabel = walkDone ? 'Seal it under your live session →' : 'Now walk the decision and seal it →';
+        chip.innerHTML = 'Identity verified live — your seal will be minted under this session.'
+          + '<br><a href="#" id="chipGoSeal" style="display:inline-block;margin-top:10px;background:var(--purple,#7C6FF0);color:#fff;font-weight:600;font-size:13px;padding:10px 18px;border-radius:8px;text-decoration:none;">' + actionLabel + '</a>';
+        const go = document.getElementById('chipGoSeal');
+        if (go) {
+          go.onclick = async function (ev) {
+            ev.preventDefault();
+            if (walkDone) {
+              go.textContent = 'Sealing under your live session...';
+              try {
+                await mintPharmaToken({ live: true });
+                await authorizeSeal();
+                showReceipt();
+                const rc = document.getElementById('receipt'); if (rc) rc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                go.textContent = 'Sealed — receipt below ↓';
+              } catch (err) { go.textContent = 'Seal failed — try the walkthrough'; }
+              return;
+            }
+            const adv = document.getElementById('advance');
+            if (adv) {
+              adv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              adv.style.transition = 'box-shadow .3s'; adv.style.boxShadow = '0 0 0 3px rgba(124,111,240,.8)';
+              setTimeout(function () { adv.style.boxShadow = 'none'; }, 2600);
+            }
+          };
+        }
+        chip.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      },
+      () => {}
+    );
   });
 })();
 </script>

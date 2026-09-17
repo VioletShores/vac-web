@@ -136,14 +136,51 @@ that comparison, plus the build log for closing the gap in pharma-demo.html only
 
 ## Checks run
 
-- Headless Chromium at 390px and 1280px viewport widths: no horizontal overflow on pharma-demo.html
-  (see run log below).
-- Skip path: ran end to end against the live production backend
-  (`https://vac-system-production.up.railway.app`) headless — completed and rendered a receipt.
-  Token id (JTI) recorded below.
-- Live path: cannot complete an actual live biometric in this headless/non-interactive lane (no
-  camera, no human) — per critique-gate resolution (d), checked instead that clicking "Run the live
-  check & seal" opens the ceremony overlay pointed at the expected `/auth.html` URL (recorded below)
-  and does not silently mint/authorize without it.
+Driven with `puppeteer-core` against the real `/usr/bin/google-chrome` binary (`headless: 'new'`),
+serving pharma-demo.html from a throwaway local static server (`http://localhost:8791`) so the page
+runs under a real URL rather than `file://`. All live network calls (`/v1/vat/issue`,
+`/v1/vat/authorize`) went to the real production backend, `https://vac-system-production.up.railway.app`
+— nothing mocked.
 
-(Results of the actual headless run are appended below once executed.)
+- **No horizontal overflow, 390px and 1280px:** `document.documentElement.scrollWidth` ==
+  `window.innerWidth` at both widths (`overflow: 0` both times).
+- **Skip path, end to end against the live backend:** walked the 5-step flow to the Seal step,
+  clicked "Skip the live check (demo only)", and the receipt rendered with a genuinely minted,
+  Ed25519-signed token. Ran this **twice** in the same session (once directly, once after Reset)
+  to confirm the flow is idempotent and mints a fresh token each time:
+  - Run 1 token id: `vat_root_985954cfa48d`
+  - Run 2 token id (post-reset re-run): `vat_root_d5fcb3a7bf44`
+  - Receipt correctly showed `Live check: Skipped (demo only) — verification_method:
+    credential_check, sample identity` and `Action gate + audit: not server-authorised in this
+    preview (no live session — skip path)` — honest, not presented as a live-verified seal.
+  - No `pageerror`/JS exceptions during either run. Two pre-existing, unrelated console errors
+    appear on every load regardless of any of this lane's changes: a 404 for
+    `/_vercel/insights/script.js` (only resolves on a real Vercel deployment, not the local static
+    server used for this check) and a 422 from the pre-existing `sendBeacon` telemetry call to
+    `https://api.athenapilot.ai/v1/telemetry/view` (unrelated pharma-demo.html feature, unmodified
+    by this lane).
+- **Live path reaches the ceremony page (per resolution d — cannot complete an actual live
+  biometric in this headless/non-interactive lane: no camera, no human):** clicked "Run the live
+  check & seal" on the Seal step and confirmed the overlay opens with
+  `#voFrame.src = "<origin>/auth.html?greeting=skip&reauth=1"` — the same URL shape financial-
+  demo.html's sealReauthGate opens, confirming the copied ceremony hand-off is wired correctly and
+  does not silently mint/authorize without it. Also confirmed the same is true of the outer "Try
+  the live biometric" Authority-beat button (`#pharmaBioBtn`), which now shares this exact code
+  path (see build step 4 above) rather than the old full-navigation flow.
+- **Cancel-and-retry:** clicking the overlay's close button while the live ceremony is pending
+  hides the overlay (`#verifyOverlay.hidden === true`) and does not block the page — confirmed
+  after fixing a bug this lane introduced and caught in its own testing (see below).
+
+### Bug caught and fixed during these checks
+
+The first pass of the live-ceremony port left the overlay's close (×) button non-functional for
+the cancel path: `sealReauthGate`'s own `onClose` (copied from financial-demo.html) only settles
+the cancel callback — in financial-demo.html the overlay is actually hidden by a *separate*,
+permanent listener that belongs to financial-demo.html's own upfront identity-gate step
+(financial-demo.html:1444), which pharma-demo.html has no equivalent of. Without that second
+listener, clicking × left the full-viewport overlay covering the page indefinitely. Fixed by
+binding an equivalent permanent hide-on-close listener once pharma-demo.html's own markup, in the
+script block that runs after `#verifyOverlay`/`#voFrame` exist in the DOM (an earlier attempt to
+bind it immediately after `sealReauthGate`'s own definition failed for the same reason — that
+script block runs before the overlay markup appears later in the page). Caught by the headless
+outer-button/close/reset/re-run test in this same check pass, before this was ever pushed.
