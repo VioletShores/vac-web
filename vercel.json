@@ -217,6 +217,10 @@
       "destination": "/retrofit-console.html"
     },
     {
+      "source": "/decision-receipt",
+      "destination": "/decision-receipt.html"
+    },
+    {
       "source": "/athena-browser",
       "destination": "/athena-browser.html"
     },

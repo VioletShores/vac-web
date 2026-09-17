@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0D1117">
+<title>VAC — Start with the approval you already give</title>
+<meta name="description" content="Forward the approval you already send. The named person confirms it was them. Everyone gets a signed receipt anyone can check. Nothing to install.">
+<style>
+:root{
+  --bg:#0D1117; --surface:#161B22; --raised:#1C2128; --border:#30363D;
+  --t1:#F0F6FC; --t2:#C9D1D9; --t3:#8B949E; --t4:#6E7681;
+  --purple:#7C6FF0; --purple-bg:rgba(124,111,240,0.10); --purple-border:rgba(124,111,240,0.30);
+  --teal:#2DD4BF; --teal-bg:rgba(45,212,191,0.08); --teal-border:rgba(45,212,191,0.25);
+  --amber:#D29922; --amber-bg:rgba(210,153,34,0.08); --amber-border:rgba(210,153,34,0.28);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--t2);font-family:var(--font);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:920px;margin:0 auto;padding:0 clamp(16px,4vw,28px) 90px;}
+.banner{background:var(--amber-bg);border-bottom:1px solid var(--amber-border);padding:10px 16px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--amber);text-transform:uppercase;}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:22px 0;border-bottom:1px solid var(--border);margin-bottom:44px;}
+.brand{display:flex;align-items:center;gap:10px;color:var(--t1);font-weight:700;text-decoration:none;}
+.brand small{display:block;font-family:var(--mono);font-size:10px;color:var(--t3);letter-spacing:1px;font-weight:400;}
+.pill{font-family:var(--mono);font-size:11px;letter-spacing:1px;color:var(--teal);border:1px solid var(--teal-border);background:var(--teal-bg);padding:5px 10px;border-radius:6px;text-transform:uppercase;white-space:nowrap;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--teal);text-transform:uppercase;margin-bottom:12px;}
+h1{font-size:clamp(32px,6vw,52px);line-height:1.08;color:var(--t1);letter-spacing:-1px;margin-bottom:18px;text-wrap:balance;}
+h2{font-size:clamp(22px,3.4vw,30px);color:var(--t1);line-height:1.2;margin-bottom:10px;text-wrap:balance;}
+.lede{font-size:clamp(17px,2.2vw,20px);color:var(--t2);max-width:62ch;}
+section{margin-top:64px;}
+.muted{color:var(--t3);}
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:22px;}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;}
+.step .n{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--t3);}
+.step h3{color:var(--t1);font-size:18px;margin:6px 0;}
+.step.on{border-color:var(--amber);background:var(--raised);}
+.step.on .n{color:var(--amber);}
+.tag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:2px 7px;border-radius:5px;margin-top:8px;}
+.tag.live{color:var(--teal);border:1px solid var(--teal-border);background:var(--teal-bg);}
+.tag.dev{color:var(--amber);border:1px solid var(--amber-border);background:var(--amber-bg);}
+.tag.next{color:var(--t3);border:1px solid var(--border);}
+/* the try-it panel */
+.try{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:clamp(18px,3vw,28px);margin-top:22px;}
+.choices{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 18px;}
+.choice{background:transparent;color:var(--t2);border:1px solid var(--border);border-radius:999px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer;}
+.choice[aria-pressed="true"]{border-color:var(--purple);background:var(--purple-bg);color:var(--t1);}
+.mail{background:#0A0F1A;border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.mail-head{padding:14px 16px;border-bottom:1px solid var(--border);font-size:14px;display:grid;grid-template-columns:70px 1fr;gap:4px 10px;}
+.mail-head b{color:var(--t3);font-weight:500;}
+.mail-head span{color:var(--t1);overflow-wrap:anywhere;}
+.fwd{color:var(--teal)!important;font-weight:600;}
+.mail-body{padding:16px;white-space:pre-wrap;font-size:15px;color:var(--t2);}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px;}
+label.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--t2);cursor:pointer;}
+input[type=email]{background:#0A0F1A;border:1px solid var(--border);border-radius:10px;color:var(--t1);padding:10px 12px;font:inherit;font-size:15px;min-width:0;flex:1 1 240px;}
+.btn{border:0;border-radius:10px;padding:12px 18px;font:inherit;font-weight:700;font-size:15px;cursor:pointer;}
+.btn.primary{background:var(--purple);color:#fff;}
+.btn.teal{background:var(--teal);color:#06121C;}
+.btn.ghost{background:transparent;color:var(--t2);border:1px solid var(--border);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn:focus-visible,.choice:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+.stage{margin-top:22px;border-top:1px solid var(--border);padding-top:20px;}
+.status{font-family:var(--mono);font-size:13px;color:var(--t3);min-height:20px;margin-top:10px;}
+.receipt{background:linear-gradient(180deg,rgba(45,212,191,.07),transparent);border:1px solid var(--teal-border);border-radius:14px;padding:20px;margin-top:18px;}
+.receipt h3{color:var(--t1);font-size:20px;margin-bottom:8px;}
+.kv{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:6px 14px;font-size:14px;margin-top:10px;}
+.kv b{color:var(--t3);font-weight:500;}
+.kv span{color:var(--t1);overflow-wrap:anywhere;}
+.after{display:inline-block;margin-top:10px;font-family:var(--mono);font-size:12px;color:var(--amber);border:1px solid var(--amber-border);background:var(--amber-bg);padding:3px 8px;border-radius:6px;}
+a{color:var(--teal);}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:20px;}
+.surf{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
+.surf h3{font-size:16px;color:var(--t1);}
+.surf p{font-size:14px;color:var(--t3);margin-top:4px;}
+pre{background:#0A0F1A;border:1px solid var(--border);border-radius:12px;padding:16px;overflow-x:auto;font-family:var(--mono);font-size:13px;color:var(--t2);margin-top:14px;}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:18px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;}
+.card h3{color:var(--t1);font-size:18px;margin-bottom:6px;}
+footer{margin-top:70px;border-top:1px solid var(--border);padding-top:18px;font-size:13px;color:var(--t4);}
+/* live-check overlay (same pattern as the sector demos) */
+.vo{position:fixed;inset:0;z-index:1000;background:rgba(2,4,8,.92);display:flex;align-items:center;justify-content:center;padding:clamp(8px,2vw,24px);}
+.vo[hidden]{display:none!important;}
+.vo-card{display:flex;flex-direction:column;width:min(680px,100%);height:min(900px,96vh);background:#101726;border:1px solid rgba(147,160,180,.25);border-radius:14px;overflow:hidden;}
+.vo-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid rgba(147,160,180,.18);font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--teal);}
+.vo-head span{flex:1;}
+.vo-close{background:transparent;border:none;color:#93A0B4;font-size:22px;cursor:pointer;}
+.vo-frame{flex:1;width:100%;border:none;background:#0A0F1A;}
+@media(max-width:560px){.kv{grid-template-columns:1fr;gap:0}.kv b{margin-top:8px;font-size:12px}.vo{padding:0}.vo-card{width:100%;height:100%;border-radius:0;border:none}.mail-head{grid-template-columns:52px 1fr}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="banner">Preview · the confirmation and the signed receipt run live · the email intake itself is in development</div>
+<div class="wrap">
+<header>
+  <a class="brand" href="/"><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="none" stroke="#7C6FF0" stroke-width="2"/><circle cx="16" cy="16" r="4" fill="#7C6FF0"/></svg><span>VAC Protocol<small>VERIFIABLE AUTHORITY CHAIN</small></span></a>
+  <span class="pill">Start anywhere</span>
+</header>
+
+<p class="eyebrow">Day one, nothing to install</p>
+<h1>Start with the approval you already give.</h1>
+<p class="lede">Forward it. The named person confirms it was really them. Everyone on the thread gets a signed receipt that anyone can check, and any change to it shows. No connectors, no IT project.</p>
+
+<div class="steps" aria-label="How it works">
+  <div class="step on"><div class="n">STEP 1</div><h3>Forward it</h3><p class="muted">CC or forward the approval to your decision address.</p><span class="tag dev">In development · try it below</span></div>
+  <div class="step"><div class="n">STEP 2</div><h3>We ask first</h3><p class="muted">A one-page list of who may approve what. VAC asks the right person before the action.</p><span class="tag next">Next</span></div>
+  <div class="step"><div class="n">STEP 3</div><h3>One line</h3><p class="muted">Any system or AI agent asks: may this go ahead?</p><span class="tag dev">In development</span></div>
+  <div class="step"><div class="n">STEP 4</div><h3>Connectors</h3><p class="muted">Inside the systems you run, once the value is proven.</p><span class="tag next">Later</span></div>
+</div>
+
+<section id="try" aria-labelledby="try-h">
+  <p class="eyebrow">Try it</p>
+  <h2 id="try-h">Forward an approval and get the receipt</h2>
+  <p class="muted">Pick a sample approval. The forwarding step is simulated here; the confirmation and the receipt are real.</p>
+  <div class="try">
+    <div class="choices" role="group" aria-label="Sample approval">
+      <button class="choice" type="button" data-s="pharma" aria-pressed="true">Pharma batch release</button>
+      <button class="choice" type="button" data-s="water" aria-pressed="false">Water capital spend</button>
+      <button class="choice" type="button" data-s="finance" aria-pressed="false">Supplier payment</button>
+    </div>
+    <div class="mail" aria-live="polite">
+      <div class="mail-head">
+        <b>From</b><span id="mFrom"></span>
+        <b>To</b><span id="mTo"></span>
+        <b>Cc</b><span id="mCc"></span>
+        <b>Subject</b><span id="mSubj"></span>
+        <b>Date</b><span id="mDate"></span>
+      </div>
+      <div class="mail-body" id="mBody"></div>
+    </div>
+    <div class="row">
+      <label class="chk"><input type="checkbox" id="past"> This approval is from last month (record the past)</label>
+    </div>
+    <div class="row">
+      <button class="btn primary" type="button" id="fwdBtn">Forward to decide@ →</button>
+    </div>
+
+    <div class="stage" id="confirmStage" hidden>
+      <p class="eyebrow">Within a minute, to the approver</p>
+      <h2 style="font-size:22px">“Is this your decision?”</h2>
+      <p class="muted">The From line of an email can be forged, so nothing is signed until the named person proves who they are.</p>
+      <div class="row">
+        <button class="btn teal" type="button" id="liveBtn">Confirm with a live check →</button>
+        <button class="btn ghost" type="button" id="skipBtn">Skip the check (demo only)</button>
+      </div>
+      <p class="status" id="status" role="status"></p>
+    </div>
+
+    <div id="receiptOut" hidden></div>
+  </div>
+</section>
+
+<section aria-labelledby="surf-h">
+  <p class="eyebrow">Not only email</p>
+  <h2 id="surf-h">The same receipt, from wherever decisions already happen</h2>
+  <div class="grid">
+    <div class="surf"><h3>Email</h3><p>Forward or CC. Outlook, Gmail, any.</p><span class="tag dev">In development</span></div>
+    <div class="surf"><h3>Web link</h3><p>“Record a decision” page, as above.</p><span class="tag live">Live preview</span></div>
+    <div class="surf"><h3>Past approvals</h3><p>Upload an export or a spreadsheet. Marked as recorded after the fact.</p><span class="tag dev">In development</span></div>
+    <div class="surf"><h3>Microsoft Teams</h3><p>“Get a receipt” on the approval message.</p><span class="tag next">Next</span></div>
+    <div class="surf"><h3>Slack</h3><p>A shortcut on the approval message.</p><span class="tag next">Next</span></div>
+    <div class="surf"><h3>WhatsApp</h3><p>Forward the site message.</p><span class="tag next">Next</span></div>
+    <div class="surf"><h3>Voice note</h3><p>Forward a recording; the words become the decision.</p><span class="tag next">Later</span></div>
+    <div class="surf"><h3>Signed PDFs</h3><p>DocuSign, Adobe Sign or a scan.</p><span class="tag next">Later</span></div>
+    <div class="surf"><h3>Tickets</h3><p>ServiceNow or Jira comment.</p><span class="tag next">Later</span></div>
+    <div class="surf"><h3>AI agents</h3><p>One line, or a tool any agent can call.</p><span class="tag dev">In development</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="line-h">
+  <p class="eyebrow">Step 3 · in development</p>
+  <h2 id="line-h">One line from any system or agent</h2>
+  <p class="muted">No vendor involvement: call it from a Power Automate HTTP step, a script, or an agent.</p>
+<pre>POST /v1/decisions
+{"decision": "Release lot SX-2291-B", "approver": "qp@site.example"}
+
+→ {"status": "awaiting_confirmation", "confirm_url": "…"}
+→ {"status": "confirmed", "receipt": "https://vacprotocol.org/vat/verify/…"}</pre>
+</section>
+
+<section aria-labelledby="grow-h">
+  <p class="eyebrow">Where it leads</p>
+  <h2 id="grow-h">Easy to start. Built to govern.</h2>
+  <div class="two">
+    <div class="card"><h3>For the team doing the work</h3><p class="muted">A quality lead or asset manager starts this week, with the approvals they already give. A register of receipts builds up on its own.</p></div>
+    <div class="card"><h3>For the board</h3><p class="muted">The same receipts become the evidence for governing every AI-assisted decision: who may decide, how far AI may act alone, human oversight you can prove.</p></div>
+  </div>
+  <p style="margin-top:18px"><a href="/pharma-demo.html">See a pharma release sealed →</a> &nbsp; <a href="/trusted-water-demo">See a water decision sealed →</a> &nbsp; <a href="/p/capabilities-226cb031f36e.html">Platform capability map →</a></p>
+</section>
+
+<footer>Sample approvals are illustrative. Receipts minted here are real, signed demo tokens against the VAC production backend and are labelled as demos. VAC Protocol · patent pending.</footer>
+</div>
+
+<div class="vo" id="verifyOverlay" hidden>
+  <div class="vo-card">
+    <div class="vo-head"><span>Live VAC identity check</span><button class="vo-close" id="voClose" type="button" aria-label="Close">&times;</button></div>
+    <iframe class="vo-frame" id="voFrame" title="VAC live identity check" allow="camera; microphone; fullscreen"></iframe>
+  </div>
+</div>
+
+<script>
+(function () {
+  const API = 'https://vac-system-production.up.railway.app';
+  const SAMPLES = {
+    pharma: {
+      from: 'Maria Keller (Qualified Person) <m.keller@site-example.ch>',
+      to: 'Batch Release Team <release@site-example.ch>',
+      cc: 'QA Operations <qa-ops@site-example.ch>',
+      subj: 'RE: Lot SX-2291-B — deviation closed, release?',
+      body: 'Approved for release.\n\nDeviation DV-0412 is closed; the investigation and the batch record are consistent. I am releasing Lot SX-2291-B.\n\nMaria',
+      decision: 'Release Lot SX-2291-B', object: 'Batch release — Lot SX-2291-B', amount: null, approver: 'm.keller@site-example.ch'
+    },
+    water: {
+      from: 'Chief Executive <ceo@utility-example.nz>',
+      to: 'Asset Management <assets@utility-example.nz>',
+      cc: 'Finance <finance@utility-example.nz>',
+      subj: 'RE: Pump station PS-07 renewal — NZ$ 480,000',
+      body: 'Approved. Go ahead with the PS-07 renewal within the NZ$ 480,000 budget.\n\nThanks',
+      decision: 'Approve PS-07 pump station renewal', object: 'Capital spend — PS-07 renewal', amount: 'NZD 480,000', approver: 'ceo@utility-example.nz'
+    },
+    finance: {
+      from: 'Financial Controller <controller@company-example.com>',
+      to: 'Accounts Payable <ap@company-example.com>',
+      cc: 'Treasury <treasury@company-example.com>',
+      subj: 'RE: Payment run — Supplier 20417, CHF 126,500',
+      body: 'Approved — please release the payment to supplier 20417 today.',
+      decision: 'Release payment to supplier 20417', object: 'Supplier payment', amount: 'CHF 126,500', approver: 'controller@company-example.com'
+    }
+  };
+  let cur = 'pharma';
+  let verified = null;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function origDate() {
+    const d = new Date();
+    if ($('past').checked) d.setDate(d.getDate() - 34);
+    return d;
+  }
+  function render() {
+    const s = SAMPLES[cur];
+    $('mFrom').textContent = s.from;
+    $('mTo').textContent = s.to;
+    $('mCc').textContent = s.cc;
+    $('mSubj').textContent = s.subj;
+    $('mDate').textContent = origDate().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    $('mBody').textContent = s.body;
+    $('confirmStage').hidden = true;
+    $('receiptOut').hidden = true;
+    $('fwdBtn').disabled = false;
+    $('fwdBtn').textContent = 'Forward to decide@ →';
+  }
+  document.querySelectorAll('.choice').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.choice').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    cur = b.dataset.s; render();
+  }));
+  $('past').addEventListener('change', render);
+
+  $('fwdBtn').addEventListener('click', () => {
+    $('mTo').innerHTML = '<span class="fwd">decide@vacprotocol.org</span> (forwarded)';
+    $('fwdBtn').disabled = true;
+    $('fwdBtn').textContent = 'Forwarded ✓';
+    $('confirmStage').hidden = false;
+    $('status').textContent = 'Draft recorded. Waiting for the approver to confirm.';
+    $('confirmStage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  async function mint(live) {
+    const s = SAMPLES[cur];
+    const past = $('past').checked;
+    const email = live && verified && verified.email ? String(verified.email).trim() : '';
+    const body = {
+      human_identity: live ? email : s.approver,
+      agent_id: 'decision-receipt-demo',
+      resources: ['decision:' + cur],
+      actions: ['record_decision', 'view_credential'],
+      verification_method: live ? 'multi_modal' : 'simulated',
+      sensitivity: 'high',
+      constraints: {
+        _demo: true,
+        product_stage: 'step_1_forward_it',
+        source_surface: 'email_forward',
+        decision: s.decision,
+        object: s.object,
+        amount: s.amount,
+        named_approver: s.approver,
+        original_approval_at: origDate().toISOString(),
+        recorded_after_the_fact: past,
+        sender_check: 'demo — SPF/DKIM not evaluated'
+      },
+      context: { surface: 'decision-receipt-demo', live_ceremony: live }
+    };
+    if (live && verified && verified.session_token) body.authorising_session_token = verified.session_token;
+    const r = await fetch(API + '/v1/vat/issue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error('issue ' + r.status);
+    return r.json();
+  }
+
+  function showReceipt(data, live) {
+    const s = SAMPLES[cur];
+    const past = $('past').checked;
+    const claims = data.claims || {};
+    const method = claims.vac_verification_method || (live ? 'multi_modal' : 'simulated');
+    const reallyLive = live && method !== 'simulated';
+    const trust = claims.vac_trust_score != null ? Math.round(claims.vac_trust_score * 100) + '%' : '—';
+    const base = data.verify_url || ('/vat/verify/' + data.jti);
+    const link = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify' + (data.compact_jwt ? '#jwt=' + encodeURIComponent(data.compact_jwt) : '');
+    const who = reallyLive ? esc(verified.email) + ' · confirmed with a live check' : esc(s.approver) + ' · sample approver — live check skipped (demo only)';
+    const out = $('receiptOut');
+    out.innerHTML =
+      '<div class="receipt">' +
+      '<p class="eyebrow">Sent to everyone on the thread</p>' +
+      '<h3>Decision receipt</h3>' +
+      '<div class="kv">' +
+      '<b>Decision</b><span>' + esc(s.decision) + '</span>' +
+      (s.amount ? '<b>Amount</b><span>' + esc(s.amount) + '</span>' : '') +
+      '<b>Confirmed by</b><span>' + who + '</span>' +
+      '<b>How it arrived</b><span>Forwarded email (simulated in this preview)</span>' +
+      '<b>Approval given</b><span>' + esc(origDate().toLocaleString()) + '</span>' +
+      '<b>Receipt issued</b><span>' + esc(new Date().toLocaleString()) + '</span>' +
+      '<b>Trust level</b><span>' + esc(trust) + ' · ' + esc(method) + '</span>' +
+      '<b>Receipt id</b><span style="font-family:var(--mono);font-size:13px">' + esc(data.jti) + '</span>' +
+      '</div>' +
+      (past ? '<span class="after">Recorded after the fact — approval given ' + esc(origDate().toLocaleDateString()) + ', confirmed ' + esc(new Date().toLocaleDateString()) + '</span>' : '') +
+      '<p style="margin-top:14px"><a href="' + esc(link) + '" target="_blank" rel="noopener">Check this receipt yourself →</a></p>' +
+      '<p class="muted" style="font-size:13px;margin-top:6px">Anyone with the link can check the signature in their own browser. Edit the receipt and it shows as tampered.</p>' +
+      '</div>';
+    out.hidden = false;
+    out.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function finish(live) {
+    $('status').textContent = live ? 'Confirmed live — signing the receipt…' : 'Check skipped — signing a demo receipt…';
+    $('liveBtn').disabled = true; $('skipBtn').disabled = true;
+    try {
+      const data = await mint(live);
+      if (!data || !data.jti) throw new Error('no receipt id');
+      $('status').textContent = 'Receipt signed.';
+      showReceipt(data, live);
+    } catch (e) {
+      $('status').textContent = 'The receipt could not be signed just now (' + (e && e.message) + '). Try again in a moment.';
+    } finally {
+      $('liveBtn').disabled = false; $('skipBtn').disabled = false;
+    }
+  }
+
+  $('skipBtn').addEventListener('click', () => finish(false));
+
+  // Live check in an overlay — same hand-off as the sector demos (auth.html posts vac-auth-success).
+  const overlay = $('verifyOverlay'), frame = $('voFrame');
+  function closeOverlay() { overlay.hidden = true; frame.src = 'about:blank'; document.body.style.overflow = ''; }
+  $('voClose').addEventListener('click', closeOverlay);
+  window.addEventListener('message', (ev) => {
+    if (ev.origin !== window.location.origin) return;
+    const d = ev.data || {};
+    if (d.type !== 'vac-auth-success' || overlay.hidden) return;
+    verified = { email: d.email || null, name: d.name || '', session_token: d.session_token || null };
+    const head = overlay.querySelector('.vo-head');
+    let b = $('voContinue');
+    if (!b) {
+      b = document.createElement('button');
+      b.id = 'voContinue'; b.type = 'button'; b.className = 'btn teal';
+      b.style.cssText = 'padding:8px 14px;font-size:14px;letter-spacing:0;text-transform:none;font-family:inherit';
+      head.insertBefore(b, $('voClose'));
+    }
+    b.textContent = 'Continue to your receipt →';
+    b.hidden = false;
+    b.onclick = () => { b.hidden = true; closeOverlay(); finish(true); };
+  });
+  $('liveBtn').addEventListener('click', () => {
+    if (verified && verified.session_token) { finish(true); return; }
+    const c = $('voContinue'); if (c) c.hidden = true;
+    frame.src = '/auth.html?reauth=1';
+    overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+  });
+
+  render();
+})();
+</script>
+<script>try{navigator.sendBeacon&&navigator.sendBeacon('https://api.athenapilot.ai/v1/telemetry/view',JSON.stringify({page:location.pathname}))}catch(e){}</script>
+</body>
+</html>
