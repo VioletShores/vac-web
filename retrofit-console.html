@@ -297,6 +297,7 @@ input.vac-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px
       <option value="">Select your system&hellip;</option>
       <option value="water">Water digital twin (AQP-class)</option>
       <option value="scada">SCADA-ADMS</option>
+      <option value="pharma">Pharmaceutical QMS / batch record (GMP)</option>
       <option value="case">Case management</option>
       <option value="custom">Custom</option>
     </select>
@@ -606,6 +607,12 @@ const DECISION_POINTS = {
     { id:'set_point', label:'Accept set-point override', note:'EMS set-point outside auto-band, manual authority required' },
     { id:'protection_bypass', label:'Sign off protection bypass', note:'Temporary bypass, time-limited, written scope' },
   ],
+  pharma: [
+    { id:'batch_release', label:'Certify batch release', note:'Qualified Person sign-off after deviation closure (EU GMP Annex 16)' },
+    { id:'deviation_close', label:'Close a batch-record deviation', note:'Impact assessment approved, CAPA linked' },
+    { id:'ai_finding_accept', label:'Accept an AI-flagged quality finding', note:'Model recommendation reviewed against the batch record' },
+    { id:'record_correction', label:'Approve a GMP record correction', note:'Electronic record change with reason (21 CFR Part 11 style)' },
+  ],
   case: [
     { id:'financial_approval', label:'Approve financial disbursement', note:'Payment above threshold, dual-authority required' },
     { id:'case_close', label:'Authorise case closure', note:'Statutory deadline, compliance officer sign-off' },
@@ -622,10 +629,19 @@ const DECISION_POINTS = {
 const SYSTEM_DESCS = {
   water: 'Water digital twin (AQP-class) &mdash; smart water management, pressure zone modelling, field dispatch workflows.',
   scada: 'SCADA-ADMS &mdash; supervisory control and energy management systems, HV switching, grid contingency operations.',
+  pharma: 'Pharmaceutical QMS / batch record (GMP) &mdash; quality management, manufacturing execution and lab systems where a Qualified Person certifies release.',
   case: 'Case management &mdash; regulated case workflows, financial disbursements, statutory record management.',
   custom: 'Custom system &mdash; define your own decision points from your existing SOPs.',
 };
 
+const AUTHORITY_ROLES_BY_SYSTEM = {
+  pharma: [
+    { role:'Qualified Person (batch release)', key:'qualified_person', delegates:['Dr. E. Weber', 'Dr. M. Rossi', 'Dr. A. Chen'] },
+    { role:'QA manager', key:'qa_manager', delegates:['S. Keller', 'T. Nguyen'] },
+    { role:'Compliance officer', key:'compliance_officer', delegates:['P. Vasquez', 'R. Nakamura'] },
+  ],
+};
+function authorityRoles() { return AUTHORITY_ROLES_BY_SYSTEM[state.system] || AUTHORITY_ROLES; }
 const AUTHORITY_ROLES = [
   { role:'NOC engineer', key:'noc_engineer', delegates:['A. Rahman', 'J. Park', 'S. Okonkwo'] },
   { role:'Duty manager', key:'duty_manager', delegates:['M. Brennan', 'L. Torres', 'K. Singh'] },
@@ -674,6 +690,7 @@ function onSystemChange() {
   const v = document.getElementById('systemSelect').value;
   state.system = v;
   state.selectedDecisions = new Set();
+  state.authority = {};
   document.getElementById('systemDesc').innerHTML = v ? SYSTEM_DESCS[v] : '';
   document.getElementById('step1Next').disabled = !v;
 }
@@ -745,7 +762,7 @@ function getTierReq(val) {
 
 function buildAuthorityRows() {
   const wrap = document.getElementById('authorityGroup');
-  wrap.innerHTML = AUTHORITY_ROLES.map(r => {
+  wrap.innerHTML = authorityRoles().map(r => {
     const current = state.authority[r.key] || r.delegates[0];
     const opts = r.delegates.map(d =>
       `<option value="${d}" ${current === d ? 'selected' : ''}>${d}</option>`
@@ -759,7 +776,7 @@ function buildAuthorityRows() {
       <div class="authority-note">Sample delegate &mdash; production: ingested from your SSO (SCIM)</div>
     </div>`;
   }).join('');
-  AUTHORITY_ROLES.forEach(r => {
+  authorityRoles().forEach(r => {
     if (!state.authority[r.key]) state.authority[r.key] = r.delegates[0];
   });
 }
