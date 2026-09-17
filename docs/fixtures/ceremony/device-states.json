@@ -1,0 +1,51 @@
+{
+  "description": "Expected first-line error messages per device/permission state (F-1202 ceremony device diagnosis). Used by the ceremony harness to validate plain-English error rendering.",
+  "states": [
+    {
+      "id": "no-camera",
+      "label": "No video input device found",
+      "simulate": {
+        "enumerateDevices": { "videoinput": 0, "audioinput": 1 },
+        "getUserMediaError": { "name": "NotFoundError", "message": "Requested device not found" }
+      },
+      "expectedFirstLine": "I can't find a camera on this machine — is one plugged in? When it is, tap Retry."
+    },
+    {
+      "id": "no-microphone",
+      "label": "No audio input device found",
+      "simulate": {
+        "enumerateDevices": { "videoinput": 1, "audioinput": 0 },
+        "getUserMediaError": { "name": "NotFoundError", "message": "Requested device not found" }
+      },
+      "expectedFirstLine": "I can't find a microphone on this machine — is one plugged in? When it is, tap Retry."
+    },
+    {
+      "id": "permission-denied",
+      "label": "Browser blocked camera/mic access",
+      "simulate": {
+        "enumerateDevices": { "videoinput": 1, "audioinput": 1 },
+        "getUserMediaError": { "name": "NotAllowedError", "message": "Permission denied" }
+      },
+      "expectedFirstLine": "Your browser is blocking the camera. Tap Allow when it asks — or use the lock icon in the address bar."
+    },
+    {
+      "id": "device-in-use",
+      "label": "Camera held by another application",
+      "simulate": {
+        "enumerateDevices": { "videoinput": 1, "audioinput": 1 },
+        "getUserMediaError": { "name": "NotReadableError", "message": "Could not start video source" }
+      },
+      "expectedFirstLine": "Another app is using your camera. Close it, then tap Retry."
+    },
+    {
+      "id": "wrong-audio-route",
+      "label": "Wrong audio route (Continuity/display/BT mic — silent track)",
+      "simulate": {
+        "enumerateDevices": { "videoinput": 1, "audioinput": 2 },
+        "getUserMediaError": null,
+        "silentTrackFrames": 360
+      },
+      "expectedFirstLine": "Very low input. Your browser may be using a different microphone than the one you're speaking into"
+    }
+  ]
+}
