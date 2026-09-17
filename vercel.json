@@ -221,6 +221,10 @@
       "destination": "/decision-receipt.html"
     },
     {
+      "source": "/demos",
+      "destination": "/demos.html"
+    },
+    {
       "source": "/athena-browser",
       "destination": "/athena-browser.html"
     },
