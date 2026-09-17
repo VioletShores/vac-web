@@ -539,13 +539,14 @@ input.vac-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px
           <span class="live-dot"></span>
           Run a sealed acceptance now &mdash; LIVE
         </button>
+        <div style="margin-top:10px"><a href="#" id="sealSkipLink" onclick="sealWithoutLiveCheck();return false;" style="font-size:13px;color:var(--dim)">Skip the live check (demo only) &rarr;</a></div>
         <div id="sealReceipt" class="seal-receipt">
           <div class="seal-head">
             <svg class="seal-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
               <circle cx="14" cy="14" r="13" stroke="#34D399" stroke-width="1.5"/>
               <path d="M8 14l4 4 8-8" stroke="#34D399" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <div class="seal-title">Sealed &mdash; live production</div>
+            <div class="seal-title" id="sealTitle">Sealed &mdash; live production</div>
           </div>
           <dl class="kv" id="sealKv"></dl>
           <a class="verify-link-btn" id="sealVerifyLink" href="#" target="_blank">
@@ -1047,57 +1048,84 @@ function closeVerify() {
   document.body.style.overflow = '';
 }
 
-// Listen for auth.html postMessage pass signal (same pattern as tribunal-demo)
-window.addEventListener('message', async function(e) {
-  if (!e.data) return;
-  const d = e.data;
-  if (d.type !== 'vac_verified' && d.type !== 'VAC_VERIFIED') return;
+// S194: auth.html (in the overlay iframe) posts {type:'vac-auth-success', email, name, session_token}.
+// The console used to listen only for 'vac_verified', so the live seal never happened. Accept both,
+// then mint through the same /v1/vat/issue path the water and pharma demos use.
+async function mintConsoleSeal(verified) {
+  const btn = document.getElementById('liveActionBtn');
+  const manifestId = btn.getAttribute('data-manifest') || '';
+  const action = btn.getAttribute('data-action') || 'seal_decision';
+  const live = !!(verified && verified.session_token);
+  const m = state.builtManifest || {};
+  const body = {
+    human_identity: (verified && verified.email) ? String(verified.email).trim() : 'delegate@console-demo.vac',
+    agent_id: 'retrofit-console',
+    resources: ['governance:manifest:' + manifestId],
+    actions: [action, 'view_credential'],
+    verification_method: 'multi_modal',
+    sensitivity: 'high',
+    constraints: {
+      _demo: true,
+      _note_for_evaluator: 'Scope is the console manifest below; decision points and roster are sample values until the pilot imports the real ones.',
+      manifest_id: manifestId,
+      system: m.system || state.system || '',
+      decision_points: (m.decision_points || []).map(d => d.action),
+    },
+    context: { surface: 'retrofit-console', authorised_at: new Date().toISOString() },
+  };
+  if (live) body.authorising_session_token = verified.session_token;
+  const r = await fetch(API_BASE + '/v1/vat/issue', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error('issue ' + r.status);
+  const data = await r.json();
+  if (!data || !data.jti) throw new Error('no jti');
+  const base = data.verify_url || ('https://vacprotocol.org/vat/verify/' + data.jti);
+  const verifyPath = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify'
+    + (data.compact_jwt ? ('#jwt=' + encodeURIComponent(data.compact_jwt)) : '');
+  const trust = (data.claims && data.claims.vac_trust_score != null) ? Number(data.claims.vac_trust_score) : 0;
+  // Trust the server's verdict, not the page's: a session the backend did not accept comes back 'simulated'.
+  const serverLive = !!(live && data.claims && data.claims.vac_verification_method && data.claims.vac_verification_method !== 'simulated');
+  document.getElementById('sealTitle').innerHTML = serverLive
+    ? 'Sealed &mdash; under your live check'
+    : 'Sealed &mdash; demo only (no live check)';
+  showSealReceipt({ jti: data.jti, trust, verifyPath, action, email: live ? verified.email : 'sample identity (live check skipped)' });
+  if (live && !serverLive) document.getElementById('sealTitle').innerHTML = 'Sealed &mdash; the live check was not accepted by the server (demo level)';
+  return serverLive;
+}
 
-  window.__vacVerified = d;
-  closeVerify();
-
+async function runConsoleSeal(verified) {
   const btn = document.getElementById('liveActionBtn');
   btn.disabled = true;
   btn.innerHTML = '<span style="opacity:.6">Sealing&hellip;</span>';
-
   try {
-    const manifestId = btn.getAttribute('data-manifest');
-    const action = btn.getAttribute('data-action') || 'seal_decision';
-
-    const r = await fetch(API_BASE + '/v1/vat/authorize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_token: d.session_token,
-        action: 'seal_decision',
-        actions: [action],
-        manifest_id: manifestId,
-        note: 'Sealed via governance console walkthrough',
-        _demo: true,
-      }),
-    });
-
-    const j = await r.json();
-    const jti = j.jti || j.token?.jti || '';
-    const trust = j.trust_score || j.trust || 0;
-    const verifyPath = jti
-      ? `${API_BASE}/vat/verify/${jti}?intent=verify`
-      : null;
-
-    showSealReceipt({ jti, trust, verifyPath, action, email: d.email });
-
-    btn.innerHTML = '<span style="color:var(--green)">Sealed</span>';
+    const _e = document.getElementById('sealError'); if (_e) _e.textContent = '';
+    const live = await mintConsoleSeal(verified);
+    btn.innerHTML = live ? '<span style="color:var(--green)">Sealed under your live check</span>' : 'Run a sealed acceptance now &mdash; LIVE';
+    btn.disabled = live;
   } catch (err) {
     btn.disabled = false;
     btn.innerHTML = 'Run a sealed acceptance now &mdash; LIVE';
-    const receipt = document.getElementById('sealReceipt');
-    receipt.classList.add('show');
-    const errEl = document.createElement('div');
-    errEl.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--amber)';
-    errEl.textContent = 'Authorize call failed: ' + err.message;
-    receipt.innerHTML = '';
-    receipt.appendChild(errEl);
+    let errEl = document.getElementById('sealError');
+    if (!errEl) {
+      errEl = document.createElement('div'); errEl.id = 'sealError';
+      errEl.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--amber);margin-top:10px';
+      btn.parentNode.insertBefore(errEl, document.getElementById('sealReceipt'));
+    }
+    errEl.textContent = 'Seal failed: ' + err.message + ' — try again.';
   }
+}
+
+function sealWithoutLiveCheck() { runConsoleSeal(null); }
+
+window.addEventListener('message', function(e) {
+  if (e.origin !== window.location.origin) return;
+  const d = e.data;
+  if (!d || (d.type !== 'vac-auth-success' && d.type !== 'vac_verified' && d.type !== 'VAC_VERIFIED')) return;
+  if (!d.session_token) return;
+  window.__vacVerified = d;
+  closeVerify();
+  runConsoleSeal(d);
 });
 
 // ── Info popovers ─────────────────────────────────────────────────────────────
