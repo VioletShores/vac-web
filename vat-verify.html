@@ -510,6 +510,148 @@ async function fetchVerif(jti) {
     try { const r = await fetch(`${API_BASE}/v1/vat/verify/${jti}`); if (!r.ok) return null; return await r.json(); } catch { return null; }
 }
 
+// ─── S194: honest in-browser signature check ───
+// The verify endpoints above only report server-memory status (expiry,
+// revocation, parent links) — never a signature check. If the compact JWT
+// itself is available to this page (URL fragment, sessionStorage, or pasted
+// by hand), we verify it for real, in the browser, against the published key.
+const TWEETNACL_URL = 'https://cdnjs.cloudflare.com/ajax/libs/tweetnacl/1.0.3/nacl.min.js';
+let _naclLoadPromise = null;
+
+function getJWTFromPage() {
+    try {
+        const h = window.location.hash || '';
+        const m = h.match(/(?:^#|[?&])jwt=([^&]+)/);
+        if (m && m[1]) {
+            const jwt = decodeURIComponent(m[1]);
+            try { sessionStorage.setItem('vac_verify_jwt', jwt); } catch (_) {}
+            return jwt;
+        }
+    } catch (_) {}
+    try {
+        const s = sessionStorage.getItem('vac_verify_jwt');
+        if (s) return s;
+    } catch (_) {}
+    return '';
+}
+
+function b64urlToBytes(s) {
+    s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+}
+
+function b64ToBytes(s) {
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+}
+
+function pemToDer(pem) {
+    const body = String(pem).replace(/-----BEGIN [^-]+-----/, '').replace(/-----END [^-]+-----/, '').replace(/\s+/g, '');
+    return b64ToBytes(body);
+}
+
+function decodeJwtParts(jwt) {
+    const parts = String(jwt).split('.');
+    if (parts.length !== 3) throw new Error('not a compact JWT');
+    const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0])));
+    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
+    return { header, payload, parts };
+}
+
+function loadTweetNacl() {
+    if (window.nacl) return Promise.resolve(window.nacl);
+    if (_naclLoadPromise) return _naclLoadPromise;
+    _naclLoadPromise = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = TWEETNACL_URL;
+        s.onload = () => resolve(window.nacl);
+        s.onerror = () => reject(new Error('tweetnacl failed to load'));
+        document.head.appendChild(s);
+    });
+    return _naclLoadPromise;
+}
+
+async function fetchPublicKey() {
+    try { const r = await fetch(`${API_BASE}/v1/vat/key`); if (!r.ok) return null; return await r.json(); } catch { return null; }
+}
+
+function renderSigResult(res) {
+    if (!res) return '';
+    if (res.reason === 'old_key') {
+        return `<div style="font-size:13px;color:var(--warning);line-height:1.5;">Signed with an earlier key (keys currently change on each server restart) — cannot be checked here. Token's key id: <span class="tk-value">${res.kid}</span></div>`;
+    }
+    if (res.reason === 'unsupported' || res.reason === 'no_key') {
+        return `<div style="font-size:13px;color:var(--text-muted);">Signature check not available in this browser.</div>`;
+    }
+    if (res.reason === 'unparseable') {
+        return `<div style="font-size:13px;color:var(--error);">That doesn't look like a valid compact JWT.</div>`;
+    }
+    const badge = res.ok
+        ? '<span style="color:var(--success);font-weight:700;">PASS</span>'
+        : '<span style="color:var(--error);font-weight:700;">FAIL</span>';
+    return `<div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">Checked in your browser against the published key <span class="tk-value">${res.kid}</span>: ${badge}</div>`;
+}
+
+async function checkPastedJWT() {
+    const ta = document.getElementById('jwtPasteInput');
+    const out = document.getElementById('sigCheckResult');
+    if (!ta || !out) return;
+    const jwt = ta.value.trim();
+    if (!jwt) return;
+    out.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">Checking…</span>';
+    const res = await verifyCompactJWT(jwt);
+    out.innerHTML = renderSigResult(res);
+}
+window.checkPastedJWT = checkPastedJWT;
+
+// Verifies a compact VAT JWT in-browser against the currently published key.
+// Returns { ok: true|false|null, reason: string, kid: string, jti: string }.
+// ok === null means "could not be checked" (key mismatch / no browser support),
+// not a failure of the token itself.
+async function verifyCompactJWT(jwt) {
+    let header, payload, parts;
+    try {
+        ({ header, payload, parts } = decodeJwtParts(jwt));
+    } catch (e) {
+        return { ok: null, reason: 'unparseable', kid: '', jti: '' };
+    }
+    const kid = header.kid || '';
+    const jti = payload.jti || '';
+    const key = await fetchPublicKey();
+    if (!key || !key.public_key) {
+        return { ok: null, reason: 'no_key', kid, jti };
+    }
+    if (key.key_id && kid && key.key_id !== kid) {
+        return { ok: null, reason: 'old_key', kid, jti, currentKid: key.key_id };
+    }
+    const der = pemToDer(key.public_key);
+    const signingInput = new TextEncoder().encode(parts[0] + '.' + parts[1]);
+    const sigBytes = b64urlToBytes(parts[2]);
+
+    // Try WebCrypto Ed25519 first (Chromium 130+, Safari 17+).
+    try {
+        const cryptoKey = await crypto.subtle.importKey('spki', der, { name: 'Ed25519' }, false, ['verify']);
+        const ok = await crypto.subtle.verify('Ed25519', cryptoKey, sigBytes, signingInput);
+        return { ok, reason: 'webcrypto', kid, jti };
+    } catch (_) {
+        // Fall through to tweetnacl.
+    }
+    try {
+        const nacl = await loadTweetNacl();
+        const rawPub = der.slice(der.length - 32); // Ed25519 SPKI: 12-byte prefix + 32-byte raw key
+        const ok = nacl.sign.detached.verify(signingInput, sigBytes, rawPub);
+        return { ok, reason: 'tweetnacl', kid, jti };
+    } catch (_) {
+        return { ok: null, reason: 'unsupported', kid, jti };
+    }
+}
+
 // F-639: arrival intent. Caroline reaches this page via the tribunal "verify independently"
 // link, which carries ?intent=verify — her one job is to confirm the token is GENUINE. A
 // holder revealing their own credential arrives WITHOUT the param. Lead with the right job.
@@ -526,20 +668,15 @@ const MODS = {
     geolocation:        { label: 'Geolocation',          sub: 'Spatial verification' },
 };
 
-function modsForMethod(m) {
-    return ({
-        'multi_modal': ['face_liveness','deepfake_detection','voice_biometric','challenge_response','geolocation'],
-        'multi_modal_plus_behavioural': ['face_liveness','deepfake_detection','face_consistency','voice_biometric','challenge_response','geolocation'],
-        'facial_geometry': ['face_liveness','deepfake_detection','face_consistency'],
-        'voice_pattern': ['voice_biometric'],
-        'single_modal': ['face_liveness'],
-        'simulated': ['face_liveness'],
-    })[m] || ['face_liveness','voice_biometric'];
-}
-
 function fmtMethod(m) {
     return ({ multi_modal:'Multi-Modal Biometric', multi_modal_plus_behavioural:'Multi-Modal + Behavioural', facial_geometry:'Facial Geometry', voice_pattern:'Voice Pattern', single_modal:'Single Modal', simulated:'Simulated (Demo)' })[m] || m;
 }
+
+const ASSURANCE_COPY = {
+    L1: 'no live identity check',
+    L2: 'quick re-check',
+    L3: 'full live check',
+};
 
 /** Switch theme at runtime */
 function switchTheme(id) {
@@ -551,7 +688,7 @@ function switchTheme(id) {
     }
 }
 
-function render(data, verif, budgetData) {
+function render(data, verif, budgetData, sigResult, jwtRaw) {
     const app = document.getElementById('app');
     const theme = (typeof VACTheme !== 'undefined') ? VACTheme.current() : { meta: {} };
 
@@ -564,19 +701,26 @@ function render(data, verif, budgetData) {
     }
 
     const { chain_display: cd, claim_mapping: cm, verification: v } = data;
-    const ok = v.valid;
+    // S194 night: a failed in-browser signature check overrides the server status.
+    // The server only reports expiry/revocation; if the token in hand does not
+    // verify against the published key, it was altered — never show it as verified.
+    const sigFail = !!(sigResult && sigResult.ok === false);
+    if (sigFail) {
+        v.errors = (Array.isArray(v.errors) ? v.errors.slice() : []);
+        v.errors.unshift('Signature check failed in your browser: this token was altered after it was sealed.');
+    }
+    const ok = v.valid && !sigFail;
     const isExpiry = !ok && Array.isArray(v.errors) && v.errors.length > 0 &&
         v.errors.every(e => /expired/i.test(String(e))) &&
         !v.errors.some(e => /signature|tamper/i.test(String(e)));
     const nb = document.getElementById('nav-badge');
     if (!ok) {
         if (isExpiry) { nb.textContent = 'EXPIRED'; nb.className = 'nav-badge expired'; }
-        else { nb.textContent = 'INVALID'; nb.className = 'nav-badge invalid'; }
+        else { nb.textContent = sigFail ? 'TAMPERED' : 'INVALID'; nb.className = 'nav-badge invalid'; }
     }
 
     const root = cd.find(n => n.is_root);
     const method = root ? root.verification_method : 'multi_modal';
-    const active = modsForMethod(method);
     const trustPct = (v.effective_trust_score * 100).toFixed(1);
     const trustCls = v.effective_trust_score > 0.7 ? 'high' : v.effective_trust_score > 0.4 ? 'mid' : 'low';
     const trustColor = v.effective_trust_score > 0.7 ? 'var(--success)' : v.effective_trust_score > 0.4 ? 'var(--warning)' : 'var(--error)';
@@ -604,14 +748,13 @@ function render(data, verif, budgetData) {
                         <div style="font-family:var(--mono);font-size:9px;color:var(--text-muted);margin-top:4px;letter-spacing:0.5px;" id="trustDecay"></div>
                     </div>
                 </div>
-                <div class="hero-tagline">This token is genuine.</div>
-                <div class="hero-sub">Checked just now against the VAC backend — not a stored sample. The signature and authority chain are real; you verified it yourself by opening this page.</div>
+                <div class="hero-tagline">This token checks out.</div>
+                <div class="hero-sub">Checked just now against the VAC backend — not a stored sample. The status below is what the server reported; the signature is checked separately, in your browser, below.</div>
                 <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;">
-                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">Ed25519 signature valid</span>
-                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">${v.chain_length} node${v.chain_length !== 1 ? 's' : ''} · chain intact</span>
-                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">${active.length} modalities</span>
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">Server status: active, not expired, not revoked</span>
+                    <span style="font-family:var(--mono);font-size:11px;color:var(--success);background:var(--success-bg);border:1px solid var(--success-border);border-radius:6px;padding:6px 11px;">${v.chain_length} node${v.chain_length !== 1 ? 's' : ''} · parent links present</span>
                 </div>
-                <div style="font-size:12.5px;color:var(--text-tertiary);max-width:420px;margin:14px auto 0;line-height:1.5;">No trust in us required: this page fetched the token from the production backend and checked the cryptographic signature live. Anyone with the link can do the same and get the same answer.</div>
+                <div style="font-size:12.5px;color:var(--text-tertiary);max-width:420px;margin:14px auto 0;line-height:1.5;">No trust in us required: this page fetched the token from the production backend and checked its status live. Anyone with the link can do the same and get the same answer. The status check above does not include the cryptographic signature — see "Signature check" below for that.</div>
             </div>`;
         } else {
         h += `<div class="hero">
@@ -629,7 +772,7 @@ function render(data, verif, budgetData) {
                 </div>
             </div>
             <div class="hero-chain-info">
-                ${v.chain_length} node${v.chain_length !== 1 ? 's' : ''}<span class="sep">\u00b7</span>${active.length} modalities<span class="sep">\u00b7</span>Ed25519
+                ${v.chain_length} node${v.chain_length !== 1 ? 's' : ''}<span class="sep">\u00b7</span>parent links present<span class="sep">\u00b7</span>Ed25519-signed
             </div>
             <div class="hero-tagline">A verified human started this chain.</div>
             <div class="hero-sub">Every agent in this delegation traces back to a biometrically verified person. Vouch to join their trust graph.</div>
@@ -642,7 +785,7 @@ function render(data, verif, budgetData) {
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.7"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             </div>
             <div class="hero-tagline" style="color:var(--warning)">Authority expired</div>
-            <div class="hero-sub">Signature valid · chain intact · authority expired — authority in VAC is time-bounded by design.</div>
+            <div class="hero-sub">Server status: not revoked · parent links present · authority expired — authority in VAC is time-bounded by design. Signature not checked here.</div>
         </div>`;
     } else {
         const _esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -656,6 +799,35 @@ function render(data, verif, budgetData) {
             <div class="hero-tagline" style="color:var(--error)">${(v.errors||[]).length} error${(v.errors||[]).length !== 1 ? 's' : ''} detected</div>
             ${_errList}${_warnList}
         </div>`;
+    }
+
+    // S194: real in-browser signature check. Server status (above) never covers the
+    // signature — this is the only place on the page that actually checks it.
+    h += '<div class="section"><div class="section-label">Signature check</div><div class="card" style="padding:18px 20px;">';
+    if (jwtRaw) {
+        h += `<div id="sigCheckResult">${renderSigResult(sigResult)}</div>`;
+    } else {
+        h += `<div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px;line-height:1.5;">Signature: not checked on this page — paste the token below to check it.</div>
+            <textarea id="jwtPasteInput" placeholder="Paste compact JWT (eyJ...)" style="width:100%;min-height:70px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:10px;font-family:var(--mono);font-size:11px;color:var(--text-secondary);resize:vertical;"></textarea><br>
+            <button onclick="checkPastedJWT()" style="margin-top:8px;background:var(--accent);color:#fff;border:none;border-radius:20px;padding:8px 18px;font-family:var(--font);font-weight:700;font-size:13px;cursor:pointer;">Check signature</button>
+            <div id="sigCheckResult" style="margin-top:10px;"></div>`;
+    }
+    h += '</div></div>';
+
+    // S194: assurance level (server-attested fact the page never showed before) +
+    // demo-mode banner when the root token was issued without a live identity check.
+    if (v.assurance_level) {
+        const alDesc = ASSURANCE_COPY[v.assurance_level] || 'assurance level not recognised';
+        h += `<div class="section" style="margin-bottom:12px;"><div class="card" style="padding:14px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-family:var(--mono);font-weight:700;font-size:13px;color:var(--text-primary);">Assurance: ${v.assurance_level}</span>
+            <span style="font-size:13px;color:var(--text-secondary);">— ${alDesc}</span>
+        </div></div>`;
+    }
+    if (method === 'simulated') {
+        h += `<div class="section" style="margin-bottom:12px;"><div class="card" style="padding:14px 18px;border-color:var(--warning-border);background:var(--warning-bg);">
+            <div style="font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--warning);margin-bottom:4px;">Demo mode</div>
+            <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">No live identity check was run for this token. It was issued for demonstration purposes; the trust score (0.3) reflects that, not a real biometric verification.</div>
+        </div></div>`;
     }
 
     // Vouch CTA
@@ -685,35 +857,32 @@ function render(data, verif, budgetData) {
                 <div class="sender-meta"><span>${data.issuer || 'vacprotocol.org'}</span><span>\u00b7</span><span>Patent Pending</span></div>
                 <div class="sender-method">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    ${fmtMethod(method)} \u00b7 ${active.length} modalities
+                    ${fmtMethod(method)}
                 </div>
             </div>
         </div></div></div>`;
     }
 
-    // Modalities
-    // Adaptive Modality — show trust-reduced requirements
-    const mp = data.modality_policy || null;
+    // Modalities — S194: the old panel rendered a fixed policy label (modality_policy)
+    // and a hard-coded client-side method→modalities table as if they were per-token
+    // results. Neither is a measurement of what actually ran for THIS token. Show the
+    // backend's real per-check results (verification_signals) when present; otherwise
+    // say so honestly.
+    const rootSignals = (root && root.verification_signals) || [];
     h += '<div class="section"><div class="section-label">Verification Modalities</div>';
-    if (mp && mp.label) {
-        const lvl = mp.label.toLowerCase();
-        h += `<div class="adaptive-modality-bar ${lvl}"><div class="adaptive-label"><div class="dot ${lvl}"></div><span>${mp.label}: ${mp.total_required} of ${mp.total_available} required</span></div>`;
-        if (mp.total_required < mp.total_available && mp.user_can_override) {
-            h += '<span class="adaptive-override" onclick="document.querySelectorAll(\'.mod-item\').forEach(e=>e.classList.remove(\'can-skip\',\'recommended\'))">Use all modalities</span>';
-        }
-        h += '</div>';
+    if (rootSignals.length) {
+        h += '<div class="card" style="padding:16px 20px;">';
+        rootSignals.forEach(sig => {
+            const label = (MODS[sig] && MODS[sig].label) || sig;
+            h += `<div style="display:flex;align-items:center;gap:10px;padding:6px 0;"><div class="mod-indicator on"></div><div class="mod-label">${label}</div></div>`;
+        });
+        h += '</div></div>';
+    } else {
+        h += `<div class="card" style="padding:16px 20px;">
+            <div style="font-size:13.5px;color:var(--text-secondary);line-height:1.5;">This token does not carry per-check results. The backend does not report which specific checks ran for this credential.</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:10px;">Geolocation — not yet implemented.</div>
+        </div></div>`;
     }
-    h += '<div class="card" style="border-top-left-radius:0;border-top-right-radius:0;"><div class="modalities-grid">';
-    for (const [k, mod] of Object.entries(MODS)) {
-        const on = active.includes(k);
-        let extraCls = '';
-        if (mp) {
-            if (mp.can_skip && mp.can_skip.includes(k)) extraCls = ' can-skip';
-            else if (mp.recommended && mp.recommended.includes(k)) extraCls = ' recommended';
-        }
-        h += `<div class="mod-item${extraCls}"><div class="mod-indicator ${on ? 'on' : 'off'}"></div><div><div class="mod-label">${mod.label}</div><div class="mod-sub">${on ? mod.sub : 'Not used'}</div></div></div>`;
-    }
-    h += '</div></div></div>';
 
     // F-687 Fix 6 (F-690): plain-English anchor for the authority chain + credential,
     // placed above the Delegation Chain / Token Inspector that follow.
@@ -734,12 +903,14 @@ function render(data, verif, budgetData) {
         </div></div>`;
     });
     h += '</div></div>';
-    // Revocation button (patent claims 56-80)
-    const rootJti = cd[0]?.jti || v.token_id || '';
+    // S194: the Revoke Chain button called an undefined API variable and an empty jti
+    // (chain_display nodes and the verification object carry no jti the button could
+    // read) — it never worked. Revocation now also requires admin authentication
+    // server-side, so it isn't a public-page action either way.
     h += `<div style="display:flex;gap:8px;margin-top:12px;padding:0 20px 16px;">
-        <button onclick="revokeChain('${rootJti}')" style="flex:0 0 auto;font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:4px;border:1px solid var(--error-border);background:var(--error-bg);color:var(--error);cursor:pointer;letter-spacing:0.5px;">Revoke Chain</button>
         <a href="/msg?from=${encodeURIComponent(v.email || '')}&name=${encodeURIComponent(v.subject || '')}" style="flex:1;font-family:var(--mono);font-size:11px;padding:6px 14px;border-radius:4px;border:1px solid var(--accent-border);background:var(--accent-bg);color:var(--accent);cursor:pointer;letter-spacing:0.5px;text-decoration:none;text-align:center;display:block;">Send Verified Message</a>
-    </div>`;
+    </div>
+    <div style="padding:0 20px 16px;font-size:11.5px;color:var(--text-muted);">Revocation is an administrator action, not available on this public page.</div>`;
     h += '</div></div>';
 
     // Budget / Spend Controls (patent claims 242-271). F-639: noise for Caroline-the-verifier — suppress for verify-intent.
@@ -783,7 +954,11 @@ function render(data, verif, budgetData) {
         const g = (key, tip) => { if (_glossed.has(key)) return ''; _glossed.add(key); return '<span class="gloss" tabindex="0" role="note" title="' + tip + '" aria-label="' + tip + '">i</span>'; };
         verif.chain.forEach((n, i) => {
             const sep = i < verif.chain.length - 1 ? 'border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;' : '';
-            insp += `<div style="${sep}"><div class="tk-label">${n.is_root ? '\u25cf Root VAT' : `\u25cf Derived VAT (depth ${n.delegation_depth})${g("derived","Authority passed down N steps from the original verified human.")}`}</div><div><span class="tk-dim">jti: </span>${g("jti","This token's unique ID — like a serial number.")}<span class="tk-value">${n.token_id}</span></div><div><span class="tk-dim">trust: </span>${g("trust","Confidence in this token (0–1). It narrows with each hand-off down the chain.")}<span class="tk-value">${n.trust_score}</span></div><div><span class="tk-dim">method: </span>${g("method","How the person was verified — here, multiple biometrics together (face, voice, gesture).")}<span class="tk-value">${n.verification_method}</span></div><div><span class="tk-dim">issued: </span>${g("issuedexpires","When this authority was granted and when it lapses — it's time-limited, not permanent.")}<span class="tk-value">${new Date(n.issued_at).toLocaleString()}</span></div><div><span class="tk-dim">expires: </span><span class="tk-value">${new Date(n.expires_at).toLocaleString()}</span></div><div><span class="tk-dim">chain_hash: </span>${g("chain_hash","A cryptographic fingerprint linking this token to its parent. Change anything and it breaks — so the chain is tamper-evident.")}<span class="tk-dim">${(n.chain_hash || '').substring(0, 32)}\u2026</span></div></div>`;
+            const methodVal = n.verification_method === 'simulated' ? 'simulated (no live identity check)' : n.verification_method;
+            const kidLine = (sigResult && sigResult.kid && n.token_id === sigResult.jti)
+                ? `<div><span class="tk-dim">kid: </span>${g("kid","Which published key signed it.")}<span class="tk-value">${sigResult.kid}</span></div>`
+                : '';
+            insp += `<div style="${sep}"><div class="tk-label">${n.is_root ? '\u25cf Root VAT' : `\u25cf Derived VAT (depth ${n.delegation_depth})${g("derived","Authority passed down N steps from the original verified human.")}`}</div><div><span class="tk-dim">jti: </span>${g("jti","The receipt's unique number.")}<span class="tk-value">${n.token_id}</span></div><div><span class="tk-dim">trust: </span>${g("trust","An assurance signal, not a permission — the policy decides what level an action needs. It narrows with each hand-off down the chain.")}<span class="tk-value">${n.trust_score}</span></div><div><span class="tk-dim">method: </span>${g("method","How the person was verified for this token.")}<span class="tk-value">${methodVal}</span></div>${kidLine}<div><span class="tk-dim">issued: </span>${g("issuedexpires","The authority lasts one hour; the record of what happened is kept.")}<span class="tk-value">${new Date(n.issued_at).toLocaleString()}</span></div><div><span class="tk-dim">expires: </span><span class="tk-value">${new Date(n.expires_at).toLocaleString()}</span></div><div><span class="tk-dim">chain_hash: </span>${g("chain_hash","Links this token to the one that delegated to it. It does not cover the token's contents; the signature does.")}<span class="tk-dim">${(n.chain_hash || '').substring(0, 32)}\u2026</span></div></div>`;
         });
         insp += '</div>';
         h += '<div class="section">';
@@ -903,22 +1078,6 @@ function render(data, verif, budgetData) {
 }
 
 function togSection(el, id) { el.classList.toggle('open'); document.getElementById(id).classList.toggle('open'); }
-
-async function revokeChain(jti) {
-    if (!confirm('Revoke this chain? All downstream agent authority will be immediately invalidated (cascade revocation). This action cannot be undone.')) return;
-    try {
-        const resp = await fetch(`${API}/v1/vat/revoke/${jti}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cascade: true }),
-        });
-        const result = await resp.json();
-        alert(`Revoked ${result.total_revoked} token(s). Cascade: ${result.cascade}. All downstream agents invalidated.`);
-        location.reload();
-    } catch (e) {
-        alert('Revocation failed: ' + e.message);
-    }
-}
 
 let _useCases = [];
 function showUseCase() {
@@ -1100,11 +1259,20 @@ async function init() {
     _currentJTI = jti || '';
     const params = new URLSearchParams(window.location.search);
 
+    const jwtRaw = getJWTFromPage();
+    let sigResult = jwtRaw ? await verifyCompactJWT(jwtRaw) : null;
+    // S194 night: a token carried over from another page (sessionStorage) must not be
+    // reported against this receipt. Only check the token whose receipt number matches.
+    if (sigResult && jti && sigResult.jti && sigResult.jti !== jti) {
+        try { sessionStorage.removeItem('vac_verify_jwt'); } catch (_) {}
+        sigResult = null;
+    }
+
     if (jti) {
         const [c, v, b] = await Promise.all([fetchChain(jti), fetchVerif(jti), fetchBudget(jti)]);
-        render(c, v, b);
+        render(c, v, b, sigResult, jwtRaw);
     } else {
-        render(demoData(), demoData().verification, null);
+        render(demoData(), demoData().verification, null, sigResult, jwtRaw);
         // Show theme picker in demo mode
         document.getElementById('themeSelector').classList.add('show');
         const pick = document.getElementById('themePicker');

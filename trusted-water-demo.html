@@ -421,10 +421,12 @@ async function mintWaterToken() {
     const data = await r.json();
     if (!data || !data.jti) throw new Error('no jti');
     const verifyUrl = data.verify_url || ('/vat/verify/' + data.jti);
+    // S194: JWT travels only in the URL fragment (#jwt=...) — browsers never send it
+    // to a server; the verify page uses it client-side to check the signature.
     SEAL_TOKEN = {
       jti: data.jti,
       trust: (data.claims && data.claims.vac_trust_score != null) ? data.claims.vac_trust_score : 0.85,
-      verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify',
+      verify: verifyUrl + (verifyUrl.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify' + (data.compact_jwt ? ('#jwt=' + encodeURIComponent(data.compact_jwt)) : ''),
       minted: true,
       liveCeremony: !!(cerEmail && cerSession)
     };
@@ -551,11 +553,11 @@ function showReceipt() {
   const verifyDiv = document.createElement('div');
   verifyDiv.style.marginTop = '14px';
   if (tok.minted && tok.liveCeremony) {
-    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Minted under this live session — human_ref derived from the verified ceremony identity.</div>`;
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Check it yourself &rarr; <span class="real-badge">REAL TOKEN</span></a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Minted under this live session — human_ref derived from the verified ceremony identity.</div>`;
   } else if (tok.minted) {
-    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify this seal independently &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Check it yourself &rarr; <span class="real-badge">REAL TOKEN</span></a>`;
   } else {
-    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Verify reference token &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
+    verifyDiv.innerHTML = `<a class="verify-link" href="${esc(safeHref(tok.verify))}" target="_blank" rel="noopener">Check the reference token yourself &rarr;</a><div style="font-family:var(--mono);font-size:10.5px;color:var(--text-quaternary);margin-top:8px;">Live mint unavailable — showing pre-minted reference token. The seal mechanics are identical; this token is also real and verifiable.</div>`;
   }
   auditEl.appendChild(verifyDiv);
 
