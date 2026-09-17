@@ -1615,7 +1615,7 @@ function startAVChecks() {
                     _micFallbackNarrated = false;
                     setAVStatus('mic', 'checking', 'Mic');
                     const _mpr = document.getElementById('avMicPromptText');
-                    if (_mpr) _mpr.textContent = 'Speak now to test your microphone';
+                    if (_mpr) _mpr.textContent = 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
                 }
             }
             // F-941 (BUILD 393): frequency-spectrum data pulled every frame (not just when the
@@ -1773,6 +1773,15 @@ function startAVChecks() {
             const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR));
             const _micSilenceFrame = _micOnFallback ? (_avMrLevelSynth === 0 && !_mrVoicedFrame) : (_ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR);
             _voicedRunTick(_micVoicedState, _mrVoicedFrame ? (_avMrLevelSynth / 100) : _ceremonyRms, _micVoicedFrame, _micSilenceFrame);
+            // S194: show progress while the user speaks, so "keep talking" is visible, not a guess.
+            if (!avChecks.mic && !(_micOnFallback && _micFallbackNarrated)) {
+                const _mpp = document.getElementById('avMicPromptText');
+                if (_mpp) {
+                    const _pct = Math.min(99, Math.round((_micVoicedState.ticks / VOICED_RUN_TICKS_NEEDED) * 100));
+                    const _want = _micVoicedState.ticks > 0 ? ('Listening\u2026 keep talking (' + _pct + '%)') : 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
+                    if (_mpp.textContent !== _want) _mpp.textContent = _want;
+                }
+            }
             if (_micVoicedFrame) {
                 // D-VAD-CALIBRATION-GREETING-BOUND: collect the CURRENT voiced run's levels so a
                 // passing run can seed the ceremony VAD from its median (below) — same intent as the
@@ -1820,7 +1829,7 @@ function startAVChecks() {
                 _micLastQualifyT = 0;
                 setAVStatus('mic', 'checking', 'Mic');
                 const _mpt = document.getElementById('avMicPromptText');
-                if (_mpt) _mpt.textContent = 'Speak now to test your microphone';
+                if (_mpt) _mpt.textContent = 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
                 micWaitStart = 0;
             }
         }
@@ -2724,7 +2733,7 @@ function updateMicTips() {
         tip.innerHTML = `<span style="color: var(--warning);">Mic not picking up audio?</span> ${tips[0] || 'Check your browser permissions.'}`;
         tip.style.display = 'block';
     } else if (waited > 3) {
-        tip.textContent = 'Try speaking louder or clapping';
+        tip.textContent = 'Keep talking in a normal voice, close to the device, for about 2 seconds';
         tip.style.display = 'block';
     }
 }
@@ -2874,7 +2883,7 @@ function retryAVSetup() {
     });
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
-    document.getElementById('avMicPromptText').textContent = 'Speak now to test your microphone';
+    document.getElementById('avMicPromptText').textContent = 'Keep talking for about 2 seconds \u2014 say your name and today\u2019s date';
     document.getElementById('avAudioLevel').style.width = '0%';
     document.getElementById('avAudioPct').textContent = '0%';
     updateAVReady();
@@ -8160,7 +8169,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div id="avAudioBar" style="display:none; margin-bottom: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
             <div id="avMicPrompt" style="display: flex; align-items: center; gap: 8px; font-size: clamp(12px, 1.4vw, 14px); color: var(--text-primary); font-weight: 500; margin-bottom: 8px;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                <span id="avMicPromptText">Speak now to test your microphone</span>
+                <span id="avMicPromptText">Keep talking for about 2 seconds — say your name and today’s date</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
