@@ -1166,11 +1166,33 @@ function showSuccess() {
             }));
         } catch(e) {}
         // Update nav badge to show current state
+        // S194 F-1403: a decision-receipt confirm page (api.athenapilot.ai/d/<ref>) sent the
+        // approver here for a live check. Hand the session back in the URL FRAGMENT (never sent
+        // to a server by the browser); that page posts it to its own backend, which re-checks it
+        // with VAC (/v1/session/verify) and that the email matches the named approver.
+        try {
+            var _drRet = new URLSearchParams(window.location.search).get('return') || '';
+            if (window.parent === window && /^https:\/\/api\.athenapilot\.ai\/d\/[A-Za-z0-9_-]{4,64}$/.test(_drRet)
+                && !document.getElementById('vacDecisionContinue')) {
+                var _drSessObj = (authResult && authResult.session) ? authResult.session : null;
+                var _drSess = (authResult && authResult.session_token) ? authResult.session_token
+                            : (_drSessObj && _drSessObj.token) ? _drSessObj.token : '';
+                if (_drSess) {
+                    var _dc = document.createElement('a'); _dc.id = 'vacDecisionContinue';
+                    _dc.href = _drRet + '#vac_token=' + encodeURIComponent(_drSess);
+                    _dc.textContent = 'Continue to confirm your decision \u2192';
+                    _dc.style.cssText = 'display:block;margin:18px auto 0;max-width:420px;text-align:center;padding:15px 22px;border-radius:12px;background:#2DD4BF;color:#06121C;font-size:16px;font-weight:800;text-decoration:none;';
+                    var _dtn = document.querySelector('#successName') || document.querySelector('.success-name');
+                    (_dtn && _dtn.parentNode ? _dtn.parentNode : document.body).appendChild(_dc);
+                    window.__vacDecisionReturn = true;
+                }
+            }
+        } catch (_dre) {}
         // S148 RETURN-CONTRACT (L-2368 seamless rule at the deepest point; field: Jake Bendall
         // dead-ended here instead of returning to the matters): when this page is TOP-LEVEL
         // (no parent frame to postMessage back to), the success screen MUST carry the onward tap.
         try {
-            if (window.parent === window && !document.getElementById('vacContinueBtn')) {
+            if (window.parent === window && !window.__vacDecisionReturn && !document.getElementById('vacContinueBtn')) {
                 var _cb=document.createElement('a'); _cb.id='vacContinueBtn';
                 // S154 fix-on-find (Rob live test): this was a HARDCODED tribunal link + label,
                 // shown regardless of origin — wrong words ("workflow" not "matters"), wrong
