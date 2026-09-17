@@ -584,7 +584,7 @@ async function fetchPublicKey() {
 function renderSigResult(res) {
     if (!res) return '';
     if (res.reason === 'old_key') {
-        return `<div style="font-size:13px;color:var(--warning);line-height:1.5;">Signed with an earlier key (keys currently change on each server restart) — cannot be checked here. Token's key id: <span class="tk-value">${res.kid}</span></div>`;
+        return `<div style="font-size:13px;color:var(--warning);line-height:1.5;">Signed with a key from before 17 Sep 2026, when signing keys were not yet kept across server restarts — this receipt's signature can't be checked here (that is not a sign of tampering). Token's key id: <span class="tk-value">${res.kid}</span></div>`;
     }
     if (res.reason === 'unsupported' || res.reason === 'no_key') {
         return `<div style="font-size:13px;color:var(--text-muted);">Signature check not available in this browser.</div>`;
@@ -623,12 +623,20 @@ async function verifyCompactJWT(jwt) {
     }
     const kid = header.kid || '';
     const jti = payload.jti || '';
-    const key = await fetchPublicKey();
-    if (!key || !key.public_key) {
+    const published = await fetchPublicKey();
+    if (!published || !published.public_key) {
         return { ok: null, reason: 'no_key', kid, jti };
     }
-    if (key.key_id && kid && key.key_id !== kid) {
-        return { ok: null, reason: 'old_key', kid, jti, currentKid: key.key_id };
+    // S194: the service keeps every public key it has signed with (published.keys);
+    // check against the key the token names, not only the current one.
+    let key = published;
+    if (kid && published.key_id !== kid) {
+        const hist = Array.isArray(published.keys) ? published.keys : [];
+        const match = hist.find(k => k && k.key_id === kid && k.public_key);
+        if (!match) {
+            return { ok: null, reason: 'old_key', kid, jti, currentKid: published.key_id };
+        }
+        key = match;
     }
     const der = pemToDer(key.public_key);
     const signingInput = new TextEncoder().encode(parts[0] + '.' + parts[1]);
