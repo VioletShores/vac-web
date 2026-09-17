@@ -780,6 +780,34 @@ let _silentTrackBannerShown = false; // SAGA-SILENT-06: show banner once per ses
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
+// S194 (Rob, iPad Air + Magic Mouse, 17 Sep): all three pre-flight checks went green, yet Start
+// would not respond. Debug trace sess_px0kpwc0 (04:47 UTC): mic passed at :23, the audio context
+// then kept starving (analyser_starved / silent_track_detected — iOS leaves it suspended outside a
+// gesture) so the mic could not re-qualify, and the 10 s mic expiry plus the 3 s hand grace (the
+// hand leaves the cheek to reach the mouse/screen) greyed Start again before the click landed.
+// Fix: once light + mic + hand have all passed TOGETHER, readiness latches for the rest of this
+// pre-flight (PREFLIGHT_LATCH_MS). The ceremony that follows still checks the live face, hand and
+// voice on every step — the latch only stops the Start button disappearing under the pointer.
+const PREFLIGHT_LATCH_MS = 120000;
+let _preflightPassedAt = 0;
+function _preflightLatched() {
+    return !!_preflightPassedAt && (performance.now() - _preflightPassedAt) < PREFLIGHT_LATCH_MS;
+}
+// iOS/iPadOS only honours AudioContext.resume() inside a user gesture. Any tap or click during the
+// pre-flight resumes the analyser graph so the mic meter reads real audio instead of zeros.
+let _preflightGestureResumeInstalled = false;
+function _installPreflightGestureResume() {
+    if (_preflightGestureResumeInstalled) return;
+    _preflightGestureResumeInstalled = true;
+    const _resume = function () {
+        try { if (avAudioCtx && avAudioCtx.state === 'suspended') { avAudioCtx.resume(); try { vacDebug('preflight_gesture_resume', null, { state: avAudioCtx.state }); } catch (_) {} } } catch (_) {}
+    };
+    try {
+        document.addEventListener('pointerdown', _resume, { passive: true, capture: true });
+        document.addEventListener('touchstart', _resume, { passive: true, capture: true });
+        document.addEventListener('keydown', _resume, { capture: true });
+    } catch (_) {}
+}
 const AV_HAND_GRACE_MS = 3000; // F-929 (Rob, S147): bounded, VISIBLE grace after hand-drop so one-handed users can reach Start — honesty preserved by the on-chip countdown
 let _handGraceStartT = 0;      // F-929: timestamp when the current grace window opened (0 = not in grace)
 let _micVoicedState = _newVoicedRunState();  // L-2503/L-2504 (S166): the mic test's own voiced-run tracker — same shared shape/predicate the greeting gate uses (see VOICE_BAND_MIN_RATIO above)
@@ -1421,6 +1449,8 @@ function startAVChecks() {
     // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _preflightPassedAt = 0;
+    _installPreflightGestureResume();
     _handStableFrames = 0;
     _handUnstableFrames = 0;
     _micVoicedState = _newVoicedRunState();
@@ -1785,7 +1815,7 @@ function startAVChecks() {
                     try { vacDebug('mic_pass_on_voiced_run', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)), path: window.__vacMicQualifyPath, mr_level: _avMrLevelSynth, rebuilt: _avGraphRebuilt }); } catch(_) {}
                 }
             }
-            if (avChecks.mic && _nowT - _micLastQualifyT > 10000) {
+            if (avChecks.mic && !_preflightLatched() && _nowT - _micLastQualifyT > 10000) {
                 avChecks.mic = false;
                 _micLastQualifyT = 0;
                 setAVStatus('mic', 'checking', 'Mic');
@@ -1871,7 +1901,9 @@ function startAVChecks() {
                         // cancels the countdown back to steady ✓. On expiry, full regression as before.
                         if (!_handGraceStartT) _handGraceStartT = performance.now();
                         const _gLeft = AV_HAND_GRACE_MS - (performance.now() - _handGraceStartT);
-                        if (_gLeft > 0) {
+                        if (_preflightLatched()) {
+                            setAVStatus('hand','good','Hand \u2713');
+                        } else if (_gLeft > 0) {
                             setAVStatus('hand','good','Hand \u2713 \u2014 start within ' + Math.ceil(_gLeft/1000) + 's');
                         } else {
                             _handGraceStartT = 0;
@@ -2746,10 +2778,15 @@ function updateAVReady() {
     // one at a time, with explicit instructions. All three must pass before Start.
     if (guide) {
         const _steps = _fastStill ? 2 : 3;   // fast: light+mic; full: +hand
-        if (!avChecks.light) {
+        if (_preflightLatched()) {
+            guide.textContent = 'All set \u2713  Press Start verification when you\u2019re ready';
+            guide.style.color = 'var(--success)';
+            guide.style.borderColor = 'var(--success-border, rgba(63,185,80,0.3))';
+            guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
+        } else if (!avChecks.light) {
             guide.textContent = 'Step 1 of ' + _steps + ' — find good lighting so your face is clearly visible';
         } else if (!avChecks.mic) {
-            guide.textContent = 'Step 2 of ' + _steps + ' — say a few words to test your microphone';
+            guide.textContent = 'Step 2 of ' + _steps + ' — say a full sentence (your name and today\u2019s date) to test your microphone';
         } else if (!_fastStill && !avChecks.hand) {
             guide.textContent = 'Step 3 of 3 — hold your hand up beside your cheek, on the marker (you\u2019ll see it tracked)';
         } else if (_fastStill && !_fastDetectorReady) {
@@ -2761,10 +2798,18 @@ function updateAVReady() {
             guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
         }
     }
-    const allGood = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
+    const _allGoodNow = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
+    if (_allGoodNow && !_preflightPassedAt) {
+        _preflightPassedAt = performance.now();
+        try { vacDebug('preflight_latched', null, { fast: _fastStill }); } catch (_) {}
+    }
+    const allGood = _allGoodNow || _preflightLatched();
     if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
-        btn.disabled = !allGood;
-        btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
+        // Only touch the DOM when the state actually changes — rewriting the label and toggling
+        // `disabled` on every animation frame can swallow a pointer click mid-press.
+        const _wantText = allGood ? 'Start verification' : 'Complete the checks above';
+        if (btn.disabled !== !allGood) btn.disabled = !allGood;
+        if (btn.textContent !== _wantText) btn.textContent = _wantText;
     }
     // Service-error AUTO-retry: once the (warmed) pre-flight passes, advance to the challenge
     // automatically — preserves the "retrying automatically" flow without the cold-entry race.
@@ -2803,6 +2848,7 @@ function retryAVSetup() {
     // Stop existing checks (closes and nulls avAudioCtx)
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _preflightPassedAt = 0;
     _micVoicedState = _newVoicedRunState();
     _micLevelHistory = [];
     _micRunLevels = [];
@@ -7705,6 +7751,7 @@ function resetBiometricUI(preserveRetryBudget) {
     // 3. Reset the AV preflight gate so light/mic/hand must re-pass — this is what
     //    re-runs the hand preflight that warms the detector.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _preflightPassedAt = 0;
     // 4. Restore the camera button to its first-run entry point. Run 1 rewired
     //    btnCamera.onclick to goToChallenge (requestCamera resets it again at its end).
     var btnCam = document.getElementById('btnCamera');
