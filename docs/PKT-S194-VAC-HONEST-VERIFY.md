@@ -98,6 +98,37 @@ Fix: replaced the modalities panel with the backend's actual per-check results w
 
 All six audit claims are CONFIRMED against the code this page actually talks to (live production backend); no claim was found absent, so all six build items (a)-(g) were implemented as specified. Local backend checkout staleness (noted above) does not weaken any of the six findings, since each was independently confirmed via direct production API calls.
 
-## Checks (headless Chromium, Playwright)
+## Build — what changed
 
-Recorded after the build — see the final section appended below by the check script.
+`vat-verify.html`:
+- (a) Hero badges no longer claim "Ed25519 signature valid" / "chain intact" / "checked the cryptographic signature live". They now say "Server status: active, not expired, not revoked" / "N node(s) · parent links present", matching exactly what `verify()` checks. A new "Signature check" card does the real work: if a compact JWT is available (URL fragment `#jwt=`, `sessionStorage`, or pasted into a textarea), it's verified client-side with WebCrypto Ed25519 (falling back to the pinned tweetnacl 1.0.3 UMD build from cdnjs when WebCrypto Ed25519 is unavailable) against `GET /v1/vat/key`, comparing `kid` first and refusing to check across a key rotation ("signed with an earlier key ... cannot be checked here") rather than reporting false/invalid.
+- (b) Assurance level (`assurance_level` from `/v1/vat/verify`) is now shown with the plain-English L1/L2/L3 mapping from the dispatch.
+- (c) A "Demo mode" banner appears whenever the root token's `verification_method` is `simulated`; the trust gloss now includes "an assurance signal, not a permission — the policy decides what level an action needs."
+- (d) `chain_hash` tooltip now reads "Links this token to the one that delegated to it. It does not cover the token's contents; the signature does."
+- (e) Revoke Chain button removed; replaced with a one-line note that revocation is an administrator action. The broken `revokeChain()` function (undefined `API` variable, always-empty `jti`) was deleted along with it.
+- (f) The modalities panel no longer renders the fixed `modality_policy` label or the hard-coded `modsForMethod()` client lookup table as if they were per-token results. It now shows the backend's real per-token `verification_signals` when present, and otherwise the honest "This token does not carry per-check results" plus an explicit "Geolocation — not yet implemented" line.
+- Plain-English glosses updated/added on jti, issued/expires, kid (new), trust, method, chain_hash per the dispatch's wording. `method` value itself is now rendered as `simulated (no live identity check)` rather than the bare enum string.
+
+`pharma-demo.html`, `trusted-water-demo.html`, `financial-demo.html`, `tribunal-demo.html`, `clinical-demo.html`:
+- Each now captures `compact_jwt` from the `/v1/vat/issue` response and appends it to the verify link as `#jwt=<compact_jwt>` (URL fragment only — never the query string, so the token never reaches a server).
+- "Verify this seal independently" / "Verify this token independently — it is genuinely signed and live" copy changed to "Check it yourself" / "Check it yourself — the signature and status are verifiable, not asserted".
+
+## Checks (headless Chromium, Google Chrome 152 via Playwright, executablePath override — no Playwright browser download available in this sandbox)
+
+Ran an end-to-end script: loaded `pharma-demo.html` as a local file, clicked through all 5 steps (which mints a real token against the live production backend), extracted the verify link, and opened `vat-verify.html` with the real `#jwt=` fragment and `?jti=` (query-based jti lookup, since local file testing has no `/vat/verify/{jti}` path routing — `getJTI()` already supports this fallback).
+
+- Signature check on the freshly-minted live token: **PASS** — `"Checked in your browser against the published key vac-key-9e8caa05: PASS"`.
+- Demo mode banner: **shown** (root token's method was `simulated`, as Claim 3 predicts for a token issued without a server-verified re-auth session).
+- Assurance line: **shown** — `"Assurance: L1 — no live identity check"`.
+- Modalities panel: **honest fallback shown** — `"This token does not carry per-check results"` + `"Geolocation — not yet implemented."`.
+- Revoke Chain button: **absent** (0 matches for a button with that text); one-line "administrator action" note present instead.
+- chain_hash tooltip: confirmed exact new text via the rendered `title` attribute.
+- Tamper test: flipped one character in the JWT payload segment, re-verified (via a full navigation, not a same-fragment nav) — signature check correctly reports **FAIL**.
+- Paste-box fallback (no JWT available on the page): textarea + "Check signature" button verified against a hand-typed token and correctly reported **FAIL** (that particular test token's signature doesn't match).
+- Horizontal overflow: **0px** at both 390px and 1280px viewports (`document.documentElement.scrollWidth - clientWidth`).
+- Smoke-loaded `trusted-water-demo.html`, `financial-demo.html`, `tribunal-demo.html`, `clinical-demo.html` directly — zero JS `pageerror` events on any of them.
+- All six `<script>`-containing files pass `node --check` on every extracted script block (no syntax errors introduced).
+
+Screenshot at 390px (full end-to-end run against the live backend): `.context/verify-390.png`.
+
+One methodology note for future runs: `document.body.textContent` in this app includes the raw source text of `<script>` tags (script content is still a DOM text node), so naive substring checks against `body.textContent` produce false positives/negatives (e.g. matching a JS comment that happens to contain "Revoke Chain", or missing a real "Assurance: L1" render underneath source text noise). The checks above use `#app`'s textContent (the actual rendered region) and/or element/attribute queries instead.
