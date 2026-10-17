@@ -55,6 +55,14 @@
     return data;
   }
 
+  // PKT-S199-VAC-TRUST-STATUS-AUTH: the server answers trust-status only for the
+  // signed-in caller (the session Bearer that _api sends) and refuses any other
+  // address, so no email goes in the URL and nothing is asked without a session.
+  async function _trustStatus() {
+    if (!_getToken()) throw new Error('no session');
+    return _api('GET', '/v1/auth/trust-status');
+  }
+
   function _getToken() {
     try { return localStorage.getItem(SESSION_KEY); } catch(e) { return null; }
   }
@@ -137,7 +145,7 @@
         };
         // Fetch trust status for vouch count
         try {
-          const trust = await _api('GET', `/v1/auth/trust-status?email=${encodeURIComponent(data.email)}`);
+          const trust = await _trustStatus();
           user.trust_level = trust.trust_level;
           user.is_verified = trust.is_verified;
           user.vouches_received = trust.vouches_received;
@@ -742,7 +750,7 @@
     // Check trust status
     let trust = { trust_level: 'unverified', vouches_received: 0, vouches_pending: 0 };
     try {
-      trust = await _api('GET', `/v1/auth/trust-status?email=${encodeURIComponent(email)}`);
+      trust = await _trustStatus();
     } catch(e) {}
 
     // If already verified (1+ vouches), skip vouch screen entirely
@@ -829,7 +837,7 @@
     console.log('[VAC] Vouch polling started for:', email);
     _vouchPollTimer = setInterval(async function() {
       try {
-        var trust = await _api('GET', '/v1/auth/trust-status?email=' + encodeURIComponent(email));
+        var trust = await _trustStatus();
         if (trust.is_verified) {
           clearInterval(_vouchPollTimer);
           _vouchPollTimer = null;
@@ -1053,7 +1061,7 @@
       };
       // Fetch trust status so hub shows correct vouch count
       try {
-        var trust = await _api('GET', '/v1/auth/trust-status?email=' + encodeURIComponent(data.email));
+        var trust = await _trustStatus();
         userObj.trust_level = trust.trust_level;
         userObj.is_verified = trust.is_verified;
         userObj.vouches_received = trust.vouches_received;

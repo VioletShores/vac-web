@@ -48,7 +48,7 @@ test('_trustStatus makes no request without a stored session', async () => {
   const seen = [];
   const make = Function('_getToken', '_api', extractFn('_trustStatus') + '\nreturn _trustStatus;');
   const noTok = make(() => null, async (m, p) => { seen.push([m, p]); return {}; });
-  await assert.rejects(noTok());
+  await assert.rejects(async () => noTok());
   assert.deepEqual(seen, []);
   const withTok = make(() => 'tok', async (m, p) => { seen.push([m, p]); return { trust_level: 'verified' }; });
   assert.deepEqual(await withTok(), { trust_level: 'verified' });
