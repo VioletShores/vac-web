@@ -157,6 +157,12 @@ function authHeaders() {
 }
 
 async function authFetch(url, opts = {}) {
+    // S199: no session token means no request to a protected route at all.
+    // Send the user to re-auth and hand back a local 401.
+    if (!getToken()) {
+        if (!document.getElementById('reauth-overlay')) showQuickReauth();
+        return { ok: false, status: 401, json: async () => ({}) };
+    }
     opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
     const r = await fetch(url, opts);
     if (r.status === 401) {
@@ -418,6 +424,13 @@ document.getElementById('linkMsg').href = '/msg?from=' + encodeURIComponent(emai
 
 async function loadDashboard() {
     if (!email) return;
+    // S199: the profile and contacts are owner-only. Without this tab's session
+    // token, make no protected request; prompt re-verification instead.
+    if (!getToken()) {
+        document.getElementById('loadingState').textContent = 'Please re-verify to view your dashboard.';
+        if (!document.getElementById('reauth-overlay')) showQuickReauth();
+        return;
+    }
     try {
         // S199: /v1/user/{email} is owner-only and no longer carries contacts;
         // contacts come from the session-gated /contacts route.
