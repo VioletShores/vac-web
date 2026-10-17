@@ -160,9 +160,10 @@ async function authFetch(url, opts = {}) {
     opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
     const r = await fetch(url, opts);
     if (r.status === 401) {
-        // Session auth not required for dashboard — load content anyway
-        // The dashboard reads from public API endpoints
-        console.log('[Dashboard] 401 from session-protected endpoint, using public API fallback');
+        // S199: the profile and contacts are session-only now. No public fallback:
+        // ask the owner to re-verify instead of rendering an empty dashboard.
+        clearToken();
+        if (!document.getElementById('reauth-overlay')) showQuickReauth();
     }
     return r;
 }
@@ -418,16 +419,24 @@ document.getElementById('linkMsg').href = '/msg?from=' + encodeURIComponent(emai
 async function loadDashboard() {
     if (!email) return;
     try {
-        const [userResp, profileResp, vouchResp] = await Promise.all([
+        // S199: /v1/user/{email} is owner-only and no longer carries contacts;
+        // contacts come from the session-gated /contacts route.
+        const [userResp, contactsResp, profileResp, vouchResp] = await Promise.all([
             authFetch(API + '/v1/user/' + encodeURIComponent(email)),
+            authFetch(API + '/v1/user/' + encodeURIComponent(email) + '/contacts'),
             fetch(API + '/v1/trust-profile/' + encodeURIComponent(email)),
             fetch(API + '/v1/vouches?email=' + encodeURIComponent(email) + '&direction=received')
         ]);
-        const userData = await userResp.json();
+        if (userResp.status === 401) {
+            document.getElementById('loadingState').textContent = 'Please re-verify to view your dashboard.';
+            return;
+        }
+        const userData = userResp.ok ? await userResp.json() : {};
+        const contactsData = contactsResp.ok ? await contactsResp.json() : {};
         const profile = await profileResp.json();
         const vouches = await vouchResp.json();
-        const user = userData.user || userData;
-        const contacts = userData.contacts || [];
+        const user = userData.user || {};
+        const contacts = contactsData.contacts || [];
 
         // Hero
         document.getElementById('heroName').textContent = user.name || email;

@@ -30,10 +30,21 @@ const VACTrustGraph = (function() {
         contact: { color: '#1E2230', width: 1, dash: '3,3', opacity: 0.3 },
     };
 
-    async function fetchGraphData(email, api) {
-        const [profileResp, userResp] = await Promise.all([
+    // S199: /v1/user/{email} is owner-only (session Bearer) and no longer returns
+    // contacts; contacts come from the session-gated /v1/user/{email}/contacts.
+    // Token: options.token, else the page's sessionStorage convention.
+    function sessionToken(email, token) {
+        if (token) return token;
+        try { return sessionStorage.getItem('vac_token_' + email) || ''; } catch (e) { return ''; }
+    }
+
+    async function fetchGraphData(email, api, token) {
+        const t = sessionToken(email, token);
+        const auth = t ? { headers: { 'Authorization': 'Bearer ' + t } } : {};
+        const [profileResp, userResp, contactsResp] = await Promise.all([
             fetch(`${api}/v1/trust-profile/${encodeURIComponent(email)}`),
-            fetch(`${api}/v1/user/${encodeURIComponent(email)}`).catch(() => null)
+            t ? fetch(`${api}/v1/user/${encodeURIComponent(email)}`, auth).catch(() => null) : null,
+            t ? fetch(`${api}/v1/user/${encodeURIComponent(email)}/contacts`, auth).catch(() => null) : null,
         ]);
 
         const profile = await profileResp.json();
@@ -42,8 +53,11 @@ const VACTrustGraph = (function() {
 
         if (userResp && userResp.ok) {
             const userData = await userResp.json();
-            user = userData.user || userData;
-            contacts = userData.contacts || [];
+            user = userData.user || user;
+        }
+        if (contactsResp && contactsResp.ok) {
+            const contactsData = await contactsResp.json();
+            contacts = contactsData.contacts || [];
         }
 
         // Merge vouch data from trust-profile
@@ -144,7 +158,7 @@ const VACTrustGraph = (function() {
         const svgEl = document.querySelector(selector);
         if (!svgEl) return;
 
-        fetchGraphData(email, api).then(data => {
+        fetchGraphData(email, api, options.token).then(data => {
             const { nodes, links } = buildGraphModel(email, data);
             drawGraph(svgEl, nodes, links, options);
         }).catch(err => {

@@ -143,18 +143,28 @@ async function loadGraph() {
     if (!email) { document.getElementById('loadingState').textContent = 'No email. Go to /auth first.'; return; }
 
     try {
-        const [userResp, profileResp, vouchResp] = await Promise.all([
-            fetch(API + '/v1/user/' + encodeURIComponent(email)),
+        // S199: /v1/user/{email} and /contacts are owner-only. Send this tab's
+        // session (auth.html stores it as sessionStorage vac_token_<email>). With
+        // no session the graph shows the public trust-profile/vouch data only.
+        let tok = '';
+        try { tok = sessionStorage.getItem('vac_token_' + email) || ''; } catch (err) {}
+        const auth = tok ? { headers: { 'Authorization': 'Bearer ' + tok } } : null;
+        const [userResp, contactsResp, profileResp, vouchResp] = await Promise.all([
+            auth ? fetch(API + '/v1/user/' + encodeURIComponent(email), auth) : null,
+            auth ? fetch(API + '/v1/user/' + encodeURIComponent(email) + '/contacts', auth) : null,
             fetch(API + '/v1/trust-profile/' + encodeURIComponent(email)),
             fetch(API + '/v1/vouches?email=' + encodeURIComponent(email) + '&direction=received')
         ]);
 
         let user = { name: email.split('@')[0], email, trust_score: 0, total_verifications: 0 };
         let contacts = [];
-        if (userResp.ok) {
+        if (userResp && userResp.ok) {
             const ud = await userResp.json();
-            user = ud.user || ud;
-            contacts = ud.contacts || [];
+            user = ud.user || user;
+        }
+        if (contactsResp && contactsResp.ok) {
+            const cd = await contactsResp.json();
+            contacts = cd.contacts || [];
         }
         const profile = await profileResp.json();
         const vouches = await vouchResp.json();

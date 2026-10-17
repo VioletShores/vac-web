@@ -159,11 +159,17 @@ const tabs = {
 if (email) document.getElementById('userEmail').textContent = email;
 
 // Check verification status
-if (email) {
-    fetch('https://vac-system-production.up.railway.app/v1/user/' + e)
-    .then(r => r.json())
+// S199: /v1/user/{email} is owner-only. Send this tab's session token (auth.html
+// stores it as sessionStorage vac_token_<email>); without one, skip the call and
+// keep the default label rather than probing the API anonymously.
+let _vacTok = '';
+try { _vacTok = email ? (sessionStorage.getItem('vac_token_' + email) || '') : ''; } catch (err) {}
+if (email && _vacTok) {
+    fetch('https://vac-system-production.up.railway.app/v1/user/' + e,
+          { headers: { 'Authorization': 'Bearer ' + _vacTok } })
+    .then(r => r.ok ? r.json() : {})
     .then(d => {
-        const user = d.user || d;
+        const user = d.user || {};
         const status = document.getElementById('userStatus');
         if (user && user.trust_score > 0) {
             status.textContent = 'VERIFIED ROOT';
