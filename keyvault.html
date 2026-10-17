@@ -87,6 +87,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 <div class="auth-required-title">CONCEPT: VERIFY TO UNLOCK</div>
 <div class="auth-required-sub">In the planned design, the vault would open only after a VAC human-verification ceremony. You can try VAC verification today, but it is not connected to any key store.</div>
 <a href="/auth" class="btn btn-primary" style="display:inline-block;text-decoration:none;padding:14px 32px;font-size:13px;">Try VAC Verification →</a>
+<button type="button" class="btn" onclick="simulateUnlock()" style="display:inline-block;margin-left:8px;padding:14px 32px;font-size:13px;">Open simulated demo view</button>
 <div class="sim-label">Simulated — this browser check is illustrative and provides no security. A browser-side unlock is not Bitcoin custody security.</div>
 </div>
 </div>
@@ -157,7 +158,7 @@ body{background:var(--bg);color:var(--white);font-family:var(--sans);min-height:
 <div class="provenance">
 <span class="k">human:</span> <span class="v" id="provName">example-user</span><br>
 <span class="k">checked_at:</span> <span class="t" id="provTime"></span><br>
-<span class="k">method:</span> <span class="v">browser-side trust_score check (simulated) · planned: VAC verification ceremony</span><br>
+<span class="k">method:</span> <span class="v">browser-side check with a fixed synthetic score (simulated; no lookup) · planned: VAC verification ceremony</span><br>
 <span class="k">trust_score:</span> <span class="v" id="provScore">—</span><br>
 <span class="k">vault_token:</span> <span class="v">none issued (simulated)</span><br>
 <span class="k">access_scope:</span> <span class="v">view_keys, sign_transaction, export_pubkey (illustrative)</span><br>
@@ -191,29 +192,17 @@ Patent Pending · 1,068 Claims
 </div>
 
 <script>
-const API = 'https://vac-system-production.up.railway.app';
-const params = new URLSearchParams(window.location.search);
-const email = params.get('email') || '';
-
-// SIMULATED unlock: a browser-side check of a public trust_score lookup.
-// It is illustrative only and provides no security; nothing is stored or protected.
-async function checkAuth() {
-    if (!email) return;
-    try {
-        const resp = await fetch(API + '/v1/user/' + encodeURIComponent(email));
-        const data = await resp.json();
-        const user = data.user || data;
-        if (user && user.trust_score > 0.5) {
-            unlockVault(user);
-        }
-    } catch(e) {}
+// SIMULATED unlock: entirely local. This page makes no network request and
+// reads no user data; it is illustrative only and provides no security.
+function simulateUnlock() {
+    unlockVault({ trust_score: 0.9 });
 }
 
 function unlockVault(user) {
     document.getElementById('authGate').style.display = 'none';
     document.getElementById('lockStatus').innerHTML = '';
     document.getElementById('vaultContent').style.display = 'block';
-    document.getElementById('provName').textContent = email || 'example-user';
+    document.getElementById('provName').textContent = 'example-user (synthetic)';
     document.getElementById('provScore').textContent = (user.trust_score || 0).toFixed(2);
     document.getElementById('provTime').textContent = new Date().toISOString();
 
@@ -249,7 +238,7 @@ function showAction(type) {
     }
 }
 
-checkAuth();
+// No automatic unlock and no lookup: the demo view opens only from the button above.
 </script>
 
 </body>
