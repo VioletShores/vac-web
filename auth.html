@@ -343,6 +343,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
      before vac-reauth-ceremony.js's showRetry() calls it. -->
 <script src="/verdict-reasons.js"></script>
 <script src="/vac-reauth-ceremony.js?v=s194d"></script>
+<!-- athena PKT-S204-VAULT-MOBILE-HANDOFF: inert unless opened with ?handoff=&state= (defines nothing otherwise). -->
+<script src="/vac-vault-handoff.js"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
@@ -1192,7 +1194,7 @@ function showSuccess() {
         // dead-ended here instead of returning to the matters): when this page is TOP-LEVEL
         // (no parent frame to postMessage back to), the success screen MUST carry the onward tap.
         try {
-            if (window.parent === window && !window.__vacDecisionReturn && !document.getElementById('vacContinueBtn')) {
+            if (window.parent === window && !window.__vacDecisionReturn && !window.VACVaultHandoff && !document.getElementById('vacContinueBtn')) {
                 var _cb=document.createElement('a'); _cb.id='vacContinueBtn';
                 // S154 fix-on-find (Rob live test): this was a HARDCODED tribunal link + label,
                 // shown regardless of origin — wrong words ("workflow" not "matters"), wrong
@@ -1289,6 +1291,9 @@ function showSuccess() {
                 } catch(e) {}
             }
         } catch(e) {}
+        // athena PKT-S204-VAULT-MOBILE-HANDOFF: only defined when this page was opened
+        // from the Vault with handoff params; hands the verified result back to it.
+        try { if (window.VACVaultHandoff) window.VACVaultHandoff.onVerified(authResult, d); } catch (_vh) {}
         // Start polling for vouches to unlock messaging
         startVouchPolling();
     } else {
