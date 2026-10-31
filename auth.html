@@ -358,7 +358,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
   try{
     var r=new URLSearchParams(location.search).get("return");
     // sanitize: same-origin path only — must start with single "/", no "//", no ":"
-    if(r && /^\/(?!\/)[A-Za-z0-9_\-.\/?=&%]*$/.test(r) && r.indexOf(":")===-1){
+    // athena PKT-S204-VAULT-MOBILE-HANDOFF: no return target while handing off to the Vault.
+    if(r && !window.VACVaultHandoff && /^\/(?!\/)[A-Za-z0-9_\-.\/?=&%]*$/.test(r) && r.indexOf(":")===-1){
       window.__vacReturnPath=r;
       var a=bar.querySelector("a"); a.href=r; a.textContent="\u2190 Back to the demo";
       bar.style.display="block";
@@ -1174,7 +1175,7 @@ function showSuccess() {
         // with VAC (/v1/session/verify) and that the email matches the named approver.
         try {
             var _drRet = new URLSearchParams(window.location.search).get('return') || '';
-            if (window.parent === window && /^https:\/\/api\.athenapilot\.ai\/d\/[A-Za-z0-9_-]{4,64}$/.test(_drRet)
+            if (window.parent === window && !window.VACVaultHandoff && /^https:\/\/api\.athenapilot\.ai\/d\/[A-Za-z0-9_-]{4,64}$/.test(_drRet)
                 && !document.getElementById('vacDecisionContinue')) {
                 var _drSessObj = (authResult && authResult.session) ? authResult.session : null;
                 var _drSess = (authResult && authResult.session_token) ? authResult.session_token
