@@ -144,6 +144,7 @@
 
   function send() {
     if (sending || acked) return;
+    // No opener (or it closed): deliver() says "return to the Vault tab"; nothing is minted.
     if (!openerPresent()) { deliver(); return; }
     sending = true;
     var ready = (assertion && Date.now() < assertionExpMs - 5000) ? Promise.resolve() : mint();
@@ -182,11 +183,6 @@
       var email = sess.email || r.email || (identity && identity.email) || '';
       if (r.authenticated !== true || level !== 'full' || !token || !email) {
         show('error', 'This was not a full VAC verification, so nothing was sent to the Vault.', false);
-        return;
-      }
-      if (!openerPresent()) {
-        show('warn', 'Return to the Vault tab. This page was not opened from the Vault (or that tab was closed), ' +
-          'so nothing was sent. Start the store again from the Vault.', false);
         return;
       }
       sessionToken = token;
