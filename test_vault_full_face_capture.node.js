@@ -95,20 +95,21 @@ function session(responses, opts = {}) {
 
   t = session([{ok:true,embedding:V()}], {early:true});
   await t.run();
-  assert.equal(t.events.compute,1, 'the early face is assessed before final digits');
-  assert.strictEqual(t.events.canvases[0],t.earlyFrame);
+  assert.equal(t.events.compute,1, 'the recorded face-only closing frame is assessed');
+  assert.notStrictEqual(t.events.canvases[0],t.earlyFrame,
+      'early face must NOT authenticate until server same-person clip gate exists');
   assert.equal(t.events.uploaded,1, 'only a valid descriptor reaches existing server verification');
   assert.deepEqual(t.events.steps,[3]);
   assert.equal(t.window.__vacEarlyFaceCandidate,null, 'pixels discarded from client cache');
 
   t = session([{ok:false,reason:'no_face'}, {ok:true,embedding:V()}], {early:true});
   await t.run();
-  assert.equal(t.events.compute,2, 'no early face can recover from a later live view');
+  assert.equal(t.events.compute,2, 'the face-only closing beat can retry fresh late frames');
   assert.equal(t.events.uploaded,1);
 
   t = session([{ok:false,reason:'multiple_faces'}, {ok:true,embedding:V()}], {early:true});
   await t.run();
-  assert.equal(t.events.compute,1, 'do not mask a second person using a later clear frame');
+  assert.equal(t.events.compute,1, 'do not mask multiple faces with a later clear frame');
   assert.equal(t.events.uploaded,0);
   assert.deepEqual(t.events.recovery,['multiple_faces']);
 
@@ -138,5 +139,5 @@ function session(responses, opts = {}) {
   assert.equal(t.events.uploaded,0, 'malformed 127D face cannot be used');
   assert.deepEqual(t.events.recovery,['embedder_error']);
 
-  console.log('Vault same-recording early face: 9 synthetic source-function cases passed');
+  console.log('Vault late face-only closing gate (early identity held): 9 synthetic source-function cases passed');
 })().catch(e=>{console.error(e); process.exitCode=1;});
