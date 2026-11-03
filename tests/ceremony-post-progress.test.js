@@ -77,7 +77,7 @@ test('TC-PP-06: finishFingerPhase clears the skeleton canvas, covers the frozen 
     const i = src.indexOf('function finishFingerPhase()');
     const body = src.slice(i, i + 4000);
     const clear = body.indexOf("getElementById('handOverlay'); if (_ho && _ho.getContext) _ho.getContext('2d').clearRect(0, 0, _ho.width, _ho.height);");
-    const cover = body.indexOf("getElementById('vacPostCapture'); if (_pc) _pc.style.display='flex';");
+    const cover = body.indexOf("getElementById('vacPostCapture'); if (_pc) _pc.style.display = window.VACVaultHandoff ? 'none' : 'flex';");
     const stage = body.indexOf("_renderAuthorityStages('verifying');");
     const processing = body.indexOf('challengeEl.textContent = window.VACVaultHandoff');
     assert.ok(clear > 0 && cover > 0 && stage > 0 && processing > 0, 'all four steps present');
