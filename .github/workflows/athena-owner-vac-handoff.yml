@@ -1,0 +1,22 @@
+name: Athena owner VAC handoff tests
+on:
+  pull_request:
+    paths:
+      - vac-vault-handoff.js
+      - tests/vault-handoff.test.js
+      - .github/workflows/athena-owner-vac-handoff.yml
+  push:
+    branches:
+      - feature/athena-owner-collaborate-vac-handoff-20261103
+jobs:
+  handoff-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out test source
+        uses: actions/checkout@v4
+      - name: Verify Node version
+        run: node --version
+      - name: Run cross-origin VAC handoff regression tests
+        run: node --test tests/vault-handoff.test.js
