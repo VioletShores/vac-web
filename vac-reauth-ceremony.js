@@ -4288,9 +4288,15 @@ function beginRecording() {
         // dots" the user stared at for the whole verify wait. Clear it and cover the frozen feed
         // with the authority progress list (stage 1: verifying).
         try { var _ho=document.getElementById('handOverlay'); if (_ho && _ho.getContext) _ho.getContext('2d').clearRect(0, 0, _ho.width, _ho.height); } catch(_) {}
-        try { var _pc=document.getElementById('vacPostCapture'); if (_pc) _pc.style.display='flex'; } catch(_) {}
-        try { _renderAuthorityStages('verifying'); } catch(_) {}
-        challengeEl.textContent = 'Processing\u2026';
+        // Keep the video visible during a brief, filmed face-only closing beat.
+        // The customer's hand/finger motions are FINISHED before this step.
+        try { var _pc=document.getElementById('vacPostCapture'); if (_pc) _pc.style.display = window.VACVaultHandoff ? 'none' : 'flex'; } catch(_) {}
+        if (!window.VACVaultHandoff) {
+            try { _renderAuthorityStages('verifying'); } catch(_) {}
+        }
+        challengeEl.textContent = window.VACVaultHandoff
+            ? 'Face check — look naturally toward the camera'
+            : 'Processing\u2026';
         // F-815 (Rob, 16 Jul pre-meeting run): entering processing must not keep coaching the
         // user — the live coach line ('Keep showing N — say N') was persisting under
         // 'Processing…', giving an instruction and a wait-state simultaneously. Clear it,
@@ -4314,7 +4320,12 @@ function beginRecording() {
         try { if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; } } catch(_) {}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
         _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
-        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
+        // 1500ms is the existing post-digit tail. Vault adds 1700ms of
+        // face-only observation within the SAME unbroken MediaRecorder clip
+        // before the existing post-gesture 128-D identity capture. We do not
+        // accept an earlier face in lieu of this check.
+        const _vaultFaceTailMs = window.VACVaultHandoff ? 3200 : 1500;
+        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, _vaultFaceTailMs);
     }
 
     // ── F-561 voice-pacing gate (content-gated, D-VOICE-GATE-SPEAKER-AGNOSTIC) ──
@@ -7169,13 +7180,21 @@ async function onRecordingComplete() {
     // fresh frames. This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
     var _fullEmbedReason = 'no_face';
+    // HARD HOLD: an early face may not be used as owner identity until the
+    // backend independently verifies that the same actor performs the later
+    // gestures. See vac-protocol issue #26. This is a static compile-time
+    // FALSE, not an operator/query/remote flag, and cannot be activated by a
+    // user-controlled response. The present fast path is a *later* face-only
+    // recorded beat, preserving the previously enforced identity gate.
+    const _EARLY_FACE_AUTH_ADMISSION = false;
     // A face-visible identity candidate from the opening of this SAME clip
     // is evaluated BEFORE the late hand-gesture frames. The server still
     // evaluates the FULL recording and its independent identity-continuity
     // gate. Capture timing is not an assurance-level change.
     const _earlyCanvas = _takeVaultEarlyIdentityFrame(
         mediaRecorder, _recorderStartMs, _clipElapsed);
-    if (_earlyCanvas && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+    if (_EARLY_FACE_AUTH_ADMISSION && _earlyCanvas &&
+        window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
         try {
             const _earlyResult = await Promise.race([
                 window.VACFaceEmbed.compute(_earlyCanvas),
