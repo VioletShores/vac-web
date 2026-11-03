@@ -128,7 +128,8 @@ test('TC-PP-10: Vault face descriptor refusal terminates the spinner, processing
         createElement(tag) { assert.equal(tag, 'div'); return node(''); },
     };
     const renderer = Function('document', 'vacDebug', stagesConst + '\n' +
-        extractFn('_renderAuthorityStages') + '\nreturn _renderAuthorityStages;')(document, () => {});
+        extractFn('_authorityStagesHtml') + '\n' + extractFn('_renderAuthorityStages') +
+        '\nreturn _renderAuthorityStages;')(document, () => {});
     renderer('verifying');
     assert.match(nodes.get('vacPostCaptureStages').innerHTML, /vac-stage active/);
     let reloads = 0;
