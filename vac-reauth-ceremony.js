@@ -4220,6 +4220,17 @@ function beginRecording() {
     let _rejectedTransients = 0;     // S139: count of onset attempts killed by the onset sustain gate (taps that dropped before 250ms)
     let _lastRejectReason = '';      // S139-v2: 'spec' (spectral mid-band check) | 'sust' (sustain dip/silence); surfaced in the QA debug readout
 
+    // A Vault AAL3 handoff derives the owner's face descriptor from multiple
+    // LIVE preview frames after the 1500ms MediaRecorder tail. Pausing the
+    // video at 1700ms made retry samples identical (and often hand-occluded).
+    // Do not relax the descriptor gate: the camera is stopped by
+    // onRecordingComplete after those samples; non-Vault privacy pause stays.
+    function _pausePostCapturePreview(video, vaultHandoffActive) {
+        if (vaultHandoffActive || !video || video.paused) return false;
+        video.pause();
+        return true;
+    }
+
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
@@ -4246,7 +4257,10 @@ function beginRecording() {
         try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
         try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
         setTimeout(function(){
-            try { var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video'); if (v && !v.paused) v.pause(); } catch(_) {}
+            try {
+                var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video');
+                _pausePostCapturePreview(v, !!window.VACVaultHandoff);
+            } catch(_) {}
         }, 1700);
         // S110 detection<->recording sync fix: detection can race ahead of the
         // recorded video (Gemini saw only the first digit of [2,3,5]). Keep the
