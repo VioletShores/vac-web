@@ -134,7 +134,8 @@ test('TC-PP-10: Vault face descriptor refusal terminates the spinner, processing
     assert.match(nodes.get('vacPostCaptureStages').innerHTML, /vac-stage active/);
     let reloads = 0;
     const recover = Function('document', '_renderAuthorityStages', 'vacDebug', 'VACReauth', 'retryAttempts',
-        extractFn('_showVaultFaceCaptureRecovery') + '\nreturn _showVaultFaceCaptureRecovery;')(
+        extractFn('_vaultFaceRecoveryCopy') + '\n' + extractFn('_showVaultFaceCaptureRecovery') +
+        '\nreturn _showVaultFaceCaptureRecovery;')(
         document, renderer, () => {}, { reload() { reloads++; } }, 1);
     recover('no_face');
     assert.equal(nodes.get('vacPostCapture').style.display, 'none', 'no verifying overlay after refusal');
