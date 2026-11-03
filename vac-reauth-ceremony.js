@@ -7034,6 +7034,18 @@ function renderClientGateFailure(reason, evidence) {
 // The backend must remain authoritative; this client guard avoids submitting a
 // known-missing descriptor and incorrectly showing six liveness checks as success.
 function _showVaultFaceCaptureRecovery(reason) {
+    // A missing Vault face descriptor is a terminal, pre-upload refusal.
+    // finishFingerPhase already displayed "Verifying..." and "Processing..." and
+    // its last digit coaching; leaving those live beside the restart card made
+    // a refused, unsubmitted attempt look like it was still authenticating.
+    // This resets PRESENTATION ONLY: no server POST, VAC proof or gate change.
+    try { _renderAuthorityStages('fail'); } catch (_) {}
+    var _challenge = document.getElementById('challengeText');
+    if (_challenge) _challenge.textContent = 'Capture not submitted — restart camera verification';
+    var _coach = document.getElementById('vacLiveDetect');
+    if (_coach) { _coach.textContent = ''; _coach.style.display = 'none'; }
+    var _rec = document.getElementById('recIndicator');
+    if (_rec) _rec.style.display = 'none';
     if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
     var host = document.getElementById('challengePanel');
     if (!host || !host.parentElement) return;
