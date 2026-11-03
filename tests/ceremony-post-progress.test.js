@@ -149,3 +149,28 @@ test('TC-PP-10: Vault face descriptor refusal terminates the spinner, processing
     recover('no_face');
     assert.equal(nodes.get('vacVaultFaceCaptureRecovery').id, 'vacVaultFaceCaptureRecovery');
 });
+
+
+test('TC-PP-11: Vault post-capture face sampling keeps the live preview moving', () => {
+    // Actual three face-descriptor attempts are 350ms apart *after* the
+    // recorder's 1500ms tail. Pausing the video at 1700ms freezes all but
+    // the first frame, so a last-digit hand occlusion can never recover.
+    const maybePause = Function(extractFn('_pausePostCapturePreview') +
+        '\nreturn _pausePostCapturePreview;')();
+    let pauses = 0;
+    const preview = { paused: false, pause() { pauses++; this.paused = true; } };
+    assert.equal(maybePause(preview, true), false, 'Vault handoff needs live face frames');
+    assert.equal(pauses, 0, 'must not freeze camera before descriptor capture');
+    assert.equal(maybePause(preview, false), true, 'normal non-Vault privacy pause preserved');
+    assert.equal(pauses, 1);
+    assert.equal(maybePause(preview, false), false, 'idempotent after pause');
+
+    const i = src.indexOf('function finishFingerPhase()');
+    const body = src.slice(i, i + 4400);
+    assert.match(body, /_pausePostCapturePreview\(v, !!window\.VACVaultHandoff\)/,
+        'actual timer must consult the Vault-specific guard');
+    const j = src.indexOf('async function onRecordingComplete()');
+    const submit = src.slice(j, j + 4200);
+    assert.match(submit, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
+        'no face descriptor still refuses before any network submission');
+});
