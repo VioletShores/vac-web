@@ -3828,6 +3828,7 @@ function beginRecording() {
     const __recStartMs = performance.now();
     window.__vacFaceStillB64 = '';
     window.__vacFaceStillTsMs = 0;
+    window.__vacIdentityFrame = null; // capture-frame fix: never reuse a previous attempt's frame
     const FACE_STILL_DELAY_MS = 800;
     setTimeout(function captureBoundStill() {
         try {
@@ -3850,11 +3851,17 @@ function beginRecording() {
             if (comma === -1) return; // malformed → leave empty
             window.__vacFaceStillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
             window.__vacFaceStillTsMs = Math.round(performance.now() - __recStartMs);
+            // Capture-frame fix: keep THIS canvas as the identity-descriptor source.
+            // onRecordingComplete() computes the 128-D descriptor from it first — a
+            // face-forward frame, pixel-identical to face_still_b64 (the F-637c contract
+            // the fast path already keeps) — instead of the finger-gesture tail frame.
+            window.__vacIdentityFrame = c;
             console.log('[VAC] Bound still captured @' + window.__vacFaceStillTsMs + 'ms (' + cw + 'x' + ch + ', ~' + Math.round(window.__vacFaceStillB64.length / 1024) + 'KB b64)');
         } catch (e) {
             // Never fabricate — empty still tells the backend to fail-close Didit.
             window.__vacFaceStillB64 = '';
             window.__vacFaceStillTsMs = 0;
+            window.__vacIdentityFrame = null;
             console.warn('[VAC] Bound still capture failed (non-fatal):', (e && e.message) || e);
         }
     }, FACE_STILL_DELAY_MS);
@@ -7072,18 +7079,32 @@ async function onRecordingComplete() {
     stopAudioMonitor();
 
     // Compute the live identity descriptor while the camera is still open.
-    // A single last frame can be blurred/turned away; take up to three distinct
-    // fresh frames. This does NOT change identity thresholds or server policy.
+    // Capture-frame fix (4 Nov 2026): the FIRST source is the face-forward bound
+    // still captureBoundStill() kept ~800 ms into the read-the-phrase phase (the
+    // same pixels as face_still_b64). The recording's LAST frame is the finger-
+    // gesture tail — hand raised, eyes on the prompt — and was the only source
+    // before, for both the stored template and every continuity comparison.
+    // Tail frames remain a bounded fallback (up to three fresh grabs) only when
+    // the still has no face. Single-face enforcement is unchanged (a second face
+    // stops the search). This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
     var _fullEmbedReason = 'embedder_error';
+    var _identityFrame = window.__vacIdentityFrame || null;
+    window.__vacIdentityFrame = null; // release the retained biometric frame once read
     try {
         const ev = document.getElementById('videoPreviewRec');
-        if (ev && ev.videoWidth && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
-            for (var _embTry = 0; _embTry < 3; _embTry++) {
-                if (_embTry > 0) await new Promise(function(resolve) { setTimeout(resolve, 350); });
-                const ec = document.createElement('canvas');
-                ec.width = ev.videoWidth; ec.height = ev.videoHeight;
-                ec.getContext('2d').drawImage(ev, 0, 0);
+        var _embSources = [];
+        if (_identityFrame) _embSources.push(_identityFrame);
+        if (ev && ev.videoWidth) _embSources.push('tail', 'tail', 'tail');
+        if (_embSources.length && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+            for (var _embTry = 0; _embTry < _embSources.length; _embTry++) {
+                var ec = _embSources[_embTry];
+                if (ec === 'tail') {
+                    if (_embTry > 0 && _embSources[_embTry - 1] === 'tail') await new Promise(function(resolve) { setTimeout(resolve, 350); });
+                    ec = document.createElement('canvas');
+                    ec.width = ev.videoWidth; ec.height = ev.videoHeight;
+                    ec.getContext('2d').drawImage(ev, 0, 0);
+                }
                 const _result = await Promise.race([
                     window.VACFaceEmbed.compute(ec),
                     new Promise(function(resolve) {
@@ -7093,7 +7114,8 @@ async function onRecordingComplete() {
                 if (_result && _result.ok && Array.isArray(_result.embedding) && _result.embedding.length === 128 &&
                     _result.embedding.every(function(n) { return typeof n === 'number' && Number.isFinite(n); })) {
                     window.__vacEnrollEmbedding = _result.embedding;
-                    console.log('[VAC] Full face descriptor ready (128-D, capture ' + (_embTry + 1) + '/3)');
+                    console.log('[VAC] Full face descriptor ready (128-D, ' + (_embSources[_embTry] === 'tail' ? 'tail frame' : 'face-forward still') + ', capture ' + (_embTry + 1) + '/' + _embSources.length + ')');
+                    try { vacDebug('full_identity_frame', _embSources[_embTry] === 'tail' ? 'tail' : 'bound_still', {capture: _embTry + 1}); } catch (_) {}
                     break;
                 }
                 _fullEmbedReason = (_result && _result.reason) || 'embedder_error';

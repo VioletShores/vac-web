@@ -149,9 +149,11 @@ test('captureBoundStill retains the exact canvas it encoded as face_still_b64', 
 });
 
 test('a stale frame from a previous attempt is cleared when a new recording starts', () => {
-  const rs = src.indexOf("window.__vacFaceStillB64 = '';\n    window.__vacFaceStillTsMs = 0;\n    const FACE_STILL_DELAY_MS");
+  // The reset sits with the face_still reset, right before the bound-still timer is armed.
+  const rs = src.indexOf('const FACE_STILL_DELAY_MS');
   assert.ok(rs > 0, 'recording-start reset block');
-  const block = src.slice(rs - 200, rs + 200);
+  const block = src.slice(src.lastIndexOf('const __recStartMs', rs), rs);
+  assert.match(block, /window\.__vacFaceStillB64 = '';/);
   assert.match(block, /window\.__vacIdentityFrame = null;/);
 });
 
