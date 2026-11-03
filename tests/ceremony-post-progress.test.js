@@ -79,9 +79,9 @@ test('TC-PP-06: finishFingerPhase clears the skeleton canvas, covers the frozen 
     const clear = body.indexOf("getElementById('handOverlay'); if (_ho && _ho.getContext) _ho.getContext('2d').clearRect(0, 0, _ho.width, _ho.height);");
     const cover = body.indexOf("getElementById('vacPostCapture'); if (_pc) _pc.style.display='flex';");
     const stage = body.indexOf("_renderAuthorityStages('verifying');");
-    const processing = body.indexOf("challengeEl.textContent = 'Processing");
+    const processing = body.indexOf('challengeEl.textContent = window.VACVaultHandoff');
     assert.ok(clear > 0 && cover > 0 && stage > 0 && processing > 0, 'all four steps present');
-    assert.ok(clear < cover && cover < stage && stage < processing, 'order: clear -> cover -> stage -> Processing');
+    assert.ok(clear < cover && cover < stage && stage < processing, 'order: clear -> choose cover -> stage for normal -> closing face instruction for Vault');
 });
 
 test('TC-PP-07: the full verify success path narrates minting then done, then hands off; failure and capture-death hide the list', () => {
