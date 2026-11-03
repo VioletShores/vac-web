@@ -174,3 +174,31 @@ test('TC-PP-11: Vault post-capture face sampling keeps the live preview moving',
     assert.match(submit, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
         'no face descriptor still refuses before any network submission');
 });
+
+
+test('TC-PP-12: Vault pre-upload face refusal names its real non-sensitive cause', () => {
+    const copy = Function(extractFn('_vaultFaceRecoveryCopy') +
+        '\nreturn _vaultFaceRecoveryCopy;')();
+    const noFace = copy('no_face');
+    assert.match(noFace.title, /clearer capture/i);
+    assert.match(noFace.hint, /centred/i);
+
+    const many = copy('multiple_faces');
+    assert.match(many.title, /more than one face/i);
+    assert.doesNotMatch(many.title, /clearer capture/i);
+
+    const timeout = copy('embed_timeout');
+    assert.match(timeout.title, /timed out/i);
+    assert.doesNotMatch(timeout.title + timeout.hint, /poor light|clearer capture/i);
+
+    const engine = copy('embedder_error');
+    assert.match(engine.title, /unavailable/i);
+    assert.doesNotMatch(engine.title, /clearer capture/i);
+
+    assert.match(copy('unexpected_private_error').title, /could not complete/i);
+    const handler = extractFn('_showVaultFaceCaptureRecovery');
+    assert.match(handler, /_vaultFaceRecoveryCopy\(reason\)/,
+        'user-facing panel must use the reason-specific copy');
+    assert.match(handler, /No identity check was submitted or authorised/,
+        'a stopped attempt must never imply verification or a store grant');
+});
