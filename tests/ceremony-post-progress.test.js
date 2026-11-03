@@ -171,7 +171,7 @@ test('TC-PP-11: Vault post-capture face sampling keeps the live preview moving',
     assert.match(body, /_pausePostCapturePreview\(v, !!window\.VACVaultHandoff\)/,
         'actual timer must consult the Vault-specific guard');
     const j = src.indexOf('async function onRecordingComplete()');
-    const submit = src.slice(j, j + 4200);
+    const submit = src.slice(j, src.indexOf('// STEP 3: Upload to backend, show real results', j));
     assert.match(submit, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
         'no face descriptor still refuses before any network submission');
 });
@@ -239,7 +239,7 @@ test('TC-PP-14: early face is sampled from the SAME early liveness canvas, and s
         'the face candidate must be the already recorded 800ms liveness still, not a separate webcam');
     const final = src.slice(src.indexOf('async function onRecordingComplete()'),
         src.indexOf('// STEP 3: Upload to backend, show real results'));
-    assert.match(final, /_takeVaultEarlyIdentityFrame\(mediaRecorder, _recorderStartMs, _clipElapsed\)/,
+    assert.match(final, /_takeVaultEarlyIdentityFrame\(\s*mediaRecorder, _recorderStartMs, _clipElapsed\)/,
         'must validate recorder and recording epoch before using saved frame');
     assert.match(final, /window\.VACFaceEmbed\.compute\(_earlyCanvas\)/,
         'early frame must pass the SAME identity model');
