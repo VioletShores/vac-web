@@ -3,7 +3,9 @@ on:
   pull_request:
     paths:
       - vac-vault-handoff.js
+      - vac-reauth-ceremony.js
       - tests/vault-handoff.test.js
+      - tests/ceremony-post-progress.test.js
       - .github/workflows/athena-owner-vac-handoff.yml
   push:
     branches:
@@ -18,5 +20,5 @@ jobs:
         uses: actions/checkout@v4
       - name: Verify Node version
         run: node --version
-      - name: Run cross-origin VAC handoff regression tests
-        run: node --test tests/vault-handoff.test.js
+      - name: Run cross-origin VAC handoff and terminal face-capture regression tests
+        run: node --test tests/vault-handoff.test.js tests/ceremony-post-progress.test.js
