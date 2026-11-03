@@ -7044,6 +7044,33 @@ function renderClientGateFailure(reason, evidence) {
     return true;
 }
 
+// Presentation-only classification; reason codes are generated locally by
+// VACFaceEmbed, never taken from user-controlled text. Do not conflate a GPU /
+// model-load failure or timeout with poor face lighting. No verification is
+// permitted to proceed until a fresh 128-D descriptor is actually captured.
+function _vaultFaceRecoveryCopy(reason) {
+    if (reason === 'no_face') return {
+        title: 'Face identification needs a clearer capture',
+        hint: 'Keep your face centred and directly lit throughout the recording. Keep your hand away from your face after the final number.'
+    };
+    if (reason === 'multiple_faces') return {
+        title: 'More than one face detected',
+        hint: 'Only one face can be visible. Move anyone else out of camera view.'
+    };
+    if (reason === 'embed_timeout') return {
+        title: 'Face-identification engine timed out',
+        hint: 'The face model did not finish in time on this device. Check your connection, then restart the camera.'
+    };
+    if (reason === 'embedder_error') return {
+        title: 'Face-identification engine unavailable',
+        hint: 'The face model could not load or run on this device. Check your connection or try a supported browser.'
+    };
+    return {
+        title: 'Face identification could not complete',
+        hint: 'The face-identification check stopped before submission. Restart camera verification or contact support if this persists.'
+    };
+}
+
 // Vault AAL3 handoff requires an identity descriptor for an existing owner.
 // The backend must remain authoritative; this client guard avoids submitting a
 // known-missing descriptor and incorrectly showing six liveness checks as success.
@@ -7064,17 +7091,13 @@ function _showVaultFaceCaptureRecovery(reason) {
     if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
     var host = document.getElementById('challengePanel');
     if (!host || !host.parentElement) return;
-    var hint = reason === 'multiple_faces'
-        ? 'Only one face can be visible. Move anyone else out of camera view.'
-        : reason === 'no_face'
-            ? 'Keep your face centred and directly lit throughout the recording.'
-            : 'The face-identification check could not complete. Check connectivity and camera, then restart.';
+    var info = _vaultFaceRecoveryCopy(reason);
     var panel = document.createElement('div');
     panel.id = 'vacVaultFaceCaptureRecovery';
     panel.style.cssText = 'margin:12px 0 0;padding:14px;background:rgba(220,38,38,0.08);border:1px solid var(--danger,#dc2626);border-radius:10px;text-align:center;';
     panel.innerHTML =
-        '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">Face identification needs a clearer capture</div>' +
-        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + hint + '</div>' +
+        '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">' + info.title + '</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + info.hint + '</div>' +
         '<button type="button" id="vacVaultFaceCaptureRestart" style="display:block;width:100%;padding:11px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart camera verification</button>';
     host.parentElement.insertBefore(panel, host.nextSibling);
     var btn = document.getElementById('vacVaultFaceCaptureRestart');
