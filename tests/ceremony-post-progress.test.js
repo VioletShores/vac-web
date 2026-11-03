@@ -250,3 +250,25 @@ test('TC-PP-14: early face is sampled from the SAME early liveness canvas, and s
     assert.match(src, /await runRealVerification\(videoBlob\)/,
         'full video verification remains obligatory');
 });
+
+
+test('TC-PP-15: Vault keeps a recorded face-only closing window; unbound early frames cannot authenticate', () => {
+    const finish = src.slice(src.indexOf('function finishFingerPhase()'),
+        src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
+    assert.match(finish, /const _vaultFaceTailMs = window\.VACVaultHandoff \? 3200 : 1500;/,
+        'Vault must film a separate natural face-only closing beat, not rely on the last digit');
+    assert.match(finish, /Face check — look naturally toward the camera/,
+        'instruction never asks the owner to pose precisely while holding fingers');
+    assert.match(finish, /_pc\.style\.display\s*=\s*window\.VACVaultHandoff \? 'none' : 'flex'/,
+        'face preview stays visible during the dedicated closing beat');
+    assert.match(finish, /setTimeout\(function\(\) \{ try \{ mediaRecorder\.stop\(\); \} catch\(_\)\{\} \}, _vaultFaceTailMs\)/,
+        'same original full-video recorder includes the face-only closing beat');
+    const finishFull = src.slice(src.indexOf('async function onRecordingComplete()'),
+        src.indexOf('// STEP 3: Upload to backend, show real results'));
+    assert.match(finishFull, /const _EARLY_FACE_AUTH_ADMISSION = false;/,
+        'early ID must be disabled until independently reviewed same-actor backend binding exists');
+    assert.match(finishFull, /if \(_EARLY_FACE_AUTH_ADMISSION && _earlyCanvas/,
+        'a stored earlier frame alone is never enough to grant identity');
+    assert.match(finishFull, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
+        'missing accepted post-gesture identity still refuses before any POST');
+});
