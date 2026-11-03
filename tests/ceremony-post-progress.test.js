@@ -141,7 +141,7 @@ test('TC-PP-10: Vault face descriptor refusal terminates the spinner, processing
     assert.equal(nodes.get('vacAuthorityStages').innerHTML, '', 'no misleading pending authority stage');
     assert.match(nodes.get('challengeText').textContent, /not submitted/i);
     assert.equal(nodes.get('vacLiveDetect').textContent, '', 'stale finger coaching cleared');
-    assert.equal(nodes.get('vacLiveDetect').style.display, 'none');
+    assert.notEqual(nodes.get('vacLiveDetect').style.display, 'none', 'reuse the coach element on in-place retries');
     assert.equal(nodes.get('recIndicator').style.display, 'none');
     assert.ok(nodes.get('vacVaultFaceCaptureRecovery'), 'restart panel remains available');
     assert.equal(reloads, 0, 'no automatic restart or bypass');
