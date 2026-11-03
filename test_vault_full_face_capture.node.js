@@ -37,8 +37,11 @@ const compile = new Function(
 // Shorten non-blocking synthetic retry delays; leave timeout callbacks
 // pending/unref'ed, allowing a resolved embedding to win as in the browser.
 function schedule(cb, ms) {
+  // Synthetic 350ms frame-refresh delays MUST stay event-loop-referenced,
+  // otherwise Node exits with code 0 before all awaited tests execute.
+  // Only the unused long embedding-timeout branch may be unref'ed.
   const t = setTimeout(cb, ms >= 2500 ? ms : 0);
-  if (t && t.unref) t.unref();
+  if (ms >= 2500 && t && t.unref) t.unref();
   return t;
 }
 function V() { return Array.from({ length:128 }, () => 0.001); }
