@@ -3753,7 +3753,42 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript
     return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
 }
 
+
+// Single-use early face identity evidence from the SAME live MediaRecorder clip.
+// This is a capture-time alternative to the last digit frame, NOT an
+// authentication shortcut. The backend still verifies full challenge/liveness
+// video and matches the 128-D face descriptor against the stored owner
+// identity BEFORE minting authority. No token or identity decision is made
+// here. Reject stale, other-recorder, post-recording or late-gesture frames.
+function _recordVaultEarlyIdentityFrame(boundRecorder, capturedAtMs, canvas) {
+    if (!window.VACVaultHandoff || !boundRecorder || boundRecorder !== mediaRecorder ||
+        boundRecorder.state !== 'recording' || !canvas ||
+        !(canvas.width > 0 && canvas.height > 0) ||
+        !Number.isFinite(capturedAtMs) || !Number.isFinite(_recorderStartMs)) return false;
+    const ageMs = capturedAtMs - _recorderStartMs;
+    if (ageMs < 0 || ageMs > 4000) return false;
+    window.__vacEarlyFaceCandidate = {
+        recorder: boundRecorder, startedAtMs: _recorderStartMs,
+        ageMs: ageMs, canvas: canvas,
+    };
+    return true;
+}
+
+function _takeVaultEarlyIdentityFrame(recorder, startedAtMs, elapsedMs) {
+    const saved = window.__vacEarlyFaceCandidate;
+    // Always consume before validating; a retry/new ceremony must not reuse it.
+    window.__vacEarlyFaceCandidate = null;
+    if (!window.VACVaultHandoff || !saved || !recorder ||
+        saved.recorder !== recorder || saved.startedAtMs !== startedAtMs ||
+        !Number.isFinite(saved.ageMs) || saved.ageMs < 0 ||
+        saved.ageMs > 4000 || saved.ageMs >= elapsedMs ||
+        !saved.canvas || !(saved.canvas.width > 0 && saved.canvas.height > 0)) return null;
+    return saved.canvas;
+}
+
 function beginRecording() {
+    // Never carry a prior recording's face evidence across an aborted retry.
+    window.__vacEarlyFaceCandidate = null;
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
@@ -3828,11 +3863,15 @@ function beginRecording() {
     const __recStartMs = performance.now();
     window.__vacFaceStillB64 = '';
     window.__vacFaceStillTsMs = 0;
+    // The still timer belongs to THIS recorder; a restarted camera must
+    // never let an older callback write identity evidence into a new take.
+    const _boundIdentityRecorder = mediaRecorder;
     const FACE_STILL_DELAY_MS = 800;
     setTimeout(function captureBoundStill() {
         try {
             // Only sample while genuinely recording (user may have aborted).
-            if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+            if (!mediaRecorder || mediaRecorder !== _boundIdentityRecorder ||
+                mediaRecorder.state !== 'recording') return;
             const v = document.getElementById('videoPreviewRec');
             if (!v || !v.videoWidth || !v.videoHeight) return; // frame not ready → leave empty
             // Downscale to <=640px longest edge to stay well under the request budget.
@@ -3850,6 +3889,9 @@ function beginRecording() {
             if (comma === -1) return; // malformed → leave empty
             window.__vacFaceStillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
             window.__vacFaceStillTsMs = Math.round(performance.now() - __recStartMs);
+            // Reuse the exact same early live video canvas, inside the recorded
+            // greeting. No additional camera open or face snapshot is taken.
+            _recordVaultEarlyIdentityFrame(_boundIdentityRecorder, performance.now(), c);
             console.log('[VAC] Bound still captured @' + window.__vacFaceStillTsMs + 'ms (' + cw + 'x' + ch + ', ~' + Math.round(window.__vacFaceStillB64.length / 1024) + 'KB b64)');
         } catch (e) {
             // Never fabricate — empty still tells the backend to fail-close Didit.
@@ -7113,6 +7155,7 @@ async function onRecordingComplete() {
     var _clipElapsed = performance.now() - _recorderStartMs;
     var _clipBytes = recordedChunks.reduce(function(a, c){ return a + c.size; }, 0);
     if (_clipBytes < 20480 || _clipElapsed < 2000) {
+        window.__vacEarlyFaceCandidate = null; // no stale identity data on abort
         try { vacDebug('clip_floor_abort', null, { bytes: _clipBytes, elapsed_ms: Math.round(_clipElapsed) }); } catch(_) {}
         _showCaptureDiedRecovery();
         return;
@@ -7125,7 +7168,37 @@ async function onRecordingComplete() {
     // A single last frame can be blurred/turned away; take up to three distinct
     // fresh frames. This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
-    var _fullEmbedReason = 'embedder_error';
+    var _fullEmbedReason = 'no_face';
+    // A face-visible identity candidate from the opening of this SAME clip
+    // is evaluated BEFORE the late hand-gesture frames. The server still
+    // evaluates the FULL recording and its independent identity-continuity
+    // gate. Capture timing is not an assurance-level change.
+    const _earlyCanvas = _takeVaultEarlyIdentityFrame(
+        mediaRecorder, _recorderStartMs, _clipElapsed);
+    if (_earlyCanvas && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+        try {
+            const _earlyResult = await Promise.race([
+                window.VACFaceEmbed.compute(_earlyCanvas),
+                new Promise(function(resolve) {
+                    setTimeout(function() { resolve({ok:false, reason:'embed_timeout'}); }, 8000);
+                })
+            ]);
+            if (_earlyResult && _earlyResult.ok &&
+                Array.isArray(_earlyResult.embedding) && _earlyResult.embedding.length === 128 &&
+                _earlyResult.embedding.every(function(n) {
+                    return typeof n === 'number' && Number.isFinite(n);
+                })) {
+                window.__vacEnrollEmbedding = _earlyResult.embedding;
+            } else {
+                _fullEmbedReason = (_earlyResult && _earlyResult.reason) || 'embedder_error';
+            }
+        } catch (_) { _fullEmbedReason = 'embedder_error'; }
+    }
+    // Only an early "no_face" or absent early snapshot permits another
+    // capture attempt. Multiple people/engine faults must never be masked by
+    // a conveniently clear later frame.
+    if (!window.__vacEnrollEmbedding &&
+        (!_earlyCanvas || _fullEmbedReason === 'no_face')) {
     try {
         const ev = document.getElementById('videoPreviewRec');
         if (ev && ev.videoWidth && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
@@ -7154,6 +7227,7 @@ async function onRecordingComplete() {
     } catch (e) {
         _fullEmbedReason = 'embedder_error';
         console.warn('[VAC] Full face descriptor not available:', (e && e.message) || e);
+    }
     }
     // A Vault handoff is a high-assurance existing-owner action. Its server
     // refuses missing identity vectors; stop BEFORE uploading a known-bad
