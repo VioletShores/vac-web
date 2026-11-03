@@ -139,7 +139,7 @@
 
   function deliver() {
     if (!openerPresent()) {
-      show('warn', 'Return to the ' + destination + ' tab. This page was not opened from ' + destination +
+      show('warn', 'Return to ' + (kind === 'owner-collaborate' ? 'the Athena' : 'the Vault') + ' tab. This page was not opened from ' + destination +
         ' (or that tab was closed), so nothing was sent. Start the ' + actionName + ' again from ' + destination + '.', false);
       return;
     }
