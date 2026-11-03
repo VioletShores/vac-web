@@ -180,3 +180,56 @@ test('the module source never writes the assertion to a URL, storage or the cons
   assert.doesNotMatch(SRC, /localStorage|sessionStorage|console\.|location\.(href|hash|assign|replace)\s*=|history\./);
   assert.doesNotMatch(SRC, /postMessage\([^)]*['"]\*['"]/);
 });
+
+
+test('Athena owner Collaborate handoff has a distinct verified audience and one fixed origin', async () => {
+  const h = load('?handoff=owner-collaborate&state=' + STATE +
+                 '&origin=https://attacker.example&return=https://attacker.example');
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.deepEqual(h.fetches[0].body.handoff,
+                   { audience: 'athena:owner:collaborate', nonce: STATE });
+  assert.deepEqual(h.fetches[0].body.resources, ['athena:owner:collaborate']);
+  assert.deepEqual(h.fetches[0].body.actions, ['owner_signin']);
+  assert.equal(h.posted.length, 1);
+  assert.equal(h.posted[0].o, VAULT);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.posted[0].m)),
+                   { type: 'vac-vault-handoff', state: STATE, assertion: JWT });
+  assert.equal(h.navigations.length, 0);
+});
+
+test('Athena owner handoff rejects an unverified or weakened ceremony', async () => {
+  for (const r of [null, { authenticated: false }, {
+    authenticated: true, session_token: 's', session: { auth_level: 'quick', email: 'x@y' }
+  }]) {
+    const h = load('?handoff=owner-collaborate&state=' + STATE);
+    h.window.VACVaultHandoff.onVerified(r, {});
+    await flush();
+    assert.equal(h.fetches.length, 0);
+    assert.equal(h.posted.length, 0);
+  }
+});
+
+test('Athena owner handoff requires the initiating tab, not a pasted URL', async () => {
+  const h = load('?handoff=owner-collaborate&state=' + STATE, { opener: null });
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush();
+  assert.equal(h.fetches.length, 0);
+  assert.equal(h.posted.length, 0);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Return to the Athena tab/);
+});
+
+test('Athena owner handoff ack is bound to real opener, pinned origin and nonce', async () => {
+  const h = load('?handoff=owner-collaborate&state=' + STATE);
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush(); await flush();
+  const [onMessage] = h.listeners.message;
+  const ack = { type: 'vac-vault-handoff-ack', state: STATE };
+  onMessage({ origin: 'https://attacker.example', source: h.op, data: ack });
+  onMessage({ origin: VAULT, source: {}, data: ack });
+  onMessage({ origin: VAULT, source: h.op, data: { type: ack.type, state: 'x'.repeat(43) } });
+  assert.notEqual(h.byId.vacVaultHandoff.attrs['data-tone'], 'ok');
+  onMessage({ origin: VAULT, source: h.op, data: ack });
+  assert.equal(h.byId.vacVaultHandoff.attrs['data-tone'], 'ok');
+});
