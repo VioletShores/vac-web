@@ -7030,6 +7030,33 @@ function renderClientGateFailure(reason, evidence) {
     return true;
 }
 
+// Vault AAL3 handoff requires an identity descriptor for an existing owner.
+// The backend must remain authoritative; this client guard avoids submitting a
+// known-missing descriptor and incorrectly showing six liveness checks as success.
+function _showVaultFaceCaptureRecovery(reason) {
+    if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
+    var host = document.getElementById('challengePanel');
+    if (!host || !host.parentElement) return;
+    var hint = reason === 'multiple_faces'
+        ? 'Only one face can be visible. Move anyone else out of camera view.'
+        : reason === 'no_face'
+            ? 'Keep your face centred and directly lit throughout the recording.'
+            : 'The face-identification check could not complete. Check connectivity and camera, then restart.';
+    var panel = document.createElement('div');
+    panel.id = 'vacVaultFaceCaptureRecovery';
+    panel.style.cssText = 'margin:12px 0 0;padding:14px;background:rgba(220,38,38,0.08);border:1px solid var(--danger,#dc2626);border-radius:10px;text-align:center;';
+    panel.innerHTML =
+        '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">Face identification needs a clearer capture</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + hint + '</div>' +
+        '<button type="button" id="vacVaultFaceCaptureRestart" style="display:block;width:100%;padding:11px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart camera verification</button>';
+    host.parentElement.insertBefore(panel, host.nextSibling);
+    var btn = document.getElementById('vacVaultFaceCaptureRestart');
+    if (btn) btn.addEventListener('click', function () {
+        VACReauth.reload({auto:false,keepRetryBudget:true,retryAttempts:retryAttempts});
+    });
+    try { vacDebug('vault_face_descriptor_missing', null, {reason:reason}); } catch (_) {}
+}
+
 async function onRecordingComplete() {
     // F-720: client-side clip floor — belt-and-suspenders behind the onstop guard.
     // A near-zero clip means the recorder or stream died; never POST garbage to the backend.
@@ -7044,22 +7071,49 @@ async function onRecordingComplete() {
     document.getElementById('cameraBoxRec').classList.remove('recording', 'show-hand-zone', 'hand-in-zone', 'hand-visible');
     stopAudioMonitor();
 
-    // Capture the face IDENTITY embedding from the LIVE recording frame BEFORE the camera
-    // stops (face-api.js 128-D descriptor, single-face enforced). Stored on a passing
-    // verify as the re-auth template. Best-effort: a miss enrolls the user in legacy/
-    // description mode — the server-side multi-modal verify still guards the enrollment.
+    // Compute the live identity descriptor while the camera is still open.
+    // A single last frame can be blurred/turned away; take up to three distinct
+    // fresh frames. This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
+    var _fullEmbedReason = 'embedder_error';
     try {
         const ev = document.getElementById('videoPreviewRec');
-        if (ev && ev.videoWidth && window.VACFaceEmbed) {
-            const ec = document.createElement('canvas');
-            ec.width = ev.videoWidth; ec.height = ev.videoHeight;
-            ec.getContext('2d').drawImage(ev, 0, 0);
-            const r = await window.VACFaceEmbed.compute(ec);
-            if (r.ok) { window.__vacEnrollEmbedding = r.embedding; console.log('[VAC] Enroll embedding computed (dim ' + r.embedding.length + ')'); }
-            else { console.warn('[VAC] Enroll embedding skipped:', r.reason, '— legacy/description enrollment'); }
+        if (ev && ev.videoWidth && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+            for (var _embTry = 0; _embTry < 3; _embTry++) {
+                if (_embTry > 0) await new Promise(function(resolve) { setTimeout(resolve, 350); });
+                const ec = document.createElement('canvas');
+                ec.width = ev.videoWidth; ec.height = ev.videoHeight;
+                ec.getContext('2d').drawImage(ev, 0, 0);
+                const _result = await Promise.race([
+                    window.VACFaceEmbed.compute(ec),
+                    new Promise(function(resolve) {
+                        setTimeout(function() { resolve({ok:false, reason:'embed_timeout'}); }, _embTry === 0 ? 8000 : 3500);
+                    })
+                ]);
+                if (_result && _result.ok && Array.isArray(_result.embedding) && _result.embedding.length === 128 &&
+                    _result.embedding.every(function(n) { return typeof n === 'number' && Number.isFinite(n); })) {
+                    window.__vacEnrollEmbedding = _result.embedding;
+                    console.log('[VAC] Full face descriptor ready (128-D, capture ' + (_embTry + 1) + '/3)');
+                    break;
+                }
+                _fullEmbedReason = (_result && _result.reason) || 'embedder_error';
+                if (_fullEmbedReason === 'multiple_faces' || _fullEmbedReason === 'embed_timeout' ||
+                    _fullEmbedReason === 'embedder_error') break;
+            }
         }
-    } catch (e) { console.warn('[VAC] Enroll embedding error (non-fatal):', (e && e.message) || e); }
+    } catch (e) {
+        _fullEmbedReason = 'embedder_error';
+        console.warn('[VAC] Full face descriptor not available:', (e && e.message) || e);
+    }
+    // A Vault handoff is a high-assurance existing-owner action. Its server
+    // refuses missing identity vectors; stop BEFORE uploading a known-bad
+    // attempt, keep the attempt budget, and guide the owner to recapture.
+    if (window.VACVaultHandoff && !window.__vacEnrollEmbedding) {
+        if (mediaStream) mediaStream.getTracks().forEach(function(track) { track.stop(); });
+        goToStep(2);
+        _showVaultFaceCaptureRecovery(_fullEmbedReason);
+        return;
+    }
 
     // Stop camera
     if (mediaStream) {
