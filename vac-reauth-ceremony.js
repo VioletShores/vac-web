@@ -7043,7 +7043,8 @@ function _showVaultFaceCaptureRecovery(reason) {
     var _challenge = document.getElementById('challengeText');
     if (_challenge) _challenge.textContent = 'Capture not submitted — restart camera verification';
     var _coach = document.getElementById('vacLiveDetect');
-    if (_coach) { _coach.textContent = ''; _coach.style.display = 'none'; }
+    // Leave the reusable element visible: in-place retries write new live coaching here.
+    if (_coach) _coach.textContent = '';
     var _rec = document.getElementById('recIndicator');
     if (_rec) _rec.style.display = 'none';
     if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
