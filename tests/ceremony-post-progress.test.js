@@ -110,3 +110,41 @@ test('TC-PP-09: DOM + CSS — cover in step 2, stage list in step 3, gold #C9A22
     assert.ok(/_escapeStageText\(_authorityGrantsText\(/.test(r), 'grants text is escaped before innerHTML');
     assert.ok(!/authenticated\s*=/.test(r) && !/authResult\s*=/.test(r), 'display-only: never writes the verdict');
 });
+
+
+test('TC-PP-10: Vault face descriptor refusal terminates the spinner, processing copy and stale finger coaching', () => {
+    const nodes = new Map();
+    const node = (id, extras) => Object.assign({ id, style: { display: 'block' }, textContent: '', innerHTML: '' }, extras || {});
+    nodes.set('vacPostCapture', node('vacPostCapture', { style: { display: 'flex' } }));
+    nodes.set('vacPostCaptureStages', node('vacPostCaptureStages'));
+    nodes.set('vacAuthorityStages', node('vacAuthorityStages'));
+    nodes.set('challengeText', node('challengeText', { textContent: 'Processing…' }));
+    nodes.set('vacLiveDetect', node('vacLiveDetect', { textContent: 'Keep showing 5 — say “5”' }));
+    nodes.set('recIndicator', node('recIndicator'));
+    const parent = { insertBefore(el) { nodes.set(el.id, el); } };
+    nodes.set('challengePanel', node('challengePanel', { parentElement: parent, nextSibling: null }));
+    const document = {
+        getElementById(id) { return nodes.get(id) || null; },
+        createElement(tag) { assert.equal(tag, 'div'); return node(''); },
+    };
+    const renderer = Function('document', 'vacDebug', stagesConst + '\n' +
+        extractFn('_renderAuthorityStages') + '\nreturn _renderAuthorityStages;')(document, () => {});
+    renderer('verifying');
+    assert.match(nodes.get('vacPostCaptureStages').innerHTML, /vac-stage active/);
+    let reloads = 0;
+    const recover = Function('document', '_renderAuthorityStages', 'vacDebug', 'VACReauth', 'retryAttempts',
+        extractFn('_showVaultFaceCaptureRecovery') + '\nreturn _showVaultFaceCaptureRecovery;')(
+        document, renderer, () => {}, { reload() { reloads++; } }, 1);
+    recover('no_face');
+    assert.equal(nodes.get('vacPostCapture').style.display, 'none', 'no verifying overlay after refusal');
+    assert.equal(nodes.get('vacPostCaptureStages').innerHTML, '', 'no active spinner');
+    assert.equal(nodes.get('vacAuthorityStages').innerHTML, '', 'no misleading pending authority stage');
+    assert.match(nodes.get('challengeText').textContent, /not submitted/i);
+    assert.equal(nodes.get('vacLiveDetect').textContent, '', 'stale finger coaching cleared');
+    assert.equal(nodes.get('vacLiveDetect').style.display, 'none');
+    assert.equal(nodes.get('recIndicator').style.display, 'none');
+    assert.ok(nodes.get('vacVaultFaceCaptureRecovery'), 'restart panel remains available');
+    assert.equal(reloads, 0, 'no automatic restart or bypass');
+    recover('no_face');
+    assert.equal(nodes.get('vacVaultFaceCaptureRecovery').id, 'vacVaultFaceCaptureRecovery');
+});
