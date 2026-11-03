@@ -203,3 +203,50 @@ test('TC-PP-12: Vault pre-upload face refusal names its real non-sensitive cause
     assert.match(handler, /No identity check was submitted or authorised/,
         'a stopped attempt must never imply verification or a store grant');
 });
+
+
+test('TC-PP-13: early face candidate is live-recording-bound, single-use, and Vault-only', () => {
+    const w = { VACVaultHandoff: {} };
+    const active = { state: 'recording' };
+    const other = { state: 'recording' };
+    const still = { width: 640, height: 480 };
+    const guards = Function('window', 'mediaRecorder', '_recorderStartMs',
+        extractFn('_recordVaultEarlyIdentityFrame') + '\n' +
+        extractFn('_takeVaultEarlyIdentityFrame') + '\n' +
+        'return {record:_recordVaultEarlyIdentityFrame, take:_takeVaultEarlyIdentityFrame};')(
+        w, active, 1000);
+    assert.equal(guards.record(other, 1800, still), false, 'never accept another recorder');
+    assert.equal(guards.record(active, 800, still), false, 'never take a pre-recording frame');
+    assert.equal(guards.record(active, 6500, still), false, 'never take a late gesture frame');
+    assert.equal(guards.record(active, 1800, still), true, 'one early frame during actual recording');
+    assert.equal(guards.take(other, 1000, 6500), null, 'wrong recorder must not reuse early face');
+    assert.equal(guards.take(active, 1000, 6500), null, 'mismatch consumes the candidate');
+    assert.equal(guards.record(active, 1900, still), true);
+    assert.equal(guards.take(active, 900, 6500), null, 'different recording epoch must refuse');
+    assert.equal(guards.record(active, 1950, still), true);
+    assert.equal(guards.take(active, 1000, 6500), still, 'same recording can consume one fresh frame');
+    assert.equal(guards.take(active, 1000, 6500), null, 'no cross-attempt replay');
+    active.state = 'inactive';
+    assert.equal(guards.record(active, 2000, still), false, 'no post-recording capture');
+    active.state = 'recording';
+    w.VACVaultHandoff = null;
+    assert.equal(guards.record(active, 2000, still), false, 'other VAC journeys unchanged');
+});
+
+test('TC-PP-14: early face is sampled from the SAME early liveness canvas, and server gate stays', () => {
+    const early = src.slice(src.indexOf('const FACE_STILL_DELAY_MS = 800'), src.indexOf('// Show combined capture info'));
+    assert.match(early, /_recordVaultEarlyIdentityFrame\(_boundIdentityRecorder, performance\.now\(\), c\)/,
+        'the face candidate must be the already recorded 800ms liveness still, not a separate webcam');
+    const final = src.slice(src.indexOf('async function onRecordingComplete()'),
+        src.indexOf('// STEP 3: Upload to backend, show real results'));
+    assert.match(final, /_takeVaultEarlyIdentityFrame\(mediaRecorder, _recorderStartMs, _clipElapsed\)/,
+        'must validate recorder and recording epoch before using saved frame');
+    assert.match(final, /window\.VACFaceEmbed\.compute\(_earlyCanvas\)/,
+        'early frame must pass the SAME identity model');
+    assert.match(final, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
+        'no valid identity descriptor remains a hard pre-upload refusal');
+    assert.match(src, /formData\.append\('face_embedding', JSON\.stringify\(window\.__vacEnrollEmbedding\)\)/,
+        'server still receives an identity vector for its existing continuity check');
+    assert.match(src, /await runRealVerification\(videoBlob\)/,
+        'full video verification remains obligatory');
+});
