@@ -332,7 +332,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
   }
 </script>
 <!-- VAC face-EMBEDDING module (face-api.js 128-D identity descriptor for re-auth). Self-loads face-api on first use. -->
-<script src="/vac-face-embed.js"></script>
+<script src="/vac-face-embed.js?v=s204-20261104-face-diag"></script>
 <!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
 <script src="/vac-finger-detect.js"></script>
 <!-- S117 reauth-unify: the ONE shared re-auth ceremony (camera + show-and-say N digits +
@@ -342,9 +342,9 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
      display derivation, shared with test_verdict_reasons.node.js. Must load
      before vac-reauth-ceremony.js's showRetry() calls it. -->
 <script src="/verdict-reasons.js?v=s204-20261103-face-id"></script>
-<script src="/vac-reauth-ceremony.js?v=s204-20261104-face-warm"></script>
+<script src="/vac-reauth-ceremony.js?v=s204-20261104-face-diag"></script>
 <!-- athena PKT-S204-VAULT-MOBILE-HANDOFF: inert unless opened with ?handoff=&state= (defines nothing otherwise). -->
-<script src="/vac-vault-handoff.js?v=s204-20261104-face-warm"></script>
+<script src="/vac-vault-handoff.js?v=s204-20261104-face-diag"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>

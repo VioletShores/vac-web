@@ -39,6 +39,9 @@
   var MODEL_ID = '@vladmandic/face-api@1.7.15:faceRecognitionNet';
   var EXPECTED_DIM = 128;
   var MIN_DETECT_CONFIDENCE = 0.5;
+  // Diagnostics only: the probe that explains a no_face refusal. Never a gate.
+  var DIAG_PROBE_CONFIDENCE = 0.05;
+  var DIAG_PROBE_BUDGET_MS = 1200;
 
   var _faceapi = null;
   var _ready = false;
@@ -116,7 +119,27 @@
       var opts = new _faceapi.SsdMobilenetv1Options({ minConfidence: MIN_DETECT_CONFIDENCE });
       var results = await _faceapi.detectAllFaces(input, opts).withFaceLandmarks().withFaceDescriptors();
       var n = results ? results.length : 0;
-      if (n === 0) return { ok: false, faceCount: 0, reason: 'no_face' };
+      if (n === 0) {
+        // DIAGNOSTIC ONLY (S204, 4 Nov): the decision above is final and
+        // unchanged (MIN_DETECT_CONFIDENCE still gates). To explain the refusal
+        // on screen, report the best face score a low-threshold probe can see in
+        // the same frame. Never used to accept a face or build a descriptor.
+        var best = null;
+        try {
+          // Bounded: on a slow device the probe must never turn a no_face
+          // refusal into an engine timeout. No answer in time -> score unknown.
+          var probe = await Promise.race([
+            _faceapi.detectAllFaces(input, new _faceapi.SsdMobilenetv1Options({ minConfidence: DIAG_PROBE_CONFIDENCE })),
+            new Promise(function (res) { setTimeout(function () { res(null); }, DIAG_PROBE_BUDGET_MS); })
+          ]);
+          for (var k = 0; probe && k < probe.length; k++) {
+            var sc = probe[k] && probe[k].score;
+            if (typeof sc === 'number' && isFinite(sc) && (best === null || sc > best)) best = sc;
+          }
+        } catch (_) {}
+        return { ok: false, faceCount: 0, reason: 'no_face',
+                 diag: { best_score: best, min_confidence: MIN_DETECT_CONFIDENCE } };
+      }
       if (n > 1) return { ok: false, faceCount: n, reason: 'multiple_faces' };
       var desc = results[0].descriptor;
       if (!desc || desc.length !== EXPECTED_DIM) {
@@ -156,6 +179,7 @@
     euclidean: euclidean,
     reasonMessage: reasonMessage,
     MODEL_ID: MODEL_ID,
+    MIN_DETECT_CONFIDENCE: MIN_DETECT_CONFIDENCE,
     VERSION: VERSION,
     EXPECTED_DIM: EXPECTED_DIM,
   };

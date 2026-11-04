@@ -134,7 +134,8 @@ test('TC-PP-10: Vault face descriptor refusal terminates the spinner, processing
     assert.match(nodes.get('vacPostCaptureStages').innerHTML, /vac-stage active/);
     let reloads = 0;
     const recover = Function('document', '_renderAuthorityStages', 'vacDebug', 'VACReauth', 'retryAttempts',
-        extractFn('_vaultFaceRecoveryCopy') + '\n' + extractFn('_showVaultFaceCaptureRecovery') +
+        extractFn('_vaultFaceRecoveryCopy') + '\n' + extractFn('_vaultFaceEvidenceHtml') + '\n' +
+        extractFn('_showVaultFaceCaptureRecovery') +
         '\nreturn _showVaultFaceCaptureRecovery;')(
         document, renderer, () => {}, { reload() { reloads++; } }, 1);
     recover('no_face');
@@ -257,7 +258,7 @@ test('TC-PP-15: Vault keeps a recorded face-only closing window; unbound early f
         src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
     assert.match(finish, /const _vaultFaceTailMs = window\.VACVaultHandoff \? 3200 : 1500;/,
         'Vault must film a separate natural face-only closing beat, not rely on the last digit');
-    assert.match(finish, /Face check — look naturally toward the camera/,
+    assert.match(finish, /Face check — lower your hand and look naturally toward the camera/,
         'instruction never asks the owner to pose precisely while holding fingers');
     assert.match(finish, /_pc\.style\.display\s*=\s*window\.VACVaultHandoff \? 'none' : 'flex'/,
         'face preview stays visible during the dedicated closing beat');
@@ -277,7 +278,7 @@ test('TC-PP-15: Vault keeps a recorded face-only closing window; unbound early f
 test('TC-PP-16: Vault accurately discloses continuing final face recording until recorder stops', () => {
     const finish = src.slice(src.indexOf('function finishFingerPhase()'),
         src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
-    assert.match(finish, /Recording final face check/, 'Vault face-only beat must say recording, not analysing');
+    assert.match(finish, /recording final face check/, 'Vault face-only beat must say recording, not analysing');
     assert.match(finish, /if \(!window\.VACVaultHandoff\)\s*\{\s*try \{ document\.querySelectorAll\('\.rec-dot'\)/,
         'Vault recording indicator must remain visible during its 3.2s tail');
     assert.match(finish, /window\.VACVaultHandoff \? 3400 : 1700/,
@@ -323,7 +324,7 @@ test('TC-PP-17: a frame with no camera picture is named as such, never as an eng
     // The probe runs before compute() and still ends in the pre-upload refusal.
     const j = src.indexOf('async function onRecordingComplete()');
     const submit = src.slice(j, src.indexOf('// STEP 3: Upload to backend, show real results', j));
-    assert.match(submit, /if \(_vacFrameHasNoPicture\(ec\)\) \{ _fullEmbedReason = 'no_camera_picture'; break; \}/);
+    assert.match(submit, /if \(_vacFrameHasNoPicture\(ec\)\) \{ _fullEmbedReason = 'no_camera_picture'; _faceEvidence\.push\(\{ reason: 'no_camera_picture', luma: _luma \}\); break; \}/);
     assert.ok(submit.indexOf('_vacFrameHasNoPicture(ec)') < submit.indexOf('window.VACFaceEmbed.compute(ec)'));
 });
 
@@ -338,4 +339,44 @@ test('TC-PP-18: the face engine warms every net once during load (first capture 
     }
     // Warm-up errors are swallowed; compute() keeps its own fail-closed contract.
     assert.match(emb, /return \{ ok: false, faceCount: -1, reason: 'embedder_error' \}/);
+});
+
+
+test('TC-PP-19: a refused Vault face check says which check failed and why (no pixels, no identity data)', () => {
+    const html = Function(extractFn('_vaultFaceEvidenceHtml') + '\nreturn _vaultFaceEvidenceHtml;')()([
+        { reason: 'no_face', faces: 0, best_score: 0.31, min_confidence: 0.5, luma: { mean: 102, max: 240 } },
+        { reason: 'no_face', faces: 0, best_score: null, min_confidence: 0.5, luma: { mean: 20, max: 60 } },
+        { reason: 'no_camera_picture', luma: { mean: 0, max: 3 } },
+    ]);
+    assert.match(html, /Failed check: face identification, on this device, before upload/);
+    assert.match(html, /Frame 1: brightness 40% · faces found 0 · best face score 0\.31 \(needs 0\.50\)/);
+    assert.match(html, /Frame 2: brightness 8% · faces found 0 · no face-like shape seen \(needs score 0\.50\)/);
+    assert.match(html, /Frame 3: brightness 0% · no camera picture/);
+    assert.equal(Function(extractFn('_vaultFaceEvidenceHtml') + '\nreturn _vaultFaceEvidenceHtml;')()([]), '');
+    const rec = extractFn('_showVaultFaceCaptureRecovery');
+    assert.match(rec, /_vaultFaceEvidenceHtml\(evidence\)/, 'evidence is rendered in the refusal panel');
+    assert.match(rec, /getElementById\('vacStepVU'\)[^;]*;\s*if \(_svr\) _svr\.remove\(\)/, 'voice meter never drawn over the refusal');
+});
+
+test('TC-PP-20: the step voice meter ends with the capture and shows raw numbers only with ?qa=1', () => {
+    const finish = src.slice(src.indexOf('function finishFingerPhase()'),
+        src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
+    assert.match(finish, /window\.__vacGateArmed = false; var _svf = document\.getElementById\('vacStepVU'\); if \(_svf\) _svf\.remove\(\);/);
+    assert.match(src, /if \(_st\) _st\.textContent = \(typeof _qaFlag !== 'undefined' && _qaFlag\) \? \(rms\.toFixed\(2\)/,
+        'level/threshold readout is a developer-only overlay');
+});
+
+test('TC-PP-21: face-engine diagnostics never change the identity decision', () => {
+    const fe = fs.readFileSync(path.join(__dirname, '..', 'vac-face-embed.js'), 'utf8');
+    assert.match(fe, /var MIN_DETECT_CONFIDENCE = 0\.5;/, 'detector threshold unchanged');
+    const compute = fe.slice(fe.indexOf('async function compute(input)'), fe.indexOf('function euclidean('));
+    assert.match(compute, /detectAllFaces\(input, opts\)\.withFaceLandmarks\(\)\.withFaceDescriptors\(\)/, 'decision still from the 0.5 detector');
+    const probeAt = compute.indexOf('DIAG_PROBE_CONFIDENCE');
+    const noFaceReturn = compute.indexOf("reason: 'no_face',", probeAt);
+    assert.ok(probeAt > 0 && noFaceReturn > probeAt, 'low-threshold probe only inside the no-face branch');
+    assert.ok(!/withFaceDescriptors/.test(compute.slice(probeAt, noFaceReturn)), 'probe never builds a descriptor');
+    assert.ok(!/ok: true/.test(compute.slice(probeAt, noFaceReturn)), 'probe can never accept a face');
+    assert.match(fe, /var DIAG_PROBE_BUDGET_MS = 1200;/, 'probe is time-bounded');
+    assert.match(compute, /Promise\.race\(\[\s*_faceapi\.detectAllFaces\(input, new _faceapi\.SsdMobilenetv1Options\(\{ minConfidence: DIAG_PROBE_CONFIDENCE \}\)\)/,
+        'a slow probe cannot turn a no_face refusal into a timeout');
 });
