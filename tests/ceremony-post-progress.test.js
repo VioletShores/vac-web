@@ -258,7 +258,7 @@ test('TC-PP-15: Vault keeps a recorded face-only closing window; unbound early f
         src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
     assert.match(finish, /const _vaultFaceTailMs = window\.VACVaultHandoff \? 3200 : 1500;/,
         'Vault must film a separate natural face-only closing beat, not rely on the last digit');
-    assert.match(finish, /Face check — lower your hand and look naturally toward the camera/,
+    assert.match(finish, /Face check — lower your hand and look at the screen/,
         'instruction never asks the owner to pose precisely while holding fingers');
     assert.match(finish, /_pc\.style\.display\s*=\s*window\.VACVaultHandoff \? 'none' : 'flex'/,
         'face preview stays visible during the dedicated closing beat');
@@ -379,4 +379,38 @@ test('TC-PP-21: face-engine diagnostics never change the identity decision', () 
     assert.match(fe, /var DIAG_PROBE_BUDGET_MS = 1200;/, 'probe is time-bounded');
     assert.match(compute, /Promise\.race\(\[\s*_faceapi\.detectAllFaces\(input, new _faceapi\.SsdMobilenetv1Options\(\{ minConfidence: DIAG_PROBE_CONFIDENCE \}\)\)/,
         'a slow probe cannot turn a no_face refusal into a timeout');
+});
+
+
+test('TC-PP-22: the Vault face check is a full stage with a visible 3-2-1 countdown, presentation only', () => {
+    const finish = src.slice(src.indexOf('function finishFingerPhase()'),
+        src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
+    assert.match(finish, /if \(window\.VACVaultHandoff\) \{ try \{ _vacFaceStageShow\(\); \} catch\(_\) \{\} \}/);
+    assert.match(finish, /const _vaultFaceTailMs = window\.VACVaultHandoff \? 3200 : 1500;/, 'filmed face-only tail timing unchanged');
+    const nodes = new Map(); const timers = [];
+    const box = { children: [], appendChild(n) { this.children.push(n); nodes.set(n.id, n); } };
+    nodes.set('cameraBoxRec', box);
+    const count = { textContent: '' };
+    const document = {
+        getElementById: id => nodes.get(id) || null,
+        createElement: () => ({ id: '', style: {}, setAttribute() {}, set innerHTML(h) { this._h = h; count.textContent = '3'; },
+            get innerHTML() { return this._h; }, querySelector: () => count, remove() { nodes.delete(this.id); } }),
+    };
+    const window = {};
+    const [show, hide] = Function('document', 'window', 'setTimeout', 'clearTimeout',
+        extractFn('_vacFaceStageShow') + '\n' + extractFn('_vacFaceStageHide') + '\nreturn [_vacFaceStageShow, _vacFaceStageHide];')(
+        document, window, (f, ms) => { timers.push([ms, f]); return timers.length; }, () => {});
+    assert.equal(show(), true);
+    const stage = nodes.get('vacFaceStage');
+    assert.ok(stage, 'stage mounted in the camera box');
+    assert.match(stage.innerHTML, /FACE CHECK/);
+    assert.match(stage.innerHTML, /Lower your hand and look at the screen/);
+    assert.equal(count.textContent, '3');
+    assert.deepEqual(timers.map(t => t[0]), [1000, 2000, 3000], 'countdown spans the 3.2 s filmed tail');
+    timers.forEach(t => t[1]());
+    assert.equal(count.textContent, '\u2713');
+    hide();
+    assert.equal(nodes.get('vacFaceStage'), undefined, 'removed before analysis / refusal');
+    assert.match(src.slice(src.indexOf('async function onRecordingComplete()'), src.indexOf('async function onRecordingComplete()') + 2600), /_vacFaceStageHide\(\)/);
+    assert.match(extractFn('_showVaultFaceCaptureRecovery'), /_vacFaceStageHide\(\)/);
 });

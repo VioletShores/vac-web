@@ -4323,8 +4323,9 @@ function beginRecording() {
             try { _renderAuthorityStages('verifying'); } catch(_) {}
         }
         challengeEl.textContent = window.VACVaultHandoff
-            ? 'Face check — lower your hand and look naturally toward the camera'
+            ? 'Face check — lower your hand and look at the screen'
             : 'Processing\u2026';
+        if (window.VACVaultHandoff) { try { _vacFaceStageShow(); } catch(_) {} }
         // F-815 (Rob, 16 Jul pre-meeting run): entering processing must not keep coaching the
         // user — the live coach line ('Keep showing N — say N') was persisting under
         // 'Processing…', giving an instruction and a wait-state simultaneously. Clear it,
@@ -7153,6 +7154,40 @@ function _vacFrameHasNoPicture(canvas) {
     } catch (_) { return false; }
 }
 
+// PRESENTATION ONLY (S204, Rob 5 Nov): the Vault face-only closing beat is a
+// full stage like the greeting and "show the number" steps, with a visible
+// 3-2-1 countdown spanning the existing filmed face-only tail. It changes no
+// timing, threshold, recording or identity decision; it only makes the step
+// impossible to miss. The band sits low in the frame so the face stays clear.
+function _vacFaceStageShow() {
+    try {
+        _vacFaceStageHide();
+        var box = document.getElementById('cameraBoxRec');
+        if (!box) return false;
+        var st = document.createElement('div');
+        st.id = 'vacFaceStage';
+        st.setAttribute('role', 'status');
+        st.setAttribute('aria-live', 'assertive');
+        st.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:7;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 12px 16px;background:linear-gradient(to top,rgba(10,15,26,0.92),rgba(10,15,26,0.55) 75%,rgba(10,15,26,0));pointer-events:none;text-align:center;';
+        st.innerHTML = '<div style="font-family:var(--mono,monospace);font-size:12px;letter-spacing:2px;font-weight:700;color:#2DD4BF;">FACE CHECK</div>'
+            + '<div style="font-size:clamp(18px,4.6vw,26px);font-weight:800;color:#F0F2F5;line-height:1.2;">Lower your hand and look at the screen</div>'
+            + '<div id="vacFaceStageCount" style="font-size:clamp(44px,11vw,72px);font-weight:800;line-height:1;color:#10B981;font-variant-numeric:tabular-nums;">3</div>';
+        box.appendChild(st);
+        var cnt = st.querySelector('#vacFaceStageCount');
+        window.__vacFaceStageTimers = [
+            setTimeout(function () { if (cnt) cnt.textContent = '2'; }, 1000),
+            setTimeout(function () { if (cnt) cnt.textContent = '1'; }, 2000),
+            setTimeout(function () { if (cnt) { cnt.textContent = '\u2713'; } }, 3000)
+        ];
+        return true;
+    } catch (_) { return false; }
+}
+function _vacFaceStageHide() {
+    try { (window.__vacFaceStageTimers || []).forEach(function (t) { clearTimeout(t); }); } catch (_) {}
+    window.__vacFaceStageTimers = [];
+    try { var el = document.getElementById('vacFaceStage'); if (el) el.remove(); } catch (_) {}
+}
+
 // DIAGNOSTIC ONLY: mean/max luminance (0-255) of a captured frame, for the
 // on-screen "what this device checked" list. Never a gate. Returns null on error.
 function _vacFrameLuma(canvas) {
@@ -7240,6 +7275,7 @@ function _showVaultFaceCaptureRecovery(reason, evidence) {
     // The live voice meter belongs to the speaking steps only; never leave it
     // drawn over the result panel.
     try { window.__vacGateArmed = false; var _svr = document.getElementById('vacStepVU'); if (_svr) _svr.remove(); } catch (_) {}
+    try { _vacFaceStageHide(); } catch (_) {}
     if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
     var host = document.getElementById('challengePanel');
     if (!host || !host.parentElement) return;
@@ -7272,6 +7308,7 @@ async function onRecordingComplete() {
         return;
     }
     document.getElementById('recIndicator').style.display = 'none';
+    try { _vacFaceStageHide(); } catch(_) {}
     if (window.VACVaultHandoff) {
         try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
         try { var _vl = document.getElementById('vacLiveDetect'); if (_vl) _vl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; } catch(_) {}
