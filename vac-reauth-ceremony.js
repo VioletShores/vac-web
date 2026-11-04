@@ -250,14 +250,26 @@ function goToStep(n){
 // task-705: beam ceremony sensor telemetry to POST /v1/ceremony/telemetry when ?debug=1.
 // Called on pass (_finish) and on pagehide/beforeunload so fail paths are also captured.
 // Best-effort: never blocks the ceremony. _sessionBeamed guards duplicate calls.
+// S204 digit-friction: beams on EVERY ceremony now, not only ?debug=1 (Rob, 4 Nov: "Athena
+// should see the friction without Rob reporting it"). The debug PANEL stays ?debug=1-only.
+// The payload is ONLY what _sessionTelemetry holds: counts, timings, booleans and coarse
+// categories (see _tDigit below). It never holds face pixels, audio, landmarks, face
+// descriptors, transcripts, email or IP. Fire-and-forget (keepalive, errors swallowed): a
+// failed beacon can never block, delay or change a ceremony, and no gate reads any of it.
 function _beamCeremonyTelemetry(pinPhaseOk) {
-    if (!_DEBUG_MODE || _sessionBeamed) return;
+    if (_sessionBeamed) return;
     _sessionBeamed = true;
     try {
         var payload = Object.assign({}, _sessionTelemetry, {
             session_id: VAC_DEBUG_SESSION,
             pin_phase_ok: !!pinPhaseOk,
+            schema: _TELEMETRY_SCHEMA,
+            device_class: _telemetryDeviceClass(),
+            browser_family: _telemetryBrowserFamily(),
+            build: (typeof BUILD_TAG !== 'undefined') ? BUILD_TAG : null,
         });
+        try { if (!payload.page_path) payload.page_path = String(location.pathname || '').slice(0, 120); } catch(_) {}  // path only, never the query string (it can carry an email)
+        try { if (payload.digits) payload.digits = payload.digits.map(function(r) { if (!r) return null; var c = Object.assign({}, r); delete c._shownAt; return c; }); } catch(_) {}
         try { if (!('audio_ctx_state' in payload) && typeof audioContext !== 'undefined' && audioContext) payload.audio_ctx_state = audioContext.state; } catch(_) {}
         fetch(ATHENA_API_BASE + '/v1/ceremony/telemetry', {
             method: 'POST',
@@ -267,6 +279,69 @@ function _beamCeremonyTelemetry(pinPhaseOk) {
         }).catch(function(){});
     } catch(_) {}
 }
+
+// ── S204 digit-friction telemetry helpers (aggregate, privacy-preserving) ────────────────
+// Per digit attempt: index, expected and recorded counts, in-zone at accept, best hold reached,
+// how the voice was satisfied, CATEGORY counts of unmatched words (never the words), re-say
+// count, ms to accept and the FIRST failure reason. Observes values the gates already compute;
+// decides nothing.
+var _TELEMETRY_SCHEMA = 's204-digit-friction-1';
+var _TELEMETRY_MAX_DIGITS = 6;
+var _NEAR_DISTANCE_RX = 0.17;   // the task-718 / S139 usable oval floor; _activeZone() goes below it only when its S204 near-distance fit shrinks the oval (face very close). Coaching + telemetry only — never a gate.
+var _tCur = null;               // the record of the digit currently on screen (set by the detection loop)
+function _telemetryDeviceClass() {
+    try {
+        var ua = navigator.userAgent || '', tp = navigator.maxTouchPoints || 0;
+        if (/iPad/.test(ua) || (/Macintosh/.test(ua) && tp > 1)) return 'ipad';   // iPadOS reports a Mac UA
+        if (/iPhone|iPod/.test(ua)) return 'iphone';
+        if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'android_phone' : 'android_tablet';
+        if (/Macintosh/.test(ua)) return 'mac';
+        if (/Windows/.test(ua)) return 'windows';
+        if (/CrOS/.test(ua)) return 'chromeos';
+        if (/Linux/.test(ua)) return 'linux';
+    } catch(_) {}
+    return 'other';
+}
+function _telemetryBrowserFamily() {
+    try {
+        var ua = navigator.userAgent || '';
+        if (/EdgiOS|Edg\//.test(ua)) return 'edge';
+        if (/FxiOS|Firefox\//.test(ua)) return 'firefox';
+        if (/CriOS|Chrome\//.test(ua)) return 'chrome';
+        if (/Safari\//.test(ua)) return 'safari';
+    } catch(_) {}
+    return 'other';
+}
+// Coarse category of an UNMATCHED speech-recognition result. Returns one of four fixed labels;
+// the transcript itself is read here in memory and discarded — it is never stored or sent.
+function _telemetryWordCategory(transcript, expected) {
+    try {
+        var words = String(transcript == null ? '' : transcript).toLowerCase().split(/[\s,.'!?;:]+/).filter(Boolean);
+        if (!words.length) return 'none';
+        var anyNum = false;
+        for (var i = 0; i < words.length; i++) {
+            var m = _contentNormWord(words[i]);
+            if (m === expected) return 'number_expected';   // e.g. an ambiguous homophone inside a long sentence
+            if (m !== null) anyNum = true;
+        }
+        return anyNum ? 'number_other' : 'other';
+    } catch(_) { return 'none'; }
+}
+function _tDigit(i, expected) {
+    try {
+        if (typeof i !== 'number' || i < 0 || i >= _TELEMETRY_MAX_DIGITS) return null;
+        if (!_sessionTelemetry.digits) _sessionTelemetry.digits = [];
+        var d = _sessionTelemetry.digits;
+        while (d.length <= i) d.push(null);
+        if (!d[i]) d[i] = { i: i, exp: (typeof expected === 'number') ? expected : null, det: null, ok: false,
+            zone: null, near: false, stab: 0, hconf: null, hf: 0, zf: 0, voice: null,
+            words: { number_expected: 0, number_other: 0, other: 0, none: 0 },
+            retries: 0, resets: 0, drops: 0, framing: 0, ms: null, fail: null, _shownAt: null };
+        return d[i];
+    } catch(_) { return null; }
+}
+function _tFail(rec, reason) { try { if (rec && !rec.fail) rec.fail = reason; } catch(_) {} }
+function _tStage(stage) { try { _sessionTelemetry.furthest_stage_reached = stage; } catch(_) {} }
 
 // ── s182 post-capture authority progress (display-only, never a gate) ─────────────────────
 // Three honest stages shown from the moment capture ends until the host takes over:
@@ -329,7 +404,7 @@ function _renderAuthorityStages(stage, opts) {
 
 // Terminal SUCCESS path — hand the LIVE verify result back to the host (was auth.html showSuccess()).
 function _finish(){
-    try { _beamCeremonyTelemetry(true); } catch(_) {}
+    try { _tStage('passed'); _beamCeremonyTelemetry(true); } catch(_) {}
     try { if (CTX && CTX.mount) CTX.mount.style.display='none'; } catch(_){}
     if (CTX && CTX.onComplete){ try { CTX.onComplete(authResult); } catch(e){ console.error('[VACReauth] onComplete error', e); } }
 }
@@ -1404,8 +1479,8 @@ function _noteHandZoneTransition(prevState, isIn, zone) {
             face_w: zone.faceW != null ? Number(zone.faceW.toFixed(3)) : null,
         });
     } catch(_) {}
-    // task-705: accumulate zone hits for gesture telemetry
-    try { if (_DEBUG_MODE && isIn) {
+    // task-705: accumulate zone hits for gesture telemetry (S204: every ceremony, not only ?debug=1)
+    try { if (isIn) {
         _sessionTelemetry.zone_hits = (_sessionTelemetry.zone_hits || 0) + 1;
         _sessionTelemetry.gesture_detected = true;
     } } catch(_) {}
@@ -2672,7 +2747,9 @@ const CaptureFeedback = {
                 // fix: the hand must be near the face (server-side hand_near_face anti-spoof), but the
                 // user got NO feedback when it wasn't — the gesture just never registered. Keep the ✋
                 // lamp UNLIT and tell them exactly what to do. (The server still enforces the zone.)
-                if (subEl) subEl.textContent = 'Hold your hand up beside your cheek';
+                // S204: at near distance the oval is pushed to the frame edge — ask for the screen
+                // further away instead of sending the hand off-frame (copy only; see checkHandFraming).
+                if (subEl) subEl.textContent = opts.nearDistance ? 'Hold the screen a little further away, hand beside your cheek' : 'Hold your hand up beside your cheek';
                 setLamp(gLamp, gWrap, 'pending', 'G');
             } else if (!opts.gestureLive) {
                 // Hand IS in the near-face zone but fingers aren't reading a stable count yet → green ✋
@@ -2738,9 +2815,18 @@ const CaptureFeedback = {
         const tooBig  = ((maxX-minX) > 0.72 || (maxY-minY) > 0.78);  // was 0.85/0.9 — too-close miscount starts earlier
         const outsideZone = !_handNearFaceZone(lm);  // replaces tooSmall — zone-aware position coaching
         if (clipped || tooBig || outsideZone) { ctx.framingBadFrames++; } else { ctx.framingBadFrames = 0; }
+        // S204 (digit friction, iPad): when the face is so close that _activeZone()'s near-distance
+        // fit has shrunk the oval below the 0.17 floor, the oval sits within ~6-13% of the frame
+        // edge — INSIDE the 8% EDGE band above. "Beside your cheek" then sends the hand off-frame
+        // (wide 3-5 finger hands first) and MediaPipe miscounts or loses it. Moving the SCREEN back
+        // is the only advice that fixes both. Copy only: no gate reads this banner.
+        var _nearDist = false;
+        try { var _fzN = _activeZone(); _nearDist = !!(_fzN.anchored && _fzN.rx < _NEAR_DISTANCE_RX); } catch(_) {}
         if (banner) {
+            if (ctx.framingBadFrames === 4) { try { if (_tCur) _tCur.framing++; } catch(_) {} }   // S204 telemetry: count each time the hint appears
             if (ctx.framingBadFrames >= 4) {  // ~debounced; sustained, not a flicker
-                banner.textContent = (clipped || tooBig) ? 'Move your hand back — keep your whole hand in view'
+                banner.textContent = _nearDist ? 'Hold the screen a little further away — keep your whole hand in view'
+                                   : (clipped || tooBig) ? 'Move your hand back — keep your whole hand in view'
                                                          : 'Hold your hand beside your cheek';
                 banner.style.display = 'block';
             } else if (ctx.framingBadFrames === 0) {
@@ -3818,6 +3904,15 @@ function beginRecording() {
     window.__vacEarlyFaceCandidate = null;
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
+    // S204 telemetry: one record per ATTEMPT. A retry beams the previous attempt (if it never
+    // beamed) and starts a fresh digit list, so per-digit retries are never merged across attempts.
+    try {
+        if (!_sessionBeamed && _sessionTelemetry && _sessionTelemetry.digits) _beamCeremonyTelemetry(false);
+        var _prevAttempt = (_sessionTelemetry && _sessionTelemetry.attempt) || 0;
+        _sessionTelemetry = { session_id: VAC_DEBUG_SESSION, attempt: _prevAttempt + 1 };
+        _sessionBeamed = false; _tCur = null;
+        _tStage('recording');
+    } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
     try { FingerDetector.reset(); } catch(_) {}  // S110: clear slow-frame latch so retry re-engages detection
     document.getElementById('recIndicator').style.display = 'flex';
@@ -4304,6 +4399,7 @@ function beginRecording() {
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
+        try { _tStage('digits_done'); _tCur = null; _sessionTelemetry.vad_starved = !!_vadStarved; } catch(_) {}   // S204 telemetry
         _setPhase(_PHASE.PROCESSING);   // L-2246: stop any stale digit-phase render loops painting coaching text
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
@@ -4391,12 +4487,14 @@ function beginRecording() {
             // Fatal STT error (not-allowed/audio-capture): null the outer handle so the
             // VAD loop doesn't see a non-null but dead gate, and fall back to energy VAD.
             _contentGate = null; _contentGateDigit = -1; _sessionGateAvail = false;
+            try { _sessionTelemetry.stt_fatal = (_sessionTelemetry.stt_fatal || 0) + 1; _sessionTelemetry.speech_mode = 'energy_after_stt_error'; } catch(_) {}
         }, function(t) {
             // task-653 no-match fallback: transcripts never matched expectedDigit for >=4s
             // with VAD confirming voice. Provisional client pass — server gate is authority.
             _contentGate = null; _contentGateDigit = -1;
             if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
-            try { vacDebug('content_gate_no_match_fallback', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: t ? String(t).slice(0, 60) : null }); } catch(_) {}
+            // S204 privacy: a word CATEGORY, never the transcript (this beacon fires on every ceremony).
+            try { vacDebug('content_gate_no_match_fallback', null, { digit_index: _gateForIdx, digit: targetDigit, word_category: _telemetryWordCategory(t, targetDigit) }); } catch(_) {}
             _markSpeech('no_match_fallback', 0, null);
         }, function() {
             // vadProbe: is the VAD currently registering sustained voice?
@@ -4412,7 +4510,12 @@ function beginRecording() {
         }, function(reason, info) {
             // S173: content gate evaluated a chunk and did NOT fire — the previously-silent case.
             if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
-            try { vacDebug('content_gate_miss', reason, Object.assign({ digit_index: _gateForIdx, expected_digit: targetDigit, reason: reason }, info)); } catch(_) {}
+            // S204 privacy: replace the transcript with a coarse category before it leaves memory
+            // (this beacon fires on every ceremony). The gate's decision is unchanged — it already ran.
+            var _wcat = _telemetryWordCategory(info && info.transcript, targetDigit);
+            var _safeInfo = Object.assign({}, info, { word_category: _wcat }); delete _safeInfo.transcript;
+            try { vacDebug('content_gate_miss', reason, Object.assign({ digit_index: _gateForIdx, expected_digit: targetDigit, reason: reason }, _safeInfo)); } catch(_) {}
+            try { var _mr = _tDigit(_gateForIdx, targetDigit); if (_mr) { _mr.words[_wcat] = (_mr.words[_wcat] || 0) + 1; _tFail(_mr, 'word_not_matched'); } } catch(_) {}
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -4428,6 +4531,7 @@ function _markSpeech(src, rms, onsetAt) {
         if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
         if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
         speechReady[currentDigitIndex] = true;
+        try { var _vr = _tDigit(currentDigitIndex, digits[currentDigitIndex]); if (_vr) _vr.voice = (src === 'content') ? 'match' : (src === 'no_match_fallback') ? 'fallback' : (src === 'vad') ? 'energy' : 'other'; } catch(_) {}   // S204 telemetry: observe only
         _vadEnergyDetected = false;  // reset health flag for next digit
         // Content gate consumed for this digit — stop it; new gate starts on next digit
         if (_contentGate) { _contentGate.stop(); _contentGate = null; _contentGateDigit = -1; }
@@ -4449,6 +4553,7 @@ function _markSpeech(src, rms, onsetAt) {
         if (window.__vacVoiceSkipped) { _speechGateOff('user_skip'); return; }  // user picked "Continue — skip voice" on the recovery → digits go gesture-only too
         _speechMode = 'vad';
         try { vacDebug('speech_gate_mode', null, { mode: _sessionGateAvail ? 'content+vad' : 'vad_energy_fallback' }); } catch(_) {}
+        try { _sessionTelemetry.speech_mode = _sessionGateAvail ? 'content' : 'energy'; } catch(_) {}
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: start content gate for the first digit
         _refreshContentGate();
         const buf = new Uint8Array(audioAnalyser.frequencyBinCount);    // freq-domain — voiceBandRatio only
@@ -4665,6 +4770,7 @@ function _markSpeech(src, rms, onsetAt) {
         _acceptArmed = true;           // Option 2: let the currently-held gesture advance now (escape/degrade), not after a re-show
         if (_vadRAF) { cancelAnimationFrame(_vadRAF); _vadRAF = null; }
         try { vacDebug('speech_gate_mode', null, { mode: 'off', reason: reason || null }); } catch(_) {}
+        try { _sessionTelemetry.speech_mode = 'off'; _sessionTelemetry.speech_off_reason = String(reason || 'unknown').slice(0, 32); } catch(_) {}
         // F-563 recoverability: a GENUINE no-mic (null analyser) surfaces the recovery panel; a
         // deliberate user-escape ('user_escape') does NOT (the user already chose gesture-only).
         if (reason === 'no_audio_analyser') { try { _showNoMicRecovery(); } catch(_) {} }
@@ -4864,6 +4970,23 @@ function _markSpeech(src, rms, onsetAt) {
         var _handNear = _handPresent && _handNearFaceZone(FingerDetector.landmarks);
         // S158b1: feed debug overlay with per-frame hand confidence + zone state
         try { if (_DEBUG_MODE) _dbgUpdate({ hconf: FingerDetector.lastScore, zoneIn: _handPresent ? _handNear : null }); } catch(_) {}
+        // S204 telemetry (observe only): which digit is on screen, hand-present vs in-zone frames,
+        // best hand confidence. Nothing here is read by any gate.
+        try {
+            if (currentDigitIndex < digits.length) {
+                _tCur = _tDigit(currentDigitIndex, digits[currentDigitIndex]);
+                if (_tCur) {
+                    if (_tCur._shownAt == null) _tCur._shownAt = performance.now();
+                    if (_handPresent) { _tCur.hf++; if (_handNear) _tCur.zf++; }
+                    var _hs = FingerDetector.lastScore;
+                    if (typeof _hs === 'number') {
+                        if (_tCur.hconf == null || _hs > _tCur.hconf) _tCur.hconf = Math.round(_hs * 100) / 100;
+                        if (!(_sessionTelemetry.hand_confidence_max >= _hs)) _sessionTelemetry.hand_confidence_max = Math.round(_hs * 100) / 100;
+                    }
+                }
+                if (_detLoopFrames === 0) _tStage('digits');
+            }
+        } catch(_) {}
         // task-432 Part 4: throttled hand_zone in/out telemetry (transition-only, no per-frame spam).
         try { _handZoneLastState = _noteHandZoneTransition(_handZoneLastState, _handNear, _activeZone()); } catch(_) {}
         // task-handzone-faceanchored: per-beat zone snapshot — fires ~every 2s with face-anchored
@@ -4955,7 +5078,10 @@ function _markSpeech(src, rms, onsetAt) {
             // naturally; a 1-frame miscount is absorbed by the detector's hysteresis.
             if (_stableDetected === stableCount) {
                 stableFrames++;
+                try { if (_tCur && stableFrames > _tCur.stab) _tCur.stab = Math.min(stableFrames, 99); } catch(_) {}
             } else {
+                // S204 telemetry: a hold that had got at least half way, broken by a count change.
+                try { if (_tCur && stableFrames >= (STABLE_FRAMES_NEEDED >> 1)) { _tCur.resets++; _tFail(_tCur, 'hold_broken_count_change'); } } catch(_) {}
                 // Smoothed count changed — restart the hold timer. digitStartTime resets on
                 // ANY change so the dwell always measures the CURRENT continuous hold (S110
                 // racing fix, change-agnostic so repeated digits re-time cleanly too).
@@ -5022,6 +5148,9 @@ function _markSpeech(src, rms, onsetAt) {
             _releaseFrames++;
             if (!_releaseSince) _releaseSince = performance.now();
             if (_releaseFrames >= FINGER_RELEASE_MIN_FRAMES && (performance.now() - _releaseSince) >= FINGER_RELEASE_SUSTAIN_MS) _acceptArmed = true;
+            // S204 telemetry: a hold that had got at least half way, wiped by a frame with no count
+            // (hand lost or read as a fist) — the single-frame reset described in the S204 diagnosis.
+            try { if (_tCur && stableFrames >= (STABLE_FRAMES_NEEDED >> 1)) { _tCur.drops++; _tFail(_tCur, 'hold_broken_dropout'); } } catch(_) {}
             stableCount = 0;
             stableFrames = 0;
             if (QA.on) { try { QA.frame({ detected: 0, stableFrames: 0, need: STABLE_FRAMES_NEEDED, dwellMs: digitStartTime ? Math.round(performance.now() - digitStartTime) : 0, beatMs: Math.max(0, Math.round(_confirmUntil - performance.now())), gestureOk: false, speechOk: (_speechMode === 'off') ? true : speechReady[currentDigitIndex], rms: (_speechMode === 'vad' ? _lastVadRms : null), thr: vadSpeechThreshold, voiceMs: (_speechMode === 'vad' ? _lastVoiceMs : null), voiceNeed: DIGIT_VOICE_MIN_MS }); } catch(_) {} }
@@ -5059,6 +5188,7 @@ function _markSpeech(src, rms, onsetAt) {
         if (_coDecision.expireVoice) {
             speechReady[currentDigitIndex] = false;   // F-599: do NOT also clear _voiceFiredAt here — the coaching classifier reads _voiceFiredAt>0 (survives expiry, cleared only on advance @ the _voiceFiredAt=0 line) to know voice fired this digit. Clearing it here would silently kill the near-miss/voice-only hints.
             try { vacDebug('speech_cooccur_expired', null, { digit_index: currentDigitIndex, since_ms: Math.round(_nowCo - _voiceFiredAt) }); } catch(_) {}
+            try { if (_tCur) { _tCur.retries++; _tFail(_tCur, (detected > 0) ? 'voice_expired_hand_up' : 'voice_expired_hand_down'); } } catch(_) {}   // S204: each expiry = one re-say
         }
         var _advanceNow = _coDecision.advance;
         // S429: per-beat QA instrumentation ONLY — logs what the gate above already decided,
@@ -5161,6 +5291,21 @@ function _markSpeech(src, rms, onsetAt) {
                 var _zone = (!_zlm || _zlm.length < 21) ? null : (_handNearFaceZone(_zlm) || _handNearFallbackZone(_zlm));
                 window.__vacPoseZones.push(_zone);
             })();
+            // S204 telemetry: finalize this digit's record from values the gate ALREADY decided on.
+            try {
+                var _fr = _tDigit(currentDigitIndex, digits[currentDigitIndex]);
+                if (_fr) {
+                    _fr.ok = true;
+                    _fr.det = (typeof _recordCount === 'number') ? _recordCount : null;
+                    _fr.zone = window.__vacPoseZones[window.__vacPoseZones.length - 1];
+                    var _fz = _activeZone(); _fr.near = !!(_fz.anchored && _fz.rx < _NEAR_DISTANCE_RX);
+                    if (_fr._shownAt != null) _fr.ms = Math.round(_adNow - _fr._shownAt);
+                    if (!speechReady[currentDigitIndex] && _speechMode !== 'off') _fr.voice = 'escape';
+                    else if (_speechMode === 'off') _fr.voice = 'off';
+                }
+                var _nx = _tDigit(currentDigitIndex + 1, digits[currentDigitIndex + 1]);
+                if (_nx && currentDigitIndex + 1 < digits.length) _nx._shownAt = _adNow + CONFIRM_BEAT_MS;   // the next number appears when the beat ends
+            } catch(_) {}
             _acceptArmed = false;
             _lastAcceptedCount = _recordCount;
             stableFrames = 0;
@@ -5300,6 +5445,7 @@ function _markSpeech(src, rms, onsetAt) {
                 gestureLive: (detected > 0),   // SHOW-AS-YOU-SAY: fingers visible NOW (drives the live ✋ lamp)
                 handPresent: _handPresent,     // hand visible in frame at all
                 handNear: _handNear,           // hand inside the near-face capture zone
+                nearDistance: (function(){ try { var _z = _activeZone(); return !!(_z.anchored && _z.rx < _NEAR_DISTANCE_RX); } catch(_) { return false; } })(),   // S204: copy selector only
                 gesturePct: _gPct,
                 voiceOn: (_speechMode !== 'off'),
                 voiceDone: !!speechReady[currentDigitIndex],
@@ -5845,13 +5991,13 @@ function _markSpeech(src, rms, onsetAt) {
                 voice_skipped: !!window.__vacVoiceSkipped,
                 no_analyser: !audioAnalyser
             }); } catch(_) {}
-            // task-705: accumulate greeting sensor data for /v1/ceremony/telemetry beacon
-            try { if (_DEBUG_MODE) {
+            // task-705: accumulate greeting sensor data for /v1/ceremony/telemetry beacon (S204: every ceremony)
+            try {
                 _sessionTelemetry.greeting_audible = !!_greetingHeard;
                 _sessionTelemetry.voiced_ticks = _phraseVoicedState.ticks || 0;
                 _sessionTelemetry.analyser_frames = _phraseAnalyserFrames || 0;
                 try { _sessionTelemetry.audio_ctx_state = (audioContext ? audioContext.state : 'none'); } catch(_e) {}
-            } } catch(_) {}
+            } catch(_) {}
             _setPhase(_PHASE.DIGIT);   // L-2246: transition to DIGIT before clearInterval so any final phraseInterval tick is blocked by renderGreeting's guard
             // F-563 (2): hide the greeting eq on EVERY phrase exit (it's a stable element outside
             // challengeText, so finger-phase innerHTML updates won't remove it — and the ✓ branch
@@ -7977,6 +8123,7 @@ function populateUnderHood(authData) {
 // Show retry with specific fail reasons
 function showRetry(result) {
     try { _renderAuthorityStages('fail'); } catch(_) {}   // s182: failure narration belongs to this panel
+    try { _tStage('retry_shown'); _beamCeremonyTelemetry(false); } catch(_) {}   // S204: failed attempts are reported too (fire-and-forget)
     retryAttempts++;
     const retryEl = document.getElementById('retrySection');
     retryEl.style.display = 'block';
@@ -9219,7 +9366,7 @@ const VACReauth = {
     run: function(opts){
         opts = opts || {};
         // task-705: reset per-run telemetry accumulator
-        try { if (_DEBUG_MODE) { _sessionTelemetry = { session_id: VAC_DEBUG_SESSION }; _sessionBeamed = false; } } catch(_) {}
+        try { _sessionTelemetry = { session_id: VAC_DEBUG_SESSION }; _sessionBeamed = false; } catch(_) {}   // S204: every ceremony
         CTX = {
             identity: { name: opts.name||'', email: opts.email||'', org: opts.org||'', role: opts.role||'' },
             riskLevel: opts.riskLevel || 'medium',
@@ -9335,7 +9482,7 @@ window.VACReauth = VACReauth;
     function _teardownOnExit(ev) {
         if (ev.type === 'pagehide' && ev.persisted) return;
         // task-705: beam unreported telemetry on page exit (catches fail/abandon paths)
-        try { if (_DEBUG_MODE && !_sessionBeamed && VAC_DEBUG_SESSION) { _beamCeremonyTelemetry(false); } } catch(_) {}
+        try { if (!_sessionBeamed && VAC_DEBUG_SESSION && _sessionTelemetry && _sessionTelemetry.furthest_stage_reached) { _beamCeremonyTelemetry(false); } } catch(_) {}   // S204: every ceremony that reached the camera stage
         // Flush the recorder FIRST so any buffered audio is captured before the source tracks stop.
         try { if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop(); } catch(_) {}
         try { stopAudioMonitor(); } catch(_) {}

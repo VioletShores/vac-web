@@ -59,7 +59,7 @@ test('TC-CS-01: auth.html loads without fatal JS errors', async ({ page }) => {
 // The pin is the cache key that makes browsers (above all iPad Safari) fetch new ceremony bytes.
 // It is bumped with every ceremony change, so a frozen literal here goes stale on the next release
 // (it did: s182 → s194d → s204-…). Assert a well-formed, non-retired pin; TC-CS-04 enforces parity.
-const RETIRED_PINS = ['s173', 's182', 's194d', 's158b1', 's157c1', 's204-20261103-face-id', 's204-20261104-vault-tail', 's204-20261104-face-warm'];
+const RETIRED_PINS = ['s173', 's182', 's194d', 's158b1', 's157c1', 's204-20261103-face-id', 's204-20261104-vault-tail', 's204-20261104-face-warm', 's204-20261104-face-diag'];
 function authPin() {
   const src = fs.readFileSync(path.join(ROOT, 'auth.html'), 'utf8');
   const m = src.match(/vac-reauth-ceremony\.js\?v=([A-Za-z0-9-]+)/);
