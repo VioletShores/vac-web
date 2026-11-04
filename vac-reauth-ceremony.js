@@ -975,24 +975,20 @@ function _micQualifyFloor(_voiced) {
 // the OS is handing us a genuinely silent track (privacy block / wrong mic device).
 function _runSyntheticAudioSelfTest(cb) {
     try {
-        // QA-only seam (?qa=1, same gate as window.__zoneDebug): the standing harness (TC-TSH-02)
-        // supplies a mock context/analyser so the self-test can be exercised without a real mic.
-        // Without ?qa=1 this is ignored and the live graph is used, exactly as before.
-        const _inj = (_qaFlag && window.__vacTshInjectAv && window.__vacTshInjectAv.ctx && window.__vacTshInjectAv.analyser) ? window.__vacTshInjectAv : null;
-        const _ctx = _inj ? _inj.ctx : avAudioCtx;
-        const _an  = _inj ? _inj.analyser : avAnalyser;
-        if (!_ctx || !_an) { if (cb) cb(false, 'no_ctx'); return; }
-        const osc = _ctx.createOscillator();
-        const gain = _ctx.createGain();
+        // Production has NO injection seam: the self-test only ever uses the live module graph.
+        // (TC-TSH-02 exercises this function by source extraction in Node, never via the page.)
+        if (!avAudioCtx || !avAnalyser) { if (cb) cb(false, 'no_ctx'); return; }
+        const osc = avAudioCtx.createOscillator();
+        const gain = avAudioCtx.createGain();
         gain.gain.value = 0.08;
         osc.frequency.value = 440;
         osc.connect(gain);
-        if (_inj) gain.connect(_an); else gain.connect(avAnalyser);   // production: the SAME live graph (SAGA-SILENT-06)
+        gain.connect(avAnalyser);   // the SAME live graph (SAGA-SILENT-06)
         osc.start();
         setTimeout(function() {
             try {
-                const buf = new Uint8Array(_an.fftSize || 2048);
-                _an.getByteTimeDomainData(buf);
+                const buf = new Uint8Array(avAnalyser.fftSize || 2048);
+                avAnalyser.getByteTimeDomainData(buf);
                 let s = 0;
                 for (let i = 0; i < buf.length; i++) { const d = buf[i] - 128; s += d * d; }
                 const rms = Math.sqrt(s / buf.length) / 128;
