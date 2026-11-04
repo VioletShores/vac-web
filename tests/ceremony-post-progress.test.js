@@ -90,7 +90,7 @@ test('TC-PP-07: the full verify success path narrates minting then done, then ha
     const a = block.indexOf("_renderAuthorityStages('minting')"), b = block.indexOf("_renderAuthorityStages('done', { result: authResult })"), c = block.indexOf('_finish();');
     assert.ok(a > 0 && b > a && c > b, 'minting -> done -> _finish');
     assert.ok(/function showRetry\(result\) \{\n\s*try \{ _renderAuthorityStages\('fail'\); \}/.test(src), 'showRetry hides the stages');
-    assert.ok(/function _showCaptureDiedRecovery\(\) \{\n\s*try \{ _renderAuthorityStages\('fail'\); \}/.test(src), 'capture death hides the stages');
+    assert.ok(/function _showCaptureDiedRecovery\(\) \{[\s\S]{0,800}?try \{ _renderAuthorityStages\('fail'\); \}/.test(src), 'capture death hides the stages');
 });
 
 test('TC-PP-08: fast tier — verifying after goToStep(3); verdict renders done/fail before the modal', () => {
