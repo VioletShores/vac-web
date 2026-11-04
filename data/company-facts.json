@@ -1,0 +1,296 @@
+{
+  "generated_at": "2026-11-04T23:21:00Z",
+  "facts": {
+    "biometrics.modalities": {
+      "value": 7,
+      "display": "7",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-31",
+      "public": true
+    },
+    "biometrics.modalities.list": {
+      "value": [
+        "face liveness",
+        "voiceprint",
+        "lip-sync",
+        "challenge response",
+        "deepfake detection",
+        "finger-count gesture",
+        "duress detection"
+      ],
+      "display": "face liveness, voiceprint, lip-sync, challenge response, deepfake detection, finger-count gesture, duress detection",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-31",
+      "public": true
+    },
+    "dates.decisions.deployed": {
+      "value": "2026-10-27",
+      "display": "27 Oct 2026 (deployed, not switched on)",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-29",
+      "public": true
+    },
+    "dates.ietf.drafts_expire": {
+      "value": "2027-02-24",
+      "display": "24 Feb 2027",
+      "source": "datatracker.ietf.org (read 2026-11-04)",
+      "last_updated": "2026-11-04",
+      "public": true
+    },
+    "dates.ietf.drafts_posted": {
+      "value": "2026-08-23",
+      "display": "23 Aug 2026 (UTC)",
+      "source": "datatracker.ietf.org (read 2026-11-04)",
+      "last_updated": "2026-11-04",
+      "public": true
+    },
+    "dates.launch.invited_collaborators": {
+      "value": "2026-10",
+      "display": "October 2026 (invitation-only collaborator launch)",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-11-01",
+      "public": true
+    },
+    "dates.patents.athena_parent_filed": {
+      "value": "2026-03-03",
+      "display": "3 Mar 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-03-03",
+      "public": true
+    },
+    "dates.patents.last_filed": {
+      "value": "2026-07-09",
+      "display": "9 Jul 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-07-09",
+      "public": true
+    },
+    "dates.patents.vac_parent_filed": {
+      "value": "2026-02-21",
+      "display": "21 Feb 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "ietf.drafts": {
+      "value": [
+        {
+          "name": "draft-zagarella-verified-human-root",
+          "version": "01",
+          "title": "Verified Human Root Attestation for Agent Delegation Chains and Audit Records",
+          "posted": "2026-08-23",
+          "expires": "2027-02-24",
+          "status": "individual draft, not a standard",
+          "stream": "Individual Submissions; no working-group adoption"
+        },
+        {
+          "name": "draft-zagarella-autonomy-governor",
+          "version": "01",
+          "title": "Pre-Action Risk-Graded Assurance for Agent Interactions",
+          "posted": "2026-08-23",
+          "expires": "2027-02-24",
+          "status": "individual draft, not a standard",
+          "stream": "Individual Submissions; no working-group adoption"
+        }
+      ],
+      "display": "Two individual Internet-Drafts (-01, 23 Aug 2026); not standards",
+      "source": "datatracker.ietf.org/api/v1/doc/document/<name>/ (read 2026-11-04: rev 01, time 2026-08-23T22:19Z / 22:25Z, group 'none' = Individual Submissions)",
+      "last_updated": "2026-11-04",
+      "public": true
+    },
+    "ietf.drafts.count": {
+      "value": 2,
+      "display": "2",
+      "source": "datatracker.ietf.org (read 2026-11-04)",
+      "last_updated": "2026-11-04",
+      "public": true
+    },
+    "ietf.status": {
+      "value": "individual draft, not a standard",
+      "display": "individual Internet-Drafts, not IETF standards",
+      "source": "datatracker.ietf.org/api/v1/group/group/1027/ ('none' / Individual Submissions), read 2026-11-04",
+      "last_updated": "2026-11-04",
+      "public": true
+    },
+    "patents.applicant": {
+      "value": "Violet Shores Pty Ltd",
+      "display": "Violet Shores Pty Ltd",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-03-03",
+      "public": true
+    },
+    "patents.athena.dates.range": {
+      "value": {
+        "first": "2026-03-03",
+        "last": "2026-07-09"
+      },
+      "display": "3 Mar - 9 Jul 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.athena.filings": {
+      "value": 10,
+      "display": "10",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.athena.last_filed": {
+      "value": "Supplementary #9",
+      "display": "Athena Supplementary #9, filed 9 Jul 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-07-09",
+      "public": true
+    },
+    "patents.dates.range": {
+      "value": {
+        "first": "2026-02-21",
+        "last": "2026-07-09"
+      },
+      "display": "21 Feb - 9 Jul 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.families": {
+      "value": [
+        "VAC",
+        "Athena"
+      ],
+      "display": "two families: VAC (verified human identity and delegated authority) and Athena (governed AI work)",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.inventor": {
+      "value": "Roberto Antonio Zagarella",
+      "display": "Roberto Antonio Zagarella",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.jurisdiction": {
+      "value": "AU",
+      "display": "IP Australia",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-07-09",
+      "public": true
+    },
+    "patents.status": {
+      "value": "provisional",
+      "display": "Australian provisional patent applications (patent pending). None granted.",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-07-09",
+      "public": true
+    },
+    "patents.total.claims": {
+      "value": 1000,
+      "display": "1,000+",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-11-02",
+      "public": true
+    },
+    "patents.total.filings": {
+      "value": 19,
+      "display": "19",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.vac.claims": {
+      "value": 468,
+      "display": "468",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-02",
+      "public": true
+    },
+    "patents.vac.dates.range": {
+      "value": {
+        "first": "2026-02-21",
+        "last": "2026-07-09"
+      },
+      "display": "21 Feb - 9 Jul 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.vac.filings": {
+      "value": 9,
+      "display": "9",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-08-28",
+      "public": true
+    },
+    "patents.vac.last_filed": {
+      "value": "Supplementary #8",
+      "display": "VAC Supplementary #8, filed 9 Jul 2026",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-07-09",
+      "public": true
+    },
+    "product.collaborate.status": {
+      "value": "LIVE",
+      "display": "LIVE: review rooms and feedback desk in production for invited collaborators",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-29",
+      "public": true
+    },
+    "product.decisions.status": {
+      "value": "BUILT",
+      "display": "BUILT: core independently verified and deployed 27 Oct 2026, not yet switched on for an organisation",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-29",
+      "public": true
+    },
+    "product.l0.status": {
+      "value": "LIVE",
+      "display": "LIVE: sealed L0 work packets run Athena's own development (internal use)",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-29",
+      "public": true
+    },
+    "product.pebble.status": {
+      "value": "COMING",
+      "display": "COMING: concept; hardware design in progress, nothing released",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-11-04",
+      "public": true
+    },
+    "product.vac.status": {
+      "value": "LIVE",
+      "display": "LIVE: identity and authority signing and verification in production",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-29",
+      "public": true
+    },
+    "product.vault.status": {
+      "value": "BUILT",
+      "display": "BUILT: credential custody released after a verified human grant; owner use only, no customer connection yet",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-29",
+      "public": true
+    },
+    "product.whatsapp.status": {
+      "value": "LIVE",
+      "display": "LIVE: conversation for invited users",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-10-29",
+      "public": true
+    },
+    "team.company": {
+      "value": "Violet Shores Pty Ltd",
+      "display": "Violet Shores Pty Ltd (Australia)",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-04-30",
+      "public": true
+    },
+    "team.founder": {
+      "value": "Roberto Antonio Zagarella",
+      "display": "Roberto (Rob) Zagarella, founder and inventor",
+      "source": "Athena Data (internal record)",
+      "last_updated": "2026-03-03",
+      "public": true
+    }
+  }
+}

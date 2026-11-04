@@ -93,8 +93,8 @@ curl -s $BASE/v1/vat/reputation/agent:my-agent</pre>
   <div class="grid g2">
     <div class="prose"><p>When a site needs a fresh human verification, it opens the VAC ceremony in a new tab. On success, VAC issues a short-lived token bound to that site&rsquo;s audience and a one-time nonce, and posts it back only to the requesting site&rsquo;s registered origin. No password or session token crosses sites, and the receiving site verifies the token itself.</p></div>
     <div class="grid" style="gap:12px">
-      <div class="card flat"><div class="node-h"><b style="color:var(--white)">Between VAC and Athena&rsquo;s own sites</b><span class="chip live">LIVE</span></div><p>Used today for Athena Vault grants and owner sign-in.</p></div>
-      <div class="card flat"><div class="node-h"><b style="color:var(--white)">Third-party sites</b><span class="chip coming">COMING</span></div><p>Not available yet. Third-party sites will follow the verified-human-root draft, so they can check that a person is behind a request without holding any biometrics.</p></div>
+      <div class="card flat"><h3>Between VAC and Athena&rsquo;s own sites</h3><p>In use today, for Athena Vault grants and owner sign-in.</p></div>
+      <div class="card flat"><h3>Third-party sites</h3><p>Not available yet. Third-party sites will follow the verified-human-root draft, so they can check that a person is behind a request without holding any biometrics.</p></div>
     </div>
   </div>
 </div></section>

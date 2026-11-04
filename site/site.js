@@ -8,7 +8,7 @@
  *
  * Product status chips (Live / Built / Coming) read product.<name>.status:
  *   <span class="chip" data-status="vac"></span>
- * A status that is missing renders as "Status pending", never a default.
+ * A status that is missing renders as "Pending", never a default.
  */
 (function () {
   'use strict';
@@ -89,7 +89,7 @@
         el.classList.add(st);
         el.title = titleFor(f);
       } else {
-        el.textContent = raw ? raw : 'Status pending';
+        el.textContent = raw ? raw : 'Pending';
         el.classList.add('pending');
         el.title = raw ? titleFor(f) : 'Not yet published in Athena Data (' + used + ')';
       }
