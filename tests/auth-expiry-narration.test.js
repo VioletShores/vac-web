@@ -62,6 +62,8 @@ test('TC-AEN-04: the note lives in step 0, dark surface with the gold #C9A227 la
     assert.ok(!EMOJI.test(step0.slice(step0.indexOf('vacExpiryNote'), step0.indexOf('vacExpiryNoteText') + 40)));
 });
 
-test('TC-AEN-05: auth.html loads the s194d ceremony pin (the mic fix bytes actually reach browsers)', () => {
-    assert.ok(html.includes('/vac-reauth-ceremony.js?v=s194d'));
+test('TC-AEN-05: auth.html loads the ceremony with a current, non-retired pin (new bytes actually reach browsers)', () => {
+    const m = html.match(/\/vac-reauth-ceremony\.js\?v=([A-Za-z0-9-]+)/);
+    assert.ok(m, 'ceremony script must carry a ?v= pin');
+    assert.ok(!['s194d', 's182', 's204-20261103-face-id'].includes(m[1]), 'retired pin ' + m[1]);
 });

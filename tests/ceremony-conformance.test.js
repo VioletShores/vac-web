@@ -166,9 +166,16 @@ test('DA-01: __vacGestureResumeBound one-shot gesture-bind present (S156 r5)', (
     // we need a larger search window (the function body + addEventListener line).
     const bindIdx = src.indexOf('__vacGestureResumeBound = true');
     assert.ok(bindIdx >= 0, '__vacGestureResumeBound = true must be present (gesture-bind latch)');
-    const bindBlock = src.slice(bindIdx, bindIdx + 600);
-    assert.ok(bindBlock.includes("'click'") && bindBlock.includes("'keydown'"),
-        "Gesture resume must bind both 'click' and 'keydown' events (within 600 chars of flag set)");
+    // Read the WHOLE one-shot block (brace-matched from the latch's `if`), not a fixed 600-char
+    // window: S166 added per-call error reporting inside the handler, which pushed the
+    // addEventListener line past the old window although the binding itself never changed.
+    const ifIdx = src.lastIndexOf('if (!window.__vacGestureResumeBound)', bindIdx);
+    assert.ok(ifIdx >= 0 && bindIdx - ifIdx < 80, 'the latch must be set inside its own one-shot if-block');
+    let depth = 0, i = src.indexOf('{', ifIdx), end = -1;
+    for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) { end = i; break; } }
+    const bindBlock = src.slice(ifIdx, end + 1);
+    assert.ok(/addEventListener\('click',\s*_gr\b/.test(bindBlock) && /addEventListener\('keydown',\s*_gr\b/.test(bindBlock),
+        "Gesture resume must bind both 'click' and 'keydown' to the resume handler inside the one-shot block");
 });
 
 

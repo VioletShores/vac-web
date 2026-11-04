@@ -231,7 +231,8 @@ test.describe('TC-TSH: browser-side sensor tests', () => {
             window.__vacOscStopped = false;
         });
 
-        await page.goto(HARNESS_URL);
+        // ?qa=1 enables the ceremony's QA-only audio injection seam (ignored in production).
+        await page.goto(HARNESS_URL + '?qa=1');
         await page.waitForLoadState('domcontentloaded');
 
         // Bootstrap ceremony so the module scope is initialised

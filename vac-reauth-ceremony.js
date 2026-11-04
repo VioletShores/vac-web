@@ -975,18 +975,24 @@ function _micQualifyFloor(_voiced) {
 // the OS is handing us a genuinely silent track (privacy block / wrong mic device).
 function _runSyntheticAudioSelfTest(cb) {
     try {
-        if (!avAudioCtx || !avAnalyser) { if (cb) cb(false, 'no_ctx'); return; }
-        const osc = avAudioCtx.createOscillator();
-        const gain = avAudioCtx.createGain();
+        // QA-only seam (?qa=1, same gate as window.__zoneDebug): the standing harness (TC-TSH-02)
+        // supplies a mock context/analyser so the self-test can be exercised without a real mic.
+        // Without ?qa=1 this is ignored and the live graph is used, exactly as before.
+        const _inj = (_qaFlag && window.__vacTshInjectAv && window.__vacTshInjectAv.ctx && window.__vacTshInjectAv.analyser) ? window.__vacTshInjectAv : null;
+        const _ctx = _inj ? _inj.ctx : avAudioCtx;
+        const _an  = _inj ? _inj.analyser : avAnalyser;
+        if (!_ctx || !_an) { if (cb) cb(false, 'no_ctx'); return; }
+        const osc = _ctx.createOscillator();
+        const gain = _ctx.createGain();
         gain.gain.value = 0.08;
         osc.frequency.value = 440;
         osc.connect(gain);
-        gain.connect(avAnalyser);
+        if (_inj) gain.connect(_an); else gain.connect(avAnalyser);   // production: the SAME live graph (SAGA-SILENT-06)
         osc.start();
         setTimeout(function() {
             try {
-                const buf = new Uint8Array(avAnalyser.fftSize || 2048);
-                avAnalyser.getByteTimeDomainData(buf);
+                const buf = new Uint8Array(_an.fftSize || 2048);
+                _an.getByteTimeDomainData(buf);
                 let s = 0;
                 for (let i = 0; i < buf.length; i++) { const d = buf[i] - 128; s += d * d; }
                 const rms = Math.sqrt(s / buf.length) / 128;
@@ -1010,8 +1016,19 @@ function _showSilentTrackBanner() {
     banner.id = 'vacSilentTrackBanner';
     banner.setAttribute('data-testid', 'silent-track-banner');
     banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;border:1.5px solid #fbbf24;border-radius:10px;padding:14px 18px;z-index:9999;color:#f8fafc;font-size:13px;max-width:360px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.5;';
-    banner.innerHTML = '<strong style="color:#fbbf24">Mic not sending audio.</strong><br>Mac: System Settings &rsaquo; Privacy &amp; Security &rsaquo; Microphone &rsaquo; allow this browser.<br><span style="color:#94a3b8;font-size:11px">Then reload the page to retry.</span>';
+    banner.innerHTML = '<strong style="color:#fbbf24">Mic not sending audio</strong> — no microphone signal is reaching this page.<br>Mac: System Settings &rsaquo; Privacy &amp; Security &rsaquo; Microphone &rsaquo; allow this browser.<br><span style="color:#94a3b8;font-size:11px">Then check again, or reload the page.</span>' +
+        '<br><button type="button" id="vacSilentTrackDismiss" style="margin-top:10px;min-height:44px;padding:8px 18px;border-radius:8px;border:1.5px solid #fbbf24;background:transparent;color:#fbbf24;font-weight:700;font-size:13px;cursor:pointer">Check again</button>';
     document.body.appendChild(banner);
+    // SAGA-SILENT-06 spec (TC-TSH-03): a way out of the banner. "Check again" clears it and re-runs the
+    // synthetic self-test; a still-silent track brings it back, a fixed one leaves it gone.
+    try {
+        document.getElementById('vacSilentTrackDismiss').addEventListener('click', function() {
+            try { banner.remove(); } catch(_) {}
+            // Re-arm the existing silent-track detector: if the track is still silent it raises the
+            // banner again after SILENT_TRACK_DETECT_FRAMES; if the user fixed the mic, it stays gone.
+            try { _silentTrackFrames = 0; _silentTrackBannerShown = false; } catch(_) {}
+        });
+    } catch(_) {}
 }
 window.__vacShowSilentTrackBanner = _showSilentTrackBanner;
 
@@ -1118,7 +1135,7 @@ const GESTURE_ZONE_SPEC = Object.freeze({
 // _activeZone() still falls back to the fixed GESTURE_ZONE_SPEC constants whenever there's no
 // confident read — never a dead zone.
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
-const _FACE_SIDE_GAP = 0.05;  // task-718 restore: 0.10→0.05 (archaeology verdict B); ovals closer to natural hand position
+const _FACE_SIDE_GAP = 0.10;  // S204: back to the Rob-confirmed founding value (CB-ZONE-01, task-644: ovals beside the cheek, not on the face). task-718 had set 0.05 on a design recommendation without updating the confirmed fixture; the near-distance fit in _activeZone() now guarantees the face gap where the clamp used to break it.
 let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
 let _faceAnchorMissStreak = 0;
 const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame jitter
@@ -1270,7 +1287,7 @@ function _activeZone() {
     // selfie distance (~3× too tight vs S139). NOW: Math.max(0.17, 0.22*wFrac) — face-proportional
     // when face is large, but never tighter than the S139 usable floor. FaceLandmarker anchoring
     // preserved; hand BESIDE face detects without overlap.
-    const rx = Math.max(0.17, 0.22 * wFrac);
+    let rx = Math.max(0.17, 0.22 * wFrac);
     const ry = Math.max(0.22, 0.30 * hFrac);
     // Gap is face-proportional so it stays in the [0.10, 0.50] faceW assertion band at all distances.
     const gap = Math.max(_FACE_SIDE_GAP, 0.15 * wFrac);
@@ -1278,6 +1295,20 @@ function _activeZone() {
     const faceCx = _faceAnchor.cx;
     let cxLeft  = faceCx - halfW - gap - rx;
     let cxRight = faceCx + halfW + gap + rx;
+    // S204 near-distance fix: close to the camera (a large face, e.g. an iPad held near) there is no
+    // room for the 0.17 floor oval beside the face; the in-frame clamp below then pulled the oval ONTO
+    // the face, so a hand held "in the oval" covered the face the ceremony must capture. Keep a clear
+    // gap of at least 0.10 face widths on the roomier side by shrinking the radius only when needed.
+    // This only ever makes the zone SMALLER (never more permissive) and leaves far/mid unchanged.
+    const _minFaceGap = 0.11 * wFrac;   // 0.10 face widths plus margin (float-safe)
+    const _roomL = (faceCx - halfW) - _minFaceGap - 0.005;          // width available left of the face
+    const _roomR = 1.0 - (faceCx + halfW) - _minFaceGap - 0.005;    // width available right of the face
+    const _rxFit = Math.max(_roomL, _roomR) / 2;
+    if (_rxFit > 0 && _rxFit < rx) {
+        rx = _rxFit;
+        cxLeft  = faceCx - halfW - Math.max(gap, _minFaceGap) - rx;
+        cxRight = faceCx + halfW + Math.max(gap, _minFaceGap) + rx;
+    }
     // Clamp so the ENTIRE oval stays in-frame (centre ± radius stays in [0,1]) with a 0.5% margin.
     cxLeft  = Math.max(rx + 0.005, Math.min(0.5 - rx, cxLeft));
     cxRight = Math.min(1.0 - rx - 0.005, Math.max(0.5 + rx, cxRight));
