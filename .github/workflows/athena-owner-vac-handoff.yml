@@ -1,0 +1,27 @@
+name: Athena owner VAC handoff tests
+on:
+  pull_request:
+    paths:
+      - vac-vault-handoff.js
+      - vac-reauth-ceremony.js
+      - tests/vault-handoff.test.js
+      - tests/ceremony-post-progress.test.js
+      - test_vault_full_face_capture.node.js
+      - .github/workflows/athena-owner-vac-handoff.yml
+  push:
+    branches:
+      - feature/athena-owner-collaborate-vac-handoff-20261103
+jobs:
+  handoff-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out test source
+        uses: actions/checkout@v4
+      - name: Verify Node version
+        run: node --version
+      - name: Run cross-origin VAC handoff and terminal face-capture regression tests
+        run: |
+          node --test tests/vault-handoff.test.js tests/ceremony-post-progress.test.js
+          node test_vault_full_face_capture.node.js

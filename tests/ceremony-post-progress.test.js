@@ -77,11 +77,11 @@ test('TC-PP-06: finishFingerPhase clears the skeleton canvas, covers the frozen 
     const i = src.indexOf('function finishFingerPhase()');
     const body = src.slice(i, i + 4000);
     const clear = body.indexOf("getElementById('handOverlay'); if (_ho && _ho.getContext) _ho.getContext('2d').clearRect(0, 0, _ho.width, _ho.height);");
-    const cover = body.indexOf("getElementById('vacPostCapture'); if (_pc) _pc.style.display='flex';");
+    const cover = body.indexOf("getElementById('vacPostCapture'); if (_pc) _pc.style.display = window.VACVaultHandoff ? 'none' : 'flex';");
     const stage = body.indexOf("_renderAuthorityStages('verifying');");
-    const processing = body.indexOf("challengeEl.textContent = 'Processing");
+    const processing = body.indexOf('challengeEl.textContent = window.VACVaultHandoff');
     assert.ok(clear > 0 && cover > 0 && stage > 0 && processing > 0, 'all four steps present');
-    assert.ok(clear < cover && cover < stage && stage < processing, 'order: clear -> cover -> stage -> Processing');
+    assert.ok(clear < cover && cover < stage && stage < processing, 'order: clear -> choose cover -> stage for normal -> closing face instruction for Vault');
 });
 
 test('TC-PP-07: the full verify success path narrates minting then done, then hands off; failure and capture-death hide the list', () => {
@@ -90,7 +90,7 @@ test('TC-PP-07: the full verify success path narrates minting then done, then ha
     const a = block.indexOf("_renderAuthorityStages('minting')"), b = block.indexOf("_renderAuthorityStages('done', { result: authResult })"), c = block.indexOf('_finish();');
     assert.ok(a > 0 && b > a && c > b, 'minting -> done -> _finish');
     assert.ok(/function showRetry\(result\) \{\n\s*try \{ _renderAuthorityStages\('fail'\); \}/.test(src), 'showRetry hides the stages');
-    assert.ok(/function _showCaptureDiedRecovery\(\) \{\n\s*try \{ _renderAuthorityStages\('fail'\); \}/.test(src), 'capture death hides the stages');
+    assert.ok(/function _showCaptureDiedRecovery\(\) \{[\s\S]{0,800}?try \{ _renderAuthorityStages\('fail'\); \}/.test(src), 'capture death hides the stages');
 });
 
 test('TC-PP-08: fast tier — verifying after goToStep(3); verdict renders done/fail before the modal', () => {
@@ -109,4 +109,185 @@ test('TC-PP-09: DOM + CSS — cover in step 2, stage list in step 3, gold #C9A22
     const r = extractFn('_renderAuthorityStages');
     assert.ok(/_escapeStageText\(_authorityGrantsText\(/.test(r), 'grants text is escaped before innerHTML');
     assert.ok(!/authenticated\s*=/.test(r) && !/authResult\s*=/.test(r), 'display-only: never writes the verdict');
+});
+
+
+test('TC-PP-10: Vault face descriptor refusal terminates the spinner, processing copy and stale finger coaching', () => {
+    const nodes = new Map();
+    const node = (id, extras) => Object.assign({ id, style: { display: 'block' }, textContent: '', innerHTML: '' }, extras || {});
+    nodes.set('vacPostCapture', node('vacPostCapture', { style: { display: 'flex' } }));
+    nodes.set('vacPostCaptureStages', node('vacPostCaptureStages'));
+    nodes.set('vacAuthorityStages', node('vacAuthorityStages'));
+    nodes.set('challengeText', node('challengeText', { textContent: 'Processing…' }));
+    nodes.set('vacLiveDetect', node('vacLiveDetect', { textContent: 'Keep showing 5 — say “5”' }));
+    nodes.set('recIndicator', node('recIndicator'));
+    const parent = { insertBefore(el) { nodes.set(el.id, el); } };
+    nodes.set('challengePanel', node('challengePanel', { parentElement: parent, nextSibling: null }));
+    const document = {
+        getElementById(id) { return nodes.get(id) || null; },
+        createElement(tag) { assert.equal(tag, 'div'); return node(''); },
+    };
+    const renderer = Function('document', 'vacDebug', stagesConst + '\n' +
+        extractFn('_authorityStagesHtml') + '\n' + extractFn('_renderAuthorityStages') +
+        '\nreturn _renderAuthorityStages;')(document, () => {});
+    renderer('verifying');
+    assert.match(nodes.get('vacPostCaptureStages').innerHTML, /vac-stage active/);
+    let reloads = 0;
+    const recover = Function('document', '_renderAuthorityStages', 'vacDebug', 'VACReauth', 'retryAttempts',
+        extractFn('_vaultFaceRecoveryCopy') + '\n' + extractFn('_showVaultFaceCaptureRecovery') +
+        '\nreturn _showVaultFaceCaptureRecovery;')(
+        document, renderer, () => {}, { reload() { reloads++; } }, 1);
+    recover('no_face');
+    assert.equal(nodes.get('vacPostCapture').style.display, 'none', 'no verifying overlay after refusal');
+    assert.equal(nodes.get('vacPostCaptureStages').innerHTML, '', 'no active spinner');
+    assert.equal(nodes.get('vacAuthorityStages').innerHTML, '', 'no misleading pending authority stage');
+    assert.match(nodes.get('challengeText').textContent, /not submitted/i);
+    assert.equal(nodes.get('vacLiveDetect').textContent, '', 'stale finger coaching cleared');
+    assert.notEqual(nodes.get('vacLiveDetect').style.display, 'none', 'reuse the coach element on in-place retries');
+    assert.equal(nodes.get('recIndicator').style.display, 'none');
+    assert.ok(nodes.get('vacVaultFaceCaptureRecovery'), 'restart panel remains available');
+    assert.equal(reloads, 0, 'no automatic restart or bypass');
+    recover('no_face');
+    assert.equal(nodes.get('vacVaultFaceCaptureRecovery').id, 'vacVaultFaceCaptureRecovery');
+});
+
+
+test('TC-PP-11: Vault post-capture face sampling keeps the live preview moving', () => {
+    // Actual three face-descriptor attempts are 350ms apart *after* the
+    // recorder's 1500ms tail. Pausing the video at 1700ms freezes all but
+    // the first frame, so a last-digit hand occlusion can never recover.
+    const maybePause = Function(extractFn('_pausePostCapturePreview') +
+        '\nreturn _pausePostCapturePreview;')();
+    let pauses = 0;
+    const preview = { paused: false, pause() { pauses++; this.paused = true; } };
+    assert.equal(maybePause(preview, true), false, 'Vault handoff needs live face frames');
+    assert.equal(pauses, 0, 'must not freeze camera before descriptor capture');
+    assert.equal(maybePause(preview, false), true, 'normal non-Vault privacy pause preserved');
+    assert.equal(pauses, 1);
+    assert.equal(maybePause(preview, false), false, 'idempotent after pause');
+
+    const i = src.indexOf('function finishFingerPhase()');
+    const body = src.slice(i, i + 4400);
+    assert.match(body, /_pausePostCapturePreview\(v, !!window\.VACVaultHandoff\)/,
+        'actual timer must consult the Vault-specific guard');
+    const j = src.indexOf('async function onRecordingComplete()');
+    const submit = src.slice(j, src.indexOf('// STEP 3: Upload to backend, show real results', j));
+    assert.match(submit, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
+        'no face descriptor still refuses before any network submission');
+});
+
+
+test('TC-PP-12: Vault pre-upload face refusal names its real non-sensitive cause', () => {
+    const copy = Function(extractFn('_vaultFaceRecoveryCopy') +
+        '\nreturn _vaultFaceRecoveryCopy;')();
+    const noFace = copy('no_face');
+    assert.match(noFace.title, /clearer capture/i);
+    assert.match(noFace.hint, /centred/i);
+
+    const many = copy('multiple_faces');
+    assert.match(many.title, /more than one face/i);
+    assert.doesNotMatch(many.title, /clearer capture/i);
+
+    const timeout = copy('embed_timeout');
+    assert.match(timeout.title, /timed out/i);
+    assert.doesNotMatch(timeout.title + timeout.hint, /poor light|clearer capture/i);
+
+    const engine = copy('embedder_error');
+    assert.match(engine.title, /unavailable/i);
+    assert.doesNotMatch(engine.title, /clearer capture/i);
+
+    assert.match(copy('unexpected_private_error').title, /could not complete/i);
+    const handler = extractFn('_showVaultFaceCaptureRecovery');
+    assert.match(handler, /_vaultFaceRecoveryCopy\(reason\)/,
+        'user-facing panel must use the reason-specific copy');
+    assert.match(handler, /No identity check was submitted or authorised/,
+        'a stopped attempt must never imply verification or a store grant');
+});
+
+
+test('TC-PP-13: early face candidate is live-recording-bound, single-use, and Vault-only', () => {
+    const w = { VACVaultHandoff: {} };
+    const active = { state: 'recording' };
+    const other = { state: 'recording' };
+    const still = { width: 640, height: 480 };
+    const guards = Function('window', 'mediaRecorder', '_recorderStartMs',
+        extractFn('_recordVaultEarlyIdentityFrame') + '\n' +
+        extractFn('_takeVaultEarlyIdentityFrame') + '\n' +
+        'return {record:_recordVaultEarlyIdentityFrame, take:_takeVaultEarlyIdentityFrame};')(
+        w, active, 1000);
+    assert.equal(guards.record(other, 1800, still), false, 'never accept another recorder');
+    assert.equal(guards.record(active, 800, still), false, 'never take a pre-recording frame');
+    assert.equal(guards.record(active, 6500, still), false, 'never take a late gesture frame');
+    assert.equal(guards.record(active, 1800, still), true, 'one early frame during actual recording');
+    assert.equal(guards.take(other, 1000, 6500), null, 'wrong recorder must not reuse early face');
+    assert.equal(guards.take(active, 1000, 6500), null, 'mismatch consumes the candidate');
+    assert.equal(guards.record(active, 1900, still), true);
+    assert.equal(guards.take(active, 900, 6500), null, 'different recording epoch must refuse');
+    assert.equal(guards.record(active, 1950, still), true);
+    assert.equal(guards.take(active, 1000, 6500), still, 'same recording can consume one fresh frame');
+    assert.equal(guards.take(active, 1000, 6500), null, 'no cross-attempt replay');
+    active.state = 'inactive';
+    assert.equal(guards.record(active, 2000, still), false, 'no post-recording capture');
+    active.state = 'recording';
+    w.VACVaultHandoff = null;
+    assert.equal(guards.record(active, 2000, still), false, 'other VAC journeys unchanged');
+});
+
+test('TC-PP-14: early face is sampled from the SAME early liveness canvas, and server gate stays', () => {
+    const early = src.slice(src.indexOf('const FACE_STILL_DELAY_MS = 800'), src.indexOf('// Show combined capture info'));
+    assert.match(early, /_recordVaultEarlyIdentityFrame\(_boundIdentityRecorder, performance\.now\(\), c\)/,
+        'the face candidate must be the already recorded 800ms liveness still, not a separate webcam');
+    const final = src.slice(src.indexOf('async function onRecordingComplete()'),
+        src.indexOf('// STEP 3: Upload to backend, show real results'));
+    assert.match(final, /_takeVaultEarlyIdentityFrame\(\s*mediaRecorder, _recorderStartMs, _clipElapsed\)/,
+        'must validate recorder and recording epoch before using saved frame');
+    assert.match(final, /window\.VACFaceEmbed\.compute\(_earlyCanvas\)/,
+        'early frame must pass the SAME identity model');
+    assert.match(final, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
+        'no valid identity descriptor remains a hard pre-upload refusal');
+    assert.match(src, /formData\.append\('face_embedding', JSON\.stringify\(window\.__vacEnrollEmbedding\)\)/,
+        'server still receives an identity vector for its existing continuity check');
+    assert.match(src, /await runRealVerification\(videoBlob\)/,
+        'full video verification remains obligatory');
+});
+
+
+test('TC-PP-15: Vault keeps a recorded face-only closing window; unbound early frames cannot authenticate', () => {
+    const finish = src.slice(src.indexOf('function finishFingerPhase()'),
+        src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
+    assert.match(finish, /const _vaultFaceTailMs = window\.VACVaultHandoff \? 3200 : 1500;/,
+        'Vault must film a separate natural face-only closing beat, not rely on the last digit');
+    assert.match(finish, /Face check — look naturally toward the camera/,
+        'instruction never asks the owner to pose precisely while holding fingers');
+    assert.match(finish, /_pc\.style\.display\s*=\s*window\.VACVaultHandoff \? 'none' : 'flex'/,
+        'face preview stays visible during the dedicated closing beat');
+    assert.match(finish, /setTimeout\(function\(\) \{ try \{ mediaRecorder\.stop\(\); \} catch\(_\)\{\} \}, _vaultFaceTailMs\)/,
+        'same original full-video recorder includes the face-only closing beat');
+    const finishFull = src.slice(src.indexOf('async function onRecordingComplete()'),
+        src.indexOf('// STEP 3: Upload to backend, show real results'));
+    assert.match(finishFull, /const _EARLY_FACE_AUTH_ADMISSION = false;/,
+        'early ID must be disabled until independently reviewed same-actor backend binding exists');
+    assert.match(finishFull, /if \(_EARLY_FACE_AUTH_ADMISSION && _earlyCanvas/,
+        'a stored earlier frame alone is never enough to grant identity');
+    assert.match(finishFull, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
+        'missing accepted post-gesture identity still refuses before any POST');
+});
+
+
+test('TC-PP-16: Vault accurately discloses continuing final face recording until recorder stops', () => {
+    const finish = src.slice(src.indexOf('function finishFingerPhase()'),
+        src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
+    assert.match(finish, /Recording final face check/, 'Vault face-only beat must say recording, not analysing');
+    assert.match(finish, /if \(!window\.VACVaultHandoff\)\s*\{\s*try \{ document\.querySelectorAll\('\.rec-dot'\)/,
+        'Vault recording indicator must remain visible during its 3.2s tail');
+    assert.match(finish, /window\.VACVaultHandoff \? 3400 : 1700/,
+        'Vault preview cannot freeze before the 3.2s recording tail ends');
+    const complete = src.slice(src.indexOf('async function onRecordingComplete()'),
+        src.indexOf('// STEP 3: Upload to backend, show real results'));
+    assert.match(complete, /document\.querySelectorAll\('\.rec-dot'\)/,
+        'Vault recording indicators are hidden after actual recorder completion');
+    assert.match(complete, /Analysing your recording/, 'analysis message starts only after recorder completion');
+    const died = src.slice(src.indexOf('function _showCaptureDiedRecovery()'),
+        src.indexOf('function _showCaptureDiedRecovery()') + 700);
+    assert.match(died, /recIndicator/, 'abnormal recorder stop must clear REC indicator');
 });

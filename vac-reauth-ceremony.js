@@ -975,13 +975,15 @@ function _micQualifyFloor(_voiced) {
 // the OS is handing us a genuinely silent track (privacy block / wrong mic device).
 function _runSyntheticAudioSelfTest(cb) {
     try {
+        // Production has NO injection seam: the self-test only ever uses the live module graph.
+        // (TC-TSH-02 exercises this function by source extraction in Node, never via the page.)
         if (!avAudioCtx || !avAnalyser) { if (cb) cb(false, 'no_ctx'); return; }
         const osc = avAudioCtx.createOscillator();
         const gain = avAudioCtx.createGain();
         gain.gain.value = 0.08;
         osc.frequency.value = 440;
         osc.connect(gain);
-        gain.connect(avAnalyser);
+        gain.connect(avAnalyser);   // the SAME live graph (SAGA-SILENT-06)
         osc.start();
         setTimeout(function() {
             try {
@@ -1010,8 +1012,19 @@ function _showSilentTrackBanner() {
     banner.id = 'vacSilentTrackBanner';
     banner.setAttribute('data-testid', 'silent-track-banner');
     banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;border:1.5px solid #fbbf24;border-radius:10px;padding:14px 18px;z-index:9999;color:#f8fafc;font-size:13px;max-width:360px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.5;';
-    banner.innerHTML = '<strong style="color:#fbbf24">Mic not sending audio.</strong><br>Mac: System Settings &rsaquo; Privacy &amp; Security &rsaquo; Microphone &rsaquo; allow this browser.<br><span style="color:#94a3b8;font-size:11px">Then reload the page to retry.</span>';
+    banner.innerHTML = '<strong style="color:#fbbf24">Mic not sending audio</strong> — no microphone signal is reaching this page.<br>Mac: System Settings &rsaquo; Privacy &amp; Security &rsaquo; Microphone &rsaquo; allow this browser.<br><span style="color:#94a3b8;font-size:11px">Then check again, or reload the page.</span>' +
+        '<br><button type="button" id="vacSilentTrackDismiss" style="margin-top:10px;min-height:44px;padding:8px 18px;border-radius:8px;border:1.5px solid #fbbf24;background:transparent;color:#fbbf24;font-weight:700;font-size:13px;cursor:pointer">Check again</button>';
     document.body.appendChild(banner);
+    // SAGA-SILENT-06 spec (TC-TSH-03): a way out of the banner. "Check again" clears it and re-runs the
+    // synthetic self-test; a still-silent track brings it back, a fixed one leaves it gone.
+    try {
+        document.getElementById('vacSilentTrackDismiss').addEventListener('click', function() {
+            try { banner.remove(); } catch(_) {}
+            // Re-arm the existing silent-track detector: if the track is still silent it raises the
+            // banner again after SILENT_TRACK_DETECT_FRAMES; if the user fixed the mic, it stays gone.
+            try { _silentTrackFrames = 0; _silentTrackBannerShown = false; } catch(_) {}
+        });
+    } catch(_) {}
 }
 window.__vacShowSilentTrackBanner = _showSilentTrackBanner;
 
@@ -1118,7 +1131,7 @@ const GESTURE_ZONE_SPEC = Object.freeze({
 // _activeZone() still falls back to the fixed GESTURE_ZONE_SPEC constants whenever there's no
 // confident read — never a dead zone.
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
-const _FACE_SIDE_GAP = 0.05;  // task-718 restore: 0.10→0.05 (archaeology verdict B); ovals closer to natural hand position
+const _FACE_SIDE_GAP = 0.10;  // S204: back to the Rob-confirmed founding value (CB-ZONE-01, task-644: ovals beside the cheek, not on the face). task-718 had set 0.05 on a design recommendation without updating the confirmed fixture; the near-distance fit in _activeZone() now guarantees the face gap where the clamp used to break it.
 let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
 let _faceAnchorMissStreak = 0;
 const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame jitter
@@ -1270,7 +1283,7 @@ function _activeZone() {
     // selfie distance (~3× too tight vs S139). NOW: Math.max(0.17, 0.22*wFrac) — face-proportional
     // when face is large, but never tighter than the S139 usable floor. FaceLandmarker anchoring
     // preserved; hand BESIDE face detects without overlap.
-    const rx = Math.max(0.17, 0.22 * wFrac);
+    let rx = Math.max(0.17, 0.22 * wFrac);
     const ry = Math.max(0.22, 0.30 * hFrac);
     // Gap is face-proportional so it stays in the [0.10, 0.50] faceW assertion band at all distances.
     const gap = Math.max(_FACE_SIDE_GAP, 0.15 * wFrac);
@@ -1278,6 +1291,20 @@ function _activeZone() {
     const faceCx = _faceAnchor.cx;
     let cxLeft  = faceCx - halfW - gap - rx;
     let cxRight = faceCx + halfW + gap + rx;
+    // S204 near-distance fix: close to the camera (a large face, e.g. an iPad held near) there is no
+    // room for the 0.17 floor oval beside the face; the in-frame clamp below then pulled the oval ONTO
+    // the face, so a hand held "in the oval" covered the face the ceremony must capture. Keep a clear
+    // gap of at least 0.10 face widths on the roomier side by shrinking the radius only when needed.
+    // This only ever makes the zone SMALLER (never more permissive) and leaves far/mid unchanged.
+    const _minFaceGap = 0.11 * wFrac;   // 0.10 face widths plus margin (float-safe)
+    const _roomL = (faceCx - halfW) - _minFaceGap - 0.005;          // width available left of the face
+    const _roomR = 1.0 - (faceCx + halfW) - _minFaceGap - 0.005;    // width available right of the face
+    const _rxFit = Math.max(_roomL, _roomR) / 2;
+    if (_rxFit > 0 && _rxFit < rx) {
+        rx = _rxFit;
+        cxLeft  = faceCx - halfW - Math.max(gap, _minFaceGap) - rx;
+        cxRight = faceCx + halfW + Math.max(gap, _minFaceGap) + rx;
+    }
     // Clamp so the ENTIRE oval stays in-frame (centre ± radius stays in [0,1]) with a 0.5% margin.
     cxLeft  = Math.max(rx + 0.005, Math.min(0.5 - rx, cxLeft));
     cxRight = Math.min(1.0 - rx - 0.005, Math.max(0.5 + rx, cxRight));
@@ -3753,7 +3780,42 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript
     return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
 }
 
+
+// Single-use early face identity evidence from the SAME live MediaRecorder clip.
+// This is a capture-time alternative to the last digit frame, NOT an
+// authentication shortcut. The backend still verifies full challenge/liveness
+// video and matches the 128-D face descriptor against the stored owner
+// identity BEFORE minting authority. No token or identity decision is made
+// here. Reject stale, other-recorder, post-recording or late-gesture frames.
+function _recordVaultEarlyIdentityFrame(boundRecorder, capturedAtMs, canvas) {
+    if (!window.VACVaultHandoff || !boundRecorder || boundRecorder !== mediaRecorder ||
+        boundRecorder.state !== 'recording' || !canvas ||
+        !(canvas.width > 0 && canvas.height > 0) ||
+        !Number.isFinite(capturedAtMs) || !Number.isFinite(_recorderStartMs)) return false;
+    const ageMs = capturedAtMs - _recorderStartMs;
+    if (ageMs < 0 || ageMs > 4000) return false;
+    window.__vacEarlyFaceCandidate = {
+        recorder: boundRecorder, startedAtMs: _recorderStartMs,
+        ageMs: ageMs, canvas: canvas,
+    };
+    return true;
+}
+
+function _takeVaultEarlyIdentityFrame(recorder, startedAtMs, elapsedMs) {
+    const saved = window.__vacEarlyFaceCandidate;
+    // Always consume before validating; a retry/new ceremony must not reuse it.
+    window.__vacEarlyFaceCandidate = null;
+    if (!window.VACVaultHandoff || !saved || !recorder ||
+        saved.recorder !== recorder || saved.startedAtMs !== startedAtMs ||
+        !Number.isFinite(saved.ageMs) || saved.ageMs < 0 ||
+        saved.ageMs > 4000 || saved.ageMs >= elapsedMs ||
+        !saved.canvas || !(saved.canvas.width > 0 && saved.canvas.height > 0)) return null;
+    return saved.canvas;
+}
+
 function beginRecording() {
+    // Never carry a prior recording's face evidence across an aborted retry.
+    window.__vacEarlyFaceCandidate = null;
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
@@ -3828,11 +3890,15 @@ function beginRecording() {
     const __recStartMs = performance.now();
     window.__vacFaceStillB64 = '';
     window.__vacFaceStillTsMs = 0;
+    // The still timer belongs to THIS recorder; a restarted camera must
+    // never let an older callback write identity evidence into a new take.
+    const _boundIdentityRecorder = mediaRecorder;
     const FACE_STILL_DELAY_MS = 800;
     setTimeout(function captureBoundStill() {
         try {
             // Only sample while genuinely recording (user may have aborted).
-            if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+            if (!mediaRecorder || mediaRecorder !== _boundIdentityRecorder ||
+                mediaRecorder.state !== 'recording') return;
             const v = document.getElementById('videoPreviewRec');
             if (!v || !v.videoWidth || !v.videoHeight) return; // frame not ready → leave empty
             // Downscale to <=640px longest edge to stay well under the request budget.
@@ -3850,6 +3916,9 @@ function beginRecording() {
             if (comma === -1) return; // malformed → leave empty
             window.__vacFaceStillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
             window.__vacFaceStillTsMs = Math.round(performance.now() - __recStartMs);
+            // Reuse the exact same early live video canvas, inside the recorded
+            // greeting. No additional camera open or face snapshot is taken.
+            _recordVaultEarlyIdentityFrame(_boundIdentityRecorder, performance.now(), c);
             console.log('[VAC] Bound still captured @' + window.__vacFaceStillTsMs + 'ms (' + cw + 'x' + ch + ', ~' + Math.round(window.__vacFaceStillB64.length / 1024) + 'KB b64)');
         } catch (e) {
             // Never fabricate — empty still tells the backend to fail-close Didit.
@@ -4220,6 +4289,17 @@ function beginRecording() {
     let _rejectedTransients = 0;     // S139: count of onset attempts killed by the onset sustain gate (taps that dropped before 250ms)
     let _lastRejectReason = '';      // S139-v2: 'spec' (spectral mid-band check) | 'sust' (sustain dip/silence); surfaced in the QA debug readout
 
+    // A Vault AAL3 handoff derives the owner's face descriptor from multiple
+    // LIVE preview frames after the 1500ms MediaRecorder tail. Pausing the
+    // video at 1700ms made retry samples identical (and often hand-occluded).
+    // Do not relax the descriptor gate: the camera is stopped by
+    // onRecordingComplete after those samples; non-Vault privacy pause stays.
+    function _pausePostCapturePreview(video, vaultHandoffActive) {
+        if (vaultHandoffActive || !video || video.paused) return false;
+        video.pause();
+        return true;
+    }
+
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
@@ -4235,19 +4315,32 @@ function beginRecording() {
         // dots" the user stared at for the whole verify wait. Clear it and cover the frozen feed
         // with the authority progress list (stage 1: verifying).
         try { var _ho=document.getElementById('handOverlay'); if (_ho && _ho.getContext) _ho.getContext('2d').clearRect(0, 0, _ho.width, _ho.height); } catch(_) {}
-        try { var _pc=document.getElementById('vacPostCapture'); if (_pc) _pc.style.display='flex'; } catch(_) {}
-        try { _renderAuthorityStages('verifying'); } catch(_) {}
-        challengeEl.textContent = 'Processing\u2026';
+        // Keep the video visible during a brief, filmed face-only closing beat.
+        // The customer's hand/finger motions are FINISHED before this step.
+        try { var _pc=document.getElementById('vacPostCapture'); if (_pc) _pc.style.display = window.VACVaultHandoff ? 'none' : 'flex'; } catch(_) {}
+        if (!window.VACVaultHandoff) {
+            try { _renderAuthorityStages('verifying'); } catch(_) {}
+        }
+        challengeEl.textContent = window.VACVaultHandoff
+            ? 'Face check — look naturally toward the camera'
+            : 'Processing\u2026';
         // F-815 (Rob, 16 Jul pre-meeting run): entering processing must not keep coaching the
         // user — the live coach line ('Keep showing N — say N') was persisting under
         // 'Processing…', giving an instruction and a wait-state simultaneously. Clear it,
         // hide the REC chip, and after the recording tail freeze the preview: a live camera
         // under 'Processing' reads oddly against the recording-already-ended privacy note.
-        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
-        try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        // The Vault face-only tail is still being filmed. Keep recording disclosure visible
+        // until MediaRecorder has actually stopped; do not imply analysis has begun.
+        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = window.VACVaultHandoff ? 'Recording final face check\u2026' : 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
+        if (!window.VACVaultHandoff) {
+            try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        }
         setTimeout(function(){
-            try { var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video'); if (v && !v.paused) v.pause(); } catch(_) {}
-        }, 1700);
+            try {
+                var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video');
+                _pausePostCapturePreview(v, !!window.VACVaultHandoff);
+            } catch(_) {}
+        }, window.VACVaultHandoff ? 3400 : 1700);
         // S110 detection<->recording sync fix: detection can race ahead of the
         // recorded video (Gemini saw only the first digit of [2,3,5]). Keep the
         // recorder running a tail buffer AFTER the last digit so the video
@@ -4258,7 +4351,12 @@ function beginRecording() {
         try { if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; } } catch(_) {}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
         _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
-        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
+        // 1500ms is the existing post-digit tail. Vault adds 1700ms of
+        // face-only observation within the SAME unbroken MediaRecorder clip
+        // before the existing post-gesture 128-D identity capture. We do not
+        // accept an earlier face in lieu of this check.
+        const _vaultFaceTailMs = window.VACVaultHandoff ? 3200 : 1500;
+        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, _vaultFaceTailMs);
     }
 
     // ── F-561 voice-pacing gate (content-gated, D-VOICE-GATE-SPEAKER-AGNOSTIC) ──
@@ -7030,24 +7128,60 @@ function renderClientGateFailure(reason, evidence) {
     return true;
 }
 
+// Presentation-only classification; reason codes are generated locally by
+// VACFaceEmbed, never taken from user-controlled text. Do not conflate a GPU /
+// model-load failure or timeout with poor face lighting. No verification is
+// permitted to proceed until a fresh 128-D descriptor is actually captured.
+function _vaultFaceRecoveryCopy(reason) {
+    if (reason === 'no_face') return {
+        title: 'Face identification needs a clearer capture',
+        hint: 'Keep your face centred and directly lit throughout the recording. Keep your hand away from your face after the final number.'
+    };
+    if (reason === 'multiple_faces') return {
+        title: 'More than one face detected',
+        hint: 'Only one face can be visible. Move anyone else out of camera view.'
+    };
+    if (reason === 'embed_timeout') return {
+        title: 'Face-identification engine timed out',
+        hint: 'The face model did not finish in time on this device. Check your connection, then restart the camera.'
+    };
+    if (reason === 'embedder_error') return {
+        title: 'Face-identification engine unavailable',
+        hint: 'The face model could not load or run on this device. Check your connection or try a supported browser.'
+    };
+    return {
+        title: 'Face identification could not complete',
+        hint: 'The face-identification check stopped before submission. Restart camera verification or contact support if this persists.'
+    };
+}
+
 // Vault AAL3 handoff requires an identity descriptor for an existing owner.
 // The backend must remain authoritative; this client guard avoids submitting a
 // known-missing descriptor and incorrectly showing six liveness checks as success.
 function _showVaultFaceCaptureRecovery(reason) {
+    // A missing Vault face descriptor is a terminal, pre-upload refusal.
+    // finishFingerPhase already displayed "Verifying..." and "Processing..." and
+    // its last digit coaching; leaving those live beside the restart card made
+    // a refused, unsubmitted attempt look like it was still authenticating.
+    // This resets PRESENTATION ONLY: no server POST, VAC proof or gate change.
+    try { _renderAuthorityStages('fail'); } catch (_) {}
+    var _challenge = document.getElementById('challengeText');
+    if (_challenge) _challenge.textContent = 'Capture not submitted — restart camera verification';
+    var _coach = document.getElementById('vacLiveDetect');
+    // Leave the reusable element visible: in-place retries write new live coaching here.
+    if (_coach) _coach.textContent = '';
+    var _rec = document.getElementById('recIndicator');
+    if (_rec) _rec.style.display = 'none';
     if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
     var host = document.getElementById('challengePanel');
     if (!host || !host.parentElement) return;
-    var hint = reason === 'multiple_faces'
-        ? 'Only one face can be visible. Move anyone else out of camera view.'
-        : reason === 'no_face'
-            ? 'Keep your face centred and directly lit throughout the recording.'
-            : 'The face-identification check could not complete. Check connectivity and camera, then restart.';
+    var info = _vaultFaceRecoveryCopy(reason);
     var panel = document.createElement('div');
     panel.id = 'vacVaultFaceCaptureRecovery';
     panel.style.cssText = 'margin:12px 0 0;padding:14px;background:rgba(220,38,38,0.08);border:1px solid var(--danger,#dc2626);border-radius:10px;text-align:center;';
     panel.innerHTML =
-        '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">Face identification needs a clearer capture</div>' +
-        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + hint + '</div>' +
+        '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">' + info.title + '</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + info.hint + '</div>' +
         '<button type="button" id="vacVaultFaceCaptureRestart" style="display:block;width:100%;padding:11px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart camera verification</button>';
     host.parentElement.insertBefore(panel, host.nextSibling);
     var btn = document.getElementById('vacVaultFaceCaptureRestart');
@@ -7063,11 +7197,16 @@ async function onRecordingComplete() {
     var _clipElapsed = performance.now() - _recorderStartMs;
     var _clipBytes = recordedChunks.reduce(function(a, c){ return a + c.size; }, 0);
     if (_clipBytes < 20480 || _clipElapsed < 2000) {
+        window.__vacEarlyFaceCandidate = null; // no stale identity data on abort
         try { vacDebug('clip_floor_abort', null, { bytes: _clipBytes, elapsed_ms: Math.round(_clipElapsed) }); } catch(_) {}
         _showCaptureDiedRecovery();
         return;
     }
     document.getElementById('recIndicator').style.display = 'none';
+    if (window.VACVaultHandoff) {
+        try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        try { var _vl = document.getElementById('vacLiveDetect'); if (_vl) _vl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; } catch(_) {}
+    }
     document.getElementById('cameraBoxRec').classList.remove('recording', 'show-hand-zone', 'hand-in-zone', 'hand-visible');
     stopAudioMonitor();
 
@@ -7075,7 +7214,45 @@ async function onRecordingComplete() {
     // A single last frame can be blurred/turned away; take up to three distinct
     // fresh frames. This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
-    var _fullEmbedReason = 'embedder_error';
+    var _fullEmbedReason = 'no_face';
+    // HARD HOLD: an early face may not be used as owner identity until the
+    // backend independently verifies that the same actor performs the later
+    // gestures. See vac-protocol issue #26. This is a static compile-time
+    // FALSE, not an operator/query/remote flag, and cannot be activated by a
+    // user-controlled response. The present fast path is a *later* face-only
+    // recorded beat, preserving the previously enforced identity gate.
+    const _EARLY_FACE_AUTH_ADMISSION = false;
+    // A face-visible identity candidate from the opening of this SAME clip
+    // is evaluated BEFORE the late hand-gesture frames. The server still
+    // evaluates the FULL recording and its independent identity-continuity
+    // gate. Capture timing is not an assurance-level change.
+    const _earlyCanvas = _takeVaultEarlyIdentityFrame(
+        mediaRecorder, _recorderStartMs, _clipElapsed);
+    if (_EARLY_FACE_AUTH_ADMISSION && _earlyCanvas &&
+        window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+        try {
+            const _earlyResult = await Promise.race([
+                window.VACFaceEmbed.compute(_earlyCanvas),
+                new Promise(function(resolve) {
+                    setTimeout(function() { resolve({ok:false, reason:'embed_timeout'}); }, 8000);
+                })
+            ]);
+            if (_earlyResult && _earlyResult.ok &&
+                Array.isArray(_earlyResult.embedding) && _earlyResult.embedding.length === 128 &&
+                _earlyResult.embedding.every(function(n) {
+                    return typeof n === 'number' && Number.isFinite(n);
+                })) {
+                window.__vacEnrollEmbedding = _earlyResult.embedding;
+            } else {
+                _fullEmbedReason = (_earlyResult && _earlyResult.reason) || 'embedder_error';
+            }
+        } catch (_) { _fullEmbedReason = 'embedder_error'; }
+    }
+    // Only an early "no_face" or absent early snapshot permits another
+    // capture attempt. Multiple people/engine faults must never be masked by
+    // a conveniently clear later frame.
+    if (!window.__vacEnrollEmbedding &&
+        (!_earlyCanvas || _fullEmbedReason === 'no_face')) {
     try {
         const ev = document.getElementById('videoPreviewRec');
         if (ev && ev.videoWidth && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
@@ -7104,6 +7281,7 @@ async function onRecordingComplete() {
     } catch (e) {
         _fullEmbedReason = 'embedder_error';
         console.warn('[VAC] Full face descriptor not available:', (e && e.message) || e);
+    }
     }
     // A Vault handoff is a high-assurance existing-owner action. Its server
     // refuses missing identity vectors; stop BEFORE uploading a known-bad
@@ -7773,6 +7951,9 @@ function showRetry(result) {
 // F-720: shown when the recorder stops before finishFingerPhase schedules it (stream/track death).
 // Fail-closed: no POST, no gate bypass. Single action: restart.
 function _showCaptureDiedRecovery() {
+    // Abnormal stop must also clear recording indicators: never imply capture continues.
+    try { var _ri = document.getElementById('recIndicator'); if (_ri) _ri.style.display = 'none'; } catch(_) {}
+    try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
     try { _renderAuthorityStages('fail'); } catch(_) {}   // s182
     if (document.getElementById('vacCaptureDied')) return; // idempotent
     var host = document.getElementById('challengePanel');

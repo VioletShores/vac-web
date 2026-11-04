@@ -28,6 +28,16 @@
       agent: 'athena-vault-store-handoff',
       resource: 'athena:vault:store',
       action: 'store_grant'
+    },
+    // Same signed JWT/nonce protocol as the Vault, but a DIFFERENT JWT
+    // audience, product capability and owner session. No password or
+    // session token crosses origins; Athena re-verifies independently.
+    'owner-collaborate': {
+      origin: 'https://api.athenapilot.ai',
+      audience: 'athena:owner:collaborate',
+      agent: 'athena-owner-collaborate-handoff',
+      resource: 'athena:owner:collaborate',
+      action: 'owner_signin'
     }
   };
   var STATE_RE = /^[A-Za-z0-9_-]{32,128}$/;
@@ -44,6 +54,8 @@
   var target = Object.prototype.hasOwnProperty.call(TARGETS, kind) ? TARGETS[kind] : null;
   var state = q.get('state') || '';
   var valid = !!target && STATE_RE.test(state);
+  var destination = kind === 'owner-collaborate' ? 'Athena' : 'the Vault';
+  var actionName = kind === 'owner-collaborate' ? 'sign-in' : 'store';
 
   var assertion = null;
   var assertionExpMs = 0;
@@ -74,7 +86,7 @@
     var btn = document.createElement('button');
     btn.id = 'vacVaultHandoffResend';
     btn.type = 'button';
-    btn.textContent = 'Send to the Vault again';
+    btn.textContent = 'Send to ' + destination + ' again';
     btn.style.cssText = 'display:none;margin:clamp(10px,2.5vw,14px) auto 0;min-height:44px;' +
       'padding:12px 22px;border-radius:12px;border:1px solid #10B981;background:transparent;' +
       'color:#10B981;font:700 clamp(15px,3.8vw,16px) -apple-system,system-ui,sans-serif;';
@@ -127,16 +139,16 @@
 
   function deliver() {
     if (!openerPresent()) {
-      show('warn', 'Return to the Vault tab. This page was not opened from the Vault (or that tab was closed), ' +
-        'so nothing was sent. Start the store again from the Vault.', false);
+      show('warn', 'Return to ' + (kind === 'owner-collaborate' ? 'the Athena' : 'the Vault') + ' tab. This page was not opened from ' + destination +
+        ' (or that tab was closed), so nothing was sent. Start the ' + actionName + ' again from ' + destination + '.', false);
       return;
     }
     window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin);
-    show('info', 'Sent to the Vault. Return to the Vault tab to finish storing.', true);
+    show('info', 'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', true);
     clearTimeout(ackTimer);
     ackTimer = setTimeout(function () {
       if (!acked) {
-        show('warn', 'The Vault tab has not confirmed yet. Switch back to it; if it is still waiting, ' +
+        show('warn', destination + ' has not confirmed yet. Switch back to it; if it is still waiting, ' +
           'come back here and tap “Send to the Vault again”.', true);
       }
     }, ACK_WAIT_MS);
@@ -149,7 +161,7 @@
     sending = true;
     var ready = (assertion && Date.now() < assertionExpMs - 5000) ? Promise.resolve() : mint();
     ready.then(deliver, function (e) {
-      show('error', 'Could not prepare the handoff to the Vault (' + e.message + '). Return to the Vault and start again.', false);
+      show('error', 'Could not prepare the handoff to ' + destination + ' (' + e.message + '). Return to ' + destination + ' and start again.', false);
     }).then(function () { sending = false; }, function () { sending = false; });
   }
 
@@ -164,7 +176,7 @@
       acked = true;
       clearTimeout(ackTimer);
       assertion = null;
-      show('ok', 'Delivered. The Vault has your verification. You can close this tab.', false);
+      show('ok', 'Delivered. ' + destination + ' has your verification. You can close this tab.', false);
       setTimeout(function () { try { window.close(); } catch (e) {} }, 1200);
     });
   }
@@ -172,7 +184,7 @@
   window.VACVaultHandoff = {
     onVerified: function (authResult, identity) {
       if (!valid) {
-        show('error', 'This Vault link is not valid, so nothing was sent. Return to the Vault and start again.', false);
+        show('error', 'This ' + destination + ' link is not valid, so nothing was sent. Return to ' + destination + ' and start again.', false);
         return;
       }
       var r = (authResult && typeof authResult === 'object') ? authResult : {};
@@ -182,7 +194,7 @@
         : (typeof sess.token === 'string' ? sess.token : '');
       var email = sess.email || r.email || (identity && identity.email) || '';
       if (r.authenticated !== true || level !== 'full' || !token || !email) {
-        show('error', 'This was not a full VAC verification, so nothing was sent to the Vault.', false);
+        show('error', 'This was not a full VAC verification, so nothing was sent to ' + destination + '.', false);
         return;
       }
       sessionToken = token;

@@ -225,80 +225,64 @@ test.describe('TC-TSH: browser-side sensor tests', () => {
 
     // ── TC-TSH-02: synthetic self-test fires when called with a live AudioContext ──
 
-    test('TC-TSH-02: synthetic self-test fires when avAudioCtx is live (oscillator created and started)', async ({ page }) => {
-        await page.addInitScript(() => {
-            window.__vacOscStarted = false;
-            window.__vacOscStopped = false;
-        });
-
-        await page.goto(HARNESS_URL);
-        await page.waitForLoadState('domcontentloaded');
-
-        // Bootstrap ceremony so the module scope is initialised
-        await page.evaluate(() => {
-            var mount = document.getElementById('mount');
-            if (!mount) { mount = document.createElement('div'); mount.id = 'mount'; document.body.appendChild(mount); }
-            if (typeof window.VACReauth !== 'undefined') {
-                window.VACReauth.run({ name: 'TSH Test', email: 'tsh@test.dev', mount: mount,
-                    riskLevel: 'medium', context: 'test',
-                    onComplete: function() {}, onBack: function() {}, onStep: function() {} });
-            }
-        });
-
-        // Inject a mock AudioContext + Analyser directly into the ceremony scope via the testability setter.
-        // This lets us call _runSyntheticAudioSelfTest without going through requestCamera().
-        const injected = await page.evaluate(() => {
-            try {
-                var mockAnalyser = {
-                    fftSize: 256, frequencyBinCount: 128,
-                    connect: function() {}, disconnect: function() {},
-                    getByteTimeDomainData: function(buf) {
-                        // Return a 440Hz sine-like signal so RMS > threshold
-                        for (var i = 0; i < buf.length; i++) buf[i] = 128 + Math.round(38 * Math.sin(i * 0.4));
-                    },
-                    getByteFrequencyData: function(buf) { for (var i = 0; i < buf.length; i++) buf[i] = 0; }
-                };
-                var mockCtx = {
-                    state: 'running', sampleRate: 48000,
-                    createOscillator: function() {
-                        return {
-                            type: 'sine', frequency: { value: 440 },
-                            connect: function() {}, disconnect: function() {},
-                            start: function() { window.__vacOscStarted = true; },
-                            stop:  function() { window.__vacOscStopped = true; }
-                        };
-                    },
-                    createGain: function() { return { gain: { value: 1 }, connect: function() {}, disconnect: function() {} }; }
-                };
-                // Use the testability setter to wire avAudioCtx + avAnalyser
-                if (typeof window.__vacTshInjectAv === 'undefined') {
-                    window.__vacTshInjectAv = { ctx: mockCtx, analyser: mockAnalyser };
-                } else {
-                    window.__vacTshInjectAv = { ctx: mockCtx, analyser: mockAnalyser };
-                }
-                // Run the synthetic self-test
-                if (typeof window.__vacRunSyntheticAudioSelfTest === 'function') {
-                    window.__vacRunSyntheticAudioSelfTest();
-                    return 'ok';
-                }
-                return 'no-export';
-            } catch(e) { return String(e); }
-        });
-        expect(injected, 'TC-TSH-02: __vacRunSyntheticAudioSelfTest() must be callable').toBe('ok');
-
-        // Wait for the oscillator to be started (inside the 300ms setTimeout in _runSyntheticAudioSelfTest)
-        await page.waitForFunction(() => window.__vacOscStarted === true, { timeout: 2000 });
-
-        const oscFired = await page.evaluate(() => window.__vacOscStarted);
-        expect(oscFired, 'TC-TSH-02: synthetic self-test must start an oscillator').toBe(true);
-
-        // Also verify it stops and cleans up the oscillator after reading
-        await page.waitForFunction(() => window.__vacOscStopped === true, { timeout: 2000 });
-        const oscStopped = await page.evaluate(() => window.__vacOscStopped);
-        expect(oscStopped, 'TC-TSH-02: synthetic self-test must stop the oscillator after reading (no bleed into production audio)').toBe(true);
+    // TC-TSH-02 (S204 review fix): exercise the REAL _runSyntheticAudioSelfTest source in an isolated
+    // Node sandbox with mock avAudioCtx/avAnalyser bound as its closure variables. The production bundle
+    // carries NO injection seam (no window/URL-controlled override), so the test never goes through the page.
+    test('TC-TSH-02: synthetic self-test creates and starts an oscillator on the live graph (isolated source test)', async () => {
+        const srcText = fs.readFileSync(path.join(ROOT, 'vac-reauth-ceremony.js'), 'utf8');
+        const start = srcText.indexOf('function _runSyntheticAudioSelfTest(');
+        expect(start, 'TC-TSH-02: _runSyntheticAudioSelfTest must exist').toBeGreaterThan(0);
+        let depth = 0, i = srcText.indexOf('{', start);
+        for (; i < srcText.length; i++) { if (srcText[i] === '{') depth++; else if (srcText[i] === '}' && --depth === 0) { i++; break; } }
+        const fnText = srcText.slice(start, i);
+        const ev = { started: false, stopped: false, connectedTo: null };
+        const avAnalyser = { fftSize: 256, getByteTimeDomainData(buf) { for (let k = 0; k < buf.length; k++) buf[k] = 128 + Math.round(38 * Math.sin(k * 0.4)); } };
+        const avAudioCtx = {
+            createOscillator() { return { frequency: { value: 0 }, connect() {}, disconnect() {}, start() { ev.started = true; }, stop() { ev.stopped = true; } }; },
+            createGain() { return { gain: { value: 1 }, connect(t) { ev.connectedTo = t; }, disconnect() {} }; },
+        };
+        const sandboxWindow = {};
+        const run = new Function('avAudioCtx', 'avAnalyser', 'SILENT_TRACK_SYNTH_THRESHOLD', 'vacDebug', 'window', 'setTimeout',
+            fnText + '\nreturn _runSyntheticAudioSelfTest;')(avAudioCtx, avAnalyser, 0.02, function() {}, sandboxWindow, function(f) { f(); });
+        let result = null;
+        run(function(pass, rms) { result = { pass, rms }; });
+        expect(ev.started, 'TC-TSH-02: self-test must start an oscillator').toBe(true);
+        expect(ev.stopped, 'TC-TSH-02: self-test must stop the oscillator').toBe(true);
+        expect(ev.connectedTo, 'TC-TSH-02: oscillator gain must feed the SAME live analyser').toBe(avAnalyser);
+        expect(result && result.pass, 'TC-TSH-02: a live tone must read above threshold').toBe(true);
     });
 
-    // ── TC-TSH-03: silent-track banner renders correctly ──────────────────────
+    // TC-TSH-02b (S204 review fix, negative): nothing a URL or a page global can supply activates a mock
+    // audio graph in the production bundle. With ?qa=1 AND every plausible injected global set, the
+    // self-test must still refuse (no live graph yet) and must never touch the injected objects.
+    test('TC-TSH-02b: ?qa=1 and injected window globals cannot activate any audio injection in production', async ({ page }) => {
+        const srcText = fs.readFileSync(path.join(ROOT, 'vac-reauth-ceremony.js'), 'utf8');
+        const start = srcText.indexOf('function _runSyntheticAudioSelfTest(');
+        const body = srcText.slice(start, srcText.indexOf('window.__vacRunSyntheticAudioSelfTest', start));
+        // The only window.* reference allowed is the existing WRITE of the diagnostic result.
+        const winRefs = (body.match(/window\.[A-Za-z_$][\w$]*/g) || []).filter(r => r !== 'window.__vacSynthSelfTestResult');
+        expect(winRefs, 'TC-TSH-02b: self-test must not read any window.* override').toEqual([]);
+        expect(/window\.__vacSynthSelfTestResult\s*=/.test(body), 'TC-TSH-02b: the result global is write-only').toBe(true);
+        expect(body.includes('_qaFlag'), 'TC-TSH-02b: self-test must not depend on the QA flag').toBe(false);
+        expect(srcText.includes('__vacTshInjectAv'), 'TC-TSH-02b: no injection seam may exist in the production bundle').toBe(false);
+
+        await page.addInitScript(() => {
+            window.__vacInjectedTouched = false;
+            const trap = { ctx: { createOscillator() { window.__vacInjectedTouched = true; return {}; }, createGain() { window.__vacInjectedTouched = true; return {}; } },
+                           analyser: { fftSize: 256, getByteTimeDomainData() { window.__vacInjectedTouched = true; } } };
+            window.__vacTshInjectAv = trap; window.__vacInjectAv = trap; window.__vacAudioOverride = trap;
+            window.avAudioCtx = trap.ctx; window.avAnalyser = trap.analyser;
+        });
+        await page.goto(HARNESS_URL + '?qa=1&debug=1&inject=1');
+        await page.waitForLoadState('domcontentloaded');
+        const res = await page.evaluate(() => new Promise((resolve) => {
+            try { window.__vacRunSyntheticAudioSelfTest(function(pass, why) { resolve({ pass, why: String(why), touched: window.__vacInjectedTouched }); }); }
+            catch (e) { resolve({ error: String(e), touched: window.__vacInjectedTouched }); }
+        }));
+        expect(res.touched, 'TC-TSH-02b: injected objects must never be used').toBe(false);
+        expect(res.pass, 'TC-TSH-02b: with no live graph the self-test must refuse').toBe(false);
+        expect(res.why, 'TC-TSH-02b: refusal reason').toBe('no_ctx');
+    });
 
     test('TC-TSH-03: silent-track banner is visible and contains Mac System Settings instruction', async ({ page }) => {
         await page.addInitScript(() => {
