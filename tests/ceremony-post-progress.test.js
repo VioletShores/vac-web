@@ -272,3 +272,22 @@ test('TC-PP-15: Vault keeps a recorded face-only closing window; unbound early f
     assert.match(finishFull, /if \(window\.VACVaultHandoff && !window\.__vacEnrollEmbedding\)/,
         'missing accepted post-gesture identity still refuses before any POST');
 });
+
+
+test('TC-PP-16: Vault accurately discloses continuing final face recording until recorder stops', () => {
+    const finish = src.slice(src.indexOf('function finishFingerPhase()'),
+        src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
+    assert.match(finish, /Recording final face check/, 'Vault face-only beat must say recording, not analysing');
+    assert.match(finish, /if \(!window\.VACVaultHandoff\)\s*\{\s*try \{ document\.querySelectorAll\('\.rec-dot'\)/,
+        'Vault recording indicator must remain visible during its 3.2s tail');
+    assert.match(finish, /window\.VACVaultHandoff \? 3400 : 1700/,
+        'Vault preview cannot freeze before the 3.2s recording tail ends');
+    const complete = src.slice(src.indexOf('async function onRecordingComplete()'),
+        src.indexOf('// STEP 3: Upload to backend, show real results'));
+    assert.match(complete, /document\.querySelectorAll\('\.rec-dot'\)/,
+        'Vault recording indicators are hidden after actual recorder completion');
+    assert.match(complete, /Analysing your recording/, 'analysis message starts only after recorder completion');
+    const died = src.slice(src.indexOf('function _showCaptureDiedRecovery()'),
+        src.indexOf('function _showCaptureDiedRecovery()') + 700);
+    assert.match(died, /recIndicator/, 'abnormal recorder stop must clear REC indicator');
+});

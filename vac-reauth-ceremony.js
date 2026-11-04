@@ -4302,14 +4302,18 @@ function beginRecording() {
         // 'Processing…', giving an instruction and a wait-state simultaneously. Clear it,
         // hide the REC chip, and after the recording tail freeze the preview: a live camera
         // under 'Processing' reads oddly against the recording-already-ended privacy note.
-        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
-        try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        // The Vault face-only tail is still being filmed. Keep recording disclosure visible
+        // until MediaRecorder has actually stopped; do not imply analysis has begun.
+        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = window.VACVaultHandoff ? 'Recording final face check\u2026' : 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
+        if (!window.VACVaultHandoff) {
+            try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        }
         setTimeout(function(){
             try {
                 var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video');
                 _pausePostCapturePreview(v, !!window.VACVaultHandoff);
             } catch(_) {}
-        }, 1700);
+        }, window.VACVaultHandoff ? 3400 : 1700);
         // S110 detection<->recording sync fix: detection can race ahead of the
         // recorded video (Gemini saw only the first digit of [2,3,5]). Keep the
         // recorder running a tail buffer AFTER the last digit so the video
@@ -7172,6 +7176,10 @@ async function onRecordingComplete() {
         return;
     }
     document.getElementById('recIndicator').style.display = 'none';
+    if (window.VACVaultHandoff) {
+        try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        try { var _vl = document.getElementById('vacLiveDetect'); if (_vl) _vl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; } catch(_) {}
+    }
     document.getElementById('cameraBoxRec').classList.remove('recording', 'show-hand-zone', 'hand-in-zone', 'hand-visible');
     stopAudioMonitor();
 
@@ -7916,6 +7924,9 @@ function showRetry(result) {
 // F-720: shown when the recorder stops before finishFingerPhase schedules it (stream/track death).
 // Fail-closed: no POST, no gate bypass. Single action: restart.
 function _showCaptureDiedRecovery() {
+    // Abnormal stop must also clear recording indicators: never imply capture continues.
+    try { var _ri = document.getElementById('recIndicator'); if (_ri) _ri.style.display = 'none'; } catch(_) {}
+    try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
     try { _renderAuthorityStages('fail'); } catch(_) {}   // s182
     if (document.getElementById('vacCaptureDied')) return; // idempotent
     var host = document.getElementById('challengePanel');
