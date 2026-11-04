@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How VAC works · VAC Protocol</title>
+<meta name="description" content="The Verified Authority Token, narrowing at every delegation, cascading revocation and verification levels L1 to L3.">
+<meta property="og:title" content="How VAC works · VAC Protocol">
+<meta property="og:description" content="The Verified Authority Token, narrowing at every delegation, cascading revocation and verification levels L1 to L3.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vacprotocol.org/protocol">
+<meta property="og:image" content="https://vacprotocol.org/og-image.png">
+<meta name="theme-color" content="#07090F">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/site/site.css">
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body data-page="protocol">
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav"><div class="nav-in">
+  <a class="brand" href="/" aria-label="VAC Protocol home"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" stroke="#2DD4BF" stroke-width="6"/><polygon points="50,26 74,39 74,61 50,74 26,61 26,39" fill="#2DD4BF" fill-opacity="0.14" stroke="#10B981" stroke-width="3"/></svg><span>VAC <small>Protocol</small></span></a>
+  <nav class="nav-links" aria-label="Main"><a href="/">Home</a><a href="/protocol" aria-current="page">Protocol</a><a href="/specifications">Specifications</a><a href="/try">Try it</a><a href="/developers">Developers</a><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/regulatory">Regulatory</a><a href="/contact">Contact</a><a class="ext" href="https://athenapilot.ai" rel="noopener">athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a></nav>
+  <details class="menu"><summary aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg> Menu</summary>
+    <nav class="menu-panel" aria-label="Main (mobile)"><a href="/">Home</a><a href="/protocol" aria-current="page">Protocol</a><a href="/specifications">Specifications</a><a href="/try">Try it</a><a href="/developers">Developers</a><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/regulatory">Regulatory</a><a href="/contact">Contact</a><a class="ext" href="https://athenapilot.ai" rel="noopener">athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a></nav></details>
+</div></header>
+<main id="main">
+
+<section class="hero"><div class="wrap">
+  <span class="eyebrow">Protocol</span>
+  <h1 class="wide">How the Verified Authority Chain works</h1>
+  <p class="lede">Four ideas carry the whole design: a signed token rooted in a verified person, narrowing at every delegation, revocation that cascades, and assurance levels a verifier can require.</p>
+</div></section>
+
+<section class="band" id="token"><div class="wrap">
+  <div class="sec-head"><span class="eyebrow">1 &middot; The token</span><h2>A signed statement of human authority</h2></div>
+  <p class="statement">A Verified Authority Token (VAT) is a JWT-compatible token signed with Ed25519.</p>
+  <div class="grid g2">
+    <div class="prose"><p>The root token is issued when a person completes verification. It records:</p>
+      <ul><li>a hashed reference to the verified person, never biometric data;</li><li>the assurance level the person was verified at;</li><li>the authorised scope: resources, actions, exclusions and constraints such as a spend limit;</li><li>a trust score, the delegation depth and the parent token;</li><li>an issue time and an expiry.</li></ul></div>
+    <div class="prose"><p>Every action an agent takes can be recorded against its token as an Authority Action Record. A single provenance reference follows a workflow from the root person through every agent, so one query reconstructs who authorised the chain and what each agent did.</p>
+      <p>The draft <a href="/specifications">Verified Human Root Attestation</a> specifies the root structure so that other token formats can carry it too.</p></div>
+  </div>
+</div></section>
+
+<section class="band" id="narrowing"><div class="wrap">
+  <div class="sec-head em"><span class="eyebrow">2 &middot; Narrowing</span><h2>Authority only ever narrows</h2></div>
+  <p class="statement em">No agent can hold more authority than the agent or person that delegated to it.</p>
+  <div class="grid g4">
+    <div class="card em"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h18l-7 8v7l-4 2v-9z"/></svg><h3>Scope</h3><p>A child token&rsquo;s scope must be a subset of its parent&rsquo;s. Wider requests are refused at derivation.</p></div>
+    <div class="card em"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/></svg><h3>Trust</h3><p>Trust can stay the same or fall with each hop. It never rises.</p></div>
+    <div class="card em"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><h3>Time</h3><p>A child inherits its parent&rsquo;s expiry and can only shorten it.</p></div>
+    <div class="card em"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 13 9 5 9-5"/></svg><h3>Depth</h3><p>Delegation depth is bounded. The issuer sets the maximum for each chain.</p></div>
+  </div>
+</div></section>
+
+<section class="band" id="revocation"><div class="wrap">
+  <div class="sec-head bl"><span class="eyebrow">3 &middot; Revocation</span><h2>Revoke the root, stop the chain</h2></div>
+  <div class="grid g2">
+    <p class="statement bl">Revoking a token invalidates every token derived from it, across every chain.</p>
+    <div class="prose"><p>Verification walks the chain to the root each time, so a revoked or expired hop anywhere above an action makes that action fail verification. In the reference service, revocation is an authorised operator action, not a public endpoint.</p>
+    <p>Sensitive actions can also ask the root person to verify again before they proceed, rather than relying on an old session.</p></div>
+  </div>
+</div></section>
+
+<section class="band" id="levels"><div class="wrap">
+  <div class="sec-head am"><span class="eyebrow">4 &middot; Verification levels</span><h2>L1, L2, L3: how strongly the person was verified</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Level</th><th>How the root is established</th><th>Typical use</th></tr></thead>
+    <tbody>
+      <tr><td>L1</td><td>API key plus developer identity. No biometrics.</td><td>Development, testing, low-risk automation.</td></tr>
+      <tr><td>L2</td><td>OIDC or enterprise SSO, or device attestation.</td><td>Workforce agents inside an organisation&rsquo;s identity system.</td></tr>
+      <tr><td>L3</td><td>Multi-modal biometric verification in the VAC ceremony.</td><td>Consequential actions where the person must be proven present.</td></tr>
+    </tbody></table></div>
+  <div class="grid g2" style="margin-top:20px">
+    <div class="note teal"><b>A chain is only as strong as its weakest hop.</b> A verifier can require a level, and the check runs against the lowest level anywhere in the chain, not just the root.</div>
+    <div class="note"><b>Levels are earned, not claimed.</b> The level comes from a verification the server itself observed. Anything unverified or merely asserted by a client falls back to L1.</div>
+  </div>
+</div></section>
+
+<section class="band" id="layers"><div class="wrap">
+  <div class="sec-head"><span class="eyebrow">Where it sits</span><h2>Four layers of verified authority</h2></div>
+  <div class="grid g4">
+    <div class="card"><span class="k">Layer 1</span><h3>Identity</h3><p>Verifying the person at the root: face, voice, gesture and liveness checks bound in one act, with continuous trust scoring rather than a single yes or no.</p></div>
+    <div class="card em"><span class="k">Layer 2</span><h3>Delegation</h3><p>Tokens derived hop by hop under the narrowing rules, inside and across organisations.</p></div>
+    <div class="card bl"><span class="k">Layer 3</span><h3>Provenance</h3><p>Tamper-evident records of every authorised action, with jurisdiction and verification level kept at each hop.</p></div>
+    <div class="card am"><span class="k">Layer 4</span><h3>Governance</h3><p>Group and multi-party authority: M-of-N approval, community-scoped consent, and authority over physical systems.</p></div>
+  </div>
+  <p class="dim small" style="margin-top:14px">These layers describe the protocol design. Not all of it runs in the reference service yet; what does run is on <a href="/try">Try it</a>.</p>
+</div></section>
+
+<section class="band" id="scope"><div class="wrap">
+  <div class="sec-head bl"><span class="eyebrow">Scope</span><h2>What VAC is, and what it is not</h2></div>
+  <div class="grid g2">
+    <div class="card flat"><h3>VAC adds</h3><p>A verified natural person at the head of the chain, delegation that only narrows, and receipts a third party can check without trusting the operator.</p></div>
+    <div class="card flat"><h3>VAC does not replace</h3><p>OAuth, GNAP, workload identity or passkeys. Passkeys prove possession of a device; VAC records the person, the authority they granted and the evidence. It is designed to compose with these.</p></div>
+  </div>
+</div></section>
+
+</main>
+<footer class="foot"><div class="wrap">
+  <div class="foot-grid">
+    <div>
+      <a class="brand" href="/" aria-label="VAC Protocol home"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" stroke="#2DD4BF" stroke-width="6"/><polygon points="50,26 74,39 74,61 50,74 26,61 26,39" fill="#2DD4BF" fill-opacity="0.14" stroke="#10B981" stroke-width="3"/></svg><span>VAC <small>Protocol</small></span></a>
+      <p class="dim small" style="margin-top:10px;max-width:40ch">The Verified Authority Chain: verified human authority, carried through agent delegation, checkable by anyone.</p>
+      <a class="athena-link" href="https://athenapilot.ai" rel="noopener">VAC is part of Athena &middot; athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a>
+    </div>
+    <div><h4>Protocol</h4><a href="/protocol">How it works</a><a href="/specifications">Specifications</a><a href="/try">Try it</a></div>
+    <div><h4>Build</h4><a href="/developers">Developers</a><a href="/api">API reference</a><a href="/regulatory">Regulatory</a></div>
+    <div><h4>Company</h4><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/contact">Contact</a></div>
+  </div>
+  <div class="legal"><span>&copy; 2026 Violet Shores Pty Ltd</span><span>Patent pending (provisional applications)</span><span>Figures from Athena Data, as of <span data-facts-asof>&hellip;</span></span></div>
+</div></footer>
+<script src="/site/site.js"></script>
+</body>
+</html>

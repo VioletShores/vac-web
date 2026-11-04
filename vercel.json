@@ -5,10 +5,6 @@
       "destination": "/athena-about.html"
     },
     {
-      "source": "/standards",
-      "destination": "/standards.html"
-    },
-    {
       "source": "/architecture",
       "destination": "/architecture.html"
     },
@@ -31,10 +27,6 @@
     {
       "source": "/roadmap",
       "destination": "/roadmap.html"
-    },
-    {
-      "source": "/sdk",
-      "destination": "/sdk.html"
     },
     {
       "source": "/admin",
@@ -231,6 +223,34 @@
     {
       "source": "/athena-protocol",
       "destination": "/athena-protocol.html"
+    },
+    {
+      "source": "/protocol",
+      "destination": "/protocol.html"
+    },
+    {
+      "source": "/specifications",
+      "destination": "/specifications.html"
+    },
+    {
+      "source": "/try",
+      "destination": "/try.html"
+    },
+    {
+      "source": "/vac-in-athena",
+      "destination": "/vac-in-athena.html"
+    },
+    {
+      "source": "/ip",
+      "destination": "/ip.html"
+    },
+    {
+      "source": "/regulatory",
+      "destination": "/regulatory.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact.html"
     }
   ],
   "redirects": [
@@ -243,9 +263,43 @@
       "source": "/auth-test.html",
       "destination": "/auth",
       "permanent": true
+    },
+    {
+      "source": "/sdk",
+      "destination": "/developers#sdk",
+      "permanent": false
+    },
+    {
+      "source": "/sdk.html",
+      "destination": "/developers#sdk",
+      "permanent": false
+    },
+    {
+      "source": "/standards",
+      "destination": "/specifications",
+      "permanent": false
+    },
+    {
+      "source": "/standards.html",
+      "destination": "/specifications",
+      "permanent": false
+    },
+    {
+      "source": "/specs",
+      "destination": "/specifications",
+      "permanent": false
     }
   ],
   "headers": [
+    {
+      "source": "/data/company-facts.json",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
+        }
+      ]
+    },
     {
       "source": "/hub",
       "headers": [

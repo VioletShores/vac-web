@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regulatory · VAC Protocol</title>
+<meta name="description" content="How VAC is designed to support EU AI Act and NIST obligations for provable human oversight.">
+<meta property="og:title" content="Regulatory · VAC Protocol">
+<meta property="og:description" content="How VAC is designed to support EU AI Act and NIST obligations for provable human oversight.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vacprotocol.org/regulatory">
+<meta property="og:image" content="https://vacprotocol.org/og-image.png">
+<meta name="theme-color" content="#07090F">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/site/site.css">
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body data-page="regulatory">
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav"><div class="nav-in">
+  <a class="brand" href="/" aria-label="VAC Protocol home"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" stroke="#2DD4BF" stroke-width="6"/><polygon points="50,26 74,39 74,61 50,74 26,61 26,39" fill="#2DD4BF" fill-opacity="0.14" stroke="#10B981" stroke-width="3"/></svg><span>VAC <small>Protocol</small></span></a>
+  <nav class="nav-links" aria-label="Main"><a href="/">Home</a><a href="/protocol">Protocol</a><a href="/specifications">Specifications</a><a href="/try">Try it</a><a href="/developers">Developers</a><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/regulatory" aria-current="page">Regulatory</a><a href="/contact">Contact</a><a class="ext" href="https://athenapilot.ai" rel="noopener">athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a></nav>
+  <details class="menu"><summary aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg> Menu</summary>
+    <nav class="menu-panel" aria-label="Main (mobile)"><a href="/">Home</a><a href="/protocol">Protocol</a><a href="/specifications">Specifications</a><a href="/try">Try it</a><a href="/developers">Developers</a><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/regulatory" aria-current="page">Regulatory</a><a href="/contact">Contact</a><a class="ext" href="https://athenapilot.ai" rel="noopener">athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a></nav></details>
+</div></header>
+<main id="main">
+
+<section class="hero"><div class="wrap">
+  <span class="eyebrow">Regulatory</span>
+  <h1 class="wide">Built to evidence human oversight</h1>
+  <p class="lede">Regulation increasingly asks organisations to prove that an authorised person oversaw an AI system&rsquo;s consequential actions. VAC is designed to produce that evidence.</p>
+  <div class="note" style="margin-top:22px;max-width:70ch"><b>Alignment, not certification.</b> The maps below show where VAC is designed to support an obligation. Whether a deployment meets an obligation is determined with your assessor; VAC is not certified against any of these frameworks.</div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="sec-head"><span class="eyebrow">EU AI Act</span><h2>Where VAC supports the Act&rsquo;s obligations</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Obligation</th><th>Articles</th><th>How VAC is designed to support it</th></tr></thead>
+    <tbody>
+      <tr><td>Human oversight</td><td>14</td><td>A verified, present person authorises the consequential action, producing a record that the oversight happened.</td></tr>
+      <tr><td>Record-keeping and logs</td><td>12, 19</td><td>Every authorisation emits a signed action record that a third party can verify without trusting the operator.</td></tr>
+      <tr><td>Deployer obligations</td><td>26</td><td>Each agent&rsquo;s authority is scoped under a named, verified person, so responsibility has a checkable answer.</td></tr>
+      <tr><td>Transparency</td><td>13, 50</td><td>Whether an action traces to a person directly or to an agent acting under one is visible in the chain.</td></tr>
+    </tbody></table></div>
+  <div class="actions"><a class="btn secondary" href="/eu-ai-act.html">Read the full EU AI Act map</a></div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="sec-head em"><span class="eyebrow">NIST and other frameworks</span><h2>The missing layer, not a replacement</h2></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Framework</th><th>Its scope</th><th>What VAC adds</th></tr></thead>
+    <tbody>
+      <tr><td>NIST SP 800-63-4</td><td>Digital identity and authentication assurance</td><td>Multi-modal biometric verification and continuous trust scoring at the root of agent chains.</td></tr>
+      <tr><td>NIST SP 800-207</td><td>Zero trust architecture</td><td>Verifying the person behind the agent, not only the agent&rsquo;s credential.</td></tr>
+      <tr><td>NIST AI RMF</td><td>Accountability and traceability for AI systems</td><td>A cryptographic mechanism tracing each agent action to a verified person.</td></tr>
+      <tr><td>NIST AI 600-1</td><td>Generative AI risk profile</td><td>Human attribution for identity and non-repudiation risks specific to generative AI.</td></tr>
+      <tr><td>OWASP Agentic Top 10</td><td>Identity abuse, cascading failures</td><td>Biometric binding against identity abuse; narrowing limits how far a failure cascades.</td></tr>
+      <tr><td>ISO/IEC 27001</td><td>Information security management</td><td>Tamper-evident, independently verifiable audit records.</td></tr>
+      <tr><td>FIDO2 / WebAuthn</td><td>Passwordless, device-bound credentials</td><td>Composes with passkeys; adds the verified person and the delegated authority above the device.</td></tr>
+    </tbody></table></div>
+  <div class="grid g2" style="margin-top:20px">
+    <div class="card flat"><h3>On record with NIST</h3><p>Violet Shores responded to the NIST CAISI request for information on AI agent security (docket NIST-2025-0035) in March 2026.</p></div>
+    <div class="card flat"><h3>Liveness component</h3><p>VAC uses a third-party passive-liveness detector that has been independently tested against ISO/IEC 30107-3 presentation attacks. VAC&rsquo;s own engine is not certified.</p></div>
+  </div>
+</div></section>
+
+</main>
+<footer class="foot"><div class="wrap">
+  <div class="foot-grid">
+    <div>
+      <a class="brand" href="/" aria-label="VAC Protocol home"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" stroke="#2DD4BF" stroke-width="6"/><polygon points="50,26 74,39 74,61 50,74 26,61 26,39" fill="#2DD4BF" fill-opacity="0.14" stroke="#10B981" stroke-width="3"/></svg><span>VAC <small>Protocol</small></span></a>
+      <p class="dim small" style="margin-top:10px;max-width:40ch">The Verified Authority Chain: verified human authority, carried through agent delegation, checkable by anyone.</p>
+      <a class="athena-link" href="https://athenapilot.ai" rel="noopener">VAC is part of Athena &middot; athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a>
+    </div>
+    <div><h4>Protocol</h4><a href="/protocol">How it works</a><a href="/specifications">Specifications</a><a href="/try">Try it</a></div>
+    <div><h4>Build</h4><a href="/developers">Developers</a><a href="/api">API reference</a><a href="/regulatory">Regulatory</a></div>
+    <div><h4>Company</h4><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/contact">Contact</a></div>
+  </div>
+  <div class="legal"><span>&copy; 2026 Violet Shores Pty Ltd</span><span>Patent pending (provisional applications)</span><span>Figures from Athena Data, as of <span data-facts-asof>&hellip;</span></span></div>
+</div></footer>
+<script src="/site/site.js"></script>
+</body>
+</html>

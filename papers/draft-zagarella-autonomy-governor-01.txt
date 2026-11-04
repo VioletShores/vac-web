@@ -1,0 +1,672 @@
+
+
+
+
+Network Working Group                                    R. A. Zagarella
+Internet-Draft                                     Violet Shores Pty Ltd
+Intended status: Informational                            24 August 2026
+Expires: 25 February 2027
+
+
+        Pre-Action Risk-Graded Assurance for Agent Interactions
+                  draft-zagarella-autonomy-governor-01
+
+Abstract
+
+   Governance of autonomous agents today is largely expressed as
+   boundary enforcement: an action is permitted or blocked at the point
+   it is attempted, per a policy evaluated at that boundary.  As agents
+   span heterogeneous action types — authenticating a human, executing a
+   delegated task, selecting a computational resource — a single,
+   uniform way to express "how much assurance this action requires,
+   before it proceeds" is missing.
+
+   This document describes an interface for pre-action, risk-graded
+   assurance: a policy stage that, before an agent action proceeds,
+   derives an assurance requirement from a risk signal and expresses
+   that requirement in a domain-appropriate form, recording the decision
+   in an audit record and optionally binding it to a verified human
+   root.  It defines the interface and the audit-record fields, not any
+   particular risk-scoring method or control law.
+
+   This document also describes the autonomy-asymmetry control law: a
+   feedback loop coupling assurance requirements to VERIFY-phase pass
+   rates, with fast-down (immediate elevation on failure) and slow-up
+   (hysteresis- governed relaxation on sustained success) asymmetry.
+   The iteration governor is described as the per-packet instance of
+   this control law, and the phase-seal chain as its sensor.
+
+   This document is offered as input to the proposed AUDIT working
+   group's work on authorization state over time and action provenance.
+
+Status of This Memo
+
+   This Internet-Draft is submitted in full conformance with the
+   provisions of BCP 78 and BCP 79.
+
+   Internet-Drafts are working documents of the Internet Engineering
+   Task Force (IETF).  Note that other groups may also distribute
+   working documents as Internet-Drafts.  The list of current Internet-
+   Drafts is at https://datatracker.ietf.org/drafts/current/.
+
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 1]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   Internet-Drafts are draft documents valid for a maximum of six months
+   and may be updated, replaced, or obsoleted by other documents at any
+   time.  It is inappropriate to use Internet-Drafts as reference
+   material or to cite them other than as "work in progress."
+
+   This Internet-Draft will expire on 25 February 2027.
+
+Copyright Notice
+
+   Copyright (c) 2026 IETF Trust and the persons identified as the
+   document authors.  All rights reserved.
+
+   This document is subject to BCP 78 and the IETF Trust's Legal
+   Provisions Relating to IETF Documents (https://trustee.ietf.org/
+   license-info) in effect on the date of publication of this document.
+   Please review these documents carefully, as they describe your rights
+   and restrictions with respect to this document.  Code Components
+   extracted from this document must include Revised BSD License text as
+   described in Section 4.e of the Trust Legal Provisions and are
+   provided without warranty as described in the Revised BSD License.
+
+Table of Contents
+
+   1.  Introduction  . . . . . . . . . . . . . . . . . . . . . . . .   3
+     1.1.  Relationship to the policy decision/enforcement model . .   3
+     1.2.  Relationship to the proposed AUDIT work . . . . . . . . .   4
+     1.3.  Relationship to the Verified Human Root . . . . . . . . .   4
+   2.  Conventions and Definitions . . . . . . . . . . . . . . . . .   4
+   3.  The Pre-Action Assurance Stage  . . . . . . . . . . . . . . .   4
+   4.  Autonomy-Asymmetry Control Law  . . . . . . . . . . . . . . .   5
+     4.1.  Fast-Down / Slow-Up Asymmetry . . . . . . . . . . . . . .   5
+     4.2.  VERIFY-Pass-Rate Coupling . . . . . . . . . . . . . . . .   6
+     4.3.  Iteration Governor (Per-Packet Instance)  . . . . . . . .   6
+     4.4.  Seal Chain as Sensor  . . . . . . . . . . . . . . . . . .   7
+   5.  Domain-Appropriate Assurance Forms  . . . . . . . . . . . . .   7
+   6.  Audit Record Fields . . . . . . . . . . . . . . . . . . . . .   8
+   7.  Interoperability Considerations . . . . . . . . . . . . . . .   9
+   8.  Security Considerations . . . . . . . . . . . . . . . . . . .   9
+   9.  IANA Considerations . . . . . . . . . . . . . . . . . . . . .  10
+   10. References  . . . . . . . . . . . . . . . . . . . . . . . . .  10
+     10.1.  Normative References . . . . . . . . . . . . . . . . . .  10
+     10.2.  Informative References . . . . . . . . . . . . . . . . .  11
+   Design Rationale  . . . . . . . . . . . . . . . . . . . . . . . .  11
+   Changes from -00  . . . . . . . . . . . . . . . . . . . . . . . .  12
+   Acknowledgments . . . . . . . . . . . . . . . . . . . . . . . . .  12
+   Author's Address  . . . . . . . . . . . . . . . . . . . . . . . .  12
+
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 2]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+1.  Introduction
+
+   Emerging agent-governance systems evaluate policy at action
+   boundaries and return, in the common case, a binary decision.  This
+   is adequate for uniform allow/deny gating but does not capture a
+   property that liability-bearing and safety-sensitive deployments
+   increasingly require: assurance should scale with risk, be evaluated
+   before the action proceeds, be expressible uniformly across different
+   kinds of action, and leave a provable record of why a given assurance
+   level was required and whether it was met.
+
+   Consider three actions an agent may take: (a) re-authenticate the
+   human on whose behalf it acts; (b) execute a delegated task with
+   external effect; (c) select which computational resource (for
+   instance, which model) will handle a request.  These belong to
+   different domains, yet each admits a natural notion of "assurance":
+   authentication depth for (a), oversight degree for (b), and selection
+   rigor for (c).  Today each is governed by a separate mechanism, if at
+   all.
+
+   This document describes a single pre-action stage that unifies them
+   at the interface level.  It does not prescribe how risk is computed,
+   nor the control law that maps risk to requirement; those are
+   implementation and product matters, and in some deployments
+   proprietary.  What it standardizes is the shape of the decision and
+   its record, so that audit consumers and interoperating systems can
+   reason about assurance uniformly.
+
+   This version (-01) additionally describes the autonomy-asymmetry
+   control law (Section 4) as a reference design for the mapping from
+   risk signal to assurance requirement.  The control law is
+   informative; an implementation is free to use any mapping.  It is
+   described here because it captures a property — asymmetric response
+   to failure versus success — that recurs across safety-sensitive
+   systems and that the phase-seal chain makes observable.
+
+1.1.  Relationship to the policy decision/enforcement model
+
+   The separation of a decision function from an enforcement function is
+   a well-known model in this community: the Common Open Policy Service
+   [RFC2748] defined a policy decision point (PDP) and a policy
+   enforcement point (PEP), with the PEP consulting the PDP before
+   acting.  The stage described here follows that established division
+   of responsibility: an assurance decision function computes the
+   required assurance for a request, and an enforcement point admits the
+   action only once the requirement is met.  What this document adds to
+   that model, for the agent setting, is (a) a requirement that is risk-
+   graded rather than a single admit/deny outcome, (b) evaluation that
+
+
+
+Zagarella               Expires 25 February 2027                [Page 3]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   is uniform across heterogeneous action-domains, and (c) an audit
+   record of the decision suitable for the provenance and authorization-
+   state work of the proposed AUDIT working group.  The terminology of
+   [RFC2748] is used here for continuity; this document does not reuse
+   the COPS wire protocol.
+
+1.2.  Relationship to the proposed AUDIT work
+
+   The proposed AUDIT working group contemplates modeling authorization
+   state over time and action provenance.  A pre-action assurance
+   decision is exactly a unit of authorization state: it is computed,
+   applied, and — per this document — recorded, before the action.  The
+   audit-record fields in Section 6 are offered for that model.
+
+1.3.  Relationship to the Verified Human Root
+
+   Where a deployment also uses a verified human root
+   ([I-D.zagarella-verified-human-root]), the assurance decision MAY be
+   bound to the root attestation, so that the record shows not only what
+   assurance was required and met, but under which accountable human the
+   action was authorized.  The two documents are independent; either may
+   be used without the other.
+
+2.  Conventions and Definitions
+
+   The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+   "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and
+   "OPTIONAL" in this document are to be interpreted as described in BCP
+   14 [RFC2119] [RFC8174] when, and only when, they appear in all
+   capitals, as shown here.
+
+3.  The Pre-Action Assurance Stage
+
+   This section describes the decision whose record is the subject of
+   this document.  It is descriptive context for the audit-record fields
+   of Section 6, not a mandated enforcement architecture: a deployment
+   records these fields wherever it makes such a decision, however its
+   own enforcement is structured.
+
+   An implementation that records these fields evaluates, for an
+   incoming agent action request and before the action proceeds:
+
+   1.  a risk signal for the request (the method of computing it is out
+       of scope);
+
+   2.  an assurance requirement derived from that signal, expressed in a
+       form appropriate to the request's action-domain (Section 5);
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 4]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   3.  whether the requirement is satisfied; and
+
+   4.  a decision that gates the action at an enforcement point (a PEP
+       in the sense of [RFC2748]): the action proceeds only if the
+       requirement is met, and cannot bypass the stage.
+
+   The decision, its inputs, and its outcome are recorded (Section 6).
+
+   The requirement is "risk-graded": it may take one of several ordered
+   levels rather than a single permit/deny outcome.  The number of
+   levels, and the mapping from risk signal to level, are out of scope
+   for this document; a deployment MAY use as few as two levels, but an
+   interoperating consumer MUST NOT assume only two levels exist.
+
+4.  Autonomy-Asymmetry Control Law
+
+   This section describes the autonomy-asymmetry control law: a
+   reference design for the mapping from risk signal to assurance
+   requirement.  It is informative.  The control law captures the
+   property that loss of autonomy SHOULD be immediate and recovery of
+   autonomy SHOULD be gradual — an asymmetry that reflects the greater
+   cost of a missed safety event versus the modest cost of temporarily
+   elevated assurance.
+
+4.1.  Fast-Down / Slow-Up Asymmetry
+
+   The control law applies asymmetric dynamics to assurance requirement
+   changes:
+
+   Fast-down (immediate elevation):  When a VERIFY-phase check fails,
+      the assurance requirement for the affected action class MUST step
+      up by one level immediately, without delay or hysteresis.  A
+      single failure is sufficient to trigger elevation.
+      Implementations MUST NOT defer or smooth elevation responses.
+
+   Slow-up (hysteresis-governed relaxation):  When the VERIFY-phase pass
+      rate rises above a threshold, the assurance requirement MAY step
+      down by one level only after the pass rate has been sustained
+      above that threshold for a configurable number of consecutive
+      evaluation cycles (the hysteresis window).  A deployment MUST
+      configure a non-zero hysteresis window; a window of one (immediate
+      relaxation on a single pass) degrades the asymmetry to a symmetric
+      step function and SHOULD NOT be used in safety-sensitive
+      deployments.
+
+
+
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 5]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   The combination — fast-down, slow-up — produces a system in which
+   autonomy is earned slowly through consistent verified performance and
+   lost quickly on any failure.  This asymmetry is the defining property
+   of the control law.
+
+4.2.  VERIFY-Pass-Rate Coupling
+
+   The control signal for the control law is the VERIFY-phase pass rate,
+   defined as the fraction of recent VERIFY-phase evaluations that
+   returned a passing outcome.  The look-back window and minimum sample
+   size are deployment choices; this document does not specify them.
+
+   The coupling is:
+
+   *  pass rate below lower threshold: trigger fast-down (step up
+      requirement);
+
+   *  pass rate above upper threshold, sustained for the hysteresis
+      window: enable slow-up (step down requirement);
+
+   *  pass rate between thresholds: no change (the hysteresis band).
+
+   The lower and upper thresholds define the hysteresis band.  They MUST
+   be distinct (lower_threshold < upper_threshold); a zero-width band
+   eliminates hysteresis and SHOULD NOT be used.
+
+   Implementations MAY use a rolling window over recent VERIFY outcomes,
+   a cumulative exponential average, or another estimator.  The choice
+   of estimator is out of scope; the coupling to VERIFY outcomes is
+   normative for implementations that claim to implement the autonomy-
+   asymmetry control law.
+
+4.3.  Iteration Governor (Per-Packet Instance)
+
+   The iteration governor is the per-packet instance of the control law.
+   It operates at the granularity of a single action packet — a discrete
+   unit of agent work — rather than across a fleet or over a long time
+   horizon.
+
+   When a packet enters a VERIFY phase and the phase fails, the
+   iteration governor applies fast-down at the packet level: the packet
+   re-enters the RESEARCH phase (the governed re-entry loop), the
+   assurance requirement for that packet's next EXECUTE phase is
+   elevated, and each re-entry is recorded as a seal with a rising
+   iteration counter.
+
+
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 6]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   When a packet completes N consecutive VERIFY passes (the hysteresis
+   window), the iteration governor permits the next packet in the
+   sequence to begin at a lower assurance requirement (slow-up).
+
+   The iteration governor thereby instantiates the fleet-level control
+   law at the packet level: each packet's seal chain is the per-packet
+   sensor and the per-packet record of autonomy-level transitions.
+
+4.4.  Seal Chain as Sensor
+
+   The phase-seal chain (a SCITT-shaped append-only chain of COSE-shaped
+   signed phase transitions; see [I-D.zagarella-verified-human-root]
+   Appendix B for an implementation description) is the sensor that
+   feeds the iteration governor and, through it, the control law.
+
+   The controller reads from the seal chain:
+
+   *  the phase of each seal (to identify VERIFY-phase outcomes);
+
+   *  the iteration counter (to detect re-entries and their depth);
+
+   *  the prev_hash link (to establish chain integrity before reading
+      outcomes); and
+
+   *  the spec_contract_hash (to confirm the VERIFY phase ran against
+      the current specification contract, not a stale version).
+
+   A controller MUST verify chain integrity (prev_hash traversal, hash
+   recomputation) before trusting any seal's content as a sensor
+   reading.  A chain whose integrity check fails MUST be treated as if
+   all VERIFY outcomes in that chain were failures (fail closed).
+
+   This coupling — seal chain as sensor, iteration governor as actuator,
+   fast-down/slow-up as the control law — constitutes the autonomy-
+   asymmetry feedback loop.  The loop's state is fully observable from
+   the chain: no out-of-band state is required.
+
+5.  Domain-Appropriate Assurance Forms
+
+   The assurance requirement is one primitive expressed differently per
+   domain.  This document defines three domains and leaves the set
+   extensible.
+
+   Human-authentication domain:  The requirement is an authentication
+      depth, ranging from a light single-factor re-authentication for
+      low-risk actions to a full multi-modal re-authentication for high-
+      risk or non-repudiable actions.
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 7]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   Agent-action-execution domain:  The requirement is an oversight
+      degree, ranging from autonomous execution, through draft-then-
+      human-confirmation, to block-pending-human-authorization.
+
+   Computational-resource-selection domain:  The requirement is a
+      selection rigor, ranging from single-resource selection to multi-
+      resource cross-validation or consensus of a specified depth.
+
+   An implementation MAY define additional domains.  A domain definition
+   MUST specify the ordered set of assurance levels for that domain and
+   how a level is determined to be satisfied.
+
+6.  Audit Record Fields
+
+   For each evaluation, an implementation SHOULD record, in the
+   deployment's audit-record model:
+
+   action_ref:  A reference to the action request being gated.
+
+   risk_signal:  The risk value that drove the decision, and a reference
+      to the method or metric identity that produced it (the metric's
+      internals are out of scope).
+
+   domain:  The action-domain of the request.
+
+   assurance_required:  The derived requirement, in the domain-
+      appropriate form of Section 5, including the level within that
+      domain's ordered set.
+
+   assurance_outcome:  Whether the requirement was satisfied, and by
+      what evidence reference.
+
+   pre_action:  A boolean or structural indicator that the evaluation
+      preceded and gated the action (as opposed to a post-hoc log).
+
+   verified_human_root:  OPTIONAL.  A reference per
+      [I-D.zagarella-verified-human-root] binding the decision to an
+      accountable human.
+
+   control_law_state:  OPTIONAL.  Where the autonomy-asymmetry control
+      law (Section 4) is in use: the assurance level at which the
+      control law stood when this decision was made, the most recent
+      VERIFY-phase outcome that influenced it, and the iteration counter
+      of the current packet.  This field makes the control law's state
+      observable in the audit record without requiring out-of-band
+      state.
+
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 8]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   These fields let an audit consumer answer, for any recorded action:
+   what was the assessed risk, what assurance did policy therefore
+   require, was it met, and was the check made before the action —
+   uniformly across domains.  Where the control_law_state field is
+   present, a consumer can additionally answer: at what autonomy level
+   was this action authorized, and what sequence of VERIFY outcomes
+   drove the system to that level.
+
+7.  Interoperability Considerations
+
+   Two systems interoperate at this interface when they agree on: the
+   set of action-domains in use; for each domain, the ordered set of
+   assurance levels and their satisfaction criteria; and the audit-
+   record field names and encodings.  This document fixes the field
+   semantics and the three baseline domains; the concrete level sets and
+   encodings are expected to be profiled by the consuming ecosystem or
+   working group.
+
+   Systems that evaluate policy only at action boundaries can expose a
+   degenerate two-level grading through this interface without adopting
+   continuous grading internally; consumers therefore MUST treat two-
+   level behavior as a valid special case and MUST NOT infer richer
+   semantics than a producer advertises.
+
+   Where the autonomy-asymmetry control law (Section 4) is used, the
+   thresholds (lower_threshold, upper_threshold) and hysteresis window
+   MUST be agreed between producer and consumer when they are used to
+   derive the assurance requirement exposed in the audit record.  A
+   consumer that does not understand the control_law_state field MUST
+   ignore it rather than fail; the field is OPTIONAL.
+
+8.  Security Considerations
+
+   Non-bypass:  The value of a pre-action stage is that it cannot be
+      skipped.  An implementation MUST ensure the action does not
+      proceed unless the assurance requirement is satisfied; a stage
+      that can be bypassed provides no assurance regardless of how it
+      grades risk.
+
+   Risk-signal integrity:  The assurance requirement is only as
+      trustworthy as the risk signal.  Manipulation of the signal
+      manipulates the requirement.  Deployments SHOULD protect the
+      integrity and provenance of the risk input; this document's audit
+      fields record which metric was used so that later review can
+      detect anomalous inputs.
+
+   Record integrity:  Assurance decisions are security-relevant events.
+
+
+
+
+Zagarella               Expires 25 February 2027                [Page 9]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+      The audit records SHOULD be carried in a tamper-evident record
+      model so that the "required vs met" history cannot be silently
+      rewritten.
+
+   Binding to human root:  Where the verified_human_root field is used,
+      the security considerations of [I-D.zagarella-verified-human-root]
+      apply to that binding, including its replay and revocation
+      properties.
+
+   Downgrade:  An attacker who can lower the derived requirement (by
+      influencing the risk signal or the domain classification) weakens
+      assurance without triggering a deny.  Deployments SHOULD monitor
+      for anomalous downward drift in required assurance relative to
+      comparable historical actions.
+
+   Control-law manipulation:  The autonomy-asymmetry control law
+      (Section 4) relies on the integrity of the VERIFY-phase outcomes
+      read from the seal chain.  An attacker who can inject false
+      passing outcomes into the seal chain can accelerate slow-up and
+      obtain a lower assurance requirement without earning it.
+      Implementations MUST verify chain integrity (Section 4.4) before
+      treating any seal as a sensor reading.  A chain with a failed
+      integrity check MUST be treated as if all VERIFY outcomes in it
+      were failures.
+
+   Hysteresis parameter choice:  A hysteresis window that is too short
+      weakens the slow-up property; a window that is too long makes
+      recovery from a false VERIFY failure disproportionately slow.
+      Deployments SHOULD tune the hysteresis window to the consequence
+      severity of the action class being governed.
+
+9.  IANA Considerations
+
+   This document has no IANA actions.  A future version may register the
+   audit-record field names of Section 6, subject to working-group
+   adoption.
+
+10.  References
+
+10.1.  Normative References
+
+   [RFC2119]  Bradner, S., "Key words for use in RFCs to Indicate
+              Requirement Levels", BCP 14, RFC 2119,
+              DOI 10.17487/RFC2119, March 1997,
+              <https://www.rfc-editor.org/info/rfc2119>.
+
+
+
+
+
+
+Zagarella               Expires 25 February 2027               [Page 10]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+   [RFC8174]  Leiba, B., "Ambiguity of Uppercase vs Lowercase in RFC
+              2119 Key Words", BCP 14, RFC 8174, DOI 10.17487/RFC8174,
+              May 2017, <https://www.rfc-editor.org/info/rfc8174>.
+
+10.2.  Informative References
+
+   [RFC2748]  Durham, D., Ed., Boyle, J., Cohen, R., Herzog, S., Rajan,
+              R., and A. Sastry, "The COPS (Common Open Policy Service)
+              Protocol", RFC 2748, DOI 10.17487/RFC2748, January 2000,
+              <https://www.rfc-editor.org/info/rfc2748>.
+
+   [RFC9635]  Richer, J., Ed. and F. Imbault, "Grant Negotiation and
+              Authorization Protocol (GNAP)", RFC 9635,
+              DOI 10.17487/RFC9635, October 2024,
+              <https://www.rfc-editor.org/info/rfc9635>.
+
+   [I-D.zagarella-verified-human-root]
+              Zagarella, R. A., "Verified Human Root Attestation for
+              Agent Delegation Chains and Audit Records", Work in
+              Progress, Internet-Draft, draft-zagarella-verified-human-
+              root-01, 2026, <https://datatracker.ietf.org/doc/html/
+              draft-zagarella-verified-human-root-01>.
+
+Design Rationale
+
+   The interface deliberately stops at the decision boundary.  Whether
+   risk is computed by a single model, an ensemble, a calibrated cross-
+   model metric, or a human-tuned heuristic is a deployment choice;
+   whether the mapping from risk to requirement is a step function, a
+   continuous curve, or a control loop with feedback is likewise out of
+   scope for the normative parts of this document.
+
+   The autonomy-asymmetry control law (Section 4) is described here as a
+   reference design precisely because it captures a pattern — asymmetric
+   response to failure — that is well-motivated in safety-sensitive
+   agent systems.  The fast-down property reflects that the cost of a
+   missed safety event is typically much higher than the cost of
+   temporarily elevated assurance.  The slow-up property with hysteresis
+   reflects that trust, once lost, should be re-established by
+   demonstrated performance rather than by the mere passage of time or a
+   single success.
+
+   The choice of the phase-seal chain as the sensor (Section 4.4)
+   reflects a design constraint: the control law's state must be fully
+   observable from the chain record alone, without requiring a separate
+   control-state store.  This makes the loop's history auditable by any
+   third party with access to the chain, which is consistent with the
+   tamper-evident record requirement of Section 8.
+
+
+
+Zagarella               Expires 25 February 2027               [Page 11]
+
+Internet-Draft             Assurance Governor                August 2026
+
+
+Changes from -00
+
+   *  Added Section 4 (Autonomy-Asymmetry Control Law): the fast-down/
+      slow-up control law, VERIFY-pass-rate coupling, the iteration
+      governor as the per-packet instance, and the phase-seal chain as
+      sensor.
+
+   *  No change to the assurance interface or the audit-record fields.
+
+Acknowledgments
+
+   This document responds to the direction of the proposed AUDIT work on
+   authorization state and provenance, and is designed to compose with
+   [I-D.zagarella-verified-human-root].
+
+Author's Address
+
+   Roberto Antonio Zagarella
+   Violet Shores Pty Ltd
+   Email: rob@violetshores.com
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Zagarella               Expires 25 February 2027               [Page 12]

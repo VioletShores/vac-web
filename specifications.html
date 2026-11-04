@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Specifications · VAC Protocol</title>
+<meta name="description" content="The individual IETF Internet-Drafts behind VAC: verified-human-root and autonomy-governor, with revision history.">
+<meta property="og:title" content="Specifications · VAC Protocol">
+<meta property="og:description" content="The individual IETF Internet-Drafts behind VAC: verified-human-root and autonomy-governor, with revision history.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://vacprotocol.org/specifications">
+<meta property="og:image" content="https://vacprotocol.org/og-image.png">
+<meta name="theme-color" content="#07090F">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/site/site.css">
+<script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+<script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body data-page="specifications">
+<a class="skip" href="#main">Skip to content</a>
+<header class="nav"><div class="nav-in">
+  <a class="brand" href="/" aria-label="VAC Protocol home"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" stroke="#2DD4BF" stroke-width="6"/><polygon points="50,26 74,39 74,61 50,74 26,61 26,39" fill="#2DD4BF" fill-opacity="0.14" stroke="#10B981" stroke-width="3"/></svg><span>VAC <small>Protocol</small></span></a>
+  <nav class="nav-links" aria-label="Main"><a href="/">Home</a><a href="/protocol">Protocol</a><a href="/specifications" aria-current="page">Specifications</a><a href="/try">Try it</a><a href="/developers">Developers</a><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/regulatory">Regulatory</a><a href="/contact">Contact</a><a class="ext" href="https://athenapilot.ai" rel="noopener">athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a></nav>
+  <details class="menu"><summary aria-label="Open menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg> Menu</summary>
+    <nav class="menu-panel" aria-label="Main (mobile)"><a href="/">Home</a><a href="/protocol">Protocol</a><a href="/specifications" aria-current="page">Specifications</a><a href="/try">Try it</a><a href="/developers">Developers</a><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/regulatory">Regulatory</a><a href="/contact">Contact</a><a class="ext" href="https://athenapilot.ai" rel="noopener">athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a></nav></details>
+</div></header>
+<main id="main">
+
+<section class="hero"><div class="wrap">
+  <span class="eyebrow">Specifications</span>
+  <h1 class="wide">The drafts behind the protocol</h1>
+  <p class="lede">The protocol is written up as individual Internet-Drafts at the IETF.</p>
+  <div class="note" style="margin-top:22px;max-width:70ch"><b>Status: individual drafts, not standards.</b> An Internet-Draft is a work-in-progress document that anyone may post. These have not been adopted by an IETF working group and carry no endorsement from the IETF.</div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="sec-head"><span class="eyebrow">Posted drafts</span><h2>Two drafts on the IETF datatracker</h2></div>
+  <div class="grid g2">
+    <article class="card">
+      <span class="k">Identity root &middot; current revision -01</span>
+      <h3>Verified Human Root Attestation for Agent Delegation Chains and Audit Records</h3>
+      <p><code>draft-zagarella-verified-human-root</code></p>
+      <p style="margin-top:10px">Defines a compact, privacy-preserving attestation that a verified natural person, or an M-of-N group of people, stands at the head of a delegation chain. The binding survives each narrowing hop, and a verifier can resolve any recorded action to an accountable person without receiving biometric material.</p>
+      <p class="dim small" style="margin-top:10px">Intended status: Informational. Offered as input to the proposed AUDIT working group&rsquo;s data-model work.</p>
+      <div class="actions" style="margin-top:16px">
+        <a class="btn secondary" href="https://datatracker.ietf.org/doc/draft-zagarella-verified-human-root/" rel="noopener">Datatracker <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a>
+        <a class="btn secondary" href="/papers/draft-zagarella-verified-human-root-01.txt">Read -01 (text)</a>
+      </div>
+    </article>
+    <article class="card em">
+      <span class="k">Pre-action assurance &middot; current revision -01</span>
+      <h3>Pre-Action Risk-Graded Assurance for Agent Interactions</h3>
+      <p><code>draft-zagarella-autonomy-governor</code></p>
+      <p style="margin-top:10px">Describes a stage that runs before an agent acts. It derives how much assurance the action needs from a risk signal, states that in a form suited to the action, and records the decision in an audit record that can be bound to a verified human root.</p>
+      <p class="dim small" style="margin-top:10px">Intended status: Informational. Designed to compose with the verified-human-root draft.</p>
+      <div class="actions" style="margin-top:16px">
+        <a class="btn secondary" href="https://datatracker.ietf.org/doc/draft-zagarella-autonomy-governor/" rel="noopener">Datatracker <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a>
+        <a class="btn secondary" href="/papers/draft-zagarella-autonomy-governor-01.txt">Read -01 (text)</a>
+      </div>
+    </article>
+  </div>
+  <div class="card flat" style="margin-top:16px">
+    <h3>A third draft is in preparation</h3>
+    <p>It will be posted to the datatracker when it is ready. Its subject is not described here until then.</p>
+  </div>
+  <p class="dim small" style="margin-top:18px">Drafts recorded in Athena Data:</p>
+  <ul class="dim small" data-fact-list="ietf.drafts" style="padding-left:1.2em"><li>Loading&hellip;</li></ul>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="sec-head em"><span class="eyebrow">How they fit</span><h2>Who stood at the root, and how much latitude they gave</h2></div>
+  <div class="grid g2">
+    <p class="statement em">The first draft answers who authorised an action. The second records how much assurance the action needed before it ran.</p>
+    <p class="prose">Together they let a reviewer, years later, establish both the accountable person at the origin of an agent action and the assurance that was required and met at the moment it happened. Neither draft standardises biometric methods or risk-scoring methods; they standardise the records and their bindings.</p>
+  </div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="sec-head bl"><span class="eyebrow">Changelog</span><h2>Revision history</h2></div>
+  <ol class="log">
+    <li><time datetime="2026-07-19">19 July 2026</time><b>-00 of both drafts posted.</b> <span class="dim">Read <a href="/papers/draft-zagarella-verified-human-root-00.txt">verified-human-root-00</a> and <a href="/papers/draft-zagarella-autonomy-governor-00.txt">autonomy-governor-00</a>.</span></li>
+    <li><time datetime="2026-08-24">24 August 2026</time><b>-01 of both drafts posted.</b>
+      <ul class="dim" style="padding-left:1.2em;margin-top:6px">
+        <li>verified-human-root-01: adds a section on chains of length zero (a person acting with no delegation) and corrects internal cross-references. No change to the attestation structure or processing rules.</li>
+        <li>autonomy-governor-01: adds a section on the control law that tightens autonomy quickly and relaxes it slowly. No change to the assurance interface or audit-record fields.</li>
+      </ul></li>
+    <li class="future"><time datetime="2026-11-14">14&ndash;20 November 2026</time><b>IETF 127, San Francisco.</b> <span class="dim">New revisions appear on the datatracker pages above when they are posted.</span></li>
+  </ol>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="sec-head am"><span class="eyebrow">Earlier papers</span><h2>Whitepapers</h2></div>
+  <p class="prose">The VAC whitepapers from February and March 2026 predate the drafts and are being revised. The drafts above are the current technical reference. Figures in the earlier papers are out of date; current figures are on the <a href="/ip">IP page</a>.</p>
+</div></section>
+
+</main>
+<footer class="foot"><div class="wrap">
+  <div class="foot-grid">
+    <div>
+      <a class="brand" href="/" aria-label="VAC Protocol home"><svg viewBox="0 0 100 100" fill="none" aria-hidden="true"><polygon points="50,8 92,30 92,70 50,92 8,70 8,30" stroke="#2DD4BF" stroke-width="6"/><polygon points="50,26 74,39 74,61 50,74 26,61 26,39" fill="#2DD4BF" fill-opacity="0.14" stroke="#10B981" stroke-width="3"/></svg><span>VAC <small>Protocol</small></span></a>
+      <p class="dim small" style="margin-top:10px;max-width:40ch">The Verified Authority Chain: verified human authority, carried through agent delegation, checkable by anyone.</p>
+      <a class="athena-link" href="https://athenapilot.ai" rel="noopener">VAC is part of Athena &middot; athenapilot.ai <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg></a>
+    </div>
+    <div><h4>Protocol</h4><a href="/protocol">How it works</a><a href="/specifications">Specifications</a><a href="/try">Try it</a></div>
+    <div><h4>Build</h4><a href="/developers">Developers</a><a href="/api">API reference</a><a href="/regulatory">Regulatory</a></div>
+    <div><h4>Company</h4><a href="/vac-in-athena">VAC in Athena</a><a href="/ip">IP</a><a href="/contact">Contact</a></div>
+  </div>
+  <div class="legal"><span>&copy; 2026 Violet Shores Pty Ltd</span><span>Patent pending (provisional applications)</span><span>Figures from Athena Data, as of <span data-facts-asof>&hellip;</span></span></div>
+</div></footer>
+<script src="/site/site.js"></script>
+</body>
+</html>
