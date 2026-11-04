@@ -404,7 +404,7 @@ function _renderAuthorityStages(stage, opts) {
 
 // Terminal SUCCESS path — hand the LIVE verify result back to the host (was auth.html showSuccess()).
 function _finish(){
-    try { _tStage('passed'); _beamCeremonyTelemetry(true); } catch(_) {}
+    try { if (_DEBUG_MODE || _sessionTelemetry.digits) { _tStage('done'); _beamCeremonyTelemetry(true); } } catch(_) {}   // S204: every FULL ceremony (the fast tier has no greeting/digit record, so it beams only under ?debug=1 as before — a greeting-less row would read as 'deaf' to the sentinel)
     try { if (CTX && CTX.mount) CTX.mount.style.display='none'; } catch(_){}
     if (CTX && CTX.onComplete){ try { CTX.onComplete(authResult); } catch(e){ console.error('[VACReauth] onComplete error', e); } }
 }
@@ -3911,7 +3911,7 @@ function beginRecording() {
         var _prevAttempt = (_sessionTelemetry && _sessionTelemetry.attempt) || 0;
         _sessionTelemetry = { session_id: VAC_DEBUG_SESSION, attempt: _prevAttempt + 1 };
         _sessionBeamed = false; _tCur = null;
-        _tStage('recording');
+        _tStage('greeting');   // stage words = WATCH-CEREMONY-HEALTH's _CEREMONY_STAGE_ORDER vocabulary
     } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
     try { FingerDetector.reset(); } catch(_) {}  // S110: clear slow-frame latch so retry re-engages detection
@@ -4399,7 +4399,7 @@ function beginRecording() {
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
-        try { _tStage('digits_done'); _tCur = null; _sessionTelemetry.vad_starved = !!_vadStarved; } catch(_) {}   // S204 telemetry
+        try { _tStage('processing'); _tCur = null; _sessionTelemetry.vad_starved = !!_vadStarved; } catch(_) {}   // S204 telemetry
         _setPhase(_PHASE.PROCESSING);   // L-2246: stop any stale digit-phase render loops painting coaching text
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
@@ -4984,7 +4984,7 @@ function _markSpeech(src, rms, onsetAt) {
                         if (!(_sessionTelemetry.hand_confidence_max >= _hs)) _sessionTelemetry.hand_confidence_max = Math.round(_hs * 100) / 100;
                     }
                 }
-                if (_detLoopFrames === 0) _tStage('digits');
+                if (_detLoopFrames === 0) _tStage('digit');
             }
         } catch(_) {}
         // task-432 Part 4: throttled hand_zone in/out telemetry (transition-only, no per-frame spam).
@@ -8123,7 +8123,7 @@ function populateUnderHood(authData) {
 // Show retry with specific fail reasons
 function showRetry(result) {
     try { _renderAuthorityStages('fail'); } catch(_) {}   // s182: failure narration belongs to this panel
-    try { _tStage('retry_shown'); _beamCeremonyTelemetry(false); } catch(_) {}   // S204: failed attempts are reported too (fire-and-forget)
+    try { if (_DEBUG_MODE || _sessionTelemetry.digits) { _tStage('fail'); _beamCeremonyTelemetry(false); } } catch(_) {}   // S204: failed attempts are reported too (fire-and-forget)
     retryAttempts++;
     const retryEl = document.getElementById('retrySection');
     retryEl.style.display = 'block';
@@ -9482,7 +9482,7 @@ window.VACReauth = VACReauth;
     function _teardownOnExit(ev) {
         if (ev.type === 'pagehide' && ev.persisted) return;
         // task-705: beam unreported telemetry on page exit (catches fail/abandon paths)
-        try { if (!_sessionBeamed && VAC_DEBUG_SESSION && _sessionTelemetry && _sessionTelemetry.furthest_stage_reached) { _beamCeremonyTelemetry(false); } } catch(_) {}   // S204: every ceremony that reached the camera stage
+        try { if (!_sessionBeamed && VAC_DEBUG_SESSION && _sessionTelemetry && (_DEBUG_MODE || _sessionTelemetry.digits)) { _beamCeremonyTelemetry(false); } } catch(_) {}   // S204: every ceremony that reached the digits (pre-digit exits stay ?debug=1-only so they never inflate the sentinel's abandoned-load rate)
         // Flush the recorder FIRST so any buffered audio is captured before the source tracks stop.
         try { if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop(); } catch(_) {}
         try { stopAudioMonitor(); } catch(_) {}
