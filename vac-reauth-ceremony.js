@@ -7132,7 +7132,29 @@ function renderClientGateFailure(reason, evidence) {
 // VACFaceEmbed, never taken from user-controlled text. Do not conflate a GPU /
 // model-load failure or timeout with poor face lighting. No verification is
 // permitted to proceed until a fresh 128-D descriptor is actually captured.
+// True when a captured frame carries no camera picture: every sampled pixel is
+// near-black (e.g. a Mac with no camera, a covered or sleeping camera, or a
+// revoked permission delivering empty frames). Reads pixels only; returns
+// false on any error so a real frame is never misreported.
+function _vacFrameHasNoPicture(canvas) {
+    try {
+        var sw = 32, sh = 18;
+        var sc = document.createElement('canvas'); sc.width = sw; sc.height = sh;
+        var sx = sc.getContext('2d'); sx.drawImage(canvas, 0, 0, sw, sh);
+        var d = sx.getImageData(0, 0, sw, sh).data, max = 0;
+        for (var i = 0; i < d.length; i += 4) {
+            var l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            if (l > max) max = l;
+        }
+        return max < 12;
+    } catch (_) { return false; }
+}
+
 function _vaultFaceRecoveryCopy(reason) {
+    if (reason === 'no_camera_picture') return {
+        title: 'No camera picture detected',
+        hint: 'No camera picture detected; check camera permission or use a device with a camera.'
+    };
     if (reason === 'no_face') return {
         title: 'Face identification needs a clearer capture',
         hint: 'Keep your face centred and directly lit throughout the recording. Keep your hand away from your face after the final number.'
@@ -7261,6 +7283,10 @@ async function onRecordingComplete() {
                 const ec = document.createElement('canvas');
                 ec.width = ev.videoWidth; ec.height = ev.videoHeight;
                 ec.getContext('2d').drawImage(ev, 0, 0);
+                // A frame with no picture (no camera, camera blocked or asleep)
+                // is reported as such, not as a face-engine fault. Presentation
+                // only: it still refuses before upload, exactly like no_face.
+                if (_vacFrameHasNoPicture(ec)) { _fullEmbedReason = 'no_camera_picture'; break; }
                 const _result = await Promise.race([
                     window.VACFaceEmbed.compute(ec),
                     new Promise(function(resolve) {

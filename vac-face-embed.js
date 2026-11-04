@@ -71,6 +71,24 @@
         await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
         await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
         await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+        // WARM-UP (S204, 4 Nov): loading only downloads weights. The FIRST
+        // inference also uploads them to the GPU and compiles every shader,
+        // which on a cold WebGL context can take longer than the ceremony's
+        // first-capture budget (measured ~10 s vs ~1.7 s warm). Run each of
+        // the three nets once on a blank frame here, during the pre-flight,
+        // so the real capture runs warm. Output is discarded; no descriptor,
+        // threshold or identity decision is involved. Errors are ignored
+        // (the real compute() still fails closed on its own).
+        try {
+          var _wc = document.createElement('canvas');
+          _wc.width = 160; _wc.height = 160;
+          var _wx = _wc.getContext('2d'); _wx.fillStyle = '#808080'; _wx.fillRect(0, 0, 160, 160);
+          var _tw = performance.now();
+          await faceapi.detectAllFaces(_wc, new faceapi.SsdMobilenetv1Options({ minConfidence: MIN_DETECT_CONFIDENCE }));
+          await faceapi.detectFaceLandmarks(_wc);
+          await faceapi.computeFaceDescriptor(_wc);
+          console.log('[VACFaceEmbed] warm-up inference ' + Math.round(performance.now() - _tw) + 'ms');
+        } catch (_) {}
         _faceapi = faceapi;
         _ready = true;
         var dt = t0 ? Math.round(performance.now() - t0) : 0;

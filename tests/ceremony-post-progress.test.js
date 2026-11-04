@@ -291,3 +291,51 @@ test('TC-PP-16: Vault accurately discloses continuing final face recording until
         src.indexOf('function _showCaptureDiedRecovery()') + 700);
     assert.match(died, /recIndicator/, 'abnormal recorder stop must clear REC indicator');
 });
+
+
+test('TC-PP-17: a frame with no camera picture is named as such, never as an engine timeout', () => {
+    const copy = Function(extractFn('_vaultFaceRecoveryCopy') +
+        '\nreturn _vaultFaceRecoveryCopy;')();
+    const none = copy('no_camera_picture');
+    assert.match(none.title, /no camera picture/i);
+    assert.match(none.hint, /check camera permission or use a device with a camera/i);
+    assert.doesNotMatch(none.title + none.hint, /timed out|engine/i);
+
+    // The blank-frame probe: near-black frames are "no picture"; any real
+    // brightness, or a read error, is not (a real frame is never misreported).
+    function fakeCanvas(lum) {
+        return { getContext: () => ({ drawImage() {}, getImageData: (x, y, w, h) => {
+            const d = new Uint8ClampedArray(w * h * 4);
+            for (let i = 0; i < d.length; i += 4) { d[i] = d[i + 1] = d[i + 2] = lum; d[i + 3] = 255; }
+            return { data: d };
+        } }) };
+    }
+    const doc = { createElement: () => fakeCanvas(globalThis.__lum) };
+    const probe = Function('document', extractFn('_vacFrameHasNoPicture') +
+        '\nreturn _vacFrameHasNoPicture;')(doc);
+    globalThis.__lum = 0;   assert.equal(probe({}), true);
+    globalThis.__lum = 8;   assert.equal(probe({}), true);
+    globalThis.__lum = 40;  assert.equal(probe({}), false);
+    const broken = Function('document', extractFn('_vacFrameHasNoPicture') +
+        '\nreturn _vacFrameHasNoPicture;')({ createElement: () => { throw new Error('x'); } });
+    assert.equal(broken({}), false);
+
+    // The probe runs before compute() and still ends in the pre-upload refusal.
+    const j = src.indexOf('async function onRecordingComplete()');
+    const submit = src.slice(j, src.indexOf('// STEP 3: Upload to backend, show real results', j));
+    assert.match(submit, /if \(_vacFrameHasNoPicture\(ec\)\) \{ _fullEmbedReason = 'no_camera_picture'; break; \}/);
+    assert.ok(submit.indexOf('_vacFrameHasNoPicture(ec)') < submit.indexOf('window.VACFaceEmbed.compute(ec)'));
+});
+
+test('TC-PP-18: the face engine warms every net once during load (first capture runs warm)', () => {
+    const emb = require('fs').readFileSync(require('path').join(__dirname, '..', 'vac-face-embed.js'), 'utf8');
+    const load = emb.slice(emb.indexOf('function _load()'), emb.indexOf('async function compute('));
+    const iRec = load.indexOf('faceRecognitionNet.loadFromUri');
+    const iReady = load.indexOf('_ready = true');
+    for (const call of ['detectAllFaces(_wc', 'detectFaceLandmarks(_wc)', 'computeFaceDescriptor(_wc)']) {
+        const k = load.indexOf(call);
+        assert.ok(k > iRec && k < iReady, call + ' must run after the models load and before ready');
+    }
+    // Warm-up errors are swallowed; compute() keeps its own fail-closed contract.
+    assert.match(emb, /return \{ ok: false, faceCount: -1, reason: 'embedder_error' \}/);
+});
