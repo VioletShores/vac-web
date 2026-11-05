@@ -31,6 +31,7 @@ const compile = new Function(
   'window', 'setTimeout', 'vacDebug', '_recorderStartMs',
   '_showCaptureDiedRecovery', 'Blob', 'console',
   extractFn('_takeVaultEarlyIdentityFrame') + '\n' +
+  extractFn('_vacFrameHasNoPicture') + '\n' + extractFn('_vacFrameLuma') + '\n' +
   src.slice(start, end) + ';return onRecordingComplete;'
 );
 
@@ -73,12 +74,15 @@ function session(responses, opts = {}) {
   };
   const document = {
     getElementById: k => elements[k],
-    createElement: () => ({width:0,height:0,getContext:()=>({drawImage(){}})}),
+    // Synthetic pixels only: a mid-grey frame (a real camera picture) unless
+    // the case asks for a black one (no camera / covered camera).
+    createElement: () => ({width:0,height:0,getContext:()=>({drawImage(){},
+      getImageData:(x,y,w,h)=>({data:new Uint8ClampedArray(w*h*4).fill(opts.black ? 0 : 128)})})}),
   };
   const run = compile(
     document, [{size:25000}], mediaRecorder, {now:()=>4000}, () => {},
     {getTracks:()=>[{stop:()=>events.stopped++}]},
-    step=>events.steps.push(step), reason=>events.recovery.push(reason),
+    step=>events.steps.push(step), (reason, ev)=>{events.recovery.push(reason); events.evidence = ev;},
     async()=>{events.uploaded++;},window,schedule,()=>{},1000,
     ()=>{events.captureAbort++;},
     class Blob {constructor(){this.size=25000;}},{log(){},warn(){}}
@@ -92,6 +96,26 @@ function session(responses, opts = {}) {
   assert.equal(t.events.uploaded,0);
   assert.deepEqual(t.events.recovery,['no_face']);
   assert.deepEqual(t.events.steps,[2]);
+
+  // S204 diagnostics: every refused frame is reported (count, score vs the
+  // UNCHANGED 0.50 detector threshold, brightness) — evidence only, no pixels.
+  t = session([{ok:false,faceCount:0,reason:'no_face',diag:{best_score:0.31,min_confidence:0.5}}]);
+  await t.run();
+  assert.equal(t.events.uploaded,0);
+  assert.equal(t.events.evidence.length,3, 'one evidence row per frame tried');
+  assert.deepEqual(Object.keys(t.events.evidence[0]).sort(), ['best_score','faces','luma','min_confidence','reason']);
+  assert.equal(t.events.evidence[0].faces,0);
+  assert.equal(t.events.evidence[0].best_score,0.31);
+  assert.equal(t.events.evidence[0].min_confidence,0.5);
+  assert.equal(t.events.evidence[0].luma.mean,128);
+
+  // A black frame is "no camera picture", decided before any face inference.
+  t = session([{ok:true,embedding:V()}], {black:true});
+  await t.run();
+  assert.equal(t.events.compute,0, 'no face engine call on an empty camera frame');
+  assert.equal(t.events.uploaded,0);
+  assert.deepEqual(t.events.recovery,['no_camera_picture']);
+  assert.equal(t.events.evidence[0].reason,'no_camera_picture');
 
   t = session([{ok:true,embedding:V()}], {early:true});
   await t.run();

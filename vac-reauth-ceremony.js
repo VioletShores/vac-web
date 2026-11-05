@@ -4137,7 +4137,8 @@ function beginRecording() {
             if (_sf) { var _w2 = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _sf.style.width = _w2 + '%'; _sf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
             // D-VOICE-GATE-SPEAKER-AGNOSTIC: meter shows what the gate actually uses
             var _gateDesc = _sessionGateAvail ? 'content-gated — say the word' : 'mic health — speak past the gold line';
-            if (_st) _st.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — ' + _gateDesc;
+            // Raw level/threshold numbers are a developer readout: ?qa=1 only. Users see the bar.
+            if (_st) _st.textContent = (typeof _qaFlag !== 'undefined' && _qaFlag) ? (rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — ' + _gateDesc) : '';
         } catch(_) {}
     }
     try { window.__vacMicPillDraw = _micPillDraw; } catch(_) {}
@@ -4322,8 +4323,9 @@ function beginRecording() {
             try { _renderAuthorityStages('verifying'); } catch(_) {}
         }
         challengeEl.textContent = window.VACVaultHandoff
-            ? 'Face check — look naturally toward the camera'
+            ? 'Face check — lower your hand and look at the screen'
             : 'Processing\u2026';
+        if (window.VACVaultHandoff) { try { _vacFaceStageShow(); } catch(_) {} }
         // F-815 (Rob, 16 Jul pre-meeting run): entering processing must not keep coaching the
         // user — the live coach line ('Keep showing N — say N') was persisting under
         // 'Processing…', giving an instruction and a wait-state simultaneously. Clear it,
@@ -4331,7 +4333,7 @@ function beginRecording() {
         // under 'Processing' reads oddly against the recording-already-ended privacy note.
         // The Vault face-only tail is still being filmed. Keep recording disclosure visible
         // until MediaRecorder has actually stopped; do not imply analysis has begun.
-        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = window.VACVaultHandoff ? 'Recording final face check\u2026' : 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
+        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = window.VACVaultHandoff ? 'Hand down \u2014 recording final face check\u2026' : 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
         if (!window.VACVaultHandoff) {
             try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
         }
@@ -4347,6 +4349,8 @@ function beginRecording() {
         // actually contains footage of every digit pose before we stop + send
         // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
         try { _stopSpeechGate(); } catch(_){}
+        // The step voice meter is for the speaking steps only; never leave it over the result.
+        try { window.__vacGateArmed = false; var _svf = document.getElementById('vacStepVU'); if (_svf) _svf.remove(); } catch(_) {}
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: stop phrase content gate when recording ends
         try { if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; } } catch(_) {}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
@@ -7132,7 +7136,103 @@ function renderClientGateFailure(reason, evidence) {
 // VACFaceEmbed, never taken from user-controlled text. Do not conflate a GPU /
 // model-load failure or timeout with poor face lighting. No verification is
 // permitted to proceed until a fresh 128-D descriptor is actually captured.
+// True when a captured frame carries no camera picture: every sampled pixel is
+// near-black (e.g. a Mac with no camera, a covered or sleeping camera, or a
+// revoked permission delivering empty frames). Reads pixels only; returns
+// false on any error so a real frame is never misreported.
+function _vacFrameHasNoPicture(canvas) {
+    try {
+        var sw = 32, sh = 18;
+        var sc = document.createElement('canvas'); sc.width = sw; sc.height = sh;
+        var sx = sc.getContext('2d'); sx.drawImage(canvas, 0, 0, sw, sh);
+        var d = sx.getImageData(0, 0, sw, sh).data, max = 0;
+        for (var i = 0; i < d.length; i += 4) {
+            var l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            if (l > max) max = l;
+        }
+        return max < 12;
+    } catch (_) { return false; }
+}
+
+// PRESENTATION ONLY (S204, Rob 5 Nov): the Vault face-only closing beat is a
+// full stage like the greeting and "show the number" steps, with a visible
+// 3-2-1 countdown spanning the existing filmed face-only tail. It changes no
+// timing, threshold, recording or identity decision; it only makes the step
+// impossible to miss. The band sits low in the frame so the face stays clear.
+function _vacFaceStageShow() {
+    try {
+        _vacFaceStageHide();
+        var box = document.getElementById('cameraBoxRec');
+        if (!box) return false;
+        var st = document.createElement('div');
+        st.id = 'vacFaceStage';
+        st.setAttribute('role', 'status');
+        st.setAttribute('aria-live', 'assertive');
+        st.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:7;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 12px 16px;background:linear-gradient(to top,rgba(10,15,26,0.92),rgba(10,15,26,0.55) 75%,rgba(10,15,26,0));pointer-events:none;text-align:center;';
+        st.innerHTML = '<div style="font-family:var(--mono,monospace);font-size:12px;letter-spacing:2px;font-weight:700;color:#2DD4BF;">FACE CHECK</div>'
+            + '<div style="font-size:clamp(18px,4.6vw,26px);font-weight:800;color:#F0F2F5;line-height:1.2;">Lower your hand and look at the screen</div>'
+            + '<div id="vacFaceStageCount" style="font-size:clamp(44px,11vw,72px);font-weight:800;line-height:1;color:#10B981;font-variant-numeric:tabular-nums;">3</div>';
+        box.appendChild(st);
+        var cnt = st.querySelector('#vacFaceStageCount');
+        window.__vacFaceStageTimers = [
+            setTimeout(function () { if (cnt) cnt.textContent = '2'; }, 1000),
+            setTimeout(function () { if (cnt) cnt.textContent = '1'; }, 2000),
+            setTimeout(function () { if (cnt) { cnt.textContent = '\u2713'; } }, 3000)
+        ];
+        return true;
+    } catch (_) { return false; }
+}
+function _vacFaceStageHide() {
+    try { (window.__vacFaceStageTimers || []).forEach(function (t) { clearTimeout(t); }); } catch (_) {}
+    window.__vacFaceStageTimers = [];
+    try { var el = document.getElementById('vacFaceStage'); if (el) el.remove(); } catch (_) {}
+}
+
+// DIAGNOSTIC ONLY: mean/max luminance (0-255) of a captured frame, for the
+// on-screen "what this device checked" list. Never a gate. Returns null on error.
+function _vacFrameLuma(canvas) {
+    try {
+        var sw = 32, sh = 18;
+        var sc = document.createElement('canvas'); sc.width = sw; sc.height = sh;
+        var sx = sc.getContext('2d'); sx.drawImage(canvas, 0, 0, sw, sh);
+        var d = sx.getImageData(0, 0, sw, sh).data, max = 0, sum = 0, n = 0;
+        for (var i = 0; i < d.length; i += 4) {
+            var l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            if (l > max) max = l; sum += l; n++;
+        }
+        return n ? { mean: Math.round(sum / n), max: Math.round(max) } : null;
+    } catch (_) { return null; }
+}
+
+// Plain-English, non-sensitive per-frame evidence for a refused Vault face
+// check: which check failed and why. Contains no pixels, no descriptor and no
+// identity data — only counts, a detector score and brightness. Presentation only.
+function _vaultFaceEvidenceHtml(evidence) {
+    if (!evidence || !evidence.length) return '';
+    var esc = function (t) { return String(t).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
+    var rows = evidence.map(function (ev, i) {
+        var parts = [];
+        if (ev.luma) parts.push('brightness ' + Math.round(ev.luma.mean / 2.55) + '%');
+        if (ev.reason === 'no_camera_picture') parts.push('no camera picture');
+        else if (typeof ev.faces === 'number' && ev.faces >= 0) parts.push('faces found ' + ev.faces);
+        if (ev.reason === 'no_face') {
+            parts.push(typeof ev.best_score === 'number'
+                ? 'best face score ' + ev.best_score.toFixed(2) + ' (needs ' + Number(ev.min_confidence).toFixed(2) + ')'
+                : 'no face-like shape seen (needs score ' + Number(ev.min_confidence).toFixed(2) + ')');
+        }
+        if (ev.reason && ev.reason !== 'no_face' && ev.reason !== 'no_camera_picture') parts.push(ev.reason.replace(/_/g, ' '));
+        return '<div>Frame ' + (i + 1) + ': ' + esc(parts.join(' · ')) + '</div>';
+    }).join('');
+    return '<div id="vacVaultFaceEvidence" style="text-align:left;font-family:var(--mono,monospace);font-size:11px;line-height:1.55;color:var(--text-secondary);background:rgba(0,0,0,0.18);border-radius:8px;padding:8px 10px;margin:0 0 10px;">'
+        + '<div style="color:var(--text-primary);font-weight:700;margin-bottom:3px;">Failed check: face identification, on this device, before upload</div>'
+        + rows + '</div>';
+}
+
 function _vaultFaceRecoveryCopy(reason) {
+    if (reason === 'no_camera_picture') return {
+        title: 'No camera picture detected',
+        hint: 'No camera picture detected; check camera permission or use a device with a camera.'
+    };
     if (reason === 'no_face') return {
         title: 'Face identification needs a clearer capture',
         hint: 'Keep your face centred and directly lit throughout the recording. Keep your hand away from your face after the final number.'
@@ -7158,7 +7258,7 @@ function _vaultFaceRecoveryCopy(reason) {
 // Vault AAL3 handoff requires an identity descriptor for an existing owner.
 // The backend must remain authoritative; this client guard avoids submitting a
 // known-missing descriptor and incorrectly showing six liveness checks as success.
-function _showVaultFaceCaptureRecovery(reason) {
+function _showVaultFaceCaptureRecovery(reason, evidence) {
     // A missing Vault face descriptor is a terminal, pre-upload refusal.
     // finishFingerPhase already displayed "Verifying..." and "Processing..." and
     // its last digit coaching; leaving those live beside the restart card made
@@ -7172,6 +7272,10 @@ function _showVaultFaceCaptureRecovery(reason) {
     if (_coach) _coach.textContent = '';
     var _rec = document.getElementById('recIndicator');
     if (_rec) _rec.style.display = 'none';
+    // The live voice meter belongs to the speaking steps only; never leave it
+    // drawn over the result panel.
+    try { window.__vacGateArmed = false; var _svr = document.getElementById('vacStepVU'); if (_svr) _svr.remove(); } catch (_) {}
+    try { _vacFaceStageHide(); } catch (_) {}
     if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
     var host = document.getElementById('challengePanel');
     if (!host || !host.parentElement) return;
@@ -7182,13 +7286,14 @@ function _showVaultFaceCaptureRecovery(reason) {
     panel.innerHTML =
         '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">' + info.title + '</div>' +
         '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + info.hint + '</div>' +
+        _vaultFaceEvidenceHtml(evidence) +
         '<button type="button" id="vacVaultFaceCaptureRestart" style="display:block;width:100%;padding:11px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart camera verification</button>';
     host.parentElement.insertBefore(panel, host.nextSibling);
     var btn = document.getElementById('vacVaultFaceCaptureRestart');
     if (btn) btn.addEventListener('click', function () {
         VACReauth.reload({auto:false,keepRetryBudget:true,retryAttempts:retryAttempts});
     });
-    try { vacDebug('vault_face_descriptor_missing', null, {reason:reason}); } catch (_) {}
+    try { vacDebug('vault_face_descriptor_missing', null, {reason:reason, frames:(evidence||[]).length}); } catch (_) {}
 }
 
 async function onRecordingComplete() {
@@ -7203,6 +7308,7 @@ async function onRecordingComplete() {
         return;
     }
     document.getElementById('recIndicator').style.display = 'none';
+    try { _vacFaceStageHide(); } catch(_) {}
     if (window.VACVaultHandoff) {
         try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
         try { var _vl = document.getElementById('vacLiveDetect'); if (_vl) _vl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; } catch(_) {}
@@ -7215,6 +7321,7 @@ async function onRecordingComplete() {
     // fresh frames. This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
     var _fullEmbedReason = 'no_face';
+    var _faceEvidence = [];   // diagnostics only: per-frame counts/score/brightness, no pixels
     // HARD HOLD: an early face may not be used as owner identity until the
     // backend independently verifies that the same actor performs the later
     // gestures. See vac-protocol issue #26. This is a static compile-time
@@ -7261,6 +7368,11 @@ async function onRecordingComplete() {
                 const ec = document.createElement('canvas');
                 ec.width = ev.videoWidth; ec.height = ev.videoHeight;
                 ec.getContext('2d').drawImage(ev, 0, 0);
+                // A frame with no picture (no camera, camera blocked or asleep)
+                // is reported as such, not as a face-engine fault. Presentation
+                // only: it still refuses before upload, exactly like no_face.
+                var _luma = _vacFrameLuma(ec);
+                if (_vacFrameHasNoPicture(ec)) { _fullEmbedReason = 'no_camera_picture'; _faceEvidence.push({ reason: 'no_camera_picture', luma: _luma }); break; }
                 const _result = await Promise.race([
                     window.VACFaceEmbed.compute(ec),
                     new Promise(function(resolve) {
@@ -7274,6 +7386,11 @@ async function onRecordingComplete() {
                     break;
                 }
                 _fullEmbedReason = (_result && _result.reason) || 'embedder_error';
+                _faceEvidence.push({ reason: _fullEmbedReason, luma: _luma,
+                    faces: (_result && typeof _result.faceCount === 'number') ? _result.faceCount : -1,
+                    best_score: (_result && _result.diag && typeof _result.diag.best_score === 'number') ? _result.diag.best_score : null,
+                    min_confidence: (_result && _result.diag && typeof _result.diag.min_confidence === 'number') ? _result.diag.min_confidence
+                        : ((window.VACFaceEmbed && window.VACFaceEmbed.MIN_DETECT_CONFIDENCE) || 0.5) });
                 if (_fullEmbedReason === 'multiple_faces' || _fullEmbedReason === 'embed_timeout' ||
                     _fullEmbedReason === 'embedder_error') break;
             }
@@ -7289,7 +7406,7 @@ async function onRecordingComplete() {
     if (window.VACVaultHandoff && !window.__vacEnrollEmbedding) {
         if (mediaStream) mediaStream.getTracks().forEach(function(track) { track.stop(); });
         goToStep(2);
-        _showVaultFaceCaptureRecovery(_fullEmbedReason);
+        _showVaultFaceCaptureRecovery(_fullEmbedReason, _faceEvidence);
         return;
     }
 
