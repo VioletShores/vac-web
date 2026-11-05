@@ -29,6 +29,10 @@
       "destination": "/keyvault.html"
     },
     {
+      "source": "/keyvault-v3",
+      "destination": "/keyvault-v3.html"
+    },
+    {
       "source": "/roadmap",
       "destination": "/roadmap.html"
     },
