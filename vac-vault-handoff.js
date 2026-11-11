@@ -38,6 +38,15 @@
       agent: 'athena-owner-collaborate-handoff',
       resource: 'athena:owner:collaborate',
       action: 'owner_signin'
+    },
+    // athena PKT-S204-VAC-NARRATION-CAPTURE (#1532): the owner's narration
+    // recording page. Same protocol again, its own audience, one fixed origin.
+    'narration-capture': {
+      origin: 'https://api.athenapilot.ai',
+      audience: 'athena:narration:capture',
+      agent: 'athena-narration-capture-handoff',
+      resource: 'athena:narration:capture',
+      action: 'narration_capture'
     }
   };
   var STATE_RE = /^[A-Za-z0-9_-]{32,128}$/;
@@ -54,8 +63,9 @@
   var target = Object.prototype.hasOwnProperty.call(TARGETS, kind) ? TARGETS[kind] : null;
   var state = q.get('state') || '';
   var valid = !!target && STATE_RE.test(state);
-  var destination = kind === 'owner-collaborate' ? 'Athena' : 'the Vault';
-  var actionName = kind === 'owner-collaborate' ? 'sign-in' : 'store';
+  var toAthena = kind === 'owner-collaborate' || kind === 'narration-capture';
+  var destination = toAthena ? 'Athena' : 'the Vault';
+  var actionName = kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store');
 
   var assertion = null;
   var assertionExpMs = 0;
@@ -139,7 +149,7 @@
 
   function deliver() {
     if (!openerPresent()) {
-      show('warn', 'Return to ' + (kind === 'owner-collaborate' ? 'the Athena' : 'the Vault') + ' tab. This page was not opened from ' + destination +
+      show('warn', 'Return to ' + (toAthena ? 'the Athena' : 'the Vault') + ' tab. This page was not opened from ' + destination +
         ' (or that tab was closed), so nothing was sent. Start the ' + actionName + ' again from ' + destination + '.', false);
       return;
     }
@@ -149,7 +159,7 @@
     ackTimer = setTimeout(function () {
       if (!acked) {
         show('warn', destination + ' has not confirmed yet. Switch back to it; if it is still waiting, ' +
-          'come back here and tap “Send to the Vault again”.', true);
+          'come back here and tap “Send to ' + destination + ' again”.', true);
       }
     }, ACK_WAIT_MS);
   }

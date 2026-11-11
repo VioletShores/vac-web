@@ -233,3 +233,61 @@ test('Athena owner handoff ack is bound to real opener, pinned origin and nonce'
   onMessage({ origin: VAULT, source: h.op, data: ack });
   assert.equal(h.byId.vacVaultHandoff.attrs['data-tone'], 'ok');
 });
+
+
+// athena PKT-S204-VAC-NARRATION-CAPTURE (#1532): Rob's narration recording page.
+test('Athena narration capture handoff mints for its own audience and posts only to Athena', async () => {
+  const h = load('?handoff=narration-capture&state=' + STATE +
+                 '&origin=https://attacker.example&return=https://attacker.example');
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.match(h.fetches[0].url, /\/v1\/vat\/issue$/);
+  assert.deepEqual(h.fetches[0].body.handoff, { audience: 'athena:narration:capture', nonce: STATE });
+  assert.deepEqual(h.fetches[0].body.resources, ['athena:narration:capture']);
+  assert.deepEqual(h.fetches[0].body.actions, ['narration_capture']);
+  assert.equal(h.fetches[0].body.agent_id, 'athena-narration-capture-handoff');
+  assert.ok(h.fetches[0].body.expiry_seconds <= 120);
+  assert.equal(h.posted.length, 1);
+  assert.equal(h.posted[0].o, 'https://api.athenapilot.ai', 'targetOrigin is pinned to Athena, never * or the URL');
+  assert.deepEqual(JSON.parse(JSON.stringify(h.posted[0].m)),
+                   { type: 'vac-vault-handoff', state: STATE, assertion: JWT });
+  assert.equal(h.navigations.length, 0);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Sent to Athena\. Return to that tab to finish recording\./);
+  assert.equal(h.byId.vacVaultHandoffResend.textContent, 'Send to Athena again');
+});
+
+test('Athena narration handoff refuses a weakened ceremony and needs the recording tab', async () => {
+  for (const r of [null, { authenticated: false }, {
+    authenticated: true, session_token: 's', session: { auth_level: 'quick', email: 'x@y' }
+  }]) {
+    const h = load('?handoff=narration-capture&state=' + STATE);
+    h.window.VACVaultHandoff.onVerified(r, {});
+    await flush();
+    assert.equal(h.fetches.length, 0);
+    assert.equal(h.posted.length, 0);
+  }
+  const h = load('?handoff=narration-capture&state=' + STATE, { opener: null });
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush();
+  assert.equal(h.fetches.length, 0);
+  assert.equal(h.posted.length, 0);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Return to the Athena tab/);
+});
+
+test('Athena narration handoff ack is bound to the opener, the Athena origin and the state', async () => {
+  const h = load('?handoff=narration-capture&state=' + STATE);
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush(); await flush();
+  const [onMessage] = h.listeners.message;
+  const ack = { type: 'vac-vault-handoff-ack', state: STATE };
+  onMessage({ origin: 'https://attacker.example', source: h.op, data: ack });
+  onMessage({ origin: 'https://api.athenapilot.ai', source: {}, data: ack });
+  onMessage({ origin: 'https://api.athenapilot.ai', source: h.op, data: { type: ack.type, state: 'x'.repeat(43) } });
+  assert.notEqual(h.byId.vacVaultHandoff.attrs['data-tone'], 'ok');
+  // no ack yet: the reminder names Athena, never the Vault
+  h.timers.filter((t) => t.ms === 6000).forEach((t) => t.f());
+  assert.doesNotMatch(h.byId.vacVaultHandoffMsg.textContent, /Vault/);
+  onMessage({ origin: 'https://api.athenapilot.ai', source: h.op, data: ack });
+  assert.equal(h.byId.vacVaultHandoff.attrs['data-tone'], 'ok');
+});
