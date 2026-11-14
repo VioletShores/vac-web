@@ -14,7 +14,8 @@
  *     the target's origin from the list below (never "*", never from the URL),
  *     so a wrong opener never receives it. It is never put in a URL, history,
  *     storage or a log, and the session token never leaves this origin;
- *   - the Vault acks back; on ack this tab says so and closes itself;
+ *   - the Vault acks back; on ack this tab says so and closes itself. Narration
+ *     capture keeps the results available until the user chooses to close it;
  *   - no opener, or no ack: a plain "return to the Vault tab" message and a
  *     "Send to the Vault again" button (re-sends, or re-mints once expired).
  * It never navigates anywhere, so there is no redirect to abuse.
@@ -66,6 +67,7 @@
   var toAthena = kind === 'owner-collaborate' || kind === 'narration-capture';
   var destination = toAthena ? 'Athena' : 'the Vault';
   var actionName = kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store');
+  var reviewAfterHandoff = kind === 'narration-capture';
 
   var assertion = null;
   var assertionExpMs = 0;
@@ -103,6 +105,43 @@
     btn.addEventListener('click', function () { send(); });
     el.appendChild(msg);
     el.appendChild(btn);
+    if (reviewAfterHandoff) {
+      var actions = document.createElement('div');
+      actions.id = 'vacVaultHandoffActions';
+      actions.style.cssText = 'display:none;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:12px;';
+      var review = document.createElement('button');
+      review.id = 'vacVaultHandoffReview';
+      review.type = 'button';
+      review.textContent = 'Review results';
+      review.style.cssText = 'min-height:44px;padding:12px 22px;border-radius:12px;border:1px solid #10B981;' +
+        'background:transparent;color:#10B981;font:700 16px -apple-system,system-ui,sans-serif;';
+      review.addEventListener('click', function () {
+        if (!acked) return;
+        // Only reveal the existing server-result UI; never construct a verdict here.
+        var results = document.getElementById('successModalities');
+        var details = results && results.parentNode;
+        if (details && details.tagName === 'DETAILS') {
+          details.open = true;
+          var summary = details.querySelector('summary');
+          if (summary) summary.focus();
+          details.scrollIntoView({ block: 'start' });
+        }
+        el.style.display = 'none';
+      });
+      var close = document.createElement('button');
+      close.id = 'vacVaultHandoffClose';
+      close.type = 'button';
+      close.textContent = 'Close this tab';
+      close.style.cssText = review.style.cssText;
+      close.addEventListener('click', function () {
+        if (!acked) return;
+        // The browser may refuse scripted close; the message still gives an onward path.
+        try { window.close(); } catch (e) {}
+      });
+      actions.appendChild(review);
+      actions.appendChild(close);
+      el.appendChild(actions);
+    }
     document.body.appendChild(el);
     return el;
   }
@@ -183,11 +222,17 @@
       if (!op || ev.source !== op) return;
       var m = ev.data || {};
       if (m.type !== ACK || m.state !== state) return;
+      if (acked) return;
       acked = true;
       clearTimeout(ackTimer);
       assertion = null;
-      show('ok', 'Delivered. ' + destination + ' has your verification. You can close this tab.', false);
-      setTimeout(function () { try { window.close(); } catch (e) {} }, 1200);
+      if (reviewAfterHandoff) {
+        show('ok', 'Delivered. Athena has your verification. Review your results here, or close this tab and return to Athena to record.', false);
+        document.getElementById('vacVaultHandoffActions').style.display = 'flex';
+      } else {
+        show('ok', 'Delivered. ' + destination + ' has your verification. You can close this tab.', false);
+        setTimeout(function () { try { window.close(); } catch (e) {} }, 1200);
+      }
     });
   }
 
@@ -213,3 +258,4 @@
     }
   };
 })();
+

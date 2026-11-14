@@ -291,3 +291,82 @@ test('Athena narration handoff ack is bound to the opener, the Athena origin and
   onMessage({ origin: 'https://api.athenapilot.ai', source: h.op, data: ack });
   assert.equal(h.byId.vacVaultHandoff.attrs['data-tone'], 'ok');
 });
+
+test('successful narration handoff does not dismiss the verification screen on a timer', async () => {
+  const h = load('?handoff=narration-capture&state=' + STATE);
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush(); await flush();
+  h.listeners.message[0]({ origin: VAULT, source: h.op,
+    data: { type: 'vac-vault-handoff-ack', state: STATE } });
+  h.timers.forEach((t) => t.f());
+  assert.equal(h.closed, false, 'the user needs time to inspect the verification report');
+});
+
+test('narration results stay open after a real ack until the user explicitly closes the tab', async () => {
+  const h = load('?handoff=narration-capture&state=' + STATE);
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush(); await flush();
+  const actions = h.byId.vacVaultHandoffActions;
+  assert.match(actions.style.cssText, /display:none/);
+  h.byId.vacVaultHandoffClose.listeners.click();
+  assert.equal(h.closed, false, 'completion controls are inert before an authenticated ack');
+  h.listeners.message[0]({ origin: VAULT, source: h.op,
+    data: { type: 'vac-vault-handoff-ack', state: STATE } });
+  assert.equal(actions.style.display, 'flex');
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /return to Athena to record/);
+  assert.equal(h.byId.vacVaultHandoffResend.style.display, 'none');
+  h.timers.forEach((t) => t.f());
+  assert.equal(h.closed, false, 'no completion timer may remove narration results');
+  h.byId.vacVaultHandoffResend.listeners.click();
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.equal(h.posted.length, 1, 'reviewing results must not reissue or resend authority');
+  const rendered = Object.values(h.byId).map((node) => node.textContent).join(' ');
+  assert.doesNotMatch(rendered, /aaa\.bbb\.ccc|sess\.sig|Owner@Example\.invalid/);
+  h.byId.vacVaultHandoffClose.listeners.click();
+  assert.equal(h.closed, true);
+  assert.equal(h.navigations.length, 0);
+});
+
+test('review results opens the existing report and moves keyboard focus without changing verification', async () => {
+  const h = load('?handoff=narration-capture&state=' + STATE);
+  let focused = false;
+  let scrolled = false;
+  const details = { tagName: 'DETAILS', open: false,
+    querySelector: () => ({ focus() { focused = true; } }),
+    scrollIntoView() { scrolled = true; } };
+  h.byId.successModalities = { parentNode: details };
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  await flush(); await flush();
+  h.byId.vacVaultHandoffReview.listeners.click();
+  assert.equal(details.open, false);
+  const ack = { origin: VAULT, source: h.op, data: { type: 'vac-vault-handoff-ack', state: STATE } };
+  h.listeners.message[0](ack);
+  h.byId.vacVaultHandoffReview.listeners.click();
+  assert.equal(details.open, true);
+  assert.equal(focused, true);
+  assert.equal(scrolled, true);
+  assert.equal(h.byId.vacVaultHandoff.style.display, 'none', 'banner no longer covers the report');
+  h.listeners.message[0](ack);
+  assert.equal(h.byId.vacVaultHandoff.style.display, 'none', 'duplicate ack does not interrupt review');
+  assert.equal(h.closed, false);
+  assert.equal(h.fetches.length, 1);
+  assert.equal(h.posted.length, 1);
+  assert.equal(h.navigations.length, 0);
+});
+
+test('owner and Vault handoffs retain their existing automatic return behavior', async () => {
+  for (const target of ['vault-store', 'owner-collaborate']) {
+    const h = load('?handoff=' + target + '&state=' + STATE);
+    h.window.VACVaultHandoff.onVerified(FULL, {});
+    await flush(); await flush();
+    h.listeners.message[0]({ origin: VAULT, source: h.op,
+      data: { type: 'vac-vault-handoff-ack', state: STATE } });
+    assert.equal(h.byId.vacVaultHandoffActions, undefined);
+    assert.equal(h.timers.filter((t) => t.ms === 1200).length, 1);
+    h.timers.filter((t) => t.ms === 1200).forEach((t) => t.f());
+    assert.equal(h.closed, true);
+  }
+});
+
