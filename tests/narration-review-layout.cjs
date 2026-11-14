@@ -17,7 +17,7 @@ fs.mkdirSync(out, { recursive: true });
 
 // Native report markup follows auth.html's existing successModalities parent.
 // Report data is deliberately fictional and does not claim biometric verification.
-const fixture = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1">
+const fixture = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SIMULATED PR49 layout fixture</title><style>
 *{box-sizing:border-box}body{margin:0;background:#0d0f17;color:#e8edf5;font:16px/1.5 system-ui}
 main{max-width:520px;padding:20px;margin:auto}aside{border:2px dashed #d4a94e;padding:10px}
@@ -49,7 +49,7 @@ li{padding:14px 0;border-bottom:1px solid #334155}button:focus-visible,summary:f
         const url = new URL(request.url());
         requests.push({ url: url.origin + url.pathname, method: request.method() });
         if (url.origin === ATHENA && url.pathname === '/__offline_pr49_fixture') {
-          return route.fulfill({ contentType: 'text/html', body: `<title>SIMULATED opener</title>
+          return route.fulfill({ contentType: 'text/html', body: `<!doctype html><meta charset="utf-8"><title>SIMULATED opener</title>
             <p>Offline fixture opener, no real Athena session.</p><button id="open">Open simulated result</button>
             <script>document.getElementById('open').onclick=()=>window.open('${VAC}/auth?handoff=narration-capture&state=${STATE}');
             window.addEventListener('message',event=>{if(event.origin==='${VAC}'&&event.data.type==='vac-vault-handoff')
