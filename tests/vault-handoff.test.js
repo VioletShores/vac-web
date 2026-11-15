@@ -445,3 +445,17 @@ test('owner and Vault handoffs retain their existing automatic return behavior',
 });
 
 
+
+test('Decisions acknowledgement reports the held action and never auto-closes',async()=>{
+  const h=load('?handoff=decisions-confirm&state='+STATE);offer(h);
+  h.window.VACVaultHandoff.consumeChallenge({email:'owner@example.invalid'},true,false);
+  h.window.VACVaultHandoff.onVerified(FULL,{});await flush();await flush();
+  const ack={type:'vac-vault-handoff-ack',state:STATE};
+  for(const fn of h.listeners.message)fn({origin:VAULT,source:h.op,data:ack});
+  assert.doesNotMatch(h.byId.vacVaultHandoffMsg.textContent,/checked your identity/);
+  ack.status='identity_verified_action_held';
+  for(const fn of h.listeners.message)fn({origin:VAULT,source:h.op,data:ack});
+  assert.match(h.byId.vacVaultHandoffMsg.textContent,/decision is still held/);
+  for(const timer of h.timers)timer.f();
+  assert.equal(h.closed,false);
+});
