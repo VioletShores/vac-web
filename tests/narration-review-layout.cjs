@@ -1,4 +1,4 @@
-// Offline, explicitly simulated visual check for vac-web PR49.
+// Offline, explicitly simulated visual check for vac-web narration result return.
 // All pages and API responses below are fulfilled by Playwright routing.
 // No real identity, media, production session, provider or external request is used.
 const fs = require('node:fs');
@@ -23,7 +23,7 @@ const fixture = `<!doctype html><meta charset="utf-8"><meta name="viewport" cont
 main{max-width:520px;padding:20px;margin:auto}aside{border:2px dashed #d4a94e;padding:10px}
 summary{padding:12px;cursor:pointer;background:#1a2030;border:1px solid #334155;border-radius:8px}
 li{padding:14px 0;border-bottom:1px solid #334155}button:focus-visible,summary:focus-visible{outline:3px solid #facc15;outline-offset:3px}
-</style><main><aside>SIMULATED FIXTURE — no biometric capture or real verification.</aside>
+</style><main id="step4"><aside>SIMULATED FIXTURE — no biometric capture or real verification.</aside>
 <h1>Verification report layout</h1><p>Fictional data tests only the handoff controls and report access.</p>
 <p style="height:300px">Existing page content</p>
 <details><summary>How we authenticated you</summary><div id="successModalities"><ul>
@@ -98,7 +98,10 @@ li{padding:14px 0;border-bottom:1px solid #334155}button:focus-visible,summary:f
       }));
       assert.equal(after.detailsOpen, true);
       assert.equal(after.focused, true);
-      assert.equal(after.bannerDisplay, 'none');
+      assert.notEqual(after.bannerDisplay, 'none', 'return action survives review');
+      assert.equal(await close.isVisible(), true);
+      const returnBox = await close.boundingBox();
+      assert(returnBox && returnBox.y >= 0 && returnBox.y + returnBox.height <= viewport.height, 'return is visible next to expanded results');
       assert(after.resultsHeight > 0);
       assert(after.width <= after.viewport);
       assert.equal(requests.filter(r => r.url.endsWith('/v1/vat/issue')).length, 1);
