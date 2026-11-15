@@ -66,6 +66,80 @@ function load(search, { opener = 'present', authFetch } = {}) {
 const FULL = { authenticated: true, session_token: 'sess.sig', session: { auth_level: 'full', email: 'Owner@Example.invalid', token: 'sess.sig' } };
 const flush = () => new Promise((r) => setImmediate(r));
 
+function continuation() {
+  const now = Date.now() / 1000;
+  return {status:'identity_check_required',purpose:'decision_receipt',action:'confirm',
+    subject:'owner@example.invalid',public_ref:'decision-fixture',payload_sha256:'a'.repeat(64),
+    expires_at:now+120,handoff:{audience:'athena:decisions:confirm',nonce:STATE},
+    challenge:{challenge_id:'challenge-fixture',phrase:'fixture digits',
+      ceremony_policy:{version:'full-ceremony-1',sha256:'b'.repeat(64),
+        binding:{challenge_id:'challenge-fixture',created_at:new Date().toISOString(),expires_seconds:120},
+        verification:{version:'full-auth-1'},capture:{include_greeting:true}}}};
+}
+function offer(h,c=continuation(),origin=VAULT,source=h.op) {
+  for (const fn of h.listeners.message || []) fn({origin,source,data:{type:'vac-continuation-challenge',state:STATE,continuation:c}});
+}
+test('Decisions consumes only the trusted opener challenge once and signs its separate audience',async()=>{
+  const h=load('?handoff=decisions-confirm&state='+STATE);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.posted[0])),{m:{type:'vac-continuation-ready',state:STATE},o:VAULT});
+  offer(h);
+  const c=h.window.VACVaultHandoff.consumeChallenge({email:'OWNER@example.invalid'},true,false);
+  assert.equal(c.challenge_id,'challenge-fixture');
+  assert.throws(()=>h.window.VACVaultHandoff.consumeChallenge({email:'owner@example.invalid'},true,false));
+  h.window.VACVaultHandoff.onVerified(FULL,{});
+  await flush();await flush();
+  assert.equal(h.fetches.length,1);
+  assert.deepEqual(h.fetches[0].body.handoff,{audience:'athena:decisions:confirm',nonce:STATE});
+  assert.equal(h.posted[1].m.assertion,JWT);
+  assert.equal('session_token' in h.posted[1].m,false);
+});
+for (const fault of ['origin','source','nonce','audience','purpose','action','subject','policy','challenge','expired','future','payload','capture']) {
+  test('Decisions rejects malformed or untrusted continuation: '+fault,()=>{
+    const h=load('?handoff=decisions-confirm&state='+STATE);
+    const c=continuation();
+    if(fault==='nonce')c.handoff.nonce='x'.repeat(43);
+    if(fault==='audience')c.handoff.audience='athena:vault:store';
+    if(fault==='purpose')c.purpose='store_grant';
+    if(fault==='action')c.action='delete';
+    if(fault==='subject')c.subject='other@example.invalid';
+    if(fault==='policy')c.challenge.ceremony_policy.version='future';
+    if(fault==='challenge')c.challenge.challenge_id='other';
+    if(fault==='expired')c.expires_at=Date.now()/1000-1;
+    if(fault==='future'){c.expires_at=Date.now()/1000+1000;c.challenge.ceremony_policy.binding.expires_seconds=1000;}
+    if(fault==='payload')c.payload_sha256='bad';
+    if(fault==='capture')c.challenge.ceremony_policy.capture.include_greeting=false;
+    offer(h,c,fault==='origin'?'https://evil.invalid':VAULT,fault==='source'?{}:h.op);
+    assert.throws(()=>h.window.VACVaultHandoff.consumeChallenge({email:'owner@example.invalid'},true,false));
+    assert.equal(h.fetches.length,0);
+  });
+}
+test('Decisions cancellation and wrong result identity refuse mint',async()=>{
+  for(const cancel of [false,true]){
+    const h=load('?handoff=decisions-confirm&state='+STATE);offer(h);
+    h.window.VACVaultHandoff.consumeChallenge({email:'owner@example.invalid'},true,false);
+    if(cancel)for(const fn of h.listeners.message)fn({origin:VAULT,source:h.op,data:{type:'vac-continuation-cancel',state:STATE}});
+    h.window.VACVaultHandoff.onVerified(cancel?FULL:{...FULL,session:{...FULL.session,email:'other@example.invalid'}},{});
+    await flush(); assert.equal(h.fetches.length,0);
+  }
+});
+test('Decisions ceremony uses supplied challenge with no alternate backend fetch',async()=>{
+  const src=fs.readFileSync(path.join(__dirname,'..','vac-reauth-ceremony.js'),'utf8');
+  const start=src.indexOf('            const _chOpts = { method: _chCfg.method };');
+  const end=src.indexOf('// F-624 Rung 2 (codex P2)',start);
+  assert.ok(start>0&&end>start);
+  const block=src.slice(start,end);
+  const h=load('?handoff=decisions-confirm&state='+STATE);offer(h);
+  const full={};let fetched=0;
+  const run=vm.runInNewContext('(async()=>{'+block+';return challengeData;})',
+    {window:h.window,_chCfg:{method:'POST',url:()=>'/must-not-fetch'},
+     challengeBody:{},d:{email:'owner@example.invalid'},modeConfig:()=>full,MODE_CONFIG:{full},
+     skipGreeting:false,JSON,fetch:()=>{fetched++;throw Error('wrong challenge');}});
+  assert.equal((await run()).challenge_id,'challenge-fixture');
+  assert.equal(fetched,0);
+  await assert.rejects(run()); assert.equal(fetched,0,'replay never falls back to another challenge');
+});
+
+
 test('without handoff params the module defines nothing and listens to nothing', () => {
   for (const search of ['', '?return=/tribunal-demo', '?state=' + STATE]) {
     const h = load(search);
@@ -369,4 +443,5 @@ test('owner and Vault handoffs retain their existing automatic return behavior',
     assert.equal(h.closed, true);
   }
 });
+
 

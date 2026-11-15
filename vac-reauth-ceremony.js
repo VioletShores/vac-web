@@ -646,8 +646,14 @@ async function requestCamera() {
                 _chOpts.headers = { 'Content-Type': 'application/json' };
                 _chOpts.body = JSON.stringify(challengeBody);
             }
-            const resp = await fetch(_chCfg.url(d), _chOpts);
-            challengeData = await resp.json();
+            // A Decisions continuation must use the opener's server-started,
+            // pinned challenge. Never fall back to minting a different one.
+            if (window.VACVaultHandoff && window.VACVaultHandoff.requiresSuppliedChallenge) {
+                challengeData = window.VACVaultHandoff.consumeChallenge(d, modeConfig() === MODE_CONFIG.full, skipGreeting);
+            } else {
+                const resp = await fetch(_chCfg.url(d), _chOpts);
+                challengeData = await resp.json();
+            }
             // F-624 Rung 2 (codex P2): the FAST endpoint (/v1/auth/face-reauth-challenge) returns
             // {fingers:N} only — no phrase/digits. Normalize it into the {digits:[N]} shape the
             // SHARED intro renders, so the fast user SEES the finger target N (one circle in
@@ -7519,6 +7525,9 @@ async function runRealVerification(videoBlob) {
         // verify config (declarative, single source). This clip path is always FULL, so
         // buildBody hands the FormData straight back → POST multipart to /v1/vat/auth/verify,
         // byte-identical to before. (FAST verify goes through runFastVerification instead.)
+        if (window.VACVaultHandoff && window.VACVaultHandoff.requiresSuppliedChallenge) {
+            window.VACVaultHandoff.assertChallengeActive(challengeData && challengeData.challenge_id);
+        }
         const _vCfg = modeConfig().verify;
         const _vBody = _vCfg.buildBody({ formData: formData });
         const _vBaseOpts = { method: _vCfg.method };
@@ -9389,3 +9398,4 @@ window.__vacTest_t722 = function() {
 };
 
 })();
+
