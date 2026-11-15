@@ -65,3 +65,36 @@ breakdown: `tests/biometric_harness/reports/latest.md` (regenerated on every
   capture — it demonstrates the client-side trust boundary, it is not an anti-spoof
   benchmark.
 - Fast-tier (`_makeQuickReauthVoiceGate`) constants are not wrapped by this slice.
+
+## S205 current-source reconciliation (2026-11-15)
+
+The historical S179 table above is not the current mic preflight contract. Against
+web main `54fcac808f27b1e4e229ef8bfcd10c36d82d266b`, preflight uses the shared
+tracker with `MIC_PREFLIGHT_TICKS_NEEDED=4`; phrase uses the default seven ticks.
+Both still require modulation unless the shipped recorder/starvation path supplies
+its explicit override. No production source, threshold, auth or workflow changed.
+
+The existing mic adapter now executes extracted shipped signal calculation,
+classifier expressions and shared tracker functions. The phrase adapter executes
+the whole shipped `_phraseVadTick`, including calibrated/strong-band admission,
+starvation/recorder evidence, and the two-frame silence tail. Browser/audio I/O,
+content-recognizer availability and calibration persistence are simulated. The
+phrase's local voice-band threshold must agree with the global tracker binding;
+ambiguous/missing source bindings fail closed rather than scoring fixtures.
+
+Before: report-integrity head `0b766bcc133dc4673712ddfafdbef0018d0d4154` had
+25 passing / 3 failing self-tests and 8 matches / 4 source-binding errors. After:
+`node --test tests/biometric_harness/harness.test.js` passes 36/36;
+`node tests/biometric_harness/run.js` reports 12/12 matches, zero mismatches/errors.
+Manifest and derived-feature expectations are unchanged. Eight added tests cover
+four-versus-seven ticks, unseeded hold, neutral/silence reset, recorder level and
+spectrum rejection, strong-band versus flat/near-silent audio, starvation without
+recorder evidence, frozen accepted state/two silent ticks, and actual source
+threshold mutation plus invalid extraction rejection. Existing report-integrity
+negative tests remain enabled.
+
+This proves deterministic client-stage synthetic behavior and honest reporting.
+It does not prove real-device microphone behavior, browser UI, server biometric
+accuracy, spoof resistance, all seven modalities or live CoPS/PID/adaptive gains.
+Backend PR28's full-policy compiler remains a separate reviewed candidate; quick,
+legacy, signed-policy and Athena consumer mappings require their own evidence.
