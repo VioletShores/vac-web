@@ -23,6 +23,11 @@
 (function () {
   'use strict';
   var TARGETS = {
+    'decisions-confirm': {
+      origin: 'https://api.athenapilot.ai', audience: 'athena:decisions:confirm',
+      agent: 'athena-decisions-confirm-handoff', resource: 'athena:decisions:confirm',
+      action: 'confirm'
+    },
     'vault-store': {
       origin: 'https://api.athenapilot.ai',
       audience: 'athena:vault:store',
@@ -64,16 +69,45 @@
   var target = Object.prototype.hasOwnProperty.call(TARGETS, kind) ? TARGETS[kind] : null;
   var state = q.get('state') || '';
   var valid = !!target && STATE_RE.test(state);
-  var toAthena = kind === 'owner-collaborate' || kind === 'narration-capture';
+  var toAthena = kind === 'decisions-confirm' || kind === 'owner-collaborate' || kind === 'narration-capture';
   var destination = toAthena ? 'Athena' : 'the Vault';
-  var actionName = kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store');
+  var actionName = kind === 'decisions-confirm' ? 'confirmation' : kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store');
   var reviewAfterHandoff = kind === 'narration-capture';
+
+  // The opener obtained this challenge from VAC server-to-server and stores its
+  // exact policy pin with the pending decision. URL data never supplies it.
+  var continuation = null;
+  var challengeConsumed = false;
+  var cancelled = false;
+  function continuationFresh() {
+    return continuation && !cancelled && Date.now() < continuation.expires_at * 1000;
+  }
+  function acceptContinuation(m) {
+    if (continuation || cancelled || challengeConsumed || m.type !== 'vac-continuation-challenge' || m.state !== state) return;
+    var c = m.continuation || {};
+    var ch = c.challenge || {}, p = ch.ceremony_policy || {}, b = p.binding || {};
+    var expires = Math.min(Number(c.expires_at) * 1000,
+      Date.parse(b.created_at) + Number(b.expires_seconds) * 1000);
+    if (c.status !== 'identity_check_required' || c.purpose !== 'decision_receipt' || c.action !== 'confirm' ||
+        !c.handoff || c.handoff.audience !== target.audience || c.handoff.nonce !== state ||
+        typeof c.subject !== 'string' || !/^[^\s@]+@[^\s@]+$/.test(c.subject) ||
+        typeof c.public_ref !== 'string' || !c.public_ref || c.public_ref.length > 128 ||
+        !/^[a-f0-9]{64}$/.test(c.payload_sha256 || '') ||
+        p.version !== 'full-ceremony-1' || !/^[a-f0-9]{64}$/.test(p.sha256 || '') ||
+        !p.verification || p.verification.version !== 'full-auth-1' ||
+        !p.capture || typeof p.capture.include_greeting !== 'boolean' ||
+        typeof ch.challenge_id !== 'string' || !ch.challenge_id || b.challenge_id !== ch.challenge_id ||
+        !Number.isFinite(expires) || expires <= Date.now() || expires > Date.now() + 600000) return;
+    continuation = JSON.parse(JSON.stringify(c));
+    continuation.expires_at = expires / 1000;
+  }
 
   var assertion = null;
   var assertionExpMs = 0;
   var sessionToken = null;
   var subject = null;
   var acked = false;
+  var delivered = false;
   var sending = false;
   var ackTimer = null;
 
@@ -204,12 +238,14 @@
   }
 
   function deliver() {
+    if (kind === 'decisions-confirm' && (!continuationFresh() || !challengeConsumed)) return;
     if (!openerPresent()) {
       show('warn', 'Return to ' + (toAthena ? 'the Athena' : 'the Vault') + ' tab. This page was not opened from ' + destination +
         ' (or that tab was closed), so nothing was sent. Start the ' + actionName + ' again from ' + destination + '.', false);
       return;
     }
     window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin);
+    delivered = true;
     show('info', 'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', true);
     clearTimeout(ackTimer);
     ackTimer = setTimeout(function () {
@@ -221,7 +257,7 @@
   }
 
   function send() {
-    if (sending || acked) return;
+    if (sending || acked || (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh()))) return;
     // No opener (or it closed): deliver() says "return to the Vault tab"; nothing is minted.
     if (!openerPresent()) { deliver(); return; }
     sending = true;
@@ -238,12 +274,24 @@
       try { op = window.opener; } catch (e) { op = null; }
       if (!op || ev.source !== op) return;
       var m = ev.data || {};
+      if (kind === 'decisions-confirm') {
+        if (m.type === 'vac-continuation-cancel' && m.state === state) { cancelled = true; continuation = null; assertion = null; delivered = false; return; }
+        acceptContinuation(m);
+      }
       if (m.type !== ACK || m.state !== state) return;
-      if (acked) return;
+      if (acked || !delivered) return;
+      if (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh())) return;
+      if (kind === 'decisions-confirm' && m.status !== 'identity_verified_action_held' && m.status !== 'confirmed') return;
       acked = true;
       clearTimeout(ackTimer);
       assertion = null;
-      if (reviewAfterHandoff) {
+      if (kind === 'decisions-confirm') {
+        if (m.status === 'confirmed') {
+          show('ok', 'Athena recorded the decision receipt. Return to Athena to review it.', false);
+        } else {
+          show('warn', 'Athena checked your identity. The decision is still held; nothing has been authorised. Return to Athena for the next step.', false);
+        }
+      } else if (reviewAfterHandoff) {
         show('ok', 'Verification delivered to Athena. Continue to recording, or review your results first. Your results stay available until you leave.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
       } else {
@@ -254,6 +302,21 @@
   }
 
   window.VACVaultHandoff = {
+    requiresSuppliedChallenge: kind === 'decisions-confirm',
+    assertChallengeActive: function (id) {
+      if (!continuationFresh() || !challengeConsumed || id !== continuation.challenge.challenge_id) {
+        throw new Error('This confirmation expired or was cancelled. Return to Athena.');
+      }
+    },
+    consumeChallenge: function (identity, isFull, skipsGreeting) {
+      if (!valid || kind !== 'decisions-confirm' || !openerPresent() || !continuationFresh() || challengeConsumed ||
+          !isFull || String((identity || {}).email || '').trim().toLowerCase() !== continuation.subject.trim().toLowerCase() ||
+          continuation.challenge.ceremony_policy.capture.include_greeting === !!skipsGreeting) {
+        throw new Error('Return to Athena and start this confirmation again.');
+      }
+      challengeConsumed = true;
+      return JSON.parse(JSON.stringify(continuation.challenge));
+    },
     onVerified: function (authResult, identity) {
       if (!valid) {
         show('error', 'This ' + destination + ' link is not valid, so nothing was sent. Return to ' + destination + ' and start again.', false);
@@ -269,11 +332,20 @@
         show('error', 'This was not a full VAC verification, so nothing was sent to ' + destination + '.', false);
         return;
       }
+      if (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh() ||
+          String(email).trim().toLowerCase() !== continuation.subject.trim().toLowerCase())) {
+        show('error', 'This confirmation is no longer valid. Return to Athena and start again.', false);
+        return;
+      }
       sessionToken = token;
       subject = String(email).trim().toLowerCase();
       send();
     }
   };
+  if (valid && kind === 'decisions-confirm' && openerPresent()) {
+    window.opener.postMessage({type:'vac-continuation-ready', state:state}, target.origin);
+  }
 })();
+
 
 
