@@ -7,7 +7,8 @@
 // names, and emits a JSON + markdown report. Used two ways:
 //   - `node tests/biometric_harness/run.js` (CI, report-only — see
 //     .github/workflows/biometric-harness.yml): writes reports/latest.{json,md}
-//     and ALWAYS exits 0; mismatches are recorded in the report, not enforced.
+//     and exits nonzero for invalid source bindings or fixture errors/mismatches.
+//     The workflow still explicitly decides whether this is a blocking gate.
 //   - required by harness.test.js, which DOES assert on the results (that's the
 //     enforced gate — this file just runs and reports).
 
@@ -52,12 +53,34 @@ function verdictFor(expectedOutcome, pass) {
 // report object; does not write anything to disk (see writeReport for that).
 function runHarness(manifest = loadManifest()) {
     const results = [];
+    const sourceBindings = new Map();
     for (const specimen of manifest.specimens) {
         const stageNames = Array.isArray(specimen.stage) ? specimen.stage : [specimen.stage];
         for (const stageName of stageNames) {
             const stageModule = STAGES[stageName];
             if (!stageModule) {
                 results.push({ id: specimen.id, stage: stageName, error: `unknown stage "${stageName}"`, verdict: 'ERROR' });
+                continue;
+            }
+            // Validate once per stage before any fixture uses its mirror. A
+            // matching fixture from stale code is not evidence of shipped behavior.
+            if (!sourceBindings.has(stageName)) {
+                try {
+                    if (typeof stageModule.verifySource !== 'function') {
+                        throw new Error('stage has no source verifier');
+                    }
+                    stageModule.verifySource();
+                    sourceBindings.set(stageName, { valid: true });
+                } catch (e) {
+                    sourceBindings.set(stageName, { valid: false, error: e.message || String(e) });
+                }
+            }
+            const binding = sourceBindings.get(stageName);
+            if (!binding.valid) {
+                results.push({
+                    id: specimen.id, stage: stageName, verdict: 'ERROR',
+                    errorKind: 'SOURCE_BINDING_ERROR', error: binding.error,
+                });
                 continue;
             }
             const data = DERIVED_FEATURES[specimen.id] && DERIVED_FEATURES[specimen.id][stageName];
@@ -91,7 +114,7 @@ function runHarness(manifest = loadManifest()) {
         error: results.filter((r) => r.verdict === 'ERROR').length,
     };
 
-    return { manifestVersion: manifest.version, results, summary };
+    return { manifestVersion: manifest.version, sourceBindings: Object.fromEntries(sourceBindings), results, summary };
 }
 
 function toMarkdown(report) {
@@ -133,8 +156,9 @@ function main() {
             console.log(`  ! ${r.id}/${r.stage}: ${r.verdict}${r.error ? ' - ' + r.error : ''}`);
         }
     }
-    // Report-only: never fails CI on its own (see module header).
-    process.exitCode = 0;
+    // An invalid report must not look successful to CLI consumers. The existing
+    // report-only workflow keeps its own continue-on-error policy unchanged.
+    process.exitCode = report.summary.error || report.summary.mismatch ? 1 : 0;
 }
 
 module.exports = { loadManifest, runHarness, toMarkdown, writeReport, STAGES, STAGE_INPUT_EXTRACTORS, MANIFEST_PATH };

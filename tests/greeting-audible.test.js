@@ -77,20 +77,19 @@ test('CB-GREET-05 [D-TEARDOWN-PLAYBACK-ORDER regression]: recorder flushed befor
     );
 });
 
-// ── CB-GREET-06: pin is s158b1 in readout ────────────────────────────────────
-test('CB-GREET-06: ceremony readout pin is s158b1', () => {
+// ── CB-GREET-06: readout pin comes from the SERVED script, never a literal ────
+// Since t733 the debug chip reads the ?v= pin of the script actually served (BUILD_TAG), because
+// hard-coded chip strings lied about the running build. So the source must derive it, and must
+// not carry any retired literal pin.
+test('CB-GREET-06: ceremony readout pin is derived from the served script (BUILD_TAG)', () => {
     assert.ok(
-        src.includes('s158b1'),
-        'vac-reauth-ceremony.js readout must contain pin s158b1'
+        /const BUILD_TAG = \(function\(\)\{[^\n]*script\[src\*="vac-reauth-ceremony"\][^\n]*\[\?&\]v=/.test(src),
+        'BUILD_TAG must read the ?v= pin from the served vac-reauth-ceremony script'
     );
-    assert.ok(
-        !src.includes('s158a1'),
-        'vac-reauth-ceremony.js must not contain old pin s158a1'
-    );
-    assert.ok(
-        !src.includes('s157c1'),
-        'vac-reauth-ceremony.js must not contain old pin s157c1'
-    );
+    assert.ok(src.includes("'<b>'+BUILD_TAG+'</b>"), 'the readout chip must render BUILD_TAG');
+    for (const old of ['s158b1', 's158a1', 's157c1']) {
+        assert.ok(!src.includes("'" + old + "'"), 'vac-reauth-ceremony.js must not hard-code old pin ' + old);
+    }
 });
 
 // ── CB-GREET-07: debug mode (?debug=1) infrastructure ────────────────────────

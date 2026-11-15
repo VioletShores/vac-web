@@ -152,6 +152,10 @@
                     // likelihood field), so the generic FAIL_REASONS.deepfake alarm text
                     // ("indicators detected") would be a false accusation.
                     reasons.push('Deepfake scan could not be completed — video authenticity was not confirmed.');
+                } else if (signal === 'identity_continuity' && code.indexOf('no_embedding_for_existing_identity') !== -1) {
+                    // The browser provided no usable identity vector. This is NOT
+                    // evidence of a different person; do not suggest account recovery.
+                    reasons.push('Face identification could not be completed — no usable face descriptor was captured.');
                 } else if (isServiceOutage) {
                     reasons.push(signal.replace(/_/g, ' ') + ' — service unavailable (will retry).');
                 } else {
@@ -159,8 +163,12 @@
                     reasons.push(info.reason);
                 }
                 if (!isServiceOutage) {
-                    var tipInfo = FAIL_REASONS[signal];
-                    if (tipInfo && tipInfo.tip) tips.push(tipInfo.tip);
+                    if (signal === 'identity_continuity' && code.indexOf('no_embedding_for_existing_identity') !== -1) {
+                        tips.push('Face the camera directly in even light and restart the camera capture. Your enrolled identity has not changed.');
+                    } else {
+                        var tipInfo = FAIL_REASONS[signal];
+                        if (tipInfo && tipInfo.tip) tips.push(tipInfo.tip);
+                    }
                 }
             }
         } else {

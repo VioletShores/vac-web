@@ -249,6 +249,31 @@ test('clean pass (empty verdict.reasons, no failed modalities) yields no reasons
     assert.strictEqual(reasons.length, 0);
 });
 
+test('missing client face embedding is named as incomplete capture, NOT different identity', () => {
+    const result = {
+        authenticated: false,
+        verdict: { authenticated: false, reasons: ['identity_continuity:no_embedding_for_existing_identity'] },
+        biometric_verification: { modalities: [{ name: 'face_liveness', status: 'verified' }] },
+    };
+    const { reasons, tips } = deriveFailureDisplay(result);
+    assert.strictEqual(reasons.length, 1);
+    assert.ok(/no usable face descriptor/i.test(reasons[0]), reasons[0]);
+    assert.ok(!/did not match/i.test(reasons[0]), reasons[0]);
+    assert.ok(tips.some(t => /restart the camera capture/i.test(t)), JSON.stringify(tips));
+    assert.ok(!tips.some(t => /account recovery/i.test(t)), JSON.stringify(tips));
+});
+
+test('genuine identity continuity mismatch still preserves recovery guidance', () => {
+    const result = {
+        authenticated: false,
+        verdict: { authenticated: false, reasons: ['identity_continuity:identity_continuity_mismatch'] },
+        biometric_verification: { modalities: [{ name: 'face_liveness', status: 'verified' }] },
+    };
+    const { reasons, tips } = deriveFailureDisplay(result);
+    assert.ok(/did not match/i.test(reasons[0]), reasons[0]);
+    assert.ok(tips.some(t => /account recovery/i.test(t)), JSON.stringify(tips));
+});
+
 if (failures > 0) {
     console.error(`\n${failures} test(s) failed`);
     process.exit(1);

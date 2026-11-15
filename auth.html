@@ -332,7 +332,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
   }
 </script>
 <!-- VAC face-EMBEDDING module (face-api.js 128-D identity descriptor for re-auth). Self-loads face-api on first use. -->
-<script src="/vac-face-embed.js"></script>
+<script src="/vac-face-embed.js?v=s204-20261104-face-diag"></script>
 <!-- VAC shared finger/hand detector (single source of truth; defines window.FingerDetector). -->
 <script src="/vac-finger-detect.js"></script>
 <!-- S117 reauth-unify: the ONE shared re-auth ceremony (camera + show-and-say N digits +
@@ -341,8 +341,10 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 <!-- task-515 P0-2 (ported from vac-protocol b923dc3/6afc21c): verdict.reasons ->
      display derivation, shared with test_verdict_reasons.node.js. Must load
      before vac-reauth-ceremony.js's showRetry() calls it. -->
-<script src="/verdict-reasons.js"></script>
-<script src="/vac-reauth-ceremony.js?v=s173"></script>
+<script src="/verdict-reasons.js?v=s204-20261103-face-id"></script>
+<script src="/vac-reauth-ceremony.js?v=s204-20261104-face-diag"></script>
+<!-- athena PKT-S204-VAULT-MOBILE-HANDOFF: inert unless opened with ?handoff=&state= (defines nothing otherwise). -->
+<script src="/vac-vault-handoff.js?v=s204-20261104-face-diag"></script>
 <script>
   window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
 </script>
@@ -354,7 +356,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
   var bar=document.getElementById("vacBackBar");
   if(window.parent===window) bar.style.display="block";
   try{
-    var r=new URLSearchParams(location.search).get("return");
+    // athena PKT-S204-VAULT-MOBILE-HANDOFF: while handing off to the Vault, ?return is not even read.
+    var r=window.VACVaultHandoff ? null : new URLSearchParams(location.search).get("return");
     // sanitize: same-origin path only — must start with single "/", no "//", no ":"
     if(r && /^\/(?!\/)[A-Za-z0-9_\-.\/?=&%]*$/.test(r) && r.indexOf(":")===-1){
       window.__vacReturnPath=r;
@@ -395,6 +398,12 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
         <div class="header-eyebrow">Step 1 of 4</div>
         <div class="header-title">Verify You're a Real Human</div>
         <div class="header-sub">Prove you're a real human. Your verified identity becomes a cryptographic credential that agents, services, and people can trust.</div>
+    </div>
+    <!-- Ceremony UX bundle: expiry narration. A prior verified authority older than 24h is purged
+         on load (see the pre-fill IIFE at the bottom); say so here instead of silently dropping it. -->
+    <div id="vacExpiryNote" style="display:none;background:var(--surface);border:1px solid rgba(201,162,39,0.3);border-left:3px solid #C9A227;border-radius:10px;padding:13px 15px;margin:0 0 16px;font-size:13.5px;line-height:1.55;color:var(--text-primary);">
+        <div style="font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:#C9A227;margin-bottom:6px;">Previous authority</div>
+        <span id="vacExpiryNoteText"></span>
     </div>
     <div class="form-group">
         <label class="form-label">Full Name</label>
@@ -903,6 +912,32 @@ function startReauthCeremony(opts) {
     });
 }
 
+// F-1402 slice 1 (S194, "one email, one ceremony"): a server-issued 'otp' session from the
+// email-code step — this page's own, or one handed over in the link fragment (#vac_session=…,
+// never sent to any server by the browser) — lets the biometric step start without a SECOND code
+// while the server still says it is valid. The server decides; nothing here is trusted on its own.
+(function captureFragmentSession(){
+    try {
+        const m = (window.location.hash || '').match(/(?:^#|[&])vac_session=([^&]+)/);
+        if (m && m[1]) {
+            sessionStorage.setItem('vac_otp_session', decodeURIComponent(m[1]));
+            const clean = window.location.hash.replace(/(^#|&)vac_session=[^&]*/, '$1').replace(/^#&/, '#');
+            history.replaceState(null, '', window.location.pathname + window.location.search + (clean === '#' ? '' : clean));
+        }
+    } catch (_) {}
+})();
+function _storedOtpSession() {
+    try { return sessionStorage.getItem('vac_otp_session') || localStorage.getItem('vac_otp_session') || ''; } catch (_) { return ''; }
+}
+function _serverOtpSessionFor(email) {
+    const tok = _storedOtpSession();
+    if (!tok) return Promise.resolve(false);
+    return fetch(API_BASE + '/v1/session/verify', { headers: { 'Authorization': 'Bearer ' + tok } })
+        .then(r => r.ok ? r.json() : null)
+        .then(j => !!(j && j.valid && String(j.email || '').toLowerCase() === String(email || '').toLowerCase()))
+        .catch(() => false);
+}
+
 function goToCamera() {
     const d = userData();
     const errEl = document.getElementById('identityError');
@@ -952,7 +987,16 @@ function goToCamera() {
     const btn = document.getElementById('btnIdentity');
     btn.disabled = true;
     btn.textContent = 'Sending code...';
-    
+
+    // F-1402: an email code already proven in the last few minutes (server-checked) covers this step.
+    _serverOtpSessionFor(d.email).then(function (ok) {
+    if (ok) {
+        try { vacDebug && vacDebug('otp_skipped_server_session'); } catch (_) {}
+        btn.disabled = false;
+        btn.textContent = 'Continue';
+        startReauthCeremony();
+        return;
+    }
     fetch(API_BASE + '/v1/auth/request-otp', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -978,6 +1022,7 @@ function goToCamera() {
         errEl.style.display = 'block';
         btn.disabled = false;
         btn.textContent = 'Continue';
+    });
     });
 }
 
@@ -1019,6 +1064,8 @@ function verifyAuthOTP() {
                 confirmed[userData().email.toLowerCase()] = Date.now();
                 localStorage.setItem('vac_otp_confirmed', JSON.stringify(confirmed));
             } catch(e) {}
+            // F-1402: keep the server's short-lived 'otp' session for the rest of this visit.
+            try { if (data.session_token) { sessionStorage.setItem('vac_otp_session', data.session_token); localStorage.setItem('vac_otp_session', data.session_token); } } catch(e) {}
             startReauthCeremony();
         }
     })
@@ -1122,11 +1169,34 @@ function showSuccess() {
             }));
         } catch(e) {}
         // Update nav badge to show current state
+        // S194 F-1403: a decision-receipt confirm page (api.athenapilot.ai/d/<ref>) sent the
+        // approver here for a live check. Hand the session back in the URL FRAGMENT (never sent
+        // to a server by the browser); that page posts it to its own backend, which re-checks it
+        // with VAC (/v1/session/verify) and that the email matches the named approver.
+        try {
+            // athena PKT-S204-VAULT-MOBILE-HANDOFF: ?return is not read while handing off to the Vault.
+            var _drRet = window.VACVaultHandoff ? '' : (new URLSearchParams(window.location.search).get('return') || '');
+            if (window.parent === window && /^https:\/\/api\.athenapilot\.ai\/d\/[A-Za-z0-9_-]{4,64}$/.test(_drRet)
+                && !document.getElementById('vacDecisionContinue')) {
+                var _drSessObj = (authResult && authResult.session) ? authResult.session : null;
+                var _drSess = (authResult && authResult.session_token) ? authResult.session_token
+                            : (_drSessObj && _drSessObj.token) ? _drSessObj.token : '';
+                if (_drSess) {
+                    var _dc = document.createElement('a'); _dc.id = 'vacDecisionContinue';
+                    _dc.href = _drRet + '#vac_token=' + encodeURIComponent(_drSess);
+                    _dc.textContent = 'Continue to confirm your decision \u2192';
+                    _dc.style.cssText = 'display:block;margin:18px auto 0;max-width:420px;text-align:center;padding:15px 22px;border-radius:12px;background:#2DD4BF;color:#06121C;font-size:16px;font-weight:800;text-decoration:none;';
+                    var _dtn = document.querySelector('#successName') || document.querySelector('.success-name');
+                    (_dtn && _dtn.parentNode ? _dtn.parentNode : document.body).appendChild(_dc);
+                    window.__vacDecisionReturn = true;
+                }
+            }
+        } catch (_dre) {}
         // S148 RETURN-CONTRACT (L-2368 seamless rule at the deepest point; field: Jake Bendall
         // dead-ended here instead of returning to the matters): when this page is TOP-LEVEL
         // (no parent frame to postMessage back to), the success screen MUST carry the onward tap.
         try {
-            if (window.parent === window && !document.getElementById('vacContinueBtn')) {
+            if (window.parent === window && !window.__vacDecisionReturn && !window.VACVaultHandoff && !document.getElementById('vacContinueBtn')) {
                 var _cb=document.createElement('a'); _cb.id='vacContinueBtn';
                 // S154 fix-on-find (Rob live test): this was a HARDCODED tribunal link + label,
                 // shown regardless of origin — wrong words ("workflow" not "matters"), wrong
@@ -1141,9 +1211,9 @@ function showSuccess() {
                     var _cand=_rp||document.referrer||'';
                     if (_cand) {
                         var _u=new URL(_cand, window.location.origin);
-                        if (_u.origin===window.location.origin && /^\/(tribunal-demo|financial-demo)(\.html)?$/.test(_u.pathname)) {
+                        if (_u.origin===window.location.origin && /^\/(tribunal-demo|financial-demo|trusted-water-demo|clinical-demo)(\.html)?$/.test(_u.pathname)) {
                             _dest=_u.origin+_u.pathname;
-                            _lbl=/financial/.test(_u.pathname)?'Continue to the scenario \u2192':'Continue to the matters \u2192';
+                            _lbl=/tribunal/.test(_u.pathname)?'Continue to the matters \u2192':'Continue to the scenario \u2192';
                         }
                     }
                 } catch(_re){}
@@ -1223,6 +1293,9 @@ function showSuccess() {
                 } catch(e) {}
             }
         } catch(e) {}
+        // athena PKT-S204-VAULT-MOBILE-HANDOFF: only defined when this page was opened
+        // from the Vault with handoff params; hands the verified result back to it.
+        try { if (window.VACVaultHandoff) window.VACVaultHandoff.onVerified(authResult, d); } catch (_vh) {}
         // Start polling for vouches to unlock messaging
         startVouchPolling();
     } else {
@@ -1747,6 +1820,22 @@ function maybeResumeReauth() {
     else _run();
 })();
 
+// Ceremony UX bundle: expiry narration (pure, extracted by tests/auth-expiry-narration.test.js).
+// A stored ceremony result older than VAC_AUTHORITY_TTL_MS is dropped below; this is the sentence
+// the user sees instead of a silent reset to the identity form. Returns '' when nothing expired.
+var VAC_AUTHORITY_TTL_MS = 24 * 60 * 60 * 1000;
+function vacExpiryNarration(savedTs, now) {
+    if (typeof savedTs !== 'number' || !(savedTs > 0)) return '';
+    if ((now - savedTs) <= VAC_AUTHORITY_TTL_MS) return '';
+    return 'Your previous authority expired after 24 hours. Quick renewal is not yet enabled, so a full ceremony is required.';
+}
+function vacShowExpiryNote(text) {
+    var box = document.getElementById('vacExpiryNote'), t = document.getElementById('vacExpiryNoteText');
+    if (!box || !t || !text) return;
+    t.textContent = text;
+    box.style.display = 'block';
+}
+
 // F-563 (c): pre-fill identity from a prior verified session, but do NOT resurrect the verified
 // SCREEN on a plain page load. The old IIFE auto-routed to showSuccess()+goToStep(4) whenever
 // vac_verified existed (<24h), so a RAW URL refresh landed back on the verified page instead of
@@ -1757,7 +1846,18 @@ function maybeResumeReauth() {
         const saved = localStorage.getItem('vac_verified');
         if (!saved) return;
         const data = JSON.parse(saved);
-        if (Date.now() - data.timestamp > 24 * 60 * 60 * 1000) { localStorage.removeItem('vac_verified'); return; }
+        var _expiryText = vacExpiryNarration(data.timestamp, Date.now());
+        if (_expiryText) {
+            localStorage.removeItem('vac_verified');
+            try { localStorage.removeItem('vac_last_verified'); } catch(_) {}
+            // Keep the identity pre-fill (convenience only) but tell the user the authority is gone.
+            try {
+                var _xn = document.getElementById('inputName');  if (_xn && data.name)  _xn.value = data.name;
+                var _xe = document.getElementById('inputEmail'); if (_xe && data.email) _xe.value = data.email;
+            } catch(_) {}
+            vacShowExpiryNote(_expiryText);
+            return;
+        }
         if (!data.email) return;
         // Convenience pre-fill only (so the user doesn't re-type) — NO auto-route to the success screen.
         var _n = document.getElementById('inputName');  if (_n) _n.value = data.name || '';

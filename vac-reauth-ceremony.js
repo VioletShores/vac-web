@@ -1,4 +1,10 @@
 // vac-reauth-ceremony.js
+// stamp s182 — ceremony UX bundle: analyser_starved_mr_fallback root fix (post-stream AudioContext
+// graph rebuild on sample-rate mismatch/starvation + fallback-path mic qualification parity +
+// "microphone starting" narration, see docs/strategic/CEREMONY-MIC-DIAGNOSIS-2026-08-20.md in the
+// athena repo and tests/mic-starved-fallback.test.js), post-capture authority progress screen
+// (verifying -> minting authority -> done + what it grants, replaces the frozen hand skeleton; see
+// tests/ceremony-post-progress.test.js).
 // stamp s173 — S166j (task-greeting-gate-margins-and-overlays, TASK 911): greeting admit-margin
 // fix (floor-relative admit margin, band-ratio energy guard, starvation escape narrowed to
 // _spectralVoiced only), honesty copy unified at confirm/escape + 1.5s beat, debug-only HUD
@@ -260,6 +266,65 @@ function _beamCeremonyTelemetry(pinPhaseOk) {
             keepalive: true,
         }).catch(function(){});
     } catch(_) {}
+}
+
+// ── s182 post-capture authority progress (display-only, never a gate) ─────────────────────
+// Three honest stages shown from the moment capture ends until the host takes over:
+//   verifying  — the clip is with the verification engines (server verdict pending)
+//   minting    — the server said authenticated and is issuing the verified session
+//   done       — the authority exists; the sub-line says what it grants
+// 'fail' hides the list (showRetry owns the failure narration). Renders into BOTH the step-2
+// camera cover (#vacPostCaptureStages) and the step-3 verify panel (#vacAuthorityStages).
+const AUTHORITY_STAGES = [
+    { key: 'verifying', title: 'Verifying your ceremony', sub: 'Checking face, voice and gesture with the verification engines' },
+    { key: 'minting',   title: 'Minting your authority',  sub: 'Issuing your verified session' },
+    { key: 'done',      title: 'Done',                    sub: '' },
+];
+// Pure: what the just-minted authority grants, in one or two sentences. `opts.returnPath` is the
+// same-origin ?return= target auth.html sanitised (window.__vacReturnPath); `opts.email` the
+// verified identity. Tier comes from the server's nested session (S126: auth_level lives under
+// result.session), never assumed beyond the 'full' default the full ceremony always mints.
+function _authorityGrantsText(result, opts) {
+    opts = opts || {};
+    const r = (result && typeof result === 'object') ? result : {};
+    const email = String(opts.email || '');
+    const level = (r.session && r.session.auth_level) || r.auth_level || 'full';
+    const tier = (level === 'full') ? 'full-tier' : (String(level) + '-tier');
+    const ret = String(opts.returnPath || '');
+    let use;
+    if (/\/grant(\b|\.html|\?|$)/.test(ret)) use = 'It can mint merge authority for VioletShores/athena on the grant page.';
+    else if (/tribunal|financial/.test(ret)) use = 'It can seal matters on the demo you came from.';
+    else use = 'It can authorise agents acting in your name, mint scoped authority and seal decisions.';
+    return 'A ' + tier + ' verified session' + (email ? ' for ' + email : '') + ', valid for 24 hours on this device. ' + use;
+}
+function _authorityStagesHtml(stage, grantsText) {
+    const order = ['verifying', 'minting', 'done'];
+    const idx = order.indexOf(stage);
+    return AUTHORITY_STAGES.map(function(st, i) {
+        const cls = i < idx ? 'done' : (i === idx ? (st.key === 'done' ? 'done' : 'active') : 'pending');
+        const sub = (st.key === 'done') ? (i <= idx ? (grantsText || '') : 'What it grants') : st.sub;
+        return '<div class="vac-stage ' + cls + '" data-stage="' + st.key + '"><div class="vac-stage-mark"></div><div><div class="vac-stage-title">' + st.title + '</div>' + (sub ? '<div class="vac-stage-sub">' + sub + '</div>' : '') + '</div></div>';
+    }).join('');
+}
+function _escapeStageText(s) { return String(s).replace(/[&<>"']/g, function(c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function _renderAuthorityStages(stage, opts) {
+    const cover = document.getElementById('vacPostCapture');
+    const targets = ['vacPostCaptureStages', 'vacAuthorityStages'].map(function(id) { return document.getElementById(id); });
+    if (stage === 'fail' || !stage) {
+        if (cover) cover.style.display = 'none';
+        targets.forEach(function(el) { if (el) { el.style.display = 'none'; el.innerHTML = ''; } });
+        return;
+    }
+    let grants = '';
+    if (stage === 'done') {
+        let email = '';
+        try { email = (opts && opts.email) || (typeof userData === 'function' ? userData().email : '') || ''; } catch(_) {}
+        const ret = (opts && opts.returnPath !== undefined) ? opts.returnPath : (window.__vacReturnPath || '');
+        grants = _escapeStageText(_authorityGrantsText(opts && opts.result, { email: email, returnPath: ret }));
+    }
+    const html = _authorityStagesHtml(stage, grants);
+    targets.forEach(function(el) { if (el) { el.innerHTML = html; el.style.display = 'block'; } });
+    try { vacDebug('authority_stage', stage); } catch(_) {}
 }
 
 // Terminal SUCCESS path — hand the LIVE verify result back to the host (was auth.html showSuccess()).
@@ -555,6 +620,12 @@ async function requestCamera() {
                 _pinSrc(_originalStreamSource(avAudioCtx, mediaStream)).connect(avAnalyser);
             }
         } catch (_aE) { avAnalyser = null; console.warn('[AV] Analyser connect failed (pre-startAVChecks):', _aE); }
+        // s182: the tap-created context predates the stream; if the mic open moved the hardware
+        // rate, rebuild NOW (before the pre-flight loop) rather than after 2s of starvation.
+        try {
+            const _ctxSr = avAudioCtx ? avAudioCtx.sampleRate : 0, _trkSr = _avTrackSampleRate();
+            if (_ctxSr && _trkSr && _ctxSr !== _trkSr) _rebuildAvAnalyserGraph('rate_mismatch');
+        } catch(_) {}
         startAVChecks();
 
         // Fetch challenge from backend (parallel — doesn't block AV checks)
@@ -696,6 +767,12 @@ let _avDispTick = 0;            // t729: WAS UNDECLARED in the t727 display thro
 let _avVbSlow = 0;              // t730: slow ambient baseline of the voice-band ratio (~20s memory) — the mic passes on the RISE above ambient, not on voice-shaped background (Rob: went green before speaking)
 let _avVbEma = 0;               // t726: smoothed VOICE-BAND ratio — Rob: the voice % is what flickers; a jumpy ratio kept resetting the sustain counter
 let _avAnalyserDeadSince = 0;   // task-724: performance.now() when analyser starvation first detected
+let _avGraphRebuilt = 0;        // s182: analyser graph rebuilds this pre-flight (at most one per starvation episode)
+let _micFallbackNarrated = false; // s182: "Microphone starting" narration shown for the current starvation episode
+// s182: MediaRecorder blob-size proxy level (0-100) at/above which a starved-analyser frame counts as
+// voiced. This is the SAME corroboration value t727 already used (`_avMrLevelSynth >= 8`) — hoisted,
+// not tuned (CEREMONY-MIC-DIAGNOSIS §4c: no threshold changes).
+const MR_FALLBACK_VOICED_LEVEL = 8;
 let avChecks = { light: false, mic: false, hand: false };
 let _avSilentFrames = 0; // S154 fix-on-find: consecutive near-zero-input pre-flight frames while mic hasn't qualified — after ~6s, warns of a likely wrong-mic selection
 let _silentTrackFrames = 0;     // SAGA-SILENT-06: consecutive frames below SILENT_TRACK_RMS_THRESHOLD
@@ -703,9 +780,77 @@ let _silentTrackBannerShown = false; // SAGA-SILENT-06: show banner once per ses
 let avPrevOval = null; // previous frame luminance for motion detection
 let _handStableFrames = 0; // F-755d: consecutive frames where hand passes _near+21-finite gate
 let _handUnstableFrames = 0; // T-329a: consecutive frames the LATCHED hand-ready state loses zone acceptance
+// S194 (Rob, iPad Air + Magic Mouse, 17 Sep): all three pre-flight checks went green, yet Start
+// would not respond. Debug trace sess_px0kpwc0 (04:47 UTC): mic passed at :23, the audio context
+// then kept starving (analyser_starved / silent_track_detected — iOS leaves it suspended outside a
+// gesture) so the mic could not re-qualify, and the 10 s mic expiry plus the 3 s hand grace (the
+// hand leaves the cheek to reach the mouse/screen) greyed Start again before the click landed.
+// Fix: once light + mic + hand have all passed TOGETHER, readiness latches for the rest of this
+// pre-flight (PREFLIGHT_LATCH_MS). The ceremony that follows still checks the live face, hand and
+// voice on every step — the latch only stops the Start button disappearing under the pointer.
+const PREFLIGHT_LATCH_MS = 120000;
+let _preflightPassedAt = 0;
+// S194 (IDSIA meeting: "no one will read the small print"): once light + mic + hand pass, the
+// ceremony moves on by itself after a short beat — no Start tap to miss. Safe on iOS because the
+// next screen (the numbers preview) needs an "I'm ready" tap, which is the gesture that resumes
+// audio (dismissChallengeIntro). The Start button still works for anyone who taps first.
+let _preflightAutoStarted = false;
+const PREFLIGHT_AUTOSTART_MS = 900;
+// The pre-flight mic test only proves the microphone hears speech; the greeting and digit gates
+// keep the full VOICED_RUN_TICKS_NEEDED bar. ~0.8s of voice at TICK_MS=200.
+const MIC_PREFLIGHT_TICKS_NEEDED = 4;   // used via _micVoicedState.need (see _newVoicedRunState)
+function _preflightLatched() {
+    return !!_preflightPassedAt && (performance.now() - _preflightPassedAt) < PREFLIGHT_LATCH_MS;
+}
+// iOS/iPadOS only honours AudioContext.resume() inside a user gesture. Any tap or click during the
+// pre-flight resumes the analyser graph so the mic meter reads real audio instead of zeros.
+let _preflightGestureResumeInstalled = false;
+function _installPreflightGestureResume() {
+    if (_preflightGestureResumeInstalled) return;
+    _preflightGestureResumeInstalled = true;
+    let _lastTapLogT = 0;
+    const _resume = function (ev) {
+        try { if (avAudioCtx && avAudioCtx.state === 'suspended') { avAudioCtx.resume(); try { vacDebug('preflight_gesture_resume', null, { state: avAudioCtx.state }); } catch (_) {} } } catch (_) {}
+        // S194 diagnostic: where do taps land while the Start button is on screen? (a tap that never
+        // reaches the button — covered, disabled, or off-target — is invisible otherwise). ≤1 per 2 s.
+        try {
+            const _btn = document.getElementById('btnCamera');
+            const _now = performance.now();
+            if (_btn && _btn.offsetParent !== null && (_now - _lastTapLogT) > 2000 && ev && ev.type === 'pointerdown') {
+                _lastTapLogT = _now;
+                const _t = ev.target;
+                const _r = _btn.getBoundingClientRect();
+                const _inBtn = ev.clientX >= _r.left && ev.clientX <= _r.right && ev.clientY >= _r.top && ev.clientY <= _r.bottom;
+                vacDebug('preflight_tap', null, {
+                    target: _t ? ((_t.id ? '#' + _t.id : '') || (_t.tagName || '').toLowerCase()) : null,
+                    on_button: !!(_t && (_t === _btn || _btn.contains(_t))),
+                    in_button_rect: _inBtn,
+                    button_disabled: !!_btn.disabled,
+                    button_text: String(_btn.textContent || '').slice(0, 40),
+                    pointer: ev.pointerType || null,
+                    latched: _preflightLatched(),
+                    checks: { light: !!avChecks.light, mic: !!avChecks.mic, hand: !!avChecks.hand },
+                });
+            }
+            // If something is layered over the Start button, a tap inside its rectangle still starts.
+            if (_btn && _btn.offsetParent !== null && !_btn.disabled && ev && ev.type === 'pointerdown' && ev.target && ev.target !== _btn && !_btn.contains(ev.target)) {
+                const _r2 = _btn.getBoundingClientRect();
+                if (ev.clientX >= _r2.left && ev.clientX <= _r2.right && ev.clientY >= _r2.top && ev.clientY <= _r2.bottom) {
+                    try { vacDebug('preflight_tap_forwarded', null, { target: ev.target.id || ev.target.tagName }); } catch (_) {}
+                    _btn.click();
+                }
+            }
+        } catch (_) {}
+    };
+    try {
+        document.addEventListener('pointerdown', _resume, { passive: true, capture: true });
+        document.addEventListener('touchstart', _resume, { passive: true, capture: true });
+        document.addEventListener('keydown', _resume, { capture: true });
+    } catch (_) {}
+}
 const AV_HAND_GRACE_MS = 3000; // F-929 (Rob, S147): bounded, VISIBLE grace after hand-drop so one-handed users can reach Start — honesty preserved by the on-chip countdown
 let _handGraceStartT = 0;      // F-929: timestamp when the current grace window opened (0 = not in grace)
-let _micVoicedState = _newVoicedRunState();  // L-2503/L-2504 (S166): the mic test's own voiced-run tracker — same shared shape/predicate the greeting gate uses (see VOICE_BAND_MIN_RATIO above)
+let _micVoicedState = _newVoicedRunState(MIC_PREFLIGHT_TICKS_NEEDED);  // L-2503/L-2504 (S166): the mic test's own voiced-run tracker — same shared shape/predicate the greeting gate uses (see VOICE_BAND_MIN_RATIO above)
 let _micLevelHistory = []; // T-329c: {t, level} ring buffer (last 2s) for the ambient-median comparison
 let _micRunLevels = [];    // T-329c: levels making up the CURRENT qualifying voiced run (feeds the D-VAD-CALIBRATION-GREETING-BOUND seed median)
 let _micLastQualifyT = 0;  // T-329c: last time a qualifying (voiced-run) pass occurred — drives 10s regression
@@ -782,7 +927,7 @@ const VOICED_RUN_TICKS_NEEDED = 7;   // mirrors PHRASE_VOICED_TICKS_NEEDED — ~
 const VOICED_RUN_MOD_DELTA = 0.045;  // mirrors PHRASE_MOD_DELTA — the run's rms range must exceed this; a flat tone/hum/steady noise floor can't satisfy it
 const VOICED_RUN_SPEECH_RMS_FLOOR = 0.055;   // mirrors VAD_SPEECH_RMS_FALLBACK (ceremony-RMS scale — see D-VAD-UNITS above _micSeededAmbientRms) — the near-field amplitude gate; spectral shape alone (a far-field TV) isn't enough
 const VOICED_RUN_SILENCE_RMS_FLOOR = 0.030;  // mirrors VAD_SILENCE_RMS_FALLBACK — below this is genuine near-silence (decay); the gap between the two floors is the neutral "neither" band (hold)
-function _newVoicedRunState() { return { ticks: 0, min: 1, max: 0 }; }
+function _newVoicedRunState(need) { return { ticks: 0, min: 1, max: 0, need: need || 0 }; }
 // One frame of evidence, in ceremony-RMS units (see D-VAD-UNITS above _micSeededAmbientRms): rms =
 // time-domain RMS, isVoicedFrame = near-field amplitude gate AND voice-band ratio both passed this
 // frame (or an already-proven starved-analyser fallback frame), isSilenceFrame = genuine near-
@@ -803,7 +948,7 @@ function _voicedRunTick(state, rms, isVoicedFrame, isSilenceFrame) {
 // where amplitude itself is unreliable) skips the modulation check — mirrors the greeting gate's
 // pre-existing `_vadStarved ||` escape.
 function _voicedRunPass(state, modOverride) {
-    return state.ticks >= VOICED_RUN_TICKS_NEEDED && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
+    return state.ticks >= (state.need || VOICED_RUN_TICKS_NEEDED) && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
 }
 // SAGA-SILENT-06: OS-level mic privacy block / wrong device yields a live-but-silent track.
 // The analyser reads zeros continuously; all VAD thresholds fail; no sensor identified cause.
@@ -830,13 +975,15 @@ function _micQualifyFloor(_voiced) {
 // the OS is handing us a genuinely silent track (privacy block / wrong mic device).
 function _runSyntheticAudioSelfTest(cb) {
     try {
+        // Production has NO injection seam: the self-test only ever uses the live module graph.
+        // (TC-TSH-02 exercises this function by source extraction in Node, never via the page.)
         if (!avAudioCtx || !avAnalyser) { if (cb) cb(false, 'no_ctx'); return; }
         const osc = avAudioCtx.createOscillator();
         const gain = avAudioCtx.createGain();
         gain.gain.value = 0.08;
         osc.frequency.value = 440;
         osc.connect(gain);
-        gain.connect(avAnalyser);
+        gain.connect(avAnalyser);   // the SAME live graph (SAGA-SILENT-06)
         osc.start();
         setTimeout(function() {
             try {
@@ -865,8 +1012,19 @@ function _showSilentTrackBanner() {
     banner.id = 'vacSilentTrackBanner';
     banner.setAttribute('data-testid', 'silent-track-banner');
     banner.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e293b;border:1.5px solid #fbbf24;border-radius:10px;padding:14px 18px;z-index:9999;color:#f8fafc;font-size:13px;max-width:360px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.5;';
-    banner.innerHTML = '<strong style="color:#fbbf24">Mic not sending audio.</strong><br>Mac: System Settings &rsaquo; Privacy &amp; Security &rsaquo; Microphone &rsaquo; allow this browser.<br><span style="color:#94a3b8;font-size:11px">Then reload the page to retry.</span>';
+    banner.innerHTML = '<strong style="color:#fbbf24">Mic not sending audio</strong> — no microphone signal is reaching this page.<br>Mac: System Settings &rsaquo; Privacy &amp; Security &rsaquo; Microphone &rsaquo; allow this browser.<br><span style="color:#94a3b8;font-size:11px">Then check again, or reload the page.</span>' +
+        '<br><button type="button" id="vacSilentTrackDismiss" style="margin-top:10px;min-height:44px;padding:8px 18px;border-radius:8px;border:1.5px solid #fbbf24;background:transparent;color:#fbbf24;font-weight:700;font-size:13px;cursor:pointer">Check again</button>';
     document.body.appendChild(banner);
+    // SAGA-SILENT-06 spec (TC-TSH-03): a way out of the banner. "Check again" clears it and re-runs the
+    // synthetic self-test; a still-silent track brings it back, a fixed one leaves it gone.
+    try {
+        document.getElementById('vacSilentTrackDismiss').addEventListener('click', function() {
+            try { banner.remove(); } catch(_) {}
+            // Re-arm the existing silent-track detector: if the track is still silent it raises the
+            // banner again after SILENT_TRACK_DETECT_FRAMES; if the user fixed the mic, it stays gone.
+            try { _silentTrackFrames = 0; _silentTrackBannerShown = false; } catch(_) {}
+        });
+    } catch(_) {}
 }
 window.__vacShowSilentTrackBanner = _showSilentTrackBanner;
 
@@ -973,7 +1131,7 @@ const GESTURE_ZONE_SPEC = Object.freeze({
 // _activeZone() still falls back to the fixed GESTURE_ZONE_SPEC constants whenever there's no
 // confident read — never a dead zone.
 const _FACE_ASPECT = 0.78;    // typical face width/height ratio, for deriving width from height
-const _FACE_SIDE_GAP = 0.05;  // task-718 restore: 0.10→0.05 (archaeology verdict B); ovals closer to natural hand position
+const _FACE_SIDE_GAP = 0.10;  // S204: back to the Rob-confirmed founding value (CB-ZONE-01, task-644: ovals beside the cheek, not on the face). task-718 had set 0.05 on a design recommendation without updating the confirmed fixture; the near-distance fit in _activeZone() now guarantees the face gap where the clamp used to break it.
 let _faceAnchor = { anchored: false, cx: 0.5, cy: GESTURE_ZONE_SPEC.ovals[0].cy, hFrac: null };
 let _faceAnchorMissStreak = 0;
 const _FACE_ANCHOR_EMA = 0.35;       // blend weight per confident read — smooths single-frame jitter
@@ -1125,7 +1283,7 @@ function _activeZone() {
     // selfie distance (~3× too tight vs S139). NOW: Math.max(0.17, 0.22*wFrac) — face-proportional
     // when face is large, but never tighter than the S139 usable floor. FaceLandmarker anchoring
     // preserved; hand BESIDE face detects without overlap.
-    const rx = Math.max(0.17, 0.22 * wFrac);
+    let rx = Math.max(0.17, 0.22 * wFrac);
     const ry = Math.max(0.22, 0.30 * hFrac);
     // Gap is face-proportional so it stays in the [0.10, 0.50] faceW assertion band at all distances.
     const gap = Math.max(_FACE_SIDE_GAP, 0.15 * wFrac);
@@ -1133,6 +1291,20 @@ function _activeZone() {
     const faceCx = _faceAnchor.cx;
     let cxLeft  = faceCx - halfW - gap - rx;
     let cxRight = faceCx + halfW + gap + rx;
+    // S204 near-distance fix: close to the camera (a large face, e.g. an iPad held near) there is no
+    // room for the 0.17 floor oval beside the face; the in-frame clamp below then pulled the oval ONTO
+    // the face, so a hand held "in the oval" covered the face the ceremony must capture. Keep a clear
+    // gap of at least 0.10 face widths on the roomier side by shrinking the radius only when needed.
+    // This only ever makes the zone SMALLER (never more permissive) and leaves far/mid unchanged.
+    const _minFaceGap = 0.11 * wFrac;   // 0.10 face widths plus margin (float-safe)
+    const _roomL = (faceCx - halfW) - _minFaceGap - 0.005;          // width available left of the face
+    const _roomR = 1.0 - (faceCx + halfW) - _minFaceGap - 0.005;    // width available right of the face
+    const _rxFit = Math.max(_roomL, _roomR) / 2;
+    if (_rxFit > 0 && _rxFit < rx) {
+        rx = _rxFit;
+        cxLeft  = faceCx - halfW - Math.max(gap, _minFaceGap) - rx;
+        cxRight = faceCx + halfW + Math.max(gap, _minFaceGap) + rx;
+    }
     // Clamp so the ENTIRE oval stays in-frame (centre ± radius stays in [0,1]) with a 0.5% margin.
     cxLeft  = Math.max(rx + 0.005, Math.min(0.5 - rx, cxLeft));
     cxRight = Math.min(1.0 - rx - 0.005, Math.max(0.5 + rx, cxRight));
@@ -1240,6 +1412,50 @@ function _noteHandZoneTransition(prevState, isIn, zone) {
     return isIn;
 }
 
+// s182 ROOT FIX for analyser_starved_mr_fallback (CEREMONY-MIC-DIAGNOSIS-2026-08-20 §1/§4):
+// task-724 moved AudioContext creation INTO the tap, BEFORE getUserMedia, so iOS would honour
+// resume(). That ordering is exactly the one iOS/WebKit breaks: opening the microphone can switch
+// the audio session's hardware sample rate, and a context created at the OLD rate keeps running
+// (state 'running', no error) while its MediaStreamAudioSourceNode delivers ~1% RMS — the analyser
+// is starved although MediaRecorder (native path) hears speech at 85%. Cold permission grants
+// (Murray's first click, Rob's 10:54 and 16:10 runs) hit the rate switch; warm runs don't — that
+// variability is the signature the diagnosis recorded. The remedy is to rebuild the graph on a
+// context created AFTER the stream exists (it constructs at the post-switch rate). The page has
+// already had a gesture-driven resume, so the new context starts running on iOS; the load-bound
+// gesture-resume listeners (task-732) cover the case where it doesn't. Called (a) proactively in
+// requestCamera when the context and track sample rates disagree, (b) once per starvation episode
+// from runAVFrame alongside the MediaRecorder fallback. Never changes a threshold.
+function _avTrackSampleRate() {
+    try {
+        const t = mediaStream && mediaStream.getAudioTracks()[0];
+        const st = t && t.getSettings ? t.getSettings() : null;
+        return (st && st.sampleRate) || 0;
+    } catch(_) { return 0; }
+}
+function _rebuildAvAnalyserGraph(reason) {
+    if (!mediaStream) return false;
+    const _before = avAudioCtx ? avAudioCtx.sampleRate : 0;
+    const _trackSr = _avTrackSampleRate();
+    try {
+        const _old = avAudioCtx;
+        avAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        try { if (avAudioCtx.state === 'suspended') avAudioCtx.resume(); } catch(_) {}
+        avAnalyser = avAudioCtx.createAnalyser();
+        avAnalyser.fftSize = 256;
+        // task-733: ORIGINAL stream, single source per ctx (the cache is keyed by ctx, so a new
+        // ctx gets its own source node); pinned against GC (SAGA-GC-01).
+        _pinSrc(_originalStreamSource(avAudioCtx, mediaStream)).connect(avAnalyser);
+        try { if (_old && _old !== avAudioCtx && _old.state !== 'closed') _old.close().catch(function(){}); } catch(_) {}
+        _avGraphRebuilt++;
+        _avAnalyserDeadSince = 0;   // give the rebuilt graph its own starvation window
+        try { vacDebug('analyser_graph_rebuilt', reason, { ctx_sr_before: _before, ctx_sr_after: avAudioCtx.sampleRate, track_sr: _trackSr, state: avAudioCtx.state, n: _avGraphRebuilt }); } catch(_) {}
+        return true;
+    } catch (_e) {
+        try { vacDebug('analyser_graph_rebuild_failed', reason, { message: String((_e && _e.message) || _e).slice(0, 160) }); } catch(_) {}
+        return false;
+    }
+}
+
 // task-724: if avAudioCtx is running but avAnalyser still reads ≤1% for >2s, fall back to
 // estimating mic level from a mini MediaRecorder (OS audio path, no AudioContext dependence).
 // The recorder's blob SIZE is a proxy: silence encodes very small; speech encodes much larger.
@@ -1300,9 +1516,11 @@ function startAVChecks() {
     // (codex). runAVFrame re-sets each true within a frame or two if conditions hold, so this only
     // forces a genuine re-check.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _preflightPassedAt = 0; _preflightAutoStarted = false;
+    _installPreflightGestureResume();
     _handStableFrames = 0;
     _handUnstableFrames = 0;
-    _micVoicedState = _newVoicedRunState();
+    _micVoicedState = _newVoicedRunState(MIC_PREFLIGHT_TICKS_NEEDED);
     _micLevelHistory = [];
     _micRunLevels = [];
     _micLastQualifyT = 0;
@@ -1321,6 +1539,9 @@ function startAVChecks() {
     _avAnalyserDeadSince = 0;
     _avMrLevelSynth = 0;
     if (_avMrFallback) { try { _avMrFallback.stop(); } catch(_) {} _avMrFallback = null; }
+    _avGraphRebuilt = 0;          // s182: a fresh entry may rebuild once more
+    _micFallbackNarrated = false;
+    window.__vacMicQualifyPath = null;
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
     setAVStatus('hand', 'checking', 'Hand');
@@ -1424,7 +1645,11 @@ function startAVChecks() {
                 if (avAudioCtx && avAudioCtx.state === 'running' && level <= 1) {
                     if (_avAnalyserDeadSince === 0) _avAnalyserDeadSince = _avNow;
                     if (_avNow - _avAnalyserDeadSince > 2000 && !_avMrFallback) {
+                        // s182: start the proxy (so the user is never left on a confident 0%) AND
+                        // rebuild the graph once — if the rebuilt analyser comes alive the fallback
+                        // exits on its own via the >4% hysteresis below.
                         _startAvMrFallback();
+                        if (_avGraphRebuilt === 0) { try { _rebuildAvAnalyserGraph('starved'); } catch(_) {} }
                     }
                 } else if (level > 4) {
                     // Hysteresis: >4% clears codec-quantization noise (1-3%) that would
@@ -1442,6 +1667,24 @@ function startAVChecks() {
                 }
             }
             _checkMicDeviceWarn(level);
+            // s182 (F-1025 EXPLAIN-AS-YOU-ADAPT): a starved analyser on the MediaRecorder proxy is a
+            // degraded path — say so. "Mic: starting, one moment" replaces the confident 0% that read
+            // as "you were too quiet"; the label reverts when the analyser wakes (fallback exits).
+            const _micOnFallback = !!_avMrFallback && _avAnalyserDeadSince > 0;
+            if (!avChecks.mic) {
+                if (_micOnFallback && !_micFallbackNarrated) {
+                    _micFallbackNarrated = true;
+                    setAVStatus('mic', 'checking', 'Mic: starting, one moment');
+                    const _mpf = document.getElementById('avMicPromptText');
+                    if (_mpf) _mpf.textContent = 'Microphone starting, one moment. Keep speaking normally.';
+                    try { vacDebug('mic_fallback_narrated', null, { rebuilt: _avGraphRebuilt }); } catch(_) {}
+                } else if (!_micOnFallback && _micFallbackNarrated) {
+                    _micFallbackNarrated = false;
+                    setAVStatus('mic', 'checking', 'Mic');
+                    const _mpr = document.getElementById('avMicPromptText');
+                    if (_mpr) _mpr.textContent = 'Say your name out loud';
+                }
+            }
             // F-941 (BUILD 393): frequency-spectrum data pulled every frame (not just when the
             // monitor draw below needs it) so the voice-band ratio is available to the
             // ambient-relative qualify check regardless of __vacGateArmed. bins 1-16 of 128
@@ -1531,7 +1774,7 @@ function startAVChecks() {
             // t727: a frame builds the pass ONLY when (a) it carried real energy, (b) the smoothed
             // ratio is voice-dominant, AND (c) a hearing path corroborates a human is speaking —
             // amplitude above codec noise OR the MediaRecorder proxy (the path that provably hears).
-            var _t727Corrob = (level >= 3) || (_avMrLevelSynth >= 8);
+            var _t727Corrob = (level >= 3) || (_avMrLevelSynth >= MR_FALLBACK_VOICED_LEVEL);
             if (_speechRatio >= 0) { _avVbSlow = (_avVbSlow === 0) ? _avVbEma : (0.995 * _avVbSlow + 0.005 * _avVbEma); }
             // t730: qualify on the RISE — speech pushes the fast EMA well above the slow ambient
             // baseline; background alone keeps them equal, so it can no longer green the tile.
@@ -1584,9 +1827,28 @@ function startAVChecks() {
             // above) — never a bare rise above ambient (a door slam, cough, TV, or chair scrape rises
             // above ambient too). _ceremonyRms is the near-field amplitude gate, in the SAME
             // ceremony-RMS units as the greeting/digit gates (D-VAD-UNITS above _micSeededAmbientRms).
-            const _micVoicedFrame = (_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR);
-            const _micSilenceFrame = _ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR;
-            _voicedRunTick(_micVoicedState, _ceremonyRms, _micVoicedFrame, _micSilenceFrame);
+            // s182 fallback-path PARITY (CEREMONY-MIC-DIAGNOSIS §4: "make the fallback qualify as fast
+            // as the primary path"): while the analyser is starved its RMS can never clear the
+            // near-field floor, so the proxy path (the one that provably hears) supplies the voiced /
+            // silence frame evidence instead. A proxy frame is voiced at the SAME level t727 already
+            // trusted for corroboration; when the starved FFT still carries a readable spectrum it
+            // must agree (a neutral -1 spectrum abstains). The run still needs the shared sustained
+            // VOICED_RUN_TICKS_NEEDED; modulation is proven by the proxy itself (its level IS a
+            // peak/trough ratio), so the pass uses the documented modOverride. Every pass is tagged
+            // with its path (telemetry + receipt) so a degraded-path ceremony stays distinguishable.
+            const _mrVoicedFrame = _micOnFallback && (_avMrLevelSynth >= MR_FALLBACK_VOICED_LEVEL) && (_speechRatio < 0 || _speechRatio >= VOICE_BAND_MIN_RATIO);
+            const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR));
+            const _micSilenceFrame = _micOnFallback ? (_avMrLevelSynth === 0 && !_mrVoicedFrame) : (_ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR);
+            _voicedRunTick(_micVoicedState, _mrVoicedFrame ? (_avMrLevelSynth / 100) : _ceremonyRms, _micVoicedFrame, _micSilenceFrame);
+            // S194: show progress while the user speaks, so "keep talking" is visible, not a guess.
+            if (!avChecks.mic && !(_micOnFallback && _micFallbackNarrated)) {
+                const _mpp = document.getElementById('avMicPromptText');
+                if (_mpp) {
+                    const _pct = Math.min(99, Math.round((_micVoicedState.ticks / MIC_PREFLIGHT_TICKS_NEEDED) * 100));
+                    const _want = _micVoicedState.ticks > 0 ? ('Listening\u2026 keep talking (' + _pct + '%)') : 'Say your name out loud';
+                    if (_mpp.textContent !== _want) _mpp.textContent = _want;
+                }
+            }
             if (_micVoicedFrame) {
                 // D-VAD-CALIBRATION-GREETING-BOUND: collect the CURRENT voiced run's levels so a
                 // passing run can seed the ceremony VAD from its median (below) — same intent as the
@@ -1604,9 +1866,9 @@ function startAVChecks() {
             // mic test that never greens must show voiced_ticks/mod/vb_ratio/near-field, not amplitude.
             if (!avChecks.mic && (_nowT - (window.__vacMicPendingT || 0)) > 1000) {
                 window.__vacMicPendingT = _nowT;
-                try { vacDebug('mic_qualify_pending', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)) }); } catch(_) {}
+                try { vacDebug('mic_qualify_pending', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)), path: _micOnFallback ? 'mr' : 'analyser', mr_level: _avMrLevelSynth, rebuilt: _avGraphRebuilt }); } catch(_) {}
             }
-            if (_micSeeded && _voicedRunPass(_micVoicedState, false)) {
+            if (_micSeeded && _voicedRunPass(_micVoicedState, _micOnFallback)) {
                 // GATE-343 f2: hold qualification until the seed window has closed — a run
                 // completing WHILE seeding is still in progress means _micSeededAmbient is still
                 // 0 (unmeasured), which is exactly the "starting in noise" false-tick this fix
@@ -1621,17 +1883,20 @@ function startAVChecks() {
                 const _runRmsSorted = _micRunRmsSamples.slice().sort((a, b) => a - b);
                 if (_runRmsSorted.length) _micSeededSpeechRms = _runRmsSorted[Math.floor(_runRmsSorted.length / 2)];
                 if (!avChecks.mic) {
-                    setAVStatus('mic', 'good', 'Mic: working');
+                    // s182: the receipt must say which path proved the human (§4b) — recorded here,
+                    // sent as client_mic_path with the verify upload.
+                    window.__vacMicQualifyPath = _micOnFallback ? 'mr' : 'analyser';
+                    setAVStatus('mic', 'good', _micOnFallback ? 'Mic: working (fallback path)' : 'Mic: working');
                     avChecks.mic = true;
-                    try { vacDebug('mic_pass_on_voiced_run', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)) }); } catch(_) {}
+                    try { vacDebug('mic_pass_on_voiced_run', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)), path: window.__vacMicQualifyPath, mr_level: _avMrLevelSynth, rebuilt: _avGraphRebuilt }); } catch(_) {}
                 }
             }
-            if (avChecks.mic && _nowT - _micLastQualifyT > 10000) {
+            if (avChecks.mic && !_preflightLatched() && _nowT - _micLastQualifyT > 10000) {
                 avChecks.mic = false;
                 _micLastQualifyT = 0;
                 setAVStatus('mic', 'checking', 'Mic');
                 const _mpt = document.getElementById('avMicPromptText');
-                if (_mpt) _mpt.textContent = 'Speak now to test your microphone';
+                if (_mpt) _mpt.textContent = 'Say your name out loud';
                 micWaitStart = 0;
             }
         }
@@ -1712,7 +1977,9 @@ function startAVChecks() {
                         // cancels the countdown back to steady ✓. On expiry, full regression as before.
                         if (!_handGraceStartT) _handGraceStartT = performance.now();
                         const _gLeft = AV_HAND_GRACE_MS - (performance.now() - _handGraceStartT);
-                        if (_gLeft > 0) {
+                        if (_preflightLatched()) {
+                            setAVStatus('hand','good','Hand \u2713');
+                        } else if (_gLeft > 0) {
                             setAVStatus('hand','good','Hand \u2713 \u2014 start within ' + Math.ceil(_gLeft/1000) + 's');
                         } else {
                             _handGraceStartT = 0;
@@ -2533,7 +2800,7 @@ function updateMicTips() {
         tip.innerHTML = `<span style="color: var(--warning);">Mic not picking up audio?</span> ${tips[0] || 'Check your browser permissions.'}`;
         tip.style.display = 'block';
     } else if (waited > 3) {
-        tip.textContent = 'Try speaking louder or clapping';
+        tip.textContent = 'Speak in a normal voice, close to the device';
         tip.style.display = 'block';
     }
 }
@@ -2587,10 +2854,15 @@ function updateAVReady() {
     // one at a time, with explicit instructions. All three must pass before Start.
     if (guide) {
         const _steps = _fastStill ? 2 : 3;   // fast: light+mic; full: +hand
-        if (!avChecks.light) {
+        if (_preflightLatched()) {
+            guide.textContent = 'All set \u2713  Starting\u2026';
+            guide.style.color = 'var(--success)';
+            guide.style.borderColor = 'var(--success-border, rgba(63,185,80,0.3))';
+            guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
+        } else if (!avChecks.light) {
             guide.textContent = 'Step 1 of ' + _steps + ' — find good lighting so your face is clearly visible';
         } else if (!avChecks.mic) {
-            guide.textContent = 'Step 2 of ' + _steps + ' — say a few words to test your microphone';
+            guide.textContent = 'Step 2 of ' + _steps + ' — say your name out loud';
         } else if (!_fastStill && !avChecks.hand) {
             guide.textContent = 'Step 3 of 3 — hold your hand up beside your cheek, on the marker (you\u2019ll see it tracked)';
         } else if (_fastStill && !_fastDetectorReady) {
@@ -2602,11 +2874,36 @@ function updateAVReady() {
             guide.style.background = 'var(--success-bg, rgba(63,185,80,0.10))';
         }
     }
-    const allGood = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
-    if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
-        btn.disabled = !allGood;
-        btn.textContent = allGood ? 'Start verification' : 'Complete the checks above';
+    const _allGoodNow = avChecks.light && avChecks.mic && (_fastStill ? _fastDetectorReady : avChecks.hand);
+    if (_allGoodNow && !_preflightPassedAt) {
+        _preflightPassedAt = performance.now();
+        try { vacDebug('preflight_latched', null, { fast: _fastStill }); } catch (_) {}
     }
+    const allGood = _allGoodNow || _preflightLatched();
+    if (btn.textContent === 'Proceed to Challenge' || btn.textContent.includes('Ready') || btn.textContent.includes('Start') || btn.textContent.includes('Complete the checks')) {
+        // Only touch the DOM when the state actually changes — rewriting the label and toggling
+        // `disabled` on every animation frame can swallow a pointer click mid-press.
+        const _wantText = allGood ? 'Start verification' : 'Complete the checks above';
+        if (btn.disabled !== !allGood) btn.disabled = !allGood;
+        if (btn.textContent !== _wantText) btn.textContent = _wantText;
+    }
+    // S194: auto-start once the checks have held for a short beat (see _preflightAutoStarted).
+    // Full ceremony only, and only when the numbers preview will show (its "I'm ready" tap is the
+    // audio gesture on iOS). Fast/still and voice-only paths keep the Start tap.
+    try {
+        if (allGood && !_preflightAutoStarted && _preflightPassedAt && !_fastStill
+            && !window.__vacAutoProceedChallenge && !window.__vacSkipExplainer
+            && btn && !btn.disabled && btn.textContent === 'Start verification'
+            && btn.onclick !== requestCamera
+            && fingerFallback !== 'voice'
+            && challengeData && challengeData.digits && challengeData.digits.length
+            && !challengeIncomplete()
+            && (performance.now() - _preflightPassedAt) >= PREFLIGHT_AUTOSTART_MS) {
+            _preflightAutoStarted = true;
+            try { vacDebug('preflight_autostart', null, { held_ms: Math.round(performance.now() - _preflightPassedAt) }); } catch (_) {}
+            setTimeout(function(){ try { goToChallenge(); } catch(_) {} }, 0);
+        }
+    } catch (_) {}
     // Service-error AUTO-retry: once the (warmed) pre-flight passes, advance to the challenge
     // automatically — preserves the "retrying automatically" flow without the cold-entry race.
     // Auto-proceed only when the challenge is ALSO loaded — requestCamera() clears challengeData
@@ -2633,6 +2930,7 @@ function stopAVChecks() {
     // task-724: tear down MR fallback alongside the analyser
     if (_avMrFallback) { try { _avMrFallback.stop(); } catch(_) {} _avMrFallback = null; }
     _avMrLevelSynth = 0; _avAnalyserDeadSince = 0;
+    _avGraphRebuilt = 0; _micFallbackNarrated = false;   // s182
     avPrevOval = null;
     // Clear the pre-flight hand-zone guide so #faceOval returns and the green ring
     // doesn't linger when the pre-flight stops (leaving step 1 / re-auth).
@@ -2643,7 +2941,8 @@ function retryAVSetup() {
     // Stop existing checks (closes and nulls avAudioCtx)
     stopAVChecks();
     avChecks = { face: false, light: false, mic: false, hand: false };
-    _micVoicedState = _newVoicedRunState();
+    _preflightPassedAt = 0; _preflightAutoStarted = false;
+    _micVoicedState = _newVoicedRunState(MIC_PREFLIGHT_TICKS_NEEDED);
     _micLevelHistory = [];
     _micRunLevels = [];
     _micRunRmsSamples = [];
@@ -2668,7 +2967,7 @@ function retryAVSetup() {
     });
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
-    document.getElementById('avMicPromptText').textContent = 'Speak now to test your microphone';
+    document.getElementById('avMicPromptText').textContent = 'Say your name out loud';
     document.getElementById('avAudioLevel').style.width = '0%';
     document.getElementById('avAudioPct').textContent = '0%';
     updateAVReady();
@@ -3481,7 +3780,42 @@ function _startPhraseContentGate(phraseTokens, onMatch, onFatal, onAnyTranscript
     return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
 }
 
+
+// Single-use early face identity evidence from the SAME live MediaRecorder clip.
+// This is a capture-time alternative to the last digit frame, NOT an
+// authentication shortcut. The backend still verifies full challenge/liveness
+// video and matches the 128-D face descriptor against the stored owner
+// identity BEFORE minting authority. No token or identity decision is made
+// here. Reject stale, other-recorder, post-recording or late-gesture frames.
+function _recordVaultEarlyIdentityFrame(boundRecorder, capturedAtMs, canvas) {
+    if (!window.VACVaultHandoff || !boundRecorder || boundRecorder !== mediaRecorder ||
+        boundRecorder.state !== 'recording' || !canvas ||
+        !(canvas.width > 0 && canvas.height > 0) ||
+        !Number.isFinite(capturedAtMs) || !Number.isFinite(_recorderStartMs)) return false;
+    const ageMs = capturedAtMs - _recorderStartMs;
+    if (ageMs < 0 || ageMs > 4000) return false;
+    window.__vacEarlyFaceCandidate = {
+        recorder: boundRecorder, startedAtMs: _recorderStartMs,
+        ageMs: ageMs, canvas: canvas,
+    };
+    return true;
+}
+
+function _takeVaultEarlyIdentityFrame(recorder, startedAtMs, elapsedMs) {
+    const saved = window.__vacEarlyFaceCandidate;
+    // Always consume before validating; a retry/new ceremony must not reuse it.
+    window.__vacEarlyFaceCandidate = null;
+    if (!window.VACVaultHandoff || !saved || !recorder ||
+        saved.recorder !== recorder || saved.startedAtMs !== startedAtMs ||
+        !Number.isFinite(saved.ageMs) || saved.ageMs < 0 ||
+        saved.ageMs > 4000 || saved.ageMs >= elapsedMs ||
+        !saved.canvas || !(saved.canvas.width > 0 && saved.canvas.height > 0)) return null;
+    return saved.canvas;
+}
+
 function beginRecording() {
+    // Never carry a prior recording's face evidence across an aborted retry.
+    window.__vacEarlyFaceCandidate = null;
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
@@ -3556,11 +3890,15 @@ function beginRecording() {
     const __recStartMs = performance.now();
     window.__vacFaceStillB64 = '';
     window.__vacFaceStillTsMs = 0;
+    // The still timer belongs to THIS recorder; a restarted camera must
+    // never let an older callback write identity evidence into a new take.
+    const _boundIdentityRecorder = mediaRecorder;
     const FACE_STILL_DELAY_MS = 800;
     setTimeout(function captureBoundStill() {
         try {
             // Only sample while genuinely recording (user may have aborted).
-            if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+            if (!mediaRecorder || mediaRecorder !== _boundIdentityRecorder ||
+                mediaRecorder.state !== 'recording') return;
             const v = document.getElementById('videoPreviewRec');
             if (!v || !v.videoWidth || !v.videoHeight) return; // frame not ready → leave empty
             // Downscale to <=640px longest edge to stay well under the request budget.
@@ -3578,6 +3916,9 @@ function beginRecording() {
             if (comma === -1) return; // malformed → leave empty
             window.__vacFaceStillB64 = dataUrl.slice(comma + 1); // strip "data:image/jpeg;base64,"
             window.__vacFaceStillTsMs = Math.round(performance.now() - __recStartMs);
+            // Reuse the exact same early live video canvas, inside the recorded
+            // greeting. No additional camera open or face snapshot is taken.
+            _recordVaultEarlyIdentityFrame(_boundIdentityRecorder, performance.now(), c);
             console.log('[VAC] Bound still captured @' + window.__vacFaceStillTsMs + 'ms (' + cw + 'x' + ch + ', ~' + Math.round(window.__vacFaceStillB64.length / 1024) + 'KB b64)');
         } catch (e) {
             // Never fabricate — empty still tells the backend to fail-close Didit.
@@ -3796,7 +4137,8 @@ function beginRecording() {
             if (_sf) { var _w2 = Math.min(100, Math.round((_micBarDisp / (thr * 2.5)) * 100)); _sf.style.width = _w2 + '%'; _sf.style.background = _micBarVoiced ? '#43d692' : '#8b97ad'; }
             // D-VOICE-GATE-SPEAKER-AGNOSTIC: meter shows what the gate actually uses
             var _gateDesc = _sessionGateAvail ? 'content-gated — say the word' : 'mic health — speak past the gold line';
-            if (_st) _st.textContent = rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — ' + _gateDesc;
+            // Raw level/threshold numbers are a developer readout: ?qa=1 only. Users see the bar.
+            if (_st) _st.textContent = (typeof _qaFlag !== 'undefined' && _qaFlag) ? (rms.toFixed(2) + '/' + thr.toFixed(2) + ' ' + tag + ' — ' + _gateDesc) : '';
         } catch(_) {}
     }
     try { window.__vacMicPillDraw = _micPillDraw; } catch(_) {}
@@ -3948,6 +4290,17 @@ function beginRecording() {
     let _rejectedTransients = 0;     // S139: count of onset attempts killed by the onset sustain gate (taps that dropped before 250ms)
     let _lastRejectReason = '';      // S139-v2: 'spec' (spectral mid-band check) | 'sust' (sustain dip/silence); surfaced in the QA debug readout
 
+    // A Vault AAL3 handoff derives the owner's face descriptor from multiple
+    // LIVE preview frames after the 1500ms MediaRecorder tail. Pausing the
+    // video at 1700ms made retry samples identical (and often hand-occluded).
+    // Do not relax the descriptor gate: the camera is stopped by
+    // onRecordingComplete after those samples; non-Vault privacy pause stays.
+    function _pausePostCapturePreview(video, vaultHandoffActive) {
+        if (vaultHandoffActive || !video || video.paused) return false;
+        video.pause();
+        return true;
+    }
+
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
@@ -3959,28 +4312,55 @@ function beginRecording() {
         try { _hideNoMicRecovery(); } catch(_) {}  // F-563: clear the no-mic recovery panel when capture ends
         try { var _fh=document.getElementById('framingHint'); if(_fh) _fh.style.display='none'; } catch(_) {}
         if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-        challengeEl.textContent = 'Processing\u2026';
+        // s182: the skeleton canvas keeps its last frame once the draw loop stops — the "stuck hand
+        // dots" the user stared at for the whole verify wait. Clear it and cover the frozen feed
+        // with the authority progress list (stage 1: verifying).
+        try { var _ho=document.getElementById('handOverlay'); if (_ho && _ho.getContext) _ho.getContext('2d').clearRect(0, 0, _ho.width, _ho.height); } catch(_) {}
+        // Keep the video visible during a brief, filmed face-only closing beat.
+        // The customer's hand/finger motions are FINISHED before this step.
+        try { var _pc=document.getElementById('vacPostCapture'); if (_pc) _pc.style.display = window.VACVaultHandoff ? 'none' : 'flex'; } catch(_) {}
+        if (!window.VACVaultHandoff) {
+            try { _renderAuthorityStages('verifying'); } catch(_) {}
+        }
+        challengeEl.textContent = window.VACVaultHandoff
+            ? 'Face check — lower your hand and look at the screen'
+            : 'Processing\u2026';
+        if (window.VACVaultHandoff) { try { _vacFaceStageShow(); } catch(_) {} }
         // F-815 (Rob, 16 Jul pre-meeting run): entering processing must not keep coaching the
         // user — the live coach line ('Keep showing N — say N') was persisting under
         // 'Processing…', giving an instruction and a wait-state simultaneously. Clear it,
         // hide the REC chip, and after the recording tail freeze the preview: a live camera
         // under 'Processing' reads oddly against the recording-already-ended privacy note.
-        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
-        try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        // The Vault face-only tail is still being filmed. Keep recording disclosure visible
+        // until MediaRecorder has actually stopped; do not imply analysis has begun.
+        try { if (typeof liveEl !== 'undefined' && liveEl) { liveEl.textContent = window.VACVaultHandoff ? 'Hand down \u2014 recording final face check\u2026' : 'Analysing your recording\u2026 (first verification can take a little longer)'; liveEl.style.color = ''; } } catch(_) {}
+        if (!window.VACVaultHandoff) {
+            try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        }
         setTimeout(function(){
-            try { var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video'); if (v && !v.paused) v.pause(); } catch(_) {}
-        }, 1700);
+            try {
+                var v = ctx && ctx.byId ? (ctx.byId('vacVideo')||document.querySelector('video')) : document.querySelector('video');
+                _pausePostCapturePreview(v, !!window.VACVaultHandoff);
+            } catch(_) {}
+        }, window.VACVaultHandoff ? 3400 : 1700);
         // S110 detection<->recording sync fix: detection can race ahead of the
         // recorded video (Gemini saw only the first digit of [2,3,5]). Keep the
         // recorder running a tail buffer AFTER the last digit so the video
         // actually contains footage of every digit pose before we stop + send
         // to Gemini. 1500ms tail (was 500ms) ensures the final digit is filmed.
         try { _stopSpeechGate(); } catch(_){}
+        // The step voice meter is for the speaking steps only; never leave it over the result.
+        try { window.__vacGateArmed = false; var _svf = document.getElementById('vacStepVU'); if (_svf) _svf.remove(); } catch(_) {}
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: stop phrase content gate when recording ends
         try { if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; } } catch(_) {}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
         _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
-        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, 1500);
+        // 1500ms is the existing post-digit tail. Vault adds 1700ms of
+        // face-only observation within the SAME unbroken MediaRecorder clip
+        // before the existing post-gesture 128-D identity capture. We do not
+        // accept an earlier face in lieu of this check.
+        const _vaultFaceTailMs = window.VACVaultHandoff ? 3200 : 1500;
+        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, _vaultFaceTailMs);
     }
 
     // ── F-561 voice-pacing gate (content-gated, D-VOICE-GATE-SPEAKER-AGNOSTIC) ──
@@ -5098,7 +5478,7 @@ function _markSpeech(src, rms, onsetAt) {
             // — so during starvation the only remaining admit path is real MR evidence
             // (_avMrLevelSynth >= 8) or spectral energy that clears the near-field guard.
             var _spectralVoiced = _vadStarved && (
-                (_avMrLevelSynth >= 8) ||
+                (_avMrLevelSynth >= MR_FALLBACK_VOICED_LEVEL) ||
                 ((_mb / _buf.length >= 2) && (_vbRatio >= VOICE_BAND_MIN_RATIO))
             );
             // S166 archaeology §3 fix (merged with L-2503/L-2504 shared tracker): the greeting tick used
@@ -6401,6 +6781,7 @@ async function beginStillCapture() {
     try { var _gp = byId('vacGuided'); if (_gp) _gp.style.display = 'none'; } catch(_) {}
     try { var _fh = byId('framingHint'); if (_fh) _fh.style.display = 'none'; } catch(_) {}   // codex P3: clear the out-of-zone banner too — checkHandFraming may have shown it this attempt
     goToStep(3);
+    try { _renderAuthorityStages('verifying'); } catch(_) {}   // s182: same stage list on the fast tier
     // F-672 FAIL-CLOSED: no valid finger count — detector down (no retry), or no hand after MAX 2 coached
     // retries. Route to the host fallback exactly like the embedding fail-close below; we NEVER reach
     // runFastVerification, so detected_fingers:null is never POSTed (the server 422 dead-end). A null
@@ -6519,6 +6900,7 @@ async function runFastVerification(parts) {
         // OUTCOME — pass → _finish (host success), fail → onFallback (host deny handoff). FAIL-CLOSED
         // preserved: a non-_ok result NEVER calls _finish, so a failed fast re-auth reveals nothing.
         try {
+            try { _renderAuthorityStages(_ok ? 'done' : 'fail', { result: authResult }); } catch(_) {}   // s182
             renderQuickReauthVerdict(authResult);
             var _proceeded = false;
             var _cont = document.getElementById('qrContinueBtn');
@@ -6750,36 +7132,283 @@ function renderClientGateFailure(reason, evidence) {
     return true;
 }
 
+// Presentation-only classification; reason codes are generated locally by
+// VACFaceEmbed, never taken from user-controlled text. Do not conflate a GPU /
+// model-load failure or timeout with poor face lighting. No verification is
+// permitted to proceed until a fresh 128-D descriptor is actually captured.
+// True when a captured frame carries no camera picture: every sampled pixel is
+// near-black (e.g. a Mac with no camera, a covered or sleeping camera, or a
+// revoked permission delivering empty frames). Reads pixels only; returns
+// false on any error so a real frame is never misreported.
+function _vacFrameHasNoPicture(canvas) {
+    try {
+        var sw = 32, sh = 18;
+        var sc = document.createElement('canvas'); sc.width = sw; sc.height = sh;
+        var sx = sc.getContext('2d'); sx.drawImage(canvas, 0, 0, sw, sh);
+        var d = sx.getImageData(0, 0, sw, sh).data, max = 0;
+        for (var i = 0; i < d.length; i += 4) {
+            var l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            if (l > max) max = l;
+        }
+        return max < 12;
+    } catch (_) { return false; }
+}
+
+// PRESENTATION ONLY (S204, Rob 5 Nov): the Vault face-only closing beat is a
+// full stage like the greeting and "show the number" steps, with a visible
+// 3-2-1 countdown spanning the existing filmed face-only tail. It changes no
+// timing, threshold, recording or identity decision; it only makes the step
+// impossible to miss. The band sits low in the frame so the face stays clear.
+function _vacFaceStageShow() {
+    try {
+        _vacFaceStageHide();
+        var box = document.getElementById('cameraBoxRec');
+        if (!box) return false;
+        var st = document.createElement('div');
+        st.id = 'vacFaceStage';
+        st.setAttribute('role', 'status');
+        st.setAttribute('aria-live', 'assertive');
+        st.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:7;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 12px 16px;background:linear-gradient(to top,rgba(10,15,26,0.92),rgba(10,15,26,0.55) 75%,rgba(10,15,26,0));pointer-events:none;text-align:center;';
+        st.innerHTML = '<div style="font-family:var(--mono,monospace);font-size:12px;letter-spacing:2px;font-weight:700;color:#2DD4BF;">FACE CHECK</div>'
+            + '<div style="font-size:clamp(18px,4.6vw,26px);font-weight:800;color:#F0F2F5;line-height:1.2;">Lower your hand and look at the screen</div>'
+            + '<div id="vacFaceStageCount" style="font-size:clamp(44px,11vw,72px);font-weight:800;line-height:1;color:#10B981;font-variant-numeric:tabular-nums;">3</div>';
+        box.appendChild(st);
+        var cnt = st.querySelector('#vacFaceStageCount');
+        window.__vacFaceStageTimers = [
+            setTimeout(function () { if (cnt) cnt.textContent = '2'; }, 1000),
+            setTimeout(function () { if (cnt) cnt.textContent = '1'; }, 2000),
+            setTimeout(function () { if (cnt) { cnt.textContent = '\u2713'; } }, 3000)
+        ];
+        return true;
+    } catch (_) { return false; }
+}
+function _vacFaceStageHide() {
+    try { (window.__vacFaceStageTimers || []).forEach(function (t) { clearTimeout(t); }); } catch (_) {}
+    window.__vacFaceStageTimers = [];
+    try { var el = document.getElementById('vacFaceStage'); if (el) el.remove(); } catch (_) {}
+}
+
+// DIAGNOSTIC ONLY: mean/max luminance (0-255) of a captured frame, for the
+// on-screen "what this device checked" list. Never a gate. Returns null on error.
+function _vacFrameLuma(canvas) {
+    try {
+        var sw = 32, sh = 18;
+        var sc = document.createElement('canvas'); sc.width = sw; sc.height = sh;
+        var sx = sc.getContext('2d'); sx.drawImage(canvas, 0, 0, sw, sh);
+        var d = sx.getImageData(0, 0, sw, sh).data, max = 0, sum = 0, n = 0;
+        for (var i = 0; i < d.length; i += 4) {
+            var l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            if (l > max) max = l; sum += l; n++;
+        }
+        return n ? { mean: Math.round(sum / n), max: Math.round(max) } : null;
+    } catch (_) { return null; }
+}
+
+// Plain-English, non-sensitive per-frame evidence for a refused Vault face
+// check: which check failed and why. Contains no pixels, no descriptor and no
+// identity data — only counts, a detector score and brightness. Presentation only.
+function _vaultFaceEvidenceHtml(evidence) {
+    if (!evidence || !evidence.length) return '';
+    var esc = function (t) { return String(t).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); };
+    var rows = evidence.map(function (ev, i) {
+        var parts = [];
+        if (ev.luma) parts.push('brightness ' + Math.round(ev.luma.mean / 2.55) + '%');
+        if (ev.reason === 'no_camera_picture') parts.push('no camera picture');
+        else if (typeof ev.faces === 'number' && ev.faces >= 0) parts.push('faces found ' + ev.faces);
+        if (ev.reason === 'no_face') {
+            parts.push(typeof ev.best_score === 'number'
+                ? 'best face score ' + ev.best_score.toFixed(2) + ' (needs ' + Number(ev.min_confidence).toFixed(2) + ')'
+                : 'no face-like shape seen (needs score ' + Number(ev.min_confidence).toFixed(2) + ')');
+        }
+        if (ev.reason && ev.reason !== 'no_face' && ev.reason !== 'no_camera_picture') parts.push(ev.reason.replace(/_/g, ' '));
+        return '<div>Frame ' + (i + 1) + ': ' + esc(parts.join(' · ')) + '</div>';
+    }).join('');
+    return '<div id="vacVaultFaceEvidence" style="text-align:left;font-family:var(--mono,monospace);font-size:11px;line-height:1.55;color:var(--text-secondary);background:rgba(0,0,0,0.18);border-radius:8px;padding:8px 10px;margin:0 0 10px;">'
+        + '<div style="color:var(--text-primary);font-weight:700;margin-bottom:3px;">Failed check: face identification, on this device, before upload</div>'
+        + rows + '</div>';
+}
+
+function _vaultFaceRecoveryCopy(reason) {
+    if (reason === 'no_camera_picture') return {
+        title: 'No camera picture detected',
+        hint: 'No camera picture detected; check camera permission or use a device with a camera.'
+    };
+    if (reason === 'no_face') return {
+        title: 'Face identification needs a clearer capture',
+        hint: 'Keep your face centred and directly lit throughout the recording. Keep your hand away from your face after the final number.'
+    };
+    if (reason === 'multiple_faces') return {
+        title: 'More than one face detected',
+        hint: 'Only one face can be visible. Move anyone else out of camera view.'
+    };
+    if (reason === 'embed_timeout') return {
+        title: 'Face-identification engine timed out',
+        hint: 'The face model did not finish in time on this device. Check your connection, then restart the camera.'
+    };
+    if (reason === 'embedder_error') return {
+        title: 'Face-identification engine unavailable',
+        hint: 'The face model could not load or run on this device. Check your connection or try a supported browser.'
+    };
+    return {
+        title: 'Face identification could not complete',
+        hint: 'The face-identification check stopped before submission. Restart camera verification or contact support if this persists.'
+    };
+}
+
+// Vault AAL3 handoff requires an identity descriptor for an existing owner.
+// The backend must remain authoritative; this client guard avoids submitting a
+// known-missing descriptor and incorrectly showing six liveness checks as success.
+function _showVaultFaceCaptureRecovery(reason, evidence) {
+    // A missing Vault face descriptor is a terminal, pre-upload refusal.
+    // finishFingerPhase already displayed "Verifying..." and "Processing..." and
+    // its last digit coaching; leaving those live beside the restart card made
+    // a refused, unsubmitted attempt look like it was still authenticating.
+    // This resets PRESENTATION ONLY: no server POST, VAC proof or gate change.
+    try { _renderAuthorityStages('fail'); } catch (_) {}
+    var _challenge = document.getElementById('challengeText');
+    if (_challenge) _challenge.textContent = 'Capture not submitted — restart camera verification';
+    var _coach = document.getElementById('vacLiveDetect');
+    // Leave the reusable element visible: in-place retries write new live coaching here.
+    if (_coach) _coach.textContent = '';
+    var _rec = document.getElementById('recIndicator');
+    if (_rec) _rec.style.display = 'none';
+    // The live voice meter belongs to the speaking steps only; never leave it
+    // drawn over the result panel.
+    try { window.__vacGateArmed = false; var _svr = document.getElementById('vacStepVU'); if (_svr) _svr.remove(); } catch (_) {}
+    try { _vacFaceStageHide(); } catch (_) {}
+    if (document.getElementById('vacVaultFaceCaptureRecovery')) return;
+    var host = document.getElementById('challengePanel');
+    if (!host || !host.parentElement) return;
+    var info = _vaultFaceRecoveryCopy(reason);
+    var panel = document.createElement('div');
+    panel.id = 'vacVaultFaceCaptureRecovery';
+    panel.style.cssText = 'margin:12px 0 0;padding:14px;background:rgba(220,38,38,0.08);border:1px solid var(--danger,#dc2626);border-radius:10px;text-align:center;';
+    panel.innerHTML =
+        '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">' + info.title + '</div>' +
+        '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + info.hint + '</div>' +
+        _vaultFaceEvidenceHtml(evidence) +
+        '<button type="button" id="vacVaultFaceCaptureRestart" style="display:block;width:100%;padding:11px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart camera verification</button>';
+    host.parentElement.insertBefore(panel, host.nextSibling);
+    var btn = document.getElementById('vacVaultFaceCaptureRestart');
+    if (btn) btn.addEventListener('click', function () {
+        VACReauth.reload({auto:false,keepRetryBudget:true,retryAttempts:retryAttempts});
+    });
+    try { vacDebug('vault_face_descriptor_missing', null, {reason:reason, frames:(evidence||[]).length}); } catch (_) {}
+}
+
 async function onRecordingComplete() {
     // F-720: client-side clip floor — belt-and-suspenders behind the onstop guard.
     // A near-zero clip means the recorder or stream died; never POST garbage to the backend.
     var _clipElapsed = performance.now() - _recorderStartMs;
     var _clipBytes = recordedChunks.reduce(function(a, c){ return a + c.size; }, 0);
     if (_clipBytes < 20480 || _clipElapsed < 2000) {
+        window.__vacEarlyFaceCandidate = null; // no stale identity data on abort
         try { vacDebug('clip_floor_abort', null, { bytes: _clipBytes, elapsed_ms: Math.round(_clipElapsed) }); } catch(_) {}
         _showCaptureDiedRecovery();
         return;
     }
     document.getElementById('recIndicator').style.display = 'none';
+    try { _vacFaceStageHide(); } catch(_) {}
+    if (window.VACVaultHandoff) {
+        try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+        try { var _vl = document.getElementById('vacLiveDetect'); if (_vl) _vl.textContent = 'Analysing your recording\u2026 (first verification can take a little longer)'; } catch(_) {}
+    }
     document.getElementById('cameraBoxRec').classList.remove('recording', 'show-hand-zone', 'hand-in-zone', 'hand-visible');
     stopAudioMonitor();
 
-    // Capture the face IDENTITY embedding from the LIVE recording frame BEFORE the camera
-    // stops (face-api.js 128-D descriptor, single-face enforced). Stored on a passing
-    // verify as the re-auth template. Best-effort: a miss enrolls the user in legacy/
-    // description mode — the server-side multi-modal verify still guards the enrollment.
+    // Compute the live identity descriptor while the camera is still open.
+    // A single last frame can be blurred/turned away; take up to three distinct
+    // fresh frames. This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
+    var _fullEmbedReason = 'no_face';
+    var _faceEvidence = [];   // diagnostics only: per-frame counts/score/brightness, no pixels
+    // HARD HOLD: an early face may not be used as owner identity until the
+    // backend independently verifies that the same actor performs the later
+    // gestures. See vac-protocol issue #26. This is a static compile-time
+    // FALSE, not an operator/query/remote flag, and cannot be activated by a
+    // user-controlled response. The present fast path is a *later* face-only
+    // recorded beat, preserving the previously enforced identity gate.
+    const _EARLY_FACE_AUTH_ADMISSION = false;
+    // A face-visible identity candidate from the opening of this SAME clip
+    // is evaluated BEFORE the late hand-gesture frames. The server still
+    // evaluates the FULL recording and its independent identity-continuity
+    // gate. Capture timing is not an assurance-level change.
+    const _earlyCanvas = _takeVaultEarlyIdentityFrame(
+        mediaRecorder, _recorderStartMs, _clipElapsed);
+    if (_EARLY_FACE_AUTH_ADMISSION && _earlyCanvas &&
+        window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+        try {
+            const _earlyResult = await Promise.race([
+                window.VACFaceEmbed.compute(_earlyCanvas),
+                new Promise(function(resolve) {
+                    setTimeout(function() { resolve({ok:false, reason:'embed_timeout'}); }, 8000);
+                })
+            ]);
+            if (_earlyResult && _earlyResult.ok &&
+                Array.isArray(_earlyResult.embedding) && _earlyResult.embedding.length === 128 &&
+                _earlyResult.embedding.every(function(n) {
+                    return typeof n === 'number' && Number.isFinite(n);
+                })) {
+                window.__vacEnrollEmbedding = _earlyResult.embedding;
+            } else {
+                _fullEmbedReason = (_earlyResult && _earlyResult.reason) || 'embedder_error';
+            }
+        } catch (_) { _fullEmbedReason = 'embedder_error'; }
+    }
+    // Only an early "no_face" or absent early snapshot permits another
+    // capture attempt. Multiple people/engine faults must never be masked by
+    // a conveniently clear later frame.
+    if (!window.__vacEnrollEmbedding &&
+        (!_earlyCanvas || _fullEmbedReason === 'no_face')) {
     try {
         const ev = document.getElementById('videoPreviewRec');
-        if (ev && ev.videoWidth && window.VACFaceEmbed) {
-            const ec = document.createElement('canvas');
-            ec.width = ev.videoWidth; ec.height = ev.videoHeight;
-            ec.getContext('2d').drawImage(ev, 0, 0);
-            const r = await window.VACFaceEmbed.compute(ec);
-            if (r.ok) { window.__vacEnrollEmbedding = r.embedding; console.log('[VAC] Enroll embedding computed (dim ' + r.embedding.length + ')'); }
-            else { console.warn('[VAC] Enroll embedding skipped:', r.reason, '— legacy/description enrollment'); }
+        if (ev && ev.videoWidth && window.VACFaceEmbed && typeof window.VACFaceEmbed.compute === 'function') {
+            for (var _embTry = 0; _embTry < 3; _embTry++) {
+                if (_embTry > 0) await new Promise(function(resolve) { setTimeout(resolve, 350); });
+                const ec = document.createElement('canvas');
+                ec.width = ev.videoWidth; ec.height = ev.videoHeight;
+                ec.getContext('2d').drawImage(ev, 0, 0);
+                // A frame with no picture (no camera, camera blocked or asleep)
+                // is reported as such, not as a face-engine fault. Presentation
+                // only: it still refuses before upload, exactly like no_face.
+                var _luma = _vacFrameLuma(ec);
+                if (_vacFrameHasNoPicture(ec)) { _fullEmbedReason = 'no_camera_picture'; _faceEvidence.push({ reason: 'no_camera_picture', luma: _luma }); break; }
+                const _result = await Promise.race([
+                    window.VACFaceEmbed.compute(ec),
+                    new Promise(function(resolve) {
+                        setTimeout(function() { resolve({ok:false, reason:'embed_timeout'}); }, _embTry === 0 ? 8000 : 3500);
+                    })
+                ]);
+                if (_result && _result.ok && Array.isArray(_result.embedding) && _result.embedding.length === 128 &&
+                    _result.embedding.every(function(n) { return typeof n === 'number' && Number.isFinite(n); })) {
+                    window.__vacEnrollEmbedding = _result.embedding;
+                    console.log('[VAC] Full face descriptor ready (128-D, capture ' + (_embTry + 1) + '/3)');
+                    break;
+                }
+                _fullEmbedReason = (_result && _result.reason) || 'embedder_error';
+                _faceEvidence.push({ reason: _fullEmbedReason, luma: _luma,
+                    faces: (_result && typeof _result.faceCount === 'number') ? _result.faceCount : -1,
+                    best_score: (_result && _result.diag && typeof _result.diag.best_score === 'number') ? _result.diag.best_score : null,
+                    min_confidence: (_result && _result.diag && typeof _result.diag.min_confidence === 'number') ? _result.diag.min_confidence
+                        : ((window.VACFaceEmbed && window.VACFaceEmbed.MIN_DETECT_CONFIDENCE) || 0.5) });
+                if (_fullEmbedReason === 'multiple_faces' || _fullEmbedReason === 'embed_timeout' ||
+                    _fullEmbedReason === 'embedder_error') break;
+            }
         }
-    } catch (e) { console.warn('[VAC] Enroll embedding error (non-fatal):', (e && e.message) || e); }
+    } catch (e) {
+        _fullEmbedReason = 'embedder_error';
+        console.warn('[VAC] Full face descriptor not available:', (e && e.message) || e);
+    }
+    }
+    // A Vault handoff is a high-assurance existing-owner action. Its server
+    // refuses missing identity vectors; stop BEFORE uploading a known-bad
+    // attempt, keep the attempt budget, and guide the owner to recapture.
+    if (window.VACVaultHandoff && !window.__vacEnrollEmbedding) {
+        if (mediaStream) mediaStream.getTracks().forEach(function(track) { track.stop(); });
+        goToStep(2);
+        _showVaultFaceCaptureRecovery(_fullEmbedReason, _faceEvidence);
+        return;
+    }
 
     // Stop camera
     if (mediaStream) {
@@ -6853,6 +7482,11 @@ async function runRealVerification(videoBlob) {
         // client-computed, backend tolerates-or-drops.
         formData.append('face_still_b64', window.__vacFaceStillB64 || '');
         formData.append('face_still_ts_ms', String(Number.isFinite(window.__vacFaceStillTsMs) ? window.__vacFaceStillTsMs : 0));
+        // s182 (CEREMONY-MIC-DIAGNOSIS §4b): which path qualified the microphone — 'analyser'
+        // (primary) or 'mr' (starved-analyser MediaRecorder proxy). Sent with the upload so the
+        // attestation receipt can record that a ceremony proved its human on a degraded path.
+        // Backend persistence of this field is the vac-protocol lane's half.
+        formData.append('client_mic_path', window.__vacMicQualifyPath || 'analyser');
 
         stepEl.textContent = 'Analysing biometrics…';
         detailEl.textContent = 'Gemini (face) + Deepgram (voice)';
@@ -6999,7 +7633,12 @@ async function runRealVerification(videoBlob) {
             stepEl.textContent = 'Human verified ✓';
             ring.style.stroke = 'var(--success)';
             detailEl.textContent = `Trust score: ${authResult.biometric_verification.overall_score}`;
-            await sleep(400);
+            // s182: narrate the authority being minted, then what it grants, before the host's
+            // success screen takes over (display-only; the verdict above is the server's).
+            try { _renderAuthorityStages('minting'); } catch(_) {}
+            await sleep(450);
+            try { _renderAuthorityStages('done', { result: authResult }); } catch(_) {}
+            await sleep(1100);
             _finish();
         } else {
             stepEl.textContent = 'Verification incomplete';
@@ -7220,10 +7859,11 @@ function resetModalities() {
 // so stale prompts/numbers from a prior run can't leak into a new session's phrase phase. The
 // re-auth reload moots this for re-auth, but it protects the first run + any non-reload re-entry.
 function resetGuidedUI() {
-    ['vacGuided', 'vacSayView', 'digitStrip', 'vacEqGreeting'].forEach(function(id) {
+    ['vacGuided', 'vacSayView', 'digitStrip', 'vacEqGreeting', 'vacPostCapture', 'vacAuthorityStages'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el) el.style.display = 'none';
     });
+    try { _renderAuthorityStages('fail'); } catch(_) {}   // s182: clear stale stage rows between runs
     var p = document.getElementById('vacGuidedPrompt'); if (p) p.textContent = '';
     var s = document.getElementById('vacGuidedSub'); if (s) s.textContent = '';
     var w = document.getElementById('vacSayWord'); if (w) w.textContent = '';
@@ -7336,6 +7976,7 @@ function populateUnderHood(authData) {
 
 // Show retry with specific fail reasons
 function showRetry(result) {
+    try { _renderAuthorityStages('fail'); } catch(_) {}   // s182: failure narration belongs to this panel
     retryAttempts++;
     const retryEl = document.getElementById('retrySection');
     retryEl.style.display = 'block';
@@ -7427,6 +8068,10 @@ function showRetry(result) {
 // F-720: shown when the recorder stops before finishFingerPhase schedules it (stream/track death).
 // Fail-closed: no POST, no gate bypass. Single action: restart.
 function _showCaptureDiedRecovery() {
+    // Abnormal stop must also clear recording indicators: never imply capture continues.
+    try { var _ri = document.getElementById('recIndicator'); if (_ri) _ri.style.display = 'none'; } catch(_) {}
+    try { document.querySelectorAll('.rec-dot').forEach(function(d){ var p=d.parentElement; if(p) p.style.display='none'; }); } catch(_) {}
+    try { _renderAuthorityStages('fail'); } catch(_) {}   // s182
     if (document.getElementById('vacCaptureDied')) return; // idempotent
     var host = document.getElementById('challengePanel');
     if (!host || !host.parentElement) return;
@@ -7524,6 +8169,7 @@ function resetBiometricUI(preserveRetryBudget) {
     // 3. Reset the AV preflight gate so light/mic/hand must re-pass — this is what
     //    re-runs the hand preflight that warms the detector.
     avChecks = { face: false, light: false, mic: false, hand: false };
+    _preflightPassedAt = 0; _preflightAutoStarted = false;
     // 4. Restore the camera button to its first-run entry point. Run 1 rewired
     //    btnCamera.onclick to goToChallenge (requestCamera resets it again at its end).
     var btnCam = document.getElementById('btnCamera');
@@ -7932,7 +8578,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div id="avAudioBar" style="display:none; margin-bottom: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
             <div id="avMicPrompt" style="display: flex; align-items: center; gap: 8px; font-size: clamp(12px, 1.4vw, 14px); color: var(--text-primary); font-weight: 500; margin-bottom: 8px;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                <span id="avMicPromptText">Speak now to test your microphone</span>
+                <span id="avMicPromptText">Say your name out loud</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
@@ -8019,6 +8665,12 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
     <div class="camera-container recording" id="cameraBoxRec">
         <video id="videoPreviewRec" autoplay playsinline muted></video>
         <canvas id="handOverlay" style="position:absolute;inset:0;width:100%;height:100%;transform:scaleX(-1);pointer-events:none;z-index:4;"></canvas>
+        <!-- s182 post-capture authority progress: an opaque cover over the frozen last frame (the
+             hand skeleton used to sit there, stuck, for the whole verify wait). Same stage list
+             continues in step 3 (#vacAuthorityStages). Toggled by finishFingerPhase / resetGuidedUI. -->
+        <div id="vacPostCapture" style="display:none;position:absolute;inset:0;z-index:8;background:var(--bg,#0A0F1A);flex-direction:column;align-items:center;justify-content:center;padding:18px;">
+            <div id="vacPostCaptureStages" class="vac-stages" style="width:min(360px,100%);"></div>
+        </div>
         <div id="framingHint" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;background:rgba(210,153,34,0.92);color:#0D1117;font-weight:600;font-size:13px;padding:8px 14px;border-radius:8px;max-width:90%;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,0.4);"></div>
         <div class="camera-overlay">
             <div class="camera-corners"></div>
@@ -8132,6 +8784,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div class="header-title" id="verifyStepTitle">Verifying You're Human</div>
         <div class="header-sub" id="verifySubtitle">Sending biometric data to verification engines…</div>
     </div>
+    <div id="vacAuthorityStages" class="vac-stages" style="display:none;margin:0 auto 14px;max-width:420px;"></div>
     <div class="progress-container">
         <div class="progress-ring">
             <svg viewBox="0 0 80 80" style="width:64px;height:64px">
@@ -8190,7 +8843,21 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div style="font-family: var(--mono); font-size: 11px; color: var(--text-quaternary); text-align: center; margin-top: 8px;" id="retryCount"></div>
     </div>
 </div>`;
-const CEREMONY_CSS = `/* ─── Theme defaults (overridden by vac-themes.js at runtime) ─── */
+const CEREMONY_CSS = `/* s182 post-capture authority stages (verifying -> minting -> done). No emoji: the marker is a
+   CSS ring that fills on done; gold #C9A227 is reserved for the active stage's accent. */
+.vac-stages { text-align: left; }
+.vac-stage { display: flex; align-items: flex-start; gap: 12px; padding: 9px 0; opacity: 0.45; transition: opacity 0.25s; }
+.vac-stage.active, .vac-stage.done { opacity: 1; }
+.vac-stage-mark { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--border-light, #3D444D); position: relative; }
+.vac-stage.active .vac-stage-mark { border-color: #C9A227; border-top-color: transparent; animation: vac-stage-spin 0.9s linear infinite; }
+.vac-stage.done .vac-stage-mark { border-color: var(--success, #3FB950); background: var(--success, #3FB950); }
+.vac-stage.done .vac-stage-mark::after { content: ''; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #06121C; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.vac-stage-title { font-size: clamp(14px, 3.8vw, 16px); font-weight: 700; color: var(--text-primary, #F0F6FC); line-height: 1.3; }
+.vac-stage.active .vac-stage-title { color: #C9A227; }
+.vac-stage-sub { font-size: clamp(12px, 3.3vw, 13.5px); color: var(--text-secondary, #8B949E); line-height: 1.5; margin-top: 2px; }
+.vac-stage-sub a { color: #C9A227; }
+@keyframes vac-stage-spin { to { transform: rotate(360deg); } }
+/* ─── Theme defaults (overridden by vac-themes.js at runtime) ─── */
 :root {
     --bg: #0D1117;
     --surface: #161B22;
@@ -8645,6 +9312,9 @@ const VACReauth = {
     // "Continue Anyway" (after MAX_RETRIES) → host decides what a partial result means (auth.html
     // routes it through showSuccess(), which renders the honest partial screen + emits no verified side-effects)
     continueAnyway: function(){ _finish(); },
+    // s182: display-only hook so QA harnesses can render the post-capture authority stages
+    // ('verifying' | 'minting' | 'done' | 'fail') without a camera. Never touches the verdict.
+    renderAuthorityStages: function(stage, opts){ _renderAuthorityStages(stage, opts); },
     // retry / no-mic recovery → host restart mechanism (auth.html = full page reload + resume blob;
     // STEP 2/3: vat-verify + tribunal re-invoke run() in place instead)
     reload: function(o){ if (CTX && CTX.onReauthReload){ try { CTX.onReauthReload(o||{}); } catch(_){} } else { console.warn('[VACReauth] reload() with no onReauthReload host handler'); } },

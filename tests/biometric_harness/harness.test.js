@@ -20,6 +20,8 @@ const { validateManifest, createAdapter, ManifestError, REQUIRED_FIELDS } = requ
 const { loadReferenceAdapter, DEFAULT_MANIFEST_PATH } = require('./adapters/reference-digit-voice-adapter');
 const digitVoiceStage = require('./stages/digit-voice');
 const schema = require('./manifest-schema.json');
+// Keep report-integrity regressions in the existing workflow's self-test entry.
+require('./report-integrity.test');
 
 // ── mini-yaml ────────────────────────────────────────────────────────────────
 

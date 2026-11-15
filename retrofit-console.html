@@ -80,6 +80,8 @@ label.field-label{display:block;font-family:var(--mono);font-size:11px;color:var
 label.field-label:first-of-type{margin-top:0;}
 select.vac-select{width:100%;background:var(--card-raised);border:1px solid var(--border-light);border-radius:7px;color:var(--ink);font-family:var(--font);font-size:14px;padding:10px 14px;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238B8FA3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
 select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg);}
+input.vac-input{width:100%;background:var(--card-raised);border:1px solid var(--border-light);border-radius:7px;color:var(--ink);font-family:var(--font);font-size:14px;padding:10px 14px;}
+input.vac-input:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px var(--gold-bg);}
 
 /* Multi-select checklist */
 .check-group{display:flex;flex-direction:column;gap:8px;}
@@ -274,13 +276,15 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <div class="wdot" id="wdot-4" title="Authority">4</div>
     <div class="wline" id="wline-4"></div>
     <div class="wdot" id="wdot-5" title="Rails">5</div>
+    <div class="wline" id="wline-5"></div>
+    <div class="wdot" id="wdot-6" title="Autonomy">6</div>
   </div>
 
   <!-- STEP 1: Your system -->
   <div class="step-card active" id="step-1" role="region" aria-labelledby="step1-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 1 of 5</div>
+        <div class="step-num">Step 1 of 6</div>
         <h2 id="step1-title">Your system</h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -293,6 +297,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
       <option value="">Select your system&hellip;</option>
       <option value="water">Water digital twin (AQP-class)</option>
       <option value="scada">SCADA-ADMS</option>
+      <option value="pharma">Pharmaceutical QMS / batch record (GMP)</option>
       <option value="case">Case management</option>
       <option value="custom">Custom</option>
     </select>
@@ -306,7 +311,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-2" role="region" aria-labelledby="step2-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 2 of 5</div>
+        <div class="step-num">Step 2 of 6</div>
         <h2 id="step2-title">Decision points</h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -326,7 +331,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-3" role="region" aria-labelledby="step3-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 3 of 5</div>
+        <div class="step-num">Step 3 of 6</div>
         <h2 id="step3-title" style="display:flex;align-items:center;">Assurance tiers<button class="info-btn" type="button" onclick="showInfoPop(this,'art14')" aria-label="Art. 14 — effective oversight"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -345,7 +350,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-4" role="region" aria-labelledby="step4-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 4 of 5</div>
+        <div class="step-num">Step 4 of 6</div>
         <h2 id="step4-title" style="display:flex;align-items:center;">Authority<button class="info-btn" type="button" onclick="showInfoPop(this,'art26')" aria-label="Art. 26 — competence and authority"><svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true"><circle cx="5.5" cy="5.5" r="4.75" stroke="#C9A227" stroke-width="1.2"/><circle cx="5.5" cy="3.5" r=".7" fill="#C9A227"/><path d="M5.5 5.1v2.7" stroke="#C9A227" stroke-width="1.25" stroke-linecap="round"/></svg></button></h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -357,6 +362,18 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
     <div style="font-family:var(--mono);font-size:11px;color:var(--quiet);margin-top:14px;padding:10px 14px;background:var(--card-raised);border:1px solid var(--border);border-radius:6px;">
       Production: delegate roster ingested from your SSO via SCIM. Identity verified per ceremony tier.
     </div>
+
+    <label class="field-label" style="margin-top:22px;">Illustrative directory import</label>
+    <span class="preview-chip" style="margin-bottom:10px;display:inline-block;">Console preview &mdash; illustrative extraction</span>
+    <div>
+      <button class="act-link-btn" type="button" onclick="importEntraRoster()">
+        Import roster from Microsoft Entra
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true"><path d="M1.5 1.5h4V3H3V7h4V5.5H8.5V9h-7V1.5z" fill="currentColor"/><path d="M5.5 1.5h3v3H7V3.5L4 6.5 3 5.5 6 2.5h-.5V1.5z" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <div class="authority-group" id="entraRosterGroup" style="margin-top:12px;"></div>
+    <div class="rails-caption" id="entraRule" style="display:none;">Entra login is the root (AAL1). A decision above the tier&rsquo;s threshold steps up to a VAC ceremony at the moment of signing.</div>
+
     <div class="step-nav">
       <button class="btn btn-ghost" onclick="goTo(3)">&larr; Back</button>
       <button class="btn btn-primary" onclick="goTo(5)">Next &rarr;</button>
@@ -367,7 +384,7 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
   <div class="step-card" id="step-5" role="region" aria-labelledby="step5-title">
     <div class="step-head">
       <div>
-        <div class="step-num">Step 5 of 5</div>
+        <div class="step-num">Step 5 of 6</div>
         <h2 id="step5-title">Rails</h2>
       </div>
       <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
@@ -397,7 +414,36 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
 
     <div class="step-nav">
       <button class="btn btn-ghost" onclick="goTo(4)">&larr; Back</button>
+      <button class="btn btn-primary" onclick="goTo(6)">Next &rarr;</button>
+    </div>
+  </div>
+
+  <!-- STEP 6: Autonomy -->
+  <div class="step-card" id="step-6" role="region" aria-labelledby="step6-title">
+    <div class="step-head">
+      <div>
+        <div class="step-num">Step 6 of 6</div>
+        <h2 id="step6-title">Autonomy</h2>
+      </div>
+      <span class="preview-chip">Console preview &mdash; illustrative extraction</span>
+    </div>
+    <p style="font-size:14px;color:var(--dim);margin-bottom:18px;line-height:1.65;">
+      Every decision point starts at zero autonomy &mdash; Start defaults to Stop, escalating every case to a human.
+      Floor and Ceiling bound how far the governor may ever move it, in either direction.
+    </p>
+    <div class="tier-group" id="autonomyGroup"></div>
+
+    <label class="field-label" for="passRateInput" style="margin-top:22px;">Pass-rate threshold to loosen</label>
+    <input class="vac-input" type="number" id="passRateInput" min="0" max="1" step="0.01" value="0.97" onchange="onAutonomyParamChange()">
+    <label class="field-label" for="cyclesInput">Cycles held at threshold</label>
+    <input class="vac-input" type="number" id="cyclesInput" min="1" step="1" value="20" onchange="onAutonomyParamChange()">
+
+    <div class="rails-caption">One verification failure tightens immediately. Loosening needs a sustained pass rate held across configured cycles (default 20). Fast down, slow up.</div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goTo(5)">&larr; Back</button>
       <button class="btn btn-primary" onclick="buildDashboard()">Build deployment manifest &rarr;</button>
+      <button class="btn btn-ghost" onclick="watchGovernorRun()">Watch the governor run this manifest</button>
     </div>
   </div>
 
@@ -493,13 +539,14 @@ select.vac-select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2
           <span class="live-dot"></span>
           Run a sealed acceptance now &mdash; LIVE
         </button>
+        <div style="margin-top:10px"><a href="#" id="sealSkipLink" onclick="sealWithoutLiveCheck();return false;" style="font-size:13px;color:var(--dim)">Skip the live check (demo only) &rarr;</a></div>
         <div id="sealReceipt" class="seal-receipt">
           <div class="seal-head">
             <svg class="seal-icon" width="28" height="28" viewBox="0 0 28 28" fill="none">
               <circle cx="14" cy="14" r="13" stroke="#34D399" stroke-width="1.5"/>
               <path d="M8 14l4 4 8-8" stroke="#34D399" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <div class="seal-title">Sealed &mdash; live production</div>
+            <div class="seal-title" id="sealTitle">Sealed &mdash; live production</div>
           </div>
           <dl class="kv" id="sealKv"></dl>
           <a class="verify-link-btn" id="sealVerifyLink" href="#" target="_blank">
@@ -561,6 +608,12 @@ const DECISION_POINTS = {
     { id:'set_point', label:'Accept set-point override', note:'EMS set-point outside auto-band, manual authority required' },
     { id:'protection_bypass', label:'Sign off protection bypass', note:'Temporary bypass, time-limited, written scope' },
   ],
+  pharma: [
+    { id:'batch_release', label:'Certify batch release', note:'Qualified Person sign-off after deviation closure (EU GMP Annex 16)' },
+    { id:'deviation_close', label:'Close a batch-record deviation', note:'Impact assessment approved, CAPA linked' },
+    { id:'ai_finding_accept', label:'Accept an AI-flagged quality finding', note:'Model recommendation reviewed against the batch record' },
+    { id:'record_correction', label:'Approve a GMP record correction', note:'Electronic record change with reason (21 CFR Part 11 style)' },
+  ],
   case: [
     { id:'financial_approval', label:'Approve financial disbursement', note:'Payment above threshold, dual-authority required' },
     { id:'case_close', label:'Authorise case closure', note:'Statutory deadline, compliance officer sign-off' },
@@ -577,14 +630,41 @@ const DECISION_POINTS = {
 const SYSTEM_DESCS = {
   water: 'Water digital twin (AQP-class) &mdash; smart water management, pressure zone modelling, field dispatch workflows.',
   scada: 'SCADA-ADMS &mdash; supervisory control and energy management systems, HV switching, grid contingency operations.',
+  pharma: 'Pharmaceutical QMS / batch record (GMP) &mdash; quality management, manufacturing execution and lab systems where a Qualified Person certifies release.',
   case: 'Case management &mdash; regulated case workflows, financial disbursements, statutory record management.',
   custom: 'Custom system &mdash; define your own decision points from your existing SOPs.',
 };
 
+const AUTHORITY_ROLES_BY_SYSTEM = {
+  pharma: [
+    { role:'Qualified Person (batch release)', key:'qualified_person', delegates:['Dr. E. Weber', 'Dr. M. Rossi', 'Dr. A. Chen'] },
+    { role:'QA manager', key:'qa_manager', delegates:['S. Keller', 'T. Nguyen'] },
+    { role:'Compliance officer', key:'compliance_officer', delegates:['P. Vasquez', 'R. Nakamura'] },
+  ],
+};
+function authorityRoles() { return AUTHORITY_ROLES_BY_SYSTEM[state.system] || AUTHORITY_ROLES; }
 const AUTHORITY_ROLES = [
   { role:'NOC engineer', key:'noc_engineer', delegates:['A. Rahman', 'J. Park', 'S. Okonkwo'] },
   { role:'Duty manager', key:'duty_manager', delegates:['M. Brennan', 'L. Torres', 'K. Singh'] },
   { role:'Compliance officer', key:'compliance_officer', delegates:['P. Vasquez', 'R. Nakamura'] },
+];
+
+const AUTONOMY_LEVELS = [
+  { value:'stop', label:'Stop' },
+  { value:'escalate', label:'Escalate to human' },
+  { value:'proceed_with_review', label:'Proceed with review' },
+  { value:'proceed', label:'Proceed' },
+];
+
+// Higher assurance tier -> lower ceiling (less headroom before a human is required).
+const TIER_CEILING_DEFAULTS = { t2:'proceed', tf:'proceed_with_review', t3:'escalate' };
+
+const ENTRA_ILLUSTRATIVE_ROSTER = [
+  { name:'A. Kowalski', upn:'a.kowalski@contoso.example', role:'NOC engineer' },
+  { name:'D. Osei', upn:'d.osei@contoso.example', role:'Duty manager' },
+  { name:'F. Bianchi', upn:'f.bianchi@contoso.example', role:'Compliance officer' },
+  { name:'H. Lindqvist', upn:'h.lindqvist@contoso.example', role:'NOC engineer (alternate)' },
+  { name:'M. Duarte', upn:'m.duarte@contoso.example', role:'Duty manager (alternate)' },
 ];
 
 const TIER_TEMPLATES = [
@@ -600,7 +680,9 @@ let state = {
   selectedDecisions: new Set(),
   tiers: {},        // decision id → tier value
   authority: {},    // role key → delegate name
+  autonomy: {},     // decision id → { floor, ceiling, start }
   jurisdiction: 'eu',
+  builtManifest: null,
 };
 
 // ── Step 1 ────────────────────────────────────────────────────────────────────
@@ -609,6 +691,7 @@ function onSystemChange() {
   const v = document.getElementById('systemSelect').value;
   state.system = v;
   state.selectedDecisions = new Set();
+  state.authority = {};
   document.getElementById('systemDesc').innerHTML = v ? SYSTEM_DESCS[v] : '';
   document.getElementById('step1Next').disabled = !v;
 }
@@ -680,7 +763,7 @@ function getTierReq(val) {
 
 function buildAuthorityRows() {
   const wrap = document.getElementById('authorityGroup');
-  wrap.innerHTML = AUTHORITY_ROLES.map(r => {
+  wrap.innerHTML = authorityRoles().map(r => {
     const current = state.authority[r.key] || r.delegates[0];
     const opts = r.delegates.map(d =>
       `<option value="${d}" ${current === d ? 'selected' : ''}>${d}</option>`
@@ -694,63 +777,119 @@ function buildAuthorityRows() {
       <div class="authority-note">Sample delegate &mdash; production: ingested from your SSO (SCIM)</div>
     </div>`;
   }).join('');
-  AUTHORITY_ROLES.forEach(r => {
+  authorityRoles().forEach(r => {
     if (!state.authority[r.key]) state.authority[r.key] = r.delegates[0];
   });
+}
+
+function importEntraRoster() {
+  const wrap = document.getElementById('entraRosterGroup');
+  wrap.innerHTML = ENTRA_ILLUSTRATIVE_ROSTER.map(d => `
+    <div class="authority-row">
+      <div class="authority-role" style="display:flex;align-items:center;justify-content:space-between;">
+        <span>${d.role}</span>
+        <span class="preview-chip">ILLUSTRATIVE</span>
+      </div>
+      <div style="font-size:14px;color:var(--ink);">${d.name}</div>
+      <div class="authority-note">${d.upn} &middot; AAL1 &middot; Microsoft Entra ID (illustrative &mdash; no live directory call)</div>
+    </div>
+  `).join('');
+  document.getElementById('entraRule').style.display = '';
+}
+
+// ── Step 6 ────────────────────────────────────────────────────────────────────
+
+function defaultCeilingForTier(tier) {
+  return TIER_CEILING_DEFAULTS[tier] || 'proceed';
+}
+
+function buildAutonomyRows() {
+  const pts = (DECISION_POINTS[state.system] || []).filter(p => state.selectedDecisions.has(p.id));
+  pts.forEach(p => {
+    if (!state.autonomy[p.id]) {
+      state.autonomy[p.id] = { floor:'stop', ceiling: defaultCeilingForTier(state.tiers[p.id] || 't2'), start:'stop' };
+    }
+  });
+  const wrap = document.getElementById('autonomyGroup');
+  const levelOpts = (current) => AUTONOMY_LEVELS.map(l =>
+    `<option value="${l.value}" ${current === l.value ? 'selected' : ''}>${l.label}</option>`
+  ).join('');
+  wrap.innerHTML = pts.map(p => {
+    const a = state.autonomy[p.id];
+    return `
+    <div class="tier-row">
+      <div class="tier-decision">${p.label}</div>
+      <label class="field-label">Floor &mdash; never below</label>
+      <select class="vac-select" onchange="onAutonomyChange('${p.id}','floor',this.value)">${levelOpts(a.floor)}</select>
+      <label class="field-label">Ceiling &mdash; never above</label>
+      <select class="vac-select" onchange="onAutonomyChange('${p.id}','ceiling',this.value)">${levelOpts(a.ceiling)}</select>
+      <label class="field-label">Start</label>
+      <select class="vac-select" onchange="onAutonomyChange('${p.id}','start',this.value)">${levelOpts(a.start)}</select>
+    </div>`;
+  }).join('');
+}
+
+function onAutonomyChange(id, field, value) {
+  if (!state.autonomy[id]) state.autonomy[id] = { floor:'stop', ceiling:'proceed', start:'stop' };
+  state.autonomy[id][field] = value;
+}
+
+function onAutonomyParamChange() {
+  // Read on demand in computeManifest(); nothing to persist eagerly here.
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 function goTo(n) {
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 6; i++) {
     document.getElementById(`step-${i}`).classList.toggle('active', i === n);
     const dot = document.getElementById(`wdot-${i}`);
     dot.classList.remove('active', 'done');
     if (i < n) dot.classList.add('done');
     else if (i === n) dot.classList.add('active');
-    if (i < 5) {
+    if (i < 6) {
       document.getElementById(`wline-${i}`).classList.toggle('done', i < n);
     }
   }
   if (n === 2) buildDecisionChecks();
   if (n === 3) buildTierRows();
   if (n === 4) buildAuthorityRows();
+  if (n === 6) buildAutonomyRows();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-function buildDashboard() {
-  // Mark all wizard dots done
-  for (let i = 1; i <= 5; i++) {
-    const dot = document.getElementById(`wdot-${i}`);
-    dot.classList.remove('active');
-    dot.classList.add('done');
-    if (i < 5) document.getElementById(`wline-${i}`).classList.add('done');
-  }
-  // Hide all step cards
-  for (let i = 1; i <= 5; i++) {
-    document.getElementById(`step-${i}`).classList.remove('active');
-  }
-
-  state.jurisdiction = document.getElementById('jurisdictionSelect').value;
-
+function computeManifest() {
   const manifestId = 'vac-manifest-' + pseudoId();
   const pts = (DECISION_POINTS[state.system] || []).filter(p => state.selectedDecisions.has(p.id));
-  const firstAction = pts[0] ? pts[0].id : 'decision_point_1';
+  const passRateEl = document.getElementById('passRateInput');
+  const cyclesEl = document.getElementById('cyclesInput');
+  const passRate = passRateEl ? parseFloat(passRateEl.value) || 0.97 : 0.97;
+  const cycles = cyclesEl ? parseInt(cyclesEl.value, 10) || 20 : 20;
 
-  // (a) Manifest JSON
   const manifest = {
     manifest_id: manifestId,
     schema_version: 'vac/manifest/v1',
     system: state.system,
     generated: '2026-07-19T00:00:00Z',
-    decision_points: pts.map(p => ({
-      action: p.id,
-      label: p.label,
-      tier: state.tiers[p.id] || 't2',
-      ceremony: getTierCeremonyShort(state.tiers[p.id] || 't2'),
-    })),
+    decision_points: pts.map(p => {
+      const tier = state.tiers[p.id] || 't2';
+      const a = state.autonomy[p.id] || { floor:'stop', ceiling: defaultCeilingForTier(tier), start:'stop' };
+      return {
+        action: p.id,
+        label: p.label,
+        tier: tier,
+        ceremony: getTierCeremonyShort(tier),
+        autonomy: {
+          floor: a.floor,
+          ceiling: a.ceiling,
+          start: a.start,
+          pass_rate: passRate,
+          cycles: cycles,
+        },
+      };
+    }),
     authority: Object.entries(state.authority).map(([role, delegate]) => ({ role, delegate })),
     rails: {
       eu_ai_act: 'eu-ai-act-pack-v1-2026-08',
@@ -759,6 +898,51 @@ function buildDashboard() {
     sealed_on_issue: true,
   };
 
+  return { manifestId, pts, manifest };
+}
+
+// Contract for the governor demo: a single `manifest` query param carrying the
+// decision classes and their floor/ceiling bounds as URL-encoded JSON. If the
+// current governor page ignores unknown params, that's fine — the parameter is
+// the contract, not today's page behaviour.
+function watchGovernorRun() {
+  const built = state.builtManifest || computeManifest().manifest;
+  const payload = {
+    manifest_id: built.manifest_id,
+    decision_classes: built.decision_points.map(dp => ({
+      action: dp.action,
+      tier: dp.tier,
+      floor: dp.autonomy.floor,
+      ceiling: dp.autonomy.ceiling,
+      start: dp.autonomy.start,
+      pass_rate: dp.autonomy.pass_rate,
+      cycles: dp.autonomy.cycles,
+    })),
+  };
+  const url = 'https://api.athenapilot.ai/docs/arch/cops-pid-demo?manifest=' + encodeURIComponent(JSON.stringify(payload));
+  window.open(url, '_blank', 'noopener');
+}
+
+function buildDashboard() {
+  // Mark all wizard dots done
+  for (let i = 1; i <= 6; i++) {
+    const dot = document.getElementById(`wdot-${i}`);
+    dot.classList.remove('active');
+    dot.classList.add('done');
+    if (i < 6) document.getElementById(`wline-${i}`).classList.add('done');
+  }
+  // Hide all step cards
+  for (let i = 1; i <= 6; i++) {
+    document.getElementById(`step-${i}`).classList.remove('active');
+  }
+
+  state.jurisdiction = document.getElementById('jurisdictionSelect').value;
+
+  const { manifestId, pts, manifest } = computeManifest();
+  state.builtManifest = manifest;
+  const firstAction = pts[0] ? pts[0].id : 'decision_point_1';
+
+  // (a) Manifest JSON
   const json = jsonColorize(JSON.stringify(manifest, null, 2));
   document.getElementById('manifestJson').innerHTML = json;
 
@@ -864,57 +1048,84 @@ function closeVerify() {
   document.body.style.overflow = '';
 }
 
-// Listen for auth.html postMessage pass signal (same pattern as tribunal-demo)
-window.addEventListener('message', async function(e) {
-  if (!e.data) return;
-  const d = e.data;
-  if (d.type !== 'vac_verified' && d.type !== 'VAC_VERIFIED') return;
+// S194: auth.html (in the overlay iframe) posts {type:'vac-auth-success', email, name, session_token}.
+// The console used to listen only for 'vac_verified', so the live seal never happened. Accept both,
+// then mint through the same /v1/vat/issue path the water and pharma demos use.
+async function mintConsoleSeal(verified) {
+  const btn = document.getElementById('liveActionBtn');
+  const manifestId = btn.getAttribute('data-manifest') || '';
+  const action = btn.getAttribute('data-action') || 'seal_decision';
+  const live = !!(verified && verified.session_token);
+  const m = state.builtManifest || {};
+  const body = {
+    human_identity: (verified && verified.email) ? String(verified.email).trim() : 'delegate@console-demo.vac',
+    agent_id: 'retrofit-console',
+    resources: ['governance:manifest:' + manifestId],
+    actions: [action, 'view_credential'],
+    verification_method: 'multi_modal',
+    sensitivity: 'high',
+    constraints: {
+      _demo: true,
+      _note_for_evaluator: 'Scope is the console manifest below; decision points and roster are sample values until the pilot imports the real ones.',
+      manifest_id: manifestId,
+      system: m.system || state.system || '',
+      decision_points: (m.decision_points || []).map(d => d.action),
+    },
+    context: { surface: 'retrofit-console', authorised_at: new Date().toISOString() },
+  };
+  if (live) body.authorising_session_token = verified.session_token;
+  const r = await fetch(API_BASE + '/v1/vat/issue', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error('issue ' + r.status);
+  const data = await r.json();
+  if (!data || !data.jti) throw new Error('no jti');
+  const base = data.verify_url || ('https://vacprotocol.org/vat/verify/' + data.jti);
+  const verifyPath = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'intent=verify'
+    + (data.compact_jwt ? ('#jwt=' + encodeURIComponent(data.compact_jwt)) : '');
+  const trust = (data.claims && data.claims.vac_trust_score != null) ? Number(data.claims.vac_trust_score) : 0;
+  // Trust the server's verdict, not the page's: a session the backend did not accept comes back 'simulated'.
+  const serverLive = !!(live && data.claims && data.claims.vac_verification_method && data.claims.vac_verification_method !== 'simulated');
+  document.getElementById('sealTitle').innerHTML = serverLive
+    ? 'Sealed &mdash; under your live check'
+    : 'Sealed &mdash; demo only (no live check)';
+  showSealReceipt({ jti: data.jti, trust, verifyPath, action, email: live ? verified.email : 'sample identity (live check skipped)' });
+  if (live && !serverLive) document.getElementById('sealTitle').innerHTML = 'Sealed &mdash; the live check was not accepted by the server (demo level)';
+  return serverLive;
+}
 
-  window.__vacVerified = d;
-  closeVerify();
-
+async function runConsoleSeal(verified) {
   const btn = document.getElementById('liveActionBtn');
   btn.disabled = true;
   btn.innerHTML = '<span style="opacity:.6">Sealing&hellip;</span>';
-
   try {
-    const manifestId = btn.getAttribute('data-manifest');
-    const action = btn.getAttribute('data-action') || 'seal_decision';
-
-    const r = await fetch(API_BASE + '/v1/vat/authorize', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        session_token: d.session_token,
-        action: 'seal_decision',
-        actions: [action],
-        manifest_id: manifestId,
-        note: 'Sealed via governance console walkthrough',
-        _demo: true,
-      }),
-    });
-
-    const j = await r.json();
-    const jti = j.jti || j.token?.jti || '';
-    const trust = j.trust_score || j.trust || 0;
-    const verifyPath = jti
-      ? `${API_BASE}/vat/verify/${jti}?intent=verify`
-      : null;
-
-    showSealReceipt({ jti, trust, verifyPath, action, email: d.email });
-
-    btn.innerHTML = '<span style="color:var(--green)">Sealed</span>';
+    const _e = document.getElementById('sealError'); if (_e) _e.textContent = '';
+    const live = await mintConsoleSeal(verified);
+    btn.innerHTML = live ? '<span style="color:var(--green)">Sealed under your live check</span>' : 'Run a sealed acceptance now &mdash; LIVE';
+    btn.disabled = live;
   } catch (err) {
     btn.disabled = false;
     btn.innerHTML = 'Run a sealed acceptance now &mdash; LIVE';
-    const receipt = document.getElementById('sealReceipt');
-    receipt.classList.add('show');
-    const errEl = document.createElement('div');
-    errEl.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--amber)';
-    errEl.textContent = 'Authorize call failed: ' + err.message;
-    receipt.innerHTML = '';
-    receipt.appendChild(errEl);
+    let errEl = document.getElementById('sealError');
+    if (!errEl) {
+      errEl = document.createElement('div'); errEl.id = 'sealError';
+      errEl.style.cssText = 'font-family:var(--mono);font-size:12px;color:var(--amber);margin-top:10px';
+      btn.parentNode.insertBefore(errEl, document.getElementById('sealReceipt'));
+    }
+    errEl.textContent = 'Seal failed: ' + err.message + ' — try again.';
   }
+}
+
+function sealWithoutLiveCheck() { runConsoleSeal(null); }
+
+window.addEventListener('message', function(e) {
+  if (e.origin !== window.location.origin) return;
+  const d = e.data;
+  if (!d || (d.type !== 'vac-auth-success' && d.type !== 'vac_verified' && d.type !== 'VAC_VERIFIED')) return;
+  if (!d.session_token) return;
+  window.__vacVerified = d;
+  closeVerify();
+  runConsoleSeal(d);
 });
 
 // ── Info popovers ─────────────────────────────────────────────────────────────
@@ -998,6 +1209,19 @@ function showSealReceipt({ jti, trust, verifyPath, action, email }) {
   receipt.classList.add('show');
   receipt.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
+
+// S194: opened from a sector demo (?system=pharma / water / scada / case), start on that system
+// instead of a blank picker. The picker still lets the viewer change it.
+(function () {
+  try {
+    var want = new URLSearchParams(window.location.search).get('system');
+    var sel = document.getElementById('systemSelect');
+    if (!want || !sel) return;
+    if (!Array.prototype.some.call(sel.options, function (o) { return o.value && o.value === want; })) return;
+    sel.value = want;
+    onSystemChange();
+  } catch (e) {}
+})();
 </script>
 </body>
 </html>

@@ -189,6 +189,10 @@
       "destination": "/trusted-water-demo.html"
     },
     {
+      "source": "/clinical-demo",
+      "destination": "/clinical-demo.html"
+    },
+    {
       "source": "/vat-verify",
       "destination": "/vat-verify.html"
     },
@@ -211,6 +215,14 @@
     {
       "source": "/retrofit-console",
       "destination": "/retrofit-console.html"
+    },
+    {
+      "source": "/decision-receipt",
+      "destination": "/decision-receipt.html"
+    },
+    {
+      "source": "/demos",
+      "destination": "/demos.html"
     },
     {
       "source": "/athena-browser",
@@ -307,6 +319,15 @@
     },
     {
       "source": "/dad",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/vac-vault-handoff.js",
       "headers": [
         {
           "key": "Cache-Control",

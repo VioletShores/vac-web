@@ -47,6 +47,9 @@ h1{font-size:19px;color:var(--text);font-weight:700;letter-spacing:-0.3px;margin
 .gate-msg{background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--text-dim);margin-bottom:16px;}
 .gate-msg strong{color:var(--gold);}
 
+.expiry-note{background:var(--surface);border:1px solid var(--gold-border);border-left:3px solid var(--gold);border-radius:10px;padding:14px 16px;font-size:13.5px;color:var(--text);line-height:1.55;margin-bottom:14px;}
+.expiry-note .expiry-label{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);margin-bottom:6px;}
+
 .jti-box{background:#080C15;border:1px solid var(--border-light);border-radius:8px;padding:14px 16px;margin:16px 0 6px;word-break:break-all;font-family:var(--mono);font-size:16px;color:var(--text);}
 .copy-btn{font-family:var(--mono);font-size:11px;color:var(--text-dim);background:transparent;border:1px solid var(--border-light);border-radius:6px;padding:6px 12px;cursor:pointer;margin-bottom:14px;}
 .copy-btn:hover{color:var(--text);border-color:var(--gold-border);}
@@ -140,8 +143,61 @@ function isServerAttestedFull(vacAuthorisation, vacAssuranceLevel) {
 
 // The by-vat permit only counts as rooted in a human if the fleet's own response says so —
 // anything else (service-issued, unknown) must render as a warning rather than a quiet pass.
+// The fleet's literal is 'human-rooted' (backend/permits.py _authority_class: 'human-rooted' |
+// 'shared-secret'). D-GRANT-PAGE-RESULT-PATHS: this page compared against 'human_rooted'
+// (underscore), so every genuine human-rooted permit tripped the red banner while printing
+// "human-rooted" beside it. Hyphen and underscore spellings are both accepted; nothing else is.
 function isHumanRootedAuthority(authorityClass) {
-  return authorityClass === 'human_rooted';
+  return String(authorityClass || '').replace(/_/g, '-') === 'human-rooted';
+}
+
+// The live by-vat route returns { permit: {id, expires_at, authority_class, ...}, authority_class,
+// vac_verdict, receipt } — id and expires_at live INSIDE permit. D-GRANT-PAGE-RESULT-PATHS: the
+// page read them at the top level and rendered "(none)" / "(unknown)". Pure: reads the nested
+// permit first, falls back to top-level fields for any older/flattened shape.
+function permitResultFields(data) {
+  data = data || {};
+  var permit = (data.permit && typeof data.permit === 'object') ? data.permit : {};
+  return {
+    id: permit.id || data.id || '',
+    expiresAt: permit.expires_at || data.expires_at || '',
+    authorityClass: data.authority_class || permit.authority_class || ''
+  };
+}
+
+// Expiry narration (ceremony UX bundle): when this page finds a PRIOR authority on the device
+// that no longer validates, say why in plain words instead of the bare "no session found".
+// `prior` is a snapshot of what was stored (see priorAuthoritySnapshot); `now` is passed in so
+// this stays pure. Returns '' when there was nothing to narrate.
+var AUTHORITY_TTL_MS = 24 * 60 * 60 * 1000;
+function expiryNarration(prior, now) {
+  if (!prior || !prior.had) return '';
+  var aged = typeof prior.ts === 'number' && prior.ts > 0 && (now - prior.ts) > AUTHORITY_TTL_MS;
+  var lead = aged
+    ? 'Your previous authority expired after 24 hours.'
+    : 'Your previous authority is no longer valid.';
+  return lead + ' Quick renewal is not yet enabled, so a full ceremony is required.';
+}
+
+// Reads the stored ceremony result timestamps without touching the token. Pure over the
+// provided storage-like object (get(key) -> string|null) so tests can feed it fixtures.
+function priorAuthoritySnapshot(store) {
+  var had = false, ts = 0;
+  function readTs(key, field) {
+    var raw = null;
+    try { raw = store.getItem(key); } catch (e) { raw = null; }
+    if (!raw) return;
+    had = true;
+    try {
+      var obj = JSON.parse(raw);
+      var t = obj && obj[field];
+      if (typeof t === 'number' && t > ts) ts = t;
+    } catch (e) {}
+  }
+  readTs('vac_verified', 'timestamp');
+  readTs('vac_last_verified', 'ts');
+  try { if (store.getItem('vac_session')) had = true; } catch (e) {}
+  return { had: had, ts: ts };
 }
 
 // Builds the POST body for /v1/mac/authorizations/by-vat. `vat` is the compact_jwt from the
@@ -203,19 +259,25 @@ function bridgeCeremonySession() {
 // Render states
 // ============================================================
 
-function renderGate(insufficientTier) {
+function renderGate(insufficientTier, narration) {
   var authUrl = '/auth?return=' + encodeURIComponent(RETURN_PATH);
   var msg = insufficientTier
     ? 'Your session isn’t full-tier. Quick re-auth is not accepted here — minting merge authority requires your own full verification ceremony (identity + live biometric).'
     : 'No verified session found. Minting merge authority requires your own full verification ceremony (identity + live biometric) — quick tier is not acceptable.';
+  var narrationHtml = narration
+    ? '<div class="expiry-note" id="expiryNote"><span class="expiry-label">Previous authority</span>' + escapeHtml(narration) + '</div>'
+    : '';
   stageEl.innerHTML =
+    narrationHtml +
     '<div class="gate-msg"><strong>Full ceremony required.</strong> ' + msg + '</div>' +
     '<button class="btn btn-gold" id="startCeremonyBtn" type="button">Start full verification</button>' +
     '<div class="note">After verifying, use the “← Back to the demo” link at the top of that page to return here — the button at the bottom of that page goes elsewhere.</div>';
   document.getElementById('startCeremonyBtn').addEventListener('click', function () {
     window.location.href = authUrl;
   });
-  setExplain('This page checked your VAC session and found none at full tier, so it sent you to the full biometric ceremony instead of minting anything.');
+  setExplain(narration
+    ? 'This page found a previous authority on this device that no longer validates. Quick renewal is not yet enabled, so it is sending you to the full biometric ceremony instead of minting anything.'
+    : 'This page checked your VAC session and found none at full tier, so it sent you to the full biometric ceremony instead of minting anything.');
 }
 
 function renderMintCard(user) {
@@ -228,10 +290,10 @@ function renderMintCard(user) {
         '<li><span class="k">expiry</span><span class="v">24h</span></li>' +
         '<li><span class="k">max_depth</span><span class="v">1</span></li>' +
       '</ul>' +
-      '<button class="btn btn-gold" id="mintBtn" type="button">Mint merge-scope VAT</button>' +
+      '<button class="btn btn-gold" id="mintBtn" type="button">Mint merge-scope VRT</button>' +
     '</div>';
   document.getElementById('mintBtn').addEventListener('click', function () { mintToken(user); });
-  setExplain('This page verified you hold a full-tier VAC session for ' + user.email + ' and is ready to mint a 24h merge-scope token bound to that identity — your session token is read in-browser and sent only inside the signed mint request, never shown or logged.');
+  setExplain('This page verified you hold a full-tier VAC session for ' + user.email + ' and is ready to mint a 24h merge-scope VRT (Verifiable Root Token) bound to that identity — your session token is read in-browser and sent only inside the signed mint request, never shown or logged.');
 }
 
 function renderResult(data, user) {
@@ -251,7 +313,7 @@ function renderResult(data, user) {
   var trusted = isServerAttestedFull(vacAuth, assuranceLevel);
 
   var html = '<div class="card">' +
-    '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge-scope VAT minted</div>';
+    '<div style="font-weight:700;color:#E8EDF5;font-size:16px;margin-bottom:4px;">Merge-scope VRT minted</div>';
 
   if (!trusted) {
     html += '<div class="warn-box">not L3 - re-run the full ceremony</div>';
@@ -292,7 +354,7 @@ function renderResult(data, user) {
     });
   }
 
-  setExplain('This page minted a 24h merge-scope VAT for VioletShores/athena and is showing the server’s own attestation of the ceremony — it never renders your session token, only the jti the server returned.');
+  setExplain('This page minted a 24h merge-scope VRT for VioletShores/athena and is showing the server’s own attestation of the ceremony — it never renders your session token, only the jti the server returned.');
 
   // The compact_jwt lives only in this closure from here on — passed into renderGrantCard
   // and then grantAuthority/buildGrantBody, never assigned to a module-level variable,
@@ -471,9 +533,11 @@ function grantAuthority(user, vat) {
 }
 
 function renderGrantResult(data, branches) {
-  var authorityClass = data.authority_class || '';
+  var fields = permitResultFields(data);
+  var authorityClass = fields.authorityClass;
   var humanRooted = isHumanRootedAuthority(authorityClass);
-  var expiresAt = data.expires_at || '(unknown)';
+  var expiresAt = fields.expiresAt || '(unknown)';
+  var permitId = fields.id || '(none)';
   var grantedBranches = branches || [];
 
   var html = '<div class="card" id="grantResultCard">' +
@@ -484,7 +548,7 @@ function renderGrantResult(data, branches) {
   }
 
   html += '<ul class="attest-list">' +
-    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(data.id || '(none)')) + '</span></li>' +
+    '<li><span class="k">permit id</span><span class="v">' + escapeHtml(String(permitId)) + '</span></li>' +
     '<li><span class="k">authority_class</span><span class="v">' + escapeHtml(String(authorityClass || '(none)')) + '</span></li>' +
     '<li><span class="k">expires_at</span><span class="v">' + escapeHtml(String(expiresAt)) + '</span></li>' +
   '</ul>';
@@ -570,6 +634,14 @@ function mintToken(user) {
 
 function checkSessionAndRender() {
   stageEl.innerHTML = '<div class="p">Checking your VAC session…</div>';
+  var prior = priorAuthoritySnapshot(localStorage);
+  var narration = expiryNarration(prior, Date.now());
+  // An aged ceremony blob (>24h) must not be bridged into a session token — auth.html purges
+  // it on its own load, but a direct landing here never went through auth.html.
+  if (prior.had && prior.ts > 0 && (Date.now() - prior.ts) > AUTHORITY_TTL_MS) {
+    try { localStorage.removeItem('vac_verified'); } catch (e) {}
+    try { localStorage.removeItem('vac_last_verified'); } catch (e) {}
+  }
   bridgeCeremonySession();
 
   if (typeof VAC === 'undefined') {
@@ -580,11 +652,11 @@ function checkSessionAndRender() {
 
   VAC.isAuthenticated().then(function (ok) {
     var user = VAC.getUser();
-    if (!ok || !user || !user.email) { renderGate(false); return; }
+    if (!ok || !user || !user.email) { renderGate(false, narration); return; }
     if (user.auth_level !== 'full') { renderGate(true); return; }
     renderMintCard(user);
   }).catch(function () {
-    renderGate(false);
+    renderGate(false, narration);
   });
 }
 

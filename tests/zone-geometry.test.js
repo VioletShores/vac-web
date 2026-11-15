@@ -151,14 +151,19 @@ for (const fix of FIXTURES) {
         );
     });
 
-    test(`[${fix.name}] A2: oval width <= 0.55 * face width (hFrac=${fix.hFrac})`, () => {
+    // A2 (S204 reconciliation): the original "oval width <= 0.55 * face width" cap was superseded on
+    // 11 Aug 2026 by task-718 (commit 77d7747, archaeology verdict A/B): the radius has a usable floor
+    // of 0.17 frame widths (S139-tested; anything tighter demanded sub-centimetre hand placement), so a
+    // small/far face legitimately gets an oval wider than 0.55 face widths. The assertion stayed red on
+    // main for three months. A2 now pins the shipped spec from ABOVE: the radius never exceeds
+    // max(0.17, 0.22 * faceW) (it may only shrink, for the near-distance face-gap fit), and it never
+    // collapses below a usable 0.08.
+    test(`[${fix.name}] A2: oval radius within the task-718 spec, never larger (hFrac=${fix.hFrac})`, () => {
         const z = computeZoneFromSource(fix.cx, fix.cy, fix.hFrac);
         const faceW = fix.hFrac * FACE_ASPECT;
-        const ovalW = 2 * z.rx;
-        assert.ok(
-            ovalW <= 0.55 * faceW,
-            `oval width ${ovalW.toFixed(4)} must be <= 0.55 * faceW ${(0.55 * faceW).toFixed(4)} (ratio ${(ovalW / faceW).toFixed(3)})`
-        );
+        const cap = Math.max(0.17, 0.22 * faceW);
+        assert.ok(z.rx <= cap + 1e-9, `rx ${z.rx.toFixed(4)} must be <= task-718 cap ${cap.toFixed(4)}`);
+        assert.ok(z.rx >= 0.08, `rx ${z.rx.toFixed(4)} must stay usable (>= 0.08)`);
     });
 
     // A3: gap between face edge and oval inner edge. Centred fixtures only —
