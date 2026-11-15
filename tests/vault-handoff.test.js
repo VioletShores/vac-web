@@ -459,3 +459,16 @@ test('Decisions acknowledgement reports the held action and never auto-closes',a
   for(const timer of h.timers)timer.f();
   assert.equal(h.closed,false);
 });
+
+test('Decisions confirmed acknowledgement names only the recorded receipt',async()=>{
+  const h=load('?handoff=decisions-confirm&state='+STATE);offer(h);
+  h.window.VACVaultHandoff.consumeChallenge({email:'owner@example.invalid'},true,false);
+  h.window.VACVaultHandoff.onVerified(FULL,{});await flush();await flush();
+  const ack={type:'vac-vault-handoff-ack',state:STATE,status:'confirmed'};
+  for(const fn of h.listeners.message)fn({origin:'https://evil.invalid',source:h.op,data:ack});
+  assert.doesNotMatch(h.byId.vacVaultHandoffMsg.textContent,/recorded the decision receipt/);
+  for(const fn of h.listeners.message)fn({origin:VAULT,source:h.op,data:ack});
+  assert.match(h.byId.vacVaultHandoffMsg.textContent,/Athena recorded the decision receipt/);
+  for(const timer of h.timers)timer.f();
+  assert.equal(h.closed,false);
+});

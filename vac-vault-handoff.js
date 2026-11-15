@@ -261,12 +261,16 @@
       }
       if (m.type !== ACK || m.state !== state) return;
       if (acked) return;
-      if (kind === 'decisions-confirm' && m.status !== 'identity_verified_action_held') return;
+      if (kind === 'decisions-confirm' && m.status !== 'identity_verified_action_held' && m.status !== 'confirmed') return;
       acked = true;
       clearTimeout(ackTimer);
       assertion = null;
       if (kind === 'decisions-confirm') {
-        show('warn', 'Athena checked your identity. The decision is still held; nothing has been authorised. Return to Athena for the next step.', false);
+        if (m.status === 'confirmed') {
+          show('ok', 'Athena recorded the decision receipt. Return to Athena to review it.', false);
+        } else {
+          show('warn', 'Athena checked your identity. The decision is still held; nothing has been authorised. Return to Athena for the next step.', false);
+        }
       } else if (reviewAfterHandoff) {
         show('ok', 'Delivered. Athena has your verification. Review your results here, or close this tab and return to Athena to record.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
