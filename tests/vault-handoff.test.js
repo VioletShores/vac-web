@@ -34,7 +34,7 @@ function load(search, { opener = 'present', authFetch } = {}) {
   const byId = {};
   let closed = false;
   const navigations = [];
-  const op = opener === 'present' ? { closed: false, postMessage: (m, o) => posted.push({ m, o }) } : null;
+  const op = opener === 'present' ? { closed: false, focused: false, focus() { this.focused = true; }, postMessage: (m, o) => posted.push({ m, o }) } : null;
   const document = {
     body: el(),
     createElement() { return el(); },
@@ -313,7 +313,7 @@ test('narration results stay open after a real ack until the user explicitly clo
   h.listeners.message[0]({ origin: VAULT, source: h.op,
     data: { type: 'vac-vault-handoff-ack', state: STATE } });
   assert.equal(actions.style.display, 'flex');
-  assert.match(h.byId.vacVaultHandoffMsg.textContent, /return to Athena to record/);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Continue to recording/);
   assert.equal(h.byId.vacVaultHandoffResend.style.display, 'none');
   h.timers.forEach((t) => t.f());
   assert.equal(h.closed, false, 'no completion timer may remove narration results');
@@ -326,6 +326,7 @@ test('narration results stay open after a real ack until the user explicitly clo
   assert.doesNotMatch(rendered, /aaa\.bbb\.ccc|sess\.sig|Owner@Example\.invalid/);
   h.byId.vacVaultHandoffClose.listeners.click();
   assert.equal(h.closed, true);
+  assert.equal(h.op.focused, true);
   assert.equal(h.navigations.length, 0);
 });
 
@@ -333,7 +334,8 @@ test('review results opens the existing report and moves keyboard focus without 
   const h = load('?handoff=narration-capture&state=' + STATE);
   let focused = false;
   let scrolled = false;
-  const details = { tagName: 'DETAILS', open: false,
+  let inserted = null;
+  const details = { tagName: 'DETAILS', open: false, parentNode: { insertBefore(node, before) { inserted = { node, before }; } },
     querySelector: () => ({ focus() { focused = true; } }),
     scrollIntoView() { scrolled = true; } };
   h.byId.successModalities = { parentNode: details };
@@ -347,13 +349,19 @@ test('review results opens the existing report and moves keyboard focus without 
   assert.equal(details.open, true);
   assert.equal(focused, true);
   assert.equal(scrolled, true);
-  assert.equal(h.byId.vacVaultHandoff.style.display, 'none', 'banner no longer covers the report');
+  assert.equal(inserted.node, h.byId.vacVaultHandoff);
+  assert.equal(inserted.before, details);
+  assert.match(h.byId.vacVaultHandoff.style.cssText, /position:relative/);
+  assert.notEqual(h.byId.vacVaultHandoff.style.display, 'none', 'continuation remains available during review');
   h.listeners.message[0](ack);
-  assert.equal(h.byId.vacVaultHandoff.style.display, 'none', 'duplicate ack does not interrupt review');
+  assert.notEqual(h.byId.vacVaultHandoff.style.display, 'none', 'duplicate ack preserves continuation');
   assert.equal(h.closed, false);
   assert.equal(h.fetches.length, 1);
   assert.equal(h.posted.length, 1);
   assert.equal(h.navigations.length, 0);
+  h.byId.vacVaultHandoffClose.listeners.click();
+  assert.equal(h.op.focused, true, 'review retains the original recording destination');
+  assert.equal(h.closed, true);
 });
 
 test('owner and Vault handoffs retain their existing automatic return behavior', async () => {
@@ -370,3 +378,16 @@ test('owner and Vault handoffs retain their existing automatic return behavior',
   }
 });
 
+
+
+test('recording return handles a closed opener without closing the results', async () => {
+ const h = load('?handoff=narration-capture&state=' + STATE);
+ h.window.VACVaultHandoff.onVerified(FULL, {});
+ await flush(); await flush();
+ h.listeners.message[0]({ origin: VAULT, source: h.op, data: { type: 'vac-vault-handoff-ack', state: STATE } });
+ h.op.closed = true;
+ h.byId.vacVaultHandoffClose.listeners.click();
+ assert.equal(h.closed, false);
+ assert.match(h.byId.vacVaultHandoffMsg.textContent, /original recording link/);
+ assert.equal(h.navigations.length, 0);
+});
