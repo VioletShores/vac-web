@@ -23,7 +23,7 @@ function harness() {
   vm.runInContext(`var recordingStopped=false, _speechMode='vad', _contentGate=null, _contentGateDigit=-1;
     var currentDigitIndex=0, digits=[2,3,3], speechReady=[false,false,false], _sessionGateAvail=true;
     var speechWindowStart=200, _vadEnergyDetected=false, _lastVbRatio=0, VOICE_BAND_MIN_RATIO=.45;
-    var _voiceFiredAt=0, _acceptArmed=false, _contentReadyDigit=-1;`, c);
+    var _voiceFiredAt=0, _acceptArmed=false, _contentReadyDigit=-1, _contentGateGeneration=0;`, c);
   vm.runInContext(section('function _startDigitContentGate(', '// Starts a content gate for the greeting phrase.'), c);
   vm.runInContext(section('    function _refreshContentGate()', '    function _startSpeechGate()'), c);
   return {c, instances, time(t){now=t;}, run(s){return vm.runInContext(s,c);}};
@@ -60,4 +60,13 @@ test('wrong content and stale callback cannot satisfy current digit',()=>{
 test('readiness begins on provider start, not recognizer construction',()=>{
   const h=harness(); h.time(200); h.run('_refreshContentGate()');
   assert.equal(h.c._contentReadyDigit,-1); h.instances[0].ready(); assert.equal(h.c._contentReadyDigit,0);
+});
+test('retired same-digit recognizer cannot clear new readiness or disable its provider',()=>{
+  const h=harness(); h.time(200); h.run('_refreshContentGate()');
+  const old=h.instances[0];old.ready();old.result('2');
+  h.time(3000);h.run('speechReady[0]=false; _refreshContentGate()');
+  const current=h.instances[1];current.ready();assert.equal(h.c._contentReadyDigit,0);
+  old.onend();assert.equal(h.c._contentReadyDigit,0);
+  old.onerror({error:'network'});assert.equal(h.c._sessionGateAvail,true);
+  assert.equal(h.c._contentGateDigit,0);current.result('2');assert.equal(h.c.speechReady[0],true);
 });
