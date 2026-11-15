@@ -2621,6 +2621,13 @@ const CaptureFeedback = {
             setSayView(false); setBigNumber(false);
             return;
         }
+        if (opts.voicePreparing) {
+            if (promptEl) { promptEl.textContent = 'Preparing microphone'; promptEl.style.color = '#fbbf24'; }
+            if (subEl) subEl.textContent = 'Wait for the number before speaking.';
+            setLamp(gLamp, gWrap, 'pending', 'G'); setLamp(vLamp, vWrap, 'pending', 'V');
+            setSayView(false); setBigNumber(false);
+            return;
+        }
         var N = opts.digit;
         // SHOW-AS-YOU-SAY: the camera-free hand-down "Say N" cover is GONE — you keep fingers up
         // while you say it. So there is ONE simultaneous step (not two sub-gates); the lamps are LIVE
@@ -3618,7 +3625,7 @@ const NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts +
 // accepts on an actual digit-word match; this just distinguishes, in telemetry, a low-confidence
 // final transcript from a confidently-wrong one.
 const CONTENT_GATE_LOW_CONF_THR = 0.5;
-function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe, onMiss) {
+function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe, onMiss, onReady) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
@@ -3646,15 +3653,23 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         rec.maxAlternatives = 1;
         rec.lang = 'en-US';
     } catch(_) { return null; }
+    rec.onstart = function() {
+        if (!stopped && !matched && onReady) { try { onReady(true); } catch(_) {} }
+    };
     rec.onresult = function(evt) {
         if (matched || stopped) return;
         for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
             var t = evt.results[ri][0].transcript;
             if (_contentTranscriptHasDigit(t, expectedDigit)) {
+                // The owning digit must accept before this recognizer is consumed. A closed
+                // grace/confirmation window must neither lose the recognizer nor cache speech
+                // to replay into a later window. Undefined retains legacy fast-tier callbacks.
+                var accepted = false;
+                try { accepted = onMatch(t) !== false; } catch(_) {}
+                if (!accepted) { _emitMiss(null, 'window_not_ready', null); return; }
                 matched = true;
-                stopped = true;              // prevent onend restart
-                try { rec.abort(); } catch(_) {}  // stop immediately; no overlap with next digit
-                try { onMatch(t); } catch(_) {}
+                stopped = true;
+                try { rec.abort(); } catch(_) {}
                 return;
             }
             // Non-matching transcript — discarded here, never stored (privacy rule).
@@ -3700,6 +3715,7 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         if (!stopped) { try { rec.abort(); } catch(_) {} }
     };
     rec.onend = function() {
+        if (onReady) { try { onReady(false); } catch(_) {} }
         // Auto-restart on natural end (recognition stops after ~1min of silence)
         if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
     };
@@ -4076,6 +4092,7 @@ function beginRecording() {
     let _lastVbRatio = 0;            // BUILD 379: latest voice-band ratio (85Hz-3kHz / all bins), surfaced to the QA overlay
     // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate state (per-digit, reset on advance)
     let _contentGate = null;         // active SpeechRecognition content gate for the current digit
+    let _contentReadyDigit = -1;     // provider onstart, never assumed from start()
     let _contentGateDigit = -1;      // digit index the active gate covers
     let _vadEnergyDetected = false;  // energy heard this digit window (health only — never triggers progression)
     // Session-local shadow of module-level _contentGateAvail. Runtime permission failures set this
@@ -4378,15 +4395,18 @@ function beginRecording() {
         if (_contentGate) return; // still running for this digit
         if (currentDigitIndex >= digits.length || speechReady[currentDigitIndex]) return;
         if (!_sessionGateAvail) return; // energy fallback — no gate to start
+        if (performance.now() < speechWindowStart) return; // no recognizer in grace/confirmation
+        _contentReadyDigit = -1;
         var targetDigit = digits[currentDigitIndex];
         var _gateForIdx = currentDigitIndex;  // capture index; guard against stale async callback
         _contentGateDigit = currentDigitIndex;
         _contentGate = _startDigitContentGate(targetDigit, function(t) {
-            _contentGate = null; _contentGateDigit = -1;
-            // Guard: if digit advanced while recognition was async, discard this result.
-            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            // A stale/early result cannot consume a valid current gate or satisfy a later digit.
+            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return false;
+            if (!_markSpeech('content', 0, null)) return false;
+            _contentGate = null; _contentGateDigit = -1; _contentReadyDigit = -1;
             try { vacDebug('content_gate_fired', null, { digit_index: _gateForIdx, digit: targetDigit }); } catch(_) {}
-            _markSpeech('content', 0, null);
+            return true;
         }, function() {
             // Fatal STT error (not-allowed/audio-capture): null the outer handle so the
             // VAD loop doesn't see a non-null but dead gate, and fall back to energy VAD.
@@ -4413,6 +4433,10 @@ function beginRecording() {
             // S173: content gate evaluated a chunk and did NOT fire — the previously-silent case.
             if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
             try { vacDebug('content_gate_miss', reason, Object.assign({ digit_index: _gateForIdx, expected_digit: targetDigit, reason: reason }, info)); } catch(_) {}
+        }, function(ready) {
+            if (currentDigitIndex !== _gateForIdx || recordingStopped) return;
+            _contentReadyDigit = ready ? _gateForIdx : -1;
+            try { vacDebug('content_gate_ready', null, { digit_index: _gateForIdx, ready: !!ready }); } catch(_) {}
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -4423,10 +4447,10 @@ function beginRecording() {
     }
 
 function _markSpeech(src, rms, onsetAt) {
-        if (recordingStopped) return;
-        if (currentDigitIndex >= digits.length) return;
-        if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
-        if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
+        if (recordingStopped) return false;
+        if (currentDigitIndex >= digits.length) return false;
+        if (performance.now() < speechWindowStart) return false;  // ignore tail bleeding from the prior digit (still in its beat)
+        if (speechReady[currentDigitIndex]) return false;         // already satisfied for this digit
         speechReady[currentDigitIndex] = true;
         _vadEnergyDetected = false;  // reset health flag for next digit
         // Content gate consumed for this digit — stop it; new gate starts on next digit
@@ -4441,6 +4465,7 @@ function _markSpeech(src, rms, onsetAt) {
         // F-561: carry the triggering rms AND the silence→voice onset moment, so the overlay
         // shows the FRESH binding per digit (onset after a real in-window silence — no pre-satisfaction).
         try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null), onset_perf: (typeof onsetAt === 'number' ? onsetAt : null) }); } catch(_) {}
+        return true;
     }
     function _startSpeechGate() {
         if (_speechGateStarted) return;
@@ -5228,6 +5253,10 @@ function _markSpeech(src, rms, onsetAt) {
             liveEl.style.color = '#22c55e';
             liveEl.style.fontSize = '22px';
             liveEl.textContent = '\u2713  Got it';
+        } else if (_speechMode === 'vad' && _sessionGateAvail &&
+                   !speechReady[currentDigitIndex] && _contentReadyDigit !== currentDigitIndex) {
+            liveEl.style.color = '#fbbf24';
+            liveEl.textContent = 'Preparing microphone — wait for the number';
         } else if (detected > 0) {
             // Option 2: no more "now change" copy \u2014 a repeated digit is held, not changed.
             liveEl.style.fontSize = '17px';
@@ -5301,6 +5330,7 @@ function _markSpeech(src, rms, onsetAt) {
                 handPresent: _handPresent,     // hand visible in frame at all
                 handNear: _handNear,           // hand inside the near-face capture zone
                 gesturePct: _gPct,
+                voicePreparing: _speechMode === 'vad' && _sessionGateAvail && !speechReady[currentDigitIndex] && _contentReadyDigit !== currentDigitIndex,
                 voiceOn: (_speechMode !== 'off'),
                 voiceDone: !!speechReady[currentDigitIndex],
                 rearmed: _acceptArmed,   // speech-off: a held pose can be gesture-confirmed but NOT re-armed (blocked) — don't show "Got it"
@@ -5323,6 +5353,10 @@ function _markSpeech(src, rms, onsetAt) {
         // D2: once the gesture is confirmed and we're only waiting on voice, the 8s
         // "hold hand closer" hint is wrong here — suppress it.
         CaptureFeedback.renderFingerPhase(ctx, hintShown && !_waitingVoice, currentDigitIndex);
+        if (_speechMode === 'vad' && _sessionGateAvail && !speechReady[currentDigitIndex] &&
+            _contentReadyDigit !== currentDigitIndex && !inConfirmBeat) {
+            challengeEl.textContent = 'Preparing microphone — wait for the number';
+        }
         rafId = requestAnimationFrame(runDetectionLoop);
     }
 
