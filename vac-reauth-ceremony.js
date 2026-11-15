@@ -4092,6 +4092,7 @@ function beginRecording() {
     let _lastVbRatio = 0;            // BUILD 379: latest voice-band ratio (85Hz-3kHz / all bins), surfaced to the QA overlay
     // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate state (per-digit, reset on advance)
     let _contentGate = null;         // active SpeechRecognition content gate for the current digit
+    let _contentGateGeneration = 0; // disambiguate retries of the same digit
     let _contentReadyDigit = -1;     // provider onstart, never assumed from start()
     let _contentGateDigit = -1;      // digit index the active gate covers
     let _vadEnergyDetected = false;  // energy heard this digit window (health only — never triggers progression)
@@ -4397,25 +4398,27 @@ function beginRecording() {
         if (!_sessionGateAvail) return; // energy fallback — no gate to start
         if (performance.now() < speechWindowStart) return; // no recognizer in grace/confirmation
         _contentReadyDigit = -1;
+        var _gateGeneration = ++_contentGateGeneration;
         var targetDigit = digits[currentDigitIndex];
         var _gateForIdx = currentDigitIndex;  // capture index; guard against stale async callback
         _contentGateDigit = currentDigitIndex;
         _contentGate = _startDigitContentGate(targetDigit, function(t) {
             // A stale/early result cannot consume a valid current gate or satisfy a later digit.
-            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return false;
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return false;
             if (!_markSpeech('content', 0, null)) return false;
             _contentGate = null; _contentGateDigit = -1; _contentReadyDigit = -1;
             try { vacDebug('content_gate_fired', null, { digit_index: _gateForIdx, digit: targetDigit }); } catch(_) {}
             return true;
         }, function() {
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx) return;
             // Fatal STT error (not-allowed/audio-capture): null the outer handle so the
             // VAD loop doesn't see a non-null but dead gate, and fall back to energy VAD.
             _contentGate = null; _contentGateDigit = -1; _sessionGateAvail = false;
         }, function(t) {
             // task-653 no-match fallback: transcripts never matched expectedDigit for >=4s
             // with VAD confirming voice. Provisional client pass — server gate is authority.
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return false;
             _contentGate = null; _contentGateDigit = -1;
-            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
             try { vacDebug('content_gate_no_match_fallback', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: t ? String(t).slice(0, 60) : null }); } catch(_) {}
             _markSpeech('no_match_fallback', 0, null);
         }, function() {
@@ -4431,10 +4434,10 @@ function beginRecording() {
             return _vadEnergyDetected || _lastVbRatio >= VOICE_BAND_MIN_RATIO;
         }, function(reason, info) {
             // S173: content gate evaluated a chunk and did NOT fire — the previously-silent case.
-            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
             try { vacDebug('content_gate_miss', reason, Object.assign({ digit_index: _gateForIdx, expected_digit: targetDigit, reason: reason }, info)); } catch(_) {}
         }, function(ready) {
-            if (currentDigitIndex !== _gateForIdx || recordingStopped) return;
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || recordingStopped) return;
             _contentReadyDigit = ready ? _gateForIdx : -1;
             try { vacDebug('content_gate_ready', null, { digit_index: _gateForIdx, ready: !!ready }); } catch(_) {}
         });
