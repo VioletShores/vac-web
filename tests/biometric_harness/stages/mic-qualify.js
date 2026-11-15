@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const { CEREMONY_SRC_PATH, readSrc, constFromSource, requireIncludes, functionFromSource, declarationFromSource } = require('../lib/source-anchor');
 const src = readSrc(CEREMONY_SRC_PATH);
 const names = ['VOICED_RUN_TICKS_NEEDED', 'MIC_PREFLIGHT_TICKS_NEEDED', 'VOICED_RUN_MOD_DELTA', 'VOICED_RUN_SPEECH_RMS_FLOOR', 'VOICED_RUN_SILENCE_RMS_FLOOR', 'VOICE_BAND_MIN_RATIO', 'VOICE_BAND_STRONG_RATIO', 'MR_FALLBACK_VOICED_LEVEL'];
-const constants = Object.fromEntries(names.map(n => [n, constFromSource(src, n)]));
+function getConstants() { return Object.fromEntries(names.map(n => [n, constFromSource(src, n)])); }
 function trackerSource(source) {
     return names.map(n => declarationFromSource(source, n, 0)).join('\n') + '\n' +
         ['_newVoicedRunState', '_voicedRunTick', '_voicedRunPass'].map(n => functionFromSource(source, n)).join('\n');
@@ -34,7 +34,6 @@ function compile(source = src) {
     })`);
 }
 function verifySource() { compile(); }
-const tracker = compile();
 function run(frames, options = {}) {
     // Old boolean override was not a real preflight context. Never bypass modulation
     // without explicitly exercising the recorder-fallback classifier.
@@ -49,5 +48,6 @@ function run(frames, options = {}) {
     return { pass, score: pass ? 1 : 0, latencyMs: Number(process.hrtime.bigint() - t0) / 1e6,
         detail: { passedAtFrame, finalTicks: state.ticks, finalMod: +(state.max - state.min).toFixed(4) } };
 }
-module.exports = { name: 'mic_qualify', verifySource, run, compile, trackerSource, constants,
-    newVoicedRunState: tracker.newState, voicedRunTick: tracker.tick, voicedRunPass: tracker.pass };
+module.exports = { name: 'mic_qualify', verifySource, run, compile, trackerSource, get constants() { return getConstants(); },
+    newVoicedRunState: (...args) => compile().newState(...args),
+    voicedRunTick: (...args) => compile().tick(...args), voicedRunPass: (...args) => compile().pass(...args) };

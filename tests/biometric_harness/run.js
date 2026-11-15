@@ -17,12 +17,19 @@ const path = require('node:path');
 const { parseYaml } = require('./lib/mini-yaml');
 const { DERIVED_FEATURES } = require('../fixtures/biometric/derived-features');
 
+// Source extraction may fail while a stage module is loading. Preserve the
+// error as an invalid binding in the report; never substitute a passing stage.
+function loadStage(modulePath) {
+    try { return require(modulePath); }
+    catch (error) { return { verifySource() { throw error; } }; }
+}
+
 const STAGES = {
-    mic_qualify: require('./stages/mic-qualify'),
-    phrase_gate: require('./stages/phrase-gate'),
-    digit_voice: require('./stages/digit-voice'),
-    face_embed: require('./stages/face-embed'),
-    finger_gesture: require('./stages/finger-gesture'),
+    mic_qualify: loadStage('./stages/mic-qualify'),
+    phrase_gate: loadStage('./stages/phrase-gate'),
+    digit_voice: loadStage('./stages/digit-voice'),
+    face_embed: loadStage('./stages/face-embed'),
+    finger_gesture: loadStage('./stages/finger-gesture'),
 };
 
 // mic_qualify/phrase_gate/digit_voice stages take a bare frames array; face_embed/

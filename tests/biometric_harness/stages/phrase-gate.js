@@ -5,7 +5,6 @@ const vm = require('node:vm');
 const { CEREMONY_SRC_PATH, readSrc, constFromSource, requireIncludes, functionFromSource, declarationFromSource } = require('../lib/source-anchor');
 const mic = require('./mic-qualify');
 const src = readSrc(CEREMONY_SRC_PATH);
-const PHRASE_SILENCE_TICKS_NEEDED = constFromSource(src, 'PHRASE_SILENCE_TICKS_NEEDED');
 function compile(source = src, options = {}) {
     requireIncludes(source, '_phraseVoicedState = _newVoicedRunState();');
     // The phrase closure has its own voice-band constant. Refuse scope drift
@@ -49,4 +48,4 @@ function run(frames, options = {}) {
     return { pass, score: pass ? 1 : 0, latencyMs: Number(process.hrtime.bigint() - t0) / 1e6,
         detail: { passedAtFrame, finalTicks: state.ticks, finalMod: +(state.max - state.min).toFixed(4), utteranceComplete: c.phraseSpoke, starved: c._vadStarved } };
 }
-module.exports = { name: 'phrase_gate', verifySource, run, compile, constants: { PHRASE_SILENCE_TICKS_NEEDED } };
+module.exports = { name: 'phrase_gate', verifySource, run, compile, get constants() { return { PHRASE_SILENCE_TICKS_NEEDED: constFromSource(src, 'PHRASE_SILENCE_TICKS_NEEDED') }; } };

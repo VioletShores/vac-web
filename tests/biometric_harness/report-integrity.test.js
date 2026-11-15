@@ -120,3 +120,29 @@ test('CLI returns nonzero and writes invalid source evidence instead of clean su
     assert.ok(report.results.some(r => r.errorKind === 'SOURCE_BINDING_ERROR'));
     assert.ok(report.summary.match < report.summary.total);
 });
+
+
+test('CLI records missing extracted mic binding without aborting report construction', () => {
+    const child = driftedDigitReport(src => src.replace(
+        'if (_micSeeded && _voicedRunPass(_micVoicedState, _micOnFallback))',
+        'if (true)'), true);
+    assert.equal(child.status, 1, child.output);
+    const rows = child.report.results.filter(r => r.stage === 'mic_qualify');
+    assert.ok(rows.length > 0);
+    assertBindingError({ results: rows, summary: { total: rows.length, error: rows.length, match: 0 } });
+});
+
+
+test('CLI records missing stage constants as binding errors without import crashes', () => {
+    for (const [before, after, stage] of [
+        ['const MIC_PREFLIGHT_TICKS_NEEDED = 4;', 'const REMOVED_MIC_TICKS = 4;', 'mic_qualify'],
+        ['const PHRASE_SILENCE_TICKS_NEEDED = 2;', 'const REMOVED_PHRASE_TICKS = 2;', 'phrase_gate'],
+        ['const DIGIT_VOICE_MIN_MS = 200;', 'const REMOVED_DIGIT_MS = 200;', 'digit_voice'],
+    ]) {
+        const child = driftedDigitReport(src => src.replace(before, after), true);
+        assert.equal(child.status, 1, child.output);
+        const rows = child.report.results.filter(r => r.stage === stage);
+        assert.ok(rows.length > 0);
+        assertBindingError({ results: rows, summary: { total: rows.length, error: rows.length, match: 0 } });
+    }
+});

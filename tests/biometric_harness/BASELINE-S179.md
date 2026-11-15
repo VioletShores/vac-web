@@ -84,14 +84,16 @@ ambiguous/missing source bindings fail closed rather than scoring fixtures.
 
 Before: report-integrity head `0b766bcc133dc4673712ddfafdbef0018d0d4154` had
 25 passing / 3 failing self-tests and 8 matches / 4 source-binding errors. After:
-`node --test tests/biometric_harness/harness.test.js` passes 36/36;
+`node --test tests/biometric_harness/harness.test.js` passes 38/38;
 `node tests/biometric_harness/run.js` reports 12/12 matches, zero mismatches/errors.
 Manifest and derived-feature expectations are unchanged. Eight added tests cover
 four-versus-seven ticks, unseeded hold, neutral/silence reset, recorder level and
 spectrum rejection, strong-band versus flat/near-silent audio, starvation without
 recorder evidence, frozen accepted state/two silent ticks, and actual source
 threshold mutation plus invalid extraction rejection. Existing report-integrity
-negative tests remain enabled.
+negative tests remain enabled; missing mic bindings and mic/phrase/digit constants additionally produce a
+written invalid CLI report rather than aborting module import. The orchestrator
+retains stage-load errors as failed source verification, never a passing fallback.
 
 This proves deterministic client-stage synthetic behavior and honest reporting.
 It does not prove real-device microphone behavior, browser UI, server biometric
