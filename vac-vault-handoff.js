@@ -126,23 +126,40 @@
           if (summary) summary.focus();
           details.scrollIntoView({ block: 'start' });
         }
-        el.style.display = 'none';
+        // Keep the onward action next to the report, in normal document flow.
+        if (details && details.parentNode) details.parentNode.insertBefore(el, details);
+        if (el.scrollIntoView) el.scrollIntoView({ block: 'start' });
       });
       var close = document.createElement('button');
       close.id = 'vacVaultHandoffClose';
       close.type = 'button';
-      close.textContent = 'Close this tab';
-      close.style.cssText = review.style.cssText;
+      close.textContent = 'Continue to recording';
+      close.style.cssText = review.style.cssText + 'background:#10B981;color:#071812;font-weight:800;';
       close.addEventListener('click', function () {
         if (!acked) return;
-        // The browser may refuse scripted close; the message still gives an onward path.
+        // Focus only the original opener; never reconstruct a personal recording URL.
+        if (!openerPresent()) {
+          show('error', 'The recording tab is closed. Reopen your original recording link to continue.', false);
+          return;
+        }
+        show('ok', 'Return to your original Athena recording tab. If this tab stays open, switch tabs to continue recording.', false);
+        try { window.opener.focus(); } catch (e) {}
         try { window.close(); } catch (e) {}
       });
-      actions.appendChild(review);
       actions.appendChild(close);
+      actions.appendChild(review);
       el.appendChild(actions);
     }
-    document.body.appendChild(el);
+    var success = reviewAfterHandoff && document.getElementById('step4');
+    if (reviewAfterHandoff) {
+      // The result belongs to the originating task, ahead of general VAC material.
+      // Normal flow prevents the controls covering results at zoom or on mobile.
+      el.style.cssText = 'position:relative;margin:16px 0;padding:20px;border:2px solid #10B981;' +
+        'border-radius:14px;background:#0D0F17;color:#E8EDF5;text-align:center;' +
+        'font:600 17px/1.45 -apple-system,system-ui,sans-serif;scroll-margin-top:16px;';
+    }
+    if (success) success.insertBefore(el, success.firstChild);
+    else document.body.appendChild(el);
     return el;
   }
 
@@ -227,7 +244,7 @@
       clearTimeout(ackTimer);
       assertion = null;
       if (reviewAfterHandoff) {
-        show('ok', 'Delivered. Athena has your verification. Review your results here, or close this tab and return to Athena to record.', false);
+        show('ok', 'Verification delivered to Athena. Continue to recording, or review your results first. Your results stay available until you leave.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
       } else {
         show('ok', 'Delivered. ' + destination + ' has your verification. You can close this tab.', false);
@@ -258,4 +275,5 @@
     }
   };
 })();
+
 
