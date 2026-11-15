@@ -359,6 +359,7 @@ const _PHASE = {
     COUNTDOWN:  'countdown',
     GREETING:   'greeting',
     DIGIT:      'digit',
+    FACE:       'face',
     PROCESSING: 'processing',
     DONE:       'done',
     FAIL:       'fail',
@@ -371,6 +372,7 @@ const STATE_COACHING_MAP = {
     countdown:  { title: 'Get ready',        color: '' },
     greeting:   { title: 'Say the phrase',   color: '#fbbf24' },
     digit:      { title: 'Show the numbers', color: '' },
+    face:       { title: 'Face check', color: '#2DD4BF' },
     processing: { title: 'One moment…', color: '' },
     done:       { title: 'Verified ✓',  color: '#22c55e' },
     fail:       { title: 'Try again',        color: '' },
@@ -3832,6 +3834,7 @@ function _takeVaultEarlyIdentityFrame(recorder, startedAtMs, elapsedMs) {
 function beginRecording() {
     // Never carry a prior recording's face evidence across an aborted retry.
     window.__vacEarlyFaceCandidate = null;
+    window.__vacFaceStageAbort = null;
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
@@ -3881,6 +3884,12 @@ function beginRecording() {
         try { vacDebug('recorder_stopped'); } catch(_) {}
         var _elapsed = performance.now() - _recorderStartMs;
         if (!_legitStopScheduled || _elapsed < 2000) {
+            if (window.__vacFaceStageAbort) {
+                if (mediaStream) mediaStream.getTracks().forEach(function(track) { track.stop(); });
+                goToStep(2);
+                _showVaultFaceCaptureRecovery(window.__vacFaceStageAbort, []);
+                return;
+            }
             var _vt = 'unknown', _at = 'unknown';
             try { _vt = (mediaStream && mediaStream.getVideoTracks()[0]) ? mediaStream.getVideoTracks()[0].readyState : 'none'; } catch(_) {}
             try { _at = (mediaStream && mediaStream.getAudioTracks()[0]) ? mediaStream.getAudioTracks()[0].readyState : 'none'; } catch(_) {}
@@ -4322,7 +4331,7 @@ function beginRecording() {
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
-        _setPhase(_PHASE.PROCESSING);   // L-2246: stop any stale digit-phase render loops painting coaching text
+        _setPhase(window.VACVaultHandoff ? _PHASE.FACE : _PHASE.PROCESSING); // stop stale digit coaching
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
         try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): hide the say-cover when capture ends
@@ -4372,13 +4381,30 @@ function beginRecording() {
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: stop phrase content gate when recording ends
         try { if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; } } catch(_) {}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
-        _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
-        // 1500ms is the existing post-digit tail. Vault adds 1700ms of
-        // face-only observation within the SAME unbroken MediaRecorder clip
-        // before the existing post-gesture 128-D identity capture. We do not
-        // accept an earlier face in lieu of this check.
-        const _vaultFaceTailMs = window.VACVaultHandoff ? 3200 : 1500;
-        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, _vaultFaceTailMs);
+        const _closingRecorder = mediaRecorder;
+        if (window.VACVaultHandoff) {
+            // The same continuous clip stays open until the owner acknowledges this distinct
+            // step AND fresh observations show hands down/face visible for the full closing beat.
+            // These are pacing observations, not identity: the existing descriptor/server gates
+            // still run after stop. No timeout or sensor failure may submit this clip.
+            const _faceVideo = document.getElementById('videoPreviewRec');
+            _runVaultFaceStage(_faceVideo, _closingRecorder).then(function() {
+                if (mediaRecorder !== _closingRecorder || _closingRecorder.state !== 'recording') return;
+                _legitStopScheduled = true;
+                _setPhase(_PHASE.PROCESSING);
+                _closingRecorder.stop();
+            }).catch(function() {
+                if (mediaRecorder !== _closingRecorder) return;
+                window.__vacFaceStageAbort = 'face_stage_incomplete';
+                _legitStopScheduled = false;
+                try { if (_closingRecorder.state !== 'inactive') _closingRecorder.stop(); } catch(_) {}
+            });
+        } else {
+            _legitStopScheduled = true;
+            setTimeout(function() {
+                if (mediaRecorder === _closingRecorder) { try { _closingRecorder.stop(); } catch(_) {} }
+            }, 1500);
+        }
     }
 
     // ── F-561 voice-pacing gate (content-gated, D-VOICE-GATE-SPEAKER-AGNOSTIC) ──
@@ -7191,38 +7217,107 @@ function _vacFrameHasNoPicture(canvas) {
     } catch (_) { return false; }
 }
 
-// PRESENTATION ONLY (S204, Rob 5 Nov): the Vault face-only closing beat is a
-// full stage like the greeting and "show the number" steps, with a visible
-// 3-2-1 countdown spanning the existing filmed face-only tail. It changes no
-// timing, threshold, recording or identity decision; it only makes the step
-// impossible to miss. The band sits low in the frame so the face stays clear.
+// A separate owner-acknowledged capture step. The detector evidence below is a
+// pacing gate only; it never mints identity or replaces full descriptor/server checks.
 function _vacFaceStageShow() {
     try {
         _vacFaceStageHide();
         var box = document.getElementById('cameraBoxRec');
-        if (!box) return false;
-        var st = document.createElement('div');
+        if (!box || !box.parentElement) return false;
+        var st = document.createElement('section');
         st.id = 'vacFaceStage';
-        st.setAttribute('role', 'status');
-        st.setAttribute('aria-live', 'assertive');
-        st.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:7;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 12px 16px;background:linear-gradient(to top,rgba(10,15,26,0.92),rgba(10,15,26,0.55) 75%,rgba(10,15,26,0));pointer-events:none;text-align:center;';
-        st.innerHTML = '<div style="font-family:var(--mono,monospace);font-size:12px;letter-spacing:2px;font-weight:700;color:#2DD4BF;">FACE CHECK</div>'
-            + '<div style="font-size:clamp(18px,4.6vw,26px);font-weight:800;color:#F0F2F5;line-height:1.2;">Lower your hand and look at the screen</div>'
-            + '<div id="vacFaceStageCount" style="font-size:clamp(44px,11vw,72px);font-weight:800;line-height:1;color:#10B981;font-variant-numeric:tabular-nums;">3</div>';
-        box.appendChild(st);
-        var cnt = st.querySelector('#vacFaceStageCount');
-        window.__vacFaceStageTimers = [
-            setTimeout(function () { if (cnt) cnt.textContent = '2'; }, 1000),
-            setTimeout(function () { if (cnt) cnt.textContent = '1'; }, 2000),
-            setTimeout(function () { if (cnt) { cnt.textContent = '\u2713'; } }, 3000)
-        ];
+        st.setAttribute('aria-labelledby', 'vacFaceStageTitle');
+        st.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 14px;margin:12px 0;border:2px solid #2DD4BF;border-radius:12px;background:#101b2b;text-align:center;';
+        st.innerHTML = '<h2 id="vacFaceStageTitle" style="margin:0;font-size:24px;color:#2DD4BF;">Face check</h2>'
+            + '<div style="font-size:18px;color:#F0F2F5;">The number checks are finished. Lower your hands and look at the camera.</div>'
+            + '<div id="vacFaceStageHint" role="status" aria-live="polite" style="font-size:17px;color:#F0F2F5;">Your camera is still recording. Select Ready when your hands are down.</div>'
+            + '<button type="button" id="vacFaceStageReady" style="padding:12px 20px;min-height:44px;background:#2DD4BF;color:#07111f;border:0;border-radius:8px;font-size:17px;font-weight:700;">Ready — check my face</button>';
+        box.parentElement.insertBefore(st, box);
         return true;
     } catch (_) { return false; }
 }
 function _vacFaceStageHide() {
-    try { (window.__vacFaceStageTimers || []).forEach(function (t) { clearTimeout(t); }); } catch (_) {}
+    try { (window.__vacFaceStageTimers || []).forEach(function(t) { clearTimeout(t); }); } catch (_) {}
     window.__vacFaceStageTimers = [];
-    try { var el = document.getElementById('vacFaceStage'); if (el) el.remove(); } catch (_) {}
+    try { if (window.__vacFaceStageCancel) window.__vacFaceStageCancel(); } catch (_) {}
+    window.__vacFaceStageCancel = null;
+    try { var el=document.getElementById('vacFaceStage'); if(el) el.remove(); } catch (_) {}
+}
+
+function _createVaultFaceStageGate(startedAt) {
+    var acknowledged=false, clearSince=null, clearFrames=0, previousFrame=null, previousAt=null;
+    return {
+        ready: function() { acknowledged=true; clearSince=null; clearFrames=0; },
+        observe: function(now, observation) {
+            if (now-startedAt >= 20000) return {status:'timeout'};
+            var o=observation || {};
+            var fresh=Number.isFinite(o.frameTime) && (previousFrame===null || o.frameTime>previousFrame);
+            if (previousAt!==null && (now<=previousAt || now-previousAt>750)) { clearSince=null; clearFrames=0; }
+            previousAt=now;
+            if (Number.isFinite(o.frameTime)) previousFrame=o.frameTime;
+            var status=!acknowledged ? 'waiting'
+                : !fresh || o.handAbsent==null || o.faceVisible==null ? 'sensor_wait'
+                : !o.handAbsent ? 'lower_hands'
+                : !o.faceVisible ? 'face_missing' : 'hold';
+            if (status!=='hold') { clearSince=null; clearFrames=0; return {status:status}; }
+            if (clearSince===null) clearSince=now;
+            clearFrames++;
+            var elapsed=now-clearSince;
+            if (elapsed>=3200 && clearFrames>=4) return {status:'complete'};
+            return {status:'hold', remainingMs:Math.max(0,3200-elapsed)};
+        }
+    };
+}
+function _runVaultFaceStage(video, recorder) {
+    return new Promise(function(resolve,reject) {
+        var ready=document.getElementById('vacFaceStageReady');
+        var hint=document.getElementById('vacFaceStageHint');
+        if (!ready || !hint || !video) { reject(new Error('face_stage_unavailable')); return; }
+        var done=false, timer=null, gate=_createVaultFaceStageGate(performance.now());
+        function settle(ok) {
+            if(done) return;
+            done=true; if(timer) clearTimeout(timer);
+            ready.removeEventListener('click', acknowledge);
+            window.__vacFaceStageCancel=null;
+            if(ok) resolve(); else reject(new Error('face_stage_incomplete'));
+        }
+        function acknowledge() { gate.ready(); ready.disabled=true; }
+        ready.addEventListener('click', acknowledge);
+        window.__vacFaceStageCancel=function() { settle(false); };
+        try { ready.focus({preventScroll:false}); } catch(_) {}
+        function tick() {
+            if(done) return;
+            if(mediaRecorder!==recorder || recorder.state!=='recording') { settle(false); return; }
+            var o={frameTime:null, faceVisible:null, handAbsent:null};
+            if(!video.paused && !video.ended && video.readyState>=2 && video.videoWidth>0 && video.videoHeight>0) {
+                o.frameTime=video.currentTime;
+                try {
+                    if(typeof FingerDetector!=='undefined' && FingerDetector.ready && !FingerDetector.failed) {
+                        var raw=FingerDetector.detect(video);
+                        if(!FingerDetector.failed && raw!==null) o.handAbsent=(raw===-1);
+                    }
+                    if(_FaceAnchorDetector.ready && !_FaceAnchorDetector.failed) {
+                        var face=_FaceAnchorDetector.detect(video);
+                        if(!_FaceAnchorDetector.failed) o.faceVisible=!!face;
+                    }
+                } catch(_) {}
+            }
+            var result=gate.observe(performance.now(),o);
+            var copy={waiting:'Lower your hands, then select Ready. Your camera is still recording.',
+                sensor_wait:'Checking the live camera and detectors — keep your face in view.',
+                lower_hands:'A hand is still visible — lower your hands out of camera view.',
+                face_missing:'Bring your face into view and look at the camera.',
+                timeout:'Face capture did not finish. Nothing will be submitted.',
+                complete:'Face captured. Checking your identity…'};
+            hint.textContent=result.status==='hold'
+                ? 'Keep your hands down and hold still — '+Math.ceil(result.remainingMs/1000)+' seconds'
+                : copy[result.status];
+            if(result.status==='complete') { settle(true); return; }
+            if(result.status==='timeout') { settle(false); return; }
+            timer=setTimeout(tick,250);
+        }
+        tick();
+    });
 }
 
 // DIAGNOSTIC ONLY: mean/max luminance (0-255) of a captured frame, for the
@@ -7266,6 +7361,10 @@ function _vaultFaceEvidenceHtml(evidence) {
 }
 
 function _vaultFaceRecoveryCopy(reason) {
+    if (reason === 'face_stage_incomplete') return {
+        title: 'Face capture was not completed',
+        hint: 'Nothing was submitted. Restart verification, then lower your hands and select Ready at the separate face step.'
+    };
     if (reason === 'no_camera_picture') return {
         title: 'No camera picture detected',
         hint: 'No camera picture detected; check camera permission or use a device with a camera.'
