@@ -57,6 +57,11 @@ function runHarness(manifest = loadManifest()) {
     for (const specimen of manifest.specimens) {
         const stageNames = Array.isArray(specimen.stage) ? specimen.stage : [specimen.stage];
         for (const stageName of stageNames) {
+            if (!['PASS', 'FAIL', 'CLIENT_GATE_PASSES_SERVER_AUTHORITATIVE'].includes(specimen.expectedOutcome)) {
+                results.push({ id: specimen.id, stage: stageName, verdict: 'ERROR',
+                    errorKind: 'INVALID_EXPECTATION', error: `unknown expected outcome "${specimen.expectedOutcome}"` });
+                continue;
+            }
             const stageModule = STAGES[stageName];
             if (!stageModule) {
                 results.push({ id: specimen.id, stage: stageName, error: `unknown stage "${stageName}"`, verdict: 'ERROR' });

@@ -78,6 +78,23 @@ test('valid unchanged digit source still produces a fixture match', () => {
     assert.equal(report.summary.error, 0);
 });
 
+test('unknown fixture expectation is an explicit error and is never scored', () => {
+    const manifest = singleDigit();
+    manifest.specimens = manifest.specimens.map(s => ({ ...s, expectedOutcome: 'TBD' }));
+    const originalRun = STAGES.digit_voice.run;
+    let called = false;
+    STAGES.digit_voice.run = (...args) => { called = true; return originalRun(...args); };
+    try {
+        const report = runHarness(manifest);
+        assert.equal(report.summary.error, 1);
+        assert.equal(report.summary.match, 0);
+        assert.equal(report.results[0].verdict, 'ERROR');
+        assert.equal(report.results[0].errorKind, 'INVALID_EXPECTATION');
+        assert.equal(Object.hasOwn(report.results[0], 'pass'), false);
+        assert.equal(called, false);
+    } finally { STAGES.digit_voice.run = originalRun; }
+});
+
 test('all report matches have passed that stages existing source verifier', () => {
     const report = runHarness();
     const invalid = Object.entries(STAGES).filter(([, stage]) => {
