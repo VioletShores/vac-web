@@ -156,6 +156,102 @@
     show('error', 'The exact operation could not be verified. Nothing was authorised. Return to Athena to review it again.', false);
   }
 
+  // UI shape validation is deliberately separate from authority. Athena still
+  // validates the canonical seals, current policy, registered implementations,
+  // budget evidence and one-use permit when consuming this exact-intent proof.
+  // V1 keeps its existing file-transfer review. V2 is the narrowly supported
+  // native Flux task contract, not permission for arbitrary provider actions.
+  function exactKeys(value, keys) {
+    return !!value && typeof value === 'object' && !Array.isArray(value) &&
+      Object.keys(value).length === keys.length && keys.every(function (key) {
+        return Object.prototype.hasOwnProperty.call(value, key);
+      });
+  }
+  function sameList(value, expected) {
+    return Array.isArray(value) && value.length === expected.length &&
+      value.every(function (item, index) { return item === expected[index]; });
+  }
+  function safeStrings(value) {
+    if (typeof value === 'string') return value.length <= 2048 && value.trim() === value &&
+      !/\p{C}/u.test(value);
+    if (Array.isArray(value)) return value.every(safeStrings);
+    if (value && typeof value === 'object') return Object.keys(value).every(function (key) {
+      return safeStrings(key) && safeStrings(value[key]);
+    });
+    return true;
+  }
+  function awareTime(value) {
+    return typeof value === 'string' && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+  }
+  function costValue(value, unit) {
+    if (!exactKeys(value, ['amount', 'unit']) || typeof value.unit !== 'string' || !value.unit ||
+        (unit !== undefined && value.unit !== unit) || typeof value.amount !== 'string' ||
+        !/^\d+(?:\.\d+)?$/.test(value.amount)) throw new Error('invalid decimal cost');
+    var parts = value.amount.split('.');
+    return {digits: BigInt(parts.join('')), scale: (parts[1] || '').length};
+  }
+  function validTaskOperation(op, raw) {
+    var fields = ['version', 'purpose', 'execution_id', 'packet_id', 'actor', 'principal', 'tenant_id',
+      'service_id', 'endpoint', 'capability', 'project_url', 'action', 'executor', 'expiry',
+      'revocation_ref', 'risk', 'content_sha256', 'source_manifest_sha256', 'arguments_sha256',
+      'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256', 'allowed_tools',
+      'constraints', 'resource_envelope', 'evidence_requirements', 'object_ref', 'readback', 'result_contract'];
+    var digests = ['content_sha256', 'source_manifest_sha256', 'arguments_sha256',
+      'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256'];
+    var ids = ['execution_id', 'packet_id', 'actor', 'principal', 'tenant_id', 'service_id',
+      'capability', 'object_ref', 'action', 'executor', 'revocation_ref'];
+    var project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07';
+    if (raw.length > 16384 || !exactKeys(op, fields) || !safeStrings(op) || op.version !== 2 ||
+        op.purpose !== 'service-operation' ||
+        ids.some(function (key) { return typeof op[key] !== 'string' || !op[key] || op[key].length > 320; }) ||
+        digests.some(function (key) { return typeof op[key] !== 'string' || !/^[a-f0-9]{64}$/.test(op[key]); }) ||
+        op.project_url !== project || op.endpoint !== 'https://app.flux.ai/mcp' ||
+        op.action !== 'create_thread' || op.capability !== 'submit_agent_task' ||
+        op.object_ref !== 'submitted-source:' + op.content_sha256 ||
+        op.revocation_ref !== 'execution:' + op.execution_id || !awareTime(op.expiry) ||
+        typeof op.risk !== 'number' || !Number.isFinite(op.risk) || op.risk < 0 || op.risk > 1 ||
+        !sameList(op.allowed_tools, ['get_project', 'create_thread', 'get_thread', 'get_messages'])) return false;
+    var c = op.constraints, e = op.resource_envelope, r = op.readback, proof = op.evidence_requirements;
+    if (!exactKeys(c, ['network_allowlist', 'write_scope', 'financial_transaction', 'connection_budget']) ||
+        !sameList(c.network_allowlist, ['app.flux.ai']) || !sameList(c.write_scope, [project]) ||
+        c.financial_transaction !== false || c.connection_budget !== 3 ||
+        !exactKeys(e, ['max_turns', 'max_minutes', 'spend_ceiling', 'cost_upper_bound']) ||
+        e.max_turns !== 1 || !Number.isInteger(e.max_minutes) || e.max_minutes < 1 || e.max_minutes > 30 ||
+        !exactKeys(r, ['action', 'capability', 'tool_schema_sha256', 'arguments_sha256',
+          'cost_contract_sha256', 'project_url', 'object_ref', 'cost_upper_bound', 'max_calls']) ||
+        r.action !== 'get_messages' || r.capability !== 'read_agent_messages' || r.max_calls !== 2 ||
+        r.project_url !== project || r.object_ref !== op.object_ref ||
+        ['tool_schema_sha256', 'arguments_sha256', 'cost_contract_sha256'].some(function (key) {
+          return typeof r[key] !== 'string' || !/^[a-f0-9]{64}$/.test(r[key]);
+        }) || !exactKeys(proof, ['independent_readback', 'content_sha256', 'source_manifest_sha256']) ||
+        proof.independent_readback !== true || proof.content_sha256 !== op.content_sha256 ||
+        proof.source_manifest_sha256 !== op.source_manifest_sha256) return false;
+    // Exact decimal arithmetic: a large or fractional value cannot round down
+    // into a ceiling on this confirmation screen. This does not certify costs.
+    var cap = costValue(e.spend_ceiling), write = costValue(e.cost_upper_bound, e.spend_ceiling.unit);
+    var read = costValue(r.cost_upper_bound, e.spend_ceiling.unit);
+    var scale = Math.max(cap.scale, write.scale, read.scale);
+    function scaled(v) { return v.digits * (10n ** BigInt(scale - v.scale)); }
+    if (scaled(write) + scaled(read) > scaled(cap)) return false;
+    var result = op.result_contract;
+    if (!exactKeys(result, ['kind', 'version', 'source_url', 'retrieved_at', 'provider_project_id', 'read_argument_binding']) ||
+        result.kind !== 'provider_task_message' || result.version !== 1 ||
+        typeof result.source_url !== 'string' ||
+        !/^https:\/\/github\.com\/VioletShores\/athena\/blob\/[a-f0-9]{40}\/[^?#]+$/.test(result.source_url) ||
+        !awareTime(result.retrieved_at) || typeof result.provider_project_id !== 'string' ||
+        !/^robzag\/[^\s/?#]+$/.test(result.provider_project_id) || result.provider_project_id.length > 320) return false;
+    var binding = result.read_argument_binding;
+    if (!exactKeys(binding, ['get_thread', 'get_messages']) ||
+        !exactKeys(binding.get_thread, ['thread']) || !exactKeys(binding.get_messages, ['thread', 'offset', 'limit']) ||
+        !exactKeys(binding.get_thread.thread, ['from_execute']) ||
+        !exactKeys(binding.get_messages.thread, ['from_execute']) ||
+        binding.get_thread.thread.from_execute !== 'thread_url' || binding.get_messages.thread.from_execute !== 'thread_url' ||
+        binding.get_messages.offset !== 0 || binding.get_messages.limit !== 20) return false;
+    // Hash of Athena's fixed canonical read-derivation bytes; never recanonicalise
+    // the received intent or accept arbitrary caller-supplied read arguments.
+    return r.arguments_sha256 === '7b25df211e6e413c79a586a0438cacd846b2d2e02837f1e60aaeaf8a20626820';
+  }
+
   function renderOperation() {
     if (!serviceOperation || !operation || !sessionToken || !subject) return;
     if (operation.actor !== subject || Date.parse(operation.expiry) <= Date.now()) {
@@ -171,7 +267,9 @@
     title.textContent = 'Review this one operation';
     box.appendChild(title);
     var summary = document.createElement('p');
-    summary.textContent = 'Your identity has been verified. Confirm only the operation below. This does not start design work, grant general service access, or replace Athena’s policy and delivery checks.';
+    summary.textContent = operation.version === 2
+      ? 'Confirming allows Athena to start one Flux design task using the exact source below, subject to its current policy and spending checks. The task may consume Flux credits. Readback verifies the submitted instructions; it is not proof that a schematic is finished. No general service access is granted.'
+      : 'Your identity has been verified. Confirm only the operation below. This does not start design work, grant general service access, or replace Athena’s policy and delivery checks.';
     box.appendChild(summary);
     var fields = [
       ['Person', operation.actor], ['Athena principal', operation.principal],
@@ -186,6 +284,14 @@
       ['Cost upper bound', operation.resource_envelope.cost_upper_bound.amount + ' ' + operation.resource_envelope.cost_upper_bound.unit],
       ['Expiry', operation.expiry], ['Exact intent SHA-256', state]
     ];
+    if (operation.version === 2) {
+      fields.push(['Source document', operation.result_contract.source_url],
+        ['Source retrieved at', operation.result_contract.retrieved_at],
+        ['Provider project', operation.result_contract.provider_project_id],
+        ['Verified result', 'Exact submitted message only; design results need separate verification'],
+        ['Submission and readback deadline', operation.resource_envelope.max_minutes + ' minutes'],
+        ['Provider runtime', 'May continue after submission; the deadline above does not stop the Flux agent']);
+    }
     fields.forEach(function (item) {
       var line = document.createElement('p');
       line.textContent = item[0] + ': ' + String(item[1]);
@@ -222,7 +328,9 @@
       parsed = JSON.parse(raw);
       var strings = ['actor', 'principal', 'tenant_id', 'service_id', 'project_url', 'object_ref', 'action', 'capability',
         'source_manifest_sha256', 'content_sha256', 'expiry'];
-      if (!parsed || parsed.version !== 1 || parsed.purpose !== 'service-operation' ||
+      if (parsed && parsed.version === 2) {
+        if (!validTaskOperation(parsed, raw)) throw new Error('invalid task operation');
+      } else if (!parsed || parsed.version !== 1 || parsed.purpose !== 'service-operation' ||
           strings.some(function (key) { return typeof parsed[key] !== 'string' || !parsed[key]; }) ||
           !Number.isFinite(Date.parse(parsed.expiry)) || !parsed.readback ||
           typeof parsed.readback.action !== 'string' || !parsed.readback.action ||

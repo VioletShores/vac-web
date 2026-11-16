@@ -175,6 +175,137 @@ async function settleReview() {
 
 function allText(node) { return (node.textContent || '') + (node.children || []).map(allText).join('\n'); }
 
+// Same v2 envelope shape as Athena's native service dispatcher. This fixture
+// supplies synthetic identifiers/evidence only; it never runs a real ceremony.
+function taskFixture(change = () => {}, options = {}) {
+  const project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07';
+  const hash = 'b'.repeat(64), readBinding = {
+    get_thread: {thread: {from_execute: 'thread_url'}},
+    get_messages: {thread: {from_execute: 'thread_url'}, offset: 0, limit: 20}
+  };
+  // Athena's canonical ASCII, sorted-key encoding for this fixed derivation.
+  const readHash = crypto.createHash('sha256').update('{"get_messages":{"limit":20,"offset":0,"thread":{"from_execute":"thread_url"}},"get_thread":{"thread":{"from_execute":"thread_url"}}}').digest('hex');
+  const op = {
+    version: 2, purpose: 'service-operation', execution_id: 'fixture-execution', packet_id: 'fixture-packet',
+    actor: 'owner@example.invalid', principal: 'person-owner', tenant_id: 'tenant-one', service_id: 'flux',
+    endpoint: 'https://app.flux.ai/mcp', capability: 'submit_agent_task', project_url: project,
+    object_ref: 'submitted-source:' + hash, action: 'create_thread', executor: 'fixture-native-executor',
+    expiry: new Date(Date.now() + 120000).toISOString(), revocation_ref: 'execution:fixture-execution', risk: 0.5,
+    content_sha256: hash, source_manifest_sha256: 'a'.repeat(64), arguments_sha256: 'c'.repeat(64),
+    tool_schema_sha256: 'd'.repeat(64), cost_contract_sha256: 'e'.repeat(64), service_manifest_sha256: 'f'.repeat(64),
+    allowed_tools: ['get_project', 'create_thread', 'get_thread', 'get_messages'],
+    constraints: {network_allowlist: ['app.flux.ai'], write_scope: [project], financial_transaction: false, connection_budget: 3},
+    resource_envelope: {max_turns: 1, max_minutes: 5, spend_ceiling: {amount: '2', unit: 'ACU'}, cost_upper_bound: {amount: '2', unit: 'ACU'}},
+    evidence_requirements: {independent_readback: true, content_sha256: hash, source_manifest_sha256: 'a'.repeat(64)},
+    readback: {action: 'get_messages', capability: 'read_agent_messages', tool_schema_sha256: 'd'.repeat(64),
+      arguments_sha256: readHash, cost_contract_sha256: 'e'.repeat(64), project_url: project,
+      object_ref: 'submitted-source:' + hash, cost_upper_bound: {amount: '0', unit: 'ACU'}, max_calls: 2},
+    result_contract: {kind: 'provider_task_message', version: 1,
+      source_url: 'https://github.com/VioletShores/athena/blob/' + '1'.repeat(40) + '/docs/pebble-reviewed-fixture.md',
+      retrieved_at: new Date().toISOString(), provider_project_id: 'robzag/synthetic-provider-slug', read_argument_binding: readBinding}
+  };
+  change(op);
+  return serviceFixture(op, options);
+}
+
+test('v2 task review names design commencement, exact source and limited readback before consent', async () => {
+  const {h, receive, raw, state} = taskFixture();
+  receive(); await settleReview();
+  assert.equal(h.byId.vacServiceOperationConfirm, undefined, 'intent alone is not identity');
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm, 'valid v2 must reach exact review');
+  const text = allText(h.byId.vacServiceOperationReview);
+  assert.match(text, /start one Flux design task/);
+  assert.match(text, /may consume Flux credits/);
+  assert.match(text, /not proof that a schematic is finished/);
+  assert.doesNotMatch(text, /does not start design work/);
+  assert.ok(text.includes('pebble-reviewed-fixture.md'));
+  assert.ok(text.includes('Submission and readback deadline: 5 minutes'));
+  assert.ok(text.includes('Spend ceiling: 2 ACU'));
+  assert.ok(text.includes(raw));
+  assert.equal(h.fetches.length, 0);
+  h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.deepEqual(h.fetches[0].body.handoff, {audience: 'athena:l0:service-operation', nonce: state});
+  assert.ok(h.posted.every(x => !x.m.intent_json && !x.m.session_token));
+});
+
+const taskFaults = {
+  version: o => o.version = 3,
+  extra: o => o.unreviewed = true,
+  capability: o => o.capability = 'read_file',
+  action: o => o.action = 'send_message',
+  tools: o => o.allowed_tools.push('delete_project'),
+  endpoint: o => o.endpoint = 'https://evil.invalid/mcp',
+  project: o => o.project_url = 'https://www.flux.ai/foreign/project',
+  digest: o => o.content_sha256 = 'bad',
+  coercedDigest: o => o.arguments_sha256 = ['c'.repeat(64)],
+  controlText: o => o.executor = 'fixture\u202eexecutor',
+  object: o => o.object_ref = 'other',
+  revocation: o => o.revocation_ref = 'execution:other',
+  risk: o => o.risk = 2,
+  sessionBudget: o => o.constraints.connection_budget = 1,
+  scope: o => o.constraints.write_scope.push('other'),
+  purchase: o => o.constraints.financial_transaction = true,
+  turns: o => o.resource_envelope.max_turns = 2,
+  deadline: o => o.resource_envelope.max_minutes = 0,
+  negativeCost: o => o.resource_envelope.cost_upper_bound.amount = '-1',
+  excessiveCost: o => o.resource_envelope.cost_upper_bound.amount = '3',
+  readCost: o => o.readback.cost_upper_bound.amount = '1',
+  units: o => o.readback.cost_upper_bound.unit = 'USD',
+  independent: o => o.evidence_requirements.independent_readback = false,
+  evidence: o => o.evidence_requirements.content_sha256 = 'a'.repeat(64),
+  readCapability: o => o.readback.capability = 'read_file',
+  readTarget: o => o.readback.project_url = 'https://www.flux.ai/foreign/project',
+  readLimit: o => o.readback.max_calls = 1,
+  readDigest: o => o.readback.arguments_sha256 = 'a'.repeat(64),
+  coercedReadDigest: o => o.readback.tool_schema_sha256 = ['d'.repeat(64)],
+  metric: o => o.result_contract.kind = 'schematic_verified',
+  resultVersion: o => o.result_contract.version = 2,
+  resultExtra: o => o.result_contract.schematic_verified = true,
+  source: o => o.result_contract.source_url = 'https://github.com/VioletShores/athena/blob/main/mutable.md',
+  time: o => o.result_contract.retrieved_at = '2026-11-16T10:00:00',
+  providerOwner: o => o.result_contract.provider_project_id = 'foreign/project',
+  readDerivation: o => o.result_contract.read_argument_binding.get_thread.thread.from_execute = 'caller_supplied',
+  pagination: o => o.result_contract.read_argument_binding.get_messages.limit = 100
+};
+for (const [name, change] of Object.entries(taskFaults)) {
+  test('v2 refuses malformed or broader operation: ' + name, async () => {
+    const {h, receive} = taskFixture(change);
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+  });
+}
+
+test('v2 still rejects wrong actor, foreign opener, expiry and changed intent', async () => {
+  for (const fault of ['actor', 'origin', 'source', 'expiry', 'changed']) {
+    const {h, receive, message} = taskFixture(o => {
+      if (fault === 'actor') o.actor = 'foreign@example.invalid';
+      if (fault === 'expiry') o.expiry = new Date(Date.now() - 1000).toISOString();
+    });
+    h.window.VACVaultHandoff.onVerified(FULL, {});
+    receive(fault === 'origin' ? {origin: 'https://evil.invalid'} : fault === 'source' ? {source: {}} : {});
+    await settleReview();
+    if (fault === 'changed') {
+      assert.ok(h.byId.vacServiceOperationConfirm);
+      receive({data: {...message, intent_json: message.intent_json + ' '}}); await settleReview();
+    }
+    assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+  }
+});
+
+test('v2 cost comparison preserves fractional precision and does not certify credit cost', async () => {
+  const {h, receive} = taskFixture(o => {
+    o.resource_envelope.spend_ceiling.amount = '9007199254740992.1';
+    o.resource_envelope.cost_upper_bound.amount = '9007199254740992.2';
+  });
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+  assert.equal(h.fetches.length, 0);
+});
+
 test('service operation requires real FULL ceremony AND exact rendered intent AND explicit confirmation before mint', async () => {
   const {h, receive, raw, state} = serviceFixture();
   assert.equal(h.posted.length, 0, 'module is loaded in the head; no request or DOM before the real ceremony');
