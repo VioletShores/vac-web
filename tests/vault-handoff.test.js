@@ -195,61 +195,55 @@ function taskFixture(change = () => {}, options = {}) {
     tool_schema_sha256: 'd'.repeat(64), cost_contract_sha256: 'e'.repeat(64), service_manifest_sha256: 'f'.repeat(64),
     allowed_tools: ['get_project', 'create_thread', 'get_thread', 'get_messages'],
     constraints: {network_allowlist: ['app.flux.ai'], write_scope: [project], financial_transaction: false, connection_budget: 3},
-    resource_envelope: {max_turns: 1, max_minutes: 5, spend_ceiling: {amount: '2', unit: 'ACU'}, cost_upper_bound: {amount: '2', unit: 'ACU'}},
+    resource_envelope: {max_turns: 1, max_minutes: 5,
+      spend_ceiling: {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'},
+      cost_upper_bound: {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'}},
     evidence_requirements: {independent_readback: true, content_sha256: hash, source_manifest_sha256: 'a'.repeat(64)},
     readback: {action: 'get_messages', capability: 'read_agent_messages', tool_schema_sha256: 'd'.repeat(64),
       arguments_sha256: readHash, cost_contract_sha256: 'e'.repeat(64), project_url: project,
-      object_ref: 'submitted-source:' + hash, cost_upper_bound: {amount: '0', unit: 'ACU'}, max_calls: 2},
+      object_ref: 'submitted-source:' + hash,
+      cost_upper_bound: {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'}, max_calls: 2},
     result_contract: {kind: 'provider_task_message', version: 1,
       source_url: 'https://github.com/VioletShores/athena/blob/' + '1'.repeat(40) + '/docs/pebble-reviewed-fixture.md',
       retrieved_at: new Date().toISOString(), provider_project_id: 'robzag/synthetic-provider-slug', read_argument_binding: readBinding}
   };
+  op.async_credit_risk = {
+    mode: 'owner_accepted_unstoppable_agent', provider: 'flux_ai', account: 'robzag',
+    project_url: project, billing_mode: 'on_demand',
+    observed_monthly_spend_limit_usd: '500.00', observed_available_acus: 300,
+    provider_task_spend_cap_enforced: false, provider_agent_stop_available: false,
+    automatic_retries: false, evidence_kind: 'owner_account_settings_ui_observation',
+    observed_at: new Date().toISOString(), owner_acceptance: 'fresh_exact_operation_vac_required',
+    payer_binding: {status: 'unverified', source: 'oauth_subject_not_recorded'}
+  };
   change(op);
+  function ordered(value) {
+    if (Array.isArray(value)) return value.map(ordered);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.keys(value).sort().map(k => [k, ordered(value[k])]));
+  }
+  op.cost_contract_sha256 = crypto.createHash('sha256').update(JSON.stringify(ordered(op.async_credit_risk))).digest('hex');
   return serviceFixture(op, options);
 }
 
 function asyncTaskFixture(change = () => {}, options = {}) {
-  return taskFixture(op => {
-    op.resource_envelope.spend_ceiling = {amount: '0', unit: 'USD'};
-    op.resource_envelope.cost_upper_bound = {status: 'unknown', unit: 'USD', basis: 'observed_on_demand_disabled'};
-    op.readback.cost_upper_bound = {amount: '0', unit: 'USD'};
-    op.cost_disclosure = {
-      version: 1, kind: 'observed_account_controls_one_async_submission',
-      binding: {execution_id: op.execution_id, actor: op.actor, principal: op.principal,
-        tenant_id: op.tenant_id, content_sha256: op.content_sha256, project_url: op.project_url,
-        provider_project_id: op.result_contract.provider_project_id, provider_account_id: 'synthetic-account'},
-      observation: {event_id: 'synthetic-event', payload_sha256: 'a'.repeat(64), max_age_seconds: 300},
-      monetary_basis: {currency: 'USD', additional_spend_authorised: '0', whole_job_upper_bound: null,
-        account_control: 'on_demand_observed_disabled'},
-      resource_scope: {create_thread_calls: 1, additional_paid_messages: 0, purchases: false, additional_paid_external_services: false},
-      uncertainties: {acu_consumption: 'unknown', provider_runtime: 'unknown', force_stop: 'unsupported',
-        account_control_after_observation: 'not_guaranteed'}
-    };
-    change(op);
-    // Test-only canonical generator; the production UI consumes the server's
-    // original intent bytes and does not reconstruct them or grant authority.
-    function ordered(value) {
-      if (Array.isArray(value)) return value.map(ordered);
-      if (!value || typeof value !== 'object') return value;
-      return Object.fromEntries(Object.keys(value).sort().map(k => [k, ordered(value[k])]));
-    }
-    op.cost_contract_sha256 = crypto.createHash('sha256').update(JSON.stringify(ordered(op.cost_disclosure))).digest('hex');
-  }, options);
+  return taskFixture(change, options);
 }
 
-test('async task review discloses uncertain cost and runtime without claiming a zero-cost cap', async () => {
+test('on-demand task review discloses actual owner-observed billing and UNKNOWN agent cost', async () => {
   const {h, receive, raw, state} = asyncTaskFixture();
   h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
-  assert.ok(h.byId.vacServiceOperationConfirm, 'valid async disclosure must reach review');
+  assert.ok(h.byId.vacServiceOperationConfirm, 'valid typed v2 disclosure must reach review');
   const text = allText(h.byId.vacServiceOperationReview);
   assert.match(text, /start one Flux design task/);
-  assert.match(text, /Additional spending authorised: 0 USD/);
-  assert.match(text, /Whole-job cost upper bound: Unknown/);
-  assert.match(text, /Flux credit consumption: Unknown/);
-  assert.match(text, /Automatic provider stop: Unsupported/);
-  assert.match(text, /not guaranteed after the observation/);
-  assert.match(text, /Submission and readback deadline: 5 minutes/);
-  assert.doesNotMatch(text, /Spend ceiling: 0 USD|Cost upper bound: 0 USD|undefined|zero-cost|free task/);
+  assert.match(text, /On-demand enabled/);
+  assert.match(text, /500.00 USD — account-wide, NOT a cap on this task/);
+  assert.match(text, /300 ACUs/);
+  assert.match(text, /Whole-job and per-task upper bound: Unknown/);
+  assert.match(text, /NO enforced stop/);
+  assert.match(text, /Billing payer binding: UNVERIFIED — Athena must refuse execution/);
+  assert.match(text, /one create_thread only/);
+  assert.doesNotMatch(text, /Spend ceiling: 0|Cost upper bound: 0|guaranteed free task|On-demand charging was observed disabled/);
   assert.ok(text.includes(raw));
   assert.equal(h.fetches.length, 0);
   h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
@@ -258,34 +252,30 @@ test('async task review discloses uncertain cost and runtime without claiming a 
 });
 
 const asyncFaults = {
-  fields: o => o.cost_disclosure.ignored = true,
-  version: o => o.cost_disclosure.version = true,
-  kind: o => o.cost_disclosure.kind = 'guaranteed_free',
-  actor: o => o.cost_disclosure.binding.actor = 'different@example.invalid',
-  tenant: o => o.cost_disclosure.binding.tenant_id = 'different',
-  source: o => o.cost_disclosure.binding.content_sha256 = 'b'.repeat(63),
-  project: o => o.cost_disclosure.binding.provider_project_id = 'foreign/project',
-  account: o => o.cost_disclosure.binding.provider_account_id = '',
-  evidenceType: o => o.cost_disclosure.observation.event_id = 1,
-  evidenceHash: o => o.cost_disclosure.observation.payload_sha256 = 'bad',
-  age: o => o.cost_disclosure.observation.max_age_seconds = 301,
-  ageBoolean: o => o.cost_disclosure.observation.max_age_seconds = true,
-  money: o => o.cost_disclosure.monetary_basis.additional_spend_authorised = '1',
-  wholeJobCap: o => o.cost_disclosure.monetary_basis.whole_job_upper_bound = '0',
-  accountControl: o => o.cost_disclosure.monetary_basis.account_control = 'on_demand_enabled',
-  extraCalls: o => o.cost_disclosure.resource_scope.create_thread_calls = 2,
-  booleanCalls: o => o.cost_disclosure.resource_scope.create_thread_calls = true,
-  extraMessages: o => o.cost_disclosure.resource_scope.additional_paid_messages = 1,
-  purchases: o => o.cost_disclosure.resource_scope.purchases = true,
-  services: o => o.cost_disclosure.resource_scope.additional_paid_external_services = true,
-  acuClaim: o => o.cost_disclosure.uncertainties.acu_consumption = '0',
-  runtimeClaim: o => o.cost_disclosure.uncertainties.provider_runtime = 'bounded',
-  stopClaim: o => o.cost_disclosure.uncertainties.force_stop = 'supported',
-  continuousClaim: o => o.cost_disclosure.uncertainties.account_control_after_observation = 'guaranteed',
-  envelopeZero: o => o.resource_envelope.cost_upper_bound = {amount: '0', unit: 'USD'},
+  fields: o => o.async_credit_risk.ignored = true,
+  mode: o => o.async_credit_risk.mode = 'guaranteed_free',
+  provider: o => o.async_credit_risk.provider = 'other',
+  project: o => o.async_credit_risk.project_url = 'https://www.flux.ai/foreign/project',
+  account: o => o.async_credit_risk.account = '',
+  billingMode: o => o.async_credit_risk.billing_mode = 'off',
+  monthlyLimit: o => o.async_credit_risk.observed_monthly_spend_limit_usd = '5000.00',
+  noNumericBalance: o => o.async_credit_risk.observed_available_acus = '300',
+  negativeBalance: o => o.async_credit_risk.observed_available_acus = -1,
+  taskCapClaim: o => o.async_credit_risk.provider_task_spend_cap_enforced = true,
+  stopClaim: o => o.async_credit_risk.provider_agent_stop_available = true,
+  retries: o => o.async_credit_risk.automatic_retries = true,
+  evidenceKind: o => o.async_credit_risk.evidence_kind = 'provider_guaranteed',
+  observedAtMissing: o => o.async_credit_risk.observed_at = '',
+  staleObservation: o => o.async_credit_risk.observed_at = new Date(Date.now() - 600001).toISOString(),
+  futureObservation: o => o.async_credit_risk.observed_at = new Date(Date.now() + 60000).toISOString(),
+  ownerAcceptance: o => o.async_credit_risk.owner_acceptance = 'automatic',
+  payerClaim: o => o.async_credit_risk.payer_binding.status = 'verified',
+  payerSource: o => o.async_credit_risk.payer_binding.source = 'ownerHandle',
+  payerExtra: o => o.async_credit_risk.payer_binding.extra = true,
+  envelopeNumeric: o => o.resource_envelope.cost_upper_bound = {amount: '0', unit: 'ACU'},
   envelopeBasis: o => o.resource_envelope.cost_upper_bound.basis = 'verified_free',
-  envelopeAllowance: o => o.resource_envelope.spend_ceiling.amount = '1',
-  paidRead: o => o.readback.cost_upper_bound.amount = '1'
+  envelopeAllowance: o => o.resource_envelope.spend_ceiling.status = 'bounded',
+  paidRead: o => o.readback.cost_upper_bound = {amount: '1', unit: 'ACU'}
 };
 for (const [name, change] of Object.entries(asyncFaults)) {
   test('async disclosure refuses changed scope or overstated certainty: ' + name, async () => {
@@ -321,7 +311,8 @@ test('v2 task review names design commencement, exact source and limited readbac
   assert.doesNotMatch(text, /does not start design work/);
   assert.ok(text.includes('pebble-reviewed-fixture.md'));
   assert.ok(text.includes('Submission and readback deadline: 5 minutes'));
-  assert.ok(text.includes('Spend ceiling: 2 ACU'));
+  assert.ok(text.includes('On-demand enabled (owner-observed settings)'));
+  assert.ok(text.includes('UNVERIFIED — Athena must refuse execution'));
   assert.ok(text.includes(raw));
   assert.equal(h.fetches.length, 0);
   h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
@@ -349,9 +340,9 @@ const taskFaults = {
   purchase: o => o.constraints.financial_transaction = true,
   turns: o => o.resource_envelope.max_turns = 2,
   deadline: o => o.resource_envelope.max_minutes = 0,
-  negativeCost: o => o.resource_envelope.cost_upper_bound.amount = '-1',
-  excessiveCost: o => o.resource_envelope.cost_upper_bound.amount = '3',
-  readCost: o => o.readback.cost_upper_bound.amount = '1',
+  negativeCost: o => o.resource_envelope.cost_upper_bound.status = 'negative',
+  excessiveCost: o => o.resource_envelope.cost_upper_bound.status = 'enforced',
+  readCost: o => o.readback.cost_upper_bound.status = 'enforced',
   units: o => o.readback.cost_upper_bound.unit = 'USD',
   independent: o => o.evidence_requirements.independent_readback = false,
   evidence: o => o.evidence_requirements.content_sha256 = 'a'.repeat(64),
