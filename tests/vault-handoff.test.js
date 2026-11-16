@@ -178,7 +178,7 @@ function allText(node) { return (node.textContent || '') + (node.children || [])
 // Same v2 envelope shape as Athena's native service dispatcher. This fixture
 // supplies synthetic identifiers/evidence only; it never runs a real ceremony.
 function taskFixture(change = () => {}, options = {}) {
-  const project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07';
+  const project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
   const hash = 'b'.repeat(64), readBinding = {
     get_thread: {thread: {from_execute: 'thread_url'}},
     get_messages: {thread: {from_execute: 'thread_url'}, offset: 0, limit: 20}
@@ -205,7 +205,7 @@ function taskFixture(change = () => {}, options = {}) {
       cost_upper_bound: {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'}, max_calls: 2},
     result_contract: {kind: 'provider_task_message', version: 1,
       source_url: 'https://github.com/VioletShores/athena/blob/' + '1'.repeat(40) + '/docs/pebble-reviewed-fixture.md',
-      retrieved_at: new Date().toISOString(), provider_project_id: 'robzag/synthetic-provider-slug', read_argument_binding: readBinding}
+      retrieved_at: new Date().toISOString(), provider_project_id: 'robzag/athena-pebble-b1-feasibility~07', read_argument_binding: readBinding}
   };
   op.async_credit_risk = {
     mode: 'owner_accepted_unstoppable_agent', provider: 'flux_ai', account: 'robzag',
@@ -262,7 +262,7 @@ const asyncFaults = {
   project: o => o.async_credit_risk.project_url = 'https://www.flux.ai/foreign/project',
   account: o => o.async_credit_risk.account = '',
   billingMode: o => o.async_credit_risk.billing_mode = 'off',
-  monthlyLimit: o => o.async_credit_risk.observed_monthly_spend_limit_usd = '5000.00',
+  monthlyLimit: o => o.async_credit_risk.observed_monthly_spend_limit_usd = 'unlimited',
   noNumericBalance: o => o.async_credit_risk.observed_available_acus = '300',
   negativeBalance: o => o.async_credit_risk.observed_available_acus = -1,
   taskCapClaim: o => o.async_credit_risk.provider_task_spend_cap_enforced = true,
@@ -270,7 +270,7 @@ const asyncFaults = {
   retries: o => o.async_credit_risk.automatic_retries = true,
   evidenceKind: o => o.async_credit_risk.evidence_kind = 'provider_guaranteed',
   observedAtMissing: o => o.async_credit_risk.observed_at = '',
-  staleObservation: o => o.async_credit_risk.observed_at = new Date(Date.now() - 600001).toISOString(),
+  staleObservation: o => o.async_credit_risk.observed_at = new Date(Date.now() - 960001).toISOString(),
   futureObservation: o => o.async_credit_risk.observed_at = new Date(Date.now() + 60000).toISOString(),
   ownerAcceptance: o => o.async_credit_risk.owner_acceptance = 'automatic',
   payerClaim: o => o.async_credit_risk.payer_binding.status = 'verified',
@@ -294,6 +294,17 @@ for (const [name, change] of Object.entries(asyncFaults)) {
     assert.equal(h.fetches.length, 0);
   });
 }
+
+test('generic positive account-limit amount is disclosed without claiming task enforcement', async () => {
+  const {h, receive} = asyncTaskFixture(op => {
+    op.async_credit_risk.observed_monthly_spend_limit_usd = '600.00';
+  });
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm, 'browser may display; server tenant policy decides');
+  const text = allText(h.byId.vacServiceOperationReview);
+  assert.match(text, /600.00 USD — account-wide, NOT a cap on this task/);
+  assert.equal(h.fetches.length, 0);
+});
 
 test('owner-observed project-owner billing remains subject to authenticated pre-effect recheck', async () => {
   const {h, receive} = asyncTaskFixture();
