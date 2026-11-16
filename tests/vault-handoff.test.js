@@ -227,7 +227,7 @@ test('critic-review is separate FULL/L3 VAT for two external models, not Flux wr
   offer(); await settleReview();
   assert.ok(h.byId.vacCriticReviewConfirm, 'valid signed digest binding must offer consent');
   const body = allText(h.byId.vacCriticReview);
-  assert.match(body, /Approve this one external A2 critic review/);
+  assert.match(body, /Approve and start TWO paid external A2 critic reviews/);
   assert.match(body, /40,?304|Reviewed source bytes: 40304/);
   assert.match(body, /113 exact rows/);
   assert.match(body, /openai \/ gpt-fixture/);
@@ -236,7 +236,11 @@ test('critic-review is separate FULL/L3 VAT for two external models, not Flux wr
   assert.match(body, /FULL source scope and canonical PLAN/);
   assert.match(body, /GLOBAL \/ UNVERIFIED/);
   assert.match(body, /20.00 USD, a POLICY amount — NOT a provider-enforced hard cap/);
-  assert.match(body, /NOT permission to start Flux create_thread/);
+  assert.match(body, /does NOT authorise the later Flux create_thread design task/);
+  assert.match(body, /IMMEDIATELY queue/);
+  assert.match(body, /closing this window/);
+  assert.match(body, /no automatic retry and no third synthesis model/);
+  assert.match(h.byId.vacCriticReviewConfirm.textContent, /START TWO paid external A2 reviews/);
   assert.equal(h.fetches.length, 0);
   h.byId.vacCriticReviewConfirm.listeners.click(); await flush(); await flush();
   assert.equal(h.fetches.length, 1);
