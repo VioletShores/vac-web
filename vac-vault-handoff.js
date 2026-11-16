@@ -38,6 +38,16 @@
       resource: 'athena:l0:service-operation',
       action: 'service_operation'
     },
+    // Independent owner L3 consent for the billable two-model A2 critic review.
+    // Not an approval for the later native Flux design task; separate audience,
+    // nonce, grant, server policy and expiry.
+    'critic-review': {
+      origin: 'https://api.athenapilot.ai',
+      audience: 'athena:l0:critic-review',
+      agent: 'athena-l0-critic-review-handoff',
+      resource: 'athena:l0:critic-review',
+      action: 'critic_review'
+    },
     'vault-store': {
       origin: 'https://api.athenapilot.ai',
       audience: 'athena:vault:store',
@@ -79,10 +89,14 @@
   var target = Object.prototype.hasOwnProperty.call(TARGETS, kind) ? TARGETS[kind] : null;
   var state = q.get('state') || '';
   var serviceOperation = kind === 'service-operation';
-  var valid = !!target && (serviceOperation ? /^[a-f0-9]{64}$/.test(state) : STATE_RE.test(state));
-  var toAthena = serviceOperation || kind === 'decisions-confirm' || kind === 'owner-collaborate' || kind === 'narration-capture';
+  var criticReview = kind === 'critic-review';
+  var reviewedHandoff = serviceOperation || criticReview;
+  var valid = !!target && (reviewedHandoff ? /^[a-f0-9]{64}$/.test(state) : STATE_RE.test(state));
+  var toAthena = reviewedHandoff || kind === 'decisions-confirm' || kind === 'owner-collaborate' || kind === 'narration-capture';
   var destination = toAthena ? 'Athena' : 'the Vault';
-  var actionName = serviceOperation ? 'operation review' : (kind === 'decisions-confirm' ? 'confirmation' : kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store'));
+  var actionName = criticReview ? 'A2 external critic review' :
+    (serviceOperation ? 'operation review' : (kind === 'decisions-confirm' ? 'confirmation' :
+    kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store')));
   var reviewAfterHandoff = kind === 'narration-capture';
 
   // The opener obtained this challenge from VAC server-to-server and stores its
@@ -126,23 +140,28 @@
   var operationConfirmed = false;
 
   function serviceSessionChanged() {
-    if (!serviceOperation) return;
+    if (!reviewedHandoff) return;
     operationGeneration++;
     operationConfirmed = false;
+    operation = null;
+    operationJson = null;
     assertion = null;
     sessionToken = null;
     subject = null;
     sending = false;
     var review = document.getElementById('vacServiceOperationReview');
     if (review) review.remove();
+    var criticPanel = document.getElementById('vacCriticReview');
+    if (criticPanel) criticPanel.remove();
   }
 
   // The canonical bytes come from the server-authored packet in the opener.
   // Never rebuild canonical JSON in JS (Python float/Unicode encoding differs)
   // or accept an operation from URL parameters, local storage or another tab.
   function requestOperation() {
-    if (!serviceOperation || !valid || !openerPresent()) return;
-    window.opener.postMessage({ type: 'vac-service-operation-request', state: state }, target.origin);
+    if (!reviewedHandoff || !valid || !openerPresent()) return;
+    window.opener.postMessage({ type: criticReview ? 'vac-critic-review-request' :
+      'vac-service-operation-request', state: state }, target.origin);
   }
 
   function operationRefused() {
@@ -153,7 +172,11 @@
     assertion = null;
     var review = document.getElementById('vacServiceOperationReview');
     if (review) review.remove();
-    show('error', 'The exact operation could not be verified. Nothing was authorised. Return to Athena to review it again.', false);
+    var criticPanel = document.getElementById('vacCriticReview');
+    if (criticPanel) criticPanel.remove();
+    show('error', criticReview ?
+      'The exact external-review disclosure could not be verified. No critic or Flux task was authorised. Return to Athena.' :
+      'The exact operation could not be verified. Nothing was authorised. Return to Athena to review it again.', false);
   }
 
   // UI shape validation is deliberately separate from authority. Athena still
@@ -422,6 +445,161 @@
     }, function () { if (generation === operationGeneration) operationRefused(); });
   }
 
+
+  // Separate from service-operation: a fresh FULL/L3 approval for disclosure
+  // of the exact sealed PLAN/source to TWO paid external model critics. This
+  // does not create an execution permit or authorise Flux create_thread.
+  function validCriticPreview(p) {
+    var keys = ['packet_id', 'kind', 'audience', 'state', 'operation_digest',
+      'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url', 'source_sha256',
+      'source_bytes', 'canonical_plan_rows', 'source_confidential',
+      'external_source_disclosure', 'reviewers', 'max_tokens_per_provider',
+      'approved_total_usd', 'owner_accepted_external_disclosure',
+      'owner_accepted_unverified_residency', 'provider_hard_cost_cap_enforced',
+      'automatic_retries', 'routing_posture', 'expiry',
+      'ready_for_owner_critic_vac', 'review_submission_started'];
+    var hex = /^[a-f0-9]{64}$/;
+    var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
+    var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
+    if (!exactKeys(p, keys) || !safeStrings(p) ||
+        !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
+        p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
+        !hex.test(p.state) || p.state !== state ||
+        !hex.test(p.operation_digest) || !hex.test(p.policy_sha256) ||
+        typeof p.tenant_id !== 'string' || !p.tenant_id || p.tenant_id.length > 128 ||
+        typeof p.principal !== 'string' || !p.principal || p.principal.length > 320 ||
+        typeof p.actor !== 'string' || p.actor.toLowerCase() !== subject ||
+        !/^[^\s@]+@[^\s@]+$/.test(p.actor) ||
+        p.project_url !== expectedProject || p.source_sha256 !== expectedSource ||
+        p.source_bytes !== 40304 || p.canonical_plan_rows !== 113 ||
+        p.source_confidential !== true ||
+        p.external_source_disclosure !== 'full_canonical_plan_and_source_scope' ||
+        !Array.isArray(p.reviewers) || p.reviewers.length !== 2 ||
+        !Number.isInteger(p.max_tokens_per_provider) ||
+        p.max_tokens_per_provider < 8192 || p.max_tokens_per_provider > 32768 ||
+        typeof p.approved_total_usd !== 'string' ||
+        !/^(?:0|[1-9][0-9]{0,2})\.[0-9]{2}$/.test(p.approved_total_usd) ||
+        Number(p.approved_total_usd) < 0.01 || Number(p.approved_total_usd) > 500 ||
+        p.owner_accepted_external_disclosure !== true ||
+        p.owner_accepted_unverified_residency !== true ||
+        p.provider_hard_cost_cap_enforced !== false ||
+        p.automatic_retries !== false ||
+        p.routing_posture !== 'owner_approved_tier_default_after_calibration_expired' ||
+        !awareTime(p.expiry) ||
+        Date.parse(p.expiry) <= Date.now() ||
+        Date.parse(p.expiry) > Date.now() + 1800000 ||
+        p.ready_for_owner_critic_vac !== true ||
+        p.review_submission_started !== false) return false;
+    var providers = [], families = [];
+    for (var i = 0; i < 2; i++) {
+      var r = p.reviewers[i];
+      if (!exactKeys(r, ['provider', 'model', 'model_family', 'provider_tier',
+            'data_training_posture', 'evidence_url', 'processing_jurisdiction',
+            'retention_posture']) ||
+          ['openai', 'groq', 'xai', 'google'].indexOf(r.provider) < 0 ||
+          typeof r.model !== 'string' || !r.model || r.model.length > 160 ||
+          ['openai_gpt', 'qwen', 'llama', 'xai_grok', 'google_gemini'].indexOf(r.model_family) < 0 ||
+          r.provider_tier !== 'paid_api' ||
+          r.data_training_posture !== 'owner_verified_no_training' ||
+          typeof r.evidence_url !== 'string' ||
+          !/^https:\/\/[A-Za-z0-9.-]+(?:\/[^?#]*)?$/.test(r.evidence_url) ||
+          r.processing_jurisdiction !== 'global_unverified' ||
+          ['provider_default_disclosed', 'zdr_verified'].indexOf(r.retention_posture) < 0 ||
+          providers.indexOf(r.provider) >= 0 || families.indexOf(r.model_family) >= 0) return false;
+      providers.push(r.provider); families.push(r.model_family);
+    }
+    return true;
+  }
+
+  function renderCriticPreview() {
+    if (!criticReview || !operation || !sessionToken || !subject) return;
+    if (operation.actor.toLowerCase() !== subject || Date.parse(operation.expiry) <= Date.now()) {
+      operationRefused(); return;
+    }
+    if (document.getElementById('vacCriticReview')) return;
+    var box = document.createElement('section');
+    box.id = 'vacCriticReview';
+    box.setAttribute('aria-label', 'Review the exact external critic disclosure');
+    box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
+    var heading = document.createElement('h2');
+    heading.textContent = 'Approve this one external A2 critic review';
+    box.appendChild(heading);
+    var warning = document.createElement('p');
+    warning.textContent = 'This is a SEPARATE, potentially paid external-model disclosure BEFORE the Flux design task. It is NOT permission to start Flux create_thread, manufacture, share with customers, or perform any other paid action. Athena must still verify the current tenant policy, provider controls, sealed source, and one-use receipt.';
+    box.appendChild(warning);
+    var fields = [
+      ['Owner', operation.actor], ['Tenant', operation.tenant_id],
+      ['Athena principal', operation.principal], ['Exact project', operation.project_url],
+      ['Confidential source', 'FULL source scope and canonical PLAN will be sent to two external model providers'],
+      ['Reviewed source bytes', operation.source_bytes],
+      ['Source SHA-256', operation.source_sha256],
+      ['Canonical PLAN obligations', operation.canonical_plan_rows + ' exact rows'],
+      ['Reviewers', 'Two distinct paid providers and model families'],
+      ['Maximum output tokens', operation.max_tokens_per_provider + ' per provider, not a USD bill guarantee'],
+      ['Owner-approved total exposure', operation.approved_total_usd + ' USD, a POLICY amount — NOT a provider-enforced hard cap'],
+      ['Provider hard cost stop', 'NOT AVAILABLE'],
+      ['Training posture', 'Owner-evidenced no-training claims; see individual provider evidence URLs'],
+      ['Processing jurisdiction', 'GLOBAL / UNVERIFIED; no locality guarantee'],
+      ['Retention', 'Provider-specific; may retain content under disclosed default terms unless ZDR verified'],
+      ['Privacy minimisation', 'Identity labels are reduced to SHA-256 in the submitted A2 prompt; the exact reviewed source and obligation rows still leave Athena'],
+      ['Automatic retries', 'OFF'],
+      ['Routing', 'Owner-approved tier default after calibration expiry; no silent provider substitution'],
+      ['Expiry', operation.expiry], ['Operation digest', operation.operation_digest],
+      ['External review policy SHA-256', operation.policy_sha256],
+      ['Exact review nonce', state]
+    ];
+    operation.reviewers.forEach(function (r, i) {
+      fields.push(['Reviewer ' + (i + 1), r.provider + ' / ' + r.model +
+        ' (' + r.model_family + '); paid API; jurisdiction ' +
+        r.processing_jurisdiction + '; retention ' + r.retention_posture +
+        '; no-training posture ' + r.data_training_posture +
+        '; evidence ' + r.evidence_url]);
+    });
+    fields.forEach(function (entry) {
+      var p = document.createElement('p');
+      p.textContent = entry[0] + ': ' + String(entry[1]);
+      box.appendChild(p);
+    });
+    var confirm = document.createElement('button');
+    confirm.id = 'vacCriticReviewConfirm'; confirm.type = 'button';
+    confirm.textContent = 'I authorise this one external A2 critic review';
+    confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
+    confirm.addEventListener('click', function () {
+      if (!operation || operation.actor.toLowerCase() !== subject ||
+          Date.parse(operation.expiry) <= Date.now()) { operationRefused(); return; }
+      operationConfirmed = true; confirm.disabled = true; send();
+    });
+    box.appendChild(confirm);
+    panel().appendChild(box);
+    show('info', 'Review both external model disclosures and confirm deliberately. No critic task or Flux design has started.', false);
+  }
+
+  function receiveCriticPreview(message) {
+    if (!criticReview || !sessionToken || !subject ||
+        operation || operationConfirmed || sending || acked ||
+        message.type !== 'vac-critic-review-preview' || message.state !== state) return;
+    var preview = message.preview;
+    if (!validCriticPreview(preview)) { operationRefused(); return; }
+    var generation = ++operationGeneration;
+    // Python canonical_json_hash sorts these three ASCII, 64-hex values. No
+    // URL-supplied policy and no claim that the rest of preview is a signed
+    // provider receipt; Athena's confirmation endpoint verifies it separately.
+    var nonceText = '{"operation_digest":"' + preview.operation_digest +
+      '","policy_sha256":"' + preview.policy_sha256 +
+      '","purpose":"athena:l0:critic-review"}';
+    Promise.resolve().then(function () {
+      return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonceText));
+    }).then(function (digest) {
+      if (generation !== operationGeneration) return;
+      var hex = Array.prototype.map.call(new Uint8Array(digest),
+        function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+      if (hex !== state) { operationRefused(); return; }
+      operation = JSON.parse(JSON.stringify(preview));
+      operationJson = JSON.stringify(preview);
+      renderCriticPreview();
+    }, function () { if (generation === operationGeneration) operationRefused(); });
+  }
+
   function apiBase() {
     try { if (typeof API_BASE === 'string' && API_BASE) return API_BASE; } catch (e) {}
     return 'https://vac-system-production.up.railway.app';
@@ -524,7 +702,7 @@
           var d = b && b.detail;
           throw new Error((d && (d.message || d.error)) || ('VAC answered ' + r.status));
         }
-        if (serviceOperation && generation !== operationGeneration) throw new Error('Verification changed');
+        if (reviewedHandoff && generation !== operationGeneration) throw new Error('Verification changed');
         assertion = b.compact_jwt;
         var exp = b.claims && typeof b.claims.exp === 'number' ? b.claims.exp * 1000 : Date.now() + LIFETIME_S * 1000;
         assertionExpMs = exp;
@@ -552,25 +730,28 @@
 
   function send() {
     if (sending || acked || (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh()))) return;
-    if (serviceOperation && (!operationConfirmed || !operation || operation.actor !== subject ||
-        Date.parse(operation.expiry) <= Date.now())) { renderOperation(); return; }
+    if (reviewedHandoff && (!operationConfirmed || !operation ||
+        operation.actor.toLowerCase() !== subject || Date.parse(operation.expiry) <= Date.now())) {
+      if (criticReview) renderCriticPreview(); else renderOperation(); return;
+    }
     // No opener (or it closed): deliver() says "return to the Vault tab"; nothing is minted.
     if (!openerPresent()) { deliver(); return; }
     sending = true;
     var generation = operationGeneration;
     var ready = (assertion && Date.now() < assertionExpMs - 5000) ? Promise.resolve() : mint(generation);
     ready.then(function () {
-      if (serviceOperation && generation !== operationGeneration) return;
-      if (serviceOperation && (!operationConfirmed || !operation || operation.actor !== subject ||
+      if (reviewedHandoff && generation !== operationGeneration) return;
+      if (reviewedHandoff && (!operationConfirmed || !operation ||
+          operation.actor.toLowerCase() !== subject ||
           Date.parse(operation.expiry) <= Date.now())) {
         operationRefused(); return;
       }
       deliver();
     }, function (e) {
-      if (serviceOperation && generation !== operationGeneration) return;
+      if (reviewedHandoff && generation !== operationGeneration) return;
       show('error', 'Could not prepare the handoff to ' + destination + ' (' + e.message + '). Return to ' + destination + ' and start again.', false);
-    }).then(function () { if (!serviceOperation || generation === operationGeneration) sending = false; },
-      function () { if (!serviceOperation || generation === operationGeneration) sending = false; });
+    }).then(function () { if (!reviewedHandoff || generation === operationGeneration) sending = false; },
+      function () { if (!reviewedHandoff || generation === operationGeneration) sending = false; });
   }
 
   if (valid) {
@@ -588,8 +769,12 @@
         if (!sessionToken || !subject) return;
         receiveOperation(m); return;
       }
+      if (criticReview && m.type === 'vac-critic-review-preview' && m.state === state) {
+        if (!sessionToken || !subject) return;
+        receiveCriticPreview(m); return;
+      }
       if (m.type !== ACK || m.state !== state) return;
-      if (serviceOperation && (!operationConfirmed || !assertion)) return;
+      if (reviewedHandoff && (!operationConfirmed || !assertion)) return;
       if (acked) return;
       if (kind === 'decisions-confirm' && m.status !== 'identity_verified_action_held' && m.status !== 'confirmed') return;
       acked = true;
@@ -602,6 +787,8 @@
         } else {
           show('warn', 'Athena checked your identity. The decision is still held; nothing has been authorised. Return to Athena for the next step.', false);
         }
+      } else if (criticReview) {
+        show('warn', 'Athena received the one-time critic-review verification. Its policy and receipt gates still decide whether the two external model reviews may start. This does NOT approve the Flux design task.', false);
       } else if (reviewAfterHandoff) {
         show('ok', 'Delivered. Athena has your verification. Review your results here, or close this tab and return to Athena to record.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
@@ -651,9 +838,13 @@
       }
       sessionToken = token;
       subject = String(email).trim().toLowerCase();
-      if (serviceOperation) {
-        show('info', 'Identity verified. Waiting for the exact operation from Athena; nothing has been authorised yet.', false);
-        requestOperation(); renderOperation(); return;
+      if (reviewedHandoff) {
+        show('info', criticReview ?
+          'Identity verified. Waiting for Athena’s exact external-critic policy. No model or Flux design task has been authorised.' :
+          'Identity verified. Waiting for the exact operation from Athena; nothing has been authorised yet.', false);
+        requestOperation();
+        if (criticReview) renderCriticPreview(); else renderOperation();
+        return;
       }
       send();
     }
