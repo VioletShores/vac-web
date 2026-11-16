@@ -175,6 +175,138 @@ async function settleReview() {
 
 function allText(node) { return (node.textContent || '') + (node.children || []).map(allText).join('\n'); }
 
+// Pre-A2 critic review has a separate audience and one-use grant. Its nonce
+// binds *only* the server's exact operation digest and policy digest; Athena
+// independently validates the full preview and policy on POST confirm.
+function criticFixture(change = () => {}, options = {}) {
+  const operation_digest = 'b'.repeat(64), policy_sha256 = 'c'.repeat(64);
+  const state = crypto.createHash('sha256').update(JSON.stringify({
+    operation_digest, policy_sha256, purpose: 'athena:l0:critic-review'
+  })).digest('hex');
+  const preview = {
+    packet_id: 42, kind: 'critic-review', audience: 'athena:l0:critic-review',
+    state, operation_digest, policy_sha256, tenant_id: 'tenant-one',
+    principal: 'person-owner', actor: 'owner@example.invalid',
+    project_url: 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic',
+    source_sha256: '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156',
+    source_bytes: 40304, canonical_plan_rows: 113, source_confidential: true,
+    external_source_disclosure: 'full_canonical_plan_and_source_scope',
+    reviewers: [
+      {provider: 'openai', model: 'gpt-fixture', model_family: 'openai_gpt',
+        provider_tier: 'paid_api', data_training_posture: 'owner_verified_no_training',
+        evidence_url: 'https://openai.com/enterprise-privacy',
+        processing_jurisdiction: 'global_unverified', retention_posture: 'provider_default_disclosed'},
+      {provider: 'groq', model: 'qwen-fixture', model_family: 'qwen',
+        provider_tier: 'paid_api', data_training_posture: 'owner_verified_no_training',
+        evidence_url: 'https://groq.com/privacy',
+        processing_jurisdiction: 'global_unverified', retention_posture: 'zdr_verified'}
+    ],
+    max_tokens_per_provider: 16384, approved_total_usd: '20.00',
+    owner_accepted_external_disclosure: true, owner_accepted_unverified_residency: true,
+    provider_hard_cost_cap_enforced: false, automatic_retries: false,
+    routing_posture: 'owner_approved_tier_default_after_calibration_expired',
+    expiry: new Date(Date.now() + 120000).toISOString(),
+    ready_for_owner_critic_vac: true, review_submission_started: false
+  };
+  change(preview);
+  const h = load('?handoff=critic-review&state=' + state, options);
+  const offer = (origin = VAULT, source = h.op) => {
+    (h.listeners.message || []).forEach(fn => fn({origin, source,
+      data: {type: 'vac-critic-review-preview', state, preview}}));
+  };
+  return {h, state, preview, offer};
+}
+
+test('critic-review is separate FULL/L3 VAT for two external models, not Flux write', async () => {
+  const {h, state, offer} = criticFixture();
+  assert.equal(h.posted.length, 0, 'no disclosure before owner FULL verification');
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  assert.deepEqual(JSON.parse(JSON.stringify(h.posted[0])),
+    {m: {type: 'vac-critic-review-request', state}, o: VAULT});
+  offer(); await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm, 'valid signed digest binding must offer consent');
+  const body = allText(h.byId.vacCriticReview);
+  assert.match(body, /Approve this one external A2 critic review/);
+  assert.match(body, /40,?304|Reviewed source bytes: 40304/);
+  assert.match(body, /113 exact rows/);
+  assert.match(body, /openai \/ gpt-fixture/);
+  assert.match(body, /groq \/ qwen-fixture/);
+  assert.match(body, /FULL source scope and canonical PLAN/);
+  assert.match(body, /GLOBAL \/ UNVERIFIED/);
+  assert.match(body, /20.00 USD, a POLICY amount — NOT a provider-enforced hard cap/);
+  assert.match(body, /NOT permission to start Flux create_thread/);
+  assert.equal(h.fetches.length, 0);
+  h.byId.vacCriticReviewConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.deepEqual(h.fetches[0].body.handoff,
+    {audience: 'athena:l0:critic-review', nonce: state});
+  assert.deepEqual(h.fetches[0].body.actions, ['critic_review']);
+  assert.equal(h.posted[h.posted.length - 1].m.assertion, JWT);
+  assert.equal('session_token' in h.posted[h.posted.length - 1].m, false);
+  (h.listeners.message || []).forEach(fn => fn({origin: VAULT, source: h.op,
+    data: {type: 'vac-vault-handoff-ack', state}}));
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /does NOT approve the Flux design task/);
+});
+
+const criticFaults = {
+  extra: p => p.unreviewed = true,
+  actor: p => p.actor = 'other@example.invalid',
+  sourceHash: p => p.source_sha256 = 'd'.repeat(64),
+  sourceBytes: p => p.source_bytes = 40303,
+  rows: p => p.canonical_plan_rows = 112,
+  project: p => p.project_url = 'https://www.flux.ai/foreign/project/schematic',
+  oneReviewer: p => p.reviewers.pop(),
+  sameProvider: p => p.reviewers[1].provider = 'openai',
+  sameFamily: p => p.reviewers[1].model_family = 'openai_gpt',
+  unapprovedTraining: p => p.reviewers[0].data_training_posture = 'vendor_can_train',
+  noEvidence: p => p.reviewers[0].evidence_url = 'http://evil.invalid',
+  urlSecret: p => p.reviewers[0].evidence_url = 'https://evil.invalid/?token=secret',
+  hiddenJurisdiction: p => p.reviewers[1].processing_jurisdiction = 'local_au',
+  unknownRetention: p => p.reviewers[1].retention_posture = 'undisclosed',
+  manyTokens: p => p.max_tokens_per_provider = 100000,
+  wrongAmount: p => p.approved_total_usd = 'unlimited',
+  tooMuch: p => p.approved_total_usd = '500.01',
+  fakeHardStop: p => p.provider_hard_cost_cap_enforced = true,
+  retries: p => p.automatic_retries = true,
+  noDisclosure: p => p.owner_accepted_external_disclosure = false,
+  noResidency: p => p.owner_accepted_unverified_residency = false,
+  wrongRouting: p => p.routing_posture = 'silent_provider_substitution',
+  started: p => p.review_submission_started = true,
+  oldPolicy: p => p.policy_sha256 = 'd'.repeat(64),
+  oldOperation: p => p.operation_digest = 'd'.repeat(64),
+  wrongAudience: p => p.audience = 'athena:l0:service-operation',
+  expired: p => p.expiry = new Date(Date.now() - 1000).toISOString(),
+  future: p => p.expiry = new Date(Date.now() + 1900000).toISOString()
+};
+for (const [name, change] of Object.entries(criticFaults)) {
+  test('critic-review refuses unapproved disclosure, drift or confused authority: ' + name, async () => {
+    const {h, offer} = criticFixture(change);
+    h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+  });
+}
+
+test('critic-review requires FULL owner with exact opener, nonce and origin', async () => {
+  for (const fault of ['notFull', 'wrongOrigin', 'wrongSource', 'absentOpener', 'wrongNonce']) {
+    const {h, state, preview, offer} = criticFixture(() => {}, fault === 'absentOpener' ?
+      {opener: 'absent'} : {});
+    if (fault === 'notFull') {
+      h.window.VACVaultHandoff.onVerified({authenticated:true,auth_level:'fast',session_token:'x',email:'owner@example.invalid'}, {});
+    } else h.window.VACVaultHandoff.onVerified(FULL, {});
+    if (fault === 'wrongOrigin') offer('https://evil.invalid');
+    else if (fault === 'wrongSource') offer(VAULT, {});
+    else if (fault === 'wrongNonce') {
+      (h.listeners.message || []).forEach(fn => fn({origin:VAULT,source:h.op,
+        data:{type:'vac-critic-review-preview',state:'d'.repeat(64),preview}}));
+    } else if (fault !== 'absentOpener') offer();
+    await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+    if (fault === 'wrongNonce') assert.equal(state.length, 64);
+  }
+});
+
 // Same v2 envelope shape as Athena's native service dispatcher. This fixture
 // supplies synthetic identifiers/evidence only; it never runs a real ceremony.
 function taskFixture(change = () => {}, options = {}) {
