@@ -214,7 +214,8 @@ function taskFixture(change = () => {}, options = {}) {
     provider_task_spend_cap_enforced: false, provider_agent_stop_available: false,
     automatic_retries: false, evidence_kind: 'owner_account_settings_ui_observation',
     observed_at: new Date().toISOString(), owner_acceptance: 'fresh_exact_operation_vac_required',
-    payer_binding: {status: 'unverified', source: 'oauth_subject_not_recorded'}
+    payer_binding: {status: 'unverified', source: 'oauth_provider_subject_not_recorded',
+      issuer: null, subject: null, evidence_sha256: null}
   };
   change(op);
   function ordered(value) {
@@ -285,6 +286,20 @@ for (const [name, change] of Object.entries(asyncFaults)) {
     assert.equal(h.fetches.length, 0);
   });
 }
+
+test('evidence-shaped payer claim remains explicitly subject to server verification', async () => {
+  const {h, receive} = asyncTaskFixture(op => {
+    op.async_credit_risk.payer_binding = {status: 'verified',
+      source: 'authenticated_flux_oauth_provider_subject', issuer: 'https://app.flux.ai/mcp',
+      subject: 'robzag', evidence_sha256: 'a'.repeat(64)};
+  });
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm, 'typed shape may be shown, not treated as authority');
+  const text = allText(h.byId.vacServiceOperationReview);
+  assert.match(text, /Evidence referenced; Athena must independently verify the OAuth payer/);
+  assert.doesNotMatch(text, /OAuth payer verified and authorised|provider guarantees a stop/);
+  assert.equal(h.fetches.length, 0);
+});
 
 test('async confirmation preserves one mint and remains inert after acknowledgement', async () => {
   const {h, receive, state} = asyncTaskFixture();
