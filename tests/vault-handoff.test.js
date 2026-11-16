@@ -201,6 +201,7 @@ function criticFixture(change = () => {}, options = {}) {
         evidence_url: 'https://groq.com/privacy',
         processing_jurisdiction: 'global_unverified', retention_posture: 'zdr_verified'}
     ],
+    orchestrate_mode: 'collect_only', reviewer_call_limit: 2, synthesis_vendor_allowed: false,
     max_tokens_per_provider: 16384, approved_total_usd: '20.00',
     owner_accepted_external_disclosure: true, owner_accepted_unverified_residency: true,
     provider_hard_cost_cap_enforced: false, automatic_retries: false,
@@ -231,6 +232,7 @@ test('critic-review is separate FULL/L3 VAT for two external models, not Flux wr
   assert.match(body, /113 exact rows/);
   assert.match(body, /openai \/ gpt-fixture/);
   assert.match(body, /groq \/ qwen-fixture/);
+  assert.match(body, /COLLECT ONLY: exactly two paid reviewer calls; no third synthesis model/);
   assert.match(body, /FULL source scope and canonical PLAN/);
   assert.match(body, /GLOBAL \/ UNVERIFIED/);
   assert.match(body, /20.00 USD, a POLICY amount — NOT a provider-enforced hard cap/);
@@ -258,6 +260,9 @@ const criticFaults = {
   oneReviewer: p => p.reviewers.pop(),
   sameProvider: p => p.reviewers[1].provider = 'openai',
   sameFamily: p => p.reviewers[1].model_family = 'openai_gpt',
+  thirdModel: p => p.orchestrate_mode = 'synthesise',
+  excessCalls: p => p.reviewer_call_limit = 3,
+  hiddenSynthesis: p => p.synthesis_vendor_allowed = true,
   unapprovedTraining: p => p.reviewers[0].data_training_posture = 'vendor_can_train',
   noEvidence: p => p.reviewers[0].evidence_url = 'http://evil.invalid',
   urlSecret: p => p.reviewers[0].evidence_url = 'https://evil.invalid/?token=secret',
