@@ -220,10 +220,21 @@
         !awareTime(risk.observed_at)) return false;
     var ageMs = Date.now() - Date.parse(risk.observed_at);
     if (ageMs < -10000 || ageMs > 300000) return false;
-    // Current source has no authenticated OAuth subject/payer receipt. This
-    // is explicitly UNVERIFIED; the backend must hold before any paid effect.
-    if (!exactValues(risk.payer_binding,
-          {status: 'unverified', source: 'oauth_subject_not_recorded'})) return false;
+    // These are only *claims inside the signed operation*. Athena must
+    // independently resolve the actual OAuth subject and payer before effect;
+    // the browser NEVER treats an evidence-shaped value as provider proof.
+    var payer = risk.payer_binding;
+    if (!exactKeys(payer, ['status', 'source', 'issuer', 'subject', 'evidence_sha256'])) return false;
+    if (payer.status === 'unverified') {
+      if (!exactValues(payer, {status: 'unverified',
+          source: 'oauth_provider_subject_not_recorded', issuer: null, subject: null,
+          evidence_sha256: null})) return false;
+    } else if (payer.status === 'verified') {
+      if (payer.source !== 'authenticated_flux_oauth_provider_subject' ||
+          payer.issuer !== 'https://app.flux.ai/mcp' || payer.subject !== 'robzag' ||
+          typeof payer.evidence_sha256 !== 'string' ||
+          !/^[a-f0-9]{64}$/.test(payer.evidence_sha256)) return false;
+    } else return false;
     var unknown = {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'};
     return exactValues(op.resource_envelope.spend_ceiling, unknown) &&
       exactValues(op.resource_envelope.cost_upper_bound, unknown) &&
@@ -325,7 +336,9 @@
         ['Whole-job and per-task upper bound', 'Unknown — the Flux agent may keep consuming credits after message submission'],
         ['Flux MCP per-task spend cap', 'Unavailable; NO enforced stop'],
         ['Automatic retries', 'Disabled; one create_thread only'],
-        ['Billing payer binding', 'UNVERIFIED — Athena must refuse execution until OAuth subject/payer independently matched'],
+        ['Billing payer binding', risk.payer_binding.status === 'verified'
+          ? 'Evidence referenced; Athena must independently verify the OAuth payer before execution'
+          : 'UNVERIFIED — Athena must refuse execution until OAuth subject/payer independently matched'],
         ['Account observation', 'Owner UI observation only; not live provider proof'],
         ['Further paid actions', 'No additional messages, purchases, manufacturing orders or paid external services']);
     } else {
