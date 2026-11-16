@@ -453,7 +453,8 @@
     var keys = ['packet_id', 'kind', 'audience', 'state', 'operation_digest',
       'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url', 'source_sha256',
       'source_bytes', 'canonical_plan_rows', 'source_confidential',
-      'external_source_disclosure', 'reviewers', 'max_tokens_per_provider',
+      'external_source_disclosure', 'reviewers', 'orchestrate_mode',
+      'reviewer_call_limit', 'synthesis_vendor_allowed', 'max_tokens_per_provider',
       'approved_total_usd', 'owner_accepted_external_disclosure',
       'owner_accepted_unverified_residency', 'provider_hard_cost_cap_enforced',
       'automatic_retries', 'routing_posture', 'expiry',
@@ -475,6 +476,8 @@
         p.source_confidential !== true ||
         p.external_source_disclosure !== 'full_canonical_plan_and_source_scope' ||
         !Array.isArray(p.reviewers) || p.reviewers.length !== 2 ||
+        p.orchestrate_mode !== 'collect_only' ||
+        p.reviewer_call_limit !== 2 || p.synthesis_vendor_allowed !== false ||
         !Number.isInteger(p.max_tokens_per_provider) ||
         p.max_tokens_per_provider < 8192 || p.max_tokens_per_provider > 32768 ||
         typeof p.approved_total_usd !== 'string' ||
@@ -534,7 +537,9 @@
       ['Reviewed source bytes', operation.source_bytes],
       ['Source SHA-256', operation.source_sha256],
       ['Canonical PLAN obligations', operation.canonical_plan_rows + ' exact rows'],
-      ['Reviewers', 'Two distinct paid providers and model families'],
+      ['Reviewers', 'Exactly two distinct paid providers and model families'],
+      ['Orchestration and synthesis', 'COLLECT ONLY: exactly two paid reviewer calls; no third synthesis model or hidden model vendor'],
+      ['Reviewer call limit', operation.reviewer_call_limit + ' total; no third model'],
       ['Maximum output tokens', operation.max_tokens_per_provider + ' per provider, not a USD bill guarantee'],
       ['Owner-approved total exposure', operation.approved_total_usd + ' USD, a POLICY amount — NOT a provider-enforced hard cap'],
       ['Provider hard cost stop', 'NOT AVAILABLE'],
