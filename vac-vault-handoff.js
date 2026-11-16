@@ -525,10 +525,10 @@
     box.setAttribute('aria-label', 'Review the exact external critic disclosure');
     box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
     var heading = document.createElement('h2');
-    heading.textContent = 'Approve this one external A2 critic review';
+    heading.textContent = 'Approve and start TWO paid external A2 critic reviews';
     box.appendChild(heading);
     var warning = document.createElement('p');
-    warning.textContent = 'This is a SEPARATE, potentially paid external-model disclosure BEFORE the Flux design task. It is NOT permission to start Flux create_thread, manufacture, share with customers, or perform any other paid action. Athena must still verify the current tenant policy, provider controls, sealed source, and one-use receipt.';
+    warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and 113-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
     box.appendChild(warning);
     var fields = [
       ['Owner', operation.actor], ['Tenant', operation.tenant_id],
@@ -538,6 +538,8 @@
       ['Source SHA-256', operation.source_sha256],
       ['Canonical PLAN obligations', operation.canonical_plan_rows + ' exact rows'],
       ['Reviewers', 'Exactly two distinct paid providers and model families'],
+      ['Effect of this approval', 'Athena will immediately queue exactly TWO paid external model API calls with the confidential source and PLAN, after server-side one-use grant verification'],
+      ['Irreversibility', 'External processing and charges may start after confirmation; closing VAC cannot recall a submitted provider call'], 
       ['Orchestration and synthesis', 'COLLECT ONLY: exactly two paid reviewer calls; no third synthesis model or hidden model vendor'],
       ['Reviewer call limit', operation.reviewer_call_limit + ' total; no third model'],
       ['Maximum output tokens', operation.max_tokens_per_provider + ' per provider, not a USD bill guarantee'],
@@ -567,7 +569,7 @@
     });
     var confirm = document.createElement('button');
     confirm.id = 'vacCriticReviewConfirm'; confirm.type = 'button';
-    confirm.textContent = 'I authorise this one external A2 critic review';
+    confirm.textContent = 'I authorise Athena to START TWO paid external A2 reviews';
     confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
       if (!operation || operation.actor.toLowerCase() !== subject ||
@@ -576,7 +578,7 @@
     });
     box.appendChild(confirm);
     panel().appendChild(box);
-    show('info', 'Review both external model disclosures and confirm deliberately. No critic task or Flux design has started.', false);
+    show('info', 'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false);
   }
 
   function receiveCriticPreview(message) {
@@ -793,7 +795,7 @@
           show('warn', 'Athena checked your identity. The decision is still held; nothing has been authorised. Return to Athena for the next step.', false);
         }
       } else if (criticReview) {
-        show('warn', 'Athena received the one-time critic-review verification. Its policy and receipt gates still decide whether the two external model reviews may start. This does NOT approve the Flux design task.', false);
+        show('warn', 'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false);
       } else if (reviewAfterHandoff) {
         show('ok', 'Delivered. Athena has your verification. Review your results here, or close this tab and return to Athena to record.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
