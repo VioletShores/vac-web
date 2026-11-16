@@ -208,6 +208,106 @@ function taskFixture(change = () => {}, options = {}) {
   return serviceFixture(op, options);
 }
 
+function asyncTaskFixture(change = () => {}, options = {}) {
+  return taskFixture(op => {
+    op.resource_envelope.spend_ceiling = {amount: '0', unit: 'USD'};
+    op.resource_envelope.cost_upper_bound = {status: 'unknown', unit: 'USD', basis: 'observed_on_demand_disabled'};
+    op.readback.cost_upper_bound = {amount: '0', unit: 'USD'};
+    op.cost_disclosure = {
+      version: 1, kind: 'observed_account_controls_one_async_submission',
+      binding: {execution_id: op.execution_id, actor: op.actor, principal: op.principal,
+        tenant_id: op.tenant_id, content_sha256: op.content_sha256, project_url: op.project_url,
+        provider_project_id: op.result_contract.provider_project_id, provider_account_id: 'synthetic-account'},
+      observation: {event_id: 'synthetic-event', payload_sha256: 'a'.repeat(64), max_age_seconds: 300},
+      monetary_basis: {currency: 'USD', additional_spend_authorised: '0', whole_job_upper_bound: null,
+        account_control: 'on_demand_observed_disabled'},
+      resource_scope: {create_thread_calls: 1, additional_paid_messages: 0, purchases: false, additional_paid_external_services: false},
+      uncertainties: {acu_consumption: 'unknown', provider_runtime: 'unknown', force_stop: 'unsupported',
+        account_control_after_observation: 'not_guaranteed'}
+    };
+    change(op);
+    // Test-only canonical generator; the production UI consumes the server's
+    // original intent bytes and does not reconstruct them or grant authority.
+    function ordered(value) {
+      if (Array.isArray(value)) return value.map(ordered);
+      if (!value || typeof value !== 'object') return value;
+      return Object.fromEntries(Object.keys(value).sort().map(k => [k, ordered(value[k])]));
+    }
+    op.cost_contract_sha256 = crypto.createHash('sha256').update(JSON.stringify(ordered(op.cost_disclosure))).digest('hex');
+  }, options);
+}
+
+test('async task review discloses uncertain cost and runtime without claiming a zero-cost cap', async () => {
+  const {h, receive, raw, state} = asyncTaskFixture();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm, 'valid async disclosure must reach review');
+  const text = allText(h.byId.vacServiceOperationReview);
+  assert.match(text, /start one Flux design task/);
+  assert.match(text, /Additional spending authorised: 0 USD/);
+  assert.match(text, /Whole-job cost upper bound: Unknown/);
+  assert.match(text, /Flux credit consumption: Unknown/);
+  assert.match(text, /Automatic provider stop: Unsupported/);
+  assert.match(text, /not guaranteed after the observation/);
+  assert.match(text, /Submission and readback deadline: 5 minutes/);
+  assert.doesNotMatch(text, /Spend ceiling: 0 USD|Cost upper bound: 0 USD|undefined|zero-cost|free task/);
+  assert.ok(text.includes(raw));
+  assert.equal(h.fetches.length, 0);
+  h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.equal(h.fetches[0].body.handoff.nonce, state);
+});
+
+const asyncFaults = {
+  fields: o => o.cost_disclosure.ignored = true,
+  version: o => o.cost_disclosure.version = true,
+  kind: o => o.cost_disclosure.kind = 'guaranteed_free',
+  actor: o => o.cost_disclosure.binding.actor = 'different@example.invalid',
+  tenant: o => o.cost_disclosure.binding.tenant_id = 'different',
+  source: o => o.cost_disclosure.binding.content_sha256 = 'b'.repeat(63),
+  project: o => o.cost_disclosure.binding.provider_project_id = 'foreign/project',
+  account: o => o.cost_disclosure.binding.provider_account_id = '',
+  evidenceType: o => o.cost_disclosure.observation.event_id = 1,
+  evidenceHash: o => o.cost_disclosure.observation.payload_sha256 = 'bad',
+  age: o => o.cost_disclosure.observation.max_age_seconds = 301,
+  ageBoolean: o => o.cost_disclosure.observation.max_age_seconds = true,
+  money: o => o.cost_disclosure.monetary_basis.additional_spend_authorised = '1',
+  wholeJobCap: o => o.cost_disclosure.monetary_basis.whole_job_upper_bound = '0',
+  accountControl: o => o.cost_disclosure.monetary_basis.account_control = 'on_demand_enabled',
+  extraCalls: o => o.cost_disclosure.resource_scope.create_thread_calls = 2,
+  booleanCalls: o => o.cost_disclosure.resource_scope.create_thread_calls = true,
+  extraMessages: o => o.cost_disclosure.resource_scope.additional_paid_messages = 1,
+  purchases: o => o.cost_disclosure.resource_scope.purchases = true,
+  services: o => o.cost_disclosure.resource_scope.additional_paid_external_services = true,
+  acuClaim: o => o.cost_disclosure.uncertainties.acu_consumption = '0',
+  runtimeClaim: o => o.cost_disclosure.uncertainties.provider_runtime = 'bounded',
+  stopClaim: o => o.cost_disclosure.uncertainties.force_stop = 'supported',
+  continuousClaim: o => o.cost_disclosure.uncertainties.account_control_after_observation = 'guaranteed',
+  envelopeZero: o => o.resource_envelope.cost_upper_bound = {amount: '0', unit: 'USD'},
+  envelopeBasis: o => o.resource_envelope.cost_upper_bound.basis = 'verified_free',
+  envelopeAllowance: o => o.resource_envelope.spend_ceiling.amount = '1',
+  paidRead: o => o.readback.cost_upper_bound.amount = '1'
+};
+for (const [name, change] of Object.entries(asyncFaults)) {
+  test('async disclosure refuses changed scope or overstated certainty: ' + name, async () => {
+    const {h, receive} = asyncTaskFixture(change);
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+  });
+}
+
+test('async confirmation preserves one mint and remains inert after acknowledgement', async () => {
+  const {h, receive, state} = asyncTaskFixture();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  const confirm = h.byId.vacServiceOperationConfirm;
+  assert.ok(confirm);
+  confirm.listeners.click(); confirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  h.listeners.message[0]({origin: VAULT, source: h.op, data: {type: 'vac-vault-handoff-ack', state}});
+  confirm.listeners.click(); receive(); await settleReview();
+  assert.equal(h.fetches.length, 1);
+});
+
 test('v2 task review names design commencement, exact source and limited readback before consent', async () => {
   const {h, receive, raw, state} = taskFixture();
   receive(); await settleReview();

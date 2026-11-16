@@ -190,12 +190,46 @@
     var parts = value.amount.split('.');
     return {digits: BigInt(parts.join('')), scale: (parts[1] || '').length};
   }
+  function exactValues(value, expected) {
+    return exactKeys(value, Object.keys(expected)) && Object.keys(expected).every(function (key) {
+      return value[key] === expected[key];
+    });
+  }
+  function validAsyncDisclosure(op) {
+    var d = op.cost_disclosure;
+    if (!exactKeys(d, ['version', 'kind', 'binding', 'observation', 'monetary_basis', 'resource_scope', 'uncertainties']) ||
+        d.version !== 1 || d.kind !== 'observed_account_controls_one_async_submission' ||
+        !exactKeys(d.binding, ['execution_id', 'actor', 'principal', 'tenant_id', 'content_sha256',
+          'project_url', 'provider_project_id', 'provider_account_id'])) return false;
+    var b = d.binding, ref = d.observation;
+    if (Object.keys(b).some(function (key) {
+          return typeof b[key] !== 'string' || !b[key] || b[key].length > (key === 'project_url' ? 2048 : 320);
+        }) || ['execution_id', 'actor', 'principal', 'tenant_id', 'content_sha256', 'project_url'].some(function (key) {
+          return b[key] !== op[key];
+        }) || b.provider_project_id !== op.result_contract.provider_project_id ||
+        !exactKeys(ref, ['event_id', 'payload_sha256', 'max_age_seconds']) ||
+        typeof ref.event_id !== 'string' || !ref.event_id || ref.event_id.length > 320 ||
+        typeof ref.payload_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(ref.payload_sha256) ||
+        !Number.isInteger(ref.max_age_seconds) || ref.max_age_seconds < 1 || ref.max_age_seconds > 300) return false;
+    return exactValues(d.monetary_basis, {currency: 'USD', additional_spend_authorised: '0',
+        whole_job_upper_bound: null, account_control: 'on_demand_observed_disabled'}) &&
+      exactValues(d.resource_scope, {create_thread_calls: 1, additional_paid_messages: 0,
+        purchases: false, additional_paid_external_services: false}) &&
+      exactValues(d.uncertainties, {acu_consumption: 'unknown', provider_runtime: 'unknown',
+        force_stop: 'unsupported', account_control_after_observation: 'not_guaranteed'}) &&
+      exactValues(op.resource_envelope.spend_ceiling, {amount: '0', unit: 'USD'}) &&
+      exactValues(op.resource_envelope.cost_upper_bound, {status: 'unknown', unit: 'USD',
+        basis: 'observed_on_demand_disabled'}) &&
+      exactValues(op.readback.cost_upper_bound, {amount: '0', unit: 'USD'});
+  }
   function validTaskOperation(op, raw) {
     var fields = ['version', 'purpose', 'execution_id', 'packet_id', 'actor', 'principal', 'tenant_id',
       'service_id', 'endpoint', 'capability', 'project_url', 'action', 'executor', 'expiry',
       'revocation_ref', 'risk', 'content_sha256', 'source_manifest_sha256', 'arguments_sha256',
       'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256', 'allowed_tools',
       'constraints', 'resource_envelope', 'evidence_requirements', 'object_ref', 'readback', 'result_contract'];
+    var asyncCost = Object.prototype.hasOwnProperty.call(op, 'cost_disclosure');
+    if (asyncCost) fields.push('cost_disclosure');
     var digests = ['content_sha256', 'source_manifest_sha256', 'arguments_sha256',
       'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256'];
     var ids = ['execution_id', 'packet_id', 'actor', 'principal', 'tenant_id', 'service_id',
@@ -226,13 +260,6 @@
         }) || !exactKeys(proof, ['independent_readback', 'content_sha256', 'source_manifest_sha256']) ||
         proof.independent_readback !== true || proof.content_sha256 !== op.content_sha256 ||
         proof.source_manifest_sha256 !== op.source_manifest_sha256) return false;
-    // Exact decimal arithmetic: a large or fractional value cannot round down
-    // into a ceiling on this confirmation screen. This does not certify costs.
-    var cap = costValue(e.spend_ceiling), write = costValue(e.cost_upper_bound, e.spend_ceiling.unit);
-    var read = costValue(r.cost_upper_bound, e.spend_ceiling.unit);
-    var scale = Math.max(cap.scale, write.scale, read.scale);
-    function scaled(v) { return v.digits * (10n ** BigInt(scale - v.scale)); }
-    if (scaled(write) + scaled(read) > scaled(cap)) return false;
     var result = op.result_contract;
     if (!exactKeys(result, ['kind', 'version', 'source_url', 'retrieved_at', 'provider_project_id', 'read_argument_binding']) ||
         result.kind !== 'provider_task_message' || result.version !== 1 ||
@@ -240,6 +267,21 @@
         !/^https:\/\/github\.com\/VioletShores\/athena\/blob\/[a-f0-9]{40}\/[^?#]+$/.test(result.source_url) ||
         !awareTime(result.retrieved_at) || typeof result.provider_project_id !== 'string' ||
         !/^robzag\/[^\s/?#]+$/.test(result.provider_project_id) || result.provider_project_id.length > 320) return false;
+    if (asyncCost) {
+      // The original intent hash binds this whole disclosure and its evidence
+      // reference. Athena alone resolves that event, checks freshness, verifies
+      // cost_contract_sha256 and current policy. The UI never labels a browser
+      // observation a guaranteed zero-cost job or recanonicalises signed bytes.
+      if (!validAsyncDisclosure(op)) return false;
+    } else {
+      // Exact decimal arithmetic: a large or fractional value cannot round down
+      // into a ceiling on this confirmation screen. This does not certify costs.
+      var cap = costValue(e.spend_ceiling), write = costValue(e.cost_upper_bound, e.spend_ceiling.unit);
+      var read = costValue(r.cost_upper_bound, e.spend_ceiling.unit);
+      var scale = Math.max(cap.scale, write.scale, read.scale);
+      function scaled(v) { return v.digits * (10n ** BigInt(scale - v.scale)); }
+      if (scaled(write) + scaled(read) > scaled(cap)) return false;
+    }
     var binding = result.read_argument_binding;
     if (!exactKeys(binding, ['get_thread', 'get_messages']) ||
         !exactKeys(binding.get_thread, ['thread']) || !exactKeys(binding.get_messages, ['thread', 'offset', 'limit']) ||
@@ -280,10 +322,22 @@
       ['Readback cost upper bound', operation.readback.cost_upper_bound.amount + ' ' + operation.readback.cost_upper_bound.unit],
       ['Source SHA-256', operation.source_manifest_sha256],
       ['Content SHA-256', operation.content_sha256],
-      ['Spend ceiling', operation.resource_envelope.spend_ceiling.amount + ' ' + operation.resource_envelope.spend_ceiling.unit],
-      ['Cost upper bound', operation.resource_envelope.cost_upper_bound.amount + ' ' + operation.resource_envelope.cost_upper_bound.unit],
       ['Expiry', operation.expiry], ['Exact intent SHA-256', state]
     ];
+    if (operation.version === 2 && operation.cost_disclosure) {
+      fields.push(['Additional spending authorised', '0 USD'],
+        ['Whole-job cost upper bound', 'Unknown'],
+        ['Flux credit consumption', 'Unknown; this one task may consume the existing available pool'],
+        ['Account control', 'On-demand charging was observed disabled; this is not guaranteed after the observation'],
+        ['Automatic provider stop', 'Unsupported'],
+        ['Provider account', operation.cost_disclosure.binding.provider_account_id],
+        ['Observation evidence', operation.cost_disclosure.observation.event_id],
+        ['Maximum observation age at use', operation.cost_disclosure.observation.max_age_seconds + ' seconds; checked by Athena'],
+        ['Further spending actions', 'No additional paid messages, purchases or paid external services']);
+    } else {
+      fields.push(['Spend ceiling', operation.resource_envelope.spend_ceiling.amount + ' ' + operation.resource_envelope.spend_ceiling.unit],
+        ['Cost upper bound', operation.resource_envelope.cost_upper_bound.amount + ' ' + operation.resource_envelope.cost_upper_bound.unit]);
+    }
     if (operation.version === 2) {
       fields.push(['Source document', operation.result_contract.source_url],
         ['Source retrieved at', operation.result_contract.retrieved_at],
