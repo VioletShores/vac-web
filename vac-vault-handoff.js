@@ -28,6 +28,16 @@
       agent: 'athena-decisions-confirm-handoff', resource: 'athena:decisions:confirm',
       action: 'confirm'
     },
+    // OFF at the issuer unless VAC_L0_SERVICE_HANDOFF_ENABLED=1 AND this
+    // audience is explicitly allowlisted. Identity is not a service grant:
+    // Athena still verifies its exact packet, policy and permit at use time.
+    'service-operation': {
+      origin: 'https://api.athenapilot.ai',
+      audience: 'athena:l0:service-operation',
+      agent: 'athena-l0-service-operation-handoff',
+      resource: 'athena:l0:service-operation',
+      action: 'service_operation'
+    },
     'vault-store': {
       origin: 'https://api.athenapilot.ai',
       audience: 'athena:vault:store',
@@ -68,10 +78,11 @@
 
   var target = Object.prototype.hasOwnProperty.call(TARGETS, kind) ? TARGETS[kind] : null;
   var state = q.get('state') || '';
-  var valid = !!target && STATE_RE.test(state);
-  var toAthena = kind === 'decisions-confirm' || kind === 'owner-collaborate' || kind === 'narration-capture';
+  var serviceOperation = kind === 'service-operation';
+  var valid = !!target && (serviceOperation ? /^[a-f0-9]{64}$/.test(state) : STATE_RE.test(state));
+  var toAthena = serviceOperation || kind === 'decisions-confirm' || kind === 'owner-collaborate' || kind === 'narration-capture';
   var destination = toAthena ? 'Athena' : 'the Vault';
-  var actionName = kind === 'decisions-confirm' ? 'confirmation' : kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store');
+  var actionName = serviceOperation ? 'operation review' : (kind === 'decisions-confirm' ? 'confirmation' : kind === 'owner-collaborate' ? 'sign-in' : (kind === 'narration-capture' ? 'recording' : 'store'));
   var reviewAfterHandoff = kind === 'narration-capture';
 
   // The opener obtained this challenge from VAC server-to-server and stores its
@@ -109,6 +120,130 @@
   var acked = false;
   var sending = false;
   var ackTimer = null;
+  var operation = null;
+  var operationJson = null;
+  var operationGeneration = 0;
+  var operationConfirmed = false;
+
+  function serviceSessionChanged() {
+    if (!serviceOperation) return;
+    operationGeneration++;
+    operationConfirmed = false;
+    assertion = null;
+    sessionToken = null;
+    subject = null;
+    sending = false;
+    var review = document.getElementById('vacServiceOperationReview');
+    if (review) review.remove();
+  }
+
+  // The canonical bytes come from the server-authored packet in the opener.
+  // Never rebuild canonical JSON in JS (Python float/Unicode encoding differs)
+  // or accept an operation from URL parameters, local storage or another tab.
+  function requestOperation() {
+    if (!serviceOperation || !valid || !openerPresent()) return;
+    window.opener.postMessage({ type: 'vac-service-operation-request', state: state }, target.origin);
+  }
+
+  function operationRefused() {
+    operationGeneration++;
+    operation = null;
+    operationJson = null;
+    operationConfirmed = false;
+    assertion = null;
+    var review = document.getElementById('vacServiceOperationReview');
+    if (review) review.remove();
+    show('error', 'The exact operation could not be verified. Nothing was authorised. Return to Athena to review it again.', false);
+  }
+
+  function renderOperation() {
+    if (!serviceOperation || !operation || !sessionToken || !subject) return;
+    if (operation.actor !== subject || Date.parse(operation.expiry) <= Date.now()) {
+      operationRefused(); return;
+    }
+    var existing = document.getElementById('vacServiceOperationReview');
+    if (existing) return;
+    var box = document.createElement('section');
+    box.id = 'vacServiceOperationReview';
+    box.setAttribute('aria-label', 'Review the exact service operation');
+    box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
+    var title = document.createElement('h2');
+    title.textContent = 'Review this one operation';
+    box.appendChild(title);
+    var summary = document.createElement('p');
+    summary.textContent = 'Your identity has been verified. Confirm only the operation below. This does not start design work, grant general service access, or replace Athena’s policy and delivery checks.';
+    box.appendChild(summary);
+    var fields = [
+      ['Person', operation.actor], ['Athena principal', operation.principal],
+      ['Tenant', operation.tenant_id], ['Service', operation.service_id],
+      ['Project', operation.project_url], ['Object', operation.object_ref],
+      ['Write action', operation.action], ['Write capability', operation.capability],
+      ['Readback action', operation.readback.action], ['Readback capability', operation.readback.capability],
+      ['Readback cost upper bound', operation.readback.cost_upper_bound.amount + ' ' + operation.readback.cost_upper_bound.unit],
+      ['Source SHA-256', operation.source_manifest_sha256],
+      ['Content SHA-256', operation.content_sha256],
+      ['Spend ceiling', operation.resource_envelope.spend_ceiling.amount + ' ' + operation.resource_envelope.spend_ceiling.unit],
+      ['Cost upper bound', operation.resource_envelope.cost_upper_bound.amount + ' ' + operation.resource_envelope.cost_upper_bound.unit],
+      ['Expiry', operation.expiry], ['Exact intent SHA-256', state]
+    ];
+    fields.forEach(function (item) {
+      var line = document.createElement('p');
+      line.textContent = item[0] + ': ' + String(item[1]);
+      box.appendChild(line);
+    });
+    var details = document.createElement('details');
+    var label = document.createElement('summary');
+    label.textContent = 'All exact operation fields';
+    var pre = document.createElement('pre');
+    pre.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;';
+    pre.textContent = operationJson;
+    details.appendChild(label); details.appendChild(pre); box.appendChild(details);
+    var confirm = document.createElement('button');
+    confirm.id = 'vacServiceOperationConfirm'; confirm.type = 'button';
+    confirm.textContent = 'Confirm this exact operation';
+    confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
+    confirm.addEventListener('click', function () {
+      if (!operation || operation.actor !== subject || Date.parse(operation.expiry) <= Date.now()) { operationRefused(); return; }
+      operationConfirmed = true; confirm.disabled = true; send();
+    });
+    box.appendChild(confirm);
+    panel().appendChild(box);
+    show('info', 'Review the operation and confirm it before any authority is sent to Athena.', false);
+  }
+
+  function receiveOperation(message) {
+    var raw = message.intent_json;
+    if (typeof raw !== 'string' || raw.length > 65536 || !/^[\x20-\x7e]*$/.test(raw)) { operationRefused(); return; }
+    if (operationJson === raw) { renderOperation(); return; }
+    if (operationJson !== null || operationConfirmed || sending || acked) { operationRefused(); return; }
+    var generation = ++operationGeneration;
+    var parsed;
+    try {
+      parsed = JSON.parse(raw);
+      var strings = ['actor', 'principal', 'tenant_id', 'service_id', 'project_url', 'object_ref', 'action', 'capability',
+        'source_manifest_sha256', 'content_sha256', 'expiry'];
+      if (!parsed || parsed.version !== 1 || parsed.purpose !== 'service-operation' ||
+          strings.some(function (key) { return typeof parsed[key] !== 'string' || !parsed[key]; }) ||
+          !Number.isFinite(Date.parse(parsed.expiry)) || !parsed.readback ||
+          typeof parsed.readback.action !== 'string' || !parsed.readback.action ||
+          typeof parsed.readback.capability !== 'string' || !parsed.readback.capability ||
+          !parsed.readback.cost_upper_bound || typeof parsed.readback.cost_upper_bound.amount !== 'string' ||
+          typeof parsed.readback.cost_upper_bound.unit !== 'string' || !parsed.resource_envelope ||
+          !parsed.resource_envelope.spend_ceiling || !parsed.resource_envelope.cost_upper_bound ||
+          ['spend_ceiling', 'cost_upper_bound'].some(function (key) {
+            var cost = parsed.resource_envelope[key];
+            return typeof cost.amount !== 'string' || typeof cost.unit !== 'string';
+          })) throw new Error('invalid operation');
+    } catch (e) { operationRefused(); return; }
+    Promise.resolve().then(function () {
+      return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+    }).then(function (digest) {
+      if (generation !== operationGeneration) return;
+      var hex = Array.prototype.map.call(new Uint8Array(digest), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+      if (hex !== state) { operationRefused(); return; }
+      operation = parsed; operationJson = raw; renderOperation();
+    }, function () { if (generation === operationGeneration) operationRefused(); });
+  }
 
   function apiBase() {
     try { if (typeof API_BASE === 'string' && API_BASE) return API_BASE; } catch (e) {}
@@ -193,7 +328,7 @@
     return !!op && op !== window && !op.closed;
   }
 
-  function mint() {
+  function mint(generation) {
     return fetch(apiBase() + '/v1/vat/issue', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -212,6 +347,7 @@
           var d = b && b.detail;
           throw new Error((d && (d.message || d.error)) || ('VAC answered ' + r.status));
         }
+        if (serviceOperation && generation !== operationGeneration) throw new Error('Verification changed');
         assertion = b.compact_jwt;
         var exp = b.claims && typeof b.claims.exp === 'number' ? b.claims.exp * 1000 : Date.now() + LIFETIME_S * 1000;
         assertionExpMs = exp;
@@ -239,13 +375,25 @@
 
   function send() {
     if (sending || acked || (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh()))) return;
+    if (serviceOperation && (!operationConfirmed || !operation || operation.actor !== subject ||
+        Date.parse(operation.expiry) <= Date.now())) { renderOperation(); return; }
     // No opener (or it closed): deliver() says "return to the Vault tab"; nothing is minted.
     if (!openerPresent()) { deliver(); return; }
     sending = true;
-    var ready = (assertion && Date.now() < assertionExpMs - 5000) ? Promise.resolve() : mint();
-    ready.then(deliver, function (e) {
+    var generation = operationGeneration;
+    var ready = (assertion && Date.now() < assertionExpMs - 5000) ? Promise.resolve() : mint(generation);
+    ready.then(function () {
+      if (serviceOperation && generation !== operationGeneration) return;
+      if (serviceOperation && (!operationConfirmed || !operation || operation.actor !== subject ||
+          Date.parse(operation.expiry) <= Date.now())) {
+        operationRefused(); return;
+      }
+      deliver();
+    }, function (e) {
+      if (serviceOperation && generation !== operationGeneration) return;
       show('error', 'Could not prepare the handoff to ' + destination + ' (' + e.message + '). Return to ' + destination + ' and start again.', false);
-    }).then(function () { sending = false; }, function () { sending = false; });
+    }).then(function () { if (!serviceOperation || generation === operationGeneration) sending = false; },
+      function () { if (!serviceOperation || generation === operationGeneration) sending = false; });
   }
 
   if (valid) {
@@ -259,12 +407,18 @@
         if (m.type === 'vac-continuation-cancel' && m.state === state) { cancelled = true; continuation = null; assertion = null; return; }
         acceptContinuation(m);
       }
+      if (serviceOperation && m.type === 'vac-service-operation-intent' && m.state === state) {
+        if (!sessionToken || !subject) return;
+        receiveOperation(m); return;
+      }
       if (m.type !== ACK || m.state !== state) return;
+      if (serviceOperation && (!operationConfirmed || !assertion)) return;
       if (acked) return;
       if (kind === 'decisions-confirm' && m.status !== 'identity_verified_action_held' && m.status !== 'confirmed') return;
       acked = true;
       clearTimeout(ackTimer);
       assertion = null;
+      sessionToken = null;
       if (kind === 'decisions-confirm') {
         if (m.status === 'confirmed') {
           show('ok', 'Athena recorded the decision receipt. Return to Athena to review it.', false);
@@ -298,6 +452,7 @@
       return JSON.parse(JSON.stringify(continuation.challenge));
     },
     onVerified: function (authResult, identity) {
+      serviceSessionChanged();
       if (!valid) {
         show('error', 'This ' + destination + ' link is not valid, so nothing was sent. Return to ' + destination + ' and start again.', false);
         return;
@@ -319,6 +474,10 @@
       }
       sessionToken = token;
       subject = String(email).trim().toLowerCase();
+      if (serviceOperation) {
+        show('info', 'Identity verified. Waiting for the exact operation from Athena; nothing has been authorised yet.', false);
+        requestOperation(); renderOperation(); return;
+      }
       send();
     }
   };
@@ -326,5 +485,6 @@
     window.opener.postMessage({type:'vac-continuation-ready', state:state}, target.origin);
   }
 })();
+
 
 

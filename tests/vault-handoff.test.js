@@ -15,6 +15,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const crypto = require('node:crypto');
 
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'vac-vault-handoff.js'), 'utf8');
 const VAULT = 'https://api.athenapilot.ai';
@@ -27,7 +28,7 @@ function el() {
     addEventListener(t, f) { this.listeners[t] = f; } };
 }
 
-function load(search, { opener = 'present', authFetch } = {}) {
+function load(search, { opener = 'present', authFetch, now } = {}) {
   const posted = [];
   const fetches = [];
   const listeners = {};
@@ -40,22 +41,34 @@ function load(search, { opener = 'present', authFetch } = {}) {
     createElement() { return el(); },
     getElementById(id) { return byId[id] || null; },
   };
+  document.createElement = function () {
+    var e = el();
+    Object.defineProperty(e, 'innerHTML', { set() { throw new Error('unsafe HTML sink'); } });
+    e.appendChild = function (c) {
+      const walk = (n) => { if (n.id) byId[n.id] = n; n.children.forEach(walk); };
+      walk(c); e.children.push(c); return c;
+    };
+    e.remove = function () { const walk = n => { if (n.id) delete byId[n.id]; n.children.forEach(walk); }; walk(e); };
+    return e;
+  };
   document.body.appendChild = (c) => { const walk = (n) => { if (n.id) byId[n.id] = n; n.children.forEach(walk); }; walk(c); return c; };
   const location = {};
   Object.defineProperty(location, 'search', { get: () => search });
   for (const k of ['href', 'hash']) Object.defineProperty(location, k, { get: () => '', set: (v) => navigations.push(v) });
   const window = {
     location, opener: op, closed: false,
+    crypto: crypto.webcrypto,
     addEventListener(t, f) { (listeners[t] = listeners[t] || []).push(f); },
     close() { closed = true; },
   };
   const fetch = (url, init) => {
     fetches.push({ url, body: JSON.parse(init.body) });
     const r = authFetch ? authFetch(url, init) : { ok: true, status: 200, body: { compact_jwt: JWT, claims: { exp: Date.now() / 1000 + 120 } } };
-    return Promise.resolve({ ok: r.ok, status: r.status, json: () => Promise.resolve(r.body) });
+    return Promise.resolve(r).then(r => ({ ok: r.ok, status: r.status, json: () => Promise.resolve(r.body) }));
   };
   const timers = [];
-  const ctx = { window, document, fetch, URLSearchParams, Promise, JSON, Date, String, Object, Error,
+  const Clock = class extends Date { static now() { return now ? now() : Date.now(); } };
+  const ctx = { window, document, fetch, URLSearchParams, Promise, JSON, Date: Clock, String, Object, Error, TextEncoder, Uint8Array, Number,
     setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; }, clearTimeout: () => {},
     history: { pushState: (...a) => navigations.push(a), replaceState: (...a) => navigations.push(a) } };
   ctx.window.window = ctx.window;
@@ -139,6 +152,130 @@ test('Decisions ceremony uses supplied challenge with no alternate backend fetch
   await assert.rejects(run()); assert.equal(fetched,0,'replay never falls back to another challenge');
 });
 
+function serviceFixture(patch = {}, options = {}) {
+  const op = Object.assign({version: 1, purpose: 'service-operation', actor: 'owner@example.invalid',
+    principal: 'person-owner', tenant_id: 'tenant-one', service_id: 'flux',
+    project_url: 'https://flux.ai/synthetic/private-project', object_ref: 'README.md', action: 'write_file', capability: 'project.write',
+    readback: {action: 'read_file', capability: 'project.read', cost_upper_bound: {amount: '0', unit: 'USD'}},
+    source_manifest_sha256: 'a'.repeat(64), content_sha256: 'b'.repeat(64),
+    expiry: new Date(Date.now() + 120000).toISOString(),
+    resource_envelope: {spend_ceiling: {amount: '0', unit: 'USD'}, cost_upper_bound: {amount: '0', unit: 'USD'}}}, patch);
+  const raw = JSON.stringify(op); // bytes supplied by server; UI must not recanonicalise them
+  const state = crypto.createHash('sha256').update(raw).digest('hex');
+  const h = load('?handoff=service-operation&state=' + state, options);
+  const message = {type: 'vac-service-operation-intent', state, intent_json: raw};
+  const receive = (overrides = {}) => h.listeners.message[0](Object.assign({origin: VAULT, source: h.op, data: message}, overrides));
+  return {h, op, raw, state, receive, message};
+}
+
+async function settleReview() {
+  // Real WebCrypto digest runs asynchronously off-thread.
+  for (let i = 0; i < 15; i++) await new Promise(r => setTimeout(r, 1));
+}
+
+function allText(node) { return (node.textContent || '') + (node.children || []).map(allText).join('\n'); }
+
+test('service operation requires real FULL ceremony AND exact rendered intent AND explicit confirmation before mint', async () => {
+  const {h, receive, raw, state} = serviceFixture();
+  assert.equal(h.posted.length, 0, 'module is loaded in the head; no request or DOM before the real ceremony');
+  receive(); await settleReview();
+  assert.equal(h.byId.vacServiceOperationConfirm, undefined, 'intent alone cannot approve');
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.equal(h.posted[0].m.type, 'vac-service-operation-request');
+  assert.equal(h.posted[0].o, VAULT);
+  assert.equal(h.fetches.length, 0, 'FULL alone does not mint');
+  assert.ok(allText(h.byId.vacServiceOperationReview).includes(raw));
+  assert.ok(allText(h.byId.vacServiceOperationReview).includes('Spend ceiling: 0 USD'));
+  assert.ok(allText(h.byId.vacServiceOperationReview).includes('Readback action: read_file'));
+  assert.ok(allText(h.byId.vacServiceOperationReview).includes('Readback cost upper bound: 0 USD'));
+  h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.deepEqual(h.fetches[0].body.handoff, {audience: 'athena:l0:service-operation', nonce: state});
+  assert.deepEqual(h.fetches[0].body.actions, ['service_operation']);
+  assert.deepEqual(h.fetches[0].body.resources, ['athena:l0:service-operation']);
+  assert.equal(h.fetches[0].body.agent_id, 'athena-l0-service-operation-handoff');
+  assert.equal(h.posted.filter(x => x.m.assertion).length, 1);
+});
+
+test('operation cannot arrive from another origin, tab or digest; no raw operation or session is returned', async () => {
+  const {h, receive, message} = serviceFixture();
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  receive({origin: 'https://evil.invalid'}); receive({source: {}});
+  receive({data: {...message, state: 'f'.repeat(64)}});
+  await settleReview();
+  assert.equal(h.byId.vacServiceOperationConfirm, undefined); assert.equal(h.fetches.length, 0);
+  assert.ok(h.posted.every(x => !x.m.intent_json && !x.m.session_token));
+});
+
+test('hash mismatch, malformed intent, oversized intent and wrong subject all refuse without mint', async () => {
+  for (const value of ['{}', '{bad', 'x'.repeat(65537)]) {
+    const {h, receive, message} = serviceFixture(); h.window.VACVaultHandoff.onVerified(FULL, {});
+    receive({data: {...message, intent_json: value}}); await settleReview();
+    assert.equal(h.fetches.length, 0); assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+  }
+  const {h, receive} = serviceFixture({actor: 'different@example.invalid'});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.equal(h.fetches.length, 0); assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+});
+
+test('markup in approved operation values remains inert text and is visible in exact review', async () => {
+  const hostile = '<img src=x onerror=alert(1)>';
+  const {h, receive} = serviceFixture({tenant_id: hostile});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(allText(h.byId.vacServiceOperationReview).includes(hostile));
+  assert.equal(h.fetches.length, 0);
+});
+
+test('expired intent and partial ceremony cannot create service proof', async () => {
+  const old = serviceFixture({expiry: new Date(Date.now() - 1000).toISOString()});
+  old.h.window.VACVaultHandoff.onVerified(FULL, {}); old.receive(); await settleReview();
+  assert.equal(old.h.byId.vacServiceOperationConfirm, undefined);
+  for (const level of ['quick', 'otp']) {
+    const {h, receive} = serviceFixture(); receive(); await settleReview();
+    h.window.VACVaultHandoff.onVerified({...FULL, session: {...FULL.session, auth_level: level}}, {});
+    assert.equal(h.byId.vacServiceOperationConfirm, undefined); assert.equal(h.fetches.length, 0);
+  }
+});
+
+test('intent invalidation during hashing cannot resurrect an earlier result', async () => {
+  const {h, receive, message} = serviceFixture();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive();
+  receive({data: {...message, intent_json: '{invalid'}}); await settleReview();
+  assert.equal(h.byId.vacServiceOperationConfirm, undefined); assert.equal(h.fetches.length, 0);
+});
+
+test('pre-approval ACK cannot terminate the operation review or report success', async () => {
+  const {h, state, receive} = serviceFixture();
+  h.listeners.message[0]({origin: VAULT, source: h.op, data: {type: 'vac-vault-handoff-ack', state}});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm); assert.equal(h.closed, false);
+  assert.equal(h.fetches.length, 0);
+});
+
+test('changed or failed verification while mint is pending invalidates consent and suppresses old proof', async () => {
+  for (const later of [{authenticated: false}, {...FULL, session: {...FULL.session, email: 'different@example.invalid'}}]) {
+    let resolve;
+    const {h, receive} = serviceFixture({}, {authFetch: () => new Promise(r => { resolve = r; })});
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    h.byId.vacServiceOperationConfirm.listeners.click();
+    assert.equal(h.fetches.length, 1);
+    h.window.VACVaultHandoff.onVerified(later, {});
+    resolve({ok: true, status: 200, body: {compact_jwt: JWT, claims: {exp: Date.now()/1000 + 120}}});
+    await flush(); await flush();
+    assert.equal(h.posted.filter(x => x.m.assertion).length, 0);
+    assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+  }
+});
+
+test('operation expiry during issuer network request prevents delivery', async () => {
+  let resolve, now = Date.now();
+  const {h, receive} = serviceFixture({}, {now: () => now, authFetch: () => new Promise(r => { resolve = r; })});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  h.byId.vacServiceOperationConfirm.listeners.click(); now += 121000;
+  resolve({ok: true, status: 200, body: {compact_jwt: JWT, claims: {exp: Date.now()/1000 + 120}}});
+  await flush(); await flush();
+  assert.equal(h.posted.filter(x => x.m.assertion).length, 0);
+});
 
 test('without handoff params the module defines nothing and listens to nothing', () => {
   for (const search of ['', '?return=/tribunal-demo', '?state=' + STATE]) {
@@ -472,3 +609,4 @@ test('Decisions confirmed acknowledgement names only the recorded receipt',async
   for(const timer of h.timers)timer.f();
   assert.equal(h.closed,false);
 });
+
