@@ -214,8 +214,10 @@ function taskFixture(change = () => {}, options = {}) {
     provider_task_spend_cap_enforced: false, provider_agent_stop_available: false,
     automatic_retries: false, evidence_kind: 'owner_account_settings_ui_observation',
     observed_at: new Date().toISOString(), owner_acceptance: 'fresh_exact_operation_vac_required',
-    payer_binding: {status: 'unverified', source: 'oauth_provider_subject_not_recorded',
-      issuer: null, subject: null, evidence_sha256: null}
+    payer_binding: {type: 'provider_project_owner_billing_rule',
+      status: 'owner_observed_recheck_required', project_owner: 'robzag', billing_account: 'robzag',
+      source_url: 'https://docs.flux.ai/account/copilot-credits', observed_at: new Date().toISOString(),
+      oauth_subject_verified: false, fresh_provider_owner_recheck_required: true}
   };
   change(op);
   function ordered(value) {
@@ -242,7 +244,8 @@ test('on-demand task review discloses actual owner-observed billing and UNKNOWN 
   assert.match(text, /300 ACUs/);
   assert.match(text, /Whole-job and per-task upper bound: Unknown/);
   assert.match(text, /NO enforced stop/);
-  assert.match(text, /Billing payer binding: UNVERIFIED — Athena must refuse execution/);
+  assert.match(text, /Flux bills the project owner: robzag \(observed\); Athena must recheck/);
+  assert.match(text, /OAuth subject: Not used as payer proof/);
   assert.match(text, /one create_thread only/);
   assert.doesNotMatch(text, /Spend ceiling: 0|Cost upper bound: 0|guaranteed free task|On-demand charging was observed disabled/);
   assert.ok(text.includes(raw));
@@ -271,7 +274,12 @@ const asyncFaults = {
   futureObservation: o => o.async_credit_risk.observed_at = new Date(Date.now() + 60000).toISOString(),
   ownerAcceptance: o => o.async_credit_risk.owner_acceptance = 'automatic',
   payerClaim: o => o.async_credit_risk.payer_binding.status = 'verified',
-  payerSource: o => o.async_credit_risk.payer_binding.source = 'ownerHandle',
+  payerSource: o => o.async_credit_risk.payer_binding.source_url = 'https://evil.invalid',
+  payerOwner: o => o.async_credit_risk.payer_binding.project_owner = 'other',
+  payerAccount: o => o.async_credit_risk.payer_binding.billing_account = 'other',
+  payerOAuthClaim: o => o.async_credit_risk.payer_binding.oauth_subject_verified = true,
+  payerNoRecheck: o => o.async_credit_risk.payer_binding.fresh_provider_owner_recheck_required = false,
+  payerStale: o => o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() - 1000000).toISOString(),
   payerExtra: o => o.async_credit_risk.payer_binding.extra = true,
   envelopeNumeric: o => o.resource_envelope.cost_upper_bound = {amount: '0', unit: 'ACU'},
   envelopeBasis: o => o.resource_envelope.cost_upper_bound.basis = 'verified_free',
@@ -287,17 +295,14 @@ for (const [name, change] of Object.entries(asyncFaults)) {
   });
 }
 
-test('evidence-shaped payer claim remains explicitly subject to server verification', async () => {
-  const {h, receive} = asyncTaskFixture(op => {
-    op.async_credit_risk.payer_binding = {status: 'verified',
-      source: 'authenticated_flux_oauth_provider_subject', issuer: 'https://app.flux.ai/mcp',
-      subject: 'robzag', evidence_sha256: 'a'.repeat(64)};
-  });
+test('owner-observed project-owner billing remains subject to authenticated pre-effect recheck', async () => {
+  const {h, receive} = asyncTaskFixture();
   h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
-  assert.ok(h.byId.vacServiceOperationConfirm, 'typed shape may be shown, not treated as authority');
+  assert.ok(h.byId.vacServiceOperationConfirm, 'typed owner-observed risk can be reviewed');
   const text = allText(h.byId.vacServiceOperationReview);
-  assert.match(text, /Evidence referenced; Athena must independently verify the OAuth payer/);
-  assert.doesNotMatch(text, /OAuth payer verified and authorised|provider guarantees a stop/);
+  assert.match(text, /Flux bills the project owner: robzag \(observed\); Athena must recheck/);
+  assert.match(text, /OAuth subject: Not used as payer proof/);
+  assert.doesNotMatch(text, /payer guaranteed|provider guarantees a stop|OAuth subject verified/);
   assert.equal(h.fetches.length, 0);
 });
 
@@ -327,7 +332,7 @@ test('v2 task review names design commencement, exact source and limited readbac
   assert.ok(text.includes('pebble-reviewed-fixture.md'));
   assert.ok(text.includes('Submission and readback deadline: 5 minutes'));
   assert.ok(text.includes('On-demand enabled (owner-observed settings)'));
-  assert.ok(text.includes('UNVERIFIED — Athena must refuse execution'));
+  assert.ok(text.includes('Athena must recheck authenticated project ownership before execution'));
   assert.ok(text.includes(raw));
   assert.equal(h.fetches.length, 0);
   h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
@@ -402,7 +407,7 @@ test('v2 still rejects wrong actor, foreign opener, expiry and changed intent', 
   }
 });
 
-test('v2 cost comparison preserves fractional precision and does not certify credit cost', async () => {
+test('v2 rejects forged numeric credit bounds even if fractional', async () => {
   const {h, receive} = taskFixture(o => {
     o.resource_envelope.spend_ceiling.amount = '9007199254740992.1';
     o.resource_envelope.cost_upper_bound.amount = '9007199254740992.2';
