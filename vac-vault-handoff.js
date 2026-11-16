@@ -207,9 +207,13 @@
           'automatic_retries', 'evidence_kind', 'observed_at', 'owner_acceptance',
           'payer_binding'])) return false;
     if (risk.mode !== 'owner_accepted_unstoppable_agent' ||
-        risk.provider !== 'flux_ai' || risk.account !== 'robzag' ||
+        risk.provider !== 'flux_ai' ||
+        typeof risk.account !== 'string' ||
+        !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(risk.account) ||
         risk.project_url !== op.project_url || risk.billing_mode !== 'on_demand' ||
-        risk.observed_monthly_spend_limit_usd !== '500.00' ||
+        typeof risk.observed_monthly_spend_limit_usd !== 'string' ||
+        !/^(?:0|[1-9][0-9]{0,5})\.[0-9]{2}$/.test(risk.observed_monthly_spend_limit_usd) ||
+        Number(risk.observed_monthly_spend_limit_usd) <= 0 ||
         !Number.isSafeInteger(risk.observed_available_acus) ||
         risk.observed_available_acus < 0 || risk.observed_available_acus > 100000 ||
         risk.provider_task_spend_cap_enforced !== false ||
@@ -219,7 +223,10 @@
         risk.owner_acceptance !== 'fresh_exact_operation_vac_required' ||
         !awareTime(risk.observed_at)) return false;
     var ageMs = Date.now() - Date.parse(risk.observed_at);
-    if (ageMs < -10000 || ageMs > 300000) return false;
+    if (ageMs < -10000 || ageMs > 900000) return false;
+    var projectParts = op.project_url.match(/^https:\/\/www\.flux\.ai\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\/([^/?#]+)\/schematic$/);
+    if (!projectParts || projectParts[1] !== risk.account ||
+        op.result_contract.provider_project_id !== risk.account + '/' + projectParts[2]) return false;
     // Flux's documented rule charges project owners (not OAuth callers).
     // This is STILL an owner-observed binding, not a live provider receipt.
     // Athena must freshly authenticate get_project and check ownerHandle/slug,
@@ -230,7 +237,7 @@
           'fresh_provider_owner_recheck_required']) ||
         payer.type !== 'provider_project_owner_billing_rule' ||
         payer.status !== 'owner_observed_recheck_required' ||
-        payer.project_owner !== 'robzag' || payer.billing_account !== 'robzag' ||
+        payer.project_owner !== risk.account || payer.billing_account !== risk.account ||
         payer.source_url !== 'https://docs.flux.ai/account/copilot-credits' ||
         payer.oauth_subject_verified !== false ||
         payer.fresh_provider_owner_recheck_required !== true ||
@@ -253,7 +260,7 @@
       'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256'];
     var ids = ['execution_id', 'packet_id', 'actor', 'principal', 'tenant_id', 'service_id',
       'capability', 'object_ref', 'action', 'executor', 'revocation_ref'];
-    var project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07';
+    var project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
     if (raw.length > 16384 || !exactKeys(op, fields) || !safeStrings(op) || op.version !== 2 ||
         op.purpose !== 'service-operation' ||
         ids.some(function (key) { return typeof op[key] !== 'string' || !op[key] || op[key].length > 320; }) ||
@@ -338,7 +345,7 @@
         ['Whole-job and per-task upper bound', 'Unknown — the Flux agent may keep consuming credits after message submission'],
         ['Flux MCP per-task spend cap', 'Unavailable; NO enforced stop'],
         ['Automatic retries', 'Disabled; one create_thread only'],
-        ['Billing payer basis', 'Flux bills the project owner: robzag (observed); Athena must recheck authenticated project ownership before execution'],
+        ['Billing payer basis', 'Flux bills the project owner: ' + risk.account + ' (observed); Athena must recheck authenticated project ownership before execution'],
         ['OAuth subject', 'Not used as payer proof; no OAuth subject verification claimed'],
         ['Account observation', 'Owner UI observation only; not live provider proof'],
         ['Further paid actions', 'No additional messages, purchases, manufacturing orders or paid external services']);
