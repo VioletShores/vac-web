@@ -176,13 +176,24 @@ async function settleReview() {
 function allText(node) { return (node.textContent || '') + (node.children || []).map(allText).join('\n'); }
 
 // Pre-A2 critic review has a separate audience and one-use grant. Its nonce
-// binds *only* the server's exact operation digest and policy digest; Athena
-// independently validates the full preview and policy on POST confirm.
+// binds the server's exact operation/policy digests, plus replacement lineage
+// when present; Athena independently validates the full preview on POST confirm.
 function criticFixture(change = () => {}, options = {}) {
   const operation_digest = 'b'.repeat(64), policy_sha256 = 'c'.repeat(64);
-  const state = crypto.createHash('sha256').update(JSON.stringify({
+  const binding = {
     operation_digest, policy_sha256, purpose: 'athena:l0:critic-review'
-  })).digest('hex');
+  };
+  const hasRecovery = Object.prototype.hasOwnProperty.call(options, 'recovery');
+  if (hasRecovery && !options.legacyNonce) {
+    binding.purpose = 'athena:l0:critic-review:replacement';
+    binding.recovery = options.recovery;
+  }
+  function ordered(value) {
+    if (Array.isArray(value)) return value.map(ordered);
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
+  }
+  const state = crypto.createHash('sha256').update(JSON.stringify(ordered(binding))).digest('hex');
   const preview = {
     packet_id: 42, kind: 'critic-review', audience: 'athena:l0:critic-review',
     state, operation_digest, policy_sha256, tenant_id: 'tenant-one',
@@ -209,6 +220,7 @@ function criticFixture(change = () => {}, options = {}) {
     expiry: new Date(Date.now() + 120000).toISOString(),
     ready_for_owner_critic_vac: true, review_submission_started: false
   };
+  if (hasRecovery) preview.recovery = JSON.parse(JSON.stringify(options.recovery));
   change(preview);
   const h = load('?handoff=critic-review&state=' + state, options);
   const offer = (origin = VAULT, source = h.op) => {
@@ -284,6 +296,166 @@ test('critic-review refuses consent once the displayed policy deadline expires',
   h.byId.vacCriticReviewConfirm.listeners.click(); await flush();
   assert.equal(h.fetches.length, 0, 'expired policy cannot mint FULL/L3 proof');
   assert.equal(h.byId.vacCriticReviewConfirm, undefined);
+});
+
+function recoveryDisclosure() {
+  return {version: 1, kind: 'one_manual_replacement', parent_grant_id: 'd'.repeat(32),
+    parent_job_id: 'orchestrate_fluxcritic_' + 'd'.repeat(32),
+    parent_result_sha256: 'e'.repeat(64), plan_seal_sha256: 'f'.repeat(64),
+    additional_reviewer_call_limit: 2, automatic_retries: false, prior_calls_may_be_charged: true};
+}
+
+test('one replacement binds parent failure and unchanged PLAN to fresh FULL/L3 consent for two ADDITIONAL calls', async () => {
+  const {h, state, preview, offer} = criticFixture(() => {}, {recovery: recoveryDisclosure()});
+  assert.notEqual(state, criticFixture().state, 'old critic proof must not authorise a replacement');
+  assert.equal(h.posted.length, 0);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  const button = h.byId.vacCriticReviewConfirm;
+  assert.ok(button);
+  assert.match(button.textContent, /ONE replacement attempt.*TWO ADDITIONAL/);
+  const disclosure = h.byId.vacCriticRecoveryDisclosure;
+  assert.match(disclosure.textContent, /same source and PLAN/);
+  assert.match(disclosure.textContent, /exactly TWO ADDITIONAL paid external model calls/);
+  assert.match(disclosure.textContent, /Prior timed-out calls may be charged/);
+  assert.match(disclosure.textContent, /No further retry is authorised/);
+  assert.match(disclosure.textContent, /does not restart it or approve Flux design/);
+  const text = allText(h.byId.vacCriticReview);
+  assert.ok(text.includes(preview.recovery.parent_job_id));
+  assert.ok(text.includes(preview.recovery.parent_result_sha256));
+  assert.ok(text.includes(preview.recovery.plan_seal_sha256));
+  assert.equal(h.fetches.length, 0, 'a replacement preview alone authorises no paid call');
+  button.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.deepEqual(h.fetches[0].body.handoff, {audience: 'athena:l0:critic-review', nonce: state});
+  assert.deepEqual(h.fetches[0].body.actions, ['critic_review']);
+  assert.equal(h.fetches[0].body.expiry_seconds, 120, 'replacement must not extend the VAT lifetime');
+});
+
+const recoveryFaults = {
+  version: r => {r.version = 2;}, kind: r => {r.kind = 'automatic_retry';},
+  parentGrant: r => {r.parent_grant_id = 'a'.repeat(32);},
+  parentJob: r => {r.parent_job_id = 'orchestrate_fluxcritic_' + 'a'.repeat(32);},
+  parentAndJob: r => {r.parent_grant_id = 'a'.repeat(32); r.parent_job_id = 'orchestrate_fluxcritic_' + r.parent_grant_id;},
+  parentResult: r => {r.parent_result_sha256 = 'a'.repeat(64);},
+  planSeal: r => {r.plan_seal_sha256 = 'a'.repeat(64);},
+  extraAttempt: r => {r.additional_attempts = 2;},
+  extraCalls: r => {r.additional_reviewer_call_limit = 3;},
+  stringCalls: r => {r.additional_reviewer_call_limit = '2';},
+  retry: r => {r.automatic_retries = true;},
+  hidesPriorCharges: r => {r.prior_calls_may_be_charged = false;},
+  missingField: r => {delete r.plan_seal_sha256;},
+  malformedResult: r => {r.parent_result_sha256 = 'not-a-hash';}
+};
+for (const [name, mutate] of Object.entries(recoveryFaults)) {
+  test('replacement refuses altered or broader parent/scope binding: ' + name, async () => {
+    const {h, offer} = criticFixture(p => mutate(p.recovery), {recovery: recoveryDisclosure()});
+    h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+  });
+}
+
+test('present invalid recovery, omitted recovery and old nonce cannot silently become first-attempt consent', async () => {
+  const cases = [
+    criticFixture(() => {}, {recovery: null}),
+    criticFixture(() => {}, {recovery: {}}),
+    criticFixture(() => {}, {recovery: []}),
+    criticFixture(p => {delete p.recovery;}, {recovery: recoveryDisclosure()}),
+    criticFixture(() => {}, {recovery: recoveryDisclosure(), legacyNonce: true}),
+    criticFixture(p => {p.recovery = undefined;}, {recovery: recoveryDisclosure(), legacyNonce: true}),
+    criticFixture(p => {p.recovery.extra_attempt = undefined;}, {recovery: recoveryDisclosure()})
+  ];
+  for (const {h, offer} of cases) {
+    h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+  }
+});
+
+test('replacement canonical binding is independent of recovery JSON key insertion order', async () => {
+  const reversed = Object.fromEntries(Object.entries(recoveryDisclosure()).reverse());
+  const {h, state, offer} = criticFixture(() => {}, {recovery: reversed});
+  assert.equal(state, criticFixture(() => {}, {recovery: recoveryDisclosure()}).state);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  assert.equal(h.fetches.length, 0);
+});
+
+test('replacement snapshot cannot drift while its nonce is being hashed', async () => {
+  const {h, state, preview, offer} = criticFixture(() => {}, {recovery: recoveryDisclosure()});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer();
+  preview.recovery.parent_job_id = 'orchestrate_fluxcritic_' + 'a'.repeat(32);
+  preview.recovery.parent_result_sha256 = 'a'.repeat(64);
+  await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  const text = allText(h.byId.vacCriticReview);
+  assert.ok(text.includes(recoveryDisclosure().parent_job_id));
+  assert.ok(text.includes(recoveryDisclosure().parent_result_sha256));
+  h.byId.vacCriticReviewConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches[0].body.handoff.nonce, state);
+});
+
+test('replacement sends one proof only and unknown ACK timeout never offers a retry', async () => {
+  const {h, offer} = criticFixture(() => {}, {recovery: recoveryDisclosure()});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  const button = h.byId.vacCriticReviewConfirm;
+  button.listeners.click(); button.listeners.click(); await flush(); await flush();
+  const proofs = () => h.posted.filter(p => p.m.type === 'vac-vault-handoff');
+  assert.equal(h.fetches.length, 1);
+  assert.equal(proofs().length, 1);
+  assert.equal(h.byId.vacVaultHandoffResend.style.display, 'none');
+  h.timers.forEach(timer => timer.f());
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /outcome UNKNOWN/);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Do NOT retry or repeat VAC/);
+  assert.equal(h.byId.vacVaultHandoffResend.style.display, 'none');
+  button.listeners.click(); h.byId.vacVaultHandoffResend.listeners.click();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  assert.equal(h.fetches.length, 1);
+  assert.equal(proofs().length, 1);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /outcome UNKNOWN/);
+});
+
+test('replacement ACK distinguishes queued-authorisation acknowledgement from completed reviews', async () => {
+  const {h, state, offer} = criticFixture(() => {}, {recovery: recoveryDisclosure()});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  const button = h.byId.vacCriticReviewConfirm;
+  const ack = (origin = VAULT, source = h.op, nonce = state) => {
+    h.listeners.message.forEach(fn => fn({origin, source,
+      data: {type: 'vac-vault-handoff-ack', state: nonce}}));
+  };
+  ack();
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /This replacement has not started/);
+  button.listeners.click(); await flush(); await flush();
+  ack('https://wrong.invalid'); ack(VAULT, {}); ack(VAULT, h.op, 'a'.repeat(64));
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Replacement authorisation sent/);
+  ack();
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /acknowledged the ONE replacement authorisation/);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /not proof of review completion/);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /No further retry/);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /does NOT approve the Flux/);
+  h.timers.forEach(timer => timer.f());
+  button.listeners.click(); h.byId.vacVaultHandoffResend.listeners.click();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.equal(h.posted.filter(p => p.m.type === 'vac-vault-handoff').length, 1);
+  assert.equal(h.closed, false);
+});
+
+test('uncertain replacement postMessage delivery is held without another proof or call', async () => {
+  const {h, offer} = criticFixture(() => {}, {recovery: recoveryDisclosure()});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  let attempts = 0;
+  h.op.postMessage = () => { attempts++; throw Error('delivery outcome unknown'); };
+  const button = h.byId.vacCriticReviewConfirm;
+  button.listeners.click(); await flush(); await flush();
+  assert.equal(attempts, 1);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /outcome UNKNOWN/);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Do NOT retry or repeat VAC/);
+  assert.equal(h.byId.vacVaultHandoffResend.style.display, 'none');
+  button.listeners.click(); h.byId.vacVaultHandoffResend.listeners.click();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  assert.equal(attempts, 1);
+  assert.equal(h.fetches.length, 1);
 });
 
 const criticFaults = {
