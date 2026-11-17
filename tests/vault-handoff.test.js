@@ -254,6 +254,38 @@ test('critic-review is separate FULL/L3 VAT for two external models, not Flux wr
   assert.match(h.byId.vacVaultHandoffMsg.textContent, /does NOT approve the Flux design task/);
 });
 
+test('critic-review accepts the exact server policy deadline beyond thirty minutes without early mint', async () => {
+  for (const hours of [4, 24]) {
+    const expiry = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+    const {h, state, offer} = criticFixture(p => { p.expiry = expiry; });
+    h.window.VACVaultHandoff.onVerified(FULL, {});
+    offer(); await settleReview();
+    assert.ok(h.byId.vacCriticReviewConfirm, 'current policy deadline must allow explicit consent');
+    assert.ok(allText(h.byId.vacCriticReview).includes('Expiry: ' + expiry),
+      'show the unchanged server policy deadline');
+    assert.equal(h.fetches.length, 0, 'preview is not authority to mint or start reviews');
+    h.byId.vacCriticReviewConfirm.listeners.click(); await flush(); await flush();
+    assert.equal(h.fetches.length, 1);
+    assert.deepEqual(h.fetches[0].body.handoff,
+      {audience: 'athena:l0:critic-review', nonce: state});
+    assert.ok(h.fetches[0].body.expiry_seconds <= 120,
+      'policy deadline does not extend the FULL/L3 assertion lifetime');
+  }
+});
+
+test('critic-review refuses consent once the displayed policy deadline expires', async () => {
+  let now = Date.now();
+  const expiry = new Date(now + 14400000).toISOString();
+  const {h, offer} = criticFixture(p => { p.expiry = expiry; }, {now: () => now});
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  offer(); await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  now = Date.parse(expiry) + 1000;
+  h.byId.vacCriticReviewConfirm.listeners.click(); await flush();
+  assert.equal(h.fetches.length, 0, 'expired policy cannot mint FULL/L3 proof');
+  assert.equal(h.byId.vacCriticReviewConfirm, undefined);
+});
+
 const criticFaults = {
   extra: p => p.unreviewed = true,
   actor: p => p.actor = 'other@example.invalid',
@@ -285,7 +317,8 @@ const criticFaults = {
   oldOperation: p => p.operation_digest = 'd'.repeat(64),
   wrongAudience: p => p.audience = 'athena:l0:service-operation',
   expired: p => p.expiry = new Date(Date.now() - 1000).toISOString(),
-  future: p => p.expiry = new Date(Date.now() + 1900000).toISOString()
+  malformedExpiry: p => p.expiry = 'not-a-timestamp',
+  timezoneMissing: p => p.expiry = new Date(Date.now() + 14400000).toISOString().replace('Z', '')
 };
 for (const [name, change] of Object.entries(criticFaults)) {
   test('critic-review refuses unapproved disclosure, drift or confused authority: ' + name, async () => {
