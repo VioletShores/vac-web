@@ -138,6 +138,7 @@
   var operationJson = null;
   var operationGeneration = 0;
   var operationConfirmed = false;
+  var replacementDeliveryAttempted = false;
 
   function serviceSessionChanged() {
     if (!reviewedHandoff) return;
@@ -449,6 +450,36 @@
   // Separate from service-operation: a fresh FULL/L3 approval for disclosure
   // of the exact sealed PLAN/source to TWO paid external model critics. This
   // does not create an execution permit or authorise Flux create_thread.
+  function validCriticRecovery(r) {
+    return exactKeys(r, ['version', 'kind', 'parent_grant_id', 'parent_job_id',
+      'parent_result_sha256', 'plan_seal_sha256', 'additional_reviewer_call_limit',
+      'automatic_retries', 'prior_calls_may_be_charged']) &&
+      r.version === 1 && r.kind === 'one_manual_replacement' &&
+      typeof r.parent_grant_id === 'string' && /^[a-f0-9]{32}$/.test(r.parent_grant_id) &&
+      r.parent_job_id === 'orchestrate_fluxcritic_' + r.parent_grant_id &&
+      typeof r.parent_result_sha256 === 'string' && /^[a-f0-9]{64}$/.test(r.parent_result_sha256) &&
+      typeof r.plan_seal_sha256 === 'string' && /^[a-f0-9]{64}$/.test(r.plan_seal_sha256) &&
+      r.additional_reviewer_call_limit === 2 && r.automatic_retries === false &&
+      r.prior_calls_may_be_charged === true;
+  }
+
+  function criticNonceText(p) {
+    var replacement = Object.prototype.hasOwnProperty.call(p, 'recovery');
+    var binding = {operation_digest: p.operation_digest, policy_sha256: p.policy_sha256,
+      purpose: replacement ? 'athena:l0:critic-review:replacement' : 'athena:l0:critic-review'};
+    if (replacement) {
+      var r = p.recovery;
+      // Fixed validated ASCII/scalar schema, in the same recursively sorted
+      // order as server canonical JSON. Never recanonicalise the operation.
+      binding.recovery = {additional_reviewer_call_limit: r.additional_reviewer_call_limit,
+        automatic_retries: r.automatic_retries, kind: r.kind,
+        parent_grant_id: r.parent_grant_id, parent_job_id: r.parent_job_id,
+        parent_result_sha256: r.parent_result_sha256, plan_seal_sha256: r.plan_seal_sha256,
+        prior_calls_may_be_charged: r.prior_calls_may_be_charged, version: r.version};
+    }
+    return JSON.stringify(binding);
+  }
+
   function validCriticPreview(p) {
     var keys = ['packet_id', 'kind', 'audience', 'state', 'operation_digest',
       'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url', 'source_sha256',
@@ -459,10 +490,14 @@
       'owner_accepted_unverified_residency', 'provider_hard_cost_cap_enforced',
       'automatic_retries', 'routing_posture', 'expiry',
       'ready_for_owner_critic_vac', 'review_submission_started'];
+    var replacement = !!p && typeof p === 'object' &&
+      Object.prototype.hasOwnProperty.call(p, 'recovery');
+    if (replacement) keys.push('recovery');
     var hex = /^[a-f0-9]{64}$/;
     var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
     if (!exactKeys(p, keys) || !safeStrings(p) ||
+        (replacement && !validCriticRecovery(p.recovery)) ||
         !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
         p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
         !hex.test(p.state) || p.state !== state ||
@@ -526,8 +561,16 @@
     box.setAttribute('aria-label', 'Review the exact external critic disclosure');
     box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
     var heading = document.createElement('h2');
-    heading.textContent = 'Approve and start TWO paid external A2 critic reviews';
+    var recovery = operation.recovery;
+    heading.textContent = recovery ? 'Authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
+      'Approve and start TWO paid external A2 critic reviews';
     box.appendChild(heading);
+    if (recovery) {
+      var replacementNotice = document.createElement('p');
+      replacementNotice.id = 'vacCriticRecoveryDisclosure';
+      replacementNotice.textContent = 'ONE manual replacement attempt, for the same source and PLAN: exactly TWO ADDITIONAL paid external model calls. Prior timed-out calls may be charged. No further retry is authorised. The original failed job remains on record; this does not restart it or approve Flux design.';
+      box.appendChild(replacementNotice);
+    }
     var warning = document.createElement('p');
     warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and 113-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
     box.appendChild(warning);
@@ -556,6 +599,13 @@
       ['External review policy SHA-256', operation.policy_sha256],
       ['Exact review nonce', state]
     ];
+    if (recovery) {
+      fields.push(['Replacement scope', 'One manual replacement attempt; two ADDITIONAL calls; no further retry'],
+        ['Original grant', recovery.parent_grant_id], ['Original failed job', recovery.parent_job_id],
+        ['Original failure result SHA-256', recovery.parent_result_sha256],
+        ['Unchanged PLAN seal SHA-256', recovery.plan_seal_sha256],
+        ['Prior-call charges', 'Prior timed-out calls may be charged in addition to this replacement']);
+    }
     operation.reviewers.forEach(function (r, i) {
       fields.push(['Reviewer ' + (i + 1), r.provider + ' / ' + r.model +
         ' (' + r.model_family + '); paid API; jurisdiction ' +
@@ -570,31 +620,40 @@
     });
     var confirm = document.createElement('button');
     confirm.id = 'vacCriticReviewConfirm'; confirm.type = 'button';
-    confirm.textContent = 'I authorise Athena to START TWO paid external A2 reviews';
+    confirm.textContent = recovery ? 'I authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
+      'I authorise Athena to START TWO paid external A2 reviews';
     confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
+      if (recovery && (operationConfirmed || sending || acked || replacementDeliveryAttempted)) return;
       if (!operation || operation.actor.toLowerCase() !== subject ||
           Date.parse(operation.expiry) <= Date.now()) { operationRefused(); return; }
       operationConfirmed = true; confirm.disabled = true; send();
     });
     box.appendChild(confirm);
     panel().appendChild(box);
-    show('info', 'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false);
+    show('info', recovery ?
+      'This replacement has not started. Fresh FULL/L3 consent authorises TWO ADDITIONAL paid calls for the same source and PLAN. Prior timed-out calls may be charged; no further retry or Flux design is authorised.' :
+      'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false);
   }
 
   function receiveCriticPreview(message) {
     if (!criticReview || !sessionToken || !subject ||
         operation || operationConfirmed || sending || acked ||
         message.type !== 'vac-critic-review-preview' || message.state !== state) return;
-    var preview = message.preview;
+    var preview;
+    try {
+      // Validate before cloning as well: JSON serialization must not silently
+      // drop an explicitly present, invalid recovery (for example undefined).
+      if (!validCriticPreview(message.preview)) { operationRefused(); return; }
+      preview = JSON.parse(JSON.stringify(message.preview));
+    }
+    catch (_error) { operationRefused(); return; }
     if (!validCriticPreview(preview)) { operationRefused(); return; }
     var generation = ++operationGeneration;
-    // Python canonical_json_hash sorts these three ASCII, 64-hex values. No
+    // Python canonical_json_hash sorts the fixed ASCII/scalar binding. No
     // URL-supplied policy and no claim that the rest of preview is a signed
     // provider receipt; Athena's confirmation endpoint verifies it separately.
-    var nonceText = '{"operation_digest":"' + preview.operation_digest +
-      '","policy_sha256":"' + preview.policy_sha256 +
-      '","purpose":"athena:l0:critic-review"}';
+    var nonceText = criticNonceText(preview);
     Promise.resolve().then(function () {
       return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonceText));
     }).then(function (digest) {
@@ -720,23 +779,39 @@
 
   function deliver() {
     if (kind === 'decisions-confirm' && (!continuationFresh() || !challengeConsumed)) return;
+    var replacement = criticReview && operation && operation.recovery;
+    if (replacementDeliveryAttempted) return;
     if (!openerPresent()) {
       show('warn', 'Return to ' + (toAthena ? 'the Athena' : 'the Vault') + ' tab. This page was not opened from ' + destination +
         ' (or that tab was closed), so nothing was sent. Start the ' + actionName + ' again from ' + destination + '.', false);
       return;
     }
-    window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin);
-    show('info', 'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', true);
+    if (replacement) {
+      // A replacement is a new, separately approved paid attempt, not a
+      // retryable delivery loop. Uncertain receipt must be reconciled in Athena.
+      replacementDeliveryAttempted = true;
+      try { window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin); }
+      catch (_error) {
+        show('warn', 'Replacement outcome UNKNOWN. The TWO ADDITIONAL paid calls may already have started. Do NOT retry or repeat VAC; check Athena’s exact job receipt. Prior timed-out calls may be charged.', false);
+        return;
+      }
+    } else window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin);
+    show('info', replacement ?
+      'Replacement authorisation sent to Athena. TWO ADDITIONAL paid calls may start after server checks. Prior timed-out calls may be charged. Do NOT retry; check Athena’s job receipt. This is not proof that reviews completed.' :
+      'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', !replacement);
     clearTimeout(ackTimer);
     ackTimer = setTimeout(function () {
       if (!acked) {
-        show('warn', destination + ' has not confirmed yet. Switch back to it; if it is still waiting, ' +
-          'come back here and tap “Send to ' + destination + ' again”.', true);
+        show('warn', replacement ?
+          'Replacement outcome UNKNOWN: Athena has not acknowledged here. TWO ADDITIONAL paid calls may already have started. Do NOT retry or repeat VAC; check Athena’s exact job receipt. Prior timed-out calls may be charged.' :
+          destination + ' has not confirmed yet. Switch back to it; if it is still waiting, ' +
+          'come back here and tap “Send to ' + destination + ' again”.', !replacement);
       }
     }, ACK_WAIT_MS);
   }
 
   function send() {
+    if (replacementDeliveryAttempted) return;
     if (sending || acked || (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh()))) return;
     if (reviewedHandoff && (!operationConfirmed || !operation ||
         operation.actor.toLowerCase() !== subject || Date.parse(operation.expiry) <= Date.now())) {
@@ -796,7 +871,9 @@
           show('warn', 'Athena checked your identity. The decision is still held; nothing has been authorised. Return to Athena for the next step.', false);
         }
       } else if (criticReview) {
-        show('warn', 'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false);
+        show('warn', operation && operation.recovery ?
+          'Athena acknowledged the ONE replacement authorisation for TWO ADDITIONAL paid calls. Prior timed-out calls may be charged. No further retry is authorised. Check Athena for the exact job receipt and outcome; this is not proof of review completion and does NOT approve the Flux design task.' :
+          'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false);
       } else if (reviewAfterHandoff) {
         show('ok', 'Delivered. Athena has your verification. Review your results here, or close this tab and return to Athena to record.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
@@ -824,6 +901,7 @@
       return JSON.parse(JSON.stringify(continuation.challenge));
     },
     onVerified: function (authResult, identity) {
+      if (replacementDeliveryAttempted) return;
       serviceSessionChanged();
       if (!valid) {
         show('error', 'This ' + destination + ' link is not valid, so nothing was sent. Return to ' + destination + ' and start again.', false);
