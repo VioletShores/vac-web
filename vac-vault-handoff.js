@@ -488,9 +488,10 @@
         p.provider_hard_cost_cap_enforced !== false ||
         p.automatic_retries !== false ||
         p.routing_posture !== 'owner_approved_tier_default_after_calibration_expired' ||
+        // Server PolicyRail expiry is bounded by the sealed operation, not a
+        // rolling preview lease. The separate FULL/L3 VAT keeps its short TTL.
         !awareTime(p.expiry) ||
         Date.parse(p.expiry) <= Date.now() ||
-        Date.parse(p.expiry) > Date.now() + 1800000 ||
         p.ready_for_owner_critic_vac !== true ||
         p.review_submission_started !== false) return false;
     var providers = [], families = [];
