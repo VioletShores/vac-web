@@ -2623,8 +2623,8 @@ const CaptureFeedback = {
             return;
         }
         if (opts.beat) {
-            if (promptEl) { promptEl.textContent = '✓  Got it'; promptEl.style.color = '#22c55e'; }
-            if (subEl) subEl.textContent = '';
+            if (promptEl) { promptEl.textContent = opts.provisional ? 'Audio captured' : '✓  Got it'; promptEl.style.color = '#22c55e'; }
+            if (subEl) subEl.textContent = opts.provisional ? 'Local transcript unavailable — the server will check the recording.' : '';
             setLamp(gLamp, gWrap, 'done', 'G'); setLamp(vLamp, vWrap, 'done', 'V');
             setSayView(false); setBigNumber(false);
             return;
@@ -3633,10 +3633,16 @@ const NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts +
 // accepts on an actual digit-word match; this just distinguishes, in telemetry, a low-confidence
 // final transcript from a confidently-wrong one.
 const CONTENT_GATE_LOW_CONF_THR = 0.5;
-function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe, onMiss, onReady) {
+function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe, onMiss, onReady, onNoTranscript) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
+    // A recognition-service start does not prove microphone capture has started.
+    // Web Speech leaves their relative order unspecified. Each newly opened digit
+    // must wait for BOTH signals before its UI tells the person to speak.
+    var _serviceReady = false, _audioReady = false;
+    var _serviceStartAt = null, _audioStartAt = null;
+    var _sawNonEmptyNonMatch = false; // wrong content must never become an empty-transcript shortcut
     var _noMatchVoiceAt = 0;  // task-653: perf.now() when first non-matching transcript arrived with VAD active
     var _gateStartAt = performance.now();  // S173: content_gate_miss dur_ms is measured from here
     // S173 (sess_htt6ipqp_reauth): a passing VAD attempt whose content gate never matched left
@@ -3650,7 +3656,11 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
                 transcript: t ? String(t).slice(0, 60) : null,
                 confidence: (typeof conf === 'number') ? Number(conf.toFixed(3)) : null,
                 provider: (SR === window.webkitSpeechRecognition) ? 'webkit' : 'standard',
-                dur_ms: Math.round(performance.now() - _gateStartAt)
+                dur_ms: Math.round(performance.now() - _gateStartAt),
+                service_ready: _serviceReady,
+                audio_ready: _audioReady,
+                service_start_ms: _serviceStartAt === null ? null : Math.round(_serviceStartAt - _gateStartAt),
+                audio_start_ms: _audioStartAt === null ? null : Math.round(_audioStartAt - _gateStartAt)
             });
         } catch(_) {}
     }
@@ -3661,11 +3671,34 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         rec.maxAlternatives = 1;
         rec.lang = 'en-US';
     } catch(_) { return null; }
+    function _publishReady(signal) {
+        if (onReady) { try { onReady(!stopped && !matched && _serviceReady && _audioReady, {
+            signal: signal, service_ready: _serviceReady, audio_ready: _audioReady,
+            elapsed_ms: Math.round(performance.now() - _gateStartAt)
+        }); } catch(_) {} }
+    }
     rec.onstart = function() {
-        if (!stopped && !matched && onReady) { try { onReady(true); } catch(_) {} }
+        if (stopped || matched) return;
+        _serviceReady = true; _serviceStartAt = performance.now();
+        _publishReady('service_start');
+    };
+    rec.onaudiostart = function() {
+        if (stopped || matched) return;
+        _audioReady = true; _audioStartAt = performance.now();
+        _publishReady('audio_start');
+    };
+    rec.onaudioend = function() {
+        _audioReady = false;
+        _publishReady('audio_end');
     };
     rec.onresult = function(evt) {
         if (matched || stopped) return;
+        // Inspect the whole changed result batch before considering an empty final.
+        // An empty slot followed by wrong content in the SAME event is not an outage.
+        for (var ci = evt.resultIndex; ci < evt.results.length; ci++) {
+            var ct = evt.results[ci][0].transcript;
+            if (ct && String(ct).trim() && !_contentTranscriptHasDigit(ct, expectedDigit)) _sawNonEmptyNonMatch = true;
+        }
         for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
             var t = evt.results[ri][0].transcript;
             if (_contentTranscriptHasDigit(t, expectedDigit)) {
@@ -3693,6 +3726,19 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
                     : (typeof _conf === 'number' && _conf > 0 && _conf < CONTENT_GATE_LOW_CONF_THR) ? 'low_confidence'
                     : 'wrong_content';
                 _emitMiss(t, _reason, _conf);
+                // An empty FINAL means the browser supplied no content decision, not
+                // that silence/wrong speech passed. Only the full-path owner can opt
+                // into its existing server-authoritative VAD pacing with fresh,
+                // generation-bound voice + gesture evidence. Fast callers omit this.
+                if (_reason === 'no_transcript' && !_sawNonEmptyNonMatch && onNoTranscript) {
+                    var _provisionalAccepted = false;
+                    try { _provisionalAccepted = onNoTranscript() === true; } catch(_) {}
+                    if (_provisionalAccepted) {
+                        matched = true; stopped = true;
+                        try { rec.abort(); } catch(_) {}
+                        return;
+                    }
+                }
             }
             // task-653 no-match fallback: transcripts arriving but never matching, with VAD
             // confirming sustained voice for >=NO_MATCH_FALLBACK_MS → provisional client pass.
@@ -3700,9 +3746,11 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
             if (onNoMatch && (typeof vadProbe !== 'function' || vadProbe())) {
                 if (_noMatchVoiceAt === 0) _noMatchVoiceAt = performance.now();
                 else if (performance.now() - _noMatchVoiceAt >= NO_MATCH_FALLBACK_MS) {
+                    var _fallbackAccepted = false;
+                    try { _fallbackAccepted = onNoMatch(t) !== false; } catch(_) {}
+                    if (!_fallbackAccepted) { _emitMiss(null, 'window_not_ready', null); return; }
                     matched = true; stopped = true;
                     try { rec.abort(); } catch(_) {}
-                    try { onNoMatch(t); } catch(_) {}
                     return;
                 }
             } else {
@@ -3714,6 +3762,8 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         // Fatal errors don't self-recover — mark stopped so onend doesn't restart.
         // Non-fatal (no-speech, aborted) are transient; let onend handle restart.
         var e = evt && evt.error;
+        _serviceReady = false; _audioReady = false;
+        _publishReady('error');
         var fatal = (e === 'not-allowed' || e === 'audio-capture' || e === 'network' || e === 'service-not-allowed');
         if (fatal) {
             stopped = true;
@@ -3723,7 +3773,8 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         if (!stopped) { try { rec.abort(); } catch(_) {} }
     };
     rec.onend = function() {
-        if (onReady) { try { onReady(false); } catch(_) {} }
+        _serviceReady = false; _audioReady = false;
+        _publishReady('service_end');
         // Auto-restart on natural end (recognition stops after ~1min of silence)
         if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
     };
@@ -3732,7 +3783,11 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
     // after a successful start so the onend auto-restart path is safe.
     stopped = true;
     try { rec.start(); stopped = false; } catch(_) { return null; }
-    return { stop: function() { stopped = true; try { rec.abort(); } catch(_) {} } };
+    return { stop: function() {
+        stopped = true; _serviceReady = false; _audioReady = false;
+        _publishReady('stop');
+        try { rec.abort(); } catch(_) {}
+    } };
 }
 
 // Starts a content gate for the greeting phrase. phraseTokens = key content words.
@@ -4068,6 +4123,7 @@ function beginRecording() {
     const FINGER_RELEASE_SUSTAIN_MS = 300;
     const FINGER_RELEASE_MIN_FRAMES = Math.ceil(3 * 1.3);  // 4
     let _confirmUntil = 0;            // S110: during a confirmation beat after an accept, pause new accepts + delay next-number reveal
+    let _confirmProvisional = false; // captured audio awaits the existing independent server checks
     const CONFIRM_BEAT_MS = 900;      // length of the "Got it ✓" beat between digits
     let _confirmStripPending = -1;    // digit index whose strip-highlight is waiting for the beat to end
     let currentDigitIndex = 0;
@@ -4091,6 +4147,7 @@ function beginRecording() {
     // NOT the security check — it runs on-device (VAD energy, no network, words
     // never leave the device); server-side Gemini stays the content authority.
     let speechReady = new Array(digits.length).fill(false);  // per-digit: did we hear voice in its window
+    let _provisionalSpeech = new Array(digits.length).fill(false);
     let _voiceFiredAt = 0;        // SHOW-AS-YOU-SAY: perf.now() when sustained voice last fired — must CO-OCCUR with a live gesture within DIGIT_COOCCUR_MS to advance
     // F-599 adaptive co-occurrence coaching state. The gate already distinguishes the per-digit
     // near-miss states (voice fired + gesture seen but co-occur EXPIRED); these surface them as a
@@ -4108,9 +4165,11 @@ function beginRecording() {
     // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate state (per-digit, reset on advance)
     let _contentGate = null;         // active SpeechRecognition content gate for the current digit
     let _contentGateGeneration = 0; // disambiguate retries of the same digit
-    let _contentReadyDigit = -1;     // provider onstart, never assumed from start()
+    let _contentReadyDigit = -1;     // provider AND actual audio capture started, never assumed from start()
     let _contentGateDigit = -1;      // digit index the active gate covers
     let _vadEnergyDetected = false;  // energy heard this digit window (health only — never triggers progression)
+    let _digitVoiceEvidence = null; // qualified VAD fire, tied to this digit and recognition generation
+    let _digitGestureEvidence = null; // latest actually observed live/held gesture; never a permanent latch
     // Session-local shadow of module-level _contentGateAvail. Runtime permission failures set this
     // to false (energy fallback) without corrupting the module-level var and degrading future sessions.
     let _sessionGateAvail = _contentGateAvail;
@@ -4430,6 +4489,7 @@ function beginRecording() {
         if (!_sessionGateAvail) return; // energy fallback — no gate to start
         if (performance.now() < speechWindowStart) return; // no recognizer in grace/confirmation
         _contentReadyDigit = -1;
+        _digitVoiceEvidence = null;
         var _gateGeneration = ++_contentGateGeneration;
         var targetDigit = digits[currentDigitIndex];
         var _gateForIdx = currentDigitIndex;  // capture index; guard against stale async callback
@@ -4450,9 +4510,10 @@ function beginRecording() {
             // task-653 no-match fallback: transcripts never matched expectedDigit for >=4s
             // with VAD confirming voice. Provisional client pass — server gate is authority.
             if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return false;
+            if (!_markSpeech('no_match_fallback', 0, null)) return false;
             _contentGate = null; _contentGateDigit = -1;
             try { vacDebug('content_gate_no_match_fallback', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: t ? String(t).slice(0, 60) : null }); } catch(_) {}
-            _markSpeech('no_match_fallback', 0, null);
+            return true;
         }, function() {
             // vadProbe: is the VAD currently registering sustained voice?
             // t722: voice-band ratio >= VOICE_BAND_MIN_RATIO is the recorder/server proxy.
@@ -4468,10 +4529,16 @@ function beginRecording() {
             // S173: content gate evaluated a chunk and did NOT fire — the previously-silent case.
             if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
             try { vacDebug('content_gate_miss', reason, Object.assign({ digit_index: _gateForIdx, expected_digit: targetDigit, reason: reason }, info)); } catch(_) {}
-        }, function(ready) {
+        }, function(ready, readiness) {
             if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || recordingStopped) return;
+            // A natural provider restart is a new capture epoch even when the SR
+            // object is reused. Never carry old VAD proof into that epoch. Audio-end
+            // alone retains proof for the valid final result still in transit.
+            if (readiness && readiness.signal !== 'audio_end') _digitVoiceEvidence = null;
             _contentReadyDigit = ready ? _gateForIdx : -1;
-            try { vacDebug('content_gate_ready', null, { digit_index: _gateForIdx, ready: !!ready }); } catch(_) {}
+            try { vacDebug('content_gate_ready', null, Object.assign({ digit_index: _gateForIdx, ready: !!ready }, readiness)); } catch(_) {}
+        }, function() {
+            return _acceptDigitNoTranscript(_gateGeneration, _gateForIdx);
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -4481,16 +4548,20 @@ function beginRecording() {
         }
     }
 
-function _markSpeech(src, rms, onsetAt) {
+function _markSpeech(src, rms, onsetAt, observedAt) {
         if (recordingStopped) return false;
         if (currentDigitIndex >= digits.length) return false;
         if (performance.now() < speechWindowStart) return false;  // ignore tail bleeding from the prior digit (still in its beat)
         if (speechReady[currentDigitIndex]) return false;         // already satisfied for this digit
+        if (observedAt != null && (!Number.isFinite(observedAt) || observedAt < speechWindowStart ||
+            observedAt > performance.now() || performance.now() - observedAt > DIGIT_COOCCUR_MAX_MS)) return false;
         speechReady[currentDigitIndex] = true;
+        _provisionalSpeech[currentDigitIndex] = src === 'content_unavailable';
+        _digitVoiceEvidence = null; // one proof can satisfy at most one current digit
         _vadEnergyDetected = false;  // reset health flag for next digit
         // Content gate consumed for this digit — stop it; new gate starts on next digit
         if (_contentGate) { _contentGate.stop(); _contentGate = null; _contentGateDigit = -1; }
-        _voiceFiredAt = performance.now();   // SHOW-AS-YOU-SAY: stamp the spoken-digit moment for the co-occurrence window
+        _voiceFiredAt = observedAt == null ? performance.now() : observedAt; // never renew old voice at transcript-arrival time
         // S111 unification: a FRESH per-digit speech onset is ALSO a deliberate "new digit"
         // signal, so it satisfies the gesture re-arm — the user doesn't have to lower their
         // hand even when MediaPipe misread the count (cnt≠exp). The held gesture + the spoken
@@ -4500,6 +4571,38 @@ function _markSpeech(src, rms, onsetAt) {
         // F-561: carry the triggering rms AND the silence→voice onset moment, so the overlay
         // shows the FRESH binding per digit (onset after a real in-window silence — no pre-satisfaction).
         try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null), onset_perf: (typeof onsetAt === 'number' ? onsetAt : null) }); } catch(_) {}
+        return true;
+    }
+
+    function _recentDigitGesture(now) {
+        var g = _digitGestureEvidence;
+        return !!(g && g.digitIndex === currentDigitIndex && g.live === true &&
+            g.at >= speechWindowStart && g.at <= now && now - g.at <= DIGIT_COOCCUR_MS);
+    }
+
+    // Called ONLY inside the existing VAD FIRE branches, after their unchanged
+    // onset/sustain/modulation/voice-band/observed-frame floors have passed.
+    function _rememberDigitVoiceEvidence(rms, onsetAt, firedAt) {
+        if (recordingStopped || _contentGateDigit !== currentDigitIndex ||
+            _contentReadyDigit !== currentDigitIndex || !Number.isFinite(onsetAt) ||
+            !Number.isFinite(firedAt) || onsetAt < speechWindowStart ||
+            firedAt - onsetAt < DIGIT_VOICE_MIN_MS || !_recentDigitGesture(firedAt)) return;
+        _digitVoiceEvidence = {digitIndex: currentDigitIndex, generation: _contentGateGeneration,
+            onsetAt: onsetAt, firedAt: firedAt, rms: rms};
+    }
+
+    function _acceptDigitNoTranscript(generation, digitIndex) {
+        var proof = _digitVoiceEvidence, now = performance.now();
+        if (generation !== _contentGateGeneration || digitIndex !== currentDigitIndex ||
+            !proof || proof.digitIndex !== digitIndex || proof.generation !== generation ||
+            proof.onsetAt < speechWindowStart || !_recentDigitGesture(now)) return false;
+        // The ordinary co-occurrence decision still sees the ACTUAL observed voice
+        // timestamp. Empty STT results cannot extend its 2s cap or admit stale audio.
+        if (!_markSpeech('content_unavailable', proof.rms, proof.onsetAt, proof.firedAt)) return false;
+        try { vacDebug('content_gate_provisional', 'local_content_unavailable', {
+            digit_index: digitIndex, voice_age_ms: Math.round(now - proof.firedAt),
+            source: 'qualified_vad_with_held_gesture', server_verification_pending: true
+        }); } catch(_) {}
         return true;
     }
     function _startSpeechGate() {
@@ -4673,6 +4776,7 @@ function _markSpeech(src, rms, onsetAt) {
                         // When unavailable (Firefox), fall back to energy progression (degraded).
                         if (_sessionGateAvail) {
                             _vadEnergyDetected = true;  // mic-health indicator only
+                            _rememberDigitVoiceEvidence(rms, _voiceOnsetAt, _now);
                             _refreshContentGate();      // ensure content gate is running for this digit
                         } else {
                             _markSpeech('vad', rms, _voiceOnsetAt);  // energy fallback
@@ -4693,6 +4797,7 @@ function _markSpeech(src, rms, onsetAt) {
                         _vadDiag('FIRED(dip): ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + ((voiceMax)*100).toFixed(0) + '% thr ' + (vadSpeechThreshold*100).toFixed(0) + '%'); try { vacDebug('vad_gate', 'fired', { path:'full', on:'dip', content_gated: _sessionGateAvail, dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), digit_index: currentDigitIndex }); } catch(_){}
                         if (_sessionGateAvail) {
                             _vadEnergyDetected = true;
+                            _rememberDigitVoiceEvidence(voiceMax, _voiceOnsetAt, _now);
                             _refreshContentGate();
                         } else {
                             _markSpeech('vad', voiceMax, _voiceOnsetAt);
@@ -5101,6 +5206,7 @@ function _markSpeech(src, rms, onsetAt) {
         // stronger Gemini temporal binding). No more camera-free hand-down "say" step.
         var _liveGestureOk = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED && digitStartTime > 0 && (performance.now() - digitStartTime) >= MIN_DIGIT_DWELL_MS);
         var _nowCo = performance.now();
+        _digitGestureEvidence = {digitIndex: currentDigitIndex, at: _nowCo, live: _liveGestureOk};
         // F-662: expiry + advance are now the SHARED _cooccurAdvanceDecision (the FAST tier reuses the
         // identical timing). Semantics UNCHANGED — a stale armed voice expires ONLY while the hand is
         // genuinely DOWN (detected===0) past DIGIT_COOCCUR_MS (a voice-led user whose hand is up and
@@ -5198,6 +5304,7 @@ function _markSpeech(src, rms, onsetAt) {
                 });
             } catch(_) {}
             detectedDigits[currentDigitIndex] = true;
+            _confirmProvisional = !!_provisionalSpeech[currentDigitIndex];
             detectedCounts[currentDigitIndex] = _recordCount;   // latched count, or live count on the speech-off path — never the hand-down 0
             // F-GESTURE-ZONE-QUALIFIES-POSE: capture whether THIS accepted pose was in-zone, using
             // the SAME hand-near-face/dotted-guide geometry as the live framing guard (_handNear /
@@ -5225,6 +5332,7 @@ function _markSpeech(src, rms, onsetAt) {
             _lastAcceptedCount = _recordCount;
             stableFrames = 0;
             currentDigitIndex++;
+            _digitVoiceEvidence = null; _digitGestureEvidence = null;
             digitStartTime = _adNow;
             hintShown = false;
             _qaGestureLatched = false;   // RESET — digit N+1's gesture latch starts FRESH (no bleed)
@@ -5287,7 +5395,7 @@ function _markSpeech(src, rms, onsetAt) {
             // Clear, deliberate confirmation moment — big tick, no next number yet.
             liveEl.style.color = '#22c55e';
             liveEl.style.fontSize = '22px';
-            liveEl.textContent = '\u2713  Got it';
+            liveEl.textContent = _confirmProvisional ? 'Audio captured — server check pending' : '\u2713  Got it';
         } else if (_speechMode === 'vad' && _sessionGateAvail &&
                    !speechReady[currentDigitIndex] && _contentReadyDigit !== currentDigitIndex) {
             liveEl.style.color = '#fbbf24';
@@ -5359,6 +5467,7 @@ function _markSpeech(src, rms, onsetAt) {
                 coachKey: _coachKeyShown,   // F-599: debounced adaptive co-occurrence coaching key
                 done: currentDigitIndex >= totalSteps,
                 beat: inConfirmBeat,
+                provisional: inConfirmBeat && _confirmProvisional,
                 digit: _curDigit,
                 gestureDone: _qaGestureLatched,
                 gestureLive: (detected > 0),   // SHOW-AS-YOU-SAY: fingers visible NOW (drives the live ✋ lamp)
