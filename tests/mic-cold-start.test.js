@@ -117,7 +117,10 @@ test('TC-MIC-C7: _awaitMicReady polls for ctx.state !== "running" before startin
 test('TC-MIC-C8: renderGreeting (full path) guards on audioContext.state before showing speak prompt', () => {
     const fnIdx = src.indexOf('function renderGreeting()');
     assert.ok(fnIdx !== -1, 'renderGreeting function not found');
-    const fnSlice = src.slice(fnIdx, fnIdx + 1500);
+    // Bound the real function region; comments before the guard may grow.
+    const endIdx = src.indexOf('    function _emitGreetingHeartbeat()', fnIdx);
+    assert.ok(endIdx > fnIdx, 'renderGreeting end boundary not found');
+    const fnSlice = src.slice(fnIdx, endIdx);
     assert.ok(
         fnSlice.includes("audioContext.state !== 'running'"),
         'renderGreeting must guard on audioContext.state !== "running" (parity with fast path)'

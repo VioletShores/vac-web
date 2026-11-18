@@ -256,14 +256,18 @@ test('TC-PP-14: early face is sampled from the SAME early liveness canvas, and s
 test('TC-PP-15: Vault keeps a recorded face-only closing window; unbound early frames cannot authenticate', () => {
     const finish = src.slice(src.indexOf('function finishFingerPhase()'),
         src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
-    assert.match(finish, /const _vaultFaceTailMs = window\.VACVaultHandoff \? 3200 : 1500;/,
-        'Vault must film a separate natural face-only closing beat, not rely on the last digit');
+    assert.match(finish, /_runVaultFaceStage\(_faceVideo, _closingRecorder\)\.then/,
+        'Vault must wait for a separate observed face-only step, not rely on the last digit');
+    assert.match(extractFn('_createVaultFaceStageGate'), /elapsed>=3200 && clearFrames>=4/,
+        'face-only observation keeps at least the prior 3.2-second floor');
     assert.match(finish, /Face check — lower your hand and look at the screen/,
         'instruction never asks the owner to pose precisely while holding fingers');
     assert.match(finish, /_pc\.style\.display\s*=\s*window\.VACVaultHandoff \? 'none' : 'flex'/,
         'face preview stays visible during the dedicated closing beat');
-    assert.match(finish, /setTimeout\(function\(\) \{ try \{ mediaRecorder\.stop\(\); \} catch\(_\)\{\} \}, _vaultFaceTailMs\)/,
-        'same original full-video recorder includes the face-only closing beat');
+    assert.match(finish, /mediaRecorder !== _closingRecorder \|\| _closingRecorder\.state !== 'recording'/,
+        'completion is bound to the original live recorder');
+    assert.match(finish, /_closingRecorder\.stop\(\)/,
+        'same original full-video recorder includes the observed face-only closing beat');
     const finishFull = src.slice(src.indexOf('async function onRecordingComplete()'),
         src.indexOf('// STEP 3: Upload to backend, show real results'));
     assert.match(finishFull, /const _EARLY_FACE_AUTH_ADMISSION = false;/,
@@ -382,13 +386,14 @@ test('TC-PP-21: face-engine diagnostics never change the identity decision', () 
 });
 
 
-test('TC-PP-22: the Vault face check is a full stage with a visible 3-2-1 countdown, presentation only', () => {
+test('TC-PP-22: the Vault face check is a separate acknowledged stage, not a blind timer', () => {
     const finish = src.slice(src.indexOf('function finishFingerPhase()'),
         src.indexOf('// ── F-561 voice-pacing gate', src.indexOf('function finishFingerPhase()')));
     assert.match(finish, /if \(window\.VACVaultHandoff\) \{ try \{ _vacFaceStageShow\(\); \} catch\(_\) \{\} \}/);
-    assert.match(finish, /const _vaultFaceTailMs = window\.VACVaultHandoff \? 3200 : 1500;/, 'filmed face-only tail timing unchanged');
+    assert.match(finish, /_runVaultFaceStage\(_faceVideo, _closingRecorder\)\.then/, 'recording waits on live stage observations');
     const nodes = new Map(); const timers = [];
     const box = { children: [], appendChild(n) { this.children.push(n); nodes.set(n.id, n); } };
+    box.parentElement = { insertBefore(n, before) { assert.equal(before, box); box.appendChild(n); } };
     nodes.set('cameraBoxRec', box);
     const count = { textContent: '' };
     const document = {
@@ -402,13 +407,11 @@ test('TC-PP-22: the Vault face check is a full stage with a visible 3-2-1 countd
         document, window, (f, ms) => { timers.push([ms, f]); return timers.length; }, () => {});
     assert.equal(show(), true);
     const stage = nodes.get('vacFaceStage');
-    assert.ok(stage, 'stage mounted in the camera box');
-    assert.match(stage.innerHTML, /FACE CHECK/);
-    assert.match(stage.innerHTML, /Lower your hand and look at the screen/);
-    assert.equal(count.textContent, '3');
-    assert.deepEqual(timers.map(t => t[0]), [1000, 2000, 3000], 'countdown spans the 3.2 s filmed tail');
-    timers.forEach(t => t[1]());
-    assert.equal(count.textContent, '\u2713');
+    assert.ok(stage, 'stage mounted before the live camera');
+    assert.match(stage.innerHTML, /Face check/);
+    assert.match(stage.innerHTML, /Lower your hands and look at the camera/);
+    assert.match(stage.innerHTML, /vacFaceStageReady/);
+    assert.deepEqual(timers, [], 'presentation never schedules a blind success timer');
     hide();
     assert.equal(nodes.get('vacFaceStage'), undefined, 'removed before analysis / refusal');
     assert.match(src.slice(src.indexOf('async function onRecordingComplete()'), src.indexOf('async function onRecordingComplete()') + 2600), /_vacFaceStageHide\(\)/);

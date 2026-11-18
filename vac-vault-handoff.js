@@ -132,6 +132,7 @@
   var sessionToken = null;
   var subject = null;
   var acked = false;
+  var delivered = false;
   var sending = false;
   var ackTimer = null;
   var operation = null;
@@ -147,6 +148,7 @@
     operation = null;
     operationJson = null;
     assertion = null;
+    delivered = false;
     sessionToken = null;
     subject = null;
     sending = false;
@@ -171,6 +173,7 @@
     operationJson = null;
     operationConfirmed = false;
     assertion = null;
+    delivered = false;
     var review = document.getElementById('vacServiceOperationReview');
     if (review) review.remove();
     var criticPanel = document.getElementById('vacCriticReview');
@@ -716,23 +719,40 @@
           if (summary) summary.focus();
           details.scrollIntoView({ block: 'start' });
         }
-        el.style.display = 'none';
+        // Keep the onward action next to the report, in normal document flow.
+        if (details && details.parentNode) details.parentNode.insertBefore(el, details);
+        if (el.scrollIntoView) el.scrollIntoView({ block: 'start' });
       });
       var close = document.createElement('button');
       close.id = 'vacVaultHandoffClose';
       close.type = 'button';
-      close.textContent = 'Close this tab';
-      close.style.cssText = review.style.cssText;
+      close.textContent = 'Continue to recording';
+      close.style.cssText = review.style.cssText + 'background:#10B981;color:#071812;font-weight:800;';
       close.addEventListener('click', function () {
         if (!acked) return;
-        // The browser may refuse scripted close; the message still gives an onward path.
+        // Focus only the original opener; never reconstruct a personal recording URL.
+        if (!openerPresent()) {
+          show('error', 'The recording tab is closed. Reopen your original recording link to continue.', false);
+          return;
+        }
+        show('ok', 'Return to your original Athena recording tab. If this tab stays open, switch tabs to continue recording.', false);
+        try { window.opener.focus(); } catch (e) {}
         try { window.close(); } catch (e) {}
       });
-      actions.appendChild(review);
       actions.appendChild(close);
+      actions.appendChild(review);
       el.appendChild(actions);
     }
-    document.body.appendChild(el);
+    var success = reviewAfterHandoff && document.getElementById('step4');
+    if (reviewAfterHandoff) {
+      // The result belongs to the originating task, ahead of general VAC material.
+      // Normal flow prevents the controls covering results at zoom or on mobile.
+      el.style.cssText = 'position:relative;margin:16px 0;padding:20px;border:2px solid #10B981;' +
+        'border-radius:14px;background:#0D0F17;color:#E8EDF5;text-align:center;' +
+        'font:600 17px/1.45 -apple-system,system-ui,sans-serif;scroll-margin-top:16px;';
+    }
+    if (success) success.insertBefore(el, success.firstChild);
+    else document.body.appendChild(el);
     return el;
   }
 
@@ -796,6 +816,7 @@
         return;
       }
     } else window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin);
+    delivered = true;
     show('info', replacement ?
       'Replacement authorisation sent to Athena. TWO ADDITIONAL paid calls may start after server checks. Prior timed-out calls may be charged. Do NOT retry; check Athena’s job receipt. This is not proof that reviews completed.' :
       'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', !replacement);
@@ -845,7 +866,7 @@
       if (!op || ev.source !== op) return;
       var m = ev.data || {};
       if (kind === 'decisions-confirm') {
-        if (m.type === 'vac-continuation-cancel' && m.state === state) { cancelled = true; continuation = null; assertion = null; return; }
+        if (m.type === 'vac-continuation-cancel' && m.state === state) { cancelled = true; continuation = null; assertion = null; delivered = false; return; }
         acceptContinuation(m);
       }
       if (serviceOperation && m.type === 'vac-service-operation-intent' && m.state === state) {
@@ -858,7 +879,8 @@
       }
       if (m.type !== ACK || m.state !== state) return;
       if (reviewedHandoff && (!operationConfirmed || !assertion)) return;
-      if (acked) return;
+      if (acked || !delivered) return;
+      if (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh())) return;
       if (kind === 'decisions-confirm' && m.status !== 'identity_verified_action_held' && m.status !== 'confirmed') return;
       acked = true;
       clearTimeout(ackTimer);
@@ -875,7 +897,7 @@
           'Athena acknowledged the ONE replacement authorisation for TWO ADDITIONAL paid calls. Prior timed-out calls may be charged. No further retry is authorised. Check Athena for the exact job receipt and outcome; this is not proof of review completion and does NOT approve the Flux design task.' :
           'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false);
       } else if (reviewAfterHandoff) {
-        show('ok', 'Delivered. Athena has your verification. Review your results here, or close this tab and return to Athena to record.', false);
+        show('ok', 'Verification delivered to Athena. Continue to recording, or review your results first. Your results stay available until you leave.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
       } else {
         show('ok', 'Delivered. ' + destination + ' has your verification. You can close this tab.', false);

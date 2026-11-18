@@ -359,6 +359,7 @@ const _PHASE = {
     COUNTDOWN:  'countdown',
     GREETING:   'greeting',
     DIGIT:      'digit',
+    FACE:       'face',
     PROCESSING: 'processing',
     DONE:       'done',
     FAIL:       'fail',
@@ -371,6 +372,7 @@ const STATE_COACHING_MAP = {
     countdown:  { title: 'Get ready',        color: '' },
     greeting:   { title: 'Say the phrase',   color: '#fbbf24' },
     digit:      { title: 'Show the numbers', color: '' },
+    face:       { title: 'Face check', color: '#2DD4BF' },
     processing: { title: 'One moment…', color: '' },
     done:       { title: 'Verified ✓',  color: '#22c55e' },
     fail:       { title: 'Try again',        color: '' },
@@ -2627,6 +2629,13 @@ const CaptureFeedback = {
             setSayView(false); setBigNumber(false);
             return;
         }
+        if (opts.voicePreparing) {
+            if (promptEl) { promptEl.textContent = 'Preparing microphone'; promptEl.style.color = '#fbbf24'; }
+            if (subEl) subEl.textContent = 'Wait for the number before speaking.';
+            setLamp(gLamp, gWrap, 'pending', 'G'); setLamp(vLamp, vWrap, 'pending', 'V');
+            setSayView(false); setBigNumber(false);
+            return;
+        }
         var N = opts.digit;
         // SHOW-AS-YOU-SAY: the camera-free hand-down "Say N" cover is GONE — you keep fingers up
         // while you say it. So there is ONE simultaneous step (not two sub-gates); the lamps are LIVE
@@ -3624,7 +3633,7 @@ const NO_MATCH_FALLBACK_MS = 4000;  // task-653: >=4s of non-match transcripts +
 // accepts on an actual digit-word match; this just distinguishes, in telemetry, a low-confidence
 // final transcript from a confidently-wrong one.
 const CONTENT_GATE_LOW_CONF_THR = 0.5;
-function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe, onMiss) {
+function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadProbe, onMiss, onReady) {
     var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
     var stopped = false, matched = false, rec;
@@ -3652,15 +3661,23 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         rec.maxAlternatives = 1;
         rec.lang = 'en-US';
     } catch(_) { return null; }
+    rec.onstart = function() {
+        if (!stopped && !matched && onReady) { try { onReady(true); } catch(_) {} }
+    };
     rec.onresult = function(evt) {
         if (matched || stopped) return;
         for (var ri = evt.resultIndex; ri < evt.results.length; ri++) {
             var t = evt.results[ri][0].transcript;
             if (_contentTranscriptHasDigit(t, expectedDigit)) {
+                // The owning digit must accept before this recognizer is consumed. A closed
+                // grace/confirmation window must neither lose the recognizer nor cache speech
+                // to replay into a later window. Undefined retains legacy fast-tier callbacks.
+                var accepted = false;
+                try { accepted = onMatch(t) !== false; } catch(_) {}
+                if (!accepted) { _emitMiss(null, 'window_not_ready', null); return; }
                 matched = true;
-                stopped = true;              // prevent onend restart
-                try { rec.abort(); } catch(_) {}  // stop immediately; no overlap with next digit
-                try { onMatch(t); } catch(_) {}
+                stopped = true;
+                try { rec.abort(); } catch(_) {}
                 return;
             }
             // Non-matching transcript — discarded here, never stored (privacy rule).
@@ -3706,6 +3723,7 @@ function _startDigitContentGate(expectedDigit, onMatch, onFatal, onNoMatch, vadP
         if (!stopped) { try { rec.abort(); } catch(_) {} }
     };
     rec.onend = function() {
+        if (onReady) { try { onReady(false); } catch(_) {} }
         // Auto-restart on natural end (recognition stops after ~1min of silence)
         if (!stopped && !matched) { try { rec.start(); } catch(_) {} }
     };
@@ -3822,6 +3840,7 @@ function _takeVaultEarlyIdentityFrame(recorder, startedAtMs, elapsedMs) {
 function beginRecording() {
     // Never carry a prior recording's face evidence across an aborted retry.
     window.__vacEarlyFaceCandidate = null;
+    window.__vacFaceStageAbort = null;
     _legitStopScheduled = false; // F-720: arm the guard; only finishFingerPhase may disarm it
     try { vacDebug('begin_recording_called'); } catch(_) {}
     try { resetGuidedUI(); } catch(_) {}  // F-563: clear any stale guided-flow DOM before a new session (belt-and-suspenders; reload covers re-auth)
@@ -3871,6 +3890,12 @@ function beginRecording() {
         try { vacDebug('recorder_stopped'); } catch(_) {}
         var _elapsed = performance.now() - _recorderStartMs;
         if (!_legitStopScheduled || _elapsed < 2000) {
+            if (window.__vacFaceStageAbort) {
+                if (mediaStream) mediaStream.getTracks().forEach(function(track) { track.stop(); });
+                goToStep(2);
+                _showVaultFaceCaptureRecovery(window.__vacFaceStageAbort, []);
+                return;
+            }
             var _vt = 'unknown', _at = 'unknown';
             try { _vt = (mediaStream && mediaStream.getVideoTracks()[0]) ? mediaStream.getVideoTracks()[0].readyState : 'none'; } catch(_) {}
             try { _at = (mediaStream && mediaStream.getAudioTracks()[0]) ? mediaStream.getAudioTracks()[0].readyState : 'none'; } catch(_) {}
@@ -4082,6 +4107,8 @@ function beginRecording() {
     let _lastVbRatio = 0;            // BUILD 379: latest voice-band ratio (85Hz-3kHz / all bins), surfaced to the QA overlay
     // D-VOICE-GATE-SPEAKER-AGNOSTIC: content gate state (per-digit, reset on advance)
     let _contentGate = null;         // active SpeechRecognition content gate for the current digit
+    let _contentGateGeneration = 0; // disambiguate retries of the same digit
+    let _contentReadyDigit = -1;     // provider onstart, never assumed from start()
     let _contentGateDigit = -1;      // digit index the active gate covers
     let _vadEnergyDetected = false;  // energy heard this digit window (health only — never triggers progression)
     // Session-local shadow of module-level _contentGateAvail. Runtime permission failures set this
@@ -4310,7 +4337,7 @@ function beginRecording() {
     function finishFingerPhase() {
         if (recordingStopped) return;
         recordingStopped = true;
-        _setPhase(_PHASE.PROCESSING);   // L-2246: stop any stale digit-phase render loops painting coaching text
+        _setPhase(window.VACVaultHandoff ? _PHASE.FACE : _PHASE.PROCESSING); // stop stale digit coaching
         try { var _ds=document.getElementById('digitStrip'); if(_ds) _ds.style.display='none'; } catch(_) {}
         try { var _gp=document.getElementById('vacGuided'); if(_gp) _gp.style.display='none'; } catch(_) {}  // F-563 (2): hide the guided panel when capture ends
         try { var _sv=document.getElementById('vacSayView'); if(_sv) _sv.style.display='none'; } catch(_) {}  // F-563 (latch): hide the say-cover when capture ends
@@ -4360,13 +4387,30 @@ function beginRecording() {
         // D-VOICE-GATE-SPEAKER-AGNOSTIC: stop phrase content gate when recording ends
         try { if (_phraseContentGate) { _phraseContentGate.stop(); _phraseContentGate = null; } } catch(_) {}
         try { _removeVoiceEscape(); var _vn=document.getElementById('vacVoiceOff'); if(_vn) _vn.remove(); } catch(_){}
-        _legitStopScheduled = true; // F-720: mark the ONLY legitimate stop before the delayed call
-        // 1500ms is the existing post-digit tail. Vault adds 1700ms of
-        // face-only observation within the SAME unbroken MediaRecorder clip
-        // before the existing post-gesture 128-D identity capture. We do not
-        // accept an earlier face in lieu of this check.
-        const _vaultFaceTailMs = window.VACVaultHandoff ? 3200 : 1500;
-        setTimeout(function() { try { mediaRecorder.stop(); } catch(_){} }, _vaultFaceTailMs);
+        const _closingRecorder = mediaRecorder;
+        if (window.VACVaultHandoff) {
+            // The same continuous clip stays open until the owner acknowledges this distinct
+            // step AND fresh observations show hands down/face visible for the full closing beat.
+            // These are pacing observations, not identity: the existing descriptor/server gates
+            // still run after stop. No timeout or sensor failure may submit this clip.
+            const _faceVideo = document.getElementById('videoPreviewRec');
+            _runVaultFaceStage(_faceVideo, _closingRecorder).then(function() {
+                if (mediaRecorder !== _closingRecorder || _closingRecorder.state !== 'recording') return;
+                _legitStopScheduled = true;
+                _setPhase(_PHASE.PROCESSING);
+                _closingRecorder.stop();
+            }).catch(function() {
+                if (mediaRecorder !== _closingRecorder) return;
+                window.__vacFaceStageAbort = 'face_stage_incomplete';
+                _legitStopScheduled = false;
+                try { if (_closingRecorder.state !== 'inactive') _closingRecorder.stop(); } catch(_) {}
+            });
+        } else {
+            _legitStopScheduled = true;
+            setTimeout(function() {
+                if (mediaRecorder === _closingRecorder) { try { _closingRecorder.stop(); } catch(_) {} }
+            }, 1500);
+        }
     }
 
     // ── F-561 voice-pacing gate (content-gated, D-VOICE-GATE-SPEAKER-AGNOSTIC) ──
@@ -4384,24 +4428,29 @@ function beginRecording() {
         if (_contentGate) return; // still running for this digit
         if (currentDigitIndex >= digits.length || speechReady[currentDigitIndex]) return;
         if (!_sessionGateAvail) return; // energy fallback — no gate to start
+        if (performance.now() < speechWindowStart) return; // no recognizer in grace/confirmation
+        _contentReadyDigit = -1;
+        var _gateGeneration = ++_contentGateGeneration;
         var targetDigit = digits[currentDigitIndex];
         var _gateForIdx = currentDigitIndex;  // capture index; guard against stale async callback
         _contentGateDigit = currentDigitIndex;
         _contentGate = _startDigitContentGate(targetDigit, function(t) {
-            _contentGate = null; _contentGateDigit = -1;
-            // Guard: if digit advanced while recognition was async, discard this result.
-            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            // A stale/early result cannot consume a valid current gate or satisfy a later digit.
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return false;
+            if (!_markSpeech('content', 0, null)) return false;
+            _contentGate = null; _contentGateDigit = -1; _contentReadyDigit = -1;
             try { vacDebug('content_gate_fired', null, { digit_index: _gateForIdx, digit: targetDigit }); } catch(_) {}
-            _markSpeech('content', 0, null);
+            return true;
         }, function() {
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx) return;
             // Fatal STT error (not-allowed/audio-capture): null the outer handle so the
             // VAD loop doesn't see a non-null but dead gate, and fall back to energy VAD.
             _contentGate = null; _contentGateDigit = -1; _sessionGateAvail = false;
         }, function(t) {
             // task-653 no-match fallback: transcripts never matched expectedDigit for >=4s
             // with VAD confirming voice. Provisional client pass — server gate is authority.
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return false;
             _contentGate = null; _contentGateDigit = -1;
-            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
             try { vacDebug('content_gate_no_match_fallback', null, { digit_index: _gateForIdx, digit: targetDigit, transcript: t ? String(t).slice(0, 60) : null }); } catch(_) {}
             _markSpeech('no_match_fallback', 0, null);
         }, function() {
@@ -4417,8 +4466,12 @@ function beginRecording() {
             return _vadEnergyDetected || _lastVbRatio >= VOICE_BAND_MIN_RATIO;
         }, function(reason, info) {
             // S173: content gate evaluated a chunk and did NOT fire — the previously-silent case.
-            if (currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || speechReady[_gateForIdx]) return;
             try { vacDebug('content_gate_miss', reason, Object.assign({ digit_index: _gateForIdx, expected_digit: targetDigit, reason: reason }, info)); } catch(_) {}
+        }, function(ready) {
+            if (_gateGeneration !== _contentGateGeneration || currentDigitIndex !== _gateForIdx || recordingStopped) return;
+            _contentReadyDigit = ready ? _gateForIdx : -1;
+            try { vacDebug('content_gate_ready', null, { digit_index: _gateForIdx, ready: !!ready }); } catch(_) {}
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -4429,10 +4482,10 @@ function beginRecording() {
     }
 
 function _markSpeech(src, rms, onsetAt) {
-        if (recordingStopped) return;
-        if (currentDigitIndex >= digits.length) return;
-        if (performance.now() < speechWindowStart) return;  // ignore tail bleeding from the prior digit (still in its beat)
-        if (speechReady[currentDigitIndex]) return;         // already satisfied for this digit
+        if (recordingStopped) return false;
+        if (currentDigitIndex >= digits.length) return false;
+        if (performance.now() < speechWindowStart) return false;  // ignore tail bleeding from the prior digit (still in its beat)
+        if (speechReady[currentDigitIndex]) return false;         // already satisfied for this digit
         speechReady[currentDigitIndex] = true;
         _vadEnergyDetected = false;  // reset health flag for next digit
         // Content gate consumed for this digit — stop it; new gate starts on next digit
@@ -4447,6 +4500,7 @@ function _markSpeech(src, rms, onsetAt) {
         // F-561: carry the triggering rms AND the silence→voice onset moment, so the overlay
         // shows the FRESH binding per digit (onset after a real in-window silence — no pre-satisfaction).
         try { vacDebug('speech_confirm', null, { digit_index: currentDigitIndex, src: src, rms: (typeof rms === 'number' ? Number(rms.toFixed(3)) : null), onset_perf: (typeof onsetAt === 'number' ? onsetAt : null) }); } catch(_) {}
+        return true;
     }
     function _startSpeechGate() {
         if (_speechGateStarted) return;
@@ -5234,6 +5288,10 @@ function _markSpeech(src, rms, onsetAt) {
             liveEl.style.color = '#22c55e';
             liveEl.style.fontSize = '22px';
             liveEl.textContent = '\u2713  Got it';
+        } else if (_speechMode === 'vad' && _sessionGateAvail &&
+                   !speechReady[currentDigitIndex] && _contentReadyDigit !== currentDigitIndex) {
+            liveEl.style.color = '#fbbf24';
+            liveEl.textContent = 'Preparing microphone — wait for the number';
         } else if (detected > 0) {
             // Option 2: no more "now change" copy \u2014 a repeated digit is held, not changed.
             liveEl.style.fontSize = '17px';
@@ -5307,6 +5365,7 @@ function _markSpeech(src, rms, onsetAt) {
                 handPresent: _handPresent,     // hand visible in frame at all
                 handNear: _handNear,           // hand inside the near-face capture zone
                 gesturePct: _gPct,
+                voicePreparing: _speechMode === 'vad' && _sessionGateAvail && !speechReady[currentDigitIndex] && _contentReadyDigit !== currentDigitIndex,
                 voiceOn: (_speechMode !== 'off'),
                 voiceDone: !!speechReady[currentDigitIndex],
                 rearmed: _acceptArmed,   // speech-off: a held pose can be gesture-confirmed but NOT re-armed (blocked) — don't show "Got it"
@@ -5329,6 +5388,10 @@ function _markSpeech(src, rms, onsetAt) {
         // D2: once the gesture is confirmed and we're only waiting on voice, the 8s
         // "hold hand closer" hint is wrong here — suppress it.
         CaptureFeedback.renderFingerPhase(ctx, hintShown && !_waitingVoice, currentDigitIndex);
+        if (_speechMode === 'vad' && _sessionGateAvail && !speechReady[currentDigitIndex] &&
+            _contentReadyDigit !== currentDigitIndex && !inConfirmBeat) {
+            challengeEl.textContent = 'Preparing microphone — wait for the number';
+        }
         rafId = requestAnimationFrame(runDetectionLoop);
     }
 
@@ -7160,38 +7223,107 @@ function _vacFrameHasNoPicture(canvas) {
     } catch (_) { return false; }
 }
 
-// PRESENTATION ONLY (S204, Rob 5 Nov): the Vault face-only closing beat is a
-// full stage like the greeting and "show the number" steps, with a visible
-// 3-2-1 countdown spanning the existing filmed face-only tail. It changes no
-// timing, threshold, recording or identity decision; it only makes the step
-// impossible to miss. The band sits low in the frame so the face stays clear.
+// A separate owner-acknowledged capture step. The detector evidence below is a
+// pacing gate only; it never mints identity or replaces full descriptor/server checks.
 function _vacFaceStageShow() {
     try {
         _vacFaceStageHide();
         var box = document.getElementById('cameraBoxRec');
-        if (!box) return false;
-        var st = document.createElement('div');
+        if (!box || !box.parentElement) return false;
+        var st = document.createElement('section');
         st.id = 'vacFaceStage';
-        st.setAttribute('role', 'status');
-        st.setAttribute('aria-live', 'assertive');
-        st.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:7;display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 12px 16px;background:linear-gradient(to top,rgba(10,15,26,0.92),rgba(10,15,26,0.55) 75%,rgba(10,15,26,0));pointer-events:none;text-align:center;';
-        st.innerHTML = '<div style="font-family:var(--mono,monospace);font-size:12px;letter-spacing:2px;font-weight:700;color:#2DD4BF;">FACE CHECK</div>'
-            + '<div style="font-size:clamp(18px,4.6vw,26px);font-weight:800;color:#F0F2F5;line-height:1.2;">Lower your hand and look at the screen</div>'
-            + '<div id="vacFaceStageCount" style="font-size:clamp(44px,11vw,72px);font-weight:800;line-height:1;color:#10B981;font-variant-numeric:tabular-nums;">3</div>';
-        box.appendChild(st);
-        var cnt = st.querySelector('#vacFaceStageCount');
-        window.__vacFaceStageTimers = [
-            setTimeout(function () { if (cnt) cnt.textContent = '2'; }, 1000),
-            setTimeout(function () { if (cnt) cnt.textContent = '1'; }, 2000),
-            setTimeout(function () { if (cnt) { cnt.textContent = '\u2713'; } }, 3000)
-        ];
+        st.setAttribute('aria-labelledby', 'vacFaceStageTitle');
+        st.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 14px;margin:12px 0;border:2px solid #2DD4BF;border-radius:12px;background:#101b2b;text-align:center;';
+        st.innerHTML = '<h2 id="vacFaceStageTitle" style="margin:0;font-size:24px;color:#2DD4BF;">Face check</h2>'
+            + '<div style="font-size:18px;color:#F0F2F5;">The number checks are finished. Lower your hands and look at the camera.</div>'
+            + '<div id="vacFaceStageHint" role="status" aria-live="polite" style="font-size:17px;color:#F0F2F5;">Your camera is still recording. Select Ready when your hands are down.</div>'
+            + '<button type="button" id="vacFaceStageReady" style="padding:12px 20px;min-height:44px;background:#2DD4BF;color:#07111f;border:0;border-radius:8px;font-size:17px;font-weight:700;">Ready — check my face</button>';
+        box.parentElement.insertBefore(st, box);
         return true;
     } catch (_) { return false; }
 }
 function _vacFaceStageHide() {
-    try { (window.__vacFaceStageTimers || []).forEach(function (t) { clearTimeout(t); }); } catch (_) {}
+    try { (window.__vacFaceStageTimers || []).forEach(function(t) { clearTimeout(t); }); } catch (_) {}
     window.__vacFaceStageTimers = [];
-    try { var el = document.getElementById('vacFaceStage'); if (el) el.remove(); } catch (_) {}
+    try { if (window.__vacFaceStageCancel) window.__vacFaceStageCancel(); } catch (_) {}
+    window.__vacFaceStageCancel = null;
+    try { var el=document.getElementById('vacFaceStage'); if(el) el.remove(); } catch (_) {}
+}
+
+function _createVaultFaceStageGate(startedAt) {
+    var acknowledged=false, clearSince=null, clearFrames=0, previousFrame=null, previousAt=null;
+    return {
+        ready: function() { acknowledged=true; clearSince=null; clearFrames=0; },
+        observe: function(now, observation) {
+            if (now-startedAt >= 20000) return {status:'timeout'};
+            var o=observation || {};
+            var fresh=Number.isFinite(o.frameTime) && (previousFrame===null || o.frameTime>previousFrame);
+            if (previousAt!==null && (now<=previousAt || now-previousAt>750)) { clearSince=null; clearFrames=0; }
+            previousAt=now;
+            if (Number.isFinite(o.frameTime)) previousFrame=o.frameTime;
+            var status=!acknowledged ? 'waiting'
+                : !fresh || o.handAbsent==null || o.faceVisible==null ? 'sensor_wait'
+                : !o.handAbsent ? 'lower_hands'
+                : !o.faceVisible ? 'face_missing' : 'hold';
+            if (status!=='hold') { clearSince=null; clearFrames=0; return {status:status}; }
+            if (clearSince===null) clearSince=now;
+            clearFrames++;
+            var elapsed=now-clearSince;
+            if (elapsed>=3200 && clearFrames>=4) return {status:'complete'};
+            return {status:'hold', remainingMs:Math.max(0,3200-elapsed)};
+        }
+    };
+}
+function _runVaultFaceStage(video, recorder) {
+    return new Promise(function(resolve,reject) {
+        var ready=document.getElementById('vacFaceStageReady');
+        var hint=document.getElementById('vacFaceStageHint');
+        if (!ready || !hint || !video) { reject(new Error('face_stage_unavailable')); return; }
+        var done=false, timer=null, gate=_createVaultFaceStageGate(performance.now());
+        function settle(ok) {
+            if(done) return;
+            done=true; if(timer) clearTimeout(timer);
+            ready.removeEventListener('click', acknowledge);
+            window.__vacFaceStageCancel=null;
+            if(ok) resolve(); else reject(new Error('face_stage_incomplete'));
+        }
+        function acknowledge() { gate.ready(); ready.disabled=true; }
+        ready.addEventListener('click', acknowledge);
+        window.__vacFaceStageCancel=function() { settle(false); };
+        try { ready.focus({preventScroll:false}); } catch(_) {}
+        function tick() {
+            if(done) return;
+            if(mediaRecorder!==recorder || recorder.state!=='recording') { settle(false); return; }
+            var o={frameTime:null, faceVisible:null, handAbsent:null};
+            if(!video.paused && !video.ended && video.readyState>=2 && video.videoWidth>0 && video.videoHeight>0) {
+                o.frameTime=video.currentTime;
+                try {
+                    if(typeof FingerDetector!=='undefined' && FingerDetector.ready && !FingerDetector.failed) {
+                        var raw=FingerDetector.detect(video);
+                        if(!FingerDetector.failed && raw!==null) o.handAbsent=(raw===-1);
+                    }
+                    if(_FaceAnchorDetector.ready && !_FaceAnchorDetector.failed) {
+                        var face=_FaceAnchorDetector.detect(video);
+                        if(!_FaceAnchorDetector.failed) o.faceVisible=!!face;
+                    }
+                } catch(_) {}
+            }
+            var result=gate.observe(performance.now(),o);
+            var copy={waiting:'Lower your hands, then select Ready. Your camera is still recording.',
+                sensor_wait:'Checking the live camera and detectors — keep your face in view.',
+                lower_hands:'A hand is still visible — lower your hands out of camera view.',
+                face_missing:'Bring your face into view and look at the camera.',
+                timeout:'Face capture did not finish. Nothing will be submitted.',
+                complete:'Face captured. Checking your identity…'};
+            hint.textContent=result.status==='hold'
+                ? 'Keep your hands down and hold still — '+Math.ceil(result.remainingMs/1000)+' seconds'
+                : copy[result.status];
+            if(result.status==='complete') { settle(true); return; }
+            if(result.status==='timeout') { settle(false); return; }
+            timer=setTimeout(tick,250);
+        }
+        tick();
+    });
 }
 
 // DIAGNOSTIC ONLY: mean/max luminance (0-255) of a captured frame, for the
@@ -7235,6 +7367,10 @@ function _vaultFaceEvidenceHtml(evidence) {
 }
 
 function _vaultFaceRecoveryCopy(reason) {
+    if (reason === 'face_stage_incomplete') return {
+        title: 'Face capture was not completed',
+        hint: 'Nothing was submitted. Restart verification, then lower your hands and select Ready at the separate face step.'
+    };
     if (reason === 'no_camera_picture') return {
         title: 'No camera picture detected',
         hint: 'No camera picture detected; check camera permission or use a device with a camera.'
@@ -9398,4 +9534,5 @@ window.__vacTest_t722 = function() {
 };
 
 })();
+
 
