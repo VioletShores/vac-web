@@ -147,6 +147,15 @@ const MODE_CONFIG = {
                 if (CTX.profile && CTX.profile.greeting === 'skip') {
                     body.nameless = true;
                 }
+                // Evidence-only film purpose; never copy arbitrary bridge fields
+                // over the existing name/risk/profile policy inputs.
+                if (window.VACWalkthroughCapture) {
+                    const film = window.VACWalkthroughCapture.challengeFields();
+                    if (!film || !/^[a-f0-9]{64}$/.test(film.walkthrough_state_sha256)) {
+                        throw new Error('walkthrough_not_ready');
+                    }
+                    body.walkthrough_state_sha256 = film.walkthrough_state_sha256;
+                }
                 return body;
             },
         },
@@ -383,6 +392,12 @@ let _ceremonyPhase = _PHASE.IDLE;
 function _setPhase(phase) {
     _ceremonyPhase = phase;
     _renderPromptOnTransition(phase);
+    try {
+        if (window.VACWalkthroughCapture) {
+            if (phase === _PHASE.GREETING) window.VACWalkthroughCapture.event('greeting_prompt');
+            if (phase === _PHASE.DIGIT) window.VACWalkthroughCapture.event('digit_prompt');
+        }
+    } catch (_) {} // presentation-only fixed labels; no prompt values or policy changes
 }
 
 function _renderPromptOnTransition(phase) {
@@ -522,6 +537,16 @@ var _audioRewireInFlight = false;
 async function requestCamera() {
     const btn = document.getElementById('btnCamera');
     const err = document.getElementById('cameraError');
+    // Dedicated recording must be linked and explicitly continued before ANY
+    // camera request. A missing/failed bridge must not fall back to plain auth.
+    if (new URLSearchParams(window.location.search).get('handoff') === 'vac-walkthrough-record') {
+        const film = window.VACWalkthroughCapture;
+        if (!film || film.canStart(modeConfig() === MODE_CONFIG.full, !skipGreeting) !== true) {
+            err.textContent = 'Open and continue this recording from your Athena owner page first.';
+            err.style.display = 'block';
+            return;
+        }
+    }
     // t732 TAP-TRACE (Rob: "click, nothing happens" — make the death visible): every stage
     // of this tap paints to the page in debug mode, so a silent failure names itself.
     function _tapTrace(m){ try{ if(!/[?&]debug=1/.test(location.search)) return; var el=document.getElementById('tapTrace'); if(!el){ el=document.createElement('div'); el.id='tapTrace'; el.style.cssText='position:fixed;top:4px;left:4px;z-index:99999;background:#000c;color:#7ee787;font:11px monospace;padding:3px 7px;border-radius:6px;max-width:90vw;'; document.body.appendChild(el);} el.textContent='tap: '+m; }catch(_){} }
@@ -571,6 +596,7 @@ async function requestCamera() {
             // every threshold in this file was calibrated for. Browser defaults restored.
             audio: true,
         });
+        try { if (window.VACWalkthroughCapture) window.VACWalkthroughCapture.event('camera_ready'); } catch (_) {}
         try{ clearTimeout(window.__vacGumTimer); }catch(_){}; window.__vacGumInFlight = false;
         _tapTrace('camera+mic GRANTED \u2713');
         try {
@@ -3958,10 +3984,12 @@ function beginRecording() {
             _showCaptureDiedRecovery();
             return;
         }
+        try { if (window.VACWalkthroughCapture) window.VACWalkthroughCapture.event('capture_stopped'); } catch (_) {}
         onRecordingComplete();
     };
     _recorderStartMs = performance.now();
     mediaRecorder.start();
+    try { if (window.VACWalkthroughCapture) window.VACWalkthroughCapture.event('capture_started'); } catch (_) {}
     try { vacDebug('recorder_started'); } catch(_) {}  // F-560: anchor the QA overlay clock (t0) at the real recorder start
 
     // S-116 Track-2 (Didit passive liveness): grab ONE still frame from the LIVE
@@ -7676,6 +7704,7 @@ async function onRecordingComplete() {
 
 // STEP 3: Upload to backend, show real results
 async function runRealVerification(videoBlob) {
+    try { if (window.VACWalkthroughCapture) window.VACWalkthroughCapture.event('verification_submitted'); } catch (_) {}
     const ring = document.getElementById('progressRing');
     const stepEl = document.getElementById('progressStep');
     const detailEl = document.getElementById('progressDetail');
@@ -7894,6 +7923,15 @@ async function runRealVerification(videoBlob) {
             try { _renderAuthorityStages('done', { result: authResult }); } catch(_) {}
             await sleep(1100);
             _finish();
+            // The normal genuine result has rendered. The separate film bridge
+            // may now offer its second consent, using this exact original Blob.
+            // No second recorder, verifier, result mutation or grant is involved.
+            try {
+                if (window.VACWalkthroughCapture) {
+                    Promise.resolve(window.VACWalkthroughCapture.completed(videoBlob, authResult)).catch(function () {});
+                    recordedChunks = []; // the opt-in bridge owns the remaining clip reference
+                }
+            } catch (_) {}
         } else {
             stepEl.textContent = 'Verification incomplete';
             ring.style.stroke = 'var(--warning)';

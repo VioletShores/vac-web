@@ -342,6 +342,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
      display derivation, shared with test_verdict_reasons.node.js. Must load
      before vac-reauth-ceremony.js's showRetry() calls it. -->
 <script src="/verdict-reasons.js?v=s204-20261103-face-id"></script>
+<!-- Inert for ordinary auth; private film purpose requires the owner handshake. -->
+<script src="/vac-walkthrough-capture.js?v=20261118-private-original-v1"></script>
 <script src="/vac-reauth-ceremony.js?v=s204-20261104-face-diag"></script>
 <!-- athena PKT-S204-VAULT-MOBILE-HANDOFF: inert unless opened with ?handoff=&state= (defines nothing otherwise). -->
 <script src="/vac-vault-handoff.js?v=s204-20261104-face-diag"></script>
@@ -1138,6 +1140,15 @@ function reauthReload(opts) {
 }
 
 
+// Preserve the ordinary saved auth session, but never persist film evidence.
+// The original response remains untouched in the dedicated flow's memory.
+function authResultForSession(result) {
+    if (!result || typeof result !== 'object' || !Object.prototype.hasOwnProperty.call(result, 'walkthrough_receipt')) return result;
+    const sessionCopy = Object.assign({}, result);
+    delete sessionCopy.walkthrough_receipt;
+    return sessionCopy;
+}
+
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
@@ -1165,7 +1176,7 @@ function showSuccess() {
         try {
             localStorage.setItem('vac_verified', JSON.stringify({
                 email: d.email, name: d.name, org: d.org, role: d.role,
-                authResult: authResult, timestamp: Date.now()
+                authResult: authResultForSession(authResult), timestamp: Date.now()
             }));
         } catch(e) {}
         // Update nav badge to show current state
@@ -1196,7 +1207,7 @@ function showSuccess() {
         // dead-ended here instead of returning to the matters): when this page is TOP-LEVEL
         // (no parent frame to postMessage back to), the success screen MUST carry the onward tap.
         try {
-            if (window.parent === window && !window.__vacDecisionReturn && !window.VACVaultHandoff && !document.getElementById('vacContinueBtn')) {
+            if (window.parent === window && !window.__vacDecisionReturn && !window.VACVaultHandoff && !window.VACWalkthroughCapture && !document.getElementById('vacContinueBtn')) {
                 var _cb=document.createElement('a'); _cb.id='vacContinueBtn';
                 // S154 fix-on-find (Rob live test): this was a HARDCODED tribunal link + label,
                 // shown regardless of origin — wrong words ("workflow" not "matters"), wrong
