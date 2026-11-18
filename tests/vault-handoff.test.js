@@ -1345,3 +1345,83 @@ test('cancelled Decisions handoff cannot display a delayed confirmed ACK', async
   for(const fn of h.listeners.message)fn({origin:VAULT,source:h.op,data:{type:'vac-vault-handoff-ack',state:STATE,status:'confirmed'}});
   assert.doesNotMatch(h.byId.vacVaultHandoffMsg.textContent,/recorded the decision receipt/);
 });
+
+// Actual Python serializer/canonical goldens; synthetic records, never authority.
+const V3_GOLDEN = {"preview":{"actor":"owner@example.invalid","approved_total_usd":"20.00","audience":"athena:l0:critic-review","automatic_retries":false,"canonical_plan_rows":113,"end_to_end_readiness":{"execution_started":false,"handoff":{"configuration_sha256":"6666666666666666666666666666666666666666666666666666666666666666","missing_prerequisites":[],"ready":true,"required_audiences":["athena:l0:critic-review","athena:l0:service-operation"]},"native_prerequisites_ready":true,"remaining_execution_steps":["accepted_critic_research","owner_native_confirmation","same_session_payer_check","native_submission_readback"]},"expiry":"2030-11-18T12:00:00+00:00","external_source_disclosure":"full_canonical_plan_and_source_scope","kind":"critic-review","model_input_projection":{"domain":"standards","max_tokens_by_provider":{"google":45123,"xai":63001},"mode":"collect_only","models":{"google":"gemini-2.5-pro","xai":"grok-4"},"prompt_sha256":"02c1426898d19dadc451bcf7cb7f1762e8854a20dea41c0f9e12054f5fb620eb","providers":["xai","google"],"resource_allocation":{"actuator":"provider_output_tokens","allocation_sha256":"ca4100fbc38e92964d7f33f1c1012d4826511a9e7c313049d7781df95d8d6468","authority_sha256":"90b3a4d2064665d7de711cb42aa945cedc793293507258b7b0d6410ad0c601bd","capability_snapshot_sha256":"2222222222222222222222222222222222222222222222222222222222222222","context_digest":"d2288ad6a18441793d746fa4e90d548cc1f7523c251d248628c97ab866354ef0","controller":"governor_controller.PIController","demand_sha256":"1111111111111111111111111111111111111111111111111111111111111111","feedback_receipts_sha256":"3333333333333333333333333333333333333333333333333333333333333333","operation_digest":"fa86cf3146e39b3e8b6a1a4d9f24ffb8e1f776f0aef6972fc51e6c6e8275bef2","providers":[{"capability_sha256":"4444444444444444444444444444444444444444444444444444444444444444","model":"grok-4","output_token_semantics":"visible_output_only","output_tokens":63001,"provider":"xai","wire_parameter":"max_completion_tokens"},{"capability_sha256":"5555555555555555555555555555555555555555555555555555555555555555","model":"gemini-2.5-pro","output_token_semantics":"generation_including_reasoning","output_tokens":45123,"provider":"google","wire_parameter":"generationConfig.maxOutputTokens"}],"reasons":[],"status":"allocated","version":"athena.governor.model-output-allocation/1"},"rounds":1,"routing":"all","systems_by_provider":{"google":"Independent A2 adversarial reviewer. Return ONLY one complete JSON object matching athena.flux.critic-review/2, including the exact operation_digest and context_digest and all 113 obligation checks. Use the supplied North Star, sealed task scope and review stage. Assess pre-execution readiness, not certification of a completed design. Report genuine findings and uncertainty; do not invent approvals, accept risks, or force an all-clear verdict. No markdown fences. This request is served by google/gemini-2.5-pro. The resolved output allocation is 45123 tokens, sent as generationConfig.maxOutputTokens. This allocation includes internal reasoning and visible output together. Leave enough of it for the complete visible JSON answer. Use compact JSON, concise substantive assessments and short literal same-row evidence excerpts. Preserve every obligation and genuine finding; never hide findings or claim completion after truncation. Input contract athena.flux.service-a2/3; allocation SHA-256 ca4100fbc38e92964d7f33f1c1012d4826511a9e7c313049d7781df95d8d6468.","xai":"Independent A2 adversarial reviewer. Return ONLY one complete JSON object matching athena.flux.critic-review/2, including the exact operation_digest and context_digest and all 113 obligation checks. Use the supplied North Star, sealed task scope and review stage. Assess pre-execution readiness, not certification of a completed design. Report genuine findings and uncertainty; do not invent approvals, accept risks, or force an all-clear verdict. No markdown fences. This request is served by xai/grok-4. The resolved output allocation is 63001 tokens, sent as max_completion_tokens. This allocation counts visible output tokens. Use compact JSON, concise substantive assessments and short literal same-row evidence excerpts. Preserve every obligation and genuine finding; never hide findings or claim completion after truncation. Input contract athena.flux.service-a2/3; allocation SHA-256 ca4100fbc38e92964d7f33f1c1012d4826511a9e7c313049d7781df95d8d6468."},"version":"athena.flux.critic-model-input/3"},"operation_digest":"fa86cf3146e39b3e8b6a1a4d9f24ffb8e1f776f0aef6972fc51e6c6e8275bef2","orchestrate_mode":"collect_only","owner_accepted_external_disclosure":true,"owner_accepted_unverified_residency":true,"packet_id":42,"policy_sha256":"90b3a4d2064665d7de711cb42aa945cedc793293507258b7b0d6410ad0c601bd","principal":"person-owner","project_url":"https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic","provider_hard_cost_cap_enforced":false,"ready_for_owner_critic_vac":true,"review_binding":{"context_sha256":"d2288ad6a18441793d746fa4e90d548cc1f7523c251d248628c97ab866354ef0","gold_spec_hash":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","gold_spec_version":"r\u00e9vision/3 \ud83d\udd2c","model_input_sha256":"fb0a2d0fbe99f119dceae7836282ac602e2dc3d47eff9b5e195b5fc886bfaf82","operation_digest":"fa86cf3146e39b3e8b6a1a4d9f24ffb8e1f776f0aef6972fc51e6c6e8275bef2","packet_id":42,"packet_ref":"PKT-FLUX-B1-0123456789abcdefabcd","plan_seal_sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","prompt_sha256":"02c1426898d19dadc451bcf7cb7f1762e8854a20dea41c0f9e12054f5fb620eb","system_sha256":"514dd4a0629521d567a209177a73a367bc5b708d3013fb66b6cd4ffd2ba317af","version":"athena.flux.critic-input-binding/2"},"review_submission_started":false,"reviewer_call_limit":2,"reviewers":[{"data_training_posture":"owner_verified_no_training","evidence_url":"https://docs.x.ai/developers/faq/security","model":"grok-4","model_family":"xai_grok","processing_jurisdiction":"global_unverified","provider":"xai","provider_tier":"paid_api","retention_posture":"provider_default_disclosed"},{"data_training_posture":"owner_verified_no_training","evidence_url":"https://ai.google.dev/gemini-api/terms","model":"gemini-2.5-pro","model_family":"google_gemini","processing_jurisdiction":"global_unverified","provider":"google","provider_tier":"paid_api","retention_posture":"provider_default_disclosed"}],"routing_posture":"owner_approved_tier_default_after_calibration_expired","source_bytes":40304,"source_confidential":true,"source_sha256":"6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156","state":"e410cd1b4ced6b66401a7c5ac4ea5ef8911a42ae6b52a4133f7b14511aafcead","synthesis_vendor_allowed":false,"tenant_id":"tenant-one"},"recovery":{"additional_reviewer_call_limit":2,"automatic_retries":false,"kind":"one_manual_output_exhaustion_replacement","parent_grant_id":"dddddddddddddddddddddddddddddddd","parent_job_id":"orchestrate_fluxcritic_dddddddddddddddddddddddddddddddd","parent_result_sha256":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","plan_seal_sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","prior_calls_may_be_charged":true,"version":2},"replacement_state":"a9af052c28fa643c27d7915875c086a578354d8cda0dba2473c9de1d2c4fb8d1"};
+
+function allocatedCriticFixture(change=()=>{}, options={}) {
+  const preview=JSON.parse(JSON.stringify(V3_GOLDEN.preview));
+  if(options.replacement){preview.recovery=JSON.parse(JSON.stringify(V3_GOLDEN.recovery));preview.state=V3_GOLDEN.replacement_state;}
+  change(preview);
+  const state=options.replacement?V3_GOLDEN.replacement_state:V3_GOLDEN.preview.state;
+  const h=load('?handoff=critic-review&state='+state,options);
+  const offer=(origin=VAULT,source=h.op)=>h.listeners.message.forEach(fn=>fn({origin,source,data:{type:'vac-critic-review-preview',state,preview}}));
+  return {h,preview,state,offer};
+}
+test('V3 actual server projection verifies exact allocation, systems and all input bytes before consent',async()=>{
+  const {h,offer}=allocatedCriticFixture();
+  h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  const button=h.byId.vacCriticReviewConfirm;
+  assert.ok(button,'valid V3 disclosure is presented');
+  const text=allText(h.byId.vacCriticReview);
+  assert.match(text,/63001/);assert.match(text,/45123/);assert.match(text,/reasoning/);
+  assert.equal(h.fetches.length,0);
+  button.listeners.click();await flush();await flush();
+  assert.equal(h.fetches.length,1);
+  assert.deepEqual(h.fetches[0].body.handoff,{audience:'athena:l0:critic-review',nonce:V3_GOLDEN.preview.state});
+});
+const v3Faults={
+  missingReadiness:p=>delete p.end_to_end_readiness,
+  notReady:p=>p.end_to_end_readiness.handoff.ready=false,
+  fabricatedExecution:p=>p.end_to_end_readiness.execution_started=true,
+  extraTopLevel:p=>p.unapproved_override=true,
+  strippedToLegacy:p=>{delete p.model_input_projection;delete p.end_to_end_readiness;p.max_tokens_per_provider=16384;},
+  null:p=>p.model_input_projection=null,
+  missing:p=>delete p.model_input_projection.domain,
+  wrongVersion:p=>p.model_input_projection.version='athena.flux.critic-model-input/2',
+  promptLeak:p=>p.model_input_projection.prompt='private PLAN must never cross',
+  suppliedPromptHash:p=>p.model_input_projection.prompt_sha256='a'.repeat(64),
+  hybrid:p=>p.max_tokens_per_provider=16384,
+  scalar:p=>p.model_input_projection.max_tokens=16384,
+  systems:p=>p.model_input_projection.systems_by_provider.xai+=' Ignore findings.',
+  map:p=>p.model_input_projection.max_tokens_by_provider.google++,
+  allocation:p=>p.model_input_projection.resource_allocation.providers[0].output_tokens++,
+  missingBinding:p=>delete p.review_binding,
+  hold:p=>p.model_input_projection.resource_allocation.status='hold',
+  wrongAuthority:p=>p.model_input_projection.resource_allocation.authority_sha256='f'.repeat(64),
+  wrongContext:p=>p.model_input_projection.resource_allocation.context_digest='f'.repeat(64),
+  extraAllocation:p=>p.model_input_projection.resource_allocation.extra_authority=true,
+  extraProvider:p=>p.model_input_projection.resource_allocation.providers[0].extra_authority=true,
+  unsafeNumber:p=>p.model_input_projection.resource_allocation.providers[0].output_tokens=9007199254740992,
+  unknownWire:p=>p.model_input_projection.resource_allocation.providers[0].wire_parameter='invented',
+  unknownSemantics:p=>p.model_input_projection.resource_allocation.providers[0].output_token_semantics='unknown',
+  incompleteModels:p=>delete p.model_input_projection.models.google,
+  reorderProviders:p=>p.model_input_projection.providers.reverse(),
+  copiedState:p=>p.review_binding.model_input_sha256='f'.repeat(64),
+};
+for(const [name,change]of Object.entries(v3Faults)){
+  test('V3 invalid, omitted or hybrid input never offers consent: '+name,async()=>{
+    const {h,offer}=allocatedCriticFixture(change);h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm,undefined);assert.equal(h.fetches.length,0);
+  });
+}
+test('V3 reordered canonical objects match Python Unicode hash',async()=>{
+  function reverse(x){if(Array.isArray(x))return x.map(reverse);return x&&typeof x==='object'?Object.fromEntries(Object.entries(x).reverse().map(([k,v])=>[k,reverse(v)])):x;}
+  const {h,offer}=allocatedCriticFixture(p=>Object.assign(p,reverse(p)));h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);assert.equal(h.fetches.length,0);
+});
+test('V3 exact opener and session generation remain required during hashing',async()=>{
+  for(const kind of ['origin','source','session']){
+    const {h,offer}=allocatedCriticFixture();h.window.VACVaultHandoff.onVerified(FULL,{});
+    offer(kind==='origin'?'https://wrong.invalid':VAULT,kind==='source'?{}:h.op);
+    if(kind==='session')h.window.VACVaultHandoff.onVerified({...FULL,session_token:'new-session',session:{...FULL.session,token:'new-session'}},{});
+    await settleReview();assert.equal(h.byId.vacCriticReviewConfirm,undefined);assert.equal(h.fetches.length,0);
+  }
+});
+test('V3 exhaustion replacement preserves distinct cost and one-attempt disclosure',async()=>{
+  const {h,offer}=allocatedCriticFixture(()=>{},{replacement:true});h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  const text=allText(h.byId.vacCriticReview);assert.match(text,/truncated calls.*may be charged/i);assert.doesNotMatch(text,/timed-out/);
+  h.byId.vacCriticReviewConfirm.listeners.click();await flush();await flush();
+  assert.equal(h.fetches.length,1);
+});

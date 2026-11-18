@@ -453,11 +453,130 @@
   // Separate from service-operation: a fresh FULL/L3 approval for disclosure
   // of the exact sealed PLAN/source to TWO paid external model critics. This
   // does not create an execution permit or authorise Flux create_thread.
+  // V3 public commitment: the actual prompt is bound by its server-computed
+  // digest; no confidential PLAN text crosses this browser handoff. This
+  // verifies disclosed bytes, never controller provenance or effect authority.
+  function hasCriticProjection(p) {
+    return !!p && Object.prototype.hasOwnProperty.call(p, 'model_input_projection');
+  }
+  function exactCriticKeys(v, keys) {
+    return !!v && typeof v === 'object' && !Array.isArray(v) &&
+      Object.keys(v).length === keys.length && keys.every(function(k) {
+        return Object.prototype.hasOwnProperty.call(v, k);
+      });
+  }
+  function criticCanonicalText(value) {
+    function sort(v) {
+      if (Array.isArray(v)) return v.map(sort);
+      if (!v || typeof v !== 'object') return v;
+      var result = {};
+      Object.keys(v).sort().forEach(function(k) { result[k] = sort(v[k]); });
+      return result;
+    }
+    return JSON.stringify(sort(value)).replace(/[\u007f-\uffff]/g, function(c) {
+      return '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0');
+    });
+  }
+  function criticReadinessValid(r) {
+    if (!exactCriticKeys(r, ['native_prerequisites_ready', 'handoff',
+        'remaining_execution_steps', 'execution_started']) ||
+        r.native_prerequisites_ready !== true || r.execution_started !== false ||
+        !Array.isArray(r.remaining_execution_steps) ||
+        JSON.stringify(r.remaining_execution_steps) !== JSON.stringify([
+          'accepted_critic_research', 'owner_native_confirmation',
+          'same_session_payer_check', 'native_submission_readback'])) return false;
+    var h = r.handoff;
+    return exactCriticKeys(h, ['ready', 'required_audiences', 'missing_prerequisites',
+        'configuration_sha256']) && h.ready === true &&
+      Array.isArray(h.required_audiences) && JSON.stringify(h.required_audiences) ===
+        JSON.stringify(['athena:l0:critic-review', 'athena:l0:service-operation']) &&
+      Array.isArray(h.missing_prerequisites) && h.missing_prerequisites.length === 0 &&
+      typeof h.configuration_sha256 === 'string' && /^[a-f0-9]{64}$/.test(h.configuration_sha256);
+  }
+  function criticProjectionValid(p) {
+    if (!hasCriticProjection(p)) return true;
+    var previewKeys = ['packet_id', 'kind', 'audience', 'state', 'operation_digest',
+      'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url', 'source_sha256',
+      'source_bytes', 'canonical_plan_rows', 'source_confidential', 'external_source_disclosure',
+      'reviewers', 'orchestrate_mode', 'reviewer_call_limit', 'synthesis_vendor_allowed',
+      'approved_total_usd', 'owner_accepted_external_disclosure', 'owner_accepted_unverified_residency',
+      'provider_hard_cost_cap_enforced', 'automatic_retries', 'routing_posture', 'expiry',
+      'ready_for_owner_critic_vac', 'review_submission_started', 'review_binding',
+      'model_input_projection', 'end_to_end_readiness'];
+    if (Object.prototype.hasOwnProperty.call(p, 'recovery')) previewKeys.push('recovery');
+    if (!exactCriticKeys(p, previewKeys)) return false;
+    var q = p.model_input_projection, b = p.review_binding;
+    var keys = ['version', 'prompt_sha256', 'providers', 'models', 'routing', 'mode',
+      'rounds', 'domain', 'resource_allocation', 'max_tokens_by_provider', 'systems_by_provider'];
+    if (!exactCriticKeys(q, keys) || !b ||
+        Object.prototype.hasOwnProperty.call(p, 'max_tokens_per_provider') ||
+        q.version !== 'athena.flux.critic-model-input/3' ||
+        typeof q.prompt_sha256 !== 'string' || q.prompt_sha256 !== b.prompt_sha256 ||
+        !/^[a-f0-9]{64}$/.test(q.prompt_sha256) ||
+        q.routing !== 'all' || q.mode !== 'collect_only' || q.rounds !== 1 || q.domain !== 'standards' ||
+        !Array.isArray(q.providers) || q.providers.length !== 2 || q.providers[0] === q.providers[1] ||
+        !Array.isArray(p.reviewers) || p.reviewers.length !== 2 ||
+        !exactCriticKeys(q.models, q.providers) || !exactCriticKeys(q.max_tokens_by_provider, q.providers) ||
+        !exactCriticKeys(q.systems_by_provider, q.providers) || !criticReadinessValid(p.end_to_end_readiness)) return false;
+    var a = q.resource_allocation;
+    var hashes = ['operation_digest', 'context_digest', 'authority_sha256', 'demand_sha256',
+      'capability_snapshot_sha256', 'feedback_receipts_sha256', 'allocation_sha256'];
+    if (!exactCriticKeys(a, hashes.concat(['version', 'controller', 'actuator', 'status', 'providers', 'reasons'])) ||
+        a.version !== 'athena.governor.model-output-allocation/1' ||
+        a.controller !== 'governor_controller.PIController' || a.actuator !== 'provider_output_tokens' ||
+        a.status !== 'allocated' || a.operation_digest !== p.operation_digest ||
+        a.context_digest !== b.context_sha256 || a.authority_sha256 !== p.policy_sha256 ||
+        !hashes.every(function(k) { return typeof a[k] === 'string' && /^[a-f0-9]{64}$/.test(a[k]); }) ||
+        !Array.isArray(a.reasons) || !a.reasons.every(function(r) {
+          return typeof r === 'string' && /^[a-z][a-z0-9_]{0,95}$/.test(r);
+        }) || !Array.isArray(a.providers) || a.providers.length !== 2) return false;
+    var wire = {google: ['generationConfig.maxOutputTokens'], xai: ['max_tokens', 'max_completion_tokens'],
+      openai: ['max_tokens', 'max_completion_tokens'], groq: ['max_tokens']};
+    return a.providers.every(function(r, i) {
+      return exactCriticKeys(r, ['provider', 'model', 'output_tokens', 'wire_parameter',
+          'output_token_semantics', 'capability_sha256']) &&
+        r.provider === q.providers[i] && r.provider === p.reviewers[i].provider &&
+        typeof r.model === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/.test(r.model) &&
+        r.model === p.reviewers[i].model && r.model === q.models[r.provider] &&
+        Number.isSafeInteger(r.output_tokens) && r.output_tokens > 0 &&
+        r.output_tokens === q.max_tokens_by_provider[r.provider] &&
+        Object.prototype.hasOwnProperty.call(wire, r.provider) && wire[r.provider].indexOf(r.wire_parameter) >= 0 &&
+        ['generation_including_reasoning', 'visible_output_only'].indexOf(r.output_token_semantics) >= 0 &&
+        typeof r.capability_sha256 === 'string' && /^[a-f0-9]{64}$/.test(r.capability_sha256) &&
+        typeof q.systems_by_provider[r.provider] === 'string' && !!q.systems_by_provider[r.provider].trim();
+    });
+  }
+  async function verifyCriticProjection(p, hash) {
+    if (!hasCriticProjection(p)) return true;
+    if (!criticProjectionValid(p)) return false;
+    var q = p.model_input_projection, a = q.resource_allocation, payload = {};
+    Object.keys(a).forEach(function(k) { if (k !== 'allocation_sha256') payload[k] = a[k]; });
+    var digests = await Promise.all([
+      hash(criticCanonicalText(payload)), hash(criticCanonicalText(q.systems_by_provider)),
+      hash(criticCanonicalText(q))
+    ]);
+    return digests[0] === a.allocation_sha256 && digests[1] === p.review_binding.system_sha256 &&
+      digests[2] === p.review_binding.model_input_sha256;
+  }
+  function criticPriorCalls(p) {
+    return p.recovery && p.recovery.version === 2 ?
+      'Prior text-bearing truncated calls reached their output allocation and may be charged' :
+      'Prior timed-out calls may be charged';
+  }
+  function criticOutputDisclosure(p) {
+    if (!hasCriticProjection(p)) return p.max_tokens_per_provider + ' output tokens per reviewer';
+    return 'Controller-resolved output: ' + p.model_input_projection.resource_allocation.providers.map(function(r) {
+      return r.provider + '/' + r.model + ': ' + r.output_tokens + ' tokens (' +
+        (r.output_token_semantics === 'generation_including_reasoning' ? 'reasoning and visible output together' :
+          'visible output only; reasoning is separately accounted') + ')';
+    }).join('; ');
+  }
   function validCriticRecovery(r) {
     return exactKeys(r, ['version', 'kind', 'parent_grant_id', 'parent_job_id',
       'parent_result_sha256', 'plan_seal_sha256', 'additional_reviewer_call_limit',
       'automatic_retries', 'prior_calls_may_be_charged']) &&
-      r.version === 1 && r.kind === 'one_manual_replacement' &&
+      ((r.version === 1 && r.kind === 'one_manual_replacement') ||
+       (r.version === 2 && r.kind === 'one_manual_output_exhaustion_replacement')) &&
       typeof r.parent_grant_id === 'string' && /^[a-f0-9]{32}$/.test(r.parent_grant_id) &&
       r.parent_job_id === 'orchestrate_fluxcritic_' + r.parent_grant_id &&
       typeof r.parent_result_sha256 === 'string' && /^[a-f0-9]{64}$/.test(r.parent_result_sha256) &&
@@ -483,6 +602,7 @@
     var replacement = Object.prototype.hasOwnProperty.call(p, 'recovery');
     var binding = {operation_digest: p.operation_digest, policy_sha256: p.policy_sha256,
       purpose: replacement ? 'athena:l0:critic-review:replacement' : 'athena:l0:critic-review'};
+    if (hasCriticProjection(p)) binding.model_input_projection_version = p.model_input_projection.version;
     if (replacement) {
       var r = p.recovery;
       // Fixed validated ASCII/scalar schema, in the same recursively sorted
@@ -501,6 +621,9 @@
         plan_seal_sha256: b.plan_seal_sha256, prompt_sha256: b.prompt_sha256,
         system_sha256: b.system_sha256, version: b.version};
     }
+    // The explicit V3 domain marker prevents stripping the allocation fields
+    // into a legacy disclosure while retaining the opaque bound input hash.
+    if (hasCriticProjection(p)) return criticCanonicalText(binding);
     // Python canonical_json_hash uses ensure_ascii=True. Preserve legacy ASCII
     // bytes and escape Unicode gold-spec versions, including surrogate pairs.
     return JSON.stringify(binding).replace(/[\u007f-\uffff]/g, function(c) {
@@ -513,7 +636,7 @@
       'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url', 'source_sha256',
       'source_bytes', 'canonical_plan_rows', 'source_confidential',
       'external_source_disclosure', 'reviewers', 'orchestrate_mode',
-      'reviewer_call_limit', 'synthesis_vendor_allowed', 'max_tokens_per_provider',
+      'reviewer_call_limit', 'synthesis_vendor_allowed',
       'approved_total_usd', 'owner_accepted_external_disclosure',
       'owner_accepted_unverified_residency', 'provider_hard_cost_cap_enforced',
       'automatic_retries', 'routing_posture', 'expiry',
@@ -522,13 +645,16 @@
       Object.prototype.hasOwnProperty.call(p, 'recovery');
     var inputBound = !!p && typeof p === 'object' &&
       Object.prototype.hasOwnProperty.call(p, 'review_binding');
+    if (hasCriticProjection(p)) keys.push('model_input_projection', 'end_to_end_readiness');
+    else keys.push('max_tokens_per_provider');
     if (replacement) keys.push('recovery');
     if (inputBound) keys.push('review_binding');
     var hex = /^[a-f0-9]{64}$/;
     var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
     if (!exactKeys(p, keys) || !safeStrings(p) ||
-        (replacement && !validCriticRecovery(p.recovery)) ||
+        (replacement && (!validCriticRecovery(p.recovery) ||
+          (p.recovery.version === 2 && !hasCriticProjection(p)))) ||
         (inputBound && !validCriticInputBinding(p.review_binding, p)) ||
         !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
         p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
@@ -545,8 +671,9 @@
         !Array.isArray(p.reviewers) || p.reviewers.length !== 2 ||
         p.orchestrate_mode !== 'collect_only' ||
         p.reviewer_call_limit !== 2 || p.synthesis_vendor_allowed !== false ||
-        !Number.isInteger(p.max_tokens_per_provider) ||
-        p.max_tokens_per_provider < 8192 || p.max_tokens_per_provider > 32768 ||
+        (hasCriticProjection(p) ? !criticProjectionValid(p) : (
+          !Number.isInteger(p.max_tokens_per_provider) ||
+          p.max_tokens_per_provider < 8192 || p.max_tokens_per_provider > 32768)) ||
         typeof p.approved_total_usd !== 'string' ||
         !/^(?:0|[1-9][0-9]{0,2})\.[0-9]{2}$/.test(p.approved_total_usd) ||
         Number(p.approved_total_usd) < 0.01 || Number(p.approved_total_usd) > 500 ||
@@ -600,7 +727,7 @@
     if (recovery) {
       var replacementNotice = document.createElement('p');
       replacementNotice.id = 'vacCriticRecoveryDisclosure';
-      replacementNotice.textContent = 'ONE manual replacement attempt, for the same source and PLAN: exactly TWO ADDITIONAL paid external model calls. Prior timed-out calls may be charged. No further retry is authorised. The original failed job remains on record; this does not restart it or approve Flux design.';
+      replacementNotice.textContent = 'ONE manual replacement attempt, for the same source and PLAN: exactly TWO ADDITIONAL paid external model calls. ' + criticPriorCalls(operation) + '. No further retry is authorised. The original failed job remains on record; this does not restart it or approve Flux design.';
       box.appendChild(replacementNotice);
     }
     var warning = document.createElement('p');
@@ -618,7 +745,7 @@
       ['Irreversibility', 'External processing and charges may start after confirmation; closing VAC cannot recall a submitted provider call'], 
       ['Orchestration and synthesis', 'COLLECT ONLY: exactly two paid reviewer calls; no third synthesis model or hidden model vendor'],
       ['Reviewer call limit', operation.reviewer_call_limit + ' total; no third model'],
-      ['Maximum output tokens', operation.max_tokens_per_provider + ' per provider, not a USD bill guarantee'],
+      ['Output allocation', criticOutputDisclosure(operation) + '; not a USD bill guarantee'],
       ['Owner-approved total exposure', operation.approved_total_usd + ' USD, a POLICY amount — NOT a provider-enforced hard cap'],
       ['Provider hard cost stop', 'NOT AVAILABLE'],
       ['Training posture', 'Owner-evidenced no-training claims; see individual provider evidence URLs'],
@@ -631,12 +758,16 @@
       ['External review policy SHA-256', operation.policy_sha256],
       ['Exact review nonce', state]
     ];
+    if (hasCriticProjection(operation)) {
+      fields.push(['Allocation SHA-256', operation.model_input_projection.resource_allocation.allocation_sha256],
+        ['Native prerequisites', 'Configured and checked before this review. Execution still needs accepted critic results, a separate owner confirmation, the same-session payer check and native result readback.']);
+    }
     if (recovery) {
       fields.push(['Replacement scope', 'One manual replacement attempt; two ADDITIONAL calls; no further retry'],
         ['Original grant', recovery.parent_grant_id], ['Original failed job', recovery.parent_job_id],
         ['Original failure result SHA-256', recovery.parent_result_sha256],
         ['Unchanged PLAN seal SHA-256', recovery.plan_seal_sha256],
-        ['Prior-call charges', 'Prior timed-out calls may be charged in addition to this replacement']);
+        ['Prior-call charges', criticPriorCalls(operation) + ' in addition to this replacement']);
     }
     operation.reviewers.forEach(function (r, i) {
       fields.push(['Reviewer ' + (i + 1), r.provider + ' / ' + r.model +
@@ -664,7 +795,7 @@
     box.appendChild(confirm);
     panel().appendChild(box);
     show('info', recovery ?
-      'This replacement has not started. Fresh FULL/L3 consent authorises TWO ADDITIONAL paid calls for the same source and PLAN. Prior timed-out calls may be charged; no further retry or Flux design is authorised.' :
+      'This replacement has not started. Fresh FULL/L3 consent authorises TWO ADDITIONAL paid calls for the same source and PLAN. ' + criticPriorCalls(operation) + '; no further retry or Flux design is authorised.' :
       'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false);
   }
 
@@ -686,13 +817,14 @@
     // URL-supplied policy and no claim that the rest of preview is a signed
     // provider receipt; Athena's confirmation endpoint verifies it separately.
     var nonceText = criticNonceText(preview);
-    Promise.resolve().then(function () {
-      return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(nonceText));
-    }).then(function (digest) {
+    function hash(text) {
+      return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function(digest) {
+        return Array.prototype.map.call(new Uint8Array(digest), function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+      });
+    }
+    Promise.all([hash(nonceText), verifyCriticProjection(preview, hash)]).then(function (checked) {
       if (generation !== operationGeneration) return;
-      var hex = Array.prototype.map.call(new Uint8Array(digest),
-        function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-      if (hex !== state) { operationRefused(); return; }
+      if (checked[0] !== state || !checked[1] || !validCriticPreview(preview)) { operationRefused(); return; }
       operation = JSON.parse(JSON.stringify(preview));
       operationJson = JSON.stringify(preview);
       renderCriticPreview();
@@ -923,7 +1055,7 @@
         }
       } else if (criticReview) {
         show('warn', operation && operation.recovery ?
-          'Athena acknowledged the ONE replacement authorisation for TWO ADDITIONAL paid calls. Prior timed-out calls may be charged. No further retry is authorised. Check Athena for the exact job receipt and outcome; this is not proof of review completion and does NOT approve the Flux design task.' :
+          'Athena acknowledged the ONE replacement authorisation for TWO ADDITIONAL paid calls. ' + criticPriorCalls(operation) + '. No further retry is authorised. Check Athena for the exact job receipt and outcome; this is not proof of review completion and does NOT approve the Flux design task.' :
           'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false);
       } else if (reviewAfterHandoff) {
         show('ok', 'Verification delivered to Athena. Continue to recording, or review your results first. Your results stay available until you leave.', false);
