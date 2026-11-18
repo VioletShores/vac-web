@@ -466,6 +466,19 @@
       r.prior_calls_may_be_charged === true;
   }
 
+  function validCriticInputBinding(b, p) {
+    var hashes = ['operation_digest', 'plan_seal_sha256', 'gold_spec_hash', 'context_sha256',
+      'prompt_sha256', 'system_sha256', 'model_input_sha256'];
+    return exactKeys(b, hashes.concat(['version', 'packet_id', 'packet_ref', 'gold_spec_version'])) &&
+      b.version === 'athena.flux.critic-input-binding/2' &&
+      Number.isSafeInteger(b.packet_id) && b.packet_id > 0 && b.packet_id === p.packet_id &&
+      typeof b.packet_ref === 'string' && /^PKT-FLUX-B1-[0-9a-f]{20}$/.test(b.packet_ref) &&
+      b.operation_digest === p.operation_digest &&
+      typeof b.gold_spec_version === 'string' && b.gold_spec_version.length > 0 &&
+      Array.from(b.gold_spec_version).length <= 128 &&
+      hashes.every(function(k) { return typeof b[k] === 'string' && /^[a-f0-9]{64}$/.test(b[k]); });
+  }
+
   function criticNonceText(p) {
     var replacement = Object.prototype.hasOwnProperty.call(p, 'recovery');
     var binding = {operation_digest: p.operation_digest, policy_sha256: p.policy_sha256,
@@ -480,7 +493,19 @@
         parent_result_sha256: r.parent_result_sha256, plan_seal_sha256: r.plan_seal_sha256,
         prior_calls_may_be_charged: r.prior_calls_may_be_charged, version: r.version};
     }
-    return JSON.stringify(binding);
+    if (Object.prototype.hasOwnProperty.call(p, 'review_binding')) {
+      var b = p.review_binding;
+      binding.review_binding = {context_sha256: b.context_sha256, gold_spec_hash: b.gold_spec_hash,
+        gold_spec_version: b.gold_spec_version, model_input_sha256: b.model_input_sha256,
+        operation_digest: b.operation_digest, packet_id: b.packet_id, packet_ref: b.packet_ref,
+        plan_seal_sha256: b.plan_seal_sha256, prompt_sha256: b.prompt_sha256,
+        system_sha256: b.system_sha256, version: b.version};
+    }
+    // Python canonical_json_hash uses ensure_ascii=True. Preserve legacy ASCII
+    // bytes and escape Unicode gold-spec versions, including surrogate pairs.
+    return JSON.stringify(binding).replace(/[\u007f-\uffff]/g, function(c) {
+      return '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0');
+    });
   }
 
   function validCriticPreview(p) {
@@ -495,12 +520,16 @@
       'ready_for_owner_critic_vac', 'review_submission_started'];
     var replacement = !!p && typeof p === 'object' &&
       Object.prototype.hasOwnProperty.call(p, 'recovery');
+    var inputBound = !!p && typeof p === 'object' &&
+      Object.prototype.hasOwnProperty.call(p, 'review_binding');
     if (replacement) keys.push('recovery');
+    if (inputBound) keys.push('review_binding');
     var hex = /^[a-f0-9]{64}$/;
     var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
     if (!exactKeys(p, keys) || !safeStrings(p) ||
         (replacement && !validCriticRecovery(p.recovery)) ||
+        (inputBound && !validCriticInputBinding(p.review_binding, p)) ||
         !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
         p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
         !hex.test(p.state) || p.state !== state ||
