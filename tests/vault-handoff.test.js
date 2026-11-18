@@ -188,12 +188,16 @@ function criticFixture(change = () => {}, options = {}) {
     binding.purpose = 'athena:l0:critic-review:replacement';
     binding.recovery = options.recovery;
   }
+  const hasInputBinding = Object.prototype.hasOwnProperty.call(options, 'reviewBinding');
+  if (hasInputBinding && !options.legacyNonce) binding.review_binding = options.reviewBinding;
   function ordered(value) {
     if (Array.isArray(value)) return value.map(ordered);
     if (!value || typeof value !== 'object') return value;
     return Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])]));
   }
-  const state = crypto.createHash('sha256').update(JSON.stringify(ordered(binding))).digest('hex');
+  const nonceText = JSON.stringify(ordered(binding)).replace(/[\u007f-\uffff]/g,
+    c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  const state = crypto.createHash('sha256').update(nonceText).digest('hex');
   const preview = {
     packet_id: 42, kind: 'critic-review', audience: 'athena:l0:critic-review',
     state, operation_digest, policy_sha256, tenant_id: 'tenant-one',
@@ -221,6 +225,7 @@ function criticFixture(change = () => {}, options = {}) {
     ready_for_owner_critic_vac: true, review_submission_started: false
   };
   if (hasRecovery) preview.recovery = JSON.parse(JSON.stringify(options.recovery));
+  if (hasInputBinding) preview.review_binding = options.reviewBinding;
   change(preview);
   const h = load('?handoff=critic-review&state=' + state, options);
   const offer = (origin = VAULT, source = h.op) => {
@@ -229,6 +234,87 @@ function criticFixture(change = () => {}, options = {}) {
   };
   return {h, state, preview, offer};
 }
+
+// These expected digests were generated with backend.canonical.canonical_json_hash.
+const V2_STATE = 'c5849ad6bedca680ad75f5d8a95fbf686f1c7cc819d044e4d707e945fda9aed9';
+const V2_UNICODE_STATE = 'f055236209e5846aef1b21710d7c6a8e61ac4d5a6a217637d825865b11c6ca85';
+const V2_REPLACEMENT_STATE = '20d306da152243b57d8bfbcdc2577f7c976efc9761073520e0e12aeb38f669a1';
+function criticInputBinding() {
+  return {version:'athena.flux.critic-input-binding/2', packet_id:42,
+    packet_ref:'PKT-FLUX-B1-0123456789abcdefabcd', operation_digest:'b'.repeat(64),
+    plan_seal_sha256:'f'.repeat(64), gold_spec_version:'athena-gold-spec/2',
+    gold_spec_hash:'d'.repeat(64), context_sha256:'e'.repeat(64),
+    prompt_sha256:'f'.repeat(64), system_sha256:'1'.repeat(64), model_input_sha256:'2'.repeat(64)};
+}
+test('V2 server input binding passes the exact FULL/L3 disclosure and return nonce', async () => {
+  const {h, state, offer} = criticFixture(()=>{}, {reviewBinding:criticInputBinding()});
+  assert.equal(state, V2_STATE);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm, 'exact V2 binding must offer separate critic consent');
+  assert.equal(h.fetches.length, 0, 'FULL alone does not mint the critic approval');
+  h.byId.vacCriticReviewConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.deepEqual(h.fetches[0].body.handoff, {audience:'athena:l0:critic-review', nonce:V2_STATE});
+  assert.deepEqual(h.fetches[0].body.actions, ['critic_review']);
+  assert.equal(h.posted.at(-1).m.assertion, JWT);
+});
+test('V2 canonical nonce agrees with Python for Unicode and reordered keys', async () => {
+  const binding=criticInputBinding(); binding.gold_spec_version='révision/2 🔬';
+  const {h,state,offer}=criticFixture(()=>{}, {reviewBinding:Object.fromEntries(Object.entries(binding).reverse())});
+  assert.equal(state,V2_UNICODE_STATE);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  assert.equal(h.fetches.length,0);
+});
+test('V2 replacement includes both original lineage and exact model input', async () => {
+  const {h,state,offer}=criticFixture(()=>{}, {reviewBinding:criticInputBinding(),recovery:recoveryDisclosure()});
+  assert.equal(state,V2_REPLACEMENT_STATE);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  assert.match(h.byId.vacCriticReviewConfirm.textContent,/TWO ADDITIONAL/);
+});
+const criticInputFaults={
+  presentNull:p=>p.review_binding=null,
+  presentUndefined:p=>p.review_binding=undefined,
+  array:p=>p.review_binding=[],
+  string:p=>p.review_binding='legacy',
+  unknown:p=>p.review_binding.extra_authority=true,
+  missing:p=>delete p.review_binding.system_sha256,
+  version:p=>p.review_binding.version='athena.flux.critic-input-binding/1',
+  packet:p=>p.review_binding.packet_id=43,
+  unsafePacket:p=>p.review_binding.packet_id=9007199254740992,
+  packetRef:p=>p.review_binding.packet_ref='PKT-OTHER-0123456789abcdefabcd',
+  operation:p=>p.review_binding.operation_digest='a'.repeat(64),
+  upperHash:p=>p.review_binding.context_sha256='E'.repeat(64),
+  nonStringHash:p=>p.review_binding.model_input_sha256=2,
+  emptyGold:p=>p.review_binding.gold_spec_version='',
+  longGold:p=>p.review_binding.gold_spec_version='a'.repeat(129),
+  nonStringGold:p=>p.review_binding.gold_spec_version=2
+};
+for(const [name,change] of Object.entries(criticInputFaults)) {
+  test('V2 invalid input binding cannot offer consent or mint: '+name, async()=>{
+    const binding=criticInputBinding(), p={review_binding:binding}; change(p);
+    const {h,offer}=criticFixture(()=>{}, {reviewBinding:p.review_binding});
+    h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm,undefined);
+    assert.equal(h.fetches.length,0);
+  });
+}
+test('V2 tamper, removal, and legacy-nonce substitution do not downgrade the approval', async()=>{
+  for(const [change,options] of [[p=>p.review_binding.prompt_sha256='a'.repeat(64),{}],
+    [p=>delete p.review_binding,{}],[()=>{},{legacyNonce:true}]]) {
+    const {h,offer}=criticFixture(change,{reviewBinding:criticInputBinding(),...options});
+    h.window.VACVaultHandoff.onVerified(FULL,{}); offer(); await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm,undefined);
+    assert.equal(h.fetches.length,0);
+  }
+});
+test('absent V2 binding preserves the exact Python legacy nonce', async()=>{
+  const {h,state,offer}=criticFixture();
+  assert.equal(state,'af8d7edfede74653288c3de82c78c4451235892d5045d88c301bbe54466264f2');
+  h.window.VACVaultHandoff.onVerified(FULL,{}); offer(); await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+});
 
 test('critic-review is separate FULL/L3 VAT for two external models, not Flux write', async () => {
   const {h, state, offer} = criticFixture();
