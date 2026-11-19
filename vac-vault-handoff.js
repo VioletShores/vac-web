@@ -681,7 +681,8 @@
         p.owner_accepted_unverified_residency !== true ||
         p.provider_hard_cost_cap_enforced !== false ||
         p.automatic_retries !== false ||
-        p.routing_posture !== 'owner_approved_tier_default_after_calibration_expired' ||
+        !['owner_approved_tier_default_after_calibration_expired',
+           'signalrank_preseal_panel'].includes(p.routing_posture) ||
         // Server PolicyRail expiry is bounded by the sealed operation, not a
         // rolling preview lease. The separate FULL/L3 VAT keeps its short TTL.
         !awareTime(p.expiry) ||
