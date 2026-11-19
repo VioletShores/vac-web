@@ -1370,6 +1370,12 @@ test('V3 actual server projection verifies exact allocation, systems and all inp
   assert.equal(h.fetches.length,1);
   assert.deepEqual(h.fetches[0].body.handoff,{audience:'athena:l0:critic-review',nonce:V3_GOLDEN.preview.state});
 });
+test('V3 SignalRank-presealed independent critic panel reaches exact consent without changing reviewer or policy',async()=>{
+  const {h,offer}=allocatedCriticFixture(p=>{p.routing_posture='signalrank_preseal_panel';});
+  h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm,'presealed SignalRank routing is an allowed, exact disclosed posture');
+  assert.equal(h.fetches.length,0,'no model call or grant before deliberate owner consent');
+});
 const v3Faults={
   missingReadiness:p=>delete p.end_to_end_readiness,
   notReady:p=>p.end_to_end_readiness.handoff.ready=false,
