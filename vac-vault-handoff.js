@@ -559,6 +559,9 @@
       digests[2] === p.review_binding.model_input_sha256;
   }
   function criticPriorCalls(p) {
+    if (p.recovery && p.recovery.version === 3) {
+      return 'The original attempt failed before worker claim; no provider dispatch was recorded. The unchanged disclosure conservatively allows for prior charges';
+    }
     return p.recovery && p.recovery.version === 2 ?
       'Prior text-bearing truncated calls reached their output allocation and may be charged' :
       'Prior timed-out calls may be charged';
@@ -576,7 +579,8 @@
       'parent_result_sha256', 'plan_seal_sha256', 'additional_reviewer_call_limit',
       'automatic_retries', 'prior_calls_may_be_charged']) &&
       ((r.version === 1 && r.kind === 'one_manual_replacement') ||
-       (r.version === 2 && r.kind === 'one_manual_output_exhaustion_replacement')) &&
+       (r.version === 2 && r.kind === 'one_manual_output_exhaustion_replacement') ||
+       (r.version === 3 && r.kind === 'one_manual_preclaim_no_io_replacement')) &&
       typeof r.parent_grant_id === 'string' && /^[a-f0-9]{32}$/.test(r.parent_grant_id) &&
       r.parent_job_id === 'orchestrate_fluxcritic_' + r.parent_grant_id &&
       typeof r.parent_result_sha256 === 'string' && /^[a-f0-9]{64}$/.test(r.parent_result_sha256) &&
@@ -654,7 +658,7 @@
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
     if (!exactKeys(p, keys) || !safeStrings(p) ||
         (replacement && (!validCriticRecovery(p.recovery) ||
-          (p.recovery.version === 2 && !hasCriticProjection(p)))) ||
+          ((p.recovery.version === 2 || p.recovery.version === 3) && !hasCriticProjection(p)))) ||
         (inputBound && !validCriticInputBinding(p.review_binding, p)) ||
         !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
         p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
@@ -1123,6 +1127,7 @@
     window.opener.postMessage({type:'vac-continuation-ready', state:state}, target.origin);
   }
 })();
+
 
 
 
