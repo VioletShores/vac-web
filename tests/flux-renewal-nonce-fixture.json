@@ -1,0 +1,163 @@
+{
+  "actor": "[synthetic identity restored by test harness]",
+  "approved_total_usd": "20.00",
+  "audience": "athena:l0:critic-review",
+  "automatic_retries": false,
+  "canonical_plan_rows": 113,
+  "end_to_end_readiness": {
+    "execution_started": false,
+    "handoff": {
+      "configuration_sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "missing_prerequisites": [],
+      "ready": true,
+      "required_audiences": [
+        "athena:l0:critic-review",
+        "athena:l0:service-operation"
+      ]
+    },
+    "native_prerequisites_ready": true,
+    "remaining_execution_steps": [
+      "accepted_critic_research",
+      "owner_native_confirmation",
+      "same_session_payer_check",
+      "native_submission_readback"
+    ]
+  },
+  "expiry": "2030-11-18T12:00:00+00:00",
+  "external_source_disclosure": "full_canonical_plan_and_source_scope",
+  "kind": "critic-review",
+  "model_input_projection": {
+    "domain": "standards",
+    "max_tokens_by_provider": {
+      "google": 45123,
+      "xai": 63001
+    },
+    "mode": "collect_only",
+    "models": {
+      "google": "gemini-2.5-pro",
+      "xai": "grok-4"
+    },
+    "prompt_sha256": "02c1426898d19dadc451bcf7cb7f1762e8854a20dea41c0f9e12054f5fb620eb",
+    "providers": [
+      "xai",
+      "google"
+    ],
+    "resource_allocation": {
+      "actuator": "provider_output_tokens",
+      "allocation_sha256": "4581a114d3caa66e0e6863b06270568768f53e8529a8dc85de5510d50a065eff",
+      "authority_sha256": "4ac45bc52a3c9df8469098363b331cb0d1d0d29712b309b0eb1c9109eced4890",
+      "capability_snapshot_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "context_digest": "d2288ad6a18441793d746fa4e90d548cc1f7523c251d248628c97ab866354ef0",
+      "controller": "governor_controller.PIController",
+      "demand_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "feedback_receipts_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "operation_digest": "45fda85b599ec13374701f5deff4a185e6e27eab9370fa5d31d8a08d943feff8",
+      "providers": [
+        {
+          "capability_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+          "model": "grok-4",
+          "output_token_semantics": "visible_output_only",
+          "output_tokens": 63001,
+          "provider": "xai",
+          "wire_parameter": "max_completion_tokens"
+        },
+        {
+          "capability_sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+          "model": "gemini-2.5-pro",
+          "output_token_semantics": "generation_including_reasoning",
+          "output_tokens": 45123,
+          "provider": "google",
+          "wire_parameter": "generationConfig.maxOutputTokens"
+        }
+      ],
+      "reasons": [],
+      "status": "allocated",
+      "version": "athena.governor.model-output-allocation/1"
+    },
+    "rounds": 1,
+    "routing": "all",
+    "systems_by_provider": {
+      "google": "Independent A2 adversarial reviewer. Return ONLY one complete JSON object matching athena.flux.critic-review/2, including the exact operation_digest and context_digest and all 113 obligation checks. Use the supplied North Star, sealed task scope and review stage. Assess pre-execution readiness, not certification of a completed design. Report genuine findings and uncertainty; do not invent approvals, accept risks, or force an all-clear verdict. No markdown fences. This request is served by google/gemini-2.5-pro. The resolved output allocation is 45123 tokens, sent as generationConfig.maxOutputTokens. This allocation includes internal reasoning and visible output together. Leave enough of it for the complete visible JSON answer. Use compact JSON, concise substantive assessments and short literal same-row evidence excerpts. Preserve every obligation and genuine finding; never hide findings or claim completion after truncation. Input contract athena.flux.service-a2/3; allocation SHA-256 ca4100fbc38e92964d7f33f1c1012d4826511a9e7c313049d7781df95d8d6468.",
+      "xai": "Independent A2 adversarial reviewer. Return ONLY one complete JSON object matching athena.flux.critic-review/2, including the exact operation_digest and context_digest and all 113 obligation checks. Use the supplied North Star, sealed task scope and review stage. Assess pre-execution readiness, not certification of a completed design. Report genuine findings and uncertainty; do not invent approvals, accept risks, or force an all-clear verdict. No markdown fences. This request is served by xai/grok-4. The resolved output allocation is 63001 tokens, sent as max_completion_tokens. This allocation counts visible output tokens. Use compact JSON, concise substantive assessments and short literal same-row evidence excerpts. Preserve every obligation and genuine finding; never hide findings or claim completion after truncation. Input contract athena.flux.service-a2/3; allocation SHA-256 ca4100fbc38e92964d7f33f1c1012d4826511a9e7c313049d7781df95d8d6468."
+    },
+    "version": "athena.flux.critic-model-input/3"
+  },
+  "operation_digest": "45fda85b599ec13374701f5deff4a185e6e27eab9370fa5d31d8a08d943feff8",
+  "orchestrate_mode": "collect_only",
+  "owner_accepted_external_disclosure": true,
+  "owner_accepted_unverified_residency": true,
+  "packet_id": 2222,
+  "policy_sha256": "4ac45bc52a3c9df8469098363b331cb0d1d0d29712b309b0eb1c9109eced4890",
+  "principal": "person-fixture",
+  "project_url": "https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic",
+  "provider_hard_cost_cap_enforced": false,
+  "ready_for_owner_critic_vac": true,
+  "renewal": {
+    "automatic_retries": false,
+    "canonical_plan_rows": 113,
+    "expiry": "2030-11-18T12:00:00+00:00",
+    "kind": "fresh_intent_policy_renewal",
+    "native_execution_permitted": false,
+    "next_policy_sha256": "3c4d1c3a031475d1421800741fa06eaa89405280103503e05f5dc38bacde2a3f",
+    "parent_authority_reused": false,
+    "parent_history_sha256": "070fb40d5f451689c5b8a5349c12931dd77cecbe949ce09e81e7a17b83d8db1e",
+    "parent_operation_sha256": "ea424e80f7a03c484bbc1abfa9b5935ce24b327eb822a96b4d892b9df7a2a728",
+    "parent_packet_id": 2221,
+    "parent_packet_ref": "PKT-FLUX-B1-11111111111111111111",
+    "parent_plan_sha256": "39ab9405cf2bf6948458e574e11a1ff56fa9321a92e87ef9accf63017931bd87",
+    "previous_policy_sha256": "9ad15d1f1f7a599592903b8a24c0c062f35edd147198396b1f466e9948935bd1",
+    "proposal_sha256": "ed7f698356e1b5ec9f8c862698736699786b47c5782a57c5516ffb4d9417468a",
+    "reviewer_call_limit": 2,
+    "successor_input_binding_sha256": "e7ebac8abfce1b44d2b4f223a9de9ee001b596057dd546554b1ab2b402c292b5",
+    "successor_operation_sha256": "45fda85b599ec13374701f5deff4a185e6e27eab9370fa5d31d8a08d943feff8",
+    "successor_packet_id": 2222,
+    "successor_packet_ref": "PKT-FLUX-B1-22222222222222222222",
+    "successor_plan_sha256": "56f6ff470099472f837eaac63d1a7be308c1da6182324e109e5759d98037ee04",
+    "successor_review_policy_sha256": "4ac45bc52a3c9df8469098363b331cb0d1d0d29712b309b0eb1c9109eced4890",
+    "version": "athena.flux.renewal-review-binding/1"
+  },
+  "review_binding": {
+    "context_sha256": "d2288ad6a18441793d746fa4e90d548cc1f7523c251d248628c97ab866354ef0",
+    "gold_spec_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "gold_spec_version": "r\u00e9vision/3 \ud83d\udd2c",
+    "model_input_sha256": "ba8622f6524e5791e2d127ec279878a72fc72622364e9074cb702d86311b5184",
+    "operation_digest": "45fda85b599ec13374701f5deff4a185e6e27eab9370fa5d31d8a08d943feff8",
+    "packet_id": 2222,
+    "packet_ref": "PKT-FLUX-B1-22222222222222222222",
+    "plan_seal_sha256": "56f6ff470099472f837eaac63d1a7be308c1da6182324e109e5759d98037ee04",
+    "prompt_sha256": "02c1426898d19dadc451bcf7cb7f1762e8854a20dea41c0f9e12054f5fb620eb",
+    "system_sha256": "514dd4a0629521d567a209177a73a367bc5b708d3013fb66b6cd4ffd2ba317af",
+    "version": "athena.flux.critic-input-binding/2"
+  },
+  "review_submission_started": false,
+  "reviewer_call_limit": 2,
+  "reviewers": [
+    {
+      "data_training_posture": "owner_verified_no_training",
+      "evidence_url": "https://docs.x.ai/developers/faq/security",
+      "model": "grok-4",
+      "model_family": "xai_grok",
+      "processing_jurisdiction": "global_unverified",
+      "provider": "xai",
+      "provider_tier": "paid_api",
+      "retention_posture": "provider_default_disclosed"
+    },
+    {
+      "data_training_posture": "owner_verified_no_training",
+      "evidence_url": "https://ai.google.dev/gemini-api/terms",
+      "model": "gemini-2.5-pro",
+      "model_family": "google_gemini",
+      "processing_jurisdiction": "global_unverified",
+      "provider": "google",
+      "provider_tier": "paid_api",
+      "retention_posture": "provider_default_disclosed"
+    }
+  ],
+  "routing_posture": "owner_approved_tier_default_after_calibration_expired",
+  "source_bytes": 40304,
+  "source_confidential": true,
+  "source_sha256": "6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156",
+  "state": "9fbc9045efff2cf6f07dd7d8c26cc0353e97232d3a415fc80471005ddd606c47",
+  "synthesis_vendor_allowed": false,
+  "tenant_id": "tenant-fixture"
+}

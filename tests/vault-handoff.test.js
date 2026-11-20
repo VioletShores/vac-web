@@ -1520,3 +1520,143 @@ test('1177 preclaim recovery requires the exact opener and verified owner',async
   }
 });
 
+
+// Renewal disclosure checks against the mounted VAC module.
+// Uses actual Python nonce fixture. No backend, provider, or message transport.
+const RENEWAL_GOLDEN = JSON.parse(fs.readFileSync(path.join(__dirname,
+  'flux-renewal-nonce-fixture.json'), 'utf8'));
+
+function renewalNonceForTest(p, purpose='athena:l0:critic-review:renewal:1') {
+  const bound = {operation_digest:p.operation_digest, policy_sha256:p.policy_sha256,
+    purpose, renewal:p.renewal, review_binding:p.review_binding};
+  if (p.model_input_projection) bound.model_input_projection_version=p.model_input_projection.version;
+  const ordered = value => Array.isArray(value) ? value.map(ordered) :
+    value && typeof value==='object' ? Object.fromEntries(Object.keys(value).sort().map(k=>[k,ordered(value[k])])) : value;
+  return crypto.createHash('sha256').update(JSON.stringify(ordered(bound)).replace(/[\u007f-\uffff]/g,
+    c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'))).digest('hex');
+}
+
+function renewalFixture(change=()=>{}, options={}) {
+  const preview=JSON.parse(JSON.stringify(RENEWAL_GOLDEN));
+  preview.actor='owner'+String.fromCharCode(64)+'renewal.invalid';
+  change(preview);
+  if(options.rebind) preview.state=renewalNonceForTest(preview);
+  const state=preview.state;
+  const h=load('?handoff=critic-review&state='+state,options);
+  const full={...FULL,session:{...FULL.session,email:preview.actor}};
+  const offer=(origin=VAULT,source=h.op)=>h.listeners.message.forEach(fn=>fn({origin,source,
+    data:{type:'vac-critic-review-preview',state,preview}}));
+  return {h,preview,state,full,offer};
+}
+
+test('renewal Python commitment reaches mounted VAC with explicit scope and no early mint',async()=>{
+  const {h,preview,state,full,offer}=renewalFixture();
+  assert.equal(renewalNonceForTest(preview),state,'actual Python and child canonical bytes agree');
+  h.window.VACVaultHandoff.onVerified(full,{});offer();await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  const disclosure=allText(h.byId.vacCriticReview);
+  assert.match(disclosure,/exact renewal policy/);
+  assert.match(disclosure,/expired attempt stays unchanged/);
+  assert.match(disclosure,/no previous permission is reused/);
+  assert.match(disclosure,/Flux design still needs its separate decision/);
+  assert.equal(h.fetches.length,0);
+  h.byId.vacCriticReviewConfirm.listeners.click();
+  h.byId.vacCriticReviewConfirm.listeners.click();
+  await flush();await flush();
+  assert.equal(h.fetches.length,1,'one deliberate renewal decision only');
+  assert.deepEqual(h.fetches[0].body.handoff,{audience:'athena:l0:critic-review',nonce:state});
+  assert.deepEqual(h.fetches[0].body.actions,['critic_review']);
+});
+
+const renewalShapeFaults={
+  wrongVersion:p=>p.renewal.version='athena.flux.renewal-review-binding/2',
+  wrongKind:p=>p.renewal.kind='replacement',
+  extraField:p=>p.renewal.authorized=true,
+  missingHistory:p=>delete p.renewal.parent_history_sha256,
+  missingRows:p=>delete p.renewal.canonical_plan_rows,
+  changedRows:p=>p.renewal.canonical_plan_rows=119,
+  inventedRows:p=>{p.renewal.canonical_plan_rows=118;p.canonical_plan_rows=118;},
+  booleanRows:p=>p.renewal.canonical_plan_rows=true,
+  mixedReplacement:p=>p.recovery=JSON.parse(JSON.stringify(V3_GOLDEN.recovery)),
+  parentIdSame:p=>p.renewal.parent_packet_id=p.renewal.successor_packet_id,
+  parentRefSame:p=>p.renewal.parent_packet_ref=p.renewal.successor_packet_ref,
+  parentOperationSame:p=>p.renewal.parent_operation_sha256=p.operation_digest,
+  parentPlanSame:p=>p.renewal.parent_plan_sha256=p.review_binding.plan_seal_sha256,
+  fullPolicyUnchanged:p=>p.renewal.previous_policy_sha256=p.renewal.next_policy_sha256,
+  successorIdChanged:p=>p.renewal.successor_packet_id+=1,
+  successorRefChanged:p=>p.renewal.successor_packet_ref='PKT-FLUX-B1-'+'7'.repeat(20),
+  successorOperationChanged:p=>p.renewal.successor_operation_sha256='7'.repeat(64),
+  successorPlanChanged:p=>p.renewal.successor_plan_sha256='7'.repeat(64),
+  successorRailChanged:p=>p.renewal.successor_review_policy_sha256='7'.repeat(64),
+  inputBindingChanged:p=>p.renewal.successor_input_binding_sha256='7'.repeat(64),
+  badDigest:p=>p.renewal.parent_history_sha256='bad',
+  unsafeId:p=>p.renewal.parent_packet_id=2**53,
+  booleanId:p=>p.renewal.parent_packet_id=true,
+  extraReviewer:p=>p.renewal.reviewer_call_limit=3,
+  retries:p=>p.renewal.automatic_retries=true,
+  oldAuthority:p=>p.renewal.parent_authority_reused=true,
+  nativeAuthority:p=>p.renewal.native_execution_permitted=true,
+  zeroIsNotFalse:p=>p.renewal.native_execution_permitted=0,
+  wrongExpiry:p=>p.renewal.expiry='2098-01-01T00:00:00Z',
+  missingInput:p=>delete p.review_binding,
+  legacyProjection:p=>{delete p.model_input_projection;delete p.end_to_end_readiness;p.max_tokens_per_provider=8192;},
+};
+for(const [name,change] of Object.entries(renewalShapeFaults)) {
+  test('renewal refuses structural or authority drift even with rebound test nonce: '+name,async()=>{
+    const {h,full,offer}=renewalFixture(change,{rebind:true});
+    h.window.VACVaultHandoff.onVerified(full,{});offer();await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm,undefined);
+    assert.equal(h.fetches.length,0);
+  });
+}
+
+for(const field of ['parent_history_sha256','previous_policy_sha256','next_policy_sha256','proposal_sha256']) {
+  test('renewal refuses changed committed '+field+' under original consent',async()=>{
+    const {h,full,offer}=renewalFixture(p=>p.renewal[field]='8'.repeat(64));
+    h.window.VACVaultHandoff.onVerified(full,{});offer();await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm,undefined);assert.equal(h.fetches.length,0);
+  });
+}
+
+for(const fault of ['strip','legacyPurpose','wrongOwner','wrongOrigin','wrongOpener']) {
+  test('renewal refuses downgrade or unauthenticated handoff: '+fault,async()=>{
+    const {h,preview,full,offer}=renewalFixture(p=>{
+      if(fault==='strip')delete p.renewal;
+      if(fault==='legacyPurpose')p.state=renewalNonceForTest(p,'athena:l0:critic-review');
+    });
+    if(fault==='wrongOwner')full.session.email='different'+String.fromCharCode(64)+'renewal.invalid';
+    h.window.VACVaultHandoff.onVerified(full,{});
+    offer(fault==='wrongOrigin'?'https://untrusted.invalid':VAULT,fault==='wrongOpener'?{}:h.op);
+    await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm,undefined);assert.equal(h.fetches.length,0);
+  });
+}
+
+for(const uncertain of ['throw','noAck']) {
+  test('renewal uncertain delivery never re-mints or resends: '+uncertain,async()=>{
+    const {h,full,offer}=renewalFixture();
+    h.window.VACVaultHandoff.onVerified(full,{});offer();await settleReview();
+    let attempts=0;
+    h.op.postMessage=()=>{attempts++;if(uncertain==='throw')throw new Error('synthetic transport uncertainty');};
+    const button=h.byId.vacCriticReviewConfirm;
+    button.listeners.click();await flush();await flush();
+    for(const timer of h.timers)if(timer.ms===6000)timer.f();
+    h.window.VACVaultHandoff.onVerified(full,{});
+    button.listeners.click();
+    for(const timer of h.timers)if(timer.ms===6000)timer.f();
+    await flush();await flush();
+    assert.equal(attempts,1);assert.equal(h.fetches.length,1);
+    assert.match(h.byId.vacVaultHandoffMsg.textContent,/UNKNOWN/);
+    assert.doesNotMatch(h.byId.vacVaultHandoffMsg.textContent,/Send to .* again/);
+  });
+}
+
+// The new native-observation PLAN adds six exact obligations; the row count is
+// part of the new consent, never silently applied to a legacy preview.
+test('renewal admits the newly bound 119-row disclosure',async()=>{
+  const {h,full,offer}=renewalFixture(p=>{p.renewal.canonical_plan_rows=119;p.canonical_plan_rows=119;},{rebind:true});
+  h.window.VACVaultHandoff.onVerified(full,{});offer();await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);
+  assert.match(allText(h.byId.vacCriticReview),/Canonical PLAN obligations: 119 exact rows/);
+  assert.equal(h.fetches.length,0);
+});

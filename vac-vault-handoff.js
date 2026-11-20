@@ -139,7 +139,7 @@
   var operationJson = null;
   var operationGeneration = 0;
   var operationConfirmed = false;
-  var replacementDeliveryAttempted = false;
+  var singleAttemptDeliveryStarted = false;
 
   function serviceSessionChanged() {
     if (!reviewedHandoff) return;
@@ -250,7 +250,7 @@
         risk.owner_acceptance !== 'fresh_exact_operation_vac_required' ||
         !awareTime(risk.observed_at)) return false;
     var ageMs = Date.now() - Date.parse(risk.observed_at);
-    if (ageMs < -10000 || ageMs > 900000) return false;
+    if (ageMs < -10000 || (op.version !== 3 && ageMs > 900000)) return false;
     var projectParts = op.project_url.match(/^https:\/\/www\.flux\.ai\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\/([^/?#]+)\/schematic$/);
     if (!projectParts || projectParts[1] !== risk.account ||
         op.result_contract.provider_project_id !== risk.account + '/' + projectParts[2]) return false;
@@ -270,12 +270,45 @@
         payer.fresh_provider_owner_recheck_required !== true ||
         !awareTime(payer.observed_at)) return false;
     var payerAgeMs = Date.now() - Date.parse(payer.observed_at);
-    if (payerAgeMs < -10000 || payerAgeMs > 900000) return false;
+    if (payerAgeMs < -10000 || (op.version !== 3 && payerAgeMs > 900000)) return false;
     var unknown = {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'};
     return exactValues(op.resource_envelope.spend_ceiling, unknown) &&
       exactValues(op.resource_envelope.cost_upper_bound, unknown) &&
       exactValues(op.readback.cost_upper_bound, unknown);
   }
+  function validNativeObservation(op) {
+    var s = op.artifact_observation, c = s && s.connection;
+    if (!exactKeys(c, ['tenant_id', 'provider_id', 'account_id', 'scope', 'project_url', 'client_generation', 'client_id_sha256']) ||
+        op.tenant_id !== 'athena-fleet' || c.tenant_id !== op.tenant_id || c.provider_id !== 'flux_ai' ||
+        c.account_id !== 'default' || c.scope !== 'execute' || c.project_url !== op.project_url ||
+        !Number.isSafeInteger(c.client_generation) || c.client_generation < 0 ||
+        typeof c.client_id_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(c.client_id_sha256)) return false;
+    var expected = {
+      version: 'athena.flux.native-observation/1', capability: 'read_design_artifacts',
+      execution_id: op.execution_id, project_url: op.project_url, account: op.async_credit_risk.account,
+      connection: c, catalog_sha256: '2ac566ebc5957ca6c5f1dee111e53921f99a1852a7923b08aacb5efcb61dd09b',
+      tool_schemas: {"get_components":{"input_sha256":"ac1bfa7484e1f363a10bf6934a9314c15a90c05d5124fa513deff9e5c38cf4a9","output_sha256":"a150810c6783ad94e2170add047f5c6bcc7f16a75826b9dc27bd830ef7662091"},"get_files":{"input_sha256":"b89ef2a0a24c41e47dd0f371f12b20876ce473ba05b1434049b0750b2e7e0473","output_sha256":"3d2b0f05a5e2a3774588b956a0e0e45a83c53fea1047dbdd5ced487b45240408"},"get_nets":{"input_sha256":"ac1bfa7484e1f363a10bf6934a9314c15a90c05d5124fa513deff9e5c38cf4a9","output_sha256":"a150810c6783ad94e2170add047f5c6bcc7f16a75826b9dc27bd830ef7662091"},"get_project":{"input_sha256":"deb66da488ce0fd464f21f4538009f246d3b695c8aa6a87cf969483e6ede26b7","output_sha256":"64fa5dba61bc43efd8317ebacc079363503096c289ba0b9bb4a550a35af1cb01"},"wait_for_thread":{"input_sha256":"f99451d1b215d90956b40442affaabf495b7185255bbdad98a2491195f8f07c6","output_sha256":"151b96a2c2db9003bc36911b7f54f15137d3bc81059000feaec35d7637e1c811"}},
+      baseline_tools: ['get_project', 'get_components', 'get_nets', 'get_files'],
+      after_tools: ['get_project', 'get_components', 'get_nets', 'get_files'],
+      max_polls: 3, poll_timeout_seconds: 5, list_limit: 20, list_offset: 0,
+      additional_tool_call_limit: 11, total_mcp_session_limit: 4,
+      expiry: op.expiry, permit_lifetime_seconds: 300,
+      read_cost: {status: 'unknown', unit: 'ACU', basis: 'provider_read_cost_unverified'},
+      automatic_retries: false, effect_replay_permitted: false,
+      provider_task_cap_enforced: false, local_timeout_stops_agent: false
+    };
+    return exactKeys(s, Object.keys(expected)) && criticCanonicalText(s) === criticCanonicalText(expected);
+  }
+
+  async function nativeObservationCostValid(op) {
+    if (op.version !== 3) return true;
+    var value = {version: 1, kind: 'native_submission_and_bounded_design_observation',
+      async_credit_risk: op.async_credit_risk, artifact_observation: op.artifact_observation};
+    var digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(criticCanonicalText(value)));
+    var hex = Array.prototype.map.call(new Uint8Array(digest), function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+    return op.cost_contract_sha256 === hex && op.readback.cost_contract_sha256 === hex;
+  }
+
   function validTaskOperation(op, raw) {
     var fields = ['version', 'purpose', 'execution_id', 'packet_id', 'actor', 'principal', 'tenant_id',
       'service_id', 'endpoint', 'capability', 'project_url', 'action', 'executor', 'expiry',
@@ -283,12 +316,13 @@
       'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256', 'allowed_tools',
       'constraints', 'resource_envelope', 'evidence_requirements', 'object_ref', 'readback', 'result_contract',
       'async_credit_risk'];
+    if (op && op.version === 3) fields.push('artifact_observation');
     var digests = ['content_sha256', 'source_manifest_sha256', 'arguments_sha256',
       'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256'];
     var ids = ['execution_id', 'packet_id', 'actor', 'principal', 'tenant_id', 'service_id',
       'capability', 'object_ref', 'action', 'executor', 'revocation_ref'];
     var project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
-    if (raw.length > 16384 || !exactKeys(op, fields) || !safeStrings(op) || op.version !== 2 ||
+    if (raw.length > 16384 || !exactKeys(op, fields) || !safeStrings(op) || (op.version !== 2 && op.version !== 3) ||
         op.purpose !== 'service-operation' ||
         ids.some(function (key) { return typeof op[key] !== 'string' || !op[key] || op[key].length > 320; }) ||
         digests.some(function (key) { return typeof op[key] !== 'string' || !/^[a-f0-9]{64}$/.test(op[key]); }) ||
@@ -297,11 +331,13 @@
         op.object_ref !== 'submitted-source:' + op.content_sha256 ||
         op.revocation_ref !== 'execution:' + op.execution_id || !awareTime(op.expiry) ||
         typeof op.risk !== 'number' || !Number.isFinite(op.risk) || op.risk < 0 || op.risk > 1 ||
-        !sameList(op.allowed_tools, ['get_project', 'create_thread', 'get_thread', 'get_messages'])) return false;
+        !sameList(op.allowed_tools, op.version === 3 ?
+          ['get_project', 'create_thread', 'get_thread', 'get_messages', 'wait_for_thread', 'get_components', 'get_nets', 'get_files'] :
+          ['get_project', 'create_thread', 'get_thread', 'get_messages'])) return false;
     var c = op.constraints, e = op.resource_envelope, r = op.readback, proof = op.evidence_requirements;
     if (!exactKeys(c, ['network_allowlist', 'write_scope', 'financial_transaction', 'connection_budget']) ||
         !sameList(c.network_allowlist, ['app.flux.ai']) || !sameList(c.write_scope, [project]) ||
-        c.financial_transaction !== false || c.connection_budget !== 3 ||
+        c.financial_transaction !== false || c.connection_budget !== (op.version === 3 ? 4 : 3) ||
         !exactKeys(e, ['max_turns', 'max_minutes', 'spend_ceiling', 'cost_upper_bound']) ||
         e.max_turns !== 1 || !Number.isInteger(e.max_minutes) || e.max_minutes < 1 || e.max_minutes > 30 ||
         !exactKeys(r, ['action', 'capability', 'tool_schema_sha256', 'arguments_sha256',
@@ -320,7 +356,7 @@
         !/^https:\/\/github\.com\/VioletShores\/athena\/blob\/[a-f0-9]{40}\/[^?#]+$/.test(result.source_url) ||
         !awareTime(result.retrieved_at) || typeof result.provider_project_id !== 'string' ||
         !/^robzag\/[^\s/?#]+$/.test(result.provider_project_id) || result.provider_project_id.length > 320) return false;
-    if (!validAsyncCreditRisk(op)) return false;
+    if (!validAsyncCreditRisk(op) || (op.version === 3 && !validNativeObservation(op))) return false;
     var binding = result.read_argument_binding;
     if (!exactKeys(binding, ['get_thread', 'get_messages']) ||
         !exactKeys(binding.get_thread, ['thread']) || !exactKeys(binding.get_messages, ['thread', 'offset', 'limit']) ||
@@ -348,9 +384,10 @@
     title.textContent = 'Review this one operation';
     box.appendChild(title);
     var summary = document.createElement('p');
-    summary.textContent = operation.version === 2
+    summary.textContent = (operation.version === 2 || operation.version === 3)
       ? 'Confirming allows Athena to start one Flux design task using the exact source below, subject to its current policy and spending checks. The task may consume Flux credits. Readback verifies the submitted instructions; it is not proof that a schematic is finished. No general service access is granted.'
       : 'Your identity has been verified. Confirm only the operation below. This does not start design work, grant general service access, or replace Athena’s policy and delivery checks.';
+    if (operation.version === 3) summary.textContent = 'Confirming allows one Flux design task and the bounded design observation below within this same decision. Athena captures a baseline before submission and reads the result after verifying the submitted instructions. Read costs are unknown. A changed native design is progress; electrical correctness and source coverage remain unverified.';
     box.appendChild(summary);
     var fields = [
       ['Person', operation.actor], ['Athena principal', operation.principal],
@@ -358,13 +395,13 @@
       ['Project', operation.project_url], ['Object', operation.object_ref],
       ['Write action', operation.action], ['Write capability', operation.capability],
       ['Readback action', operation.readback.action], ['Readback capability', operation.readback.capability],
-      ['Readback cost upper bound', operation.version === 2 ? 'Unknown; Flux supplies no per-task limit' :
+      ['Readback cost upper bound', (operation.version === 2 || operation.version === 3) ? 'Unknown; Flux supplies no per-task limit' :
           operation.readback.cost_upper_bound.amount + ' ' + operation.readback.cost_upper_bound.unit],
       ['Source SHA-256', operation.source_manifest_sha256],
       ['Content SHA-256', operation.content_sha256],
       ['Expiry', operation.expiry], ['Exact intent SHA-256', state]
     ];
-    if (operation.version === 2) {
+    if ((operation.version === 2 || operation.version === 3)) {
       var risk = operation.async_credit_risk;
       fields.push(['Billing mode', 'On-demand enabled (owner-observed settings)'],
         ['Owner-observed monthly on-demand limit', risk.observed_monthly_spend_limit_usd + ' USD — account-wide, NOT a cap on this task'],
@@ -380,13 +417,23 @@
       fields.push(['Spend ceiling', operation.resource_envelope.spend_ceiling.amount + ' ' + operation.resource_envelope.spend_ceiling.unit],
         ['Cost upper bound', operation.resource_envelope.cost_upper_bound.amount + ' ' + operation.resource_envelope.cost_upper_bound.unit]);
     }
-    if (operation.version === 2) {
+    if ((operation.version === 2 || operation.version === 3)) {
       fields.push(['Source document', operation.result_contract.source_url],
         ['Source retrieved at', operation.result_contract.retrieved_at],
         ['Provider project', operation.result_contract.provider_project_id],
         ['Verified result', 'Exact submitted message only; design results need separate verification'],
         ['Submission and readback deadline', operation.resource_envelope.max_minutes + ' minutes'],
         ['Provider runtime', 'May continue after submission; the deadline above does not stop the Flux agent']);
+    }
+    if (operation.version === 3) {
+      fields.push(['Included design observation', 'Four baseline reads before the one submission; up to three five-second status polls and four scoped design reads afterwards'],
+        ['Observation limit', 'At most 11 additional tool calls; four total MCP sessions; component, net and file lists limited to 20 items each'],
+        ['Observation cost', 'Unknown ACU cost; read-only metadata is not a promise of zero cost'],
+        ['Authority lifetime', 'The same fresh native decision covers these bounded reads after the one effect is consumed, within its five-minute permit and intent expiry'],
+        ['Account binding', 'The same stored Flux connection and client generation; revocation or account change holds remaining reads'],
+        ['Retries and further effects', 'No automatic retry and no second submission; unknown attempts consume their reserved call budget'],
+        ['Evidence limits', 'Actual component/net counts, bounded content hashes and delta from the recorded baseline; no verified netlist, ERC, full requirement coverage or source-to-artifact lineage'],
+        ['Billing evidence freshness', 'Original observation times are preserved. Athena must apply its current tenant policy and freshly check the actual project owner before any submission']);
     }
     fields.forEach(function (item) {
       var line = document.createElement('p');
@@ -424,7 +471,7 @@
       parsed = JSON.parse(raw);
       var strings = ['actor', 'principal', 'tenant_id', 'service_id', 'project_url', 'object_ref', 'action', 'capability',
         'source_manifest_sha256', 'content_sha256', 'expiry'];
-      if (parsed && parsed.version === 2) {
+      if (parsed && (parsed.version === 2 || parsed.version === 3)) {
         if (!validTaskOperation(parsed, raw)) throw new Error('invalid task operation');
       } else if (!parsed || parsed.version !== 1 || parsed.purpose !== 'service-operation' ||
           strings.some(function (key) { return typeof parsed[key] !== 'string' || !parsed[key]; }) ||
@@ -441,10 +488,13 @@
     } catch (e) { operationRefused(); return; }
     Promise.resolve().then(function () {
       return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
-    }).then(function (digest) {
+    }).then(async function (digest) {
       if (generation !== operationGeneration) return;
       var hex = Array.prototype.map.call(new Uint8Array(digest), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-      if (hex !== state) { operationRefused(); return; }
+      var costValid = false;
+      try { costValid = await nativeObservationCostValid(parsed); } catch (e) { costValid = false; }
+      if (hex !== state || !costValid) { operationRefused(); return; }
+      if (generation !== operationGeneration) return;
       operation = parsed; operationJson = raw; renderOperation();
     }, function () { if (generation === operationGeneration) operationRefused(); });
   }
@@ -504,6 +554,7 @@
       'ready_for_owner_critic_vac', 'review_submission_started', 'review_binding',
       'model_input_projection', 'end_to_end_readiness'];
     if (Object.prototype.hasOwnProperty.call(p, 'recovery')) previewKeys.push('recovery');
+    if (Object.prototype.hasOwnProperty.call(p, 'renewal')) previewKeys.push('renewal');
     if (!exactCriticKeys(p, previewKeys)) return false;
     var q = p.model_input_projection, b = p.review_binding;
     var keys = ['version', 'prompt_sha256', 'providers', 'models', 'routing', 'mode',
@@ -553,10 +604,12 @@
     Object.keys(a).forEach(function(k) { if (k !== 'allocation_sha256') payload[k] = a[k]; });
     var digests = await Promise.all([
       hash(criticCanonicalText(payload)), hash(criticCanonicalText(q.systems_by_provider)),
-      hash(criticCanonicalText(q))
+      hash(criticCanonicalText(q)), hash(criticCanonicalText(p.review_binding))
     ]);
     return digests[0] === a.allocation_sha256 && digests[1] === p.review_binding.system_sha256 &&
-      digests[2] === p.review_binding.model_input_sha256;
+      digests[2] === p.review_binding.model_input_sha256 &&
+      (!Object.prototype.hasOwnProperty.call(p, 'renewal') ||
+        digests[3] === p.renewal.successor_input_binding_sha256);
   }
   function criticPriorCalls(p) {
     if (p.recovery && p.recovery.version === 3) {
@@ -602,10 +655,46 @@
       hashes.every(function(k) { return typeof b[k] === 'string' && /^[a-f0-9]{64}$/.test(b[k]); });
   }
 
+  function validCriticRenewal(r, p) {
+    var hashes = ['parent_operation_sha256', 'parent_plan_sha256',
+      'parent_history_sha256', 'previous_policy_sha256', 'next_policy_sha256',
+      'proposal_sha256', 'successor_operation_sha256', 'successor_plan_sha256',
+      'successor_review_policy_sha256', 'successor_input_binding_sha256'];
+    var keys = hashes.concat(['version', 'kind', 'parent_packet_id', 'parent_packet_ref',
+      'successor_packet_id', 'successor_packet_ref', 'expiry', 'reviewer_call_limit',
+      'automatic_retries', 'parent_authority_reused', 'native_execution_permitted', 'canonical_plan_rows']);
+    var b = p.review_binding;
+    return exactCriticKeys(r, keys) &&
+      r.version === 'athena.flux.renewal-review-binding/1' &&
+      r.kind === 'fresh_intent_policy_renewal' &&
+      !Object.prototype.hasOwnProperty.call(p, 'recovery') && hasCriticProjection(p) &&
+      validCriticInputBinding(b, p) &&
+      hashes.every(function(k) { return typeof r[k] === 'string' && /^[a-f0-9]{64}$/.test(r[k]); }) &&
+      Number.isSafeInteger(r.parent_packet_id) && r.parent_packet_id > 0 &&
+      Number.isSafeInteger(r.successor_packet_id) && r.successor_packet_id > 0 &&
+      typeof r.parent_packet_ref === 'string' && /^PKT-FLUX-B1-[0-9a-f]{20}$/.test(r.parent_packet_ref) &&
+      typeof r.successor_packet_ref === 'string' && /^PKT-FLUX-B1-[0-9a-f]{20}$/.test(r.successor_packet_ref) &&
+      r.parent_packet_id !== r.successor_packet_id && r.parent_packet_ref !== r.successor_packet_ref &&
+      r.parent_operation_sha256 !== r.successor_operation_sha256 &&
+      r.parent_plan_sha256 !== r.successor_plan_sha256 &&
+      r.previous_policy_sha256 !== r.next_policy_sha256 &&
+      r.successor_packet_id === p.packet_id && r.successor_packet_ref === b.packet_ref &&
+      r.successor_operation_sha256 === p.operation_digest &&
+      r.successor_plan_sha256 === b.plan_seal_sha256 &&
+      r.successor_review_policy_sha256 === p.policy_sha256 &&
+      r.expiry === p.expiry && awareTime(r.expiry) &&
+      r.reviewer_call_limit === 2 && p.reviewer_call_limit === 2 &&
+      [113, 119].includes(r.canonical_plan_rows) && r.canonical_plan_rows === p.canonical_plan_rows &&
+      r.automatic_retries === false && p.automatic_retries === false &&
+      r.parent_authority_reused === false && r.native_execution_permitted === false;
+  }
+
   function criticNonceText(p) {
     var replacement = Object.prototype.hasOwnProperty.call(p, 'recovery');
+    var renewal = Object.prototype.hasOwnProperty.call(p, 'renewal');
     var binding = {operation_digest: p.operation_digest, policy_sha256: p.policy_sha256,
-      purpose: replacement ? 'athena:l0:critic-review:replacement' : 'athena:l0:critic-review'};
+      purpose: renewal ? 'athena:l0:critic-review:renewal:1' :
+        (replacement ? 'athena:l0:critic-review:replacement' : 'athena:l0:critic-review')};
     if (hasCriticProjection(p)) binding.model_input_projection_version = p.model_input_projection.version;
     if (replacement) {
       var r = p.recovery;
@@ -625,6 +714,9 @@
         plan_seal_sha256: b.plan_seal_sha256, prompt_sha256: b.prompt_sha256,
         system_sha256: b.system_sha256, version: b.version};
     }
+    // The fixed schema was checked before hashing. These are commitments to
+    // server-persisted evidence, not authority supplied by the browser.
+    if (renewal) binding.renewal = p.renewal;
     // The explicit V3 domain marker prevents stripping the allocation fields
     // into a legacy disclosure while retaining the opaque bound input hash.
     if (hasCriticProjection(p)) return criticCanonicalText(binding);
@@ -649,10 +741,13 @@
       Object.prototype.hasOwnProperty.call(p, 'recovery');
     var inputBound = !!p && typeof p === 'object' &&
       Object.prototype.hasOwnProperty.call(p, 'review_binding');
+    var renewal = !!p && typeof p === 'object' &&
+      Object.prototype.hasOwnProperty.call(p, 'renewal');
     if (hasCriticProjection(p)) keys.push('model_input_projection', 'end_to_end_readiness');
     else keys.push('max_tokens_per_provider');
     if (replacement) keys.push('recovery');
     if (inputBound) keys.push('review_binding');
+    if (renewal) keys.push('renewal');
     var hex = /^[a-f0-9]{64}$/;
     var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
@@ -660,6 +755,7 @@
         (replacement && (!validCriticRecovery(p.recovery) ||
           ((p.recovery.version === 2 || p.recovery.version === 3) && !hasCriticProjection(p)))) ||
         (inputBound && !validCriticInputBinding(p.review_binding, p)) ||
+        (renewal && !validCriticRenewal(p.renewal, p)) ||
         !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
         p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
         !hex.test(p.state) || p.state !== state ||
@@ -669,7 +765,7 @@
         typeof p.actor !== 'string' || p.actor.toLowerCase() !== subject ||
         !/^[^\s@]+@[^\s@]+$/.test(p.actor) ||
         p.project_url !== expectedProject || p.source_sha256 !== expectedSource ||
-        p.source_bytes !== 40304 || p.canonical_plan_rows !== 113 ||
+        p.source_bytes !== 40304 || (renewal ? p.canonical_plan_rows !== p.renewal.canonical_plan_rows : p.canonical_plan_rows !== 113) ||
         p.source_confidential !== true ||
         p.external_source_disclosure !== 'full_canonical_plan_and_source_scope' ||
         !Array.isArray(p.reviewers) || p.reviewers.length !== 2 ||
@@ -726,8 +822,10 @@
     box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
     var heading = document.createElement('h2');
     var recovery = operation.recovery;
+    var renewal = operation.renewal;
     heading.textContent = recovery ? 'Authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
-      'Approve and start TWO paid external A2 critic reviews';
+      (renewal ? 'Authorise this fresh job and TWO paid A2 reviews' :
+        'Approve and start TWO paid external A2 critic reviews');
     box.appendChild(heading);
     if (recovery) {
       var replacementNotice = document.createElement('p');
@@ -735,8 +833,14 @@
       replacementNotice.textContent = 'ONE manual replacement attempt, for the same source and PLAN: exactly TWO ADDITIONAL paid external model calls. ' + criticPriorCalls(operation) + '. No further retry is authorised. The original failed job remains on record; this does not restart it or approve Flux design.';
       box.appendChild(replacementNotice);
     }
+    if (renewal) {
+      var renewalNotice = document.createElement('p');
+      renewalNotice.id = 'vacCriticRenewalDisclosure';
+      renewalNotice.textContent = 'Athena has prepared a fresh job. Confirming authorises its exact renewal policy and exactly TWO paid external reviews. The expired attempt stays unchanged and no previous permission is reused. Any earlier provider charges remain separate. No automatic retry or native Flux design is authorised; Flux design still needs its separate decision.';
+      box.appendChild(renewalNotice);
+    }
     var warning = document.createElement('p');
-    warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and 113-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
+    warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and ' + operation.canonical_plan_rows + '-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
     box.appendChild(warning);
     var fields = [
       ['Owner', operation.actor], ['Tenant', operation.tenant_id],
@@ -746,7 +850,9 @@
       ['Source SHA-256', operation.source_sha256],
       ['Canonical PLAN obligations', operation.canonical_plan_rows + ' exact rows'],
       ['Reviewers', 'Exactly two distinct paid providers and model families'],
-      ['Effect of this approval', 'Athena will immediately queue exactly TWO paid external model API calls with the confidential source and PLAN, after server-side one-use grant verification'],
+      ['Effect of this approval', renewal ?
+        'Athena will activate this exact prepared renewal and queue exactly TWO paid external model API calls with the confidential source and PLAN, after server checks and one fresh grant' :
+        'Athena will immediately queue exactly TWO paid external model API calls with the confidential source and PLAN, after server-side one-use grant verification'],
       ['Irreversibility', 'External processing and charges may start after confirmation; closing VAC cannot recall a submitted provider call'], 
       ['Orchestration and synthesis', 'COLLECT ONLY: exactly two paid reviewer calls; no third synthesis model or hidden model vendor'],
       ['Reviewer call limit', operation.reviewer_call_limit + ' total; no third model'],
@@ -789,10 +895,11 @@
     var confirm = document.createElement('button');
     confirm.id = 'vacCriticReviewConfirm'; confirm.type = 'button';
     confirm.textContent = recovery ? 'I authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
-      'I authorise Athena to START TWO paid external A2 reviews';
+      (renewal ? 'I authorise this fresh job and TWO paid A2 reviews' :
+        'I authorise Athena to START TWO paid external A2 reviews');
     confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
-      if (recovery && (operationConfirmed || sending || acked || replacementDeliveryAttempted)) return;
+      if ((recovery || renewal) && (operationConfirmed || sending || acked || singleAttemptDeliveryStarted)) return;
       if (!operation || operation.actor.toLowerCase() !== subject ||
           Date.parse(operation.expiry) <= Date.now()) { operationRefused(); return; }
       operationConfirmed = true; confirm.disabled = true; send();
@@ -801,7 +908,8 @@
     panel().appendChild(box);
     show('info', recovery ?
       'This replacement has not started. Fresh FULL/L3 consent authorises TWO ADDITIONAL paid calls for the same source and PLAN. ' + criticPriorCalls(operation) + '; no further retry or Flux design is authorised.' :
-      'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false);
+      (renewal ? 'This fresh job has not started. Your decision covers its exact renewal policy and TWO paid reviews. Flux design remains a separate decision.' :
+        'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.'), false);
   }
 
   function receiveCriticPreview(message) {
@@ -966,39 +1074,47 @@
   function deliver() {
     if (kind === 'decisions-confirm' && (!continuationFresh() || !challengeConsumed)) return;
     var replacement = criticReview && operation && operation.recovery;
-    if (replacementDeliveryAttempted) return;
+    var renewal = criticReview && operation && operation.renewal;
+    var singleAttempt = replacement || renewal;
+    if (singleAttemptDeliveryStarted) return;
     if (!openerPresent()) {
       show('warn', 'Return to ' + (toAthena ? 'the Athena' : 'the Vault') + ' tab. This page was not opened from ' + destination +
         ' (or that tab was closed), so nothing was sent. Start the ' + actionName + ' again from ' + destination + '.', false);
       return;
     }
-    if (replacement) {
-      // A replacement is a new, separately approved paid attempt, not a
-      // retryable delivery loop. Uncertain receipt must be reconciled in Athena.
-      replacementDeliveryAttempted = true;
+    if (singleAttempt) {
+      // A fresh renewal or replacement is one separately approved paid attempt.
+      // Uncertain receipt must be reconciled in Athena, never sent again here.
+      singleAttemptDeliveryStarted = true;
       try { window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin); }
       catch (_error) {
-        show('warn', 'Replacement outcome UNKNOWN. The TWO ADDITIONAL paid calls may already have started. Do NOT retry or repeat VAC; check Athena’s exact job receipt. Prior timed-out calls may be charged.', false);
+        show('warn', renewal ?
+          'Renewal outcome UNKNOWN. The TWO paid reviews may already have started. Athena must reconcile this decision before any further attempt. No automatic retry is authorised.' :
+          'Replacement outcome UNKNOWN. The TWO ADDITIONAL paid calls may already have started. Do NOT retry or repeat VAC; check Athena’s exact job receipt. Prior timed-out calls may be charged.', false);
         return;
       }
     } else window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin);
     delivered = true;
-    show('info', replacement ?
-      'Replacement authorisation sent to Athena. TWO ADDITIONAL paid calls may start after server checks. Prior timed-out calls may be charged. Do NOT retry; check Athena’s job receipt. This is not proof that reviews completed.' :
-      'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', !replacement);
+    show('info', renewal ?
+      'Fresh-job authorisation sent to Athena. TWO paid reviews may start after server checks. Athena will reconcile and report the result; this is not proof that reviews completed.' :
+      (replacement ?
+        'Replacement authorisation sent to Athena. TWO ADDITIONAL paid calls may start after server checks. Prior timed-out calls may be charged. Do NOT retry; check Athena’s job receipt. This is not proof that reviews completed.' :
+        'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.'), !singleAttempt);
     clearTimeout(ackTimer);
     ackTimer = setTimeout(function () {
       if (!acked) {
-        show('warn', replacement ?
-          'Replacement outcome UNKNOWN: Athena has not acknowledged here. TWO ADDITIONAL paid calls may already have started. Do NOT retry or repeat VAC; check Athena’s exact job receipt. Prior timed-out calls may be charged.' :
-          destination + ' has not confirmed yet. Switch back to it; if it is still waiting, ' +
-          'come back here and tap “Send to ' + destination + ' again”.', !replacement);
+        show('warn', renewal ?
+          'Renewal outcome UNKNOWN: Athena has not acknowledged here. The TWO paid reviews may already have started. Athena must reconcile this decision before any further attempt. No automatic retry is authorised.' :
+          (replacement ?
+            'Replacement outcome UNKNOWN: Athena has not acknowledged here. TWO ADDITIONAL paid calls may already have started. Do NOT retry or repeat VAC; check Athena’s exact job receipt. Prior timed-out calls may be charged.' :
+            destination + ' has not confirmed yet. Switch back to it; if it is still waiting, ' +
+            'come back here and tap “Send to ' + destination + ' again”.'), !singleAttempt);
       }
     }, ACK_WAIT_MS);
   }
 
   function send() {
-    if (replacementDeliveryAttempted) return;
+    if (singleAttemptDeliveryStarted) return;
     if (sending || acked || (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh()))) return;
     if (reviewedHandoff && (!operationConfirmed || !operation ||
         operation.actor.toLowerCase() !== subject || Date.parse(operation.expiry) <= Date.now())) {
@@ -1089,7 +1205,7 @@
       return JSON.parse(JSON.stringify(continuation.challenge));
     },
     onVerified: function (authResult, identity) {
-      if (replacementDeliveryAttempted) return;
+      if (singleAttemptDeliveryStarted) return;
       serviceSessionChanged();
       if (!valid) {
         show('error', 'This ' + destination + ' link is not valid, so nothing was sent. Return to ' + destination + ' and start again.', false);
