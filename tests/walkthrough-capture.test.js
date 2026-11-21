@@ -199,3 +199,38 @@ test('dedicated camera guard refuses missing bridge before existing camera/audio
   context.window.VACWalkthroughCapture={canStart:()=>true};assert.equal(await context.requestCamera(),'camera-code-reached');
   context.window.location.search='';delete context.window.VACWalkthroughCapture;assert.equal(await context.requestCamera(),'camera-code-reached');
 });
+
+test('successful film verification hands off original once then purges ordinary retry media and receipt', async () => {
+  const ceremony = fs.readFileSync(path.join(root, 'vac-reauth-ceremony.js'), 'utf8');
+  const marker = '// The normal genuine result has rendered. The separate film bridge';
+  const from = ceremony.indexOf('            try {\\n                if (window.VACWalkthroughCapture)', ceremony.indexOf(marker));
+  const to = ceremony.indexOf('\\n        } else {', from);
+  assert.ok(from > ceremony.indexOf(marker) && to > from, 'runRealVerification success handoff must be present');
+  const successHandoff = ceremony.slice(from, to);
+  const original = new Blob(['private synthetic original'], {type:'video/webm'});
+  for (const outcome of ['success', 'bridge_reject', 'ordinary_auth']) {
+    const response = {authenticated:true, session_token:'synthetic-ordinary-session', walkthrough_receipt:'synthetic.receipt.sig'};
+    let handed = null;
+    const window = {__vacLastVerifyBlob:original};
+    if (outcome !== 'ordinary_auth') {
+      window.VACWalkthroughCapture = {async completed(blob, result) {
+        handed = {blob, receipt:result.walkthrough_receipt};
+        if (outcome === 'bridge_reject') throw new Error('synthetic failure');
+      }};
+    }
+    const context = vm.createContext({window, authResult:response, recordedChunks:[original], videoBlob:original});
+    await vm.runInContext('(async function(){' + successHandoff + '})()', context);
+    if (outcome === 'ordinary_auth') {
+      assert.equal(window.__vacLastVerifyBlob, original);
+      assert.equal(response.walkthrough_receipt, 'synthetic.receipt.sig');
+      assert.equal(vm.runInContext('recordedChunks.length', context), 1);
+    } else {
+      assert.equal(handed.blob, original);
+      assert.equal(handed.receipt, 'synthetic.receipt.sig');
+      assert.equal(window.__vacLastVerifyBlob, null);
+      assert.equal(Object.hasOwn(response, 'walkthrough_receipt'), false);
+      assert.equal(vm.runInContext('recordedChunks.length', context), 0);
+      assert.equal(response.session_token, 'synthetic-ordinary-session');
+    }
+  }
+});
