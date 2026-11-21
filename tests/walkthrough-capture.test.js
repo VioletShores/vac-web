@@ -267,3 +267,49 @@ test('Under the Hood escapes adversarial engine transcript and model text in the
   assert.ok(hood.innerHTML.includes('hood-section'), 'trusted layout remains unchanged');
   assert.equal(summary.textContent, 'Gemini + Deepgram');
 });
+
+
+test('normal VAC success modality and delegation panels escape untrusted engine and agent HTML', () => {
+  // Reuse the real showSuccess markup builders: private film shares this
+  // authenticated-result surface. No browser, biometric data or provider call.
+  const auth = fs.readFileSync(path.join(root, 'auth.html'), 'utf8');
+  const helperAt = auth.indexOf('const _safeResultText = value =>');
+  const helperEnd = auth.indexOf('\n    // RENDER-ONLY', helperAt);
+  const modalAt = auth.indexOf('modEl.innerHTML = mods.map(function(m, idx) {');
+  const modalEnd = auth.indexOf('\n    modEl.innerHTML +=', modalAt);
+  const chainAt = auth.indexOf("var chainEl = document.getElementById('chainDisplay');");
+  const chainEnd = auth.indexOf('\n    // Share URL', chainAt);
+  assert.ok(helperAt > 0 && helperEnd > helperAt && modalEnd > modalAt &&
+            chainEnd > chainAt, 'source-level renderers and helper must exist');
+  const helper = auth.slice(helperAt, helperEnd);
+  const hostile = '<img src=x onerror=alert(1)>';
+  const modEl = {innerHTML:''};
+  const modal = vm.createContext({
+    modEl,
+    mods:[
+      {name:'face_liveness', score:0.9, status:'verified',detail:{person_description:hostile}},
+      {name:'deepfake_detection', score:0.9, detail:{artifacts:[hostile],deepfake_likelihood:0.2}},
+      {name:'challenge_response',score:0.9,detail:{heard:hostile,expected:hostile}},
+      {name:'finger_gesture',score:0.9,detail:{digits_expected:[hostile],digits_seen:[hostile]}},
+      {name:'custom_' + hostile, score:0.8,detail:{}}
+    ],
+    modNames:{face_liveness:'Face Liveness',deepfake_detection:'Deepfake Scan',
+      challenge_response:'Challenge Match',finger_gesture:'Finger Gesture'},
+    modDescs:{}, r:{challenge:{transcript:hostile}}
+  });
+  vm.runInContext(helper + '\n' + auth.slice(modalAt,modalEnd), modal);
+  assert.doesNotMatch(modEl.innerHTML, /<img src=x/);
+  assert.ok(modEl.innerHTML.includes('&lt;img src=x onerror=alert(1)&gt;'));
+  assert.ok(modEl.innerHTML.includes('mod-detail'));
+
+  const chainDisplay={innerHTML:''};
+  const chain=vm.createContext({
+    document:{getElementById:()=>chainDisplay},
+    r:{chain:[{agent:hostile,trust:0.95},{agent:hostile,scope:hostile,trust:0.81}]},
+    d:{name:hostile},bio:{overall_score:0.95}
+  });
+  vm.runInContext(helper + '\n' + auth.slice(chainAt,chainEnd), chain);
+  assert.doesNotMatch(chainDisplay.innerHTML, /<img src=x/);
+  assert.ok(chainDisplay.innerHTML.includes('&lt;img src=x onerror=alert(1)&gt;'));
+  assert.ok(chainDisplay.innerHTML.includes('chain-node-result'));
+});
