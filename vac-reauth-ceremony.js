@@ -7928,8 +7928,18 @@ async function runRealVerification(videoBlob) {
             // No second recorder, verifier, result mutation or grant is involved.
             try {
                 if (window.VACWalkthroughCapture) {
-                    Promise.resolve(window.VACWalkthroughCapture.completed(videoBlob, authResult)).catch(function () {});
-                    recordedChunks = []; // the opt-in bridge owns the remaining clip reference
+                    try {
+                        await window.VACWalkthroughCapture.completed(videoBlob, authResult);
+                    } finally {
+                        // The film bridge now owns the only clip/receipt needed for
+                        // second consent or retry. Ordinary auth must not retain a
+                        // second original in its transport-retry global or result.
+                        recordedChunks = [];
+                        window.__vacLastVerifyBlob = null;
+                        if (authResult && typeof authResult === 'object') {
+                            delete authResult.walkthrough_receipt;
+                        }
+                    }
                 }
             } catch (_) {}
         } else {
