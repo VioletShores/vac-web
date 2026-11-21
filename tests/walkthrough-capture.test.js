@@ -203,8 +203,8 @@ test('dedicated camera guard refuses missing bridge before existing camera/audio
 test('successful film verification hands off original once then purges ordinary retry media and receipt', async () => {
   const ceremony = fs.readFileSync(path.join(root, 'vac-reauth-ceremony.js'), 'utf8');
   const marker = '// The normal genuine result has rendered. The separate film bridge';
-  const from = ceremony.indexOf('            try {\\n                if (window.VACWalkthroughCapture)', ceremony.indexOf(marker));
-  const to = ceremony.indexOf('\\n        } else {', from);
+  const from = ceremony.indexOf('            try {\n                if (window.VACWalkthroughCapture)', ceremony.indexOf(marker));
+  const to = ceremony.indexOf('\n        } else {', from);
   assert.ok(from > ceremony.indexOf(marker) && to > from, 'runRealVerification success handoff must be present');
   const successHandoff = ceremony.slice(from, to);
   const original = new Blob(['private synthetic original'], {type:'video/webm'});
