@@ -8195,6 +8195,10 @@ function toggleModRow(el) {
 
 function populateUnderHood(authData) {
     const bio = authData.biometric_verification;
+    // Engine/provider text and transcripts are untrusted, even on a genuine
+    // authenticated result. This panel writes trusted layout via innerHTML;
+    // escape every dynamic value before interpolation to prevent DOM markup.
+    const _hoodText = value => _escapeStageText(String(value == null ? '' : value));
     const mods = bio?.modalities || [];
     const el = document.getElementById('hoodContent');
     if (!el) return;
@@ -8208,18 +8212,18 @@ function populateUnderHood(authData) {
     if (face?.provider === 'gemini' || df?.provider === 'gemini') {
         html += `<div class="hood-section"><div class="hood-label">Gemini 2.5 Flash — Vision Analysis <span class="hood-provider">gemini</span></div>`;
         if (face?.detail?.person_description) {
-            html += `<div class="hood-value">"${face.detail.person_description}"</div>`;
+            html += `<div class="hood-value">"${_hoodText(face.detail.person_description)}"</div>`;
         }
         html += `<div class="hood-value" style="color: var(--text-tertiary); font-size: 10px;">`;
         html += `Face: ${face?.detail?.face_detected ? '✓ detected' : '✗'} · Blink: ${face?.detail?.blink_detected ? '✓' : '—'}`;
         if (df?.detail) {
             const dfLikelihood = typeof df.detail.deepfake_likelihood === 'number' ? (df.detail.deepfake_likelihood * 100).toFixed(0) : '0';
             html += ` · Deepfake: ${dfLikelihood}% likelihood`;
-            if (df.detail.artifacts?.length > 0) html += ` (${df.detail.artifacts.join(', ')})`;
+            if (df.detail.artifacts?.length > 0) html += ` (${_hoodText(df.detail.artifacts.join(', '))})`;
         }
         html += `</div>`;
         if (ls?.detail?.visual_speech?.estimated_words) {
-            html += `<div class="hood-value" style="margin-top: 4px;">Lip reading: "${ls.detail.visual_speech.estimated_words}"</div>`;
+            html += `<div class="hood-value" style="margin-top: 4px;">Lip reading: "${_hoodText(ls.detail.visual_speech.estimated_words)}"</div>`;
         }
         html += `</div>`;
     }
@@ -8230,7 +8234,7 @@ function populateUnderHood(authData) {
     if (voice?.provider === 'deepgram_nova3') {
         html += `<div class="hood-section"><div class="hood-label">Deepgram Nova-3 — Speech Analysis <span class="hood-provider">deepgram</span></div>`;
         if (voice.detail?.transcript) {
-            html += `<div class="hood-value">Heard: "${voice.detail.transcript}"</div>`;
+            html += `<div class="hood-value">Heard: "${_hoodText(voice.detail.transcript)}"</div>`;
         }
         html += `<div class="hood-value" style="color: var(--text-tertiary); font-size: 10px;">`;
         html += `Confidence: ${(voice.score * 100).toFixed(0)}% · Words: ${voice.detail?.word_count || 0}`;
@@ -8239,7 +8243,7 @@ function populateUnderHood(authData) {
         }
         html += `</div>`;
         if (challenge?.detail?.expected) {
-            html += `<div class="hood-value" style="margin-top: 4px; font-size: 10px; color: var(--text-quaternary);">Expected: "${challenge.detail.expected}"</div>`;
+            html += `<div class="hood-value" style="margin-top: 4px; font-size: 10px; color: var(--text-quaternary);">Expected: "${_hoodText(challenge.detail.expected)}"</div>`;
         }
         html += `</div>`;
     }
@@ -8250,7 +8254,7 @@ function populateUnderHood(authData) {
         const seen = finger.detail?.digits_seen || [];
         const expected = finger.detail?.digits_expected || [];
         html += `<div class="hood-value" style="font-size: 10px;">`;
-        html += `Expected: [${expected.join(', ')}] \u00b7 Seen: [${seen.join(', ')}]`;
+        html += `Expected: [${_hoodText(expected.join(', '))}] \u00b7 Seen: [${_hoodText(seen.join(', '))}]`;
         html += ` \u00b7 Hand near face: ${finger.detail?.hand_near_face ? '\u2713' : '\u2717'}`;
         html += ` \u00b7 Score: ${(finger.score * 100).toFixed(0)}%`;
         html += `</div></div>`;
@@ -8259,7 +8263,7 @@ function populateUnderHood(authData) {
     if (bio?.trust_breakdown) {
         html += `<div class="hood-section"><div class="hood-label">Trust Score Breakdown</div>`;
         html += `<div class="hood-value" style="font-size: 10px;">`;
-        const parts = Object.entries(bio.trust_breakdown).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'number' ? v.toFixed(2) : v}`);
+        const parts = Object.entries(bio.trust_breakdown).map(([k, v]) => `${_hoodText(k.replace(/_/g, ' '))}: ${_hoodText(typeof v === 'number' ? v.toFixed(2) : v)}`);
         html += parts.join(' · ');
         html += `</div></div>`;
     }
