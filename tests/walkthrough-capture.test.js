@@ -234,3 +234,36 @@ test('successful film verification hands off original once then purges ordinary 
     }
   }
 });
+
+
+test('Under the Hood escapes adversarial engine transcript and model text in the genuine results path', () => {
+  // Execute the actual panel renderer from the production source, not a copy
+  // of its escaping logic. No browser, camera, network or biometric data.
+  const ceremony = fs.readFileSync(path.join(root, 'vac-reauth-ceremony.js'), 'utf8');
+  const esc = ceremony.split('\n').find(line => line.startsWith('function _escapeStageText(s) {'));
+  const from = ceremony.indexOf('function populateUnderHood(authData) {');
+  const to = ceremony.indexOf('\n// ========== retry UI ==========', from);
+  assert.ok(esc && from >= 0 && to > from, 'production renderer and escape function exist');
+  const hood = {innerHTML:''}, summary = {textContent:''};
+  const context = vm.createContext({document:{getElementById:id => id === 'hoodContent' ? hood : summary}});
+  vm.runInContext(esc + '\n' + ceremony.slice(from, to), context);
+  const a = '<img src=x onerror=alert(1)>';
+  const b = '<svg/onload=alert(2)>';
+  const c = '<script>window.__leak=1</script>';
+  context.populateUnderHood({biometric_verification:{
+    method:'multi_modal_real',
+    modalities:[
+      {name:'face_liveness',provider:'gemini',detail:{person_description:a,face_detected:true,blink_detected:true}},
+      {name:'deepfake_detection',provider:'gemini',detail:{deepfake_likelihood:0.1,artifacts:[b]}},
+      {name:'lip_sync',detail:{visual_speech:{estimated_words:c}}},
+      {name:'voiceprint',provider:'deepgram_nova3',score:0.9,detail:{transcript:a,word_count:4}},
+      {name:'challenge_response',score:0.95,detail:{expected:b}},
+      {name:'finger_gesture',score:0.85,detail:{digits_seen:[a],digits_expected:[c],hand_near_face:true}}
+    ],
+    trust_breakdown:{[a]:b},
+  }});
+  assert.doesNotMatch(hood.innerHTML, /<img src=x|<svg\/onload|<script>window\.__leak/);
+  for (const marker of ['&lt;img', '&lt;svg', '&lt;script&gt;']) assert.ok(hood.innerHTML.includes(marker));
+  assert.ok(hood.innerHTML.includes('hood-section'), 'trusted layout remains unchanged');
+  assert.equal(summary.textContent, 'Gemini + Deepgram');
+});
