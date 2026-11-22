@@ -170,7 +170,7 @@
   // Typed refusal (athena L0 §4.2.3 sensory surface, Rule 4 sensor contract).
   // Every refusal still fails closed through the SAME teardown, but now names
   // WHICH predicate failed, from a CLOSED, stable enum. A code never carries
-  // payload text: unknown values collapse to 'unspecified'. Athena receives
+  // payload text: unknown values collapse to 'vac_unspecified'. Athena receives
   // only {type, state, code}, at the pinned target origin, so it can hold the
   // packet with a typed reason instead of UI-only text.
   var REFUSED = 'vac-operation-refused';
@@ -191,15 +191,15 @@
     'risk', 'allowed_tools', 'constraints', 'resource_envelope', 'readback',
     'evidence_requirements', 'result_contract', 'async_credit_risk', 'payer_binding',
     'cost_bounds', 'read_argument_binding', 'readback.arguments_sha256'];
-  var REFUSAL_BASE = ['identity_mismatch', 'expired', 'intent_missing', 'intent_too_large',
-    'intent_not_ascii', 'intent_parse_failed', 'intent_replaced', 'replayed', 'nonce_mismatch',
-    'projection_digest_mismatch', 'renewal_digest_mismatch', 'digest_unavailable',
-    'operation_missing', 'unspecified'];
+  var REFUSAL_BASE = ['actor_subject_mismatch', 'vac_expired', 'vac_intent_missing', 'vac_intent_too_large',
+    'vac_intent_not_ascii', 'vac_intent_parse_failed', 'vac_intent_replaced', 'vac_replayed', 'vac_nonce_mismatch',
+    'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch', 'vac_digest_unavailable',
+    'vac_operation_missing', 'vac_unspecified'];
   var REFUSAL_CODES = REFUSAL_BASE.concat(
-    PREVIEW_FIELDS.map(function (f) { return 'preview_shape_invalid:' + f; }),
-    OPERATION_FIELDS.map(function (f) { return 'operation_shape_invalid:' + f; }));
+    PREVIEW_FIELDS.map(function (f) { return 'vac_preview_shape_invalid:' + f; }),
+    OPERATION_FIELDS.map(function (f) { return 'vac_operation_shape_invalid:' + f; }));
   function refusalCode(code) {
-    return typeof code === 'string' && REFUSAL_CODES.indexOf(code) >= 0 ? code : 'unspecified';
+    return typeof code === 'string' && REFUSAL_CODES.indexOf(code) >= 0 ? code : 'vac_unspecified';
   }
   // Masked hint only: first character, fixed '***', then the domain. Never the
   // full address, never before a FULL verification, never sent to the opener.
@@ -211,20 +211,20 @@
   function refusalText(code, actor) {
     var nothing = criticReview ? 'No critic or Flux task was authorised.' : 'Nothing was authorised.';
     var text;
-    if (code === 'identity_mismatch') {
+    if (code === 'actor_subject_mismatch') {
       var hint = sessionToken && subject ? maskedActor(actor) : '';
       text = 'You signed in to VAC with a different account from the one that made this request. ' +
         (hint ? 'The request was made by ' + hint + '. ' : '') +
         'Sign in again with the account that made the request, then press Review and authorise again.';
-    } else if (code === 'expired') {
+    } else if (code === 'vac_expired') {
       text = 'This request has expired. Return to Athena and start it again to get a fresh request.';
-    } else if (code === 'replayed' || code === 'intent_replaced') {
+    } else if (code === 'vac_replayed' || code === 'vac_intent_replaced') {
       text = 'This request changed or was already used while this page was open. Return to Athena and start it again.';
-    } else if (code === 'nonce_mismatch' || code === 'projection_digest_mismatch' || code === 'renewal_digest_mismatch') {
+    } else if (code === 'vac_nonce_mismatch' || code === 'vac_projection_digest_mismatch' || code === 'vac_renewal_digest_mismatch') {
       text = 'The details Athena sent do not match the request this page was opened for. Return to Athena and start it again.';
-    } else if (code === 'digest_unavailable') {
+    } else if (code === 'vac_digest_unavailable') {
       text = 'This browser could not check the request’s fingerprint. Try again in an up-to-date browser, or return to Athena.';
-    } else if (code === 'operation_missing') {
+    } else if (code === 'vac_operation_missing') {
       text = 'The confirmation was not completed. Return to Athena and start it again.';
     } else {
       text = 'Athena sent request details this version of VAC cannot verify. Return to Athena; if this repeats, Athena or VAC needs updating.';
@@ -255,10 +255,10 @@
   }
   // Same predicates and order as before; only the outcome is now named.
   function liveOperationFault(lower) {
-    if (!operation) return 'operation_missing';
+    if (!operation) return 'vac_operation_missing';
     var actor = lower && typeof operation.actor === 'string' ? operation.actor.toLowerCase() : operation.actor;
-    if (actor !== subject) return 'identity_mismatch';
-    if (Date.parse(operation.expiry) <= Date.now()) return 'expired';
+    if (actor !== subject) return 'actor_subject_mismatch';
+    if (Date.parse(operation.expiry) <= Date.now()) return 'vac_expired';
     return null;
   }
   function refuseLive(code) { operationRefused(code, operation && operation.actor); }
@@ -307,7 +307,7 @@
     });
   }
   function asyncCreditRiskFault(op) {
-    var bad = 'operation_shape_invalid:async_credit_risk';
+    var bad = 'vac_operation_shape_invalid:async_credit_risk';
     // An owner-observed account setting is NOT a provider-enforced per-task cap
     // or proof of who pays. The signed exact operation includes the disclosure;
     // Athena independently checks the evidence, payer, policy and sealed L0
@@ -353,16 +353,16 @@
         payer.source_url !== 'https://docs.flux.ai/account/copilot-credits' ||
         payer.oauth_subject_verified !== false ||
         payer.fresh_provider_owner_recheck_required !== true ||
-        !awareTime(payer.observed_at)) return 'operation_shape_invalid:payer_binding';
+        !awareTime(payer.observed_at)) return 'vac_operation_shape_invalid:payer_binding';
     var payerAgeMs = Date.now() - Date.parse(payer.observed_at);
-    if (payerAgeMs < -10000 || payerAgeMs > 900000) return 'operation_shape_invalid:payer_binding';
+    if (payerAgeMs < -10000 || payerAgeMs > 900000) return 'vac_operation_shape_invalid:payer_binding';
     var unknown = {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'};
     return exactValues(op.resource_envelope.spend_ceiling, unknown) &&
       exactValues(op.resource_envelope.cost_upper_bound, unknown) &&
-      exactValues(op.readback.cost_upper_bound, unknown) ? null : 'operation_shape_invalid:cost_bounds';
+      exactValues(op.readback.cost_upper_bound, unknown) ? null : 'vac_operation_shape_invalid:cost_bounds';
   }
   // Returns null when the V2 operation is exactly the supported shape, else
-  // the closed 'operation_shape_invalid:<field>' code of the FIRST failing
+  // the closed 'vac_operation_shape_invalid:<field>' code of the FIRST failing
   // predicate. Predicates and their order are unchanged from the boolean form.
   function taskOperationFault(op, raw) {
     var fields = ['version', 'purpose', 'execution_id', 'packet_id', 'actor', 'principal', 'tenant_id',
@@ -436,7 +436,7 @@
           !/^robzag\/[^\s/?#]+$/.test(result.provider_project_id) || result.provider_project_id.length > 320;
       }]
     ]);
-    if (fault) return 'operation_shape_invalid:' + fault;
+    if (fault) return 'vac_operation_shape_invalid:' + fault;
     var risk = asyncCreditRiskFault(op);
     if (risk) return risk;
     binding = result.read_argument_binding;
@@ -445,11 +445,11 @@
         !exactKeys(binding.get_thread.thread, ['from_execute']) ||
         !exactKeys(binding.get_messages.thread, ['from_execute']) ||
         binding.get_thread.thread.from_execute !== 'thread_url' || binding.get_messages.thread.from_execute !== 'thread_url' ||
-        binding.get_messages.offset !== 0 || binding.get_messages.limit !== 20) return 'operation_shape_invalid:read_argument_binding';
+        binding.get_messages.offset !== 0 || binding.get_messages.limit !== 20) return 'vac_operation_shape_invalid:read_argument_binding';
     // Hash of Athena's fixed canonical read-derivation bytes; never recanonicalise
     // the received intent or accept arbitrary caller-supplied read arguments.
     return r.arguments_sha256 === '7b25df211e6e413c79a586a0438cacd846b2d2e02837f1e60aaeaf8a20626820' ?
-      null : 'operation_shape_invalid:readback.arguments_sha256';
+      null : 'vac_operation_shape_invalid:readback.arguments_sha256';
   }
   // V1 keeps its original minimal predicate set, in the original order.
   function legacyOperationFault(parsed) {
@@ -478,7 +478,7 @@
           });
       }]
     ]);
-    return fault ? 'operation_shape_invalid:' + fault : null;
+    return fault ? 'vac_operation_shape_invalid:' + fault : null;
   }
 
   function renderOperation() {
@@ -563,27 +563,27 @@
 
   function receiveOperation(message) {
     var raw = message.intent_json;
-    if (typeof raw !== 'string') { operationRefused('intent_missing'); return; }
-    if (raw.length > 65536) { operationRefused('intent_too_large'); return; }
-    if (!/^[\x20-\x7e]*$/.test(raw)) { operationRefused('intent_not_ascii'); return; }
+    if (typeof raw !== 'string') { operationRefused('vac_intent_missing'); return; }
+    if (raw.length > 65536) { operationRefused('vac_intent_too_large'); return; }
+    if (!/^[\x20-\x7e]*$/.test(raw)) { operationRefused('vac_intent_not_ascii'); return; }
     if (operationJson === raw) { renderOperation(); return; }
-    if (operationJson !== null) { operationRefused('intent_replaced'); return; }
-    if (operationConfirmed || sending || acked) { operationRefused('replayed'); return; }
+    if (operationJson !== null) { operationRefused('vac_intent_replaced'); return; }
+    if (operationConfirmed || sending || acked) { operationRefused('vac_replayed'); return; }
     var generation = ++operationGeneration;
     var parsed;
-    try { parsed = JSON.parse(raw); } catch (e) { operationRefused('intent_parse_failed'); return; }
+    try { parsed = JSON.parse(raw); } catch (e) { operationRefused('vac_intent_parse_failed'); return; }
     var shape;
     try { shape = parsed && parsed.version === 2 ? taskOperationFault(parsed, raw) : legacyOperationFault(parsed); }
-    catch (e) { shape = 'unspecified'; }
+    catch (e) { shape = 'vac_unspecified'; }
     if (shape) { operationRefused(shape); return; }
     Promise.resolve().then(function () {
       return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
     }).then(function (digest) {
       if (generation !== operationGeneration) return;
       var hex = Array.prototype.map.call(new Uint8Array(digest), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-      if (hex !== state) { operationRefused('nonce_mismatch'); return; }
+      if (hex !== state) { operationRefused('vac_nonce_mismatch'); return; }
       operation = parsed; operationJson = raw; renderOperation();
-    }, function () { if (generation === operationGeneration) operationRefused('digest_unavailable'); });
+    }, function () { if (generation === operationGeneration) operationRefused('vac_digest_unavailable'); });
   }
 
 
@@ -841,7 +841,7 @@
     var hex = /^[a-f0-9]{64}$/;
     var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
-    var P = 'preview_shape_invalid:';
+    var P = 'vac_preview_shape_invalid:';
     var fault = firstFault([
       [P + 'keys', function () { return !exactKeys(p, keys); }],
       [P + 'strings', function () { return !safeStrings(p); }],
@@ -858,7 +858,7 @@
       [P + 'kind', function () { return p.kind !== 'critic-review'; }],
       [P + 'audience', function () { return p.audience !== 'athena:l0:critic-review'; }],
       [P + 'state', function () { return !hex.test(p.state); }],
-      ['nonce_mismatch', function () { return p.state !== state; }],
+      ['vac_nonce_mismatch', function () { return p.state !== state; }],
       [P + 'operation_digest', function () { return !hex.test(p.operation_digest); }],
       [P + 'policy_sha256', function () { return !hex.test(p.policy_sha256); }],
       [P + 'tenant_id', function () {
@@ -868,7 +868,7 @@
         return typeof p.principal !== 'string' || !p.principal || p.principal.length > 320;
       }],
       [P + 'actor', function () { return typeof p.actor !== 'string'; }],
-      ['identity_mismatch', function () { return p.actor.toLowerCase() !== subject; }],
+      ['actor_subject_mismatch', function () { return p.actor.toLowerCase() !== subject; }],
       [P + 'actor', function () { return !/^[^\s@]+@[^\s@]+$/.test(p.actor); }],
       [P + 'project_url', function () { return p.project_url !== expectedProject; }],
       [P + 'source_sha256', function () { return p.source_sha256 !== expectedSource; }],
@@ -907,7 +907,7 @@
       // Server PolicyRail expiry is bounded by the sealed operation, not a
       // rolling preview lease. The separate FULL/L3 VAT keeps its short TTL.
       [P + 'expiry', function () { return !awareTime(p.expiry); }],
-      ['expired', function () { return Date.parse(p.expiry) <= Date.now(); }],
+      ['vac_expired', function () { return Date.parse(p.expiry) <= Date.now(); }],
       [P + 'ready_for_owner_critic_vac', function () { return p.ready_for_owner_critic_vac !== true; }],
       [P + 'review_submission_started', function () { return p.review_submission_started !== false; }]
     ]);
@@ -1057,7 +1057,7 @@
       if (fault) { operationRefused(fault, offeredActor); return; }
       preview = JSON.parse(JSON.stringify(offered));
     }
-    catch (_error) { operationRefused('preview_shape_invalid:serialization'); return; }
+    catch (_error) { operationRefused('vac_preview_shape_invalid:serialization'); return; }
     fault = criticPreviewFault(preview);
     if (fault) { operationRefused(fault, preview && preview.actor); return; }
     var generation = ++operationGeneration;
@@ -1076,13 +1076,13 @@
       }) : Promise.resolve(true);
     Promise.all([hash(nonceText), verifyCriticProjection(preview, hash), renewalCheck]).then(function (checked) {
       if (generation !== operationGeneration) return;
-      var late = checked[0] !== state ? 'nonce_mismatch' : !checked[1] ? 'projection_digest_mismatch' :
-        !checked[2] ? 'renewal_digest_mismatch' : criticPreviewFault(preview);
+      var late = checked[0] !== state ? 'vac_nonce_mismatch' : !checked[1] ? 'vac_projection_digest_mismatch' :
+        !checked[2] ? 'vac_renewal_digest_mismatch' : criticPreviewFault(preview);
       if (late) { operationRefused(late, preview.actor); return; }
       operation = JSON.parse(JSON.stringify(preview));
       operationJson = JSON.stringify(preview);
       renderCriticPreview();
-    }, function () { if (generation === operationGeneration) operationRefused('digest_unavailable'); });
+    }, function () { if (generation === operationGeneration) operationRefused('vac_digest_unavailable'); });
   }
 
   function apiBase() {
@@ -1261,7 +1261,7 @@
     ready.then(function () {
       if (reviewedHandoff && generation !== operationGeneration) return;
       if (reviewedHandoff) {
-        var late = !operationConfirmed ? 'operation_missing' : liveOperationFault(true);
+        var late = !operationConfirmed ? 'vac_operation_missing' : liveOperationFault(true);
         if (late) { refuseLive(late); return; }
       }
       deliver();

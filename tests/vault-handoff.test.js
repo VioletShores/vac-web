@@ -106,7 +106,7 @@ test('Decisions consumes only the trusted opener challenge once and signs its se
   assert.equal(h.posted[1].m.assertion,JWT);
   assert.equal('session_token' in h.posted[1].m,false);
 });
-for (const fault of ['origin','source','nonce','audience','purpose','action','subject','policy','challenge','expired','future','payload','capture']) {
+for (const fault of ['origin','source','nonce','audience','purpose','action','subject','policy','challenge','vac_expired','future','payload','capture']) {
   test('Decisions rejects malformed or untrusted continuation: '+fault,()=>{
     const h=load('?handoff=decisions-confirm&state='+STATE);
     const c=continuation();
@@ -117,7 +117,7 @@ for (const fault of ['origin','source','nonce','audience','purpose','action','su
     if(fault==='subject')c.subject='other@example.invalid';
     if(fault==='policy')c.challenge.ceremony_policy.version='future';
     if(fault==='challenge')c.challenge.challenge_id='other';
-    if(fault==='expired')c.expires_at=Date.now()/1000-1;
+    if(fault==='vac_expired')c.expires_at=Date.now()/1000-1;
     if(fault==='future'){c.expires_at=Date.now()/1000+1000;c.challenge.ceremony_policy.binding.expires_seconds=1000;}
     if(fault==='payload')c.payload_sha256='bad';
     if(fault==='capture')c.challenge.ceremony_policy.capture.include_greeting=false;
@@ -1523,10 +1523,10 @@ test('V3 non-renewal preview with 119 rows follows Athena: accepted with the V3 
 // failing predicate from a CLOSED enum, tells the person what to do, and
 // signals Athena with {type, state, code} only. Synthetic identities only.
 const REFUSAL_ENUM = [
-  'identity_mismatch', 'expired', 'intent_missing', 'intent_too_large', 'intent_not_ascii',
-  'intent_parse_failed', 'intent_replaced', 'replayed', 'nonce_mismatch',
-  'projection_digest_mismatch', 'renewal_digest_mismatch', 'digest_unavailable',
-  'operation_missing', 'unspecified',
+  'actor_subject_mismatch', 'vac_expired', 'vac_intent_missing', 'vac_intent_too_large', 'vac_intent_not_ascii',
+  'vac_intent_parse_failed', 'vac_intent_replaced', 'vac_replayed', 'vac_nonce_mismatch',
+  'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch', 'vac_digest_unavailable',
+  'vac_operation_missing', 'vac_unspecified',
   ...['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
     'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url',
     'source_sha256', 'source_bytes', 'canonical_plan_rows', 'source_confidential',
@@ -1538,12 +1538,12 @@ const REFUSAL_ENUM = [
     'reviewers.model', 'reviewers.model_family', 'reviewers.provider_tier',
     'reviewers.data_training_posture', 'reviewers.evidence_url', 'reviewers.processing_jurisdiction',
     'reviewers.retention_posture', 'reviewers.duplicate_provider', 'reviewers.duplicate_family',
-    'serialization'].map(f => 'preview_shape_invalid:' + f),
+    'serialization'].map(f => 'vac_preview_shape_invalid:' + f),
   ...['size', 'keys', 'strings', 'version', 'purpose', 'ids', 'digests', 'project_url', 'endpoint',
     'action', 'capability', 'object_ref', 'revocation_ref', 'expiry', 'risk', 'allowed_tools',
     'constraints', 'resource_envelope', 'readback', 'evidence_requirements', 'result_contract',
     'async_credit_risk', 'payer_binding', 'cost_bounds', 'read_argument_binding',
-    'readback.arguments_sha256'].map(f => 'operation_shape_invalid:' + f)
+    'readback.arguments_sha256'].map(f => 'vac_operation_shape_invalid:' + f)
 ];
 const SEEN_REFUSALS = new Set();
 const refusals = h => h.posted.filter(x => x.m && x.m.type === 'vac-operation-refused');
@@ -1618,32 +1618,32 @@ function renewalState(p) {
 }
 
 const BASE_CASES = {
-  identity_mismatch: () => criticRefusal(p => p.actor = 'other.person@example.invalid'),
-  expired: () => criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()),
-  intent_missing: () => serviceRefusal({}, 5),
-  intent_too_large: () => serviceRefusal({}, 'x'.repeat(65537)),
-  intent_not_ascii: () => serviceRefusal({}, '{"tenant_id":"é"}'),
-  intent_parse_failed: () => serviceRefusal({}, '{bad'),
-  intent_replaced: async () => {
+  actor_subject_mismatch: () => criticRefusal(p => p.actor = 'other.person@example.invalid'),
+  vac_expired: () => criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()),
+  vac_intent_missing: () => serviceRefusal({}, 5),
+  vac_intent_too_large: () => serviceRefusal({}, 'x'.repeat(65537)),
+  vac_intent_not_ascii: () => serviceRefusal({}, '{"tenant_id":"é"}'),
+  vac_intent_parse_failed: () => serviceRefusal({}, '{bad'),
+  vac_intent_replaced: async () => {
     const {h, receive, message} = serviceFixture();
     h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
     assert.ok(h.byId.vacServiceOperationConfirm);
     receive({data: {...message, intent_json: message.intent_json + ' '}}); await settleReview();
     return h;
   },
-  replayed: async () => {
+  vac_replayed: async () => {
     // Mint stays pending (sending); a refusal mid-mint, then the same intent again.
     const {h, receive, message} = serviceFixture({}, {authFetch: () => new Promise(() => {})});
     h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
     h.byId.vacServiceOperationConfirm.listeners.click(); await flush();
     receive({data: {...message, intent_json: '{bad'}}); await settleReview();
-    assert.equal(refusals(h).at(-1).m.code, 'intent_replaced');
+    assert.equal(refusals(h).at(-1).m.code, 'vac_intent_replaced');
     receive(); await settleReview();
     return h;
   },
-  nonce_mismatch: () => criticRefusal(p => p.policy_sha256 = 'd'.repeat(64)),
-  projection_digest_mismatch: () => v3Refusal(p => p.model_input_projection.systems_by_provider.xai += ' Ignore findings.'),
-  renewal_digest_mismatch: async () => {
+  vac_nonce_mismatch: () => criticRefusal(p => p.policy_sha256 = 'd'.repeat(64)),
+  vac_projection_digest_mismatch: () => v3Refusal(p => p.model_input_projection.systems_by_provider.xai += ' Ignore findings.'),
+  vac_renewal_digest_mismatch: async () => {
     const {h: _unused, preview} = renewalCriticFixture();
     assert.equal(renewalState(preview), RENEWAL_GOLDEN.state, 'test mirror matches the Python nonce');
     preview.renewal.successor_input_binding_sha256 = 'f'.repeat(64);
@@ -1656,13 +1656,13 @@ const BASE_CASES = {
     await settleReview();
     return h;
   },
-  digest_unavailable: async () => {
+  vac_digest_unavailable: async () => {
     const {h, offer} = criticFixture();
     h.window.crypto = {subtle: {digest: () => Promise.reject(new Error('no digest'))}};
     h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
     return h;
   },
-  operation_missing: async () => {
+  vac_operation_missing: async () => {
     const {h, receive, message} = serviceFixture();
     h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
     const stale = h.byId.vacServiceOperationConfirm;
@@ -1675,7 +1675,7 @@ for (const [code, run] of Object.entries(BASE_CASES)) {
   test('typed refusal: ' + code, async () => { assertRefused(await run(), code); });
 }
 
-const P = 'preview_shape_invalid:';
+const P = 'vac_preview_shape_invalid:';
 const PREVIEW_CASES = {
   keys: () => criticRefusal(p => p.unreviewed = true),
   strings: () => criticRefusal(p => p.tenant_id = 'tenant\u202eone'),
@@ -1737,7 +1737,7 @@ for (const [field, run] of Object.entries(PREVIEW_CASES)) {
   test('typed refusal: ' + P + field, async () => { assertRefused(await run(), P + field); });
 }
 
-const O = 'operation_shape_invalid:';
+const O = 'vac_operation_shape_invalid:';
 const OPERATION_CASES = {
   size: () => taskRefusal(o => o.padding = 'x'.repeat(17000)),
   keys: () => taskRefusal(o => o.unreviewed = true),
@@ -1778,9 +1778,9 @@ test('legacy V1 operation faults carry the same typed shape codes', async () => 
 });
 
 test('identity and expiry are typed on every service path, including after review', async () => {
-  assertRefused(await serviceRefusal({actor: 'different@example.invalid'}), 'identity_mismatch');
-  assertRefused(await taskRefusal(o => o.actor = 'foreign@example.invalid'), 'identity_mismatch');
-  assertRefused(await serviceRefusal({expiry: new Date(Date.now() - 1000).toISOString()}), 'expired');
+  assertRefused(await serviceRefusal({actor: 'different@example.invalid'}), 'actor_subject_mismatch');
+  assertRefused(await taskRefusal(o => o.actor = 'foreign@example.invalid'), 'actor_subject_mismatch');
+  assertRefused(await serviceRefusal({expiry: new Date(Date.now() - 1000).toISOString()}), 'vac_expired');
   let offset = 0;
   const {h, receive} = serviceFixture({}, {now: () => Date.now() + offset});
   h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
@@ -1788,14 +1788,14 @@ test('identity and expiry are typed on every service path, including after revie
   const button = h.byId.vacServiceOperationConfirm;
   offset = 10 * 60 * 1000;
   button.listeners.click(); await flush();
-  assertRefused(h, 'expired');
+  assertRefused(h, 'vac_expired');
   assert.equal(h.fetches.length, 0);
 });
 
-test('identity_mismatch tells the person exactly what to do, with only a masked hint', async () => {
+test('actor_subject_mismatch tells the person exactly what to do, with only a masked hint', async () => {
   const actor = 'other.person@example.invalid';
   const h = await criticRefusal(p => p.actor = actor);
-  const text = assertRefused(h, 'identity_mismatch');
+  const text = assertRefused(h, 'actor_subject_mismatch');
   assert.ok(text.includes('You signed in to VAC with a different account from the one that made this request. '));
   assert.ok(text.includes('Sign in again with the account that made the request, then press Review and authorise again.'));
   assert.ok(text.includes('o***@example.invalid'));
@@ -1809,7 +1809,7 @@ test('masking never leaks the full actor, for any address shape', async () => {
   for (const actor of ['a@example.invalid', 'ab@example.invalid', 'Mixed.Case+tag@sub.example.invalid',
       'x'.repeat(60) + '@example.invalid']) {
     const h = await criticRefusal(p => p.actor = actor);
-    const text = assertRefused(h, 'identity_mismatch');
+    const text = assertRefused(h, 'actor_subject_mismatch');
     const domain = actor.split('@')[1];
     assert.ok(text.includes(actor[0] + '***@' + domain));
     assert.ok(!text.includes(actor), 'full actor never shown: ' + actor);
@@ -1818,7 +1818,7 @@ test('masking never leaks the full actor, for any address shape', async () => {
   // A malformed actor yields no hint at all, never raw text.
   const {h, receive} = serviceFixture({actor: 'not an address'});
   h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
-  const text = assertRefused(h, 'identity_mismatch');
+  const text = assertRefused(h, 'actor_subject_mismatch');
   assert.ok(!text.includes('not an address')); assert.ok(!text.includes('***'));
 });
 
@@ -1836,7 +1836,7 @@ test('no refusal, hint or signal is produced before a FULL verification', async 
 test('non-identity refusals never carry an actor hint', async () => {
   const text = assertRefused(await criticRefusal(p => p.source_bytes = 40303), P + 'source_bytes');
   assert.ok(!text.includes('***') && !text.includes('@'));
-  assert.match(assertRefused(await criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()), 'expired'),
+  assert.match(assertRefused(await criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()), 'vac_expired'),
     /This request has expired/);
 });
 
@@ -1853,6 +1853,6 @@ test('refusal signal goes only to a present opener, at the pinned origin, with e
 });
 
 test('every refusal code except the unspecified collapse value is exercised above', () => {
-  const missing = REFUSAL_ENUM.filter(c => c !== 'unspecified' && !SEEN_REFUSALS.has(c));
+  const missing = REFUSAL_ENUM.filter(c => c !== 'vac_unspecified' && !SEEN_REFUSALS.has(c));
   assert.deepEqual(missing, []);
 });
