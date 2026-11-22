@@ -169,10 +169,12 @@
 
   // Typed refusal (athena L0 §4.2.3 sensory surface, Rule 4 sensor contract).
   // Every refusal still fails closed through the SAME teardown, but now names
-  // WHICH predicate failed, from a CLOSED, stable enum. A code never carries
-  // payload text: unknown values collapse to 'vac_unspecified'. Athena receives
-  // only {type, state, code}, at the pinned target origin, so it can hold the
-  // packet with a typed reason instead of UI-only text.
+  // WHICH gate failed, from a CLOSED, stable vocabulary shared with Athena
+  // (#1760 §14). Wire: {type, state, code} or {type, state, code, field};
+  // code matches [a-z0-9_]{1,80} (Athena's hold-code bound) and field, only
+  // for the two shape codes, comes from its own closed list. Nothing else is
+  // ever sent: no payload text, assertion, subject email or biometric detail.
+  // Unknown values collapse to 'vac_unspecified'.
   var REFUSED = 'vac-operation-refused';
   var PREVIEW_FIELDS = ['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id',
     'kind', 'audience', 'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal',
@@ -191,16 +193,26 @@
     'risk', 'allowed_tools', 'constraints', 'resource_envelope', 'readback',
     'evidence_requirements', 'result_contract', 'async_credit_risk', 'payer_binding',
     'cost_bounds', 'read_argument_binding', 'readback.arguments_sha256'];
-  var REFUSAL_BASE = ['actor_subject_mismatch', 'vac_expired', 'vac_intent_missing', 'vac_intent_too_large',
-    'vac_intent_not_ascii', 'vac_intent_parse_failed', 'vac_intent_replaced', 'vac_replayed', 'vac_nonce_mismatch',
-    'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch', 'vac_digest_unavailable',
-    'vac_operation_missing', 'vac_unspecified'];
-  var REFUSAL_CODES = REFUSAL_BASE.concat(
-    PREVIEW_FIELDS.map(function (f) { return 'vac_preview_shape_invalid:' + f; }),
-    OPERATION_FIELDS.map(function (f) { return 'vac_operation_shape_invalid:' + f; }));
-  function refusalCode(code) {
-    return typeof code === 'string' && REFUSAL_CODES.indexOf(code) >= 0 ? code : 'vac_unspecified';
+  var REFUSAL_FIELDS = {
+    vac_preview_shape_invalid: PREVIEW_FIELDS,
+    vac_operation_shape_invalid: OPERATION_FIELDS
+  };
+  var REFUSAL_CODES = ['actor_subject_mismatch', 'vac_operation_expired', 'vac_intent_missing',
+    'vac_intent_too_large', 'vac_intent_not_ascii', 'vac_intent_parse_failed', 'vac_intent_replaced',
+    'vac_replayed', 'vac_nonce_mismatch', 'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch',
+    'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
+    'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
+    'vac_verification_not_full', 'vac_confirmation_stale', 'vac_unspecified'];
+  // Internal reasons are 'code' or 'shape_code:field'; returns the closed pair.
+  function refusalCode(reason) {
+    var parts = typeof reason === 'string' ? reason.split(':') : [];
+    var code = parts[0], field = parts.length === 2 ? parts[1] : null;
+    if (parts.length < 1 || parts.length > 2 || REFUSAL_CODES.indexOf(code) < 0 ||
+        !/^[a-z0-9_]{1,80}$/.test(code)) return { code: 'vac_unspecified', field: null };
+    var allowed = Object.prototype.hasOwnProperty.call(REFUSAL_FIELDS, code) ? REFUSAL_FIELDS[code] : null;
+    return { code: code, field: allowed && field !== null && allowed.indexOf(field) >= 0 ? field : null };
   }
+  function referenceOf(r) { return r.field ? r.code + ':' + r.field : r.code; }
   // Masked hint only: first character, fixed '***', then the domain. Never the
   // full address, never before a FULL verification, never sent to the opener.
   function maskedActor(actor) {
@@ -208,7 +220,8 @@
     var m = actor.match(/^([^\s@])[^\s@]*@([^\s@]{1,253})$/);
     return m ? m[1] + '***@' + m[2] : '';
   }
-  function refusalText(code, actor) {
+  function refusalText(r, actor) {
+    var code = r.code;
     var nothing = criticReview ? 'No critic or Flux task was authorised.' : 'Nothing was authorised.';
     var text;
     if (code === 'actor_subject_mismatch') {
@@ -216,7 +229,7 @@
       text = 'You signed in to VAC with a different account from the one that made this request. ' +
         (hint ? 'The request was made by ' + hint + '. ' : '') +
         'Sign in again with the account that made the request, then press Review and authorise again.';
-    } else if (code === 'vac_expired') {
+    } else if (code === 'vac_operation_expired') {
       text = 'This request has expired. Return to Athena and start it again to get a fresh request.';
     } else if (code === 'vac_replayed' || code === 'vac_intent_replaced') {
       text = 'This request changed or was already used while this page was open. Return to Athena and start it again.';
@@ -229,17 +242,27 @@
     } else {
       text = 'Athena sent request details this version of VAC cannot verify. Return to Athena; if this repeats, Athena or VAC needs updating.';
     }
-    return text + ' ' + nothing + ' Reference: ' + code + '.';
+    return text + ' ' + nothing + ' Reference: ' + referenceOf(r) + '.';
   }
-  function signalRefusal(code) {
+  function signalRefusal(r) {
     if (!valid || !openerPresent()) return;
-    var signal = { type: REFUSED, state: state, code: refusalCode(code) };
-    if (!exactKeys(signal, ['type', 'state', 'code'])) return;
+    var signal = { type: REFUSED, state: state, code: r.code };
+    if (r.field) signal.field = r.field;
+    if (!/^[a-z0-9_]{1,80}$/.test(signal.code) ||
+        !(exactKeys(signal, ['type', 'state', 'code']) ||
+          exactKeys(signal, ['type', 'state', 'code', 'field']))) return;
     try { window.opener.postMessage(signal, target.origin); } catch (_e) {}
+  }
+  // Screen-level refusals outside the operation review (any handoff kind):
+  // same typed signal, a corrective message, and no change to their teardown.
+  function screenRefused(reason, text) {
+    var r = refusalCode(reason);
+    show('error', text + ' Reference: ' + referenceOf(r) + '.', false);
+    signalRefusal(r);
   }
 
   function operationRefused(reason, actor) {
-    var code = refusalCode(reason);
+    var r = refusalCode(reason);
     operationGeneration++;
     operation = null;
     operationJson = null;
@@ -250,8 +273,8 @@
     if (review) review.remove();
     var criticPanel = document.getElementById('vacCriticReview');
     if (criticPanel) criticPanel.remove();
-    show('error', refusalText(code, actor), false);
-    signalRefusal(code);
+    show('error', refusalText(r, actor), false);
+    signalRefusal(r);
   }
   // One actor convention for every VAC identity gate (critic preview, critic
   // render/confirm, service render/confirm, post-mint): compare the request's
@@ -264,7 +287,7 @@
   function liveOperationFault() {
     if (!operation) return 'vac_operation_missing';
     if (!actorMatchesSubject(operation.actor)) return 'actor_subject_mismatch';
-    if (Date.parse(operation.expiry) <= Date.now()) return 'vac_expired';
+    if (Date.parse(operation.expiry) <= Date.now()) return 'vac_operation_expired';
     return null;
   }
   function refuseLive(code) { operationRefused(code, operation && operation.actor); }
@@ -913,7 +936,7 @@
       // Server PolicyRail expiry is bounded by the sealed operation, not a
       // rolling preview lease. The separate FULL/L3 VAT keeps its short TTL.
       [P + 'expiry', function () { return !awareTime(p.expiry); }],
-      ['vac_expired', function () { return Date.parse(p.expiry) <= Date.now(); }],
+      ['vac_operation_expired', function () { return Date.parse(p.expiry) <= Date.now(); }],
       [P + 'ready_for_owner_critic_vac', function () { return p.ready_for_owner_critic_vac !== true; }],
       [P + 'review_submission_started', function () { return p.review_submission_started !== false; }]
     ]);
@@ -1273,7 +1296,8 @@
       deliver();
     }, function (e) {
       if (reviewedHandoff && generation !== operationGeneration) return;
-      show('error', 'Could not prepare the handoff to ' + destination + ' (' + e.message + '). Return to ' + destination + ' and start again.', false);
+      screenRefused('vac_handoff_prepare_failed', 'Could not prepare the handoff to ' + destination + ' (' + e.message + '). ' +
+        'Nothing was sent. Return to ' + destination + ' and start again.');
     }).then(function () { if (!reviewedHandoff || generation === operationGeneration) sending = false; },
       function () { if (!reviewedHandoff || generation === operationGeneration) sending = false; });
   }
@@ -1330,6 +1354,10 @@
     requiresSuppliedChallenge: kind === 'decisions-confirm',
     // The closed refusal enum Athena may receive as 'vac-operation-refused'.
     refusalCodes: Object.freeze(REFUSAL_CODES.slice()),
+    refusalFields: Object.freeze({
+      vac_preview_shape_invalid: Object.freeze(PREVIEW_FIELDS.slice()),
+      vac_operation_shape_invalid: Object.freeze(OPERATION_FIELDS.slice())
+    }),
     assertChallengeActive: function (id) {
       if (!continuationFresh() || !challengeConsumed || id !== continuation.challenge.challenge_id) {
         throw new Error('This confirmation expired or was cancelled. Return to Athena.');
@@ -1348,7 +1376,9 @@
       if (replacementDeliveryAttempted) return;
       serviceSessionChanged();
       if (!valid) {
-        show('error', 'This ' + destination + ' link is not valid, so nothing was sent. Return to ' + destination + ' and start again.', false);
+        // No signal: without a valid target and state there is no pinned origin.
+        screenRefused('vac_link_invalid', 'This ' + destination + ' link is not valid, so nothing was sent. ' +
+          'Return to ' + destination + ' and start again from there; do not reuse a copied or edited link.');
         return;
       }
       var r = (authResult && typeof authResult === 'object') ? authResult : {};
@@ -1358,12 +1388,14 @@
         : (typeof sess.token === 'string' ? sess.token : '');
       var email = sess.email || r.email || (identity && identity.email) || '';
       if (r.authenticated !== true || level !== 'full' || !token || !email) {
-        show('error', 'This was not a full VAC verification, so nothing was sent to ' + destination + '.', false);
+        screenRefused('vac_verification_not_full', 'This was not a full VAC verification, so nothing was sent to ' + destination + '. ' +
+          'Run the full VAC verification again; nothing is sent until it passes.');
         return;
       }
       if (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh() ||
           String(email).trim().toLowerCase() !== continuation.subject.trim().toLowerCase())) {
-        show('error', 'This confirmation is no longer valid. Return to Athena and start again.', false);
+        screenRefused('vac_confirmation_stale', 'This confirmation is no longer valid: it expired, was cancelled, ' +
+          'or you verified with a different account. Nothing was sent. Return to Athena and start the confirmation again.');
         return;
       }
       sessionToken = token;

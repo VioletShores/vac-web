@@ -106,7 +106,7 @@ test('Decisions consumes only the trusted opener challenge once and signs its se
   assert.equal(h.posted[1].m.assertion,JWT);
   assert.equal('session_token' in h.posted[1].m,false);
 });
-for (const fault of ['origin','source','nonce','audience','purpose','action','subject','policy','challenge','vac_expired','future','payload','capture']) {
+for (const fault of ['origin','source','nonce','audience','purpose','action','subject','policy','challenge','vac_operation_expired','future','payload','capture']) {
   test('Decisions rejects malformed or untrusted continuation: '+fault,()=>{
     const h=load('?handoff=decisions-confirm&state='+STATE);
     const c=continuation();
@@ -117,7 +117,7 @@ for (const fault of ['origin','source','nonce','audience','purpose','action','su
     if(fault==='subject')c.subject='other@example.invalid';
     if(fault==='policy')c.challenge.ceremony_policy.version='future';
     if(fault==='challenge')c.challenge.challenge_id='other';
-    if(fault==='vac_expired')c.expires_at=Date.now()/1000-1;
+    if(fault==='vac_operation_expired')c.expires_at=Date.now()/1000-1;
     if(fault==='future'){c.expires_at=Date.now()/1000+1000;c.challenge.ceremony_policy.binding.expires_seconds=1000;}
     if(fault==='payload')c.payload_sha256='bad';
     if(fault==='capture')c.challenge.ceremony_policy.capture.include_greeting=false;
@@ -1006,7 +1006,7 @@ test('a failed or partial ceremony delivers nothing', async () => {
     h.window.VACVaultHandoff.onVerified(r, { email: 'a@b' });
     await flush();
     assert.equal(h.fetches.length, 0);
-    assert.equal(h.posted.length, 0);
+    assertOnlyRefusal(h, 'vac_verification_not_full'); // typed signal only; no VAT
   }
 });
 
@@ -1016,7 +1016,7 @@ test('below full is not handed off', async () => {
     h.window.VACVaultHandoff.onVerified({ authenticated: true, session_token: 's', session: { auth_level: level, email: 'a@b' } }, {});
     await flush();
     assert.equal(h.fetches.length, 0);
-    assert.equal(h.posted.length, 0);
+    assertOnlyRefusal(h, 'vac_verification_not_full'); // typed signal only; no VAT
   }
 });
 
@@ -1081,7 +1081,7 @@ test('a VAC refusal sends nothing and says so', async () => {
     authFetch: () => ({ ok: false, status: 403, body: { detail: { error: 'handoff_biometric_stale', message: 'too old' } } }) });
   h.window.VACVaultHandoff.onVerified(FULL, {});
   await flush(); await flush();
-  assert.equal(h.posted.length, 0);
+  assertOnlyRefusal(h, 'vac_handoff_prepare_failed'); // typed signal only; no VAT
   assert.match(h.byId.vacVaultHandoffMsg.textContent, /too old/);
 });
 
@@ -1116,7 +1116,7 @@ test('Athena owner handoff rejects an unverified or weakened ceremony', async ()
     h.window.VACVaultHandoff.onVerified(r, {});
     await flush();
     assert.equal(h.fetches.length, 0);
-    assert.equal(h.posted.length, 0);
+    assertOnlyRefusal(h, 'vac_verification_not_full'); // typed signal only; no VAT
   }
 });
 
@@ -1174,7 +1174,7 @@ test('Athena narration handoff refuses a weakened ceremony and needs the recordi
     h.window.VACVaultHandoff.onVerified(r, {});
     await flush();
     assert.equal(h.fetches.length, 0);
-    assert.equal(h.posted.length, 0);
+    assertOnlyRefusal(h, 'vac_verification_not_full'); // typed signal only; no VAT
   }
   const h = load('?handoff=narration-capture&state=' + STATE, { opener: null });
   h.window.VACVaultHandoff.onVerified(FULL, {});
@@ -1522,12 +1522,17 @@ test('V3 non-renewal preview with 119 rows follows Athena: accepted with the V3 
 // contract). Every refusal keeps the same fail-closed teardown, names the
 // failing predicate from a CLOSED enum, tells the person what to do, and
 // signals Athena with {type, state, code} only. Synthetic identities only.
-const REFUSAL_ENUM = [
-  'actor_subject_mismatch', 'vac_expired', 'vac_intent_missing', 'vac_intent_too_large', 'vac_intent_not_ascii',
-  'vac_intent_parse_failed', 'vac_intent_replaced', 'vac_replayed', 'vac_nonce_mismatch',
-  'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch', 'vac_digest_unavailable',
-  'vac_operation_missing', 'vac_unspecified',
-  ...['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
+// Wire codes match Athena's hold-code bound [a-z0-9_]{1,80}; the two shape
+// codes carry a separate closed `field` (#1760 §14). Internally a test names a
+// refusal as 'code' or 'code:field', the same string as the on-screen Reference.
+const WIRE_CODES = [
+  'actor_subject_mismatch', 'vac_operation_expired', 'vac_intent_missing', 'vac_intent_too_large',
+  'vac_intent_not_ascii', 'vac_intent_parse_failed', 'vac_intent_replaced', 'vac_replayed',
+  'vac_nonce_mismatch', 'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch',
+  'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
+  'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
+  'vac_verification_not_full', 'vac_confirmation_stale', 'vac_unspecified'];
+const PREVIEW_FIELD_LIST = ['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
     'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url',
     'source_sha256', 'source_bytes', 'canonical_plan_rows', 'source_confidential',
     'external_source_disclosure', 'reviewers', 'orchestrate_mode', 'reviewer_call_limit',
@@ -1538,25 +1543,44 @@ const REFUSAL_ENUM = [
     'reviewers.model', 'reviewers.model_family', 'reviewers.provider_tier',
     'reviewers.data_training_posture', 'reviewers.evidence_url', 'reviewers.processing_jurisdiction',
     'reviewers.retention_posture', 'reviewers.duplicate_provider', 'reviewers.duplicate_family',
-    'serialization'].map(f => 'vac_preview_shape_invalid:' + f),
-  ...['size', 'keys', 'strings', 'version', 'purpose', 'ids', 'digests', 'project_url', 'endpoint',
+    'serialization'];
+const OPERATION_FIELD_LIST = ['size', 'keys', 'strings', 'version', 'purpose', 'ids', 'digests', 'project_url', 'endpoint',
     'action', 'capability', 'object_ref', 'revocation_ref', 'expiry', 'risk', 'allowed_tools',
     'constraints', 'resource_envelope', 'readback', 'evidence_requirements', 'result_contract',
     'async_credit_risk', 'payer_binding', 'cost_bounds', 'read_argument_binding',
-    'readback.arguments_sha256'].map(f => 'vac_operation_shape_invalid:' + f)
+    'readback.arguments_sha256'];
+const SHAPE_FIELDS = {vac_preview_shape_invalid: PREVIEW_FIELD_LIST, vac_operation_shape_invalid: OPERATION_FIELD_LIST};
+const REFUSAL_ENUM = [
+  ...WIRE_CODES.filter(c => !SHAPE_FIELDS[c]),
+  ...PREVIEW_FIELD_LIST.map(f => 'vac_preview_shape_invalid:' + f),
+  ...OPERATION_FIELD_LIST.map(f => 'vac_operation_shape_invalid:' + f)
 ];
 const SEEN_REFUSALS = new Set();
 const refusals = h => h.posted.filter(x => x.m && x.m.type === 'vac-operation-refused');
 
+function assertSignal(x, reference) {
+  const [code, field] = reference.split(':');
+  assert.deepEqual(Object.keys(x.m).sort(), field ? ['code', 'field', 'state', 'type'] : ['code', 'state', 'type'],
+    'no extra keys');
+  assert.equal(x.o, VAULT, 'only to the pinned target origin');
+  assert.match(x.m.code, /^[a-z0-9_]{1,80}$/, 'Athena hold-code bound');
+  assert.equal(x.m.code, code);
+  assert.ok(WIRE_CODES.includes(x.m.code));
+  if (field) { assert.equal(x.m.field, field); assert.ok(SHAPE_FIELDS[code].includes(field)); }
+  assert.equal(x.m.state.length > 0, true);
+  assert.doesNotMatch(JSON.stringify(x.m), /@|example\.invalid|assertion|session/, 'no PII or authority to the opener');
+}
+function assertOnlyRefusal(h, reference) {
+  assert.ok(h.posted.length >= 1);
+  for (const x of h.posted) assertSignal(x, reference);
+  assert.ok(h.byId.vacVaultHandoffMsg.textContent.includes('Reference: ' + reference + '.'));
+  SEEN_REFUSALS.add(reference);
+}
+
 function assertRefused(h, code) {
   const sent = refusals(h);
   assert.ok(sent.length >= 1, 'a typed refusal is signalled to Athena for ' + code);
-  const last = sent.at(-1);
-  assert.deepEqual(Object.keys(last.m).sort(), ['code', 'state', 'type'], 'no extra keys');
-  assert.equal(last.o, VAULT, 'only to the pinned target origin');
-  assert.equal(last.m.code, code);
-  assert.ok(REFUSAL_ENUM.includes(last.m.code));
-  assert.doesNotMatch(JSON.stringify(last.m), /@|example\.invalid/, 'no PII to the opener');
+  assertSignal(sent.at(-1), code);
   // Fail-closed teardown is unchanged: nothing offered, minted or delivered.
   assert.equal(h.byId.vacCriticReviewConfirm, undefined);
   assert.equal(h.byId.vacServiceOperationConfirm, undefined);
@@ -1568,13 +1592,20 @@ function assertRefused(h, code) {
   return h.byId.vacVaultHandoffMsg.textContent;
 }
 
-test('refusal enum is closed, stable and exposed to the page', () => {
+test('refusal vocabulary is closed, stable, Athena-bounded and exposed to the page', () => {
   const {h} = criticFixture();
   const codes = h.window.VACVaultHandoff.refusalCodes;
-  assert.deepEqual([...codes], REFUSAL_ENUM);
+  assert.deepEqual([...codes], WIRE_CODES);
   assert.ok(Object.isFrozen(codes));
   assert.equal(new Set(codes).size, codes.length);
-  for (const c of codes) assert.match(c, /^[a-z_]+(?::[a-z_.0-9]+)?$/);
+  for (const c of codes) assert.match(c, /^[a-z0-9_]{1,80}$/);
+  const fields = h.window.VACVaultHandoff.refusalFields;
+  assert.ok(Object.isFrozen(fields));
+  assert.deepEqual(Object.keys(fields).sort(), Object.keys(SHAPE_FIELDS).sort());
+  for (const [code, list] of Object.entries(SHAPE_FIELDS)) {
+    assert.deepEqual([...fields[code]], list); assert.ok(Object.isFrozen(fields[code]));
+    for (const f of list) assert.match(f, /^[a-z_][a-z_.0-9]*$/);
+  }
 });
 
 async function criticRefusal(change, options) {
@@ -1619,7 +1650,7 @@ function renewalState(p) {
 
 const BASE_CASES = {
   actor_subject_mismatch: () => criticRefusal(p => p.actor = 'other.person@example.invalid'),
-  vac_expired: () => criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()),
+  vac_operation_expired: () => criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()),
   vac_intent_missing: () => serviceRefusal({}, 5),
   vac_intent_too_large: () => serviceRefusal({}, 'x'.repeat(65537)),
   vac_intent_not_ascii: () => serviceRefusal({}, '{"tenant_id":"é"}'),
@@ -1780,7 +1811,7 @@ test('legacy V1 operation faults carry the same typed shape codes', async () => 
 test('identity and expiry are typed on every service path, including after review', async () => {
   assertRefused(await serviceRefusal({actor: 'different@example.invalid'}), 'actor_subject_mismatch');
   assertRefused(await taskRefusal(o => o.actor = 'foreign@example.invalid'), 'actor_subject_mismatch');
-  assertRefused(await serviceRefusal({expiry: new Date(Date.now() - 1000).toISOString()}), 'vac_expired');
+  assertRefused(await serviceRefusal({expiry: new Date(Date.now() - 1000).toISOString()}), 'vac_operation_expired');
   let offset = 0;
   const {h, receive} = serviceFixture({}, {now: () => Date.now() + offset});
   h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
@@ -1788,7 +1819,7 @@ test('identity and expiry are typed on every service path, including after revie
   const button = h.byId.vacServiceOperationConfirm;
   offset = 10 * 60 * 1000;
   button.listeners.click(); await flush();
-  assertRefused(h, 'vac_expired');
+  assertRefused(h, 'vac_operation_expired');
   assert.equal(h.fetches.length, 0);
 });
 
@@ -1829,18 +1860,21 @@ test('no refusal, hint or signal is produced before a FULL verification', async 
   h.window.VACVaultHandoff.onVerified({authenticated: true, auth_level: 'fast', session_token: 'x',
     email: 'owner@example.invalid'}, {});
   offer(); await settleReview();
-  assert.equal(refusals(h).length, 0);
-  assert.ok(!allText(h.byId.vacVaultHandoff || {children: []}).includes('***'));
+  // The weakened ceremony itself is typed, but no preview is read and no hint shown.
+  assertOnlyRefusal(h, 'vac_verification_not_full');
+  assert.equal(refusals(h).length, 1);
+  assert.ok(!allText(h.byId.vacVaultHandoff).includes('***'));
+  assert.ok(!allText(h.byId.vacVaultHandoff).includes('other'));
 });
 
 test('non-identity refusals never carry an actor hint', async () => {
   const text = assertRefused(await criticRefusal(p => p.source_bytes = 40303), P + 'source_bytes');
   assert.ok(!text.includes('***') && !text.includes('@'));
-  assert.match(assertRefused(await criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()), 'vac_expired'),
+  assert.match(assertRefused(await criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()), 'vac_operation_expired'),
     /This request has expired/);
 });
 
-test('refusal signal goes only to a present opener, at the pinned origin, with exactly three keys', async () => {
+test('refusal signal goes only to a present opener, at the pinned origin, with only type/state/code[/field]', async () => {
   const absent = criticFixture(p => p.actor = 'other.person@example.invalid', {opener: 'absent'});
   absent.h.window.VACVaultHandoff.onVerified(FULL, {}); absent.offer(); await settleReview();
   assert.equal(absent.h.posted.length, 0);
@@ -1848,8 +1882,64 @@ test('refusal signal goes only to a present opener, at the pinned origin, with e
   const sent = refusals(h);
   assert.equal(sent.length, 1);
   assert.deepEqual(JSON.parse(JSON.stringify(sent[0])),
-    {m: {type: 'vac-operation-refused', state: sent[0].m.state, code: O + 'risk'}, o: VAULT});
+    {m: {type: 'vac-operation-refused', state: sent[0].m.state, code: 'vac_operation_shape_invalid', field: 'risk'}, o: VAULT});
   assert.match(sent[0].m.state, /^[a-f0-9]{64}$/);
+  // Codes without a field carry exactly three keys.
+  const id = refusals(await criticRefusal(p => p.actor = 'other.person@example.invalid')).at(-1);
+  assert.deepEqual(JSON.parse(JSON.stringify(id.m)), {type: 'vac-operation-refused', state: id.m.state, code: 'actor_subject_mismatch'});
+});
+
+test('typed screen sink: vac_handoff_prepare_failed (reviewed handoff) signals once and delivers nothing', async () => {
+  const {h, receive} = serviceFixture({}, {authFetch: () => ({ok: false, status: 403,
+    body: {detail: {error: 'handoff_biometric_stale', message: 'too old'}}})});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  const sent = refusals(h);
+  assert.equal(sent.length, 1);
+  assertSignal(sent[0], 'vac_handoff_prepare_failed');
+  assert.ok(h.posted.every(x => !x.m.assertion));
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Nothing was sent\. Return to Athena and start again\. Reference: vac_handoff_prepare_failed\./);
+  SEEN_REFUSALS.add('vac_handoff_prepare_failed');
+});
+
+test('typed screen sink: vac_link_invalid is shown with a corrective step but cannot be signalled', async () => {
+  for (const search of ['?handoff=evil&state=' + STATE, '?handoff=vault-store&state=short']) {
+    const h = load(search);
+    h.window.VACVaultHandoff.onVerified(FULL, {}); await flush();
+    assert.equal(h.posted.length, 0, 'no pinned origin or valid state, so nothing is posted');
+    assert.equal(h.fetches.length, 0);
+    assert.match(h.byId.vacVaultHandoffMsg.textContent, /link is not valid, so nothing was sent\..*start again from there; do not reuse a copied or edited link\. Reference: vac_link_invalid\./);
+  }
+  SEEN_REFUSALS.add('vac_link_invalid');
+});
+
+test('typed screen sink: vac_verification_not_full tells the person to run FULL again', async () => {
+  const h = load('?handoff=vault-store&state=' + STATE);
+  h.window.VACVaultHandoff.onVerified({authenticated: true, session_token: 's', session: {auth_level: 'quick', email: 'a@b'}}, {});
+  await flush();
+  assertOnlyRefusal(h, 'vac_verification_not_full');
+  assert.equal(h.fetches.length, 0);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Run the full VAC verification again; nothing is sent until it passes\./);
+});
+
+test('typed screen sink: vac_confirmation_stale for Decisions after cancel or with another account', async () => {
+  for (const fault of ['cancel', 'account']) {
+    const h = load('?handoff=decisions-confirm&state=' + STATE); offer(h);
+    h.window.VACVaultHandoff.consumeChallenge({email: 'owner@example.invalid'}, true, false);
+    if (fault === 'cancel') {
+      for (const fn of h.listeners.message) fn({origin: VAULT, source: h.op, data: {type: 'vac-continuation-cancel', state: STATE}});
+    }
+    h.window.VACVaultHandoff.onVerified(fault === 'account' ?
+      {...FULL, session: {...FULL.session, email: 'someone.else@example.invalid'}} : FULL, {});
+    await flush();
+    assert.equal(h.fetches.length, 0);
+    const sent = refusals(h);
+    assert.equal(sent.length, 1);
+    assertSignal(sent[0], 'vac_confirmation_stale');
+    assert.ok(h.posted.every(x => !x.m.assertion));
+    assert.match(h.byId.vacVaultHandoffMsg.textContent, /no longer valid.*Nothing was sent\. Return to Athena and start the confirmation again\. Reference: vac_confirmation_stale\./);
+  }
+  SEEN_REFUSALS.add('vac_confirmation_stale');
 });
 
 test('every refusal code except the unspecified collapse value is exercised above', () => {
