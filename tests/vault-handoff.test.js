@@ -1431,3 +1431,88 @@ test('V3 exhaustion replacement preserves distinct cost and one-attempt disclosu
   h.byId.vacCriticReviewConfirm.listeners.click();await flush();await flush();
   assert.equal(h.fetches.length,1);
 });
+
+// Athena #1724 / PR #1759: renewal successor (live packet 1178 shape). The
+// golden `renewal` and `state` are copied verbatim from Athena's
+// test_flux_critic_owner_bridge.js, produced by the server's Python
+// canonical_json_hash over critic_review_nonce (purpose athena:l0:critic-review:renewal:1).
+const RENEWAL_GOLDEN = {"renewal": {"version": "athena.flux.renewal-review-binding/1", "kind": "fresh_intent_policy_renewal", "parent_packet_id": 41, "parent_packet_ref": "PKT-FLUX-B1-ffffffffffffffffffff", "parent_operation_sha256": "1111111111111111111111111111111111111111111111111111111111111111", "parent_plan_sha256": "2222222222222222222222222222222222222222222222222222222222222222", "parent_history_sha256": "3333333333333333333333333333333333333333333333333333333333333333", "previous_policy_sha256": "4444444444444444444444444444444444444444444444444444444444444444", "next_policy_sha256": "5555555555555555555555555555555555555555555555555555555555555555", "proposal_sha256": "6666666666666666666666666666666666666666666666666666666666666666", "successor_packet_id": 42, "successor_packet_ref": "PKT-FLUX-B1-0123456789abcdefabcd", "successor_operation_sha256": "fa86cf3146e39b3e8b6a1a4d9f24ffb8e1f776f0aef6972fc51e6c6e8275bef2", "successor_plan_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "successor_review_policy_sha256": "90b3a4d2064665d7de711cb42aa945cedc793293507258b7b0d6410ad0c601bd", "successor_input_binding_sha256": "fcbda9d7e51b8007c4c0edf79c57a2bc18ff94a35b1003be8d9e3ece2e0e92ca", "expiry": "2030-11-18T12:00:00+00:00", "reviewer_call_limit": 2, "automatic_retries": false, "parent_authority_reused": false, "native_execution_permitted": false, "canonical_plan_rows": 119}, "state": "299778023964956e038bf96990675665829110f7597b09cb3f3826fba530eddb"};
+function renewalCriticFixture(change=()=>{}){
+  const preview=JSON.parse(JSON.stringify(V3_GOLDEN.preview));
+  preview.canonical_plan_rows=119;
+  preview.renewal=JSON.parse(JSON.stringify(RENEWAL_GOLDEN.renewal));
+  preview.state=RENEWAL_GOLDEN.state;
+  change(preview);
+  const state=RENEWAL_GOLDEN.state;
+  const h=load('?handoff=critic-review&state='+state);
+  const offer=()=>h.listeners.message.forEach(fn=>fn({origin:VAULT,source:h.op,data:{type:'vac-critic-review-preview',state,preview}}));
+  return {h,preview,offer};
+}
+test('renewal successor (119 V3 rows + renewal binding) reaches exact consent with the Python nonce',async()=>{
+  const {h,offer}=renewalCriticFixture();
+  h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  const button=h.byId.vacCriticReviewConfirm;
+  assert.ok(button,'valid renewal disclosure is presented');
+  const text=allText(h.byId.vacCriticReview);
+  assert.match(text,/119-row PLAN/);assert.match(text,/119 exact rows/);
+  assert.match(text,/renews expired packet 41/);assert.match(text,/NOT reused/);assert.match(text,/native execution is NOT permitted/);
+  assert.equal(h.fetches.length,0);
+  button.listeners.click();await flush();await flush();
+  assert.equal(h.fetches.length,1);
+  assert.deepEqual(h.fetches[0].body.handoff,{audience:'athena:l0:critic-review',nonce:RENEWAL_GOLDEN.state});
+});
+test('renewal nonce is independent of renewal key insertion order',async()=>{
+  const {h,offer}=renewalCriticFixture(p=>{p.renewal=Object.fromEntries(Object.entries(p.renewal).reverse());});
+  h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm);assert.equal(h.fetches.length,0);
+});
+const renewalFaults={
+  plainNonce:p=>p.state=V3_GOLDEN.preview.state,
+  rows113:p=>p.canonical_plan_rows=113,
+  rows120:p=>{p.canonical_plan_rows=120;p.renewal.canonical_plan_rows=120;},
+  withRecovery:p=>p.recovery=JSON.parse(JSON.stringify(V3_GOLDEN.recovery)),
+  noBinding:p=>delete p.review_binding,
+  noProjection:p=>{delete p.model_input_projection;delete p.end_to_end_readiness;p.max_tokens_per_provider=16384;},
+  nullRenewal:p=>p.renewal=null,
+  wrongVersion:p=>p.renewal.version='athena.flux.renewal-review-binding/2',
+  wrongKind:p=>p.renewal.kind='one_manual_replacement',
+  extraField:p=>p.renewal.extra_authority=true,
+  missingField:p=>delete p.renewal.proposal_sha256,
+  otherSuccessor:p=>p.renewal.successor_packet_id=43,
+  otherSuccessorRef:p=>p.renewal.successor_packet_ref='PKT-FLUX-B1-aaaaaaaaaaaaaaaaaaaa',
+  selfParent:p=>p.renewal.parent_packet_id=42,
+  selfParentRef:p=>p.renewal.parent_packet_ref=p.renewal.successor_packet_ref,
+  sameOperation:p=>p.renewal.parent_operation_sha256=p.renewal.successor_operation_sha256,
+  samePlan:p=>p.renewal.parent_plan_sha256=p.renewal.successor_plan_sha256,
+  otherOperation:p=>p.renewal.successor_operation_sha256='f'.repeat(64),
+  otherPolicy:p=>p.renewal.successor_review_policy_sha256='f'.repeat(64),
+  otherPlan:p=>p.renewal.successor_plan_sha256='f'.repeat(64),
+  otherInput:p=>p.renewal.successor_input_binding_sha256='f'.repeat(64),
+  otherExpiry:p=>p.renewal.expiry='2030-11-19T12:00:00+00:00',
+  reusedAuthority:p=>p.renewal.parent_authority_reused=true,
+  nativeExecution:p=>p.renewal.native_execution_permitted=true,
+  retries:p=>p.renewal.automatic_retries=true,
+  calls:p=>p.renewal.reviewer_call_limit=3,
+  samePolicy:p=>p.renewal.next_policy_sha256=p.renewal.previous_policy_sha256,
+  badRef:p=>p.renewal.parent_packet_ref='PKT-FLUX-B1-short',
+  badHash:p=>p.renewal.proposal_sha256='G'.repeat(64),
+  stringId:p=>p.renewal.parent_packet_id='41',
+  rowsMismatch:p=>p.renewal.canonical_plan_rows=113,
+  stripRenewalKeepNonce:p=>delete p.renewal,
+};
+for(const [name,change]of Object.entries(renewalFaults)){
+  test('renewal preview fault is refused before any consent: '+name,async()=>{
+    const {h,offer}=renewalCriticFixture(change);h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+    assert.equal(h.byId.vacCriticReviewConfirm,undefined);assert.equal(h.fetches.length,0);
+  });
+}
+test('legacy V2 preview with 119 rows (no V3 projection) stays refused',async()=>{
+  const {h,offer}=allocatedCriticFixture(p=>{delete p.model_input_projection;delete p.end_to_end_readiness;p.max_tokens_per_provider=16384;p.canonical_plan_rows=119;});
+  h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  assert.equal(h.byId.vacCriticReviewConfirm,undefined);assert.equal(h.fetches.length,0);
+});
+test('V3 non-renewal preview with 119 rows follows Athena: accepted with the V3 projection',async()=>{
+  const {h,offer}=allocatedCriticFixture(p=>{p.canonical_plan_rows=119;});
+  h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
+  assert.ok(h.byId.vacCriticReviewConfirm,'119 is a disclosed row count, not part of the nonce');
+});
