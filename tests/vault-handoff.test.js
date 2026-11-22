@@ -1856,3 +1856,25 @@ test('every refusal code except the unspecified collapse value is exercised abov
   const missing = REFUSAL_ENUM.filter(c => c !== 'vac_unspecified' && !SEEN_REFUSALS.has(c));
   assert.deepEqual(missing, []);
 });
+
+test('one actor convention: every VAC gate compares the actor case-insensitively to the lower-cased subject', async () => {
+  // Service V1 and V2: a casing-only difference is the same VAC account.
+  for (const fixture of [() => serviceFixture({actor: 'OWNER@Example.Invalid'}),
+      () => taskFixture(o => o.actor = 'OWNER@Example.Invalid')]) {
+    const {h, receive} = fixture();
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assert.ok(h.byId.vacServiceOperationConfirm, 'casing alone never refuses');
+    h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+    assert.equal(h.fetches.length, 1);
+    assert.equal(h.fetches[0].body.human_identity, 'email:owner@example.invalid');
+    assert.equal(refusals(h).length, 0);
+  }
+  // Critic: same convention.
+  const c = criticFixture(p => p.actor = 'OWNER@Example.Invalid');
+  c.h.window.VACVaultHandoff.onVerified(FULL, {}); c.offer(); await settleReview();
+  assert.ok(c.h.byId.vacCriticReviewConfirm);
+  // A different account is still refused on every path.
+  assertRefused(await serviceRefusal({actor: 'Other@Example.Invalid'}), 'actor_subject_mismatch');
+  assertRefused(await taskRefusal(o => o.actor = 'Other@Example.Invalid'), 'actor_subject_mismatch');
+  assertRefused(await criticRefusal(p => p.actor = 'Other@Example.Invalid'), 'actor_subject_mismatch');
+});

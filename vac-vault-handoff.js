@@ -253,11 +253,17 @@
     show('error', refusalText(code, actor), false);
     signalRefusal(code);
   }
-  // Same predicates and order as before; only the outcome is now named.
-  function liveOperationFault(lower) {
+  // One actor convention for every VAC identity gate (critic preview, critic
+  // render/confirm, service render/confirm, post-mint): compare the request's
+  // actor lower-cased against the session subject, which onVerified already
+  // stores trimmed and lower-cased. VAC accounts are keyed case-insensitively,
+  // so this neither widens identity nor refuses the same person on casing.
+  function actorMatchesSubject(actor) {
+    return typeof actor === 'string' && !!subject && actor.toLowerCase() === subject;
+  }
+  function liveOperationFault() {
     if (!operation) return 'vac_operation_missing';
-    var actor = lower && typeof operation.actor === 'string' ? operation.actor.toLowerCase() : operation.actor;
-    if (actor !== subject) return 'actor_subject_mismatch';
+    if (!actorMatchesSubject(operation.actor)) return 'actor_subject_mismatch';
     if (Date.parse(operation.expiry) <= Date.now()) return 'vac_expired';
     return null;
   }
@@ -483,7 +489,7 @@
 
   function renderOperation() {
     if (!serviceOperation || !operation || !sessionToken || !subject) return;
-    var fault = liveOperationFault(false);
+    var fault = liveOperationFault();
     if (fault) { refuseLive(fault); return; }
     var existing = document.getElementById('vacServiceOperationReview');
     if (existing) return;
@@ -552,7 +558,7 @@
     confirm.textContent = 'Confirm this exact operation';
     confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
-      var why = liveOperationFault(false);
+      var why = liveOperationFault();
       if (why) { refuseLive(why); return; }
       operationConfirmed = true; confirm.disabled = true; send();
     });
@@ -868,7 +874,7 @@
         return typeof p.principal !== 'string' || !p.principal || p.principal.length > 320;
       }],
       [P + 'actor', function () { return typeof p.actor !== 'string'; }],
-      ['actor_subject_mismatch', function () { return p.actor.toLowerCase() !== subject; }],
+      ['actor_subject_mismatch', function () { return !actorMatchesSubject(p.actor); }],
       [P + 'actor', function () { return !/^[^\s@]+@[^\s@]+$/.test(p.actor); }],
       [P + 'project_url', function () { return p.project_url !== expectedProject; }],
       [P + 'source_sha256', function () { return p.source_sha256 !== expectedSource; }],
@@ -947,7 +953,7 @@
 
   function renderCriticPreview() {
     if (!criticReview || !operation || !sessionToken || !subject) return;
-    var fault = liveOperationFault(true);
+    var fault = liveOperationFault();
     if (fault) { refuseLive(fault); return; }
     if (document.getElementById('vacCriticReview')) return;
     var box = document.createElement('section');
@@ -1032,7 +1038,7 @@
     confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
       if (recovery && (operationConfirmed || sending || acked || replacementDeliveryAttempted)) return;
-      var why = liveOperationFault(true);
+      var why = liveOperationFault();
       if (why) { refuseLive(why); return; }
       operationConfirmed = true; confirm.disabled = true; send();
     });
@@ -1250,7 +1256,7 @@
     if (replacementDeliveryAttempted) return;
     if (sending || acked || (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh()))) return;
     if (reviewedHandoff && (!operationConfirmed || !operation ||
-        operation.actor.toLowerCase() !== subject || Date.parse(operation.expiry) <= Date.now())) {
+        !actorMatchesSubject(operation.actor) || Date.parse(operation.expiry) <= Date.now())) {
       if (criticReview) renderCriticPreview(); else renderOperation(); return;
     }
     // No opener (or it closed): deliver() says "return to the Vault tab"; nothing is minted.
@@ -1261,7 +1267,7 @@
     ready.then(function () {
       if (reviewedHandoff && generation !== operationGeneration) return;
       if (reviewedHandoff) {
-        var late = !operationConfirmed ? 'vac_operation_missing' : liveOperationFault(true);
+        var late = !operationConfirmed ? 'vac_operation_missing' : liveOperationFault();
         if (late) { refuseLive(late); return; }
       }
       deliver();
