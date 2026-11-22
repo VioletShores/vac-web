@@ -504,6 +504,7 @@
       'ready_for_owner_critic_vac', 'review_submission_started', 'review_binding',
       'model_input_projection', 'end_to_end_readiness'];
     if (Object.prototype.hasOwnProperty.call(p, 'recovery')) previewKeys.push('recovery');
+    if (Object.prototype.hasOwnProperty.call(p, 'renewal')) previewKeys.push('renewal');
     if (!exactCriticKeys(p, previewKeys)) return false;
     var q = p.model_input_projection, b = p.review_binding;
     var keys = ['version', 'prompt_sha256', 'providers', 'models', 'routing', 'mode',
@@ -585,6 +586,44 @@
       r.prior_calls_may_be_charged === true;
   }
 
+  // Athena #1724 renewal successor (mirrors keyvault.html validRenewal): the
+  // server adds a fresh-intent renewal binding and folds it into the nonce.
+  // It must name THIS successor, reuse no parent authority, permit no native
+  // execution and never coexist with replacement recovery.
+  var CRITIC_RENEWAL_HASHES = ['parent_operation_sha256', 'parent_plan_sha256', 'parent_history_sha256',
+    'previous_policy_sha256', 'next_policy_sha256', 'proposal_sha256',
+    'successor_operation_sha256', 'successor_plan_sha256', 'successor_review_policy_sha256',
+    'successor_input_binding_sha256'];
+  var CRITIC_RENEWAL_KEYS = CRITIC_RENEWAL_HASHES.concat(['version', 'kind', 'parent_packet_id',
+    'parent_packet_ref', 'successor_packet_id', 'successor_packet_ref', 'expiry',
+    'reviewer_call_limit', 'automatic_retries', 'parent_authority_reused',
+    'native_execution_permitted', 'canonical_plan_rows']);
+  function validCriticRenewal(r, p) {
+    var ref = /^PKT-FLUX-B1-[0-9a-f]{20}$/, b = p.review_binding;
+    return exactKeys(r, CRITIC_RENEWAL_KEYS) &&
+      r.version === 'athena.flux.renewal-review-binding/1' &&
+      r.kind === 'fresh_intent_policy_renewal' &&
+      CRITIC_RENEWAL_HASHES.every(function(k) { return typeof r[k] === 'string' && /^[a-f0-9]{64}$/.test(r[k]); }) &&
+      Number.isSafeInteger(r.parent_packet_id) && r.parent_packet_id > 0 &&
+      Number.isSafeInteger(r.successor_packet_id) && r.successor_packet_id > 0 &&
+      typeof r.parent_packet_ref === 'string' && ref.test(r.parent_packet_ref) &&
+      typeof r.successor_packet_ref === 'string' && ref.test(r.successor_packet_ref) &&
+      r.parent_packet_id !== r.successor_packet_id && r.parent_packet_ref !== r.successor_packet_ref &&
+      r.parent_operation_sha256 !== r.successor_operation_sha256 &&
+      r.parent_plan_sha256 !== r.successor_plan_sha256 &&
+      r.previous_policy_sha256 !== r.next_policy_sha256 &&
+      !!b && typeof b === 'object' &&
+      r.successor_packet_id === p.packet_id && r.successor_packet_id === b.packet_id &&
+      r.successor_packet_ref === b.packet_ref &&
+      r.successor_operation_sha256 === p.operation_digest &&
+      r.successor_plan_sha256 === b.plan_seal_sha256 &&
+      r.successor_review_policy_sha256 === p.policy_sha256 &&
+      r.expiry === p.expiry && r.reviewer_call_limit === 2 &&
+      r.automatic_retries === false && r.parent_authority_reused === false &&
+      r.native_execution_permitted === false &&
+      r.canonical_plan_rows === p.canonical_plan_rows;
+  }
+
   function validCriticInputBinding(b, p) {
     var hashes = ['operation_digest', 'plan_seal_sha256', 'gold_spec_hash', 'context_sha256',
       'prompt_sha256', 'system_sha256', 'model_input_sha256'];
@@ -623,6 +662,13 @@
     }
     // The explicit V3 domain marker prevents stripping the allocation fields
     // into a legacy disclosure while retaining the opaque bound input hash.
+    if (Object.prototype.hasOwnProperty.call(p, 'renewal')) {
+      // Athena purpose athena:l0:critic-review:renewal:1; renewal is only ever
+      // accepted with the V3 projection, so the sorted canonical path applies.
+      binding.purpose = 'athena:l0:critic-review:renewal:1';
+      binding.renewal = {};
+      CRITIC_RENEWAL_KEYS.forEach(function(k) { binding.renewal[k] = p.renewal[k]; });
+    }
     if (hasCriticProjection(p)) return criticCanonicalText(binding);
     // Python canonical_json_hash uses ensure_ascii=True. Preserve legacy ASCII
     // bytes and escape Unicode gold-spec versions, including surrogate pairs.
@@ -649,6 +695,9 @@
     else keys.push('max_tokens_per_provider');
     if (replacement) keys.push('recovery');
     if (inputBound) keys.push('review_binding');
+    var renewal = !!p && typeof p === 'object' &&
+      Object.prototype.hasOwnProperty.call(p, 'renewal');
+    if (renewal) keys.push('renewal');
     var hex = /^[a-f0-9]{64}$/;
     var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
@@ -656,6 +705,8 @@
         (replacement && (!validCriticRecovery(p.recovery) ||
           (p.recovery.version === 2 && !hasCriticProjection(p)))) ||
         (inputBound && !validCriticInputBinding(p.review_binding, p)) ||
+        (renewal && (replacement || !inputBound || !hasCriticProjection(p) ||
+          !validCriticRenewal(p.renewal, p))) ||
         !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
         p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
         !hex.test(p.state) || p.state !== state ||
@@ -665,7 +716,9 @@
         typeof p.actor !== 'string' || p.actor.toLowerCase() !== subject ||
         !/^[^\s@]+@[^\s@]+$/.test(p.actor) ||
         p.project_url !== expectedProject || p.source_sha256 !== expectedSource ||
-        p.source_bytes !== 40304 || p.canonical_plan_rows !== 113 ||
+        p.source_bytes !== 40304 || // V3 (native-observation) operations seal six more scope rows: 113 + 6.
+        !(p.canonical_plan_rows === 113 ||
+          (p.canonical_plan_rows === 119 && hasCriticProjection(p))) ||
         p.source_confidential !== true ||
         p.external_source_disclosure !== 'full_canonical_plan_and_source_scope' ||
         !Array.isArray(p.reviewers) || p.reviewers.length !== 2 ||
@@ -732,7 +785,7 @@
       box.appendChild(replacementNotice);
     }
     var warning = document.createElement('p');
-    warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and 113-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
+    warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and ' + operation.canonical_plan_rows + '-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
     box.appendChild(warning);
     var fields = [
       ['Owner', operation.actor], ['Tenant', operation.tenant_id],
@@ -762,6 +815,15 @@
     if (hasCriticProjection(operation)) {
       fields.push(['Allocation SHA-256', operation.model_input_projection.resource_allocation.allocation_sha256],
         ['Native prerequisites', 'Configured and checked before this review. Execution still needs accepted critic results, a separate owner confirmation, the same-session payer check and native result readback.']);
+    }
+    if (operation.renewal) {
+      var rn = operation.renewal;
+      fields.push(['Fresh-intent renewal', 'Successor packet ' + rn.successor_packet_id + ' (' + rn.successor_packet_ref +
+          ') renews expired packet ' + rn.parent_packet_id + ' (' + rn.parent_packet_ref + ') under a new policy. ' +
+          'Parent authority is NOT reused; native execution is NOT permitted by this approval.'],
+        ['Previous policy SHA-256', rn.previous_policy_sha256], ['Renewed policy SHA-256', rn.next_policy_sha256],
+        ['Renewal proposal SHA-256', rn.proposal_sha256],
+        ['Successor input binding SHA-256', rn.successor_input_binding_sha256]);
     }
     if (recovery) {
       fields.push(['Replacement scope', 'One manual replacement attempt; two ADDITIONAL calls; no further retry'],
@@ -823,9 +885,13 @@
         return Array.prototype.map.call(new Uint8Array(digest), function(b) { return b.toString(16).padStart(2, '0'); }).join('');
       });
     }
-    Promise.all([hash(nonceText), verifyCriticProjection(preview, hash)]).then(function (checked) {
+    var renewalCheck = Object.prototype.hasOwnProperty.call(preview, 'renewal') ?
+      hash(criticCanonicalText(preview.review_binding)).then(function(d) {
+        return d === preview.renewal.successor_input_binding_sha256;
+      }) : Promise.resolve(true);
+    Promise.all([hash(nonceText), verifyCriticProjection(preview, hash), renewalCheck]).then(function (checked) {
       if (generation !== operationGeneration) return;
-      if (checked[0] !== state || !checked[1] || !validCriticPreview(preview)) { operationRefused(); return; }
+      if (checked[0] !== state || !checked[1] || !checked[2] || !validCriticPreview(preview)) { operationRefused(); return; }
       operation = JSON.parse(JSON.stringify(preview));
       operationJson = JSON.stringify(preview);
       renderCriticPreview();
