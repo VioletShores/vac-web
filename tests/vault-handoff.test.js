@@ -1516,3 +1516,343 @@ test('V3 non-renewal preview with 119 rows follows Athena: accepted with the V3 
   h.window.VACVaultHandoff.onVerified(FULL,{});offer();await settleReview();
   assert.ok(h.byId.vacCriticReviewConfirm,'119 is a disclosed row count, not part of the nonce');
 });
+
+// ---------------------------------------------------------------------------
+// Typed refusal codes (athena L0 §4.2.3 sensory surface / Rule 4 sensor
+// contract). Every refusal keeps the same fail-closed teardown, names the
+// failing predicate from a CLOSED enum, tells the person what to do, and
+// signals Athena with {type, state, code} only. Synthetic identities only.
+const REFUSAL_ENUM = [
+  'identity_mismatch', 'expired', 'intent_missing', 'intent_too_large', 'intent_not_ascii',
+  'intent_parse_failed', 'intent_replaced', 'replayed', 'nonce_mismatch',
+  'projection_digest_mismatch', 'renewal_digest_mismatch', 'digest_unavailable',
+  'operation_missing', 'unspecified',
+  ...['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
+    'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url',
+    'source_sha256', 'source_bytes', 'canonical_plan_rows', 'source_confidential',
+    'external_source_disclosure', 'reviewers', 'orchestrate_mode', 'reviewer_call_limit',
+    'synthesis_vendor_allowed', 'model_input_projection', 'max_tokens_per_provider',
+    'approved_total_usd', 'owner_accepted_external_disclosure', 'owner_accepted_unverified_residency',
+    'provider_hard_cost_cap_enforced', 'automatic_retries', 'routing_posture', 'expiry',
+    'ready_for_owner_critic_vac', 'review_submission_started', 'reviewers.keys', 'reviewers.provider',
+    'reviewers.model', 'reviewers.model_family', 'reviewers.provider_tier',
+    'reviewers.data_training_posture', 'reviewers.evidence_url', 'reviewers.processing_jurisdiction',
+    'reviewers.retention_posture', 'reviewers.duplicate_provider', 'reviewers.duplicate_family',
+    'serialization'].map(f => 'preview_shape_invalid:' + f),
+  ...['size', 'keys', 'strings', 'version', 'purpose', 'ids', 'digests', 'project_url', 'endpoint',
+    'action', 'capability', 'object_ref', 'revocation_ref', 'expiry', 'risk', 'allowed_tools',
+    'constraints', 'resource_envelope', 'readback', 'evidence_requirements', 'result_contract',
+    'async_credit_risk', 'payer_binding', 'cost_bounds', 'read_argument_binding',
+    'readback.arguments_sha256'].map(f => 'operation_shape_invalid:' + f)
+];
+const SEEN_REFUSALS = new Set();
+const refusals = h => h.posted.filter(x => x.m && x.m.type === 'vac-operation-refused');
+
+function assertRefused(h, code) {
+  const sent = refusals(h);
+  assert.ok(sent.length >= 1, 'a typed refusal is signalled to Athena for ' + code);
+  const last = sent.at(-1);
+  assert.deepEqual(Object.keys(last.m).sort(), ['code', 'state', 'type'], 'no extra keys');
+  assert.equal(last.o, VAULT, 'only to the pinned target origin');
+  assert.equal(last.m.code, code);
+  assert.ok(REFUSAL_ENUM.includes(last.m.code));
+  assert.doesNotMatch(JSON.stringify(last.m), /@|example\.invalid/, 'no PII to the opener');
+  // Fail-closed teardown is unchanged: nothing offered, minted or delivered.
+  assert.equal(h.byId.vacCriticReviewConfirm, undefined);
+  assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+  assert.ok(h.posted.every(x => !x.m.assertion), 'no VAT delivered');
+  assert.equal(h.byId.vacVaultHandoff.attrs['data-tone'], 'error');
+  assert.ok(h.byId.vacVaultHandoffMsg.textContent.includes('Reference: ' + code + '.'));
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /Nothing was authorised|No critic or Flux task was authorised/);
+  SEEN_REFUSALS.add(code);
+  return h.byId.vacVaultHandoffMsg.textContent;
+}
+
+test('refusal enum is closed, stable and exposed to the page', () => {
+  const {h} = criticFixture();
+  const codes = h.window.VACVaultHandoff.refusalCodes;
+  assert.deepEqual([...codes], REFUSAL_ENUM);
+  assert.ok(Object.isFrozen(codes));
+  assert.equal(new Set(codes).size, codes.length);
+  for (const c of codes) assert.match(c, /^[a-z_]+(?::[a-z_.0-9]+)?$/);
+});
+
+async function criticRefusal(change, options) {
+  const {h, offer} = criticFixture(change, options);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  return h;
+}
+async function v3Refusal(change) {
+  const {h, offer} = allocatedCriticFixture(change);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  return h;
+}
+async function taskRefusal(change) {
+  const {h, receive} = taskFixture(change);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  return h;
+}
+async function serviceRefusal(patch, intent) {
+  const {h, receive, message} = serviceFixture(patch);
+  h.window.VACVaultHandoff.onVerified(FULL, {});
+  receive(intent === undefined ? {} : {data: {...message, intent_json: intent}}); await settleReview();
+  return h;
+}
+// Server canonical nonce for a renewal preview (mirrors criticNonceText).
+function renewalState(p) {
+  const b = p.review_binding;
+  const binding = {operation_digest: p.operation_digest, policy_sha256: p.policy_sha256,
+    purpose: 'athena:l0:critic-review:renewal:1',
+    model_input_projection_version: p.model_input_projection.version,
+    review_binding: {context_sha256: b.context_sha256, gold_spec_hash: b.gold_spec_hash,
+      gold_spec_version: b.gold_spec_version, model_input_sha256: b.model_input_sha256,
+      operation_digest: b.operation_digest, packet_id: b.packet_id, packet_ref: b.packet_ref,
+      plan_seal_sha256: b.plan_seal_sha256, prompt_sha256: b.prompt_sha256,
+      system_sha256: b.system_sha256, version: b.version},
+    renewal: p.renewal};
+  const ordered = v => Array.isArray(v) ? v.map(ordered) : (!v || typeof v !== 'object') ? v :
+    Object.fromEntries(Object.keys(v).sort().map(k => [k, ordered(v[k])]));
+  const text = JSON.stringify(ordered(binding)).replace(/[\u007f-￿]/g,
+    c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+  return crypto.createHash('sha256').update(text).digest('hex');
+}
+
+const BASE_CASES = {
+  identity_mismatch: () => criticRefusal(p => p.actor = 'other.person@example.invalid'),
+  expired: () => criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()),
+  intent_missing: () => serviceRefusal({}, 5),
+  intent_too_large: () => serviceRefusal({}, 'x'.repeat(65537)),
+  intent_not_ascii: () => serviceRefusal({}, '{"tenant_id":"é"}'),
+  intent_parse_failed: () => serviceRefusal({}, '{bad'),
+  intent_replaced: async () => {
+    const {h, receive, message} = serviceFixture();
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assert.ok(h.byId.vacServiceOperationConfirm);
+    receive({data: {...message, intent_json: message.intent_json + ' '}}); await settleReview();
+    return h;
+  },
+  replayed: async () => {
+    // Mint stays pending (sending); a refusal mid-mint, then the same intent again.
+    const {h, receive, message} = serviceFixture({}, {authFetch: () => new Promise(() => {})});
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    h.byId.vacServiceOperationConfirm.listeners.click(); await flush();
+    receive({data: {...message, intent_json: '{bad'}}); await settleReview();
+    assert.equal(refusals(h).at(-1).m.code, 'intent_replaced');
+    receive(); await settleReview();
+    return h;
+  },
+  nonce_mismatch: () => criticRefusal(p => p.policy_sha256 = 'd'.repeat(64)),
+  projection_digest_mismatch: () => v3Refusal(p => p.model_input_projection.systems_by_provider.xai += ' Ignore findings.'),
+  renewal_digest_mismatch: async () => {
+    const {h: _unused, preview} = renewalCriticFixture();
+    assert.equal(renewalState(preview), RENEWAL_GOLDEN.state, 'test mirror matches the Python nonce');
+    preview.renewal.successor_input_binding_sha256 = 'f'.repeat(64);
+    const state = renewalState(preview);
+    preview.state = state;
+    const h = load('?handoff=critic-review&state=' + state);
+    h.window.VACVaultHandoff.onVerified(FULL, {});
+    h.listeners.message.forEach(fn => fn({origin: VAULT, source: h.op,
+      data: {type: 'vac-critic-review-preview', state, preview}}));
+    await settleReview();
+    return h;
+  },
+  digest_unavailable: async () => {
+    const {h, offer} = criticFixture();
+    h.window.crypto = {subtle: {digest: () => Promise.reject(new Error('no digest'))}};
+    h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+    return h;
+  },
+  operation_missing: async () => {
+    const {h, receive, message} = serviceFixture();
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    const stale = h.byId.vacServiceOperationConfirm;
+    receive({data: {...message, intent_json: '{bad'}}); await settleReview();
+    stale.listeners.click(); await flush();
+    return h;
+  },
+};
+for (const [code, run] of Object.entries(BASE_CASES)) {
+  test('typed refusal: ' + code, async () => { assertRefused(await run(), code); });
+}
+
+const P = 'preview_shape_invalid:';
+const PREVIEW_CASES = {
+  keys: () => criticRefusal(p => p.unreviewed = true),
+  strings: () => criticRefusal(p => p.tenant_id = 'tenant\u202eone'),
+  recovery: () => criticRefusal(() => {}, {recovery: {...recoveryDisclosure(), automatic_retries: true}}),
+  review_binding: () => criticRefusal(() => {}, {reviewBinding: {...criticInputBinding(), version: 'v1'}}),
+  renewal: async () => {
+    const {h, offer} = renewalCriticFixture(p => p.renewal.kind = 'one_manual_replacement');
+    h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview(); return h;
+  },
+  packet_id: () => criticRefusal(p => p.packet_id = 0),
+  kind: () => criticRefusal(p => p.kind = 'service-operation'),
+  audience: () => criticRefusal(p => p.audience = 'athena:l0:service-operation'),
+  state: () => criticRefusal(p => p.state = 'not-hex'),
+  operation_digest: () => criticRefusal(p => p.operation_digest = 'B'.repeat(64)),
+  policy_sha256: () => criticRefusal(p => p.policy_sha256 = 'C'.repeat(64)),
+  tenant_id: () => criticRefusal(p => p.tenant_id = ''),
+  principal: () => criticRefusal(p => p.principal = ''),
+  actor: async () => {
+    // Same identity, malformed address: the shape check, not identity.
+    const {h, offer} = criticFixture(p => p.actor = 'owner-without-domain');
+    h.window.VACVaultHandoff.onVerified({...FULL, session: {...FULL.session, email: 'owner-without-domain'}}, {});
+    offer(); await settleReview(); return h;
+  },
+  project_url: () => criticRefusal(p => p.project_url = 'https://www.flux.ai/foreign/project/schematic'),
+  source_sha256: () => criticRefusal(p => p.source_sha256 = 'd'.repeat(64)),
+  source_bytes: () => criticRefusal(p => p.source_bytes = 40303),
+  canonical_plan_rows: () => criticRefusal(p => p.canonical_plan_rows = 112),
+  source_confidential: () => criticRefusal(p => p.source_confidential = false),
+  external_source_disclosure: () => criticRefusal(p => p.external_source_disclosure = 'summary_only'),
+  reviewers: () => criticRefusal(p => p.reviewers.pop()),
+  orchestrate_mode: () => criticRefusal(p => p.orchestrate_mode = 'synthesise'),
+  reviewer_call_limit: () => criticRefusal(p => p.reviewer_call_limit = 3),
+  synthesis_vendor_allowed: () => criticRefusal(p => p.synthesis_vendor_allowed = true),
+  model_input_projection: () => v3Refusal(p => p.end_to_end_readiness.handoff.ready = false),
+  max_tokens_per_provider: () => criticRefusal(p => p.max_tokens_per_provider = 100000),
+  approved_total_usd: () => criticRefusal(p => p.approved_total_usd = '500.01'),
+  owner_accepted_external_disclosure: () => criticRefusal(p => p.owner_accepted_external_disclosure = false),
+  owner_accepted_unverified_residency: () => criticRefusal(p => p.owner_accepted_unverified_residency = false),
+  provider_hard_cost_cap_enforced: () => criticRefusal(p => p.provider_hard_cost_cap_enforced = true),
+  automatic_retries: () => criticRefusal(p => p.automatic_retries = true),
+  routing_posture: () => criticRefusal(p => p.routing_posture = 'silent_provider_substitution'),
+  expiry: () => criticRefusal(p => p.expiry = 'not-a-timestamp'),
+  ready_for_owner_critic_vac: () => criticRefusal(p => p.ready_for_owner_critic_vac = false),
+  review_submission_started: () => criticRefusal(p => p.review_submission_started = true),
+  'reviewers.keys': () => criticRefusal(p => p.reviewers[0].extra = 'x'),
+  'reviewers.provider': () => criticRefusal(p => p.reviewers[0].provider = 'unlisted'),
+  'reviewers.model': () => criticRefusal(p => p.reviewers[0].model = ''),
+  'reviewers.model_family': () => criticRefusal(p => p.reviewers[0].model_family = 'unlisted'),
+  'reviewers.provider_tier': () => criticRefusal(p => p.reviewers[0].provider_tier = 'free'),
+  'reviewers.data_training_posture': () => criticRefusal(p => p.reviewers[0].data_training_posture = 'vendor_can_train'),
+  'reviewers.evidence_url': () => criticRefusal(p => p.reviewers[0].evidence_url = 'https://evil.invalid/?token=x'),
+  'reviewers.processing_jurisdiction': () => criticRefusal(p => p.reviewers[1].processing_jurisdiction = 'local_au'),
+  'reviewers.retention_posture': () => criticRefusal(p => p.reviewers[1].retention_posture = 'undisclosed'),
+  'reviewers.duplicate_provider': () => criticRefusal(p => p.reviewers[1].provider = 'openai'),
+  'reviewers.duplicate_family': () => criticRefusal(p => p.reviewers[1].model_family = 'openai_gpt'),
+  serialization: () => criticRefusal(p => p.reviewers[1] = p.reviewers),
+};
+for (const [field, run] of Object.entries(PREVIEW_CASES)) {
+  test('typed refusal: ' + P + field, async () => { assertRefused(await run(), P + field); });
+}
+
+const O = 'operation_shape_invalid:';
+const OPERATION_CASES = {
+  size: () => taskRefusal(o => o.padding = 'x'.repeat(17000)),
+  keys: () => taskRefusal(o => o.unreviewed = true),
+  strings: () => taskRefusal(o => o.executor = 'fixture-executor '),
+  version: () => taskRefusal(o => o.version = 3),
+  purpose: () => taskRefusal(o => o.purpose = 'other'),
+  ids: () => taskRefusal(o => o.executor = ''),
+  digests: () => taskRefusal(o => o.arguments_sha256 = 'bad'),
+  project_url: () => taskRefusal(o => o.project_url = 'https://www.flux.ai/foreign/project'),
+  endpoint: () => taskRefusal(o => o.endpoint = 'https://evil.invalid/mcp'),
+  action: () => taskRefusal(o => o.action = 'send_message'),
+  capability: () => taskRefusal(o => o.capability = 'read_file'),
+  object_ref: () => taskRefusal(o => o.object_ref = 'other'),
+  revocation_ref: () => taskRefusal(o => o.revocation_ref = 'execution:other'),
+  expiry: () => taskRefusal(o => o.expiry = '2030-01-01T00:00:00'),
+  risk: () => taskRefusal(o => o.risk = 2),
+  allowed_tools: () => taskRefusal(o => o.allowed_tools.push('delete_project')),
+  constraints: () => taskRefusal(o => o.constraints.financial_transaction = true),
+  resource_envelope: () => taskRefusal(o => o.resource_envelope.max_turns = 2),
+  readback: () => taskRefusal(o => o.readback.max_calls = 1),
+  evidence_requirements: () => taskRefusal(o => o.evidence_requirements.independent_readback = false),
+  result_contract: () => taskRefusal(o => o.result_contract.kind = 'schematic_verified'),
+  async_credit_risk: () => taskRefusal(o => o.async_credit_risk.billing_mode = 'prepaid'),
+  payer_binding: () => taskRefusal(o => o.async_credit_risk.payer_binding.oauth_subject_verified = true),
+  cost_bounds: () => taskRefusal(o => o.resource_envelope.cost_upper_bound.status = 'enforced'),
+  read_argument_binding: () => taskRefusal(o => o.result_contract.read_argument_binding.get_messages.limit = 100),
+  'readback.arguments_sha256': () => taskRefusal(o => o.readback.arguments_sha256 = 'a'.repeat(64)),
+};
+for (const [field, run] of Object.entries(OPERATION_CASES)) {
+  test('typed refusal: ' + O + field, async () => { assertRefused(await run(), O + field); });
+}
+
+test('legacy V1 operation faults carry the same typed shape codes', async () => {
+  const cases = [
+    [{purpose: 'other'}, 'purpose'], [{tenant_id: ''}, 'ids'], [{expiry: 'never'}, 'expiry'],
+    [{readback: {action: 'read_file'}}, 'readback'], [{resource_envelope: {}}, 'resource_envelope']];
+  for (const [patch, field] of cases) assertRefused(await serviceRefusal(patch), O + field);
+});
+
+test('identity and expiry are typed on every service path, including after review', async () => {
+  assertRefused(await serviceRefusal({actor: 'different@example.invalid'}), 'identity_mismatch');
+  assertRefused(await taskRefusal(o => o.actor = 'foreign@example.invalid'), 'identity_mismatch');
+  assertRefused(await serviceRefusal({expiry: new Date(Date.now() - 1000).toISOString()}), 'expired');
+  let offset = 0;
+  const {h, receive} = serviceFixture({}, {now: () => Date.now() + offset});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm);
+  const button = h.byId.vacServiceOperationConfirm;
+  offset = 10 * 60 * 1000;
+  button.listeners.click(); await flush();
+  assertRefused(h, 'expired');
+  assert.equal(h.fetches.length, 0);
+});
+
+test('identity_mismatch tells the person exactly what to do, with only a masked hint', async () => {
+  const actor = 'other.person@example.invalid';
+  const h = await criticRefusal(p => p.actor = actor);
+  const text = assertRefused(h, 'identity_mismatch');
+  assert.ok(text.includes('You signed in to VAC with a different account from the one that made this request. '));
+  assert.ok(text.includes('Sign in again with the account that made the request, then press Review and authorise again.'));
+  assert.ok(text.includes('o***@example.invalid'));
+  assert.ok(!text.includes(actor), 'full actor never shown');
+  assert.ok(!text.includes('other.person'), 'local part never shown');
+  assert.equal(h.fetches.length, 0);
+  for (const x of h.posted) assert.ok(!JSON.stringify(x.m).includes('other'), 'nothing about the actor reaches the opener');
+});
+
+test('masking never leaks the full actor, for any address shape', async () => {
+  for (const actor of ['a@example.invalid', 'ab@example.invalid', 'Mixed.Case+tag@sub.example.invalid',
+      'x'.repeat(60) + '@example.invalid']) {
+    const h = await criticRefusal(p => p.actor = actor);
+    const text = assertRefused(h, 'identity_mismatch');
+    const domain = actor.split('@')[1];
+    assert.ok(text.includes(actor[0] + '***@' + domain));
+    assert.ok(!text.includes(actor), 'full actor never shown: ' + actor);
+    assert.ok(!text.includes(actor.split('@')[0] + '@'), 'local part never shown');
+  }
+  // A malformed actor yields no hint at all, never raw text.
+  const {h, receive} = serviceFixture({actor: 'not an address'});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  const text = assertRefused(h, 'identity_mismatch');
+  assert.ok(!text.includes('not an address')); assert.ok(!text.includes('***'));
+});
+
+test('no refusal, hint or signal is produced before a FULL verification', async () => {
+  const {h, offer} = criticFixture(p => p.actor = 'other.person@example.invalid');
+  offer(); await settleReview();
+  assert.equal(refusals(h).length, 0);
+  h.window.VACVaultHandoff.onVerified({authenticated: true, auth_level: 'fast', session_token: 'x',
+    email: 'owner@example.invalid'}, {});
+  offer(); await settleReview();
+  assert.equal(refusals(h).length, 0);
+  assert.ok(!allText(h.byId.vacVaultHandoff || {children: []}).includes('***'));
+});
+
+test('non-identity refusals never carry an actor hint', async () => {
+  const text = assertRefused(await criticRefusal(p => p.source_bytes = 40303), P + 'source_bytes');
+  assert.ok(!text.includes('***') && !text.includes('@'));
+  assert.match(assertRefused(await criticRefusal(p => p.expiry = new Date(Date.now() - 1000).toISOString()), 'expired'),
+    /This request has expired/);
+});
+
+test('refusal signal goes only to a present opener, at the pinned origin, with exactly three keys', async () => {
+  const absent = criticFixture(p => p.actor = 'other.person@example.invalid', {opener: 'absent'});
+  absent.h.window.VACVaultHandoff.onVerified(FULL, {}); absent.offer(); await settleReview();
+  assert.equal(absent.h.posted.length, 0);
+  const h = await taskRefusal(o => o.risk = 2);
+  const sent = refusals(h);
+  assert.equal(sent.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0])),
+    {m: {type: 'vac-operation-refused', state: sent[0].m.state, code: O + 'risk'}, o: VAULT});
+  assert.match(sent[0].m.state, /^[a-f0-9]{64}$/);
+});
+
+test('every refusal code except the unspecified collapse value is exercised above', () => {
+  const missing = REFUSAL_ENUM.filter(c => c !== 'unspecified' && !SEEN_REFUSALS.has(c));
+  assert.deepEqual(missing, []);
+});

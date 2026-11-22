@@ -167,7 +167,79 @@
       'vac-service-operation-request', state: state }, target.origin);
   }
 
-  function operationRefused() {
+  // Typed refusal (athena L0 §4.2.3 sensory surface, Rule 4 sensor contract).
+  // Every refusal still fails closed through the SAME teardown, but now names
+  // WHICH predicate failed, from a CLOSED, stable enum. A code never carries
+  // payload text: unknown values collapse to 'unspecified'. Athena receives
+  // only {type, state, code}, at the pinned target origin, so it can hold the
+  // packet with a typed reason instead of UI-only text.
+  var REFUSED = 'vac-operation-refused';
+  var PREVIEW_FIELDS = ['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id',
+    'kind', 'audience', 'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal',
+    'actor', 'project_url', 'source_sha256', 'source_bytes', 'canonical_plan_rows',
+    'source_confidential', 'external_source_disclosure', 'reviewers', 'orchestrate_mode',
+    'reviewer_call_limit', 'synthesis_vendor_allowed', 'model_input_projection',
+    'max_tokens_per_provider', 'approved_total_usd', 'owner_accepted_external_disclosure',
+    'owner_accepted_unverified_residency', 'provider_hard_cost_cap_enforced', 'automatic_retries',
+    'routing_posture', 'expiry', 'ready_for_owner_critic_vac', 'review_submission_started',
+    'reviewers.keys', 'reviewers.provider', 'reviewers.model', 'reviewers.model_family',
+    'reviewers.provider_tier', 'reviewers.data_training_posture', 'reviewers.evidence_url',
+    'reviewers.processing_jurisdiction', 'reviewers.retention_posture',
+    'reviewers.duplicate_provider', 'reviewers.duplicate_family', 'serialization'];
+  var OPERATION_FIELDS = ['size', 'keys', 'strings', 'version', 'purpose', 'ids', 'digests',
+    'project_url', 'endpoint', 'action', 'capability', 'object_ref', 'revocation_ref', 'expiry',
+    'risk', 'allowed_tools', 'constraints', 'resource_envelope', 'readback',
+    'evidence_requirements', 'result_contract', 'async_credit_risk', 'payer_binding',
+    'cost_bounds', 'read_argument_binding', 'readback.arguments_sha256'];
+  var REFUSAL_BASE = ['identity_mismatch', 'expired', 'intent_missing', 'intent_too_large',
+    'intent_not_ascii', 'intent_parse_failed', 'intent_replaced', 'replayed', 'nonce_mismatch',
+    'projection_digest_mismatch', 'renewal_digest_mismatch', 'digest_unavailable',
+    'operation_missing', 'unspecified'];
+  var REFUSAL_CODES = REFUSAL_BASE.concat(
+    PREVIEW_FIELDS.map(function (f) { return 'preview_shape_invalid:' + f; }),
+    OPERATION_FIELDS.map(function (f) { return 'operation_shape_invalid:' + f; }));
+  function refusalCode(code) {
+    return typeof code === 'string' && REFUSAL_CODES.indexOf(code) >= 0 ? code : 'unspecified';
+  }
+  // Masked hint only: first character, fixed '***', then the domain. Never the
+  // full address, never before a FULL verification, never sent to the opener.
+  function maskedActor(actor) {
+    if (typeof actor !== 'string' || actor.length > 320 || !/^[\x21-\x7e]+$/.test(actor)) return '';
+    var m = actor.match(/^([^\s@])[^\s@]*@([^\s@]{1,253})$/);
+    return m ? m[1] + '***@' + m[2] : '';
+  }
+  function refusalText(code, actor) {
+    var nothing = criticReview ? 'No critic or Flux task was authorised.' : 'Nothing was authorised.';
+    var text;
+    if (code === 'identity_mismatch') {
+      var hint = sessionToken && subject ? maskedActor(actor) : '';
+      text = 'You signed in to VAC with a different account from the one that made this request. ' +
+        (hint ? 'The request was made by ' + hint + '. ' : '') +
+        'Sign in again with the account that made the request, then press Review and authorise again.';
+    } else if (code === 'expired') {
+      text = 'This request has expired. Return to Athena and start it again to get a fresh request.';
+    } else if (code === 'replayed' || code === 'intent_replaced') {
+      text = 'This request changed or was already used while this page was open. Return to Athena and start it again.';
+    } else if (code === 'nonce_mismatch' || code === 'projection_digest_mismatch' || code === 'renewal_digest_mismatch') {
+      text = 'The details Athena sent do not match the request this page was opened for. Return to Athena and start it again.';
+    } else if (code === 'digest_unavailable') {
+      text = 'This browser could not check the request’s fingerprint. Try again in an up-to-date browser, or return to Athena.';
+    } else if (code === 'operation_missing') {
+      text = 'The confirmation was not completed. Return to Athena and start it again.';
+    } else {
+      text = 'Athena sent request details this version of VAC cannot verify. Return to Athena; if this repeats, Athena or VAC needs updating.';
+    }
+    return text + ' ' + nothing + ' Reference: ' + code + '.';
+  }
+  function signalRefusal(code) {
+    if (!valid || !openerPresent()) return;
+    var signal = { type: REFUSED, state: state, code: refusalCode(code) };
+    if (!exactKeys(signal, ['type', 'state', 'code'])) return;
+    try { window.opener.postMessage(signal, target.origin); } catch (_e) {}
+  }
+
+  function operationRefused(reason, actor) {
+    var code = refusalCode(reason);
     operationGeneration++;
     operation = null;
     operationJson = null;
@@ -178,9 +250,21 @@
     if (review) review.remove();
     var criticPanel = document.getElementById('vacCriticReview');
     if (criticPanel) criticPanel.remove();
-    show('error', criticReview ?
-      'The exact external-review disclosure could not be verified. No critic or Flux task was authorised. Return to Athena.' :
-      'The exact operation could not be verified. Nothing was authorised. Return to Athena to review it again.', false);
+    show('error', refusalText(code, actor), false);
+    signalRefusal(code);
+  }
+  // Same predicates and order as before; only the outcome is now named.
+  function liveOperationFault(lower) {
+    if (!operation) return 'operation_missing';
+    var actor = lower && typeof operation.actor === 'string' ? operation.actor.toLowerCase() : operation.actor;
+    if (actor !== subject) return 'identity_mismatch';
+    if (Date.parse(operation.expiry) <= Date.now()) return 'expired';
+    return null;
+  }
+  function refuseLive(code) { operationRefused(code, operation && operation.actor); }
+  function firstFault(checks) {
+    for (var i = 0; i < checks.length; i++) if (checks[i][1]()) return checks[i][0];
+    return null;
   }
 
   // UI shape validation is deliberately separate from authority. Athena still
@@ -222,7 +306,8 @@
       return value[key] === expected[key];
     });
   }
-  function validAsyncCreditRisk(op) {
+  function asyncCreditRiskFault(op) {
+    var bad = 'operation_shape_invalid:async_credit_risk';
     // An owner-observed account setting is NOT a provider-enforced per-task cap
     // or proof of who pays. The signed exact operation includes the disclosure;
     // Athena independently checks the evidence, payer, policy and sealed L0
@@ -232,7 +317,7 @@
           'observed_monthly_spend_limit_usd', 'observed_available_acus',
           'provider_task_spend_cap_enforced', 'provider_agent_stop_available',
           'automatic_retries', 'evidence_kind', 'observed_at', 'owner_acceptance',
-          'payer_binding'])) return false;
+          'payer_binding'])) return bad;
     if (risk.mode !== 'owner_accepted_unstoppable_agent' ||
         risk.provider !== 'flux_ai' ||
         typeof risk.account !== 'string' ||
@@ -248,12 +333,12 @@
         risk.automatic_retries !== false ||
         risk.evidence_kind !== 'owner_account_settings_ui_observation' ||
         risk.owner_acceptance !== 'fresh_exact_operation_vac_required' ||
-        !awareTime(risk.observed_at)) return false;
+        !awareTime(risk.observed_at)) return bad;
     var ageMs = Date.now() - Date.parse(risk.observed_at);
-    if (ageMs < -10000 || ageMs > 900000) return false;
+    if (ageMs < -10000 || ageMs > 900000) return bad;
     var projectParts = op.project_url.match(/^https:\/\/www\.flux\.ai\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\/([^/?#]+)\/schematic$/);
     if (!projectParts || projectParts[1] !== risk.account ||
-        op.result_contract.provider_project_id !== risk.account + '/' + projectParts[2]) return false;
+        op.result_contract.provider_project_id !== risk.account + '/' + projectParts[2]) return bad;
     // Flux's documented rule charges project owners (not OAuth callers).
     // This is STILL an owner-observed binding, not a live provider receipt.
     // Athena must freshly authenticate get_project and check ownerHandle/slug,
@@ -268,15 +353,18 @@
         payer.source_url !== 'https://docs.flux.ai/account/copilot-credits' ||
         payer.oauth_subject_verified !== false ||
         payer.fresh_provider_owner_recheck_required !== true ||
-        !awareTime(payer.observed_at)) return false;
+        !awareTime(payer.observed_at)) return 'operation_shape_invalid:payer_binding';
     var payerAgeMs = Date.now() - Date.parse(payer.observed_at);
-    if (payerAgeMs < -10000 || payerAgeMs > 900000) return false;
+    if (payerAgeMs < -10000 || payerAgeMs > 900000) return 'operation_shape_invalid:payer_binding';
     var unknown = {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'};
     return exactValues(op.resource_envelope.spend_ceiling, unknown) &&
       exactValues(op.resource_envelope.cost_upper_bound, unknown) &&
-      exactValues(op.readback.cost_upper_bound, unknown);
+      exactValues(op.readback.cost_upper_bound, unknown) ? null : 'operation_shape_invalid:cost_bounds';
   }
-  function validTaskOperation(op, raw) {
+  // Returns null when the V2 operation is exactly the supported shape, else
+  // the closed 'operation_shape_invalid:<field>' code of the FIRST failing
+  // predicate. Predicates and their order are unchanged from the boolean form.
+  function taskOperationFault(op, raw) {
     var fields = ['version', 'purpose', 'execution_id', 'packet_id', 'actor', 'principal', 'tenant_id',
       'service_id', 'endpoint', 'capability', 'project_url', 'action', 'executor', 'expiry',
       'revocation_ref', 'risk', 'content_sha256', 'source_manifest_sha256', 'arguments_sha256',
@@ -288,56 +376,115 @@
     var ids = ['execution_id', 'packet_id', 'actor', 'principal', 'tenant_id', 'service_id',
       'capability', 'object_ref', 'action', 'executor', 'revocation_ref'];
     var project = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
-    if (raw.length > 16384 || !exactKeys(op, fields) || !safeStrings(op) || op.version !== 2 ||
-        op.purpose !== 'service-operation' ||
-        ids.some(function (key) { return typeof op[key] !== 'string' || !op[key] || op[key].length > 320; }) ||
-        digests.some(function (key) { return typeof op[key] !== 'string' || !/^[a-f0-9]{64}$/.test(op[key]); }) ||
-        op.project_url !== project || op.endpoint !== 'https://app.flux.ai/mcp' ||
-        op.action !== 'create_thread' || op.capability !== 'submit_agent_task' ||
-        op.object_ref !== 'submitted-source:' + op.content_sha256 ||
-        op.revocation_ref !== 'execution:' + op.execution_id || !awareTime(op.expiry) ||
-        typeof op.risk !== 'number' || !Number.isFinite(op.risk) || op.risk < 0 || op.risk > 1 ||
-        !sameList(op.allowed_tools, ['get_project', 'create_thread', 'get_thread', 'get_messages'])) return false;
-    var c = op.constraints, e = op.resource_envelope, r = op.readback, proof = op.evidence_requirements;
-    if (!exactKeys(c, ['network_allowlist', 'write_scope', 'financial_transaction', 'connection_budget']) ||
-        !sameList(c.network_allowlist, ['app.flux.ai']) || !sameList(c.write_scope, [project]) ||
-        c.financial_transaction !== false || c.connection_budget !== 3 ||
-        !exactKeys(e, ['max_turns', 'max_minutes', 'spend_ceiling', 'cost_upper_bound']) ||
-        e.max_turns !== 1 || !Number.isInteger(e.max_minutes) || e.max_minutes < 1 || e.max_minutes > 30 ||
-        !exactKeys(r, ['action', 'capability', 'tool_schema_sha256', 'arguments_sha256',
-          'cost_contract_sha256', 'project_url', 'object_ref', 'cost_upper_bound', 'max_calls']) ||
-        r.action !== 'get_messages' || r.capability !== 'read_agent_messages' || r.max_calls !== 2 ||
-        r.project_url !== project || r.object_ref !== op.object_ref ||
-        ['tool_schema_sha256', 'arguments_sha256', 'cost_contract_sha256'].some(function (key) {
-          return typeof r[key] !== 'string' || !/^[a-f0-9]{64}$/.test(r[key]);
-        }) || !exactKeys(proof, ['independent_readback', 'content_sha256', 'source_manifest_sha256']) ||
-        proof.independent_readback !== true || proof.content_sha256 !== op.content_sha256 ||
-        proof.source_manifest_sha256 !== op.source_manifest_sha256) return false;
-    var result = op.result_contract;
-    if (!exactKeys(result, ['kind', 'version', 'source_url', 'retrieved_at', 'provider_project_id', 'read_argument_binding']) ||
-        result.kind !== 'provider_task_message' || result.version !== 1 ||
-        typeof result.source_url !== 'string' ||
-        !/^https:\/\/github\.com\/VioletShores\/athena\/blob\/[a-f0-9]{40}\/[^?#]+$/.test(result.source_url) ||
-        !awareTime(result.retrieved_at) || typeof result.provider_project_id !== 'string' ||
-        !/^robzag\/[^\s/?#]+$/.test(result.provider_project_id) || result.provider_project_id.length > 320) return false;
-    if (!validAsyncCreditRisk(op)) return false;
-    var binding = result.read_argument_binding;
+    var c, e, r, proof, result, binding;
+    var fault = firstFault([
+      ['size', function () { return raw.length > 16384; }],
+      ['keys', function () { return !exactKeys(op, fields); }],
+      ['strings', function () { return !safeStrings(op); }],
+      ['version', function () { return op.version !== 2; }],
+      ['purpose', function () { return op.purpose !== 'service-operation'; }],
+      ['ids', function () {
+        return ids.some(function (key) { return typeof op[key] !== 'string' || !op[key] || op[key].length > 320; });
+      }],
+      ['digests', function () {
+        return digests.some(function (key) { return typeof op[key] !== 'string' || !/^[a-f0-9]{64}$/.test(op[key]); });
+      }],
+      ['project_url', function () { return op.project_url !== project; }],
+      ['endpoint', function () { return op.endpoint !== 'https://app.flux.ai/mcp'; }],
+      ['action', function () { return op.action !== 'create_thread'; }],
+      ['capability', function () { return op.capability !== 'submit_agent_task'; }],
+      ['object_ref', function () { return op.object_ref !== 'submitted-source:' + op.content_sha256; }],
+      ['revocation_ref', function () { return op.revocation_ref !== 'execution:' + op.execution_id; }],
+      ['expiry', function () { return !awareTime(op.expiry); }],
+      ['risk', function () {
+        return typeof op.risk !== 'number' || !Number.isFinite(op.risk) || op.risk < 0 || op.risk > 1;
+      }],
+      ['allowed_tools', function () {
+        return !sameList(op.allowed_tools, ['get_project', 'create_thread', 'get_thread', 'get_messages']);
+      }],
+      ['constraints', function () {
+        c = op.constraints; e = op.resource_envelope; r = op.readback; proof = op.evidence_requirements;
+        return !exactKeys(c, ['network_allowlist', 'write_scope', 'financial_transaction', 'connection_budget']) ||
+          !sameList(c.network_allowlist, ['app.flux.ai']) || !sameList(c.write_scope, [project]) ||
+          c.financial_transaction !== false || c.connection_budget !== 3;
+      }],
+      ['resource_envelope', function () {
+        return !exactKeys(e, ['max_turns', 'max_minutes', 'spend_ceiling', 'cost_upper_bound']) ||
+          e.max_turns !== 1 || !Number.isInteger(e.max_minutes) || e.max_minutes < 1 || e.max_minutes > 30;
+      }],
+      ['readback', function () {
+        return !exactKeys(r, ['action', 'capability', 'tool_schema_sha256', 'arguments_sha256',
+            'cost_contract_sha256', 'project_url', 'object_ref', 'cost_upper_bound', 'max_calls']) ||
+          r.action !== 'get_messages' || r.capability !== 'read_agent_messages' || r.max_calls !== 2 ||
+          r.project_url !== project || r.object_ref !== op.object_ref ||
+          ['tool_schema_sha256', 'arguments_sha256', 'cost_contract_sha256'].some(function (key) {
+            return typeof r[key] !== 'string' || !/^[a-f0-9]{64}$/.test(r[key]);
+          });
+      }],
+      ['evidence_requirements', function () {
+        return !exactKeys(proof, ['independent_readback', 'content_sha256', 'source_manifest_sha256']) ||
+          proof.independent_readback !== true || proof.content_sha256 !== op.content_sha256 ||
+          proof.source_manifest_sha256 !== op.source_manifest_sha256;
+      }],
+      ['result_contract', function () {
+        result = op.result_contract;
+        return !exactKeys(result, ['kind', 'version', 'source_url', 'retrieved_at', 'provider_project_id', 'read_argument_binding']) ||
+          result.kind !== 'provider_task_message' || result.version !== 1 ||
+          typeof result.source_url !== 'string' ||
+          !/^https:\/\/github\.com\/VioletShores\/athena\/blob\/[a-f0-9]{40}\/[^?#]+$/.test(result.source_url) ||
+          !awareTime(result.retrieved_at) || typeof result.provider_project_id !== 'string' ||
+          !/^robzag\/[^\s/?#]+$/.test(result.provider_project_id) || result.provider_project_id.length > 320;
+      }]
+    ]);
+    if (fault) return 'operation_shape_invalid:' + fault;
+    var risk = asyncCreditRiskFault(op);
+    if (risk) return risk;
+    binding = result.read_argument_binding;
     if (!exactKeys(binding, ['get_thread', 'get_messages']) ||
         !exactKeys(binding.get_thread, ['thread']) || !exactKeys(binding.get_messages, ['thread', 'offset', 'limit']) ||
         !exactKeys(binding.get_thread.thread, ['from_execute']) ||
         !exactKeys(binding.get_messages.thread, ['from_execute']) ||
         binding.get_thread.thread.from_execute !== 'thread_url' || binding.get_messages.thread.from_execute !== 'thread_url' ||
-        binding.get_messages.offset !== 0 || binding.get_messages.limit !== 20) return false;
+        binding.get_messages.offset !== 0 || binding.get_messages.limit !== 20) return 'operation_shape_invalid:read_argument_binding';
     // Hash of Athena's fixed canonical read-derivation bytes; never recanonicalise
     // the received intent or accept arbitrary caller-supplied read arguments.
-    return r.arguments_sha256 === '7b25df211e6e413c79a586a0438cacd846b2d2e02837f1e60aaeaf8a20626820';
+    return r.arguments_sha256 === '7b25df211e6e413c79a586a0438cacd846b2d2e02837f1e60aaeaf8a20626820' ?
+      null : 'operation_shape_invalid:readback.arguments_sha256';
+  }
+  // V1 keeps its original minimal predicate set, in the original order.
+  function legacyOperationFault(parsed) {
+    var strings = ['actor', 'principal', 'tenant_id', 'service_id', 'project_url', 'object_ref', 'action', 'capability',
+      'source_manifest_sha256', 'content_sha256', 'expiry'];
+    var fault = firstFault([
+      ['version', function () { return !parsed || parsed.version !== 1; }],
+      ['purpose', function () { return parsed.purpose !== 'service-operation'; }],
+      ['ids', function () {
+        return strings.some(function (key) { return typeof parsed[key] !== 'string' || !parsed[key]; });
+      }],
+      ['expiry', function () { return !Number.isFinite(Date.parse(parsed.expiry)); }],
+      ['readback', function () {
+        return !parsed.readback ||
+          typeof parsed.readback.action !== 'string' || !parsed.readback.action ||
+          typeof parsed.readback.capability !== 'string' || !parsed.readback.capability ||
+          !parsed.readback.cost_upper_bound || typeof parsed.readback.cost_upper_bound.amount !== 'string' ||
+          typeof parsed.readback.cost_upper_bound.unit !== 'string';
+      }],
+      ['resource_envelope', function () {
+        return !parsed.resource_envelope ||
+          !parsed.resource_envelope.spend_ceiling || !parsed.resource_envelope.cost_upper_bound ||
+          ['spend_ceiling', 'cost_upper_bound'].some(function (key) {
+            var cost = parsed.resource_envelope[key];
+            return typeof cost.amount !== 'string' || typeof cost.unit !== 'string';
+          });
+      }]
+    ]);
+    return fault ? 'operation_shape_invalid:' + fault : null;
   }
 
   function renderOperation() {
     if (!serviceOperation || !operation || !sessionToken || !subject) return;
-    if (operation.actor !== subject || Date.parse(operation.expiry) <= Date.now()) {
-      operationRefused(); return;
-    }
+    var fault = liveOperationFault(false);
+    if (fault) { refuseLive(fault); return; }
     var existing = document.getElementById('vacServiceOperationReview');
     if (existing) return;
     var box = document.createElement('section');
@@ -405,7 +552,8 @@
     confirm.textContent = 'Confirm this exact operation';
     confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
-      if (!operation || operation.actor !== subject || Date.parse(operation.expiry) <= Date.now()) { operationRefused(); return; }
+      var why = liveOperationFault(false);
+      if (why) { refuseLive(why); return; }
       operationConfirmed = true; confirm.disabled = true; send();
     });
     box.appendChild(confirm);
@@ -415,38 +563,27 @@
 
   function receiveOperation(message) {
     var raw = message.intent_json;
-    if (typeof raw !== 'string' || raw.length > 65536 || !/^[\x20-\x7e]*$/.test(raw)) { operationRefused(); return; }
+    if (typeof raw !== 'string') { operationRefused('intent_missing'); return; }
+    if (raw.length > 65536) { operationRefused('intent_too_large'); return; }
+    if (!/^[\x20-\x7e]*$/.test(raw)) { operationRefused('intent_not_ascii'); return; }
     if (operationJson === raw) { renderOperation(); return; }
-    if (operationJson !== null || operationConfirmed || sending || acked) { operationRefused(); return; }
+    if (operationJson !== null) { operationRefused('intent_replaced'); return; }
+    if (operationConfirmed || sending || acked) { operationRefused('replayed'); return; }
     var generation = ++operationGeneration;
     var parsed;
-    try {
-      parsed = JSON.parse(raw);
-      var strings = ['actor', 'principal', 'tenant_id', 'service_id', 'project_url', 'object_ref', 'action', 'capability',
-        'source_manifest_sha256', 'content_sha256', 'expiry'];
-      if (parsed && parsed.version === 2) {
-        if (!validTaskOperation(parsed, raw)) throw new Error('invalid task operation');
-      } else if (!parsed || parsed.version !== 1 || parsed.purpose !== 'service-operation' ||
-          strings.some(function (key) { return typeof parsed[key] !== 'string' || !parsed[key]; }) ||
-          !Number.isFinite(Date.parse(parsed.expiry)) || !parsed.readback ||
-          typeof parsed.readback.action !== 'string' || !parsed.readback.action ||
-          typeof parsed.readback.capability !== 'string' || !parsed.readback.capability ||
-          !parsed.readback.cost_upper_bound || typeof parsed.readback.cost_upper_bound.amount !== 'string' ||
-          typeof parsed.readback.cost_upper_bound.unit !== 'string' || !parsed.resource_envelope ||
-          !parsed.resource_envelope.spend_ceiling || !parsed.resource_envelope.cost_upper_bound ||
-          ['spend_ceiling', 'cost_upper_bound'].some(function (key) {
-            var cost = parsed.resource_envelope[key];
-            return typeof cost.amount !== 'string' || typeof cost.unit !== 'string';
-          })) throw new Error('invalid operation');
-    } catch (e) { operationRefused(); return; }
+    try { parsed = JSON.parse(raw); } catch (e) { operationRefused('intent_parse_failed'); return; }
+    var shape;
+    try { shape = parsed && parsed.version === 2 ? taskOperationFault(parsed, raw) : legacyOperationFault(parsed); }
+    catch (e) { shape = 'unspecified'; }
+    if (shape) { operationRefused(shape); return; }
     Promise.resolve().then(function () {
       return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
     }).then(function (digest) {
       if (generation !== operationGeneration) return;
       var hex = Array.prototype.map.call(new Uint8Array(digest), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-      if (hex !== state) { operationRefused(); return; }
+      if (hex !== state) { operationRefused('nonce_mismatch'); return; }
       operation = parsed; operationJson = raw; renderOperation();
-    }, function () { if (generation === operationGeneration) operationRefused(); });
+    }, function () { if (generation === operationGeneration) operationRefused('digest_unavailable'); });
   }
 
 
@@ -677,7 +814,10 @@
     });
   }
 
-  function validCriticPreview(p) {
+  // Returns null for the exact supported disclosure, else the closed code of
+  // the FIRST failing predicate. Predicates and order are unchanged; the
+  // former boolean preview validator is now !criticPreviewFault(p).
+  function criticPreviewFault(p) {
     var keys = ['packet_id', 'kind', 'audience', 'state', 'operation_digest',
       'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url', 'source_sha256',
       'source_bytes', 'canonical_plan_rows', 'source_confidential',
@@ -701,73 +841,114 @@
     var hex = /^[a-f0-9]{64}$/;
     var expectedSource = '6a678dbbc359df3888790019ef4799f2198dee2273cd329edc1d5463868a4156';
     var expectedProject = 'https://www.flux.ai/robzag/athena-pebble-b1-feasibility~07/schematic';
-    if (!exactKeys(p, keys) || !safeStrings(p) ||
-        (replacement && (!validCriticRecovery(p.recovery) ||
-          (p.recovery.version === 2 && !hasCriticProjection(p)))) ||
-        (inputBound && !validCriticInputBinding(p.review_binding, p)) ||
-        (renewal && (replacement || !inputBound || !hasCriticProjection(p) ||
-          !validCriticRenewal(p.renewal, p))) ||
-        !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0 ||
-        p.kind !== 'critic-review' || p.audience !== 'athena:l0:critic-review' ||
-        !hex.test(p.state) || p.state !== state ||
-        !hex.test(p.operation_digest) || !hex.test(p.policy_sha256) ||
-        typeof p.tenant_id !== 'string' || !p.tenant_id || p.tenant_id.length > 128 ||
-        typeof p.principal !== 'string' || !p.principal || p.principal.length > 320 ||
-        typeof p.actor !== 'string' || p.actor.toLowerCase() !== subject ||
-        !/^[^\s@]+@[^\s@]+$/.test(p.actor) ||
-        p.project_url !== expectedProject || p.source_sha256 !== expectedSource ||
-        p.source_bytes !== 40304 || // V3 (native-observation) operations seal six more scope rows: 113 + 6.
-        !(p.canonical_plan_rows === 113 ||
-          (p.canonical_plan_rows === 119 && hasCriticProjection(p))) ||
-        p.source_confidential !== true ||
-        p.external_source_disclosure !== 'full_canonical_plan_and_source_scope' ||
-        !Array.isArray(p.reviewers) || p.reviewers.length !== 2 ||
-        p.orchestrate_mode !== 'collect_only' ||
-        p.reviewer_call_limit !== 2 || p.synthesis_vendor_allowed !== false ||
-        (hasCriticProjection(p) ? !criticProjectionValid(p) : (
+    var P = 'preview_shape_invalid:';
+    var fault = firstFault([
+      [P + 'keys', function () { return !exactKeys(p, keys); }],
+      [P + 'strings', function () { return !safeStrings(p); }],
+      [P + 'recovery', function () {
+        return replacement && (!validCriticRecovery(p.recovery) ||
+          (p.recovery.version === 2 && !hasCriticProjection(p)));
+      }],
+      [P + 'review_binding', function () { return inputBound && !validCriticInputBinding(p.review_binding, p); }],
+      [P + 'renewal', function () {
+        return renewal && (replacement || !inputBound || !hasCriticProjection(p) ||
+          !validCriticRenewal(p.renewal, p));
+      }],
+      [P + 'packet_id', function () { return !Number.isSafeInteger(p.packet_id) || p.packet_id <= 0; }],
+      [P + 'kind', function () { return p.kind !== 'critic-review'; }],
+      [P + 'audience', function () { return p.audience !== 'athena:l0:critic-review'; }],
+      [P + 'state', function () { return !hex.test(p.state); }],
+      ['nonce_mismatch', function () { return p.state !== state; }],
+      [P + 'operation_digest', function () { return !hex.test(p.operation_digest); }],
+      [P + 'policy_sha256', function () { return !hex.test(p.policy_sha256); }],
+      [P + 'tenant_id', function () {
+        return typeof p.tenant_id !== 'string' || !p.tenant_id || p.tenant_id.length > 128;
+      }],
+      [P + 'principal', function () {
+        return typeof p.principal !== 'string' || !p.principal || p.principal.length > 320;
+      }],
+      [P + 'actor', function () { return typeof p.actor !== 'string'; }],
+      ['identity_mismatch', function () { return p.actor.toLowerCase() !== subject; }],
+      [P + 'actor', function () { return !/^[^\s@]+@[^\s@]+$/.test(p.actor); }],
+      [P + 'project_url', function () { return p.project_url !== expectedProject; }],
+      [P + 'source_sha256', function () { return p.source_sha256 !== expectedSource; }],
+      [P + 'source_bytes', function () { return p.source_bytes !== 40304; }],
+      // V3 (native-observation) operations seal six more scope rows: 113 + 6.
+      [P + 'canonical_plan_rows', function () {
+        return !(p.canonical_plan_rows === 113 ||
+          (p.canonical_plan_rows === 119 && hasCriticProjection(p)));
+      }],
+      [P + 'source_confidential', function () { return p.source_confidential !== true; }],
+      [P + 'external_source_disclosure', function () {
+        return p.external_source_disclosure !== 'full_canonical_plan_and_source_scope';
+      }],
+      [P + 'reviewers', function () { return !Array.isArray(p.reviewers) || p.reviewers.length !== 2; }],
+      [P + 'orchestrate_mode', function () { return p.orchestrate_mode !== 'collect_only'; }],
+      [P + 'reviewer_call_limit', function () { return p.reviewer_call_limit !== 2; }],
+      [P + 'synthesis_vendor_allowed', function () { return p.synthesis_vendor_allowed !== false; }],
+      [P + (hasCriticProjection(p) ? 'model_input_projection' : 'max_tokens_per_provider'), function () {
+        return hasCriticProjection(p) ? !criticProjectionValid(p) : (
           !Number.isInteger(p.max_tokens_per_provider) ||
-          p.max_tokens_per_provider < 8192 || p.max_tokens_per_provider > 32768)) ||
-        typeof p.approved_total_usd !== 'string' ||
-        !/^(?:0|[1-9][0-9]{0,2})\.[0-9]{2}$/.test(p.approved_total_usd) ||
-        Number(p.approved_total_usd) < 0.01 || Number(p.approved_total_usd) > 500 ||
-        p.owner_accepted_external_disclosure !== true ||
-        p.owner_accepted_unverified_residency !== true ||
-        p.provider_hard_cost_cap_enforced !== false ||
-        p.automatic_retries !== false ||
-        !['owner_approved_tier_default_after_calibration_expired',
-           'signalrank_preseal_panel'].includes(p.routing_posture) ||
-        // Server PolicyRail expiry is bounded by the sealed operation, not a
-        // rolling preview lease. The separate FULL/L3 VAT keeps its short TTL.
-        !awareTime(p.expiry) ||
-        Date.parse(p.expiry) <= Date.now() ||
-        p.ready_for_owner_critic_vac !== true ||
-        p.review_submission_started !== false) return false;
+          p.max_tokens_per_provider < 8192 || p.max_tokens_per_provider > 32768);
+      }],
+      [P + 'approved_total_usd', function () {
+        return typeof p.approved_total_usd !== 'string' ||
+          !/^(?:0|[1-9][0-9]{0,2})\.[0-9]{2}$/.test(p.approved_total_usd) ||
+          Number(p.approved_total_usd) < 0.01 || Number(p.approved_total_usd) > 500;
+      }],
+      [P + 'owner_accepted_external_disclosure', function () { return p.owner_accepted_external_disclosure !== true; }],
+      [P + 'owner_accepted_unverified_residency', function () { return p.owner_accepted_unverified_residency !== true; }],
+      [P + 'provider_hard_cost_cap_enforced', function () { return p.provider_hard_cost_cap_enforced !== false; }],
+      [P + 'automatic_retries', function () { return p.automatic_retries !== false; }],
+      [P + 'routing_posture', function () {
+        return !['owner_approved_tier_default_after_calibration_expired',
+          'signalrank_preseal_panel'].includes(p.routing_posture);
+      }],
+      // Server PolicyRail expiry is bounded by the sealed operation, not a
+      // rolling preview lease. The separate FULL/L3 VAT keeps its short TTL.
+      [P + 'expiry', function () { return !awareTime(p.expiry); }],
+      ['expired', function () { return Date.parse(p.expiry) <= Date.now(); }],
+      [P + 'ready_for_owner_critic_vac', function () { return p.ready_for_owner_critic_vac !== true; }],
+      [P + 'review_submission_started', function () { return p.review_submission_started !== false; }]
+    ]);
+    if (fault) return fault;
     var providers = [], families = [];
     for (var i = 0; i < 2; i++) {
       var r = p.reviewers[i];
-      if (!exactKeys(r, ['provider', 'model', 'model_family', 'provider_tier',
-            'data_training_posture', 'evidence_url', 'processing_jurisdiction',
-            'retention_posture']) ||
-          ['openai', 'groq', 'xai', 'google'].indexOf(r.provider) < 0 ||
-          typeof r.model !== 'string' || !r.model || r.model.length > 160 ||
-          ['openai_gpt', 'qwen', 'llama', 'xai_grok', 'google_gemini'].indexOf(r.model_family) < 0 ||
-          r.provider_tier !== 'paid_api' ||
-          r.data_training_posture !== 'owner_verified_no_training' ||
-          typeof r.evidence_url !== 'string' ||
-          !/^https:\/\/[A-Za-z0-9.-]+(?:\/[^?#]*)?$/.test(r.evidence_url) ||
-          r.processing_jurisdiction !== 'global_unverified' ||
-          ['provider_default_disclosed', 'zdr_verified'].indexOf(r.retention_posture) < 0 ||
-          providers.indexOf(r.provider) >= 0 || families.indexOf(r.model_family) >= 0) return false;
+      var R = P + 'reviewers.';
+      fault = firstFault([
+        [R + 'keys', function () {
+          return !exactKeys(r, ['provider', 'model', 'model_family', 'provider_tier',
+            'data_training_posture', 'evidence_url', 'processing_jurisdiction', 'retention_posture']);
+        }],
+        [R + 'provider', function () { return ['openai', 'groq', 'xai', 'google'].indexOf(r.provider) < 0; }],
+        [R + 'model', function () { return typeof r.model !== 'string' || !r.model || r.model.length > 160; }],
+        [R + 'model_family', function () {
+          return ['openai_gpt', 'qwen', 'llama', 'xai_grok', 'google_gemini'].indexOf(r.model_family) < 0;
+        }],
+        [R + 'provider_tier', function () { return r.provider_tier !== 'paid_api'; }],
+        [R + 'data_training_posture', function () { return r.data_training_posture !== 'owner_verified_no_training'; }],
+        [R + 'evidence_url', function () {
+          return typeof r.evidence_url !== 'string' ||
+            !/^https:\/\/[A-Za-z0-9.-]+(?:\/[^?#]*)?$/.test(r.evidence_url);
+        }],
+        [R + 'processing_jurisdiction', function () { return r.processing_jurisdiction !== 'global_unverified'; }],
+        [R + 'retention_posture', function () {
+          return ['provider_default_disclosed', 'zdr_verified'].indexOf(r.retention_posture) < 0;
+        }],
+        [R + 'duplicate_provider', function () { return providers.indexOf(r.provider) >= 0; }],
+        [R + 'duplicate_family', function () { return families.indexOf(r.model_family) >= 0; }]
+      ]);
+      if (fault) return fault;
       providers.push(r.provider); families.push(r.model_family);
     }
-    return true;
+    return null;
   }
 
   function renderCriticPreview() {
     if (!criticReview || !operation || !sessionToken || !subject) return;
-    if (operation.actor.toLowerCase() !== subject || Date.parse(operation.expiry) <= Date.now()) {
-      operationRefused(); return;
-    }
+    var fault = liveOperationFault(true);
+    if (fault) { refuseLive(fault); return; }
     if (document.getElementById('vacCriticReview')) return;
     var box = document.createElement('section');
     box.id = 'vacCriticReview';
@@ -851,8 +1032,8 @@
     confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
       if (recovery && (operationConfirmed || sending || acked || replacementDeliveryAttempted)) return;
-      if (!operation || operation.actor.toLowerCase() !== subject ||
-          Date.parse(operation.expiry) <= Date.now()) { operationRefused(); return; }
+      var why = liveOperationFault(true);
+      if (why) { refuseLive(why); return; }
       operationConfirmed = true; confirm.disabled = true; send();
     });
     box.appendChild(confirm);
@@ -866,15 +1047,19 @@
     if (!criticReview || !sessionToken || !subject ||
         operation || operationConfirmed || sending || acked ||
         message.type !== 'vac-critic-review-preview' || message.state !== state) return;
-    var preview;
+    var preview, fault;
+    var offered = message.preview;
+    var offeredActor = offered && typeof offered === 'object' ? offered.actor : undefined;
     try {
       // Validate before cloning as well: JSON serialization must not silently
       // drop an explicitly present, invalid recovery (for example undefined).
-      if (!validCriticPreview(message.preview)) { operationRefused(); return; }
-      preview = JSON.parse(JSON.stringify(message.preview));
+      fault = criticPreviewFault(offered);
+      if (fault) { operationRefused(fault, offeredActor); return; }
+      preview = JSON.parse(JSON.stringify(offered));
     }
-    catch (_error) { operationRefused(); return; }
-    if (!validCriticPreview(preview)) { operationRefused(); return; }
+    catch (_error) { operationRefused('preview_shape_invalid:serialization'); return; }
+    fault = criticPreviewFault(preview);
+    if (fault) { operationRefused(fault, preview && preview.actor); return; }
     var generation = ++operationGeneration;
     // Python canonical_json_hash sorts the fixed ASCII/scalar binding. No
     // URL-supplied policy and no claim that the rest of preview is a signed
@@ -891,11 +1076,13 @@
       }) : Promise.resolve(true);
     Promise.all([hash(nonceText), verifyCriticProjection(preview, hash), renewalCheck]).then(function (checked) {
       if (generation !== operationGeneration) return;
-      if (checked[0] !== state || !checked[1] || !checked[2] || !validCriticPreview(preview)) { operationRefused(); return; }
+      var late = checked[0] !== state ? 'nonce_mismatch' : !checked[1] ? 'projection_digest_mismatch' :
+        !checked[2] ? 'renewal_digest_mismatch' : criticPreviewFault(preview);
+      if (late) { operationRefused(late, preview.actor); return; }
       operation = JSON.parse(JSON.stringify(preview));
       operationJson = JSON.stringify(preview);
       renderCriticPreview();
-    }, function () { if (generation === operationGeneration) operationRefused(); });
+    }, function () { if (generation === operationGeneration) operationRefused('digest_unavailable'); });
   }
 
   function apiBase() {
@@ -1073,10 +1260,9 @@
     var ready = (assertion && Date.now() < assertionExpMs - 5000) ? Promise.resolve() : mint(generation);
     ready.then(function () {
       if (reviewedHandoff && generation !== operationGeneration) return;
-      if (reviewedHandoff && (!operationConfirmed || !operation ||
-          operation.actor.toLowerCase() !== subject ||
-          Date.parse(operation.expiry) <= Date.now())) {
-        operationRefused(); return;
+      if (reviewedHandoff) {
+        var late = !operationConfirmed ? 'operation_missing' : liveOperationFault(true);
+        if (late) { refuseLive(late); return; }
       }
       deliver();
     }, function (e) {
@@ -1136,6 +1322,8 @@
 
   window.VACVaultHandoff = {
     requiresSuppliedChallenge: kind === 'decisions-confirm',
+    // The closed refusal enum Athena may receive as 'vac-operation-refused'.
+    refusalCodes: Object.freeze(REFUSAL_CODES.slice()),
     assertChallengeActive: function (id) {
       if (!continuationFresh() || !challengeConsumed || id !== continuation.challenge.challenge_id) {
         throw new Error('This confirmation expired or was cancelled. Return to Athena.');
