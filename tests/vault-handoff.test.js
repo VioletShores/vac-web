@@ -1531,7 +1531,8 @@ const WIRE_CODES = [
   'vac_nonce_mismatch', 'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch',
   'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
   'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
-  'vac_verification_not_full', 'vac_confirmation_stale', 'vac_unspecified'];
+  'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
+  'vac_payer_observation_stale', 'vac_unspecified'];
 const PREVIEW_FIELD_LIST = ['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
     'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url',
     'source_sha256', 'source_bytes', 'canonical_plan_rows', 'source_confidential',
@@ -1797,6 +1798,29 @@ const OPERATION_CASES = {
   read_argument_binding: () => taskRefusal(o => o.result_contract.read_argument_binding.get_messages.limit = 100),
   'readback.arguments_sha256': () => taskRefusal(o => o.readback.arguments_sha256 = 'a'.repeat(64)),
 };
+
+// Observation freshness is a time window, not a contract shape: typed separately
+// so Athena re-observes and re-offers instead of routing a contract bug.
+const STALE_CASES = {
+  vac_account_observation_stale: [o => o.async_credit_risk.observed_at = new Date(Date.now() - 901000).toISOString(),
+    o => o.async_credit_risk.observed_at = new Date(Date.now() + 11000).toISOString()],
+  vac_payer_observation_stale: [o => o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() - 901000).toISOString(),
+    o => o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() + 11000).toISOString()],
+};
+for (const [code, changes] of Object.entries(STALE_CASES)) {
+  test('typed refusal: ' + code + ' (old and future observations)', async () => {
+    for (const change of changes) {
+      const text = assertRefused(await taskRefusal(change), code);
+      assert.match(text, /out of date \(older than 15 minutes, or dated in the future\)\. Return to Athena so it can check them again/);
+    }
+    // Malformed (not stale) payer and account blocks remain shape faults.
+    if (code === 'vac_payer_observation_stale') {
+      assertRefused(await taskRefusal(o => o.async_credit_risk.payer_binding.observed_at = 'not-a-time'), O + 'payer_binding');
+    } else {
+      assertRefused(await taskRefusal(o => o.async_credit_risk.observed_at = 'not-a-time'), O + 'async_credit_risk');
+    }
+  });
+}
 for (const [field, run] of Object.entries(OPERATION_CASES)) {
   test('typed refusal: ' + O + field, async () => { assertRefused(await run(), O + field); });
 }

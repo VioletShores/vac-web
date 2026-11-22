@@ -202,7 +202,8 @@
     'vac_replayed', 'vac_nonce_mismatch', 'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch',
     'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
     'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
-    'vac_verification_not_full', 'vac_confirmation_stale', 'vac_unspecified'];
+    'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
+    'vac_payer_observation_stale', 'vac_unspecified'];
   // Internal reasons are 'code' or 'shape_code:field'; returns the closed pair.
   function refusalCode(reason) {
     var parts = typeof reason === 'string' ? reason.split(':') : [];
@@ -239,6 +240,8 @@
       text = 'This browser could not check the request’s fingerprint. Try again in an up-to-date browser, or return to Athena.';
     } else if (code === 'vac_operation_missing') {
       text = 'The confirmation was not completed. Return to Athena and start it again.';
+    } else if (code === 'vac_account_observation_stale' || code === 'vac_payer_observation_stale') {
+      text = 'The Flux account and billing details in this request are out of date (older than 15 minutes, or dated in the future). Return to Athena so it can check them again and send a fresh request.';
     } else {
       text = 'Athena sent request details this version of VAC cannot verify. Return to Athena; if this repeats, Athena or VAC needs updating.';
     }
@@ -364,7 +367,8 @@
         risk.owner_acceptance !== 'fresh_exact_operation_vac_required' ||
         !awareTime(risk.observed_at)) return bad;
     var ageMs = Date.now() - Date.parse(risk.observed_at);
-    if (ageMs < -10000 || ageMs > 900000) return bad;
+    // A time-window refusal, not a shape fault: Athena re-observes and re-offers.
+    if (ageMs < -10000 || ageMs > 900000) return 'vac_account_observation_stale';
     var projectParts = op.project_url.match(/^https:\/\/www\.flux\.ai\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\/([^/?#]+)\/schematic$/);
     if (!projectParts || projectParts[1] !== risk.account ||
         op.result_contract.provider_project_id !== risk.account + '/' + projectParts[2]) return bad;
@@ -384,7 +388,7 @@
         payer.fresh_provider_owner_recheck_required !== true ||
         !awareTime(payer.observed_at)) return 'vac_operation_shape_invalid:payer_binding';
     var payerAgeMs = Date.now() - Date.parse(payer.observed_at);
-    if (payerAgeMs < -10000 || payerAgeMs > 900000) return 'vac_operation_shape_invalid:payer_binding';
+    if (payerAgeMs < -10000 || payerAgeMs > 900000) return 'vac_payer_observation_stale';
     var unknown = {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'};
     return exactValues(op.resource_envelope.spend_ceiling, unknown) &&
       exactValues(op.resource_envelope.cost_upper_bound, unknown) &&
