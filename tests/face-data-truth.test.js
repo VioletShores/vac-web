@@ -19,11 +19,24 @@ const ladder = read('content/blocks/privacy-ladder.md');
 
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/&rsquo;/g, '’').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
 
+// What we keep is written once (VAC_FACE_KEPT) and placed into the markup. Read the object
+// from the source and substitute it, so these tests see the words a person sees.
+function keptStrings() {
+  const start = ceremony.indexOf('const VAC_FACE_KEPT = {');
+  assert.ok(start > 0, 'VAC_FACE_KEPT is defined');
+  const body = ceremony.slice(start, ceremony.indexOf('};', start));
+  const out = {};
+  for (const m of body.matchAll(/^\s*(line|detail|saved): '([^'\n]*)',$/gm)) out[m[1]] = m[2];
+  assert.deepStrictEqual(Object.keys(out).sort(), ['detail', 'line', 'saved']);
+  return out;
+}
+
 function preflightBlock() {
   const start = ceremony.indexOf('<div class="privacy-statement">');
   const end = ceremony.indexOf('id="btnCamera"', start);
   assert.ok(start > 0 && end > start, 'privacy statement sits before the camera button');
-  return ceremony.slice(start, end);
+  const kept = keptStrings();
+  return ceremony.slice(start, end).replace(/\$\{VAC_FACE_KEPT\.(line|detail|saved)\}/g, (_, k) => kept[k]);
 }
 
 test('the statement is shown before the camera is turned on', () => {
@@ -87,6 +100,7 @@ test('the quick tier has its own true wording: no video, nothing new saved', () 
   assert.match(fn, /We don\u2019t keep your photo or your voice\./);
   assert.match(fn, /One photo and about two seconds of sound\. No video\./);
   assert.match(fn, /Nothing new from this check\./);
+  assert.ok(fn.includes('VAC_FACE_KEPT.saved'), 'and it names what was saved from the one shared wording');
   assert.match(fn, /Deepgram \(the number you say\) and Didit \(a live-person check on the photo\)/);
   assert.ok(ceremony.includes('_vacPrivacyForQuickTier();'), 'and the pre-flight setup calls it');
 });
@@ -118,4 +132,20 @@ test('the guest-page block no longer says biometrics are not stored or enrolled'
   assert.match(ladder, /face template/);
   const rendered = read('p/matteo-9be78161d6a7.html');
   assert.doesNotMatch(rendered, /Zero-retention by construction|processed in-session and never stored/);
+});
+
+test('what we keep is worded in exactly one place', () => {
+  const kept = keptStrings();
+  assert.match(kept.line, /written description of your appearance and a set of numbers/);
+  // outside the object, the ceremony source never spells the stored items out again
+  const start = ceremony.indexOf('const VAC_FACE_KEPT = {');
+  const rest = ceremony.slice(0, start) + ceremony.slice(ceremony.indexOf('};', start));
+  assert.ok(!/written description of your appearance/.test(rest.replace(/\/\/[^\n]*/g, '')));
+  assert.strictEqual((ceremony.match(/\$\{VAC_FACE_KEPT\.line\}/g) || []).length, 1);
+  assert.strictEqual((ceremony.match(/\$\{VAC_FACE_KEPT\.detail\}/g) || []).length, 1);
+});
+
+test('nothing is said about system logs', () => {
+  // The logging of spoken words is being removed in the backend, which ships first.
+  for (const src of [ceremony, registry, privacy]) assert.doesNotMatch(src, /system log/i);
 });

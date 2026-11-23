@@ -7696,7 +7696,7 @@ function _vacPrivacyForQuickTier() {
         }
         set('vacFaceDataCaptured', 'One photo and about two seconds of sound. No video.');
         set('vacFaceDataGoes', 'To our server, and to two companies that check it for us: Deepgram (the number you say) and Didit (a live-person check on the photo).');
-        set('vacFaceDataKept', 'Nothing new from this check. It is compared with what was saved when you first verified: a short written description of your appearance and a face template, a set of 128 numbers that describes your face. The number you say is also written to our system log.');
+        set('vacFaceDataKept', 'Nothing new from this check. It is compared with what was saved when you first verified: ' + VAC_FACE_KEPT.saved + '.');
     } catch (_) {}
 }
 
@@ -8817,6 +8817,16 @@ function stopAudioMonitor() {
 
 
 // ===================== ceremony UI (DOM + CSS, extracted verbatim from auth.html) =====================
+// FACE-DATA-TRUTH (S206): what we KEEP about a person's face, in one place. Every sentence the
+// ceremony shows about stored face data is built from these three strings, so if the backend
+// stops storing the written description (a decision pending as of 23 Nov 2026), this object is
+// the only thing to change. Plain text only: it is placed into markup and into text nodes.
+const VAC_FACE_KEPT = {
+    line: 'We keep a written description of your appearance and a set of numbers that describes your face, so we can recognise you next time.',
+    detail: 'A short written description of your appearance, and a face template: a set of 128 numbers that describes your face. It is numbers, not a picture.',
+    saved: 'a short written description of your appearance and a face template, a set of 128 numbers that describes your face',
+};
+
 const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
 <div class="step-section" id="step1">
     <div class="header">
@@ -8896,7 +8906,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
              recording, this copy must change with it. The quick (single photo) tier swaps
              #vacPrivacyLine and the fold rows in the pre-flight setup. -->
         <div style="min-width:0;">
-            <span id="vacPrivacyLine"><strong style="color:var(--text-secondary);">We don&rsquo;t keep your video or photo.</strong> Your short recording is sent to our verification partners to check it&rsquo;s really you. We keep a written description of your appearance and a set of numbers that describes your face, so we can recognise you next time.</span>
+            <span id="vacPrivacyLine"><strong style="color:var(--text-secondary);">We don&rsquo;t keep your video or photo.</strong> Your short recording is sent to our verification partners to check it&rsquo;s really you. ${VAC_FACE_KEPT.line}</span>
             <details class="vac-face-data" id="vacFaceData">
                 <summary>How is my face data handled?</summary>
                 <dl>
@@ -8905,7 +8915,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
                     <dt>Where it goes</dt>
                     <dd id="vacFaceDataGoes">To our server, and to two companies that check it for us: Google (the video) and Deepgram (the words you say).</dd>
                     <dt>What we keep</dt>
-                    <dd id="vacFaceDataKept">A short written description of your appearance, and a face template: a set of 128 numbers that describes your face. It is numbers, not a picture. The words you say are also written to our system log.</dd>
+                    <dd id="vacFaceDataKept">${VAC_FACE_KEPT.detail}</dd>
                     <dt>What we don&rsquo;t keep</dt>
                     <dd>Your video, your photo or your voice recording.</dd>
                     <dt>What we can&rsquo;t promise yet</dt>
