@@ -161,9 +161,21 @@ function serviceFixture(patch = {}, options = {}) {
     expiry: new Date(Date.now() + 120000).toISOString(),
     resource_envelope: {spend_ceiling: {amount: '0', unit: 'USD'}, cost_upper_bound: {amount: '0', unit: 'USD'}}}, patch);
   const raw = JSON.stringify(op); // bytes supplied by server; UI must not recanonicalise them
-  const state = crypto.createHash('sha256').update(raw).digest('hex');
+  const digest = crypto.createHash('sha256').update(raw).digest('hex');
+  let state = digest, context = null;
+  // S206 D4: a v2 agent task carries the sealed observation policy, bound into the nonce.
+  if (op.version === 2 && options.policy !== null) {
+    const policy = options.policy || {version: 1, mode: 'max_age', max_age_seconds: 900};
+    context = options.contextJson || ('{"observation_policy":{"max_age_seconds":' + JSON.stringify(policy.max_age_seconds) +
+      ',"mode":' + JSON.stringify(policy.mode) + ',"version":' + JSON.stringify(policy.version) + '},"operation_digest":"' +
+      (options.contextDigest || digest) + '","policy_sha256":"' + '9'.repeat(64) + '","version":"athena.flux.observation-context/1"}');
+    const contextSha = crypto.createHash('sha256').update(context).digest('hex');
+    state = crypto.createHash('sha256').update('athena:l0:service-operation:observation-context:1\n' + digest + '\n' + contextSha).digest('hex');
+  }
+  if (options.state) state = options.state;
   const h = load('?handoff=service-operation&state=' + state, options);
   const message = {type: 'vac-service-operation-intent', state, intent_json: raw};
+  if (context !== null) message.observation_context_json = context;
   const receive = (overrides = {}) => h.listeners.message[0](Object.assign({origin: VAULT, source: h.op, data: message}, overrides));
   return {h, op, raw, state, receive, message};
 }
@@ -1532,7 +1544,8 @@ const WIRE_CODES = [
   'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
   'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
   'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
-  'vac_payer_observation_stale', 'vac_unspecified'];
+  'vac_payer_observation_stale', 'vac_observation_policy_missing', 'vac_observation_policy_invalid',
+  'vac_observation_window_exceeds_ceiling', 'vac_unspecified'];
 const PREVIEW_FIELD_LIST = ['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
     'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url',
     'source_sha256', 'source_bytes', 'canonical_plan_rows', 'source_confidential',
@@ -1811,7 +1824,7 @@ for (const [code, changes] of Object.entries(STALE_CASES)) {
   test('typed refusal: ' + code + ' (old and future observations)', async () => {
     for (const change of changes) {
       const text = assertRefused(await taskRefusal(change), code);
-      assert.match(text, /out of date \(older than 15 minutes, or dated in the future\)\. Return to Athena so it can check them again/);
+      assert.match(text, /outside the freshness window your Athena observation policy sets \(or dated in the future\)\. Return to Athena so it can check them again/);
     }
     // Malformed (not stale) payer and account blocks remain shape faults.
     if (code === 'vac_payer_observation_stale') {
@@ -1966,6 +1979,81 @@ test('typed screen sink: vac_confirmation_stale for Decisions after cancel or wi
   SEEN_REFUSALS.add('vac_confirmation_stale');
 });
 
+// ── S206 D4: VAC follows the sealed tenant observation policy ────────────────
+async function taskWith(options, change = () => {}) {
+  const fixture = taskFixture(change, options);
+  fixture.h.window.VACVaultHandoff.onVerified(FULL, {}); fixture.receive(); await settleReview();
+  return fixture;
+}
+const DAYS_OLD = o => {
+  const old = new Date(Date.now() - 7 * 86400000).toISOString();
+  o.async_credit_risk.observed_at = old; o.async_credit_risk.payer_binding.observed_at = old;
+};
+const HISTORICAL = {version: 1, mode: 'owner_accepted_historical', max_age_seconds: null};
+
+test('historical policy accepts a renewal successor\'s days-old sealed reading and says so plainly', async () => {
+  const {h, state} = await taskWith({policy: HISTORICAL}, DAYS_OLD);
+  assert.ok(h.byId.vacServiceOperationConfirm, 'the owner policy accepts historical observations');
+  const text = allText(h.byId.vacServiceOperationReview);
+  assert.match(text, /accepted as historical under your policy; not a live reading/);
+  assert.match(text, /Your policy accepts historical Flux account readings; Athena still re-checks the project owner live/);
+  h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches[0].body.handoff.nonce, state, 'VAC signs the policy-bound nonce');
+});
+
+test('historical policy still refuses a reading dated in the future', async () => {
+  const {h} = await taskWith({policy: HISTORICAL},
+    o => o.async_credit_risk.observed_at = new Date(Date.now() + 60000).toISOString());
+  assertRefused(h, 'vac_account_observation_stale');
+});
+
+test('max_age policy is enforced from the policy, not a literal', async () => {
+  const thirty = {version: 1, mode: 'max_age', max_age_seconds: 1800};
+  const within = await taskWith({policy: thirty},
+    o => o.async_credit_risk.observed_at = new Date(Date.now() - 1200000).toISOString());
+  assert.ok(within.h.byId.vacServiceOperationConfirm, '20 minutes old is inside a 30-minute policy');
+  assert.match(allText(within.h.byId.vacServiceOperationReview), /no older than 30 minutes \(your policy\)/);
+  const outside = await taskWith({policy: {version: 1, mode: 'max_age', max_age_seconds: 300}},
+    o => o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() - 600000).toISOString());
+  assertRefused(outside.h, 'vac_payer_observation_stale');
+  const days = await taskWith({}, DAYS_OLD);
+  assertRefused(days.h, 'vac_account_observation_stale');
+});
+
+test('a policy window above VAC\'s ceiling is refused distinctly', async () => {
+  const {h} = await taskWith({policy: {version: 1, mode: 'max_age', max_age_seconds: 3601}});
+  assertRefused(h, 'vac_observation_window_exceeds_ceiling');
+  const edge = await taskWith({policy: {version: 1, mode: 'max_age', max_age_seconds: 3600}});
+  assert.ok(edge.h.byId.vacServiceOperationConfirm, 'exactly the ceiling is allowed');
+});
+
+test('a missing observation context is refused distinctly', async () => {
+  const {h} = await taskWith({policy: null}, DAYS_OLD);
+  assertRefused(h, 'vac_observation_policy_missing');
+});
+
+test('a malformed or unknown observation policy is refused distinctly', async () => {
+  for (const options of [
+    {policy: {version: 1, mode: 'owner_accepted_historical', max_age_seconds: 900}},
+    {policy: {version: 1, mode: 'max_age', max_age_seconds: null}},
+    {policy: {version: 1, mode: 'max_age', max_age_seconds: 0}},
+    {policy: {version: 2, mode: 'max_age', max_age_seconds: 900}},
+    {policy: {version: 1, mode: 'trust_everything', max_age_seconds: null}},
+    {contextJson: '{"version":"athena.flux.observation-context/1"}'},
+    {contextJson: 'not json'},
+  ]) {
+    const {h} = await taskWith(options);
+    assertRefused(h, 'vac_observation_policy_invalid');
+  }
+});
+
+test('the context is bound into the nonce and to this exact operation', async () => {
+  const swapped = await taskWith({policy: HISTORICAL, state: 'e'.repeat(64)}, DAYS_OLD);
+  assertRefused(swapped.h, 'vac_nonce_mismatch');
+  const other = await taskWith({policy: HISTORICAL, contextDigest: 'f'.repeat(64)}, DAYS_OLD);
+  assertRefused(other.h, 'vac_nonce_mismatch');
+});
+
 test('every refusal code except the unspecified collapse value is exercised above', () => {
   const missing = REFUSAL_ENUM.filter(c => c !== 'vac_unspecified' && !SEEN_REFUSALS.has(c));
   assert.deepEqual(missing, []);
@@ -1992,3 +2080,5 @@ test('one actor convention: every VAC gate compares the actor case-insensitively
   assertRefused(await taskRefusal(o => o.actor = 'Other@Example.Invalid'), 'actor_subject_mismatch');
   assertRefused(await criticRefusal(p => p.actor = 'Other@Example.Invalid'), 'actor_subject_mismatch');
 });
+
+
