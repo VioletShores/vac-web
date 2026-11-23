@@ -1164,13 +1164,34 @@ function initOtpInputs() {
     });
 }
 
+// Two refusals from verify-otp that are NOT a wrong code:
+//  409 {detail:{error:'vouch_template_required'}}: a face template is missing. The code is not used
+//      up, so it stays typed in and the boxes stay open for a retry. The server does not say which
+//      person is missing one, so neither do we.
+//  400 'Vouch rejected: ...': final. The boxes stay closed; retyping the code cannot change it.
+function otpRefusal(status, data) {
+    var d = (data && data.detail) || {};
+    var code = typeof d === 'string' ? '' : (d.error || d.code || '');
+    if (status === 409 && String(code).indexOf('vouch_template_required') !== -1) {
+        return { keepCode: true, text: 'This vouch can\u2019t be confirmed yet. Both people need to complete full verification (face sign-in) once, then try again. Your code still works.' };
+    }
+    if (status === 400 && typeof d === 'string' && d.indexOf('Vouch rejected') === 0) {
+        return { keepCode: false, text: d };
+    }
+    return null;
+}
+
 async function verifyOtp() {
     const d = document.querySelectorAll('.otp-digit'), code = Array.from(d).map(x => x.value).join(''), err = document.getElementById('otpErr');
     if (code.length !== 6) return; d.forEach(x => x.disabled = true); err.textContent = '';
     try {
         const resp = await fetch(API_BASE + '/v1/vat/verify-otp', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: _vouchEmail, code, jti: _currentJTI }) });
-        const data = await resp.json();
-        if (data.verified || data.authorized) showVouchSuccess(data); else { err.textContent = 'Incorrect code. Please try again.'; d.forEach(x => { x.disabled = false; x.value = ''; }); d[0].focus(); }
+        const data = await resp.json().catch(() => ({}));
+        const refusal = otpRefusal(resp.status, data);
+        if (data.verified || data.authorized) showVouchSuccess(data);
+        else if (refusal && refusal.keepCode) { err.textContent = refusal.text; err.setAttribute('role', 'alert'); d.forEach(x => { x.disabled = false; }); }
+        else if (refusal) { err.textContent = refusal.text; err.setAttribute('role', 'alert'); }
+        else { err.textContent = 'Incorrect code. Please try again.'; d.forEach(x => { x.disabled = false; x.value = ''; }); d[0].focus(); }
     } catch { err.textContent = 'Verification failed. Please try again.'; d.forEach(x => x.disabled = false); }
 }
 

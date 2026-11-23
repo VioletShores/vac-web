@@ -109,7 +109,7 @@ a,a:visited{color:#C9A227;text-decoration:underline;text-decoration-color:rgba(2
 <h2>On data privacy</h2>
 <div class="privacy-ladder">
 <h3>Three layers — pick the right rung</h3>
-<p><strong>Layer 1 (default):</strong> Biometric signals are processed in-session and never stored — only the outcome token and the signed receipt are retained. Zero-retention by construction, not by policy promise. Data is scoped to the organisation's tenant from the API layer.</p>
+<p><strong>Layer 1 (default):</strong> The recording made during the biometric check is not kept by us; it is sent to verification providers to be checked. Only a face template (a set of numbers, not a picture) is kept so a person can be recognised next time, alongside the outcome token and the signed receipt. Data is scoped to the organisation's tenant from the API layer.</p>
 <p style="margin-top:10px"><strong>Layer 2 (live, S143):</strong> Postgres row-level security enforced at the database layer. A misconfigured query cannot return data outside the tenant's scope.</p>
 <p style="margin-top:10px"><strong>Layer 3 (by arrangement):</strong> SOVEREIGN / dedicated tier — air-gapped where required, never routes data outside the organisation's boundary. For critical infrastructure, defence-adjacent, and regulated operators.</p>
 <p style="margin-top:10px;color:#7A8A9C;font-size:13px">SOC 2 Type II and GDPR Article 25 are planned for Q4 2026 — not claimed today. The architecture is designed to achieve them; the audit has not been performed.</p>

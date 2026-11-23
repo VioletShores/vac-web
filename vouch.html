@@ -98,6 +98,19 @@ async function loadVouch() {
     }
 }
 
+// A vouch can be refused because one of the two people has no face template on record yet
+// (409 vouch_template_required). Say what to do; never show it as confirmed.
+// The server does not say WHICH person is missing a template, so neither do we.
+// Wire shape: {detail: {error: 'vouch_template_required', message: '...'}}.
+function vouchRefusalMessage(status, data) {
+    var d = (data && data.detail) || data || {};
+    var code = typeof d === 'string' ? d : (d.code || d.error || '');
+    if (status === 409 && String(code).indexOf('vouch_template_required') !== -1) {
+        return 'This vouch can\u2019t be confirmed yet. Both people need to complete full verification (face sign-in) once, then try again. The request is still open.';
+    }
+    return (typeof d === 'string' && d) || d.message || 'This vouch could not be confirmed. Please try again.';
+}
+
 async function confirmVouch(confirmed) {
     const btn = document.querySelector('.btn-confirm');
     btn.disabled = true;
@@ -112,10 +125,21 @@ async function confirmVouch(confirmed) {
                 relationship: document.getElementById('relationship').value || null,
             })
         });
-        const data = await resp.json();
-        document.getElementById('actionSection').style.display = 'none';
+        const data = await resp.json().catch(() => ({}));
         const result = document.getElementById('resultSection');
         result.style.display = 'block';
+        if (!resp.ok) {
+            // Keep the buttons: the request is still open and can be tried again.
+            const box = document.createElement('div');
+            box.className = 'status error';
+            box.setAttribute('role', 'alert');
+            box.textContent = vouchRefusalMessage(resp.status, data);
+            result.replaceChildren(box);
+            btn.disabled = false;
+            btn.textContent = 'I Vouch For This Person';
+            return;
+        }
+        document.getElementById('actionSection').style.display = 'none';
         if (confirmed) {
             result.innerHTML = '<div class="status success">Vouch confirmed. Thank you for strengthening the trust graph.</div>';
         } else {

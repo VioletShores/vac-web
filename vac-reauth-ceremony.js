@@ -1586,7 +1586,9 @@ function startAVChecks() {
             if (_hs) {
                 var _hasDigit = reauthPolicyHasBoundDigit();
                 _hs.textContent = (_hasDigit === false)
-                    ? 'Hold still for a quick face check — one photo confirms it\u2019s you.'
+                    // FACE-DATA-TRUTH (S206): "one photo confirms it's you" read as if a picture is kept.
+                    // The photo is checked and not kept (see #vacPrivacyLine).
+                    ? 'Hold still for a quick face check \u2014 one photo, checked and not kept.'
                     // F-755i: 'beside your cheek' — consistent with the full-flow pre-flight copy.
                     // F-783a: the fast tier is a BOUND digit (show AND say — the server also runs an
                     // audio check). The old show-only copy caused live false-denies (Rob showed but
@@ -1595,6 +1597,10 @@ function startAVChecks() {
                     : 'Quick camera & mic check \u2014 next, you\u2019ll show a number beside your cheek and say it out loud.';
                 _hs.style.fontSize = 'clamp(14px, 4vw, 17px)'; _hs.style.color = 'var(--text-primary)'; _hs.style.fontWeight = '600'; _hs.style.maxWidth = '460px';
             }
+            // FACE-DATA-TRUTH (S206): the quick tier captures one photo and a short sound clip,
+            // sends no video, and writes nothing new (it compares against what was saved at the
+            // first verification). Say that, not the full-recording wording.
+            _vacPrivacyForQuickTier();
         }
     } catch(_) {}
     // Set up audio analyser — task-724: skip if already wired by requestCamera()'s sync gesture-resume.
@@ -7674,6 +7680,26 @@ async function onRecordingComplete() {
     await runRealVerification(videoBlob);
 }
 
+// FACE-DATA-TRUTH (S206): the privacy line and fold for the quick (single photo) tier.
+// Text only; called from the pre-flight setup. Safe to call when the elements are absent.
+function _vacPrivacyForQuickTier() {
+    try {
+        var set = function (id, text) { var el = document.getElementById(id); if (el) el.textContent = text; };
+        var line = document.getElementById('vacPrivacyLine');
+        if (line) {
+            line.textContent = '';
+            var strong = document.createElement('strong');
+            strong.style.color = 'var(--text-secondary)';
+            strong.textContent = 'We don’t keep your photo or your voice.';
+            line.appendChild(strong);
+            line.appendChild(document.createTextNode(' One photo and a short sound clip are sent to our verification partners to check it’s really you, then compared with the face details saved when you first verified.'));
+        }
+        set('vacFaceDataCaptured', 'One photo and about two seconds of sound. No video.');
+        set('vacFaceDataGoes', 'To our server, and to two companies that check it for us: Deepgram (the number you say) and Didit (a live-person check on the photo).');
+        set('vacFaceDataKept', 'Nothing new from this check. It is compared with what was saved when you first verified: ' + VAC_FACE_KEPT.saved + '.');
+    } catch (_) {}
+}
+
 // STEP 3: Upload to backend, show real results
 async function runRealVerification(videoBlob) {
     const ring = document.getElementById('progressRing');
@@ -7688,7 +7714,8 @@ async function runRealVerification(videoBlob) {
 
     // Progress animation while we wait for backend
     stepEl.textContent = 'Uploading recording…';
-    detailEl.textContent = `${(videoBlob.size / 1024).toFixed(0)} KB → verification engines`;
+    // FACE-DATA-TRUTH (S206): user language, and the same promise as the pre-flight line.
+    detailEl.textContent = 'Being checked by our verification partners. We don’t keep it.';
     ring.style.strokeDashoffset = circumference * 0.85;
 
     // Set geolocation as verified immediately (it's browser-side)
@@ -8790,6 +8817,16 @@ function stopAudioMonitor() {
 
 
 // ===================== ceremony UI (DOM + CSS, extracted verbatim from auth.html) =====================
+// FACE-DATA-TRUTH (S206): what we KEEP about a person's face, in one place. Every sentence the
+// ceremony shows about stored face data is built from these three strings. Template only: Rob's
+// decision of 23 Nov 2026. This wording is TRUE ONLY ONCE the backend stops storing the written
+// description, so this file must not be released before that backend update. Plain text only: it is placed into markup and into text nodes.
+const VAC_FACE_KEPT = {
+    line: 'The only thing we keep is a face template: a set of numbers that describes your face, so we can recognise you next time.',
+    detail: 'Only a face template: a set of 128 numbers that describes your face. It is numbers, not a picture. No photo, no video and no written description is kept.',
+    saved: 'a face template, a set of 128 numbers that describes your face',
+};
+
 const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
 <div class="step-section" id="step1">
     <div class="header">
@@ -8862,7 +8899,32 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
     </div>
     <div class="privacy-statement">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L2 4v4c0 3.5 2.6 6.8 6 7.5 3.4-.7 6-4 6-7.5V4L8 1z" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M6 8l1.5 1.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span>We store a text description of your appearance — <strong style="color:var(--text-secondary);">no photos or video are retained.</strong> Recording is analysed in real-time and discarded.</span>
+        <!-- FACE-DATA-TRUTH (S206; Rob, 23 Nov 2026): this line and the fold say what the code
+             does TODAY, from a read-only trace of the backend. The previous line named the stored
+             description and left out the stored face template and the outside companies that
+             receive the recording. If the backend changes what it stores or where it sends the
+             recording, this copy must change with it. The quick (single photo) tier swaps
+             #vacPrivacyLine and the fold rows in the pre-flight setup. -->
+        <div style="min-width:0;">
+            <span id="vacPrivacyLine"><strong style="color:var(--text-secondary);">We don&rsquo;t store your photo or your recording.</strong> To do the check, the recording is sent to our verification partners. ${VAC_FACE_KEPT.line}</span>
+            <details class="vac-face-data" id="vacFaceData">
+                <summary>How is my face data handled?</summary>
+                <dl>
+                    <dt>What is captured</dt>
+                    <dd id="vacFaceDataCaptured">A short video with sound.</dd>
+                    <dt>Where it goes</dt>
+                    <dd id="vacFaceDataGoes">To our server, and to two companies that check it for us: Google (the video) and Deepgram (the words you say).</dd>
+                    <dt>What we keep</dt>
+                    <dd id="vacFaceDataKept">${VAC_FACE_KEPT.detail}</dd>
+                    <dt>What we don&rsquo;t keep</dt>
+                    <dd>Your video, your photo or your voice recording.</dd>
+                    <dt>What we can&rsquo;t promise yet</dt>
+                    <dd>How long those companies hold what they receive. We are confirming it and will state it here.</dd>
+                    <dt>Your choice</dt>
+                    <dd>You can ask us to delete what we keep at any time. <a href="/privacy" target="_blank" rel="noopener">Privacy &amp; your data</a></dd>
+                </dl>
+            </details>
+        </div>
     </div>
     <button class="btn-primary" id="btnCamera" onclick="requestCamera()">
         Enable Camera & Microphone
@@ -9047,7 +9109,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
             </svg>
         </div>
         <div class="progress-step" id="progressStep">Uploading recording…</div>
-        <div class="progress-detail" id="progressDetail">Video + Audio → Gemini + Deepgram</div>
+        <div class="progress-detail" id="progressDetail">Being checked by our verification partners. We don&rsquo;t keep it.</div>
     </div>
     <div class="modality-results" id="modalityResults">
         <div class="modality-toggle" id="modalityToggle" onclick="toggleModalities()">
@@ -9233,8 +9295,17 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .countdown-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: clamp(24px, 6vw, 32px); font-weight: 700; color: var(--text-primary); }
 
 /* Privacy statement */
-.privacy-statement { display: flex; align-items: flex-start; gap: 6px; padding: clamp(4px, 0.8vh, 8px) clamp(6px, 1vw, 10px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: clamp(6px, 1vh, 14px); font-size: clamp(10px, 1.2vw, 12px); color: var(--text-tertiary); line-height: 1.4; }
+.privacy-statement { display: flex; align-items: flex-start; gap: 6px; padding: clamp(4px, 0.8vh, 8px) clamp(6px, 1vw, 10px); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: clamp(6px, 1vh, 14px); font-size: clamp(13px, 1.6vw, 14px); color: var(--text-tertiary); line-height: 1.45; }
 .privacy-statement svg { flex-shrink: 0; margin-top: 1px; }
+/* FACE-DATA-TRUTH (S206): the "How is my face data handled?" fold. Confirmed palette (teal), no purple. */
+.vac-face-data { margin-top: 2px; }
+.vac-face-data summary { cursor: pointer; color: var(--teal, #2DD4BF); font-weight: 600; min-height: 44px; display: flex; align-items: center; list-style: none; text-decoration: underline; text-underline-offset: 3px; }
+.vac-face-data summary::-webkit-details-marker { display: none; }
+.vac-face-data summary:focus-visible { outline: 2px solid var(--teal, #2DD4BF); outline-offset: 2px; border-radius: 4px; }
+.vac-face-data dl { margin: 2px 0 6px; font-size: inherit; line-height: 1.5; }
+.vac-face-data dt { color: var(--text-secondary); font-weight: 600; margin-top: 8px; }
+.vac-face-data dd { margin: 2px 0 0; color: var(--text-tertiary); }
+.vac-face-data a { color: var(--teal, #2DD4BF); }
 
 /* Scroll indicator */
 .scroll-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 90; opacity: 0.7; transition: opacity 0.3s; pointer-events: none; }
