@@ -83,6 +83,44 @@ test('without a session, a 403 video shows the sign-in message, not a broken pla
     assert.equal(await page.$eval(`#msgMedia_${MID}`, el => el.style.display), 'none');
 });
 
+test('the blob URL is revoked on unload', { skip: !chromium }, async t => {
+    const { page } = await open(t);
+    const revoked = await page.evaluate(() => {
+        const out = [];
+        const real = URL.revokeObjectURL;
+        URL.revokeObjectURL = u => { out.push(u); return real.call(URL, u); };
+        const src = document.querySelector('[id^="msgMedia_"]').src;
+        window.dispatchEvent(new Event('pagehide'));
+        return { src, out };
+    });
+    assert.ok(revoked.out.includes(revoked.src));
+});
+
+test('contacts: hostile names render as text, picked via data-* (no inline JS)', { skip: !chromium }, async t => {
+    const { page } = await open(t);
+    await page.route(`${API}/v1/user/**/contacts`, route => route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ contacts: [{ email: EVIL, name: EVIL, state: EVIL }] }),
+    }));
+    await page.evaluate(() => fetchContacts('sender.syn@example.invalid'));
+    await page.waitForSelector('#contactsList button.contact-pick', { state: 'attached' });  // compose view is hidden here
+    assert.equal(await page.$$eval('#contactsList [onclick]', els => els.length), 0, 'no inline handlers');
+    assert.equal(await page.$$eval('#contactsList img, #contactsList svg', els => els.length), 0);
+    await page.$eval('#contactsList button.contact-pick', b => b.click());
+    assert.equal(await page.inputValue('#composeRecipientEmail'), EVIL, 'the value arrives intact, as data');
+    assert.equal(await page.evaluate(() => window.__pwned || 0), 0);
+});
+
+test('a refused video upload is shown to the sender, not only logged', { skip: !chromium }, async t => {
+    const { page } = await open(t);
+    const shown = await page.evaluate(() => {
+        showSent({ recipient_notified: true, trust_score: 0, view_url: 'x',
+                   media_upload_error: 'Your video was not attached: sign in as the sender to add a video to a message.' });
+        return document.getElementById('sentDetail').textContent;
+    });
+    assert.match(shown, /video was not attached/);
+});
+
 test('an expired or missing video says so', { skip: !chromium }, async t => {
     const { page } = await open(t, { videoStatus: 404 });
     const text = await page.$eval(`#msgMedia_${MID}_fallback`, el => el.textContent);

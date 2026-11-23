@@ -388,11 +388,19 @@ function escapeHtml(s) {
 
 // The video is fetched WITH the session header and played from a blob URL
 // (a <video src> cannot carry an Authorization header).
+let currentMediaUrl = null;
+function revokeMediaUrl() {
+    if (currentMediaUrl) { try { URL.revokeObjectURL(currentMediaUrl); } catch (e) {} currentMediaUrl = null; }
+}
+window.addEventListener('pagehide', revokeMediaUrl);
+
 async function loadMessageMedia(messageId, mediaEl, fallbackEl, downloadEl) {
+    revokeMediaUrl();   // replacing any previous message's media
     try {
         const r = await fetch(`${API_BASE}/v1/msg/${encodeURIComponent(messageId)}/video`, { headers: vacAuthHeaders() });
         if (!r.ok) throw new Error(r.status === 403 ? 'signin' : 'missing');
         const url = URL.createObjectURL(await r.blob());
+        currentMediaUrl = url;
         mediaEl.src = url;
         if (downloadEl) downloadEl.href = url;
     } catch (e) {
@@ -557,13 +565,21 @@ async function fetchContacts(senderEmail) {
                 const stateColor = state === 'mutual' ? '#3FB950' : state === 'vouched' ? '#D29922' : '#8B949E';
                 const stateIcon = state === 'mutual' ? '✓✓' : state === 'vouched' ? '✓' : '○';
                 const name = c.name || c.email;
-                // S206: names/emails come from other people — escaped, and passed as JSON literals.
-                return `<button onclick="selectContact(${escapeHtml(JSON.stringify(String(c.email || '')))}, ${escapeHtml(JSON.stringify(String(c.name || '')))});" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:#161B22;border:1px solid #30363D;border-radius:6px;margin-bottom:4px;cursor:pointer;color:#C9D1D9;font-size:13px;text-align:left;">
+                // S206: names/emails come from other people — escaped into data-* attributes,
+                // read by one delegated listener (no inline JS built from their text).
+                return `<button type="button" class="contact-pick" data-email="${escapeHtml(c.email || '')}" data-name="${escapeHtml(c.name || '')}" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:#161B22;border:1px solid #30363D;border-radius:6px;margin-bottom:4px;cursor:pointer;color:#C9D1D9;font-size:13px;text-align:left;">
                     <span style="color:${stateColor};font-size:12px;">${stateIcon}</span>
                     <span style="flex:1;">${escapeHtml(name || '')}</span>
                     <span style="font-size:11px;color:#6E7681;">${escapeHtml(state)}</span>
                 </button>`;
             }).join('');
+        if (!listEl.dataset.pickBound) {
+            listEl.addEventListener('click', ev => {
+                const b = ev.target.closest('button.contact-pick');
+                if (b) selectContact(b.dataset.email || '', b.dataset.name || '');
+            });
+            listEl.dataset.pickBound = '1';
+        }
     } catch (e) {
         console.warn('Failed to load contacts:', e);
     }
@@ -807,9 +823,15 @@ async function sendMessage() {
                     headers: vacAuthHeaders(),   // S206: only the sender's session may upload
                     body: formData,
                 });
-                if (!up.ok) console.warn('Video upload refused:', up.status);
+                if (!up.ok) {
+                    sentResult.media_upload_error = up.status === 403
+                        ? 'Your video was not attached: sign in as the sender to add a video to a message.'
+                        : up.status === 409
+                        ? 'This message already has a video, or it is too late to add one, so your video was not attached.'
+                        : 'Your video could not be uploaded, so it was not attached.';
+                }
             } catch (uploadErr) {
-                console.warn('Video upload failed:', uploadErr);
+                sentResult.media_upload_error = 'Your video could not be uploaded, so it was not attached.';
             }
         }
         
@@ -827,9 +849,11 @@ function showSent(result) {
     document.getElementById('navMode').textContent = 'DELIVERED';
 
     const recipientEmail = document.getElementById('composeRecipientEmail').value;
-    document.getElementById('sentDetail').textContent = result.recipient_notified
+    document.getElementById('sentDetail').textContent = (result.recipient_notified
         ? `Notification sent to ${recipientEmail}`
-        : `Message saved. Email delivery pending.`;
+        : `Message saved. Email delivery pending.`)
+        + (result.media_upload_error ? `\n${result.media_upload_error}` : '');
+    document.getElementById('sentDetail').style.whiteSpace = 'pre-line';
 
     document.getElementById('sentSummary').textContent =
         `To: ${recipientEmail}\nSubject: ${document.getElementById('composeSubject').value || '(none)'}`;
