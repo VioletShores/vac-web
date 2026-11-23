@@ -139,22 +139,35 @@ const colors = {
 
 let simulation, svgG, zoomBehavior;
 
+// S206: GET /v1/user/{email} returns the contact LIST only to the owner's
+// session (vac-protocol #39); everyone else gets contacts_count. Send the
+// session so the owner still sees their graph.
+function vacAuthHeaders() {
+    try {
+        if (window.VAC && typeof window.VAC.headers === 'function') return window.VAC.headers();
+        const t = localStorage.getItem('vac_session');
+        return t ? { 'Authorization': 'Bearer ' + t } : {};
+    } catch (e) { return {}; }
+}
+
 async function loadGraph() {
     if (!email) { document.getElementById('loadingState').textContent = 'No email. Go to /auth first.'; return; }
 
     try {
         const [userResp, profileResp, vouchResp] = await Promise.all([
-            fetch(API + '/v1/user/' + encodeURIComponent(email)),
+            fetch(API + '/v1/user/' + encodeURIComponent(email), { headers: vacAuthHeaders() }),
             fetch(API + '/v1/trust-profile/' + encodeURIComponent(email)),
             fetch(API + '/v1/vouches?email=' + encodeURIComponent(email) + '&direction=received')
         ]);
 
         let user = { name: email.split('@')[0], email, trust_score: 0, total_verifications: 0 };
         let contacts = [];
+        let contactsCount = 0;
         if (userResp.ok) {
             const ud = await userResp.json();
             user = ud.user || ud;
-            contacts = ud.contacts || [];
+            contacts = Array.isArray(ud.contacts) ? ud.contacts : [];   // owner view only
+            contactsCount = Array.isArray(ud.contacts) ? ud.contacts.length : (ud.contacts_count || 0);
         }
         const profile = await profileResp.json();
         const vouches = await vouchResp.json();
@@ -165,7 +178,7 @@ async function loadGraph() {
         // Update sidebar
         document.getElementById('sbScore').textContent = (user.trust_score || 0).toFixed(2);
         document.getElementById('sbVouches').textContent = vouchList.length;
-        document.getElementById('sbContacts').textContent = contacts.length;
+        document.getElementById('sbContacts').textContent = contactsCount;
         document.getElementById('sbVerifications').textContent = user.total_verifications || 0;
 
         // Build graph data

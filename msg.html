@@ -370,6 +370,44 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 
 <script>
 const API_BASE = 'https://vac-system-production.up.railway.app';
+
+// S206: the backend returns a message's sender/recipient emails, and its video,
+// only to a participant's session (vac-protocol #37/#39). Send the VAC session
+// token the same way vac-auth.js VAC.headers() does. Never put it in a URL.
+function vacAuthHeaders() {
+    try {
+        if (window.VAC && typeof window.VAC.headers === 'function') return window.VAC.headers();
+        const t = localStorage.getItem('vac_session');
+        return t ? { 'Authorization': 'Bearer ' + t } : {};
+    } catch (e) { return {}; }
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// The video is fetched WITH the session header and played from a blob URL
+// (a <video src> cannot carry an Authorization header).
+async function loadMessageMedia(messageId, mediaEl, fallbackEl, downloadEl) {
+    try {
+        const r = await fetch(`${API_BASE}/v1/msg/${encodeURIComponent(messageId)}/video`, { headers: vacAuthHeaders() });
+        if (!r.ok) throw new Error(r.status === 403 ? 'signin' : 'missing');
+        const url = URL.createObjectURL(await r.blob());
+        mediaEl.src = url;
+        if (downloadEl) downloadEl.href = url;
+    } catch (e) {
+        mediaEl.style.display = 'none';
+        if (fallbackEl) {
+            fallbackEl.querySelector('.media-msg').textContent = e.message === 'signin'
+                ? 'Sign in as the sender or recipient of this message to watch it.'
+                : 'This video is no longer available.';
+            const dl = fallbackEl.querySelector('a');
+            if (dl) dl.style.display = 'none';
+            fallbackEl.style.display = 'block';
+        }
+    }
+}
+
 let sentResult = null;
 let currentMessage = null;
 let currentMsgType = 'text';
@@ -505,7 +543,7 @@ function init() {
 async function fetchContacts(senderEmail) {
     if (!senderEmail) return;
     try {
-        const resp = await fetch(`${API_BASE}/v1/user/${encodeURIComponent(senderEmail)}/contacts`);
+        const resp = await fetch(`${API_BASE}/v1/user/${encodeURIComponent(senderEmail)}/contacts`, { headers: vacAuthHeaders() });
         if (!resp.ok) return;
         const data = await resp.json();
         const contacts = data.contacts || [];
@@ -519,10 +557,11 @@ async function fetchContacts(senderEmail) {
                 const stateColor = state === 'mutual' ? '#3FB950' : state === 'vouched' ? '#D29922' : '#8B949E';
                 const stateIcon = state === 'mutual' ? '✓✓' : state === 'vouched' ? '✓' : '○';
                 const name = c.name || c.email;
-                return `<button onclick="selectContact('${c.email}', '${(c.name || '').replace(/'/g, "\\'")}');" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:#161B22;border:1px solid #30363D;border-radius:6px;margin-bottom:4px;cursor:pointer;color:#C9D1D9;font-size:13px;text-align:left;">
+                // S206: names/emails come from other people — escaped, and passed as JSON literals.
+                return `<button onclick="selectContact(${escapeHtml(JSON.stringify(String(c.email || '')))}, ${escapeHtml(JSON.stringify(String(c.name || '')))});" style="display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;background:#161B22;border:1px solid #30363D;border-radius:6px;margin-bottom:4px;cursor:pointer;color:#C9D1D9;font-size:13px;text-align:left;">
                     <span style="color:${stateColor};font-size:12px;">${stateIcon}</span>
-                    <span style="flex:1;">${name}</span>
-                    <span style="font-size:11px;color:#6E7681;">${state}</span>
+                    <span style="flex:1;">${escapeHtml(name || '')}</span>
+                    <span style="font-size:11px;color:#6E7681;">${escapeHtml(state)}</span>
                 </button>`;
             }).join('');
     } catch (e) {
@@ -545,7 +584,7 @@ function showView(id) {
 async function loadMessage(msgId) {
     showView('viewLoading');
     try {
-        const resp = await fetch(`${API_BASE}/v1/msg/${msgId}`);
+        const resp = await fetch(`${API_BASE}/v1/msg/${encodeURIComponent(msgId)}`, { headers: vacAuthHeaders() });
         if (!resp.ok) throw new Error('Message not found');
         const msg = await resp.json();
         renderMessage(msg);
@@ -592,22 +631,21 @@ function renderMessage(msg) {
 
     // Body — video playback + text content
     const bodyEl = document.getElementById('readBody');
-    const videoUrl = `${API_BASE}/v1/msg/${msg.message_id}/video`;
     if (msg.message_type === 'video_clip' || msg.message_type === 'voice_note') {
-        const mediaId = 'msgMedia_' + msg.message_id;
+        const mediaId = 'msgMedia_' + String(msg.message_id).replace(/[^a-z0-9-]/gi, '');
+        const fallbackHtml = `<div id="${mediaId}_fallback" style="display:none;text-align:center;padding:16px;background:#161B22;border-radius:8px;margin-bottom:12px;">
+                <div class="media-msg" style="color:#C9D1D9;margin-bottom:8px;">Video format not supported in this browser</div>
+                <a id="${mediaId}_download" download style="color:#7C3AED;text-decoration:underline;">Download video</a>
+               </div>`;
         const mediaEl = msg.message_type === 'video_clip'
-            ? `<video id="${mediaId}" controls playsinline webkit-playsinline style="width:100%;max-height:400px;border-radius:8px;margin-bottom:12px;background:#000;">
-                <source src="${videoUrl}" type="video/webm">
-                <source src="${videoUrl}" type="video/mp4">
-               </video>
-               <div id="${mediaId}_fallback" style="display:none;text-align:center;padding:16px;background:#161B22;border-radius:8px;margin-bottom:12px;">
-                <div style="color:#C9D1D9;margin-bottom:8px;">Video format not supported in this browser</div>
-                <a href="${videoUrl}" download style="color:#7C3AED;text-decoration:underline;">Download video</a>
-               </div>`
-            : `<audio controls style="width:100%;margin-bottom:12px;" src="${videoUrl}"></audio>`;
-        // Extract text caption (after the media label line)
+            ? `<video id="${mediaId}" controls playsinline webkit-playsinline style="width:100%;max-height:400px;border-radius:8px;margin-bottom:12px;background:#000;"></video>` + fallbackHtml
+            : `<audio id="${mediaId}" controls style="width:100%;margin-bottom:12px;"></audio>` + fallbackHtml;
+        // Extract text caption (after the media label line). S206: escaped —
+        // message content is sender-controlled and must never be parsed as HTML.
         const lines = (msg.content || '').split('\n').filter(l => !l.startsWith('🎥') && !l.startsWith('🎙️')).join('\n').trim();
-        bodyEl.innerHTML = mediaEl + (lines ? `<div style="white-space:pre-wrap;margin-top:8px;">${lines}</div>` : '');
+        bodyEl.innerHTML = mediaEl + (lines ? `<div style="white-space:pre-wrap;margin-top:8px;">${escapeHtml(lines)}</div>` : '');
+        loadMessageMedia(msg.message_id, document.getElementById(mediaId),
+                         document.getElementById(mediaId + '_fallback'), document.getElementById(mediaId + '_download'));
         
         // Handle video error (e.g., Safari can't play WebM)
         if (msg.message_type === 'video_clip') {
@@ -643,7 +681,7 @@ function renderMessage(msg) {
             return `
                 <div class="chain-node">
                     <div class="chain-node-icon ${cls}">${icon}</div>
-                    <div class="chain-node-name">${name}</div>
+                    <div class="chain-node-name">${escapeHtml(name)}</div>
                     <div class="chain-node-score">${Number(trust).toFixed(2)}</div>
                 </div>`;
         }).join('');
@@ -654,7 +692,7 @@ function renderMessage(msg) {
         chainEl.innerHTML = `
             <div class="chain-node">
                 <div class="chain-node-icon human">👤</div>
-                <div class="chain-node-name">${msg.sender_name || msg.sender_email}</div>
+                <div class="chain-node-name">${escapeHtml(msg.sender_name || msg.sender_email || '')}</div>
                 <div class="chain-node-score">${(msg.sender_trust_score || 0).toFixed(2)}</div>
             </div>`;
         document.getElementById('chainSection').style.display = 'block';
@@ -764,10 +802,12 @@ async function sendMessage() {
                 const actualMime = msgRecorder?.mimeType || 'video/webm';
                 const ext = actualMime.includes('mp4') ? 'mp4' : 'webm';
                 formData.append('video', blob, `${sentResult.message_id}.${ext}`);
-                await fetch(`${API_BASE}/v1/msg/${sentResult.message_id}/video`, {
+                const up = await fetch(`${API_BASE}/v1/msg/${encodeURIComponent(sentResult.message_id)}/video`, {
                     method: 'POST',
+                    headers: vacAuthHeaders(),   // S206: only the sender's session may upload
                     body: formData,
                 });
+                if (!up.ok) console.warn('Video upload refused:', up.status);
             } catch (uploadErr) {
                 console.warn('Video upload failed:', uploadErr);
             }

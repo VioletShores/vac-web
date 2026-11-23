@@ -30,10 +30,20 @@ const VACTrustGraph = (function() {
         contact: { color: '#1E2230', width: 1, dash: '3,3', opacity: 0.3 },
     };
 
+    // S206: the contact LIST is returned only to the owner's session
+    // (vac-protocol #39); the public view carries contacts_count instead.
+    function vacAuthHeaders() {
+        try {
+            if (window.VAC && typeof window.VAC.headers === 'function') return window.VAC.headers();
+            const t = localStorage.getItem('vac_session');
+            return t ? { 'Authorization': 'Bearer ' + t } : {};
+        } catch (e) { return {}; }
+    }
+
     async function fetchGraphData(email, api) {
         const [profileResp, userResp] = await Promise.all([
             fetch(`${api}/v1/trust-profile/${encodeURIComponent(email)}`),
-            fetch(`${api}/v1/user/${encodeURIComponent(email)}`).catch(() => null)
+            fetch(`${api}/v1/user/${encodeURIComponent(email)}`, { headers: vacAuthHeaders() }).catch(() => null)
         ]);
 
         const profile = await profileResp.json();
@@ -43,7 +53,8 @@ const VACTrustGraph = (function() {
         if (userResp && userResp.ok) {
             const userData = await userResp.json();
             user = userData.user || userData;
-            contacts = userData.contacts || [];
+            contacts = Array.isArray(userData.contacts) ? userData.contacts : [];   // owner view only
+            user.contacts_count = Array.isArray(userData.contacts) ? userData.contacts.length : (userData.contacts_count || 0);
         }
 
         // Merge vouch data from trust-profile
