@@ -342,6 +342,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
      display derivation, shared with test_verdict_reasons.node.js. Must load
      before vac-reauth-ceremony.js's showRetry() calls it. -->
 <script src="/verdict-reasons.js?v=s204-20261103-face-id"></script>
+<!-- Inert for ordinary auth; private film purpose requires the owner handshake. -->
+<script src="/vac-walkthrough-capture.js?v=20261118-private-original-v1"></script>
 <script src="/vac-reauth-ceremony.js?v=s204-20261104-face-diag"></script>
 <!-- athena PKT-S204-VAULT-MOBILE-HANDOFF: inert unless opened with ?handoff=&state= (defines nothing otherwise). -->
 <script src="/vac-vault-handoff.js?v=s204-20261104-face-diag"></script>
@@ -1138,9 +1140,23 @@ function reauthReload(opts) {
 }
 
 
+// Preserve the ordinary saved auth session, but never persist film evidence.
+// The original response remains untouched in the dedicated flow's memory.
+function authResultForSession(result) {
+    if (!result || typeof result !== 'object' || !Object.prototype.hasOwnProperty.call(result, 'walkthrough_receipt')) return result;
+    const sessionCopy = Object.assign({}, result);
+    delete sessionCopy.walkthrough_receipt;
+    return sessionCopy;
+}
+
 // STEP 4: Success
 function showSuccess() {
     const d = userData();
+    // Engine transcripts, challenge words, descriptions and account/agent names
+    // are data, never HTML. Keep trusted layout but encode every returned
+    // value before putting it into an innerHTML template.
+    const _safeResultText = value => String(value == null ? '' : value).replace(/[&<>"']/g,
+        ch => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[ch]));
     // RENDER-ONLY / FAIL-CLOSED (S155, D-VERDICT-COMPOSITION): showSuccess() renders the SERVER
     // decision verbatim — it must never compose, infer, or default a verdict itself. A missing or
     // malformed authResult (e.g. every verify attempt threw before a server response was ever
@@ -1165,7 +1181,7 @@ function showSuccess() {
         try {
             localStorage.setItem('vac_verified', JSON.stringify({
                 email: d.email, name: d.name, org: d.org, role: d.role,
-                authResult: authResult, timestamp: Date.now()
+                authResult: authResultForSession(authResult), timestamp: Date.now()
             }));
         } catch(e) {}
         // Update nav badge to show current state
@@ -1196,7 +1212,7 @@ function showSuccess() {
         // dead-ended here instead of returning to the matters): when this page is TOP-LEVEL
         // (no parent frame to postMessage back to), the success screen MUST carry the onward tap.
         try {
-            if (window.parent === window && !window.__vacDecisionReturn && !window.VACVaultHandoff && !document.getElementById('vacContinueBtn')) {
+            if (window.parent === window && !window.__vacDecisionReturn && !window.VACVaultHandoff && !window.VACWalkthroughCapture && !document.getElementById('vacContinueBtn')) {
                 var _cb=document.createElement('a'); _cb.id='vacContinueBtn';
                 // S154 fix-on-find (Rob live test): this was a HARDCODED tribunal link + label,
                 // shown regardless of origin — wrong words ("workflow" not "matters"), wrong
@@ -1386,26 +1402,26 @@ function showSuccess() {
             if (d.person_description) parts.push(d.person_description);
             if (d.face_detected) parts.push('Face detected');
             if (d.blink_detected) parts.push('Blink detected');
-            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.map(_safeResultText).join(' \u00b7 ') + '</div>';
         }
         if (m.name === 'deepfake_detection') {
             var parts = [];
             if (d.deepfake_likelihood !== undefined) parts.push('Deepfake likelihood: ' + (d.deepfake_likelihood * 100).toFixed(0) + '%');
             if (d.artifacts && d.artifacts.length) parts.push('Artifacts: ' + d.artifacts.join(', '));
             else parts.push('No synthetic artifacts detected');
-            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.map(_safeResultText).join(' \u00b7 ') + '</div>';
         }
         if (m.name === 'voiceprint') {
             var parts = [];
             if (d.confidence) parts.push('Confidence: ' + (d.confidence * 100).toFixed(0) + '%');
             if (d.words_per_minute) parts.push(d.words_per_minute + ' wpm');
-            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.map(_safeResultText).join(' \u00b7 ') + '</div>';
         }
         if (m.name === 'lip_sync') {
             var parts = [];
             if (d.matches_audio !== undefined) parts.push(d.matches_audio ? 'Audio matches lip movement' : 'Lip sync mismatch');
             if (d.confidence) parts.push('Confidence: ' + (d.confidence * 100).toFixed(0) + '%');
-            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.map(_safeResultText).join(' \u00b7 ') + '</div>';
         }
         if (m.name === 'challenge_response') {
             var parts = [];
@@ -1413,19 +1429,19 @@ function showSuccess() {
             else if (r.challenge && r.challenge.transcript) parts.push('Heard: \u201c' + r.challenge.transcript + '\u201d');
             if (d.expected) parts.push('Expected: \u201c' + d.expected + '\u201d');
             if (d.match_ratio !== undefined) parts.push('Match: ' + (d.match_ratio * 100).toFixed(0) + '%');
-            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.map(_safeResultText).join(' \u00b7 ') + '</div>';
         }
         if (m.name === 'finger_gesture') {
             var parts = [];
             if (d.digits_expected) parts.push('Expected: [' + d.digits_expected.join(', ') + ']');
             if (d.digits_seen) parts.push('Saw: [' + d.digits_seen.join(', ') + ']');
             if (d.hand_near_face !== undefined) parts.push(d.hand_near_face ? 'Hand near face' : 'Hand not near face');
-            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.join(' \u00b7 ') + '</div>';
+            if (parts.length) extraInfo = '<div style="margin-top:6px;font-size:11px;color:var(--text-quaternary);font-style:italic">' + parts.map(_safeResultText).join(' \u00b7 ') + '</div>';
         }
         return '<div style="border-bottom:1px solid var(--border)">' +
             '<div onclick="var d=this.nextElementSibling;var open=d.style.maxHeight!==\'0px\';document.querySelectorAll(\'.mod-detail\').forEach(function(x){x.style.maxHeight=\'0px\';x.style.opacity=\'0\'});if(!open){d.style.maxHeight=\'200px\';d.style.opacity=\'1\'}" style="display:flex;align-items:center;gap:10px;padding:10px 0;cursor:pointer">' +
             dot +
-            '<span style="flex:1;font-size:13px;color:var(--text-secondary)">' + name + '</span>' +
+            '<span style="flex:1;font-size:13px;color:var(--text-secondary)">' + _safeResultText(name) + '</span>' +
             '<span style="font-family:var(--mono);font-size:12px;color:var(--teal)">' + pct + '</span>' +
             '</div>' +
             '<div class="mod-detail" style="max-height:0px;opacity:0;overflow:hidden;transition:max-height 0.2s,opacity 0.2s;padding:0 0 0 18px">' +
@@ -1441,11 +1457,11 @@ function showSuccess() {
     var humanNode = realChain.length > 0 ? realChain[0] : { agent: d.name, trust: bio.overall_score };
     var agentNodes = realChain.slice(1);
     var trustCls = humanNode.trust >= 0.8 ? 'high' : 'mid';
-    var html = '<div class="chain-node-result"><div class="chain-icon human">\ud83d\udc64</div><div class="chain-info"><div class="chain-agent-name">' + humanNode.agent + '</div><div class="chain-scope">Root authority \u00b7 Verified human</div></div><div class="chain-trust ' + trustCls + '">' + humanNode.trust.toFixed(2) + '</div></div>';
+    var html = '<div class="chain-node-result"><div class="chain-icon human">\ud83d\udc64</div><div class="chain-info"><div class="chain-agent-name">' + _safeResultText(humanNode.agent) + '</div><div class="chain-scope">Root authority \u00b7 Verified human</div></div><div class="chain-trust ' + trustCls + '">' + humanNode.trust.toFixed(2) + '</div></div>';
     if (agentNodes.length > 0) {
         agentNodes.forEach(function(a) {
             html += '<div class="chain-arrow">\u2193 delegates (scope narrows)</div>';
-            html += '<div class="chain-node-result"><div class="chain-icon agent">\ud83e\udd16</div><div class="chain-info"><div class="chain-agent-name">' + a.agent + '</div><div class="chain-scope">' + (a.scope || 'Delegated agent') + '</div></div><div class="chain-trust mid">' + a.trust.toFixed(2) + '</div></div>';
+            html += '<div class="chain-node-result"><div class="chain-icon agent">\ud83e\udd16</div><div class="chain-info"><div class="chain-agent-name">' + _safeResultText(a.agent) + '</div><div class="chain-scope">' + _safeResultText(a.scope || 'Delegated agent') + '</div></div><div class="chain-trust mid">' + a.trust.toFixed(2) + '</div></div>';
         });
     } else {
         html += '<div class="chain-arrow" style="opacity:0.3">\u2193 delegates (scope narrows)</div>';

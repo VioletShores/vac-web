@@ -85,6 +85,9 @@
   try { q = new URLSearchParams(window.location.search); } catch (e) { return; }
   var kind = q.get('handoff');
   if (kind === null) return; // no handoff params: nothing is defined, nothing changes
+  // The private original-media bridge has its own evidence-only protocol.
+  // Do not create Vault grants, identity handoffs or Vault UI for a film.
+  if (kind === 'vac-walkthrough-record') return;
 
   var target = Object.prototype.hasOwnProperty.call(TARGETS, kind) ? TARGETS[kind] : null;
   var state = q.get('state') || '';
