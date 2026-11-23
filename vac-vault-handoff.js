@@ -202,7 +202,7 @@
     'vac_replayed', 'vac_nonce_mismatch', 'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch',
     'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
     'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
-    'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
+    'vac_verification_not_full', 'vac_confirmation_stale', 'vac_subject_invalid', 'vac_account_observation_stale',
     'vac_payer_observation_stale', 'vac_unspecified'];
   // Internal reasons are 'code' or 'shape_code:field'; returns the closed pair.
   function refusalCode(reason) {
@@ -279,13 +279,21 @@
     show('error', refusalText(r, actor), false);
     signalRefusal(r);
   }
-  // One actor convention for every VAC identity gate (critic preview, critic
-  // render/confirm, service render/confirm, post-mint): compare the request's
-  // actor lower-cased against the session subject, which onVerified already
-  // stores trimmed and lower-cased. VAC accounts are keyed case-insensitively,
-  // so this neither widens identity nor refuses the same person on casing.
+  // One account-key convention for every VAC identity gate, identical to
+  // Athena #1769 actor_account: the value must be 1-320 printable ASCII
+  // characters (no whitespace, no Unicode), and only A-Z is folded to a-z.
+  // Anything else is REFUSED, never repaired: no trim, no Unicode case mapping
+  // (JS toLowerCase maps U+212A KELVIN SIGN to 'k', so a lookalike actor could
+  // otherwise match a real account), no normalisation.
+  function accountKey(value) {
+    if (typeof value !== 'string' || !/^[\x21-\x7e]{1,320}$/.test(value)) return null;
+    return value.replace(/[A-Z]/g, function (c) { return c.toLowerCase(); });
+  }
+  // Gates: critic preview, critic render/confirm, service render/confirm,
+  // send() and the post-mint check. `subject` is already an accountKey.
   function actorMatchesSubject(actor) {
-    return typeof actor === 'string' && !!subject && actor.toLowerCase() === subject;
+    var key = accountKey(actor);
+    return key !== null && !!subject && key === subject;
   }
   function liveOperationFault() {
     if (!operation) return 'vac_operation_missing';
@@ -1369,7 +1377,8 @@
     },
     consumeChallenge: function (identity, isFull, skipsGreeting) {
       if (!valid || kind !== 'decisions-confirm' || !openerPresent() || !continuationFresh() || challengeConsumed ||
-          !isFull || String((identity || {}).email || '').trim().toLowerCase() !== continuation.subject.trim().toLowerCase() ||
+          !isFull || accountKey((identity || {}).email) === null ||
+          accountKey((identity || {}).email) !== accountKey(continuation.subject) ||
           continuation.challenge.ceremony_policy.capture.include_greeting === !!skipsGreeting) {
         throw new Error('Return to Athena and start this confirmation again.');
       }
@@ -1396,14 +1405,22 @@
           'Run the full VAC verification again; nothing is sent until it passes.');
         return;
       }
+      var emailKey = accountKey(email);
+      if (emailKey === null) {
+        // Refuse, never repair: a padded or non-ASCII verified account is not
+        // silently trimmed or case-mapped into a different one.
+        screenRefused('vac_subject_invalid', 'VAC could not read the verified account name in a form it can safely compare, ' +
+          'so nothing was sent to ' + destination + '. Return to ' + destination + ' and start again; if this repeats, VAC needs updating.');
+        return;
+      }
       if (kind === 'decisions-confirm' && (!challengeConsumed || !continuationFresh() ||
-          String(email).trim().toLowerCase() !== continuation.subject.trim().toLowerCase())) {
+          emailKey !== accountKey(continuation.subject))) {
         screenRefused('vac_confirmation_stale', 'This confirmation is no longer valid: it expired, was cancelled, ' +
           'or you verified with a different account. Nothing was sent. Return to Athena and start the confirmation again.');
         return;
       }
       sessionToken = token;
-      subject = String(email).trim().toLowerCase();
+      subject = emailKey;
       if (reviewedHandoff) {
         show('info', criticReview ?
           'Identity verified. Waiting for Athena’s exact external-critic policy. No model or Flux design task has been authorised.' :
