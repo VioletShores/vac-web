@@ -1558,7 +1558,7 @@ const WIRE_CODES = [
   'vac_nonce_mismatch', 'vac_projection_digest_mismatch', 'vac_renewal_digest_mismatch',
   'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
   'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
-  'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
+  'vac_verification_not_full', 'vac_confirmation_stale', 'vac_subject_invalid', 'vac_account_observation_stale',
   'vac_payer_observation_stale', 'vac_observation_context_missing', 'vac_observation_context_invalid',
   'vac_observation_context_binding_mismatch', 'vac_observation_window_exceeds_ceiling',
   'vac_observation_server_time_invalid', 'vac_unspecified'];
@@ -2219,6 +2219,98 @@ test('D4 server_now is transport only: it does not change the context bytes or t
   const b = await d4(() => {}, {serverNow: new Date(Date.now() + 1000).toISOString()});
   assert.ok(a.h.byId.vacServiceOperationConfirm && b.h.byId.vacServiceOperationConfirm);
   assert.ok(!('server_now' in JSON.parse(a.message.observation_context_json)));
+});
+
+// Independent review (blocking I/F): JS toLowerCase is full Unicode case
+// mapping, so 'K' (U+212A KELVIN SIGN) folds to 'k'. VAC now uses Athena
+// #1769's actor_account rule: printable ASCII only, ASCII-only fold, refuse
+// anything else (never trim, normalise or repair).
+const LOOKALIKE_ACTORS = {
+  kelvin: 'Kowner@example.invalid',     // KELVIN SIGN: 'K'.toLowerCase() === 'k'
+  cyrillic: 'оwner@example.invalid',    // CYRILLIC SMALL LETTER O
+  nbsp: 'owner x@example.invalid',      // inner NO-BREAK SPACE
+  innerSpace: 'own er@example.invalid',
+  longS: 'owner@exaſple.invalid',       // LATIN SMALL LETTER LONG S ('ſ'.toUpperCase() === 'S')
+};
+// The Vault sends ASCII JSON; non-ASCII travels as \uXXXX escapes.
+const asciiJson = v => JSON.stringify(v).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+function escapedServiceFixture(actor, version = 1) {
+  const base = version === 2 ? taskFixture(o => o.actor = actor) : serviceFixture({actor});
+  const op = JSON.parse(base.raw);
+  const raw = asciiJson(op);
+  const digest = crypto.createHash('sha256').update(raw).digest('hex');
+  // With D4 (#68) a V2 task also carries its sealed observation context.
+  const ctx = version === 2 && typeof observationContextText === 'function' ? observationContextText(digest) : undefined;
+  const state = ctx ? boundNonce(digest, ctx) : digest;
+  const h = load('?handoff=service-operation&state=' + state);
+  const message = {type: 'vac-service-operation-intent', state, intent_json: raw};
+  if (ctx) { message.observation_context_json = ctx; message.server_now = new Date().toISOString(); }
+  return {h, raw, receive: () => h.listeners.message[0]({origin: VAULT, source: h.op, data: message})};
+}
+test('the Kelvin attack is real under full Unicode case mapping', () => {
+  assert.equal('Kowner@example.invalid'.toLowerCase(), 'kowner@example.invalid');
+});
+for (const [name, actor] of Object.entries(LOOKALIKE_ACTORS)) {
+  for (const version of [1, 2]) {
+    test('account key refuses a lookalike actor (V' + version + ' service, critic): ' + name, async () => {
+      // Subject is the ASCII account the lookalike imitates.
+      const ascii = {kelvin: 'kowner@example.invalid', cyrillic: 'owner@example.invalid',
+        nbsp: 'owner@example.invalid', innerSpace: 'owner@example.invalid', longS: 'owner@example.invalid'}[name];
+      const session = {...FULL, session: {...FULL.session, email: ascii}};
+      const f = escapedServiceFixture(actor, version);
+      assert.match(f.raw, /^[\x20-\x7e]*$/, 'intent is ASCII JSON');
+      f.h.window.VACVaultHandoff.onVerified(session, {}); f.receive(); await settleReview();
+      assertRefused(f.h, 'actor_subject_mismatch');
+      assert.equal(f.h.fetches.length, 0, 'never reaches mint');
+      const c = criticFixture(p => p.actor = actor);
+      c.h.window.VACVaultHandoff.onVerified(session, {}); c.offer(); await settleReview();
+      assertRefused(c.h, 'actor_subject_mismatch');
+      assert.equal(c.h.fetches.length, 0);
+    });
+  }
+}
+test('outer whitespace on the actor is refused, never trimmed', async () => {
+  const f = escapedServiceFixture(' owner@example.invalid ');
+  f.h.window.VACVaultHandoff.onVerified(FULL, {}); f.receive(); await settleReview();
+  assertRefused(f.h, 'actor_subject_mismatch');
+  // The critic preview already refuses untrimmed strings by shape.
+  assertRefused(await criticRefusal(p => p.actor = ' owner@example.invalid'), 'vac_preview_shape_invalid:strings');
+});
+
+test('a mixed-case ASCII actor is still the same account (ASCII-only fold)', async () => {
+  for (const actor of ['OWNER@EXAMPLE.INVALID', 'Owner@Example.Invalid', 'owner@example.invalid']) {
+    const {h, receive} = serviceFixture({actor});
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assert.ok(h.byId.vacServiceOperationConfirm, actor);
+    h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+    assert.equal(h.fetches[0].body.human_identity, 'email:owner@example.invalid');
+  }
+});
+
+test('typed refusal: vac_subject_invalid (verified account padded or non-ASCII is refused, never repaired)', async () => {
+  for (const email of [' owner@example.invalid', 'owner@example.invalid ', 'owner@example.invalid\n',
+      'Kowner@example.invalid', 'own er@example.invalid', 'owner @example.invalid', 'x'.repeat(321)]) {
+    for (const kind of ['service-operation', 'vault-store']) {
+      const h = kind === 'service-operation' ? serviceFixture().h : load('?handoff=vault-store&state=' + STATE);
+      h.window.VACVaultHandoff.onVerified({...FULL, session: {...FULL.session, email}}, {});
+      await flush();
+      assertOnlyRefusal(h, 'vac_subject_invalid');
+      assert.equal(h.fetches.length, 0, 'no VAT for an unrepaired subject');
+      assert.equal(h.byId.vacServiceOperationReview, undefined);
+    }
+  }
+});
+
+test('Decisions consumeChallenge and verification use the same account key (no trim, no Unicode fold)', async () => {
+  for (const email of [' owner@example.invalid', 'Kowner@example.invalid'.replace('K', 'K')]) {
+    const h = load('?handoff=decisions-confirm&state=' + STATE); offer(h);
+    assert.throws(() => h.window.VACVaultHandoff.consumeChallenge({email}, true, false));
+  }
+  const h = load('?handoff=decisions-confirm&state=' + STATE); offer(h);
+  h.window.VACVaultHandoff.consumeChallenge({email: 'OWNER@example.invalid'}, true, false);
+  h.window.VACVaultHandoff.onVerified({...FULL, session: {...FULL.session, email: 'Owner@Example.invalid'}}, {});
+  await flush(); await flush();
+  assert.equal(h.fetches.length, 1, 'ASCII case is still the same account');
 });
 
 test('every refusal code except the unspecified collapse value is exercised above', () => {
