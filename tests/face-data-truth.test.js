@@ -46,7 +46,7 @@ test('the statement is shown before the camera is turned on', () => {
 
 test('the line says we never store the photo or recording, and names the one thing kept', () => {
   const t = text(preflightBlock());
-  assert.match(t, /We never store your photo or your recording\./);
+  assert.match(t, /We don’t store your photo or your recording\. To do the check, the recording is sent to our verification partners\. The only thing we keep is a face template/);
   assert.match(t, /The only thing we keep is a face template: a set of numbers that describes your face/);
 });
 
@@ -120,7 +120,7 @@ test('the fold uses the confirmed palette, not purple', () => {
 
 test('the privacy page says the template is kept and no longer claims "any server"', () => {
   const t = text(privacy);
-  assert.match(t, /We do keep two things that describe your face/);
+  assert.match(t, /The only thing we keep is a face template/);
   assert.match(t, /face template : a set of 128 numbers|face template: a set of 128 numbers/);
   assert.doesNotMatch(t, /are stored on any server/);
   assert.doesNotMatch(t, /not retained by these providers/);
@@ -158,7 +158,7 @@ test('no page says a written description is kept', () => {
     assert.doesNotMatch(src, /(We keep|we then keep)[^.]*written description/i);
     assert.doesNotMatch(src, /brown hair and glasses/);
   }
-  assert.match(privacy, /We never store your photo or your recording\./);
+  assert.match(privacy, /We don't store your photo or your recording\. To do the check, the recording is sent to our verification partners\. The only thing we keep is a face template\./);
   assert.match(privacy, /We do not keep a written description of you\./);
 });
 
@@ -194,4 +194,14 @@ test('vouch.html never shows "confirmed" for a refused vouch', () => {
   const refused = src.indexOf('if (!resp.ok) {');
   assert.ok(refused > 0 && refused < src.indexOf('Vouch confirmed. Thank you'));
   assert.ok(src.slice(refused, src.indexOf('Vouch confirmed. Thank you')).includes('return;'));
+});
+
+test('no page says "never" about storage without saying where the recording goes, and none says what partners keep', () => {
+  const about = read('athena-about.html');
+  for (const src of [keptStrings().line, registry, privacy, about]) {
+    assert.doesNotMatch(src, /never store your|never stored as images|never leaves the verification|ZERO raw biometric/i);
+    assert.doesNotMatch(src, /partners (do not|don.t|never) (keep|store|retain)/i);
+  }
+  assert.doesNotMatch(privacy, /What we never collect|two things that describe your face/);
+  assert.match(about, /sent to our verification partners for the check, and we keep only a face template/);
 });

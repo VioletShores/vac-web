@@ -8906,7 +8906,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
              recording, this copy must change with it. The quick (single photo) tier swaps
              #vacPrivacyLine and the fold rows in the pre-flight setup. -->
         <div style="min-width:0;">
-            <span id="vacPrivacyLine"><strong style="color:var(--text-secondary);">We never store your photo or your recording.</strong> Your short recording is sent to our verification partners to check it&rsquo;s really you. ${VAC_FACE_KEPT.line}</span>
+            <span id="vacPrivacyLine"><strong style="color:var(--text-secondary);">We don&rsquo;t store your photo or your recording.</strong> To do the check, the recording is sent to our verification partners. ${VAC_FACE_KEPT.line}</span>
             <details class="vac-face-data" id="vacFaceData">
                 <summary>How is my face data handled?</summary>
                 <dl>

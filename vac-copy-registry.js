@@ -37,7 +37,7 @@ var COPY = {
       mic_not_picking_up:     'Mic not picking up audio?',
       try_clapping:           'Try speaking louder or clapping',
       camera_error:           'Could not access camera/mic. Check browser permissions.',
-      privacy_statement:      'We never store your photo or your recording. Your short recording is sent to our verification partners to check it’s really you. The only thing we keep is a face template: a set of numbers that describes your face, so we can recognise you next time.',
+      privacy_statement:      'We don’t store your photo or your recording. To do the check, the recording is sent to our verification partners. The only thing we keep is a face template: a set of numbers that describes your face, so we can recognise you next time.',
       face_oval_label:        'Position face in oval',
       step_eyebrow:           'Step 2 of 4',
       header_title:           'Camera & Mic',
