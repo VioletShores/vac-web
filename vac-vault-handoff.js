@@ -147,6 +147,8 @@
     operationConfirmed = false;
     operation = null;
     operationJson = null;
+    observationContextJson = null;
+    observationRule = null;
     assertion = null;
     delivered = false;
     sessionToken = null;
@@ -203,7 +205,8 @@
     'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
     'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
     'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
-    'vac_payer_observation_stale', 'vac_unspecified'];
+    'vac_payer_observation_stale', 'vac_observation_context_missing', 'vac_observation_context_invalid',
+    'vac_observation_context_binding_mismatch', 'vac_observation_window_exceeds_ceiling', 'vac_unspecified'];
   // Internal reasons are 'code' or 'shape_code:field'; returns the closed pair.
   function refusalCode(reason) {
     var parts = typeof reason === 'string' ? reason.split(':') : [];
@@ -241,7 +244,13 @@
     } else if (code === 'vac_operation_missing') {
       text = 'The confirmation was not completed. Return to Athena and start it again.';
     } else if (code === 'vac_account_observation_stale' || code === 'vac_payer_observation_stale') {
-      text = 'The Flux account and billing details in this request are out of date (older than 15 minutes, or dated in the future). Return to Athena so it can check them again and send a fresh request.';
+      text = 'The Flux account and billing details in this request are outside the freshness window your policy allows (too old, or dated in the future). Return to Athena so it can check them again and send a fresh request.';
+    } else if (code === 'vac_observation_window_exceeds_ceiling') {
+      text = 'Your observation policy allows Flux readings older than VAC accepts (' + OBSERVATION_MAX_AGE_CEILING_S / 60 +
+        ' minutes at most). Shorten the maximum age in your Athena policy, or choose to accept historical readings, then start the request again.';
+    } else if (code === 'vac_observation_context_missing' || code === 'vac_observation_context_invalid' ||
+        code === 'vac_observation_context_binding_mismatch') {
+      text = 'Athena did not send a valid observation policy for this request, so VAC cannot tell how old a Flux reading it may accept. Return to Athena and start the request again; if this repeats, Athena or VAC needs updating.';
     } else {
       text = 'Athena sent request details this version of VAC cannot verify. Return to Athena; if this repeats, Athena or VAC needs updating.';
     }
@@ -269,6 +278,8 @@
     operationGeneration++;
     operation = null;
     operationJson = null;
+    observationContextJson = null;
+    observationRule = null;
     operationConfirmed = false;
     assertion = null;
     delivered = false;
@@ -338,8 +349,19 @@
       return value[key] === expected[key];
     });
   }
-  function asyncCreditRiskFault(op) {
+  // S206 D4: the freshness window comes from the sealed tenant observation
+  // policy (see observationContextFault), never from a VAC default. VAC keeps
+  // its own hard ceilings: OBSERVATION_FUTURE_SKEW_MS in every mode, and
+  // max_age only up to OBSERVATION_MAX_AGE_CEILING_S.
+  function observationWindowFault(observedAt, rule, staleCode) {
+    var ageMs = Date.now() - Date.parse(observedAt);
+    if (!(ageMs >= -OBSERVATION_FUTURE_SKEW_MS)) return staleCode;
+    if (rule.mode === 'max_age' && ageMs > rule.max_age_seconds * 1000) return staleCode;
+    return null;
+  }
+  function asyncCreditRiskFault(op, rule) {
     var bad = 'vac_operation_shape_invalid:async_credit_risk';
+    if (!rule) return 'vac_observation_context_missing';
     // An owner-observed account setting is NOT a provider-enforced per-task cap
     // or proof of who pays. The signed exact operation includes the disclosure;
     // Athena independently checks the evidence, payer, policy and sealed L0
@@ -366,9 +388,9 @@
         risk.evidence_kind !== 'owner_account_settings_ui_observation' ||
         risk.owner_acceptance !== 'fresh_exact_operation_vac_required' ||
         !awareTime(risk.observed_at)) return bad;
-    var ageMs = Date.now() - Date.parse(risk.observed_at);
     // A time-window refusal, not a shape fault: Athena re-observes and re-offers.
-    if (ageMs < -10000 || ageMs > 900000) return 'vac_account_observation_stale';
+    var accountStale = observationWindowFault(risk.observed_at, rule, 'vac_account_observation_stale');
+    if (accountStale) return accountStale;
     var projectParts = op.project_url.match(/^https:\/\/www\.flux\.ai\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\/([^/?#]+)\/schematic$/);
     if (!projectParts || projectParts[1] !== risk.account ||
         op.result_contract.provider_project_id !== risk.account + '/' + projectParts[2]) return bad;
@@ -387,8 +409,8 @@
         payer.oauth_subject_verified !== false ||
         payer.fresh_provider_owner_recheck_required !== true ||
         !awareTime(payer.observed_at)) return 'vac_operation_shape_invalid:payer_binding';
-    var payerAgeMs = Date.now() - Date.parse(payer.observed_at);
-    if (payerAgeMs < -10000 || payerAgeMs > 900000) return 'vac_payer_observation_stale';
+    var payerStale = observationWindowFault(payer.observed_at, rule, 'vac_payer_observation_stale');
+    if (payerStale) return payerStale;
     var unknown = {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'};
     return exactValues(op.resource_envelope.spend_ceiling, unknown) &&
       exactValues(op.resource_envelope.cost_upper_bound, unknown) &&
@@ -397,7 +419,7 @@
   // Returns null when the V2 operation is exactly the supported shape, else
   // the closed 'vac_operation_shape_invalid:<field>' code of the FIRST failing
   // predicate. Predicates and their order are unchanged from the boolean form.
-  function taskOperationFault(op, raw) {
+  function taskOperationFault(op, raw, rule) {
     var fields = ['version', 'purpose', 'execution_id', 'packet_id', 'actor', 'principal', 'tenant_id',
       'service_id', 'endpoint', 'capability', 'project_url', 'action', 'executor', 'expiry',
       'revocation_ref', 'risk', 'content_sha256', 'source_manifest_sha256', 'arguments_sha256',
@@ -470,7 +492,7 @@
       }]
     ]);
     if (fault) return 'vac_operation_shape_invalid:' + fault;
-    var risk = asyncCreditRiskFault(op);
+    var risk = asyncCreditRiskFault(op, rule);
     if (risk) return risk;
     binding = result.read_argument_binding;
     if (!exactKeys(binding, ['get_thread', 'get_messages']) ||
@@ -549,6 +571,12 @@
       fields.push(['Billing mode', 'On-demand enabled (owner-observed settings)'],
         ['Owner-observed monthly on-demand limit', risk.observed_monthly_spend_limit_usd + ' USD — account-wide, NOT a cap on this task'],
         ['Owner-observed available credits', risk.observed_available_acus + ' ACUs at ' + risk.observed_at + '; balance can change'],
+        ['Observation policy', observationRule && observationRule.mode === 'owner_accepted_historical' ?
+          'Flux reading from ' + risk.observed_at + ' (payer observed ' + risk.payer_binding.observed_at +
+            '); accepted as historical under your policy; not a live reading' :
+          'Flux reading from ' + risk.observed_at + ' (payer observed ' + risk.payer_binding.observed_at +
+            '); your policy accepts readings up to ' + (observationRule ? observationRule.max_age_seconds : '?') +
+            ' seconds old, and VAC checked both are within it'],
         ['Whole-job and per-task upper bound', 'Unknown — the Flux agent may keep consuming credits after message submission'],
         ['Flux MCP per-task spend cap', 'Unavailable; NO enforced stop'],
         ['Automatic retries', 'Disabled; one create_thread only'],
@@ -594,29 +622,105 @@
     show('info', 'Review the operation and confirm it before any authority is sent to Athena.', false);
   }
 
+  // S206 D4 / athena #1776: a native Flux agent task (version 2 or 3 with an
+  // owner-accepted credit risk) arrives with observation_context_json, the
+  // exact canonical bytes of {version, operation_digest, observation_policy,
+  // policy_sha256} as Athena sealed them. VAC never recanonicalises it:
+  //   state = sha256(DOMAIN "\n" sha256(intent bytes) "\n" sha256(context bytes))
+  // so the signed VAT nonce covers the operation AND the policy VAC followed.
+  var OBSERVATION_CONTEXT_VERSION = 'athena.flux.observation-context/1';
+  var OBSERVATION_NONCE_DOMAIN = 'athena:l0:service-operation:observation-context:1';
+  var OBSERVATION_MAX_AGE_CEILING_S = 3600;
+  var OBSERVATION_FUTURE_SKEW_MS = 30000;
+  var observationContextJson = null;
+  var observationRule = null;
+  function requiresObservationContext(op) {
+    return !!op && typeof op === 'object' && (op.version === 2 || op.version === 3) &&
+      Object.prototype.hasOwnProperty.call(op, 'async_credit_risk');
+  }
+  // Returns {fault} or {context, rule}. Never echoes context text.
+  function observationContextFault(text) {
+    if (text === undefined || text === null) return { fault: 'vac_observation_context_missing' };
+    if (typeof text !== 'string' || !text || text.length > 4096 || !/^[\x20-\x7e]+$/.test(text)) {
+      return { fault: 'vac_observation_context_invalid' };
+    }
+    var c;
+    try { c = JSON.parse(text); } catch (_e) { return { fault: 'vac_observation_context_invalid' }; }
+    var hex = /^[a-f0-9]{64}$/;
+    if (!exactKeys(c, ['version', 'operation_digest', 'observation_policy', 'policy_sha256']) ||
+        c.version !== OBSERVATION_CONTEXT_VERSION ||
+        typeof c.operation_digest !== 'string' || !hex.test(c.operation_digest) ||
+        typeof c.policy_sha256 !== 'string' || !hex.test(c.policy_sha256)) {
+      return { fault: 'vac_observation_context_invalid' };
+    }
+    var r = c.observation_policy;
+    if (!exactKeys(r, ['version', 'mode', 'max_age_seconds']) || r.version !== 1) {
+      return { fault: 'vac_observation_context_invalid' };
+    }
+    if (r.mode === 'owner_accepted_historical') {
+      if (r.max_age_seconds !== null) return { fault: 'vac_observation_context_invalid' };
+    } else if (r.mode === 'max_age') {
+      if (typeof r.max_age_seconds !== 'number' || !Number.isFinite(r.max_age_seconds) ||
+          r.max_age_seconds <= 0) return { fault: 'vac_observation_context_invalid' };
+      if (r.max_age_seconds > OBSERVATION_MAX_AGE_CEILING_S) return { fault: 'vac_observation_window_exceeds_ceiling' };
+    } else return { fault: 'vac_observation_context_invalid' };
+    return { context: c, rule: { mode: r.mode, max_age_seconds: r.max_age_seconds } };
+  }
+  function sha256Hex(text) {
+    return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (digest) {
+      return Array.prototype.map.call(new Uint8Array(digest), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    });
+  }
+
   function receiveOperation(message) {
     var raw = message.intent_json;
     if (typeof raw !== 'string') { operationRefused('vac_intent_missing'); return; }
     if (raw.length > 65536) { operationRefused('vac_intent_too_large'); return; }
     if (!/^[\x20-\x7e]*$/.test(raw)) { operationRefused('vac_intent_not_ascii'); return; }
-    if (operationJson === raw) { renderOperation(); return; }
+    var contextText = Object.prototype.hasOwnProperty.call(message, 'observation_context_json') ?
+      message.observation_context_json : undefined;
+    if (operationJson === raw) {
+      // The same intent must keep the same sealed policy context.
+      if ((contextText === undefined ? null : contextText) !== observationContextJson) {
+        operationRefused('vac_intent_replaced'); return;
+      }
+      renderOperation(); return;
+    }
     if (operationJson !== null) { operationRefused('vac_intent_replaced'); return; }
     if (operationConfirmed || sending || acked) { operationRefused('vac_replayed'); return; }
     var generation = ++operationGeneration;
     var parsed;
     try { parsed = JSON.parse(raw); } catch (e) { operationRefused('vac_intent_parse_failed'); return; }
+    var needsContext = requiresObservationContext(parsed), observed = null;
+    if (needsContext) {
+      observed = observationContextFault(contextText);
+      if (observed.fault) { operationRefused(observed.fault); return; }
+    } else if (contextText !== undefined && contextText !== null) {
+      // A context on an operation that takes none is never silently ignored.
+      operationRefused('vac_observation_context_invalid'); return;
+    }
     var shape;
-    try { shape = parsed && parsed.version === 2 ? taskOperationFault(parsed, raw) : legacyOperationFault(parsed); }
+    try { shape = parsed && parsed.version === 2 ? taskOperationFault(parsed, raw, observed && observed.rule) : legacyOperationFault(parsed); }
     catch (e) { shape = 'vac_unspecified'; }
     if (shape) { operationRefused(shape); return; }
     Promise.resolve().then(function () {
-      return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
-    }).then(function (digest) {
+      return Promise.all([sha256Hex(raw), needsContext ? sha256Hex(contextText) : null]);
+    }).then(function (digests) {
       if (generation !== operationGeneration) return;
-      var hex = Array.prototype.map.call(new Uint8Array(digest), function (b) { return b.toString(16).padStart(2, '0'); }).join('');
-      if (hex !== state) { operationRefused('vac_nonce_mismatch'); return; }
-      operation = parsed; operationJson = raw; renderOperation();
-    }, function () { if (generation === operationGeneration) operationRefused('vac_digest_unavailable'); });
+      var hex = digests[0];
+      if (!needsContext) {
+        if (hex !== state) { operationRefused('vac_nonce_mismatch'); return; }
+        operation = parsed; operationJson = raw; renderOperation(); return null;
+      }
+      if (observed.context.operation_digest !== hex) { operationRefused('vac_observation_context_binding_mismatch'); return null; }
+      return sha256Hex(OBSERVATION_NONCE_DOMAIN + '\n' + hex + '\n' + digests[1]).then(function (bound) {
+        if (generation !== operationGeneration) return;
+        if (bound !== state) { operationRefused('vac_nonce_mismatch'); return; }
+        operation = parsed; operationJson = raw;
+        observationContextJson = contextText; observationRule = observed.rule;
+        renderOperation();
+      });
+    }).then(null, function () { if (generation === operationGeneration) operationRefused('vac_digest_unavailable'); });
   }
 
 
