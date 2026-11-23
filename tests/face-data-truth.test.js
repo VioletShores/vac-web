@@ -206,3 +206,25 @@ test('no page says "never" about storage without saying where the recording goes
   assert.doesNotMatch(privacy, /What we never collect|two things that describe your face/);
   assert.match(about, /sent to our verification partners for the check, and we keep only a face template/);
 });
+
+// vat-verify.html: the same refusal can come back from the code-entry step (verify-otp).
+test('vat-verify: a missing face template keeps the code and the boxes open; a rejection is final', () => {
+  const src = read('vat-verify.html');
+  const m = src.match(/function otpRefusal\(status, data\) \{[\s\S]*?\n\}/);
+  assert.ok(m);
+  const fn = new Function(m[0] + '; return otpRefusal;')();
+  const t = fn(409, { detail: { error: 'vouch_template_required', message: 'x' } });
+  assert.strictEqual(t.keepCode, true);
+  assert.match(t.text, /Both people need to complete full verification \(face sign-in\) once, then try again\. Your code still works\./);
+  assert.doesNotMatch(t.text, /ask them|they need|the other person|you need/i);
+  const hard = fn(400, { detail: 'Vouch rejected: the same face is associated with both accounts.' });
+  assert.deepStrictEqual(hard, { keepCode: false, text: 'Vouch rejected: the same face is associated with both accounts.' });
+  assert.strictEqual(fn(400, { detail: 'Invalid code' }), null, 'an ordinary wrong code is not a refusal');
+  assert.strictEqual(fn(200, {}), null);
+  assert.strictEqual(fn(409, null), null);
+  // the keep-code branch re-enables the boxes without clearing them; the final one leaves them closed
+  const keep = src.slice(src.indexOf('refusal && refusal.keepCode'), src.indexOf('else if (refusal) {'));
+  assert.ok(keep.includes('x.disabled = false') && !keep.includes("x.value = ''"));
+  const final = src.slice(src.indexOf('else if (refusal) {'), src.indexOf("else { err.textContent = 'Incorrect code"));
+  assert.ok(!final.includes('disabled = false'));
+});
