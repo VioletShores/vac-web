@@ -2172,7 +2172,7 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
                     ctx.shadowBlur = Math.max(10, w * 0.02); ctx.setLineDash([]); ctx.stroke();
                 } else {
                     // task-646: zone EMPTY — double-stroke halo reads on both bright and dark feeds.
-                    ctx.fillStyle = 'rgba(108,92,231,0.12)'; ctx.shadowBlur = 0; ctx.fill();
+                    ctx.fillStyle = 'rgba(45,212,191,0.12)'; ctx.shadowBlur = 0; ctx.fill();
                     ctx.strokeStyle = 'rgba(10,15,26,0.85)';
                     ctx.lineWidth = Math.max(3 * _dpr646, w * 0.006);
                     ctx.setLineDash([_dashL646, _gapL646]); ctx.globalAlpha = _pulse646; ctx.stroke();
@@ -2183,9 +2183,9 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
                 }
             } else {
                 // inactive: faint ghost only
-                ctx.fillStyle = 'rgba(108,92,231,0.03)';
+                ctx.fillStyle = 'rgba(45,212,191,0.03)';
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(108,92,231,0.18)';
+                ctx.strokeStyle = 'rgba(45,212,191,0.18)';
                 ctx.lineWidth = Math.max(1, w * 0.002);
                 ctx.setLineDash([Math.max(3, w*0.008), Math.max(3, w*0.008)]);
                 ctx.stroke();
@@ -2196,7 +2196,7 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
         }
         // F-755g: skeleton draws whenever 21 finite landmarks are present — zone is a soft oval hint only.
         if (_lmComplete && lm) {
-            ctx.strokeStyle = 'rgba(0,206,201,0.85)';
+            ctx.strokeStyle = 'rgba(45,212,191,0.85)';
             ctx.lineWidth = Math.max(4, w * 0.008);
             for (var _sci = 0; _sci < _AV_HAND_CONN.length; _sci++) {
                 var _sa = _AV_HAND_CONN[_sci][0], _sb = _AV_HAND_CONN[_sci][1];
@@ -2204,7 +2204,7 @@ function _drawFingerTargetGuide(ctx, w, h, n, side, lm) {
             }
             var _sr = Math.max(5, w * 0.011);
             for (var _sj = 0; _sj < lm.length; _sj++) {
-                ctx.beginPath(); ctx.arc(lm[_sj].x * w, lm[_sj].y * h, _sr, 0, 7); ctx.fillStyle = '#6C5CE7'; ctx.fill();
+                ctx.beginPath(); ctx.arc(lm[_sj].x * w, lm[_sj].y * h, _sr, 0, 7); ctx.fillStyle = '#2DD4BF'; ctx.fill();
             }
         }
         // Text prompt — counter-flip so words read forward (canvas has CSS scaleX(-1); ovals/skeleton stay mirrored)
@@ -2346,7 +2346,7 @@ function _avDrawHand(videoEl, lm){
                     ctx.setLineDash([]); ctx.stroke();
                 } else {
                     // task-646: zone EMPTY — double-stroke halo reads on both bright and dark feeds.
-                    ctx.fillStyle='rgba(108,92,231,0.16)'; ctx.fill();
+                    ctx.fillStyle='rgba(45,212,191,0.16)'; ctx.fill();
                     ctx.strokeStyle='rgba(10,15,26,0.85)'; ctx.lineWidth=Math.max(3*_dprAv,w*0.006);
                     ctx.setLineDash([_dashLAv,_gapLAv]); ctx.globalAlpha=_pulseAv; ctx.stroke();
                     ctx.strokeStyle='rgba(212,169,78,0.95)'; ctx.lineWidth=Math.max(2*_dprAv,w*0.003);
@@ -2354,12 +2354,12 @@ function _avDrawHand(videoEl, lm){
                     ctx.globalAlpha=1; ctx.setLineDash([]);
                 }
             } else if (_isActive === false) {
-                ctx.fillStyle='rgba(108,92,231,0.03)'; ctx.fill();
-                ctx.strokeStyle='rgba(108,92,231,0.18)'; ctx.lineWidth=Math.max(1,w*0.002);
+                ctx.fillStyle='rgba(45,212,191,0.03)'; ctx.fill();
+                ctx.strokeStyle='rgba(45,212,191,0.18)'; ctx.lineWidth=Math.max(1,w*0.002);
                 ctx.setLineDash([Math.max(3,w*0.008),Math.max(3,w*0.008)]); ctx.stroke(); ctx.setLineDash([]);
             } else {
                 // task-646: no hand yet — double-stroke halo on both ovals draws the eye to the targets.
-                ctx.fillStyle='rgba(108,92,231,0.07)'; ctx.fill();
+                ctx.fillStyle='rgba(45,212,191,0.07)'; ctx.fill();
                 ctx.strokeStyle='rgba(10,15,26,0.85)'; ctx.lineWidth=Math.max(3*_dprAv,w*0.006);
                 ctx.setLineDash([_dashLAv,_gapLAv]); ctx.globalAlpha=_pulseAv; ctx.stroke();
                 ctx.strokeStyle='rgba(212,169,78,0.95)'; ctx.lineWidth=Math.max(2*_dprAv,w*0.003);
@@ -2418,10 +2418,10 @@ function _avDrawHand(videoEl, lm){
     // Only draw when THIS frame belongs to the current winning candidate — a
     // still-building challenger doesn't flash onto the overlay before it has won.
     if (_avActiveStreak < 4 || _avDist(_avActiveWrist, _avWrist) >= _AV_CANDIDATE_DIST) return;
-    ctx.strokeStyle='rgba(0,206,201,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
+    ctx.strokeStyle='rgba(45,212,191,0.85)'; ctx.lineWidth=Math.max(4,cv.width*0.008);
     for(const [a,b] of _AV_HAND_CONN){ ctx.beginPath(); ctx.moveTo(lm[a].x*cv.width,lm[a].y*cv.height); ctx.lineTo(lm[b].x*cv.width,lm[b].y*cv.height); ctx.stroke(); }
     const r=Math.max(5,cv.width*0.011);
-    for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#6C5CE7'; ctx.fill(); }
+    for(const p of lm){ ctx.beginPath(); ctx.arc(p.x*cv.width,p.y*cv.height,r,0,7); ctx.fillStyle='#2DD4BF'; ctx.fill(); }
     // F-755d: per-frame zone readout — Rob's iPhone visual verification
     if (lm[0] && Number.isFinite(lm[0].x)) {
         const _zw = cv.width, _zh = cv.height;
@@ -2500,7 +2500,7 @@ const CaptureFeedback = {
             var circles = '';
             for (var di = 0; di < ctx.digits.length; di++) {
                 if (di < digitIndex) circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:#22c55e;color:white;align-items:center;justify-content:center;font-size:22px;font-weight:700;margin:0 6px;box-shadow:0 0 12px rgba(34,197,94,0.4);">&#10003;</span>';
-                else if (di === digitIndex) circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + ctx.digits[di] + '</span>';
+                else if (di === digitIndex) circles += '<span style="display:inline-flex;width:56px;height:56px;border-radius:50%;border:3px solid var(--purple);background:rgba(45,212,191,0.2);color:white;align-items:center;justify-content:center;font-size:32px;font-weight:700;margin:0 6px;animation:pulse 1s ease infinite">' + ctx.digits[di] + '</span>';
                 else circles += '<span style="display:inline-flex;width:44px;height:44px;border-radius:50%;background:var(--surface);color:var(--text-tertiary);align-items:center;justify-content:center;font-size:18px;font-weight:700;margin:0 6px">' + ctx.digits[di] + '</span>';
             }
             // W3.5 refactor: generic prompt — no per-step expected count.
@@ -2525,7 +2525,7 @@ const CaptureFeedback = {
             if (i < currentIdx) {
                 html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:#22c55e;color:#fff;align-items:center;justify-content:center;font-size:16px;font-weight:700;box-shadow:0 0 10px rgba(34,197,94,0.45);">&#10003;</span>';
             } else if (i === currentIdx) {
-                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;border:3px solid var(--purple);background:rgba(124,92,252,0.45);animation:pulse 1s ease infinite;"></span>';
+                html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;border:3px solid var(--purple);background:rgba(45,212,191,0.45);animation:pulse 1s ease infinite;"></span>';
             } else {
                 html += '<span style="display:inline-flex;width:30px;height:30px;border-radius:50%;background:var(--surface);border:1px solid var(--border);"></span>';
             }
@@ -2570,8 +2570,8 @@ const CaptureFeedback = {
             } else if (state === 'active') {
                 box.style.opacity = '1';
                 lamp.textContent = restIcon;
-                lamp.style.color = ''; lamp.style.background = 'rgba(124,92,252,0.18)';
-                lamp.style.borderColor = 'var(--purple)'; lamp.style.boxShadow = '0 0 14px rgba(124,92,252,0.35)';
+                lamp.style.color = ''; lamp.style.background = 'rgba(45,212,191,0.18)';
+                lamp.style.borderColor = 'var(--purple)'; lamp.style.boxShadow = '0 0 14px rgba(45,212,191,0.35)';
                 lamp.style.animation = 'pulse 1s ease infinite';
             } else if (state === 'ready') {
                 // Green "in position" — mirrors the face oval flipping solid-green: the hand is in
@@ -3232,7 +3232,7 @@ function showChallengeIntro() {
     var row = document.getElementById('challengeIntroDigits');
     if (row) {
         row.innerHTML = digits.map(function(d) {
-            return '<span style="display:inline-flex;width:clamp(48px,13vw,60px);height:clamp(48px,13vw,60px);border-radius:50%;border:2px solid var(--purple);background:rgba(124,92,252,0.18);color:var(--text-primary);align-items:center;justify-content:center;font-size:clamp(26px,7vw,34px);font-weight:800;">' + d + '</span>';
+            return '<span style="display:inline-flex;width:clamp(48px,13vw,60px);height:clamp(48px,13vw,60px);border-radius:50%;border:2px solid var(--purple);background:rgba(45,212,191,0.18);color:var(--text-primary);align-items:center;justify-content:center;font-size:clamp(26px,7vw,34px);font-weight:800;">' + d + '</span>';
         }).join('');
     }
     // R3 (S114): dynamic count in the intro body (not hardcoded "three"), singular/plural-aware.
@@ -3417,10 +3417,10 @@ function showSoundCheck() {
     overlay.style.display = 'block';
     overlay.innerHTML =
         '<div style="max-width:420px;margin:0 auto;padding:clamp(28px,7vh,56px) 0;">' +
-        '<div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:1.5px;color:var(--purple,#7c5cfc);text-transform:uppercase;margin-bottom:12px;">Sound check</div>' +
+        '<div style="font-family:var(--mono,monospace);font-size:11px;letter-spacing:1.5px;color:var(--purple,#2DD4BF);text-transform:uppercase;margin-bottom:12px;">Sound check</div>' +
         '<div style="font-size:clamp(22px,6vw,30px);font-weight:800;line-height:1.25;color:var(--text-primary,#fff);margin-bottom:12px;">Can you hear audio?</div>' +
         '<div style="font-size:clamp(14px,3.8vw,16px);color:var(--text-secondary,#aaa);line-height:1.55;margin-bottom:24px;">Tap the button to play a short sound,<br>then confirm whether you heard it.</div>' +
-        '<button id="soundCheckPlayBtn" style="width:100%;padding:16px;background:var(--surface,#1a2030);border:2px solid var(--purple,#7c5cfc);border-radius:12px;color:var(--text-primary,#fff);font-size:17px;font-weight:600;cursor:pointer;margin-bottom:16px;-webkit-tap-highlight-color:transparent;" onclick="window._vacSoundPlay()">▶ Play sound</button>' +
+        '<button id="soundCheckPlayBtn" style="width:100%;padding:16px;background:var(--surface,#1a2030);border:2px solid var(--purple,#2DD4BF);border-radius:12px;color:var(--text-primary,#fff);font-size:17px;font-weight:600;cursor:pointer;margin-bottom:16px;-webkit-tap-highlight-color:transparent;" onclick="window._vacSoundPlay()">▶ Play sound</button>' +
         '<div id="soundCheckResult" style="display:none;">' +
         '<button onclick="window._vacSoundResult(true)" style="width:100%;padding:14px;background:rgba(34,197,94,0.15);border:1px solid #22c55e;border-radius:10px;color:#22c55e;font-size:16px;font-weight:600;cursor:pointer;margin-bottom:10px;-webkit-tap-highlight-color:transparent;">✓ I heard it</button>' +
         '<button onclick="window._vacSoundResult(false)" style="width:100%;padding:14px;background:transparent;border:1px solid var(--border,#2a3040);border-radius:10px;color:var(--text-secondary,#aaa);font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;">No sound — continue anyway</button>' +
@@ -4916,7 +4916,7 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
             if (!btn) {
                 btn = document.createElement('button');
                 btn.id = 'vacManualAdvance';
-                btn.style.cssText = 'display:block;margin:10px auto 0;padding:10px 22px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer';
+                btn.style.cssText = 'display:block;margin:10px auto 0;padding:10px 22px;background:var(--purple,#2DD4BF);color:#06251F;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer';
                 btn.textContent = 'Shown + said it ✓ — next';
                 if (challengeEl && challengeEl.parentElement) challengeEl.parentElement.appendChild(btn);
                 btn.addEventListener('click', function() {
@@ -4999,7 +4999,7 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
             var _rpad = 7;
             ctx.fillStyle = 'rgba(0,0,0,0.72)';
             ctx.fillRect(8, cv.height - _rfsz - _rpad * 2, _rtw + _rpad * 2, _rfsz + _rpad * 2);
-            ctx.fillStyle = (_gate === 'voiced') ? '#8B7CF7' : (_gate === 'silent') ? '#cccccc' : '#F4D03F';
+            ctx.fillStyle = (_gate === 'voiced') ? '#2DD4BF' : (_gate === 'silent') ? '#cccccc' : '#F4D03F';
             ctx.fillText(_rmsText, 8 + _rpad, cv.height - _rpad);
             ctx.restore();
           }
@@ -7245,7 +7245,7 @@ function renderQuickReauthVerdict(res) {
         + row('face', 'Face match', 'face-api.js 128-D embedding, euclidean distance vs your stored template (server-computed).', faceOk, faceDetail)
         + row('finger', 'Number on fingers', 'MediaPipe HandLandmarker (client) \u2014 the bound digit, shown AND said.', fingerOk, fingerDetail)
         + row('liveness', 'Passive liveness', 'Didit passive-liveness on the captured still (server, fail-closed).', liveOk, liveDetail)
-        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">' + _btnLabel + '</button>'
+        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#2DD4BF);color:#06251F;font-weight:700;font-size:15px;cursor:pointer;">' + _btnLabel + '</button>'
         + '</div>';
     // F-666 #3: wire ONE delegated expander listener on the (stable) host rather than a per-row
     // inline handler \u2014 robust to the innerHTML re-render above, and the literal "wire the expander
@@ -7305,7 +7305,7 @@ function renderClientGateFailure(reason, evidence) {
     });
     if (!_rows) { _rows = '<div style="color:var(--text-tertiary);font-size:12px;margin-bottom:8px;">No per-attempt evidence was captured for this run.</div>'; }
     host.innerHTML = '<div style="text-align:left;max-width:460px;margin:0 auto;">' + _reasonHtml + _label + _rows
-        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#7c5cfc);color:#fff;font-weight:700;font-size:15px;cursor:pointer;">Continue →</button>'
+        + '<button id="qrContinueBtn" style="width:100%;margin-top:14px;padding:14px;border:none;border-radius:12px;background:var(--purple,#2DD4BF);color:#06251F;font-weight:700;font-size:15px;cursor:pointer;">Continue →</button>'
         + '</div>';
     return true;
 }
@@ -7538,7 +7538,7 @@ function _showVaultFaceCaptureRecovery(reason, evidence) {
         '<div style="font-size:14px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:7px;">' + info.title + '</div>' +
         '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">No identity check was submitted or authorised. ' + info.hint + '</div>' +
         _vaultFaceEvidenceHtml(evidence) +
-        '<button type="button" id="vacVaultFaceCaptureRestart" style="display:block;width:100%;padding:11px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart camera verification</button>';
+        '<button type="button" id="vacVaultFaceCaptureRestart" style="display:block;width:100%;padding:11px;background:var(--purple,#2DD4BF);color:#06251F;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart camera verification</button>';
     host.parentElement.insertBefore(panel, host.nextSibling);
     var btn = document.getElementById('vacVaultFaceCaptureRestart');
     if (btn) btn.addEventListener('click', function () {
@@ -8335,7 +8335,7 @@ function _showCaptureDiedRecovery() {
     panel.innerHTML =
         '<div style="font-size:13px;font-weight:700;color:var(--danger,#dc2626);margin-bottom:4px;">Camera or microphone dropped — restart verification</div>' +
         '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">Your camera or microphone stopped unexpectedly before the recording completed. Please restart to try again.</div>' +
-        '<button onclick="VACReauth.reload({auto:false,keepRetryBudget:false})" style="display:block;width:100%;padding:10px 12px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart verification</button>';
+        '<button onclick="VACReauth.reload({auto:false,keepRetryBudget:false})" style="display:block;width:100%;padding:10px 12px;background:var(--purple,#2DD4BF);color:#06251F;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Restart verification</button>';
     host.parentElement.insertBefore(panel, host.nextSibling);
     try { vacDebug('capture_died_recovery_shown'); } catch(_) {}
 }
@@ -8355,7 +8355,7 @@ function _showNoMicRecovery(reason) {
         '<div style="font-size:13px;font-weight:700;color:var(--warning,#D29922);margin-bottom:4px;">' + _title + '</div>' +
         '<div style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:10px;">' + (_quiet ? 'Your mic is connected but very quiet. Speak up, move closer, or pick a different mic — or continue (your gestures are still verified, and our servers re-check voice from the recording).' : 'Your gestures are still verified, and our servers re-check voice from the recording. Choose how to continue:') + '</div>' +
         '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">' +
-          '<button onclick="VACReauth.reload({auto:false,keepRetryBudget:false})" style="flex:1;min-width:150px;padding:9px 12px;background:var(--purple,#7c5cfc);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄 Reconnect mic &amp; retry</button>' +
+          '<button onclick="VACReauth.reload({auto:false,keepRetryBudget:false})" style="flex:1;min-width:150px;padding:9px 12px;background:var(--purple,#2DD4BF);color:#06251F;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">🔄 Reconnect mic &amp; retry</button>' +
           '<button onclick="_dismissNoMic()" style="flex:1;min-width:150px;padding:9px 12px;background:transparent;color:var(--text-secondary);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">Continue — skip voice</button>' +
         '</div>' +
         '<div style="margin-top:8px;"><a href="#" onclick="VACReauth.reload({auto:false,keepRetryBudget:false});return false;" style="font-size:11px;color:var(--text-tertiary);text-decoration:underline;">Start over</a></div>';
@@ -8850,7 +8850,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <!-- S110 (F-559): guided sequential pre-flight — tells the user exactly which
              check to satisfy next, one at a time, so the hand step (and its framing) is
              impossible to miss. Driven by avChecks in updateAVReady. -->
-        <div id="avGuide" style="text-align:center;font-size:15px;font-weight:600;color:var(--text-primary);background:var(--purple-bg,rgba(108,92,231,0.08));border:1px solid var(--purple-border,rgba(108,92,231,0.25));border-radius:10px;padding:12px 16px;margin-bottom:10px;">Checking your camera…</div>
+        <div id="avGuide" style="text-align:center;font-size:15px;font-weight:600;color:var(--text-primary);background:var(--purple-bg,rgba(45,212,191,0.08));border:1px solid var(--purple-border,rgba(45,212,191,0.25));border-radius:10px;padding:12px 16px;margin-bottom:10px;">Checking your camera…</div>
         <!-- Status pills — horizontal row -->
         <div style="display: flex; justify-content: space-between; gap: 6px;">
             <div id="avPillLight" class="av-pill"><span id="avLightIcon" class="av-pill-icon spinning"></span><span id="avLightLabel">Light</span><span id="avLuxValue" class="av-pill-value"></span></div>
@@ -8902,7 +8902,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
          The big current-digit prompt + the two ✓ lamps carry the flow; the small status below is
          now secondary. Hidden until the finger phase begins. -->
     <div id="vacGuided" style="display:none;margin:0 0 8px;text-align:center;">
-        <div id="vacGuidedNumber" style="display:none;font-size:clamp(44px,12vw,72px);font-weight:800;color:var(--purple,#7c5cfc);line-height:1;margin-bottom:2px;"></div>
+        <div id="vacGuidedNumber" style="display:none;font-size:clamp(44px,12vw,72px);font-weight:800;color:var(--purple,#2DD4BF);line-height:1;margin-bottom:2px;"></div>
         <div id="vacGuidedPrompt" style="font-size:clamp(17px,4.5vw,24px);font-weight:800;color:var(--text-primary);line-height:1.15;min-height:1.15em;"></div>
         <div id="vacGuidedSub" style="font-size:clamp(12px,3.2vw,14px);color:var(--text-secondary);margin-top:4px;min-height:1.2em;"></div>
         <div style="display:flex;justify-content:center;gap:clamp(14px,5vw,28px);margin-top:8px;">
@@ -9122,13 +9122,16 @@ const CEREMONY_CSS = `/* s182 post-capture authority stages (verifying -> mintin
     --text-secondary: #C9D1D9;
     --text-tertiary: #8B949E;
     --text-quaternary: #6E7681;
-    --purple: #6C5CE7;
-    --purple-dim: #5A4BD1;
-    --purple-bg: rgba(108,92,231,0.08);
-    --purple-border: rgba(108,92,231,0.25);
-    --teal: #00CEC9;
-    --teal-bg: rgba(0,206,201,0.08);
-    --teal-border: rgba(0,206,201,0.2);
+    /* CEREMONY-TEAL (S206; Rob, 23 Nov 2026): the lead colour is brand teal, not purple. The
+       --purple* names are kept because open pull requests touch the lines that use them; the
+       values are teal. Rename the variables once those have merged. */
+    --purple: #2DD4BF;
+    --purple-dim: #14B8A6;
+    --purple-bg: rgba(45,212,191,0.08);
+    --purple-border: rgba(45,212,191,0.25);
+    --teal: #2DD4BF;
+    --teal-bg: rgba(45,212,191,0.08);
+    --teal-border: rgba(45,212,191,0.2);
     --success: #3FB950;
     --success-bg: rgba(63,185,80,0.08);
     --success-border: rgba(63,185,80,0.2);
@@ -9157,7 +9160,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 /* Step indicators */
 .steps-bar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px 0 8px; }
 .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
-.step-dot.active { background: var(--purple); box-shadow: 0 0 8px rgba(108,92,231,0.4); }
+.step-dot.active { background: var(--purple); box-shadow: 0 0 8px rgba(45,212,191,0.4); }
 .step-dot.done { background: var(--success); }
 .step-line { width: 24px; height: 1.5px; background: var(--border); transition: background 0.3s; }
 .step-line.done { background: var(--success); }
@@ -9186,8 +9189,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* Buttons */
-.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--purple); color: #fff; font-family: var(--font); font-weight: 600; font-size: 15px; padding: 14px 32px; border-radius: var(--radius); border: none; cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px; width: 100%; min-height: 48px; }
-.btn-primary:hover { background: var(--purple-dim); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(108,92,231,0.25); }
+.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--purple); color: #06251F; font-family: var(--font); font-weight: 600; font-size: 15px; padding: 14px 32px; border-radius: var(--radius); border: none; cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px; width: 100%; min-height: 48px; }
+.btn-primary:hover { background: var(--purple-dim); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(45,212,191,0.25); }
 .btn-primary:disabled { opacity: 0.4; cursor: default; transform: none; box-shadow: none; background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary); }
 .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--surface); color: var(--text-primary); font-family: var(--font); font-weight: 600; font-size: 14px; padding: 12px 24px; border-radius: var(--radius); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; min-height: 44px; }
 .btn-secondary:hover { border-color: var(--purple); background: var(--purple-bg); }
@@ -9215,7 +9218,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
    step so the user places face AND hand in their respective zones simultaneously.
    The purple face oval (inner) + teal hand oval (outer) form the two-zone guide. */
 .camera-container.show-hand-zone .face-oval { display: block; opacity: 0.7; }
-.hand-zone-ring { fill: none; stroke: var(--teal, #00cec9); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
+.hand-zone-ring { fill: none; stroke: var(--teal, #2DD4BF); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
 .camera-container.hand-in-zone .hand-zone-ring { stroke: var(--success); opacity: 0.9; }
 .hand-zone-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; transition: color 0.3s; }
 /* F-760: hide the persistent 'HOLD HAND BESIDE YOUR CHEEK' label on the CAPTURE box — the instruction
@@ -9260,7 +9263,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .rec-indicator { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; color: var(--error); letter-spacing: 1px; background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 4px; }
 .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); animation: pulse-rec 1s ease-in-out infinite; }
 @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-@keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124,92,252,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 20px 4px rgba(124,92,252,0.3); } }
+@keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45,212,191,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 20px 4px rgba(45,212,191,0.3); } }
 /* S111 #3: instruction text is now a readable panel BELOW the feed (was an absolutely-
    positioned overlay inside the video, behind the z-index:4 skeleton canvas → unreadable). */
 .challenge-panel { margin: 10px 0 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; text-align: center; }
@@ -9323,7 +9326,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .mod-subhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; width: 100%; font-size: clamp(9px, 1.1vw, 11px); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; color: var(--text-tertiary); padding: clamp(8px, 1.2vh, 12px) 0 4px; margin-top: clamp(4px, 0.8vh, 8px); border-top: 1px solid var(--border); }
 .mod-subhead-note { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-quaternary); }
 .mod-advisory-tag { display: inline-block; font-family: var(--mono); font-size: clamp(8px, 1vw, 10px); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-tertiary); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
-.mod-gating-tag { display: inline-block; font-family: var(--mono); font-size: clamp(8px, 1vw, 10px); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--teal, #00cec9); background: rgba(0,206,201,0.10); border: 1px solid rgba(0,206,201,0.35); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
+.mod-gating-tag { display: inline-block; font-family: var(--mono); font-size: clamp(8px, 1vw, 10px); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--teal, #2DD4BF); background: rgba(45,212,191,0.10); border: 1px solid rgba(45,212,191,0.35); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
 .mod-score.advisory { color: var(--text-tertiary); font-weight: 500; }
 
 /* Back button */
@@ -9349,7 +9352,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .hood-section { margin-bottom: clamp(6px, 1vh, 10px); }
 .hood-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 3px; }
 .hood-value { color: var(--text-primary); word-break: break-word; }
-.hood-provider { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 4px; background: rgba(139,92,246,0.15); color: var(--accent); margin-left: 6px; }
+.hood-provider { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 4px; background: rgba(45,212,191,0.15); color: var(--accent); margin-left: 6px; }
 .chain-node-result { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
 .chain-node-result + .chain-node-result { border-top: 1px solid var(--border); }
 .chain-depth { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); width: 16px; text-align: center; }
