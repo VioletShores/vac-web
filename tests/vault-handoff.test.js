@@ -2373,6 +2373,45 @@ test('context/2 refuses an effective window outside the owner bounds or a range 
   assertRefused(badDefault.h, 'vac_observation_context_invalid');
 });
 
+// ── S206: optional owner re-observation block (max_age policies only) ──
+function reobContext(digest, observedAt, extra = {}, policy = '{"max_age_seconds":900,"mode":"max_age","version":1}') {
+  const reob = Object.assign({acu_source: 'owner_manual_entry', attestation_sha256: '7'.repeat(64),
+    available_acus: 4210, observed_at: observedAt, payer_source: 'owner_confirmed_at_card'}, extra);
+  const ordered = Object.fromEntries(Object.keys(reob).sort().map(k => [k, reob[k]]));
+  return '{"observation_policy":' + policy + ',"operation_digest":"' + digest + '","policy_sha256":"' + '9'.repeat(64) +
+    '","reobservation":' + JSON.stringify(ordered) + ',"version":"athena.flux.observation-context/1"}';
+}
+const isoSeconds = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+const WEEK_OLD = o => {
+  const old = new Date(Date.now() - 7 * 86400000).toISOString();
+  o.async_credit_risk.observed_at = old; o.async_credit_risk.payer_binding.observed_at = old;
+};
+async function reobTask(contextFor, change = WEEK_OLD) {
+  const f = taskFixture(change, {contextFor});
+  f.h.window.VACVaultHandoff.onVerified(FULL, {}); f.receive(); await settleReview();
+  return f;
+}
+
+test('a fresh owner re-observation lets a week-old sealed reading pass max_age', async () => {
+  const fresh = isoSeconds(Date.now() - 60000);
+  const {h} = await reobTask(d => reobContext(d, fresh));
+  assert.ok(h.byId.vacServiceOperationConfirm, 'the re-observation is inside the 15-minute window');
+  assert.match(allText(h.byId.vacServiceOperationReview), /Your fresh Flux reading: 4210 ACUs, recorded by you at .* \(manual entry/);
+  const plain = await reobTask(d => observationContextText(d));
+  assertRefused(plain.h, 'vac_account_observation_stale');
+});
+
+test('a stale re-observation is refused; a malformed or historical-mode one is invalid', async () => {
+  const stale = await reobTask(d => reobContext(d, isoSeconds(Date.now() - 1000000)));
+  assertRefused(stale.h, 'vac_account_observation_stale');
+  for (const [extra, policy] of [[{acu_source: 'live_read'}], [{available_acus: -1}], [{observed_at: 'yesterday'}],
+      [{attestation_sha256: 'x'}], [{}, '{"max_age_seconds":null,"mode":"owner_accepted_historical","version":1}']]) {
+    const now = isoSeconds(Date.now() - 60000);
+    const {h} = await reobTask(d => reobContext(d, extra.observed_at || now, extra, policy));
+    assertRefused(h, 'vac_observation_context_invalid');
+  }
+});
+
 test('every refusal code except the unspecified collapse value is exercised above', () => {
   const missing = REFUSAL_ENUM.filter(c => c !== 'vac_unspecified' && !SEEN_REFUSALS.has(c));
   assert.deepEqual(missing, []);
