@@ -591,8 +591,13 @@
     box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
     var title = document.createElement('h2');
     title.textContent = 'Review this one operation';
+    // S206: host pages (auth.html) reset every element's margin to 0, which ran
+    // these rows together into one block. Spacing is set here, on this box's own
+    // elements only, so it holds on any host page.
+    title.style.cssText = 'margin:0 0 10px;';
     box.appendChild(title);
     var summary = document.createElement('p');
+    summary.style.cssText = 'margin:0 0 14px;';
     summary.textContent = operation.version === 2
       ? 'Confirming allows Athena to start one Flux design task using the exact source below, subject to its current policy and spending checks. The task may consume Flux credits. Readback verifies the submitted instructions; it is not proof that a schematic is finished. No general service access is granted.'
       : 'Your identity has been verified. Confirm only the operation below. This does not start design work, grant general service access, or replace Athena’s policy and delivery checks.';
@@ -641,6 +646,8 @@
     }
     fields.forEach(function (item) {
       var line = document.createElement('p');
+      // One visibly separate row per field, values wrap and keep newlines.
+      line.style.cssText = 'margin:0;padding:8px 0;border-bottom:1px solid #1E2230;white-space:pre-wrap;overflow-wrap:anywhere;';
       line.textContent = item[0] + ': ' + String(item[1]);
       box.appendChild(line);
     });
@@ -1151,14 +1158,18 @@
     var recovery = operation.recovery;
     heading.textContent = recovery ? 'Authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
       'Approve and start TWO paid external A2 critic reviews';
+    // S206: same host margin reset as the operation review; spacing set here.
+    heading.style.cssText = 'margin:0 0 10px;';
     box.appendChild(heading);
     if (recovery) {
       var replacementNotice = document.createElement('p');
       replacementNotice.id = 'vacCriticRecoveryDisclosure';
+      replacementNotice.style.cssText = 'margin:0 0 12px;';
       replacementNotice.textContent = 'ONE manual replacement attempt, for the same source and PLAN: exactly TWO ADDITIONAL paid external model calls. ' + criticPriorCalls(operation) + '. No further retry is authorised. The original failed job remains on record; this does not restart it or approve Flux design.';
       box.appendChild(replacementNotice);
     }
     var warning = document.createElement('p');
+    warning.style.cssText = 'margin:0 0 14px;';
     warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and ' + operation.canonical_plan_rows + '-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
     box.appendChild(warning);
     var fields = [
@@ -1215,6 +1226,7 @@
     });
     fields.forEach(function (entry) {
       var p = document.createElement('p');
+      p.style.cssText = 'margin:0;padding:8px 0;border-bottom:1px solid #1E2230;white-space:pre-wrap;overflow-wrap:anywhere;';
       p.textContent = entry[0] + ': ' + String(entry[1]);
       box.appendChild(p);
     });
