@@ -919,18 +919,11 @@
     _state = 'quick_reauth';
     var screen = document.getElementById('vac-screen');
 
-    // First check if face reference exists, then get finger challenge
-    _api('GET', '/v1/auth/face-ref-status?email=' + encodeURIComponent(email)).then(function(ref) {
-      if (!ref.has_face_reference) {
-        console.log('[VAC] No face reference for', email, '— full auth required');
-        _renderEmailScreen();
-        setTimeout(function() { var inp = document.getElementById('vac-email'); if (inp) inp.value = email; }, 50);
-        return;
-      }
-
-      // Fetch random finger challenge
-      return _api('GET', '/v1/auth/face-reauth-challenge?email=' + encodeURIComponent(email));
-    }).then(function(challenge) {
+    // S206: no separate enrolment pre-check. This screen runs after the session has
+    // expired, so go straight to the finger challenge; the server's face re-auth
+    // answers no_face_reference / no_embedding / require_full_auth for anyone not
+    // enrolled, and that is handled below.
+    _api('GET', '/v1/auth/face-reauth-challenge?email=' + encodeURIComponent(email)).then(function(challenge) {
       if (!challenge || !challenge.fingers) return;
 
       var fingerNum = challenge.fingers;
@@ -1066,7 +1059,15 @@
       var msg = e.message || '';
       console.log('[VAC] Face re-auth failed:', msg);
 
-      if (msg.indexOf('require_full_auth') !== -1 || msg.indexOf('max_retries') !== -1 || msg.indexOf('no_face_reference') !== -1) {
+      // The server's structured detail is authoritative: _api surfaces detail.message as
+      // e.message, so the codes themselves are only in e._detail.
+      var det = (e._detail && typeof e._detail === 'object') ? e._detail : {};
+      var code = typeof det.error === 'string' ? det.error : '';
+      // S206: with no enrolment pre-check, "not enrolled" now arrives here.
+      var notEnrolled = code === 'no_face_reference' || code === 'empty_face_reference' || code === 'no_embedding' ||
+        msg.indexOf('no_face_reference') !== -1;
+      if (notEnrolled || det.require_full_auth === true || code === 'max_retries' ||
+          msg.indexOf('require_full_auth') !== -1 || msg.indexOf('max_retries') !== -1) {
         _stopCamera();
         var screen = document.getElementById('vac-screen');
         screen.innerHTML =
@@ -1074,9 +1075,11 @@
             '<div style="width:56px;height:56px;margin:0 auto 14px;border-radius:50%;background:#ef444422;display:flex;align-items:center;justify-content:center;">' +
               '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>' +
             '</div>' +
-            '<div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px;">Identity not confirmed</div>' +
+            '<div style="font-size:15px;font-weight:600;color:#fff;margin-bottom:6px;">' +
+              (notEnrolled ? 'Quick re-verification is not set up' : 'Identity not confirmed') + '</div>' +
             '<div style="font-size:13px;color:#6b7280;line-height:1.5;margin-bottom:20px;">' +
-              'Face did not match the verified identity.<br>Full verification required.</div>' +
+              (notEnrolled ? 'There is no face on file for quick re-verification.<br>Full verification required.' :
+                'Face did not match the verified identity.<br>Full verification required.') + '</div>' +
             '<button class="vac-btn vac-btn-primary" id="vac-go-full">Continue with full verification</button>' +
           '</div>';
         document.getElementById('vac-go-full').addEventListener('click', function() {
