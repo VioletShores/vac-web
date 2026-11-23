@@ -37,7 +37,7 @@ var COPY = {
       mic_not_picking_up:     'Mic not picking up audio?',
       try_clapping:           'Try speaking louder or clapping',
       camera_error:           'Could not access camera/mic. Check browser permissions.',
-      privacy_statement:      'We store a text description of your appearance — no photos or video are retained. Recording is analysed in real-time and discarded.',
+      privacy_statement:      'We don’t keep your video or photo. Your short recording is sent to our verification partners to check it’s really you. We keep a written description of your appearance and a set of numbers that describes your face, so we can recognise you next time.',
       face_oval_label:        'Position face in oval',
       step_eyebrow:           'Step 2 of 4',
       header_title:           'Camera & Mic',
@@ -70,7 +70,7 @@ var COPY = {
       verify_step_title:      'Verifying You’re Human',
       verifying_subtitle:     'Sending biometric data to verification engines…',
       uploading:              'Uploading recording…',
-      uploading_initial:      'Video + Audio → Gemini + Deepgram',
+      uploading_initial:      'Being checked by our verification partners. We don’t keep it.',
       reauth_verify_title:    "Confirming it’s still you",
       // Coaching strings — used in CaptureFeedback and live detection loop
       say_phrase_label:       'SAY THE PHRASE',
@@ -206,7 +206,7 @@ var COPY = {
   // ── Quick/fast tier (still-capture, one digit, face embedding) ───────────────
   quick: {
     preflight: {
-      header_sub_no_voice:    'Hold still for a quick face check — one photo confirms it’s you.',
+      header_sub_no_voice:    'Hold still for a quick face check — one photo, checked and not kept.',
       header_sub_with_voice:  'Quick camera & mic check — next, you’ll show a number beside your cheek and say it out loud.',
       // Still-capture post-camera copy (used in run() overrides)
       header_sub_still:       'Quick re-verify — show the number beside your cheek and say it out loud. Wait for the ✓.',
