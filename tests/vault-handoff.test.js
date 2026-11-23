@@ -191,6 +191,9 @@ function serviceFixture(patch = {}, options = {}) {
   // Athena's server clock at preview time (athena #1776 follow-up).
   const serverNow = Object.prototype.hasOwnProperty.call(options, 'serverNow') ? options.serverNow : new Date().toISOString();
   if (needsContext && serverNow !== undefined) message.server_now = serverNow;
+  // Time the Athena page held the preview before posting it (ms, monotonic).
+  const heldMs = Object.prototype.hasOwnProperty.call(options, 'serverNowAgeMs') ? options.serverNowAgeMs : 0;
+  if (needsContext && heldMs !== undefined) message.server_now_age_ms = heldMs;
   const receive = (overrides = {}) => h.listeners.message[0](Object.assign({origin: VAULT, source: h.op, data: message}, overrides));
   return {h, op, raw, state, receive, message};
 }
@@ -2244,7 +2247,7 @@ function escapedServiceFixture(actor, version = 1) {
   const state = ctx ? boundNonce(digest, ctx) : digest;
   const h = load('?handoff=service-operation&state=' + state);
   const message = {type: 'vac-service-operation-intent', state, intent_json: raw};
-  if (ctx) { message.observation_context_json = ctx; message.server_now = new Date().toISOString(); }
+  if (ctx) { message.observation_context_json = ctx; message.server_now = new Date().toISOString(); message.server_now_age_ms = 0; }
   return {h, raw, receive: () => h.listeners.message[0]({origin: VAULT, source: h.op, data: message})};
 }
 test('the Kelvin attack is real under full Unicode case mapping', () => {
@@ -2311,6 +2314,30 @@ test('Decisions consumeChallenge and verification use the same account key (no t
   h.window.VACVaultHandoff.onVerified({...FULL, session: {...FULL.session, email: 'Owner@Example.invalid'}}, {});
   await flush(); await flush();
   assert.equal(h.fetches.length, 1, 'ASCII case is still the same account');
+});
+
+test('D4 server_now_age_ms: time held on the Athena page counts toward observation age', async () => {
+  // Readings 500 s old by server_now; policy 600 s. Held 99 s on Athena: fresh. Held 101 s: stale.
+  const serverNow = new Date().toISOString();
+  assert.ok((await d4(aged(500000), {observationPolicy: maxAge(600), serverNow, serverNowAgeMs: 99000})).h.byId.vacServiceOperationConfirm);
+  assertRefused((await d4(aged(500000), {observationPolicy: maxAge(600), serverNow, serverNowAgeMs: 101000})).h,
+    'vac_account_observation_stale');
+  // Held time plus review time on VAC both count.
+  let mono = 0;
+  const f = await d4(aged(500000), {observationPolicy: maxAge(600), serverNow, serverNowAgeMs: 60000, perf: () => mono});
+  assert.ok(f.h.byId.vacServiceOperationConfirm);
+  mono += 41000; f.h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assertRefused(f.h, 'vac_account_observation_stale'); assert.equal(f.h.fetches.length, 0);
+});
+
+test('D4 server_now_age_ms must be a safe integer in 0..3600000, never ignored', async () => {
+  for (const serverNowAgeMs of [undefined, null, -1, 1.5, '0', 3600001, Number.MAX_SAFE_INTEGER + 1, NaN]) {
+    assertRefused((await d4(() => {}, {serverNowAgeMs})).h, 'vac_observation_server_time_invalid');
+  }
+  for (const serverNowAgeMs of [0, 1, 3600000]) {
+    const f = await d4(aged(3700000), {observationPolicy: HISTORICAL, serverNowAgeMs});
+    assert.ok(f.h.byId.vacServiceOperationConfirm, String(serverNowAgeMs));
+  }
 });
 
 test('every refusal code except the unspecified collapse value is exercised above', () => {

@@ -733,12 +733,16 @@
     if (needsContext) {
       observed = observationContextFault(contextText);
       if (observed.fault) { operationRefused(observed.fault); return; }
-      // Athena's clock at preview time, anchored to this tab's monotonic clock.
-      var serverNow = message.server_now, anchor = monotonicMs();
-      if (typeof serverNow !== 'string' || serverNow.length > 64 || !awareTime(serverNow) || !Number.isFinite(anchor)) {
+      // Athena's clock at preview time, plus the time the Athena page held the
+      // preview before posting it here (server_now_age_ms, measured there on
+      // its own monotonic clock), anchored to this tab's monotonic clock.
+      var serverNow = message.server_now, heldMs = message.server_now_age_ms, anchor = monotonicMs();
+      if (typeof serverNow !== 'string' || serverNow.length > 64 || !awareTime(serverNow) ||
+          !Number.isSafeInteger(heldMs) || heldMs < 0 || heldMs > OBSERVATION_MAX_AGE_CEILING_S * 1000 ||
+          !Number.isFinite(anchor)) {
         operationRefused('vac_observation_server_time_invalid'); return;
       }
-      observed.rule.clock = { serverMs: Date.parse(serverNow), monotonicMs: anchor };
+      observed.rule.clock = { serverMs: Date.parse(serverNow) + heldMs, monotonicMs: anchor };
     } else if (contextText !== undefined && contextText !== null) {
       // A context on an operation that takes none is never silently ignored.
       operationRefused('vac_observation_context_invalid'); return;
