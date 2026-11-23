@@ -28,7 +28,7 @@ function el() {
     addEventListener(t, f) { this.listeners[t] = f; } };
 }
 
-function load(search, { opener = 'present', authFetch, now } = {}) {
+function load(search, { opener = 'present', authFetch, now, perf } = {}) {
   const posted = [];
   const fetches = [];
   const listeners = {};
@@ -58,6 +58,8 @@ function load(search, { opener = 'present', authFetch, now } = {}) {
   const window = {
     location, opener: op, closed: false,
     crypto: crypto.webcrypto,
+    // Monotonic clock (S206 D4): controllable, independent of the wall clock.
+    performance: { now: perf || (() => require('node:perf_hooks').performance.now()) },
     addEventListener(t, f) { (listeners[t] = listeners[t] || []).push(f); },
     close() { closed = true; },
   };
@@ -152,6 +154,18 @@ test('Decisions ceremony uses supplied challenge with no alternate backend fetch
   await assert.rejects(run()); assert.equal(fetched,0,'replay never falls back to another challenge');
 });
 
+const OBS_DOMAIN = 'athena:l0:service-operation:observation-context:1';
+// Athena backend.canonical bytes: sorted keys, compact separators, ASCII.
+function observationContextText(digest, policy = {version: 1, mode: 'max_age', max_age_seconds: 900}, extra = {}) {
+  const sorted = v => Array.isArray(v) ? v.map(sorted) : (!v || typeof v !== 'object') ? v :
+    Object.fromEntries(Object.keys(v).sort().map(k => [k, sorted(v[k])]));
+  return JSON.stringify(sorted({version: 'athena.flux.observation-context/1', operation_digest: digest,
+    observation_policy: policy, policy_sha256: 'a'.repeat(64), ...extra}));
+}
+function boundNonce(digest, contextText) {
+  const ctxSha = crypto.createHash('sha256').update(contextText).digest('hex');
+  return crypto.createHash('sha256').update(OBS_DOMAIN + '\n' + digest + '\n' + ctxSha).digest('hex');
+}
 function serviceFixture(patch = {}, options = {}) {
   const op = Object.assign({version: 1, purpose: 'service-operation', actor: 'owner@example.invalid',
     principal: 'person-owner', tenant_id: 'tenant-one', service_id: 'flux',
@@ -161,9 +175,25 @@ function serviceFixture(patch = {}, options = {}) {
     expiry: new Date(Date.now() + 120000).toISOString(),
     resource_envelope: {spend_ceiling: {amount: '0', unit: 'USD'}, cost_upper_bound: {amount: '0', unit: 'USD'}}}, patch);
   const raw = JSON.stringify(op); // bytes supplied by server; UI must not recanonicalise them
-  const state = crypto.createHash('sha256').update(raw).digest('hex');
+  const digest = crypto.createHash('sha256').update(raw).digest('hex');
+  // S206 D4 (athena #1776): a credit-risk agent task carries the sealed
+  // observation policy, bound into the nonce exactly as the Vault page does.
+  // Default max_age 900 s reproduces VAC's former fixed window.
+  const needsContext = (op.version === 2 || op.version === 3) && 'async_credit_risk' in op;
+  const contextText = options.contextFor ? options.contextFor(digest) :
+    options.contextText !== undefined ? options.contextText :
+    needsContext ? observationContextText(digest, options.observationPolicy) : undefined;
+  const state = options.stateFor ? options.stateFor(digest, contextText) : options.state || (contextText !== undefined && contextText !== null && needsContext && !options.plainNonce ?
+    boundNonce(digest, contextText) : digest);
   const h = load('?handoff=service-operation&state=' + state, options);
   const message = {type: 'vac-service-operation-intent', state, intent_json: raw};
+  if (contextText !== undefined) message.observation_context_json = contextText;
+  // Athena's server clock at preview time (athena #1776 follow-up).
+  const serverNow = Object.prototype.hasOwnProperty.call(options, 'serverNow') ? options.serverNow : new Date().toISOString();
+  if (needsContext && serverNow !== undefined) message.server_now = serverNow;
+  // Time the Athena page held the preview before posting it (ms, monotonic).
+  const heldMs = Object.prototype.hasOwnProperty.call(options, 'serverNowAgeMs') ? options.serverNowAgeMs : 0;
+  if (needsContext && heldMs !== undefined) message.server_now_age_ms = heldMs;
   const receive = (overrides = {}) => h.listeners.message[0](Object.assign({origin: VAULT, source: h.op, data: message}, overrides));
   return {h, op, raw, state, receive, message};
 }
@@ -1532,7 +1562,9 @@ const WIRE_CODES = [
   'vac_digest_unavailable', 'vac_operation_missing', 'vac_preview_shape_invalid',
   'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
   'vac_verification_not_full', 'vac_confirmation_stale', 'vac_subject_invalid', 'vac_account_observation_stale',
-  'vac_payer_observation_stale', 'vac_unspecified'];
+  'vac_payer_observation_stale', 'vac_observation_context_missing', 'vac_observation_context_invalid',
+  'vac_observation_context_binding_mismatch', 'vac_observation_window_exceeds_ceiling',
+  'vac_observation_server_time_invalid', 'vac_unspecified'];
 const PREVIEW_FIELD_LIST = ['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
     'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url',
     'source_sha256', 'source_bytes', 'canonical_plan_rows', 'source_confidential',
@@ -1550,11 +1582,13 @@ const OPERATION_FIELD_LIST = ['size', 'keys', 'strings', 'version', 'purpose', '
     'constraints', 'resource_envelope', 'readback', 'evidence_requirements', 'result_contract',
     'async_credit_risk', 'payer_binding', 'cost_bounds', 'read_argument_binding',
     'readback.arguments_sha256'];
-const SHAPE_FIELDS = {vac_preview_shape_invalid: PREVIEW_FIELD_LIST, vac_operation_shape_invalid: OPERATION_FIELD_LIST};
+const SHAPE_FIELDS = {vac_preview_shape_invalid: PREVIEW_FIELD_LIST, vac_operation_shape_invalid: OPERATION_FIELD_LIST,
+  vac_observation_server_time_invalid: ['server_now', 'server_now_age_ms', 'monotonic_clock']};
 const REFUSAL_ENUM = [
   ...WIRE_CODES.filter(c => !SHAPE_FIELDS[c]),
   ...PREVIEW_FIELD_LIST.map(f => 'vac_preview_shape_invalid:' + f),
-  ...OPERATION_FIELD_LIST.map(f => 'vac_operation_shape_invalid:' + f)
+  ...OPERATION_FIELD_LIST.map(f => 'vac_operation_shape_invalid:' + f),
+  ...SHAPE_FIELDS.vac_observation_server_time_invalid.map(f => 'vac_observation_server_time_invalid:' + f)
 ];
 const SEEN_REFUSALS = new Set();
 const refusals = h => h.posted.filter(x => x.m && x.m.type === 'vac-operation-refused');
@@ -1803,15 +1837,15 @@ const OPERATION_CASES = {
 // so Athena re-observes and re-offers instead of routing a contract bug.
 const STALE_CASES = {
   vac_account_observation_stale: [o => o.async_credit_risk.observed_at = new Date(Date.now() - 901000).toISOString(),
-    o => o.async_credit_risk.observed_at = new Date(Date.now() + 11000).toISOString()],
+    o => o.async_credit_risk.observed_at = new Date(Date.now() + 31000).toISOString()],
   vac_payer_observation_stale: [o => o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() - 901000).toISOString(),
-    o => o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() + 11000).toISOString()],
+    o => o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() + 31000).toISOString()],
 };
 for (const [code, changes] of Object.entries(STALE_CASES)) {
   test('typed refusal: ' + code + ' (old and future observations)', async () => {
     for (const change of changes) {
       const text = assertRefused(await taskRefusal(change), code);
-      assert.match(text, /out of date \(older than 15 minutes, or dated in the future\)\. Return to Athena so it can check them again/);
+      assert.match(text, /outside the freshness window your policy allows \(too old, or dated in the future\)\. Return to Athena so it can check them again/);
     }
     // Malformed (not stale) payer and account blocks remain shape faults.
     if (code === 'vac_payer_observation_stale') {
@@ -1989,6 +2023,212 @@ test('one actor convention: every VAC gate compares the actor case-insensitively
   assertRefused(await criticRefusal(p => p.actor = 'Other@Example.Invalid'), 'actor_subject_mismatch');
 });
 
+// ---------------------------------------------------------------------------
+// S206 D4 (athena #1776): VAC follows the SEALED tenant observation policy,
+// within its own hard ceilings (max_age <= 3600 s; future skew <= 30 s).
+const HISTORICAL = {version: 1, mode: 'owner_accepted_historical', max_age_seconds: null};
+const maxAge = n => ({version: 1, mode: 'max_age', max_age_seconds: n});
+const ago = ms => new Date(Date.now() - ms).toISOString();
+function aged(ms, payerMs = ms) {
+  return o => { o.async_credit_risk.observed_at = ago(ms); o.async_credit_risk.payer_binding.observed_at = ago(payerMs); };
+}
+async function d4(change, options) {
+  const f = taskFixture(change, options);
+  f.h.window.VACVaultHandoff.onVerified(FULL, {}); f.receive(); await settleReview();
+  return f;
+}
+
+test('D4 historical mode accepts a days-old sealed reading, discloses it plainly, and binds the nonce', async () => {
+  const {h, state} = await d4(aged(3 * 86400000), {observationPolicy: HISTORICAL});
+  assert.ok(h.byId.vacServiceOperationConfirm, 'owner-accepted historical observations reach consent');
+  const text = allText(h.byId.vacServiceOperationReview);
+  assert.match(text, /Observation policy: Flux reading from \S+ \(payer observed \S+\); accepted as historical under your policy; not a live reading/);
+  h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.equal(h.fetches[0].body.handoff.nonce, state, 'VAT nonce is the context-bound state');
+  assert.equal(refusals(h).length, 0);
+});
+
+test('D4 no future reading in any mode (0 s skew, matching Athena), measured on the server clock', async () => {
+  const serverNow = new Date(Date.now() - 5000).toISOString();
+  for (const policy of [HISTORICAL, maxAge(900)]) {
+    // Equal to server_now is fine; 1 ms after it is a future reading.
+    const at = o => { o.async_credit_risk.observed_at = serverNow; o.async_credit_risk.payer_binding.observed_at = serverNow; };
+    assert.ok((await d4(at, {observationPolicy: policy, serverNow})).h.byId.vacServiceOperationConfirm);
+    const future = new Date(Date.parse(serverNow) + 1000).toISOString();
+    for (const [change, code] of [
+        [o => { at(o); o.async_credit_risk.observed_at = future; }, 'vac_account_observation_stale'],
+        [o => { at(o); o.async_credit_risk.payer_binding.observed_at = future; }, 'vac_payer_observation_stale']]) {
+      assertRefused((await d4(change, {observationPolicy: policy, serverNow})).h, code);
+    }
+  }
+});
+
+test('D4 max_age mode enforces the sealed max_age_seconds, not a VAC default', async () => {
+  // 30 minutes old: refused under the old fixed 900 s, accepted under a sealed 3600 s policy.
+  const ok = await d4(aged(30 * 60000), {observationPolicy: maxAge(3600)});
+  assert.ok(ok.h.byId.vacServiceOperationConfirm);
+  assert.match(allText(ok.h.byId.vacServiceOperationReview), /your policy accepts readings up to 3600 seconds old, and VAC checked both are within it/);
+  // A tighter sealed policy is tighter than the old default.
+  assertRefused((await d4(aged(120000), {observationPolicy: maxAge(60)})).h, 'vac_account_observation_stale');
+  assertRefused((await d4(aged(0, 120000), {observationPolicy: maxAge(60)})).h, 'vac_payer_observation_stale');
+  assert.ok((await d4(aged(30000), {observationPolicy: maxAge(60)})).h.byId.vacServiceOperationConfirm);
+  // Fractional seconds as Python may emit them.
+  assert.ok((await d4(aged(1000), {observationPolicy: maxAge(90.5)})).h.byId.vacServiceOperationConfirm);
+});
+
+test('typed refusal: vac_observation_window_exceeds_ceiling (max_age above 3600 s)', async () => {
+  assertRefused((await d4(aged(1000), {observationPolicy: maxAge(3601)})).h, 'vac_observation_window_exceeds_ceiling');
+  const text = assertRefused((await d4(aged(1000), {observationPolicy: maxAge(86400)})).h, 'vac_observation_window_exceeds_ceiling');
+  assert.match(text, /60 minutes at most/);
+  assert.ok((await d4(aged(1000), {observationPolicy: maxAge(3600)})).h.byId.vacServiceOperationConfirm, 'exactly the ceiling is allowed');
+});
+
+test('typed refusal: vac_observation_context_missing (agent task without its sealed policy)', async () => {
+  // No context, even with the plain digest as state: never falls back to a default window.
+  for (const opts of [{contextText: undefined, plainNonce: true}, {contextText: null, plainNonce: true}]) {
+    const f = taskFixture(() => {}, opts);
+    delete f.message.observation_context_json;
+    if (opts.contextText === null) f.message.observation_context_json = null;
+    f.h.window.VACVaultHandoff.onVerified(FULL, {}); f.receive(); await settleReview();
+    assertRefused(f.h, 'vac_observation_context_missing');
+  }
+});
+
+test('typed refusal: vac_observation_context_invalid (malformed, unknown mode, extra keys, wrong version, non-ASCII)', async () => {
+  const variants = [
+    () => 5, () => '', () => '{bad', () => 'x'.repeat(4097), () => '{"é":1}',
+    d => observationContextText(d, {version: 1, mode: 'latest', max_age_seconds: null}),
+    d => observationContextText(d, {version: 2, mode: 'max_age', max_age_seconds: 900}),
+    d => observationContextText(d, {version: 1, mode: 'max_age', max_age_seconds: 0}),
+    d => observationContextText(d, {version: 1, mode: 'max_age', max_age_seconds: '900'}),
+    d => observationContextText(d, {version: 1, mode: 'max_age', max_age_seconds: null}),
+    d => observationContextText(d, {version: 1, mode: 'owner_accepted_historical', max_age_seconds: 900}),
+    d => observationContextText(d, {version: 1, mode: 'max_age', max_age_seconds: 900, future_skew: 99999}),
+    d => observationContextText(d, undefined, {extra_authority: true}),
+    d => observationContextText(d, undefined, {version: 'athena.flux.observation-context/2'}),
+    d => observationContextText(d, undefined, {policy_sha256: 'A'.repeat(64)}),
+    d => observationContextText(d, undefined, {operation_digest: 'short'}),
+  ];
+  for (const make of variants) {
+    const f = taskFixture(() => {}, {contextFor: make,
+      stateFor: (d, text) => typeof text === 'string' && text ? boundNonce(d, text) : d});
+    f.h.window.VACVaultHandoff.onVerified(FULL, {}); f.receive(); await settleReview();
+    assertRefused(f.h, 'vac_observation_context_invalid');
+  }
+  // A context on a V1 operation (which takes none) is never silently ignored.
+  const v1 = serviceFixture({}, {contextText: '{}'});
+  v1.h.window.VACVaultHandoff.onVerified(FULL, {}); v1.receive(); await settleReview();
+  assertRefused(v1.h, 'vac_observation_context_invalid');
+});
+
+test('typed refusal: vac_observation_context_binding_mismatch (context names another operation)', async () => {
+  const text = observationContextText('d'.repeat(64));
+  const f = taskFixture(() => {}, {contextText: text, stateFor: d => boundNonce(d, text)});
+  f.h.window.VACVaultHandoff.onVerified(FULL, {}); f.receive(); await settleReview();
+  assertRefused(f.h, 'vac_observation_context_binding_mismatch');
+});
+
+test('D4 nonce binds the exact context bytes: swapped policy, plain-digest downgrade and re-encoding all refuse', async () => {
+  // Owner sealed 900 s, a tampered card offers historical under the old nonce.
+  const swapped = taskFixture(() => {}, {contextFor: d => observationContextText(d, HISTORICAL),
+    stateFor: d => boundNonce(d, observationContextText(d, maxAge(900)))});
+  swapped.h.window.VACVaultHandoff.onVerified(FULL, {}); swapped.receive(); await settleReview();
+  assertRefused(swapped.h, 'vac_nonce_mismatch');
+  // Context present but the URL state is the bare digest (pre-D4 nonce).
+  const downgrade = taskFixture(() => {}, {plainNonce: true});
+  downgrade.h.window.VACVaultHandoff.onVerified(FULL, {}); downgrade.receive(); await settleReview();
+  assertRefused(downgrade.h, 'vac_nonce_mismatch');
+  // Same JSON value, different bytes (whitespace): VAC never recanonicalises.
+  const respaced = taskFixture(() => {}, {contextFor: d => observationContextText(d).replace('{', '{ '),
+    stateFor: d => boundNonce(d, observationContextText(d))});
+  respaced.h.window.VACVaultHandoff.onVerified(FULL, {}); respaced.receive(); await settleReview();
+  assertRefused(respaced.h, 'vac_nonce_mismatch');
+});
+
+test('D4 the reviewed intent cannot keep its review with a different policy context', async () => {
+  const f = await d4(() => {});
+  assert.ok(f.h.byId.vacServiceOperationConfirm);
+  const digest = crypto.createHash('sha256').update(f.raw).digest('hex');
+  f.receive({data: {...f.message, observation_context_json: observationContextText(digest, HISTORICAL)}}); await settleReview();
+  assertRefused(f.h, 'vac_intent_replaced');
+  // Re-sending the identical intent and context only re-renders.
+  const g = await d4(() => {});
+  g.receive(); await settleReview();
+  assert.ok(g.h.byId.vacServiceOperationConfirm); assert.equal(refusals(g.h).length, 0);
+});
+
+test('D4 matches the Athena keyvault.html nonce construction byte for byte', async () => {
+  // Same fixture as athena backend/tests/test_flux_operation_ui.py (context_bound).
+  const raw = '{"actor":"owner@example.invalid","purpose":"service-operation"}';
+  const hash = crypto.createHash('sha256').update(raw).digest('hex');
+  const ctx = '{"observation_policy":{"max_age_seconds":null,"mode":"owner_accepted_historical","version":1},"operation_digest":"' + hash + '","policy_sha256":"' + 'a'.repeat(64) + '","version":"athena.flux.observation-context/1"}';
+  assert.equal(observationContextText(hash, HISTORICAL), ctx, 'test helper emits Athena canonical bytes');
+  const ctxSha = crypto.createHash('sha256').update(ctx).digest('hex');
+  const athena = crypto.createHash('sha256').update('athena:l0:service-operation:observation-context:1\n' + hash + '\n' + ctxSha).digest('hex');
+  assert.equal(boundNonce(hash, ctx), athena);
+});
+
+
+// Codex finding on #1776 + #68: observation age must use Athena's clock.
+test('D4 the browser wall clock is never used for observation age: skewed browser, true server_now', async () => {
+  for (const skew of [3600000, -3600000, 86400000]) {
+    // Browser clock wrong by an hour or a day; readings 2 min old by the server; max_age 600 s.
+    const serverNow = new Date().toISOString();
+    const f = await d4(aged(120000), {observationPolicy: maxAge(600), serverNow, now: () => Date.now() + skew});
+    if (skew > 0) {
+      // Operation expiry is still checked on the browser clock (unchanged): only assert age handling.
+      assert.ok(!refusals(f.h).some(x => /observation/.test(x.m.code)), 'no observation refusal from browser skew ' + skew);
+    } else {
+      assert.ok(f.h.byId.vacServiceOperationConfirm, 'browser clock behind by ' + skew + ' ms does not make readings future');
+    }
+  }
+  // Conversely, a server_now far ahead of the readings is stale even if the browser clock agrees with them.
+  const late = new Date(Date.now() + 3600000).toISOString();
+  assertRefused((await d4(aged(0), {observationPolicy: maxAge(600), serverNow: late})).h, 'vac_account_observation_stale');
+});
+
+test('D4 elapsed review time counts on the monotonic clock: max_age expiring before confirm refuses with no VAT', async () => {
+  let mono = 1000;
+  const f = await d4(aged(500000), {observationPolicy: maxAge(600), perf: () => mono});
+  assert.ok(f.h.byId.vacServiceOperationConfirm, 'fresh at receipt (500 s of 600 s)');
+  const button = f.h.byId.vacServiceOperationConfirm;
+  mono += 101000; // the owner reads for 101 s; wall clock untouched
+  button.listeners.click(); await flush(); await flush();
+  assertRefused(f.h, 'vac_account_observation_stale');
+  assert.equal(f.h.fetches.length, 0, 'no VAT minted');
+  // Within the window, confirmation still mints.
+  let mono2 = 0;
+  const g = await d4(aged(500000), {observationPolicy: maxAge(600), perf: () => mono2});
+  mono2 += 50000;
+  g.h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(g.h.fetches.length, 1); assert.equal(refusals(g.h).length, 0);
+});
+
+test('typed refusal: vac_observation_server_time_invalid (missing, malformed, zone-less or no monotonic clock)', async () => {
+  for (const serverNow of [undefined, null, 5, '', 'not-a-time', '2026-11-23T02:00:00', 'x'.repeat(65),
+      // Only Athena's exact form, calendar-valid (round-trips through toISOString).
+      '2026-99-99T99:99:99.000Z', '2026-02-30T00:00:00.000Z', '2026-11-23T02:00:00Z', '2026-11-23T02:00:00.1234Z',
+      '2026-11-23T02:00:00.000+00:00', '2026-11-23T02:00:00.000z', ' 2026-11-23T02:00:00.000Z']) {
+    assertRefused((await d4(() => {}, {serverNow})).h, 'vac_observation_server_time_invalid:server_now');
+  }
+  assertRefused((await d4(() => {}, {perf: () => NaN})).h, 'vac_observation_server_time_invalid:monotonic_clock');
+  // A monotonic clock that runs backwards between receipt and confirm fails closed too.
+  let mono = 5000;
+  const f = await d4(() => {}, {perf: () => mono});
+  const button = f.h.byId.vacServiceOperationConfirm; assert.ok(button);
+  mono = 1000; button.listeners.click(); await flush();
+  assertRefused(f.h, 'vac_observation_server_time_invalid:monotonic_clock');
+  assert.equal(f.h.fetches.length, 0);
+});
+
+test('D4 server_now is transport only: it does not change the context bytes or the bound nonce', async () => {
+  const a = await d4(() => {}, {serverNow: new Date().toISOString()});
+  const b = await d4(() => {}, {serverNow: new Date(Date.now() + 1000).toISOString()});
+  assert.ok(a.h.byId.vacServiceOperationConfirm && b.h.byId.vacServiceOperationConfirm);
+  assert.ok(!('server_now' in JSON.parse(a.message.observation_context_json)));
+});
+
 // Independent review (blocking I/F): JS toLowerCase is full Unicode case
 // mapping, so 'K' (U+212A KELVIN SIGN) folds to 'k'. VAC now uses Athena
 // #1769's actor_account rule: printable ASCII only, ASCII-only fold, refuse
@@ -2012,7 +2252,7 @@ function escapedServiceFixture(actor, version = 1) {
   const state = ctx ? boundNonce(digest, ctx) : digest;
   const h = load('?handoff=service-operation&state=' + state);
   const message = {type: 'vac-service-operation-intent', state, intent_json: raw};
-  if (ctx) { message.observation_context_json = ctx; message.server_now = new Date().toISOString(); }
+  if (ctx) { message.observation_context_json = ctx; message.server_now = new Date().toISOString(); message.server_now_age_ms = 0; }
   return {h, raw, receive: () => h.listeners.message[0]({origin: VAULT, source: h.op, data: message})};
 }
 test('the Kelvin attack is real under full Unicode case mapping', () => {
@@ -2079,6 +2319,30 @@ test('Decisions consumeChallenge and verification use the same account key (no t
   h.window.VACVaultHandoff.onVerified({...FULL, session: {...FULL.session, email: 'Owner@Example.invalid'}}, {});
   await flush(); await flush();
   assert.equal(h.fetches.length, 1, 'ASCII case is still the same account');
+});
+
+test('D4 server_now_age_ms: time held on the Athena page counts toward observation age', async () => {
+  // Readings 500 s old by server_now; policy 600 s. Held 99 s on Athena: fresh. Held 101 s: stale.
+  const serverNow = new Date().toISOString();
+  assert.ok((await d4(aged(500000), {observationPolicy: maxAge(600), serverNow, serverNowAgeMs: 99000})).h.byId.vacServiceOperationConfirm);
+  assertRefused((await d4(aged(500000), {observationPolicy: maxAge(600), serverNow, serverNowAgeMs: 101000})).h,
+    'vac_account_observation_stale');
+  // Held time plus review time on VAC both count.
+  let mono = 0;
+  const f = await d4(aged(500000), {observationPolicy: maxAge(600), serverNow, serverNowAgeMs: 60000, perf: () => mono});
+  assert.ok(f.h.byId.vacServiceOperationConfirm);
+  mono += 41000; f.h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assertRefused(f.h, 'vac_account_observation_stale'); assert.equal(f.h.fetches.length, 0);
+});
+
+test('D4 server_now_age_ms must be a safe integer in 0..3600000, never ignored', async () => {
+  for (const serverNowAgeMs of [undefined, null, -1, 1.5, '0', 3600001, Number.MAX_SAFE_INTEGER + 1, NaN]) {
+    assertRefused((await d4(() => {}, {serverNowAgeMs})).h, 'vac_observation_server_time_invalid:server_now_age_ms');
+  }
+  for (const serverNowAgeMs of [0, 1, 3600000]) {
+    const f = await d4(aged(3700000), {observationPolicy: HISTORICAL, serverNowAgeMs});
+    assert.ok(f.h.byId.vacServiceOperationConfirm, String(serverNowAgeMs));
+  }
 });
 
 test('every refusal code except the unspecified collapse value is exercised above', () => {
