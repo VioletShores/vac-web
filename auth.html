@@ -177,7 +177,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .rec-indicator { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 10px; color: var(--error); letter-spacing: 1px; background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 4px; }
 .rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); animation: pulse-rec 1s ease-in-out infinite; }
 @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-@keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124,92,252,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 20px 4px rgba(124,92,252,0.3); } }
+@keyframes pulse { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(45,212,191,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 20px 4px rgba(45,212,191,0.3); } }
 /* S111 #3: instruction text is now a readable panel BELOW the feed (was an absolutely-
    positioned overlay inside the video, behind the z-index:4 skeleton canvas → unreadable). */
 .challenge-panel { margin: 10px 0 0; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; text-align: center; }
