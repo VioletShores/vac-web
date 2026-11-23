@@ -2340,6 +2340,39 @@ test('D4 server_now_age_ms must be a safe integer in 0..3600000, never ignored',
   }
 });
 
+// ── S206 D5: context/2 — v2 owner-tunable policy with the bound effective window ──
+function v2Context(digest, effective, tunable = {min_seconds: 300, max_seconds: 3600}, defaultAge = 900) {
+  return '{"effective_max_age_seconds":' + JSON.stringify(effective) + ',"observation_policy":{"max_age_seconds":' +
+    defaultAge + ',"mode":"max_age","tunable":{"max_seconds":' + tunable.max_seconds + ',"min_seconds":' +
+    tunable.min_seconds + '},"version":2},"operation_digest":"' + digest + '","policy_sha256":"' + '9'.repeat(64) +
+    '","version":"athena.flux.observation-context/2"}';
+}
+async function v2Task(effective, change = () => {}, tunable, defaultAge) {
+  const f = taskFixture(change, {contextFor: d => v2Context(d, effective, tunable, defaultAge)});
+  f.h.window.VACVaultHandoff.onVerified(FULL, {}); f.receive(); await settleReview();
+  return f;
+}
+
+test('context/2 enforces the bound effective window, not the default', async () => {
+  const twentyMin = o => o.async_credit_risk.observed_at = new Date(Date.now() - 1200000).toISOString();
+  const tuned = await v2Task(1800, twentyMin);
+  assert.ok(tuned.h.byId.vacServiceOperationConfirm, '20 minutes old is inside a 30-minute effective window');
+  assert.match(allText(tuned.h.byId.vacServiceOperationReview), /accepts readings up to 1800 seconds old/);
+  const defaulted = await v2Task(900, twentyMin);
+  assertRefused(defaulted.h, 'vac_account_observation_stale');
+});
+
+test('context/2 refuses an effective window outside the owner bounds or a range above the ceiling', async () => {
+  for (const effective of [299, 3601, '900', 900.5]) {
+    const {h} = await v2Task(effective);
+    assertRefused(h, 'vac_observation_context_invalid');
+  }
+  const wide = await v2Task(900, () => {}, {min_seconds: 300, max_seconds: 7200});
+  assertRefused(wide.h, 'vac_observation_window_exceeds_ceiling');
+  const badDefault = await v2Task(900, () => {}, {min_seconds: 300, max_seconds: 3600}, 200);
+  assertRefused(badDefault.h, 'vac_observation_context_invalid');
+});
+
 test('every refusal code except the unspecified collapse value is exercised above', () => {
   const missing = REFUSAL_ENUM.filter(c => c !== 'vac_unspecified' && !SEEN_REFUSALS.has(c));
   assert.deepEqual(missing, []);

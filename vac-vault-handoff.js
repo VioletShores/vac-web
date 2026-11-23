@@ -667,6 +667,7 @@
   //   state = sha256(DOMAIN "\n" sha256(intent bytes) "\n" sha256(context bytes))
   // so the signed VAT nonce covers the operation AND the policy VAC followed.
   var OBSERVATION_CONTEXT_VERSION = 'athena.flux.observation-context/1';
+  var OBSERVATION_CONTEXT_VERSION_V2 = 'athena.flux.observation-context/2';
   var OBSERVATION_NONCE_DOMAIN = 'athena:l0:service-operation:observation-context:1';
   var OBSERVATION_MAX_AGE_CEILING_S = 3600;
   var OBSERVATION_FUTURE_SKEW_MS = 0;
@@ -685,13 +686,31 @@
     var c;
     try { c = JSON.parse(text); } catch (_e) { return { fault: 'vac_observation_context_invalid' }; }
     var hex = /^[a-f0-9]{64}$/;
-    if (!exactKeys(c, ['version', 'operation_digest', 'observation_policy', 'policy_sha256']) ||
-        c.version !== OBSERVATION_CONTEXT_VERSION ||
+    // S206 D5 (athena #1796): context/2 carries a v2 owner-tunable policy plus
+    // the effective runtime window Athena bound into the nonce.
+    var v2 = !!c && c.version === OBSERVATION_CONTEXT_VERSION_V2;
+    var keys = v2 ? ['version', 'operation_digest', 'observation_policy', 'policy_sha256', 'effective_max_age_seconds']
+                  : ['version', 'operation_digest', 'observation_policy', 'policy_sha256'];
+    if (!exactKeys(c, keys) ||
+        (!v2 && c.version !== OBSERVATION_CONTEXT_VERSION) ||
         typeof c.operation_digest !== 'string' || !hex.test(c.operation_digest) ||
         typeof c.policy_sha256 !== 'string' || !hex.test(c.policy_sha256)) {
       return { fault: 'vac_observation_context_invalid' };
     }
     var r = c.observation_policy;
+    if (v2) {
+      var t = r && r.tunable;
+      if (!exactKeys(r, ['version', 'mode', 'max_age_seconds', 'tunable']) || r.version !== 2 || r.mode !== 'max_age' ||
+          !exactKeys(t, ['min_seconds', 'max_seconds']) ||
+          ![r.max_age_seconds, t.min_seconds, t.max_seconds, c.effective_max_age_seconds].every(Number.isSafeInteger) ||
+          !(0 < t.min_seconds && t.min_seconds <= r.max_age_seconds && r.max_age_seconds <= t.max_seconds) ||
+          !(t.min_seconds <= c.effective_max_age_seconds && c.effective_max_age_seconds <= t.max_seconds)) {
+        return { fault: 'vac_observation_context_invalid' };
+      }
+      if (t.max_seconds > OBSERVATION_MAX_AGE_CEILING_S) return { fault: 'vac_observation_window_exceeds_ceiling' };
+      // VAC enforces the bound effective value, never above its ceiling.
+      return { context: c, rule: { mode: 'max_age', max_age_seconds: c.effective_max_age_seconds } };
+    }
     if (!exactKeys(r, ['version', 'mode', 'max_age_seconds']) || r.version !== 1) {
       return { fault: 'vac_observation_context_invalid' };
     }
