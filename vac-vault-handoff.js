@@ -523,11 +523,25 @@
     var box = document.createElement('section');
     box.id = 'vacServiceOperationReview';
     box.setAttribute('aria-label', 'Review the exact service operation');
-    box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
+    box.style.cssText = UI_BOX;
+    if (operation.version === 2) box.appendChild(uiJourney(3));
     var title = document.createElement('h2');
+    title.style.cssText = UI_H2;
     title.textContent = 'Review this one operation';
     box.appendChild(title);
+    box.appendChild(uiSummary(operation.version === 2 ? [
+      ['What happens', 'Athena starts one Flux design task in ' + operation.result_contract.provider_project_id + ', using the exact source document listed below.'],
+      ['Cost', 'Unknown. Flux sets no limit per task, and the task may keep using credits after it starts. Your account-wide monthly limit is ' +
+        operation.async_credit_risk.observed_monthly_spend_limit_usd + ' USD; that is not a cap on this task.'],
+      ['Cannot be undone', 'There is no enforced stop once the task is submitted. Athena sends it once and does not retry.'],
+      ['Not included', 'Further messages, purchases or manufacturing orders. A finished schematic is not guaranteed: Athena reads back only what it submitted.']
+    ] : [
+      ['What happens', 'Athena performs one operation: ' + operation.action + ' on ' + operation.service_id + '.'],
+      ['Cost', 'At most ' + operation.resource_envelope.spend_ceiling.amount + ' ' + operation.resource_envelope.spend_ceiling.unit + '.'],
+      ['Not included', 'Design work, or any general access to the service.']
+    ]));
     var summary = document.createElement('p');
+    summary.style.cssText = UI_TERMS;
     summary.textContent = operation.version === 2
       ? 'Confirming allows Athena to start one Flux design task using the exact source below, subject to its current policy and spending checks. The task may consume Flux credits. Readback verifies the submitted instructions; it is not proof that a schematic is finished. No general service access is granted.'
       : 'Your identity has been verified. Confirm only the operation below. This does not start design work, grant general service access, or replace Athena’s policy and delivery checks.';
@@ -568,30 +582,29 @@
         ['Submission and readback deadline', operation.resource_envelope.max_minutes + ' minutes'],
         ['Provider runtime', 'May continue after submission; the deadline above does not stop the Flux agent']);
     }
-    fields.forEach(function (item) {
-      var line = document.createElement('p');
-      line.textContent = item[0] + ': ' + String(item[1]);
-      box.appendChild(line);
-    });
+    uiFieldGroups(box, fields, 'Operation and cost terms');
     var details = document.createElement('details');
+    details.style.cssText = UI_GROUP;
     var label = document.createElement('summary');
+    label.style.cssText = UI_GROUP_SUMMARY;
     label.textContent = 'All exact operation fields';
     var pre = document.createElement('pre');
-    pre.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;';
+    pre.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 12px;color:' + UI.soft + ';font:400 12px/1.5 ' + UI.mono + ';';
     pre.textContent = operationJson;
     details.appendChild(label); details.appendChild(pre); box.appendChild(details);
     var confirm = document.createElement('button');
     confirm.id = 'vacServiceOperationConfirm'; confirm.type = 'button';
     confirm.textContent = 'Confirm this exact operation';
-    confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
+    confirm.style.cssText = UI_PRIMARY;
     confirm.addEventListener('click', function () {
       var why = liveOperationFault();
       if (why) { refuseLive(why); return; }
-      operationConfirmed = true; confirm.disabled = true; send();
+      operationConfirmed = true; confirm.disabled = true; confirm.style.opacity = '.55'; send();
     });
-    box.appendChild(confirm);
+    box.appendChild(uiActionBar(confirm));
     panel().appendChild(box);
-    show('info', 'Review the operation and confirm it before any authority is sent to Athena.', false);
+    show('info', 'Review the operation and confirm it before any authority is sent to Athena.', false,
+      { chip: 'Your approval is needed', quiet: true });
   }
 
   function receiveOperation(message) {
@@ -986,19 +999,32 @@
     var box = document.createElement('section');
     box.id = 'vacCriticReview';
     box.setAttribute('aria-label', 'Review the exact external critic disclosure');
-    box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
+    box.style.cssText = UI_BOX;
+    box.appendChild(uiJourney(1));
     var heading = document.createElement('h2');
+    heading.style.cssText = UI_H2;
     var recovery = operation.recovery;
     heading.textContent = recovery ? 'Authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
       'Approve and start TWO paid external A2 critic reviews';
     box.appendChild(heading);
+    box.appendChild(uiSummary([
+      ['What happens', recovery ?
+        'One replacement attempt: two additional paid reviews of the same source and PLAN. ' + criticPriorCalls(operation) + '.' :
+        'Athena sends the full confidential source and the ' + operation.canonical_plan_rows + '-row PLAN to two outside AI reviewers.'],
+      ['Cost', 'Up to ' + operation.approved_total_usd + ' USD under your policy. That is not a hard cap: the providers cannot enforce a spending stop.'],
+      ['Cannot be undone', 'Reviews and charges may start as soon as you confirm. Closing this window will not stop them.'],
+      ['Not included', 'The Flux design task. That needs its own separate approval, later.']
+    ]));
+    box.appendChild(uiReviewerCards(operation.reviewers));
     if (recovery) {
       var replacementNotice = document.createElement('p');
+      replacementNotice.style.cssText = UI_TERMS;
       replacementNotice.id = 'vacCriticRecoveryDisclosure';
       replacementNotice.textContent = 'ONE manual replacement attempt, for the same source and PLAN: exactly TWO ADDITIONAL paid external model calls. ' + criticPriorCalls(operation) + '. No further retry is authorised. The original failed job remains on record; this does not restart it or approve Flux design.';
       box.appendChild(replacementNotice);
     }
     var warning = document.createElement('p');
+    warning.style.cssText = UI_TERMS;
     warning.textContent = 'IMPORTANT: Completing FULL/L3 VAC and confirming below will hand Athena proof to IMMEDIATELY queue the FULL confidential source and ' + operation.canonical_plan_rows + '-row PLAN to exactly TWO paid external model reviewers. Provider costs and external processing may start right away; the task cannot be recalled by closing this window. No provider-enforced per-job hard cost stop, no automatic retry and no third synthesis model. This is SEPARATE from and does NOT authorise the later Flux create_thread design task, manufacturing, customer sharing or further spending.';
     box.appendChild(warning);
     var fields = [
@@ -1053,27 +1079,24 @@
         '; no-training posture ' + r.data_training_posture +
         '; evidence ' + r.evidence_url]);
     });
-    fields.forEach(function (entry) {
-      var p = document.createElement('p');
-      p.textContent = entry[0] + ': ' + String(entry[1]);
-      box.appendChild(p);
-    });
+    uiFieldGroups(box, fields, 'Disclosure and cost terms');
     var confirm = document.createElement('button');
     confirm.id = 'vacCriticReviewConfirm'; confirm.type = 'button';
     confirm.textContent = recovery ? 'I authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
       'I authorise Athena to START TWO paid external A2 reviews';
-    confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
+    confirm.style.cssText = UI_PRIMARY;
     confirm.addEventListener('click', function () {
       if (recovery && (operationConfirmed || sending || acked || replacementDeliveryAttempted)) return;
       var why = liveOperationFault();
       if (why) { refuseLive(why); return; }
-      operationConfirmed = true; confirm.disabled = true; send();
+      operationConfirmed = true; confirm.disabled = true; confirm.style.opacity = '.55'; send();
     });
-    box.appendChild(confirm);
+    box.appendChild(uiActionBar(confirm));
     panel().appendChild(box);
     show('info', recovery ?
       'This replacement has not started. Fresh FULL/L3 consent authorises TWO ADDITIONAL paid calls for the same source and PLAN. ' + criticPriorCalls(operation) + '; no further retry or Flux design is authorised.' :
-      'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false);
+      'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false,
+      { chip: 'Your approval is needed', quiet: true });
   }
 
   function receiveCriticPreview(message) {
@@ -1123,6 +1146,153 @@
     return 'https://vac-system-production.up.railway.app';
   }
 
+  // ── Presentation only (athena docs/ux/ATHENA-UX-RUBRIC.md) ─────────────────
+  // Nothing from here to panel() validates, authorises or rewrites a disclosed
+  // string. Every "Label: value" row and every status sentence is still
+  // rendered verbatim as one text node; these helpers only decide weight,
+  // grouping and what starts collapsed. Text only: no HTML sink, no link sink.
+  var UI = { text: '#E8EDF5', soft: '#C3CBD9', muted: '#9AA4B5', line: '#262B3B', card: '#151926',
+    ok: '#10B981', warn: '#F5B942', bad: '#F87171',
+    sans: '-apple-system,system-ui,sans-serif', mono: 'ui-monospace,SFMono-Regular,Menlo,monospace' };
+  var UI_BOX = 'max-height:min(64vh,680px);overflow:auto;-webkit-overflow-scrolling:touch;max-width:720px;' +
+    'margin:14px auto 0;text-align:left;overflow-wrap:anywhere;color:' + UI.text + ';font:400 16px/1.5 ' + UI.sans + ';';
+  var UI_H2 = 'margin:14px 0 12px;font:700 clamp(20px,5vw,24px)/1.25 ' + UI.sans + ';color:' + UI.text + ';';
+  var UI_PRIMARY = 'display:block;width:100%;min-height:48px;margin:0;padding:13px 20px;background:' + UI.ok +
+    ';color:#07130f;border:0;border-radius:12px;font:700 16px/1.3 ' + UI.sans + ';';
+  var UI_TERMS = 'margin:14px 0;padding:10px 0 10px 14px;border-left:3px solid ' + UI.warn + ';color:' + UI.soft +
+    ';font:400 14px/1.55 ' + UI.sans + ';';
+  var UI_GROUP = 'border-top:1px solid ' + UI.line + ';';
+  var UI_GROUP_SUMMARY = 'cursor:pointer;padding:13px 0;min-height:22px;color:' + UI.text + ';font:600 15px/1.4 ' + UI.sans + ';';
+  var UI_FINGERPRINT = /SHA-256|digest|nonce|^Original (grant|failed job)$/i;
+  var UI_STEPS = ['Request', 'Approve reviews', 'Reviews run', 'Approve Flux task', 'Flux result'];
+  var UI_NEXT = ['', 'the two reviews run in Athena', '', 'Athena starts the Flux task and reads back what it sent', ''];
+
+  function ui(tag, css, text) {
+    var node = document.createElement(tag);
+    if (css) node.style.cssText = css;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  // Where am I, and what comes after this: one line, a five-segment bar, one line.
+  function uiJourney(current) {
+    var wrap = ui('div', 'margin:0 0 4px;');
+    wrap.setAttribute('aria-label', 'Step ' + (current + 1) + ' of ' + UI_STEPS.length + ': ' + UI_STEPS[current]);
+    wrap.appendChild(ui('div', 'color:' + UI.ok + ';font:700 12px/1.4 ' + UI.sans + ';letter-spacing:.06em;text-transform:uppercase;',
+      'Step ' + (current + 1) + ' of ' + UI_STEPS.length + ' · ' + UI_STEPS[current]));
+    var bar = ui('div', 'display:flex;gap:4px;margin:8px 0;');
+    bar.setAttribute('aria-hidden', 'true');
+    UI_STEPS.forEach(function (_step, i) {
+      bar.appendChild(ui('span', 'flex:1;height:4px;border-radius:2px;background:' +
+        (i < current ? 'rgba(16,185,129,.45)' : (i === current ? UI.ok : UI.line)) + ';'));
+    });
+    wrap.appendChild(bar);
+    if (UI_NEXT[current]) wrap.appendChild(ui('div', 'color:' + UI.muted + ';font:400 13px/1.4 ' + UI.sans + ';',
+      'After you approve: ' + UI_NEXT[current] + '.'));
+    return wrap;
+  }
+  // The plain-English money and risk summary. A reading aid; the exact terms
+  // stay verbatim underneath and are what the owner is actually approving.
+  function uiSummary(items) {
+    var card = ui('div', 'margin:0 0 12px;padding:4px 16px;border:1px solid ' + UI.line + ';border-radius:14px;background:' + UI.card + ';');
+    items.forEach(function (item, i) {
+      var row = ui('div', 'padding:11px 0;' + (i ? 'border-top:1px solid ' + UI.line + ';' : ''));
+      row.appendChild(ui('div', 'color:' + UI.muted + ';font:700 12px/1.4 ' + UI.sans + ';letter-spacing:.06em;text-transform:uppercase;', item[0]));
+      row.appendChild(ui('div', 'margin-top:2px;color:' + UI.text + ';font:400 16px/1.45 ' + UI.sans + ';', item[1]));
+      card.appendChild(row);
+    });
+    return card;
+  }
+  function uiPosture(kind, value) {
+    var plain = {
+      jurisdiction: { global_unverified: 'Location: global, unverified' },
+      retention: { provider_default_disclosed: 'Keeps data: provider default terms', zdr_verified: 'Keeps data: zero retention, verified' },
+      training: { owner_verified_no_training: 'Training: none claimed, owner-evidenced' }
+    }[kind];
+    return Object.prototype.hasOwnProperty.call(plain, value) ? plain[value] : kind + ': ' + String(value);
+  }
+  function uiReviewerCards(reviewers) {
+    var wrap = ui('div', 'display:flex;flex-wrap:wrap;gap:10px;margin:0 0 4px;');
+    reviewers.forEach(function (r, i) {
+      var card = ui('div', 'flex:1 1 240px;min-width:0;padding:12px 14px;border:1px solid ' + UI.line + ';border-radius:14px;background:' + UI.card + ';');
+      card.appendChild(ui('div', 'color:' + UI.muted + ';font:700 12px/1.4 ' + UI.sans + ';letter-spacing:.06em;text-transform:uppercase;', 'Reviewer ' + (i + 1) + ' · paid'));
+      card.appendChild(ui('div', 'margin-top:2px;color:' + UI.text + ';font:600 17px/1.3 ' + UI.sans + ';', r.provider));
+      card.appendChild(ui('div', 'color:' + UI.soft + ';font:400 14px/1.4 ' + UI.sans + ';', r.model + ' (' + r.model_family + ')'));
+      var chips = ui('div', 'display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;');
+      [uiPosture('jurisdiction', r.processing_jurisdiction), uiPosture('retention', r.retention_posture),
+        uiPosture('training', r.data_training_posture)].forEach(function (text) {
+        chips.appendChild(ui('span', 'padding:3px 9px;border:1px solid ' + UI.line + ';border-radius:999px;color:' + UI.soft +
+          ';font:500 12px/1.5 ' + UI.sans + ';', text));
+      });
+      card.appendChild(chips);
+      wrap.appendChild(card);
+    });
+    return wrap;
+  }
+  // Every row keeps its exact "Label: value" text. Terms and 64-hex
+  // fingerprints go into two groups that start collapsed.
+  function uiFieldGroups(box, fields, termsTitle) {
+    var terms = [], prints = [];
+    fields.forEach(function (entry) { (UI_FINGERPRINT.test(entry[0]) ? prints : terms).push(entry); });
+    [[termsTitle, terms, false], ['Technical details: fingerprints and identifiers', prints, true]].forEach(function (group) {
+      if (!group[1].length) return;
+      var details = ui('details', UI_GROUP);
+      details.appendChild(ui('summary', UI_GROUP_SUMMARY, group[0] + ' (' + group[1].length + ')'));
+      group[1].forEach(function (entry) {
+        details.appendChild(ui('p', 'margin:0 0 10px;color:' + UI.soft + ';' + (group[2] ?
+          'font:400 12px/1.5 ' + UI.mono + ';word-break:break-all;' : 'font:400 14px/1.55 ' + UI.sans + ';'),
+          entry[0] + ': ' + String(entry[1])));
+      });
+      box.appendChild(details);
+    });
+  }
+  // The one primary action stays in view while the terms scroll behind it.
+  function uiActionBar(button) {
+    var bar = ui('div', 'position:sticky;bottom:0;margin-top:4px;padding:12px 0 2px;border-top:1px solid ' + UI.line + ';background:#0D0F17;');
+    bar.appendChild(button);
+    return bar;
+  }
+  // After Athena acknowledges: replace the wall of terms with what happens next
+  // and the way back. The acknowledgement sentence itself is unchanged above it.
+  function uiWhatNext(reviewId, steps, action) {
+    if (document.getElementById('vacVaultHandoffNext')) return;
+    var review = document.getElementById(reviewId);
+    if (review) review.style.display = 'none';
+    var next = ui('section', 'max-width:720px;margin:16px auto 0;text-align:left;color:' + UI.text + ';font:400 16px/1.5 ' + UI.sans + ';');
+    next.id = 'vacVaultHandoffNext';
+    next.appendChild(ui('h3', 'margin:0 0 8px;font:700 18px/1.3 ' + UI.sans + ';', 'What happens next'));
+    steps.forEach(function (text, i) {
+      var row = ui('div', 'display:flex;gap:12px;padding:8px 0;');
+      row.appendChild(ui('span', 'flex:0 0 26px;height:26px;border-radius:50%;background:' + UI.card + ';border:1px solid ' + UI.line +
+        ';color:' + UI.ok + ';font:700 13px/26px ' + UI.sans + ';text-align:center;', String(i + 1)));
+      row.appendChild(ui('span', 'flex:1;min-width:0;', text));
+      next.appendChild(row);
+    });
+    var back = ui('button', UI_PRIMARY + 'margin-top:12px;', action);
+    back.id = 'vacVaultHandoffReturn'; back.type = 'button';
+    var note = ui('p', 'margin:10px 0 0;color:' + UI.muted + ';font:400 14px/1.5 ' + UI.sans + ';text-align:center;', '');
+    back.addEventListener('click', function () {
+      // Focus only the tab that opened this one; never build an Athena URL here.
+      if (!openerPresent()) { note.textContent = 'Your Athena tab is no longer open from here. Switch to it yourself; you can close this tab.'; return; }
+      note.textContent = 'Switch to your Athena tab if this one stays open.';
+      try { window.opener.focus(); } catch (e) {}
+      try { window.close(); } catch (e) {}
+    });
+    next.appendChild(back);
+    next.appendChild(note);
+    if (review) {
+      var again = ui('button', 'display:block;margin:6px auto 0;min-height:44px;padding:10px 16px;border:0;background:transparent;color:' +
+        UI.muted + ';font:500 14px/1.4 ' + UI.sans + ';text-decoration:underline;', 'Show what I approved');
+      again.id = 'vacVaultHandoffShowApproved'; again.type = 'button';
+      again.addEventListener('click', function () {
+        var hidden = review.style.display === 'none';
+        review.style.display = hidden ? '' : 'none';
+        again.textContent = hidden ? 'Hide what I approved' : 'Show what I approved';
+      });
+      next.appendChild(again);
+    }
+    panel().appendChild(next);
+  }
+
   function panel() {
     var el = document.getElementById('vacVaultHandoff');
     if (el) return el;
@@ -1134,6 +1304,10 @@
       'border-top:1px solid #1E2230;padding:clamp(14px,3.5vw,22px) clamp(16px,4vw,28px) ' +
       'calc(clamp(14px,3.5vw,22px) + env(safe-area-inset-bottom));color:#E8EDF5;' +
       'font:600 clamp(15px,3.8vw,17px)/1.45 -apple-system,system-ui,sans-serif;text-align:center;';
+    var chip = document.createElement('div');
+    chip.id = 'vacVaultHandoffChip';
+    chip.style.cssText = 'display:none;';
+    el.appendChild(chip);
     var msg = document.createElement('div');
     msg.id = 'vacVaultHandoffMsg';
     var btn = document.createElement('button');
@@ -1204,11 +1378,26 @@
     return el;
   }
 
-  function show(tone, text, withResend) {
+  // tone and text are unchanged contract. opts is presentation only: a status
+  // chip (icon + words + colour) so a change of state never looks like the
+  // sentence before it, and `quiet` when the heading below is the main line.
+  function show(tone, text, withResend, opts) {
     var el = panel();
+    opts = opts || {};
     el.setAttribute('data-tone', tone);
-    el.style.borderTopColor = tone === 'ok' ? '#10B981' : (tone === 'error' ? '#F87171' : '#1E2230');
-    document.getElementById('vacVaultHandoffMsg').textContent = text;
+    var chipTone = opts.chipTone || tone;
+    var colour = chipTone === 'ok' ? UI.ok : (chipTone === 'error' ? UI.bad : (chipTone === 'warn' ? UI.warn : UI.muted));
+    el.style.borderTopColor = chipTone === 'info' ? '#1E2230' : colour;
+    el.style.borderTopWidth = tone === 'info' ? '1px' : '3px';
+    var chip = document.getElementById('vacVaultHandoffChip');
+    var words = opts.chip || (tone === 'ok' ? 'Done' : (tone === 'error' ? 'Stopped' : (tone === 'warn' ? 'Needs your attention' : '')));
+    chip.textContent = words ? (chipTone === 'ok' ? '✓ ' : (chipTone === 'error' ? '✕ ' : (chipTone === 'warn' ? '! ' : '● '))) + words : '';
+    chip.style.cssText = words ? 'display:inline-block;margin:0 0 8px;padding:4px 12px;border:1px solid ' + colour +
+      ';border-radius:999px;color:' + colour + ';font:700 13px/1.5 ' + UI.sans + ';letter-spacing:.02em;' : 'display:none;';
+    var msg = document.getElementById('vacVaultHandoffMsg');
+    msg.style.cssText = opts.quiet ? 'color:' + UI.muted + ';font:400 14px/1.5 ' + UI.sans + ';max-width:720px;margin:0 auto;' :
+      'color:' + UI.text + ';font:600 clamp(16px,4vw,18px)/1.45 ' + UI.sans + ';max-width:720px;margin:0 auto;';
+    msg.textContent = text;
     document.getElementById('vacVaultHandoffResend').style.display = withResend ? 'block' : 'none';
   }
 
@@ -1267,7 +1456,8 @@
     delivered = true;
     show('info', replacement ?
       'Replacement authorisation sent to Athena. TWO ADDITIONAL paid calls may start after server checks. Prior timed-out calls may be charged. Do NOT retry; check Athena’s job receipt. This is not proof that reviews completed.' :
-      'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', !replacement);
+      'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', !replacement,
+      { chip: 'Sent, waiting for ' + destination + ' to confirm' });
     clearTimeout(ackTimer);
     ackTimer = setTimeout(function () {
       if (!acked) {
@@ -1343,7 +1533,13 @@
       } else if (criticReview) {
         show('warn', operation && operation.recovery ?
           'Athena acknowledged the ONE replacement authorisation for TWO ADDITIONAL paid calls. ' + criticPriorCalls(operation) + '. No further retry is authorised. Check Athena for the exact job receipt and outcome; this is not proof of review completion and does NOT approve the Flux design task.' :
-          'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false);
+          'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false,
+          { chip: operation && operation.recovery ? 'Replacement approval received by Athena' : 'Approval received by Athena', chipTone: 'ok' });
+        uiWhatNext('vacCriticReview', [
+          'Athena checks this approval once on its server, then queues the two reviews. Nothing more is needed from you here.',
+          'Your Athena tab shows the job receipt. If you started this on WhatsApp, Athena messages you there when the reviews finish or stop.',
+          'Before any Flux design task starts, Athena asks you for a separate approval.'
+        ], 'Return to Athena');
       } else if (reviewAfterHandoff) {
         show('ok', 'Verification delivered to Athena. Continue to recording, or review your results first. Your results stay available until you leave.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
@@ -1407,7 +1603,8 @@
       if (reviewedHandoff) {
         show('info', criticReview ?
           'Identity verified. Waiting for Athena’s exact external-critic policy. No model or Flux design task has been authorised.' :
-          'Identity verified. Waiting for the exact operation from Athena; nothing has been authorised yet.', false);
+          'Identity verified. Waiting for the exact operation from Athena; nothing has been authorised yet.', false,
+          { chip: 'Identity verified', chipTone: 'ok' });
         requestOperation();
         if (criticReview) renderCriticPreview(); else renderOperation();
         return;
