@@ -742,7 +742,11 @@
       // preview before posting it here (server_now_age_ms, measured there on
       // its own monotonic clock), anchored to this tab's monotonic clock.
       var serverNow = message.server_now, heldMs = message.server_now_age_ms, anchor = monotonicMs();
-      var clockFault = typeof serverNow !== 'string' || serverNow.length > 64 || !awareTime(serverNow) ? 'server_now' :
+      // Exactly Athena's form (YYYY-MM-DDTHH:MM:SS.mmmZ) and calendar-valid:
+      // it must survive a toISOString() round trip unchanged (athena #1776 R2).
+      var clockFault = typeof serverNow !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(serverNow) ||
+        !Number.isFinite(Date.parse(serverNow)) || new Date(Date.parse(serverNow)).toISOString() !== serverNow ? 'server_now' :
         !Number.isSafeInteger(heldMs) || heldMs < 0 || heldMs > OBSERVATION_MAX_AGE_CEILING_S * 1000 ? 'server_now_age_ms' :
         !Number.isFinite(anchor) ? 'monotonic_clock' : null;
       if (clockFault) { operationRefused('vac_observation_server_time_invalid:' + clockFault); return; }

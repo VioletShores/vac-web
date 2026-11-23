@@ -2206,7 +2206,10 @@ test('D4 elapsed review time counts on the monotonic clock: max_age expiring bef
 });
 
 test('typed refusal: vac_observation_server_time_invalid (missing, malformed, zone-less or no monotonic clock)', async () => {
-  for (const serverNow of [undefined, null, 5, '', 'not-a-time', '2026-11-23T02:00:00', 'x'.repeat(65)]) {
+  for (const serverNow of [undefined, null, 5, '', 'not-a-time', '2026-11-23T02:00:00', 'x'.repeat(65),
+      // Only Athena's exact form, calendar-valid (round-trips through toISOString).
+      '2026-99-99T99:99:99.000Z', '2026-02-30T00:00:00.000Z', '2026-11-23T02:00:00Z', '2026-11-23T02:00:00.1234Z',
+      '2026-11-23T02:00:00.000+00:00', '2026-11-23T02:00:00.000z', ' 2026-11-23T02:00:00.000Z']) {
     assertRefused((await d4(() => {}, {serverNow})).h, 'vac_observation_server_time_invalid:server_now');
   }
   assertRefused((await d4(() => {}, {perf: () => NaN})).h, 'vac_observation_server_time_invalid:monotonic_clock');
