@@ -394,8 +394,10 @@
   function observationRecheckFault() {
     if (!observationRule || !operation || !operation.async_credit_risk) return null;
     var risk = operation.async_credit_risk;
-    return observationWindowFault(risk.observed_at, observationRule, 'vac_account_observation_stale') ||
-      observationWindowFault(risk.payer_binding.observed_at, observationRule, 'vac_payer_observation_stale');
+    // A bound owner re-observation (max_age only) is what the window judges.
+    var reobservedAt = observationRule.reobservation ? observationRule.reobservation.observed_at : null;
+    return observationWindowFault(reobservedAt || risk.observed_at, observationRule, 'vac_account_observation_stale') ||
+      observationWindowFault(reobservedAt || risk.payer_binding.observed_at, observationRule, 'vac_payer_observation_stale');
   }
   function asyncCreditRiskFault(op, rule) {
     var bad = 'vac_operation_shape_invalid:async_credit_risk';
@@ -427,7 +429,8 @@
         risk.owner_acceptance !== 'fresh_exact_operation_vac_required' ||
         !awareTime(risk.observed_at)) return bad;
     // A time-window refusal, not a shape fault: Athena re-observes and re-offers.
-    var accountStale = observationWindowFault(risk.observed_at, rule, 'vac_account_observation_stale');
+    var reobservedAt = rule.reobservation ? rule.reobservation.observed_at : null;
+    var accountStale = observationWindowFault(reobservedAt || risk.observed_at, rule, 'vac_account_observation_stale');
     if (accountStale) return accountStale;
     var projectParts = op.project_url.match(/^https:\/\/www\.flux\.ai\/([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\/([^/?#]+)\/schematic$/);
     if (!projectParts || projectParts[1] !== risk.account ||
@@ -447,7 +450,7 @@
         payer.oauth_subject_verified !== false ||
         payer.fresh_provider_owner_recheck_required !== true ||
         !awareTime(payer.observed_at)) return 'vac_operation_shape_invalid:payer_binding';
-    var payerStale = observationWindowFault(payer.observed_at, rule, 'vac_payer_observation_stale');
+    var payerStale = observationWindowFault(reobservedAt || payer.observed_at, rule, 'vac_payer_observation_stale');
     if (payerStale) return payerStale;
     var unknown = {status: 'unknown', unit: 'ACU', basis: 'no_native_per_task_limit'};
     return exactValues(op.resource_envelope.spend_ceiling, unknown) &&
@@ -614,7 +617,12 @@
             '); accepted as historical under your policy; not a live reading' :
           'Flux reading from ' + risk.observed_at + ' (payer observed ' + risk.payer_binding.observed_at +
             '); your policy accepts readings up to ' + (observationRule ? observationRule.max_age_seconds : '?') +
-            ' seconds old, and VAC checked both are within it'],
+            ' seconds old, and VAC checked ' + (observationRule && observationRule.reobservation
+              ? 'your fresh reading below is within it' : 'both are within it')],
+        ['Your fresh Flux reading', observationRule && observationRule.reobservation
+          ? observationRule.reobservation.available_acus + ' ACUs, recorded by you at ' + observationRule.reobservation.observed_at +
+            ' (manual entry from your Flux account; the request\'s own reading above is historical)'
+          : 'None recorded; the request\'s own reading above is used'],
         ['Whole-job and per-task upper bound', 'Unknown — the Flux agent may keep consuming credits after message submission'],
         ['Flux MCP per-task spend cap', 'Unavailable; NO enforced stop'],
         ['Automatic retries', 'Disabled; one create_thread only'],
@@ -691,6 +699,18 @@
     var v2 = !!c && c.version === OBSERVATION_CONTEXT_VERSION_V2;
     var keys = v2 ? ['version', 'operation_digest', 'observation_policy', 'policy_sha256', 'effective_max_age_seconds']
                   : ['version', 'operation_digest', 'observation_policy', 'policy_sha256'];
+    // S206 (athena #1802): an optional owner re-observation (server-stamped,
+    // manual ACU entry), valid only under max_age; VAC judges the window on it.
+    var reob = !!c && typeof c === 'object' && Object.prototype.hasOwnProperty.call(c, 'reobservation') ? c.reobservation : null;
+    if (reob !== null) keys = keys.concat(['reobservation']);
+    if (reob !== null && (!exactKeys(reob, ['attestation_sha256', 'observed_at', 'available_acus', 'acu_source', 'payer_source']) ||
+        typeof reob.attestation_sha256 !== 'string' || !hex.test(reob.attestation_sha256) ||
+        typeof reob.observed_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(reob.observed_at) ||
+        !Number.isFinite(Date.parse(reob.observed_at)) ||
+        !Number.isSafeInteger(reob.available_acus) || reob.available_acus < 0 || reob.available_acus > 100000 ||
+        reob.acu_source !== 'owner_manual_entry' || reob.payer_source !== 'owner_confirmed_at_card')) {
+      return { fault: 'vac_observation_context_invalid' };
+    }
     if (!exactKeys(c, keys) ||
         (!v2 && c.version !== OBSERVATION_CONTEXT_VERSION) ||
         typeof c.operation_digest !== 'string' || !hex.test(c.operation_digest) ||
@@ -709,19 +729,19 @@
       }
       if (t.max_seconds > OBSERVATION_MAX_AGE_CEILING_S) return { fault: 'vac_observation_window_exceeds_ceiling' };
       // VAC enforces the bound effective value, never above its ceiling.
-      return { context: c, rule: { mode: 'max_age', max_age_seconds: c.effective_max_age_seconds } };
+      return { context: c, rule: { mode: 'max_age', max_age_seconds: c.effective_max_age_seconds, reobservation: reob } };
     }
     if (!exactKeys(r, ['version', 'mode', 'max_age_seconds']) || r.version !== 1) {
       return { fault: 'vac_observation_context_invalid' };
     }
     if (r.mode === 'owner_accepted_historical') {
-      if (r.max_age_seconds !== null) return { fault: 'vac_observation_context_invalid' };
+      if (r.max_age_seconds !== null || reob !== null) return { fault: 'vac_observation_context_invalid' };
     } else if (r.mode === 'max_age') {
       if (typeof r.max_age_seconds !== 'number' || !Number.isFinite(r.max_age_seconds) ||
           r.max_age_seconds <= 0) return { fault: 'vac_observation_context_invalid' };
       if (r.max_age_seconds > OBSERVATION_MAX_AGE_CEILING_S) return { fault: 'vac_observation_window_exceeds_ceiling' };
     } else return { fault: 'vac_observation_context_invalid' };
-    return { context: c, rule: { mode: r.mode, max_age_seconds: r.max_age_seconds } };
+    return { context: c, rule: { mode: r.mode, max_age_seconds: r.max_age_seconds, reobservation: reob } };
   }
   function sha256Hex(text) {
     return window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(function (digest) {
