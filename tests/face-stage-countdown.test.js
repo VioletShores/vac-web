@@ -73,7 +73,8 @@ test('the face stage takes exactly as many ticks with the countdown block as wit
   assert.ok(without > 0);
   assert.equal(withIt, without, 'duration unchanged');
   assert.equal(broken, without, 'a throwing countdown block cannot delay or stop the stage');
-  assert.equal(without * 250, 3250, 'first complete tick after the 3200 ms hold, as before');
+  // The hold is first observed one tick after Ready, then needs 3200 ms on a 250 ms grid: 14 ticks.
+  assert.equal(without, 14, 'same tick count as vac-web main (see tests/face-stage-gate.test.js: 14 steps)');
 });
 
 test('the countdown is its own block: 3, 2, 1 with a cue, then a distinct finished state', async () => {
