@@ -33,13 +33,16 @@
     --text-secondary: #C9D1D9;
     --text-tertiary: #8B949E;
     --text-quaternary: #6E7681;
-    --purple: #6C5CE7;
-    --purple-dim: #5A4BD1;
-    --purple-bg: rgba(108,92,231,0.08);
-    --purple-border: rgba(108,92,231,0.25);
-    --teal: #00CEC9;
-    --teal-bg: rgba(0,206,201,0.08);
-    --teal-border: rgba(0,206,201,0.2);
+    /* CEREMONY-TEAL (S206; Rob, 23 Nov 2026): the lead colour is brand teal, not purple. The
+       --purple* names are kept because open pull requests touch the lines that use them; the
+       values are teal. Rename the variables once those have merged. */
+    --purple: #2DD4BF;
+    --purple-dim: #14B8A6;
+    --purple-bg: rgba(45,212,191,0.08);
+    --purple-border: rgba(45,212,191,0.25);
+    --teal: #2DD4BF;
+    --teal-bg: rgba(45,212,191,0.08);
+    --teal-border: rgba(45,212,191,0.2);
     --success: #3FB950;
     --success-bg: rgba(63,185,80,0.08);
     --success-border: rgba(63,185,80,0.2);
@@ -68,7 +71,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 /* Step indicators */
 .steps-bar { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px 0 8px; }
 .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
-.step-dot.active { background: var(--purple); box-shadow: 0 0 8px rgba(108,92,231,0.4); }
+.step-dot.active { background: var(--purple); box-shadow: 0 0 8px rgba(45,212,191,0.4); }
 .step-dot.done { background: var(--success); }
 .step-line { width: 24px; height: 1.5px; background: var(--border); transition: background 0.3s; }
 .step-line.done { background: var(--success); }
@@ -92,8 +95,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* Buttons */
-.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--purple); color: #fff; font-family: var(--font); font-weight: 600; font-size: 15px; padding: 14px 32px; border-radius: var(--radius); border: none; cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px; width: 100%; min-height: 48px; }
-.btn-primary:hover { background: var(--purple-dim); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(108,92,231,0.25); }
+.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--purple); color: #06251F; font-family: var(--font); font-weight: 600; font-size: 15px; padding: 14px 32px; border-radius: var(--radius); border: none; cursor: pointer; transition: all 0.15s; letter-spacing: 0.3px; width: 100%; min-height: 48px; }
+.btn-primary:hover { background: var(--purple-dim); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(45,212,191,0.25); }
 .btn-primary:disabled { opacity: 0.4; cursor: default; transform: none; box-shadow: none; background: var(--surface); border: 1px solid var(--border); color: var(--text-tertiary); }
 .btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: var(--surface); color: var(--text-primary); font-family: var(--font); font-weight: 600; font-size: 14px; padding: 12px 24px; border-radius: var(--radius); border: 1px solid var(--border); cursor: pointer; transition: all 0.15s; min-height: 44px; }
 .btn-secondary:hover { border-color: var(--purple); background: var(--purple-bg); }
@@ -123,7 +126,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 /* One guide at a time: hide the face oval while the hand guide is active so the user
    isn't looking at two concentric dotted ellipses during the gesture step. */
 .camera-container.show-hand-zone .face-oval { display: none; }
-.hand-zone-ring { fill: none; stroke: var(--teal, #00cec9); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
+.hand-zone-ring { fill: none; stroke: var(--teal, #2DD4BF); stroke-width: 2.5; stroke-dasharray: 10 6; opacity: 0.55; transition: all 0.3s; }
 .camera-container.hand-in-zone .hand-zone-ring { stroke: var(--success); opacity: 0.9; }
 .hand-zone-label { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); letter-spacing: 1px; text-transform: uppercase; white-space: nowrap; background: rgba(0,0,0,0.7); padding: 2px 8px; border-radius: 3px; transition: color 0.3s; }
 .camera-container.hand-in-zone .hand-zone-label { color: var(--success); }
@@ -262,7 +265,7 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .hood-section { margin-bottom: clamp(6px, 1vh, 10px); }
 .hood-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 3px; }
 .hood-value { color: var(--text-primary); word-break: break-word; }
-.hood-provider { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 4px; background: rgba(139,92,246,0.15); color: var(--accent); margin-left: 6px; }
+.hood-provider { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 4px; background: rgba(45,212,191,0.15); color: var(--accent); margin-left: 6px; }
 .chain-node-result { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
 .chain-node-result + .chain-node-result { border-top: 1px solid var(--border); }
 .chain-depth { font-family: var(--mono); font-size: 10px; color: var(--text-quaternary); width: 16px; text-align: center; }
@@ -1702,7 +1705,7 @@ function unlockMessaging(vouchData) {
         btn.style.opacity = '1';
         btn.style.cursor = 'pointer';
         btn.style.background = 'var(--purple)';
-        btn.style.color = 'white';
+        btn.style.color = '#06251F';   // dark on teal: white fails contrast
         btn.style.border = 'none';
         btn.disabled = false;
         btn.onclick = function() { openMessageComposer(); };
