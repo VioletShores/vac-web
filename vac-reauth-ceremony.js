@@ -3483,6 +3483,7 @@ function startCountdown() {
     let count = SPEED_CONFIG[challengeSpeed].countdown;
     timerEl.textContent = count;
     ringFill.style.strokeDashoffset = 0;
+    _vacCountPaint('start', count);
     // F-563 (Finding 1): during the lead-in countdown the system is NOT yet listening/recording.
     // goToChallenge() left the greeting ("Say: …") in #challengeText, which tempted the user to
     // start speaking before beginRecording. Show a neutral "Get ready…" — the greeting prompt
@@ -3500,8 +3501,10 @@ function startCountdown() {
         if (count > 0) {
             timerEl.textContent = count;
             ringFill.style.strokeDashoffset = circumference * ((SPEED_CONFIG[challengeSpeed].countdown - count) / SPEED_CONFIG[challengeSpeed].countdown);
+            _vacCountPaint('tick', count);
         } else {
             clearInterval(interval);
+            _vacCountPaint('end', 0);
             timerEl.textContent = '●';
             ringFill.classList.add('recording');
             ringFill.style.strokeDashoffset = 0;
@@ -3511,6 +3514,22 @@ function startCountdown() {
             else { beginRecording(); }
         }
     }, 1000);
+}
+
+
+// PRESENTATION ONLY (owner feedback, 23 Nov 2026): while the lead-in counts, the ring and its numeral are
+// large and on their own, with a tick per second; when recording starts they return to their normal size.
+// Owns no timer and changes no count: startCountdown calls it with the number it already has.
+function _vacCountPaint(phase, n) {
+    try {
+        var wrap = document.getElementById('countdownRingWrap'), num = document.getElementById('countdownTimer');
+        if (!wrap || !num || !wrap.classList) return;
+        if (phase === 'end') { wrap.classList.remove('vac-counting'); num.classList.remove('vac-tick-a', 'vac-tick-b'); num.removeAttribute('aria-live'); return; }
+        wrap.classList.add('vac-counting');
+        num.setAttribute('aria-live', 'polite');      // each number is announced once, only during the lead-in
+        var a = n % 2 === 0;
+        num.classList.remove(a ? 'vac-tick-b' : 'vac-tick-a'); num.classList.add(a ? 'vac-tick-a' : 'vac-tick-b');
+    } catch (_) {}
 }
 
 // S154 GATE DIAGNOSTICS (L-2173: one runtime datum beats rounds of code-reading).
@@ -9296,6 +9315,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .countdown-ring-wrap .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
 .countdown-ring-wrap .ring-fill { fill: none; stroke: var(--purple); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 245; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
 .countdown-ring-wrap .ring-fill.recording { stroke: var(--error); }
+/* Lead-in countdown as its own block (owner feedback, 23 Nov 2026). Presentation only. */
+.countdown-ring-wrap.vac-counting { width: clamp(128px, 36vw, 176px); height: clamp(128px, 36vw, 176px); margin: 10px auto; }
+.countdown-ring-wrap.vac-counting .countdown-number { font-family: -apple-system, system-ui, sans-serif; font-size: clamp(64px, 19vw, 96px); font-weight: 800; }
+.countdown-ring-wrap.vac-counting .ring-fill, .countdown-ring-wrap.vac-counting .ring-bg { stroke-width: 4; }
+.countdown-number.vac-tick-a { animation: vacTickA .9s ease-out; } .countdown-number.vac-tick-b { animation: vacTickB .9s ease-out; }
+@keyframes vacTickA { 0% { transform: scale(1.35); opacity: .35; } 35% { transform: scale(1); opacity: 1; } }
+@keyframes vacTickB { 0% { transform: scale(1.35); opacity: .35; } 35% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .countdown-number.vac-tick-a, .countdown-number.vac-tick-b { animation: none; } .countdown-ring-wrap .ring-fill { transition: none; } }
 .countdown-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: clamp(24px, 6vw, 32px); font-weight: 700; color: var(--text-primary); }
 
 /* Privacy statement */
