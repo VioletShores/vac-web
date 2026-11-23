@@ -37,6 +37,7 @@ test('structured not-enrolled and require_full_auth answers route to full verifi
     assert.match(handler, new RegExp("code === '" + code + "'"), code);
   }
   assert.match(handler, /det\.require_full_auth === true/);
+  assert.match(handler, /code === 'reauth_max_retries'/, 'the server\'s max-retries code ends in full verification');
   assert.match(handler, /e\._detail/, 'reads the structured detail, not only the message text');
   assert.match(handler, /Quick re-verification is not set up/);
   assert.match(handler, /Face did not match the verified identity/, 'a genuine mismatch keeps its message');

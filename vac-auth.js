@@ -1066,7 +1066,7 @@
       // S206: with no enrolment pre-check, "not enrolled" now arrives here.
       var notEnrolled = code === 'no_face_reference' || code === 'empty_face_reference' || code === 'no_embedding' ||
         msg.indexOf('no_face_reference') !== -1;
-      if (notEnrolled || det.require_full_auth === true || code === 'max_retries' ||
+      if (notEnrolled || det.require_full_auth === true || code === 'max_retries' || code === 'reauth_max_retries' ||
           msg.indexOf('require_full_auth') !== -1 || msg.indexOf('max_retries') !== -1) {
         _stopCamera();
         var screen = document.getElementById('vac-screen');
