@@ -344,7 +344,7 @@ async function submitVouch() {
       })
     });
     const confirmData = await confirmRes.json();
-    if (!confirmRes.ok) throw new Error(confirmData.detail || 'Failed to confirm vouch');
+    if (!confirmRes.ok) throw new Error(vouchRefusalMessage(confirmRes.status, confirmData));
 
     document.getElementById('grantee_display').textContent = granteeName;
     document.getElementById('grantee_name_chain').textContent = granteeName;
@@ -367,6 +367,17 @@ async function submitVouch() {
     setStatus('step1_status', err.message, 'error');
     document.getElementById('vouch_btn').disabled = false;
   }
+}
+
+// A vouch can be refused because one of the two people has no face template on record yet
+// (409 vouch_template_required). Say what to do; never show it as confirmed.
+function vouchRefusalMessage(status, data) {
+    var d = (data && data.detail) || data || {};
+    var code = typeof d === 'string' ? d : (d.code || d.error || '');
+    if (status === 409 && String(code).indexOf('vouch_template_required') !== -1) {
+        return 'This vouch can\u2019t be confirmed yet. Both of you need to have verified with your face once. Ask them to verify with their face again, then try once more. The request is still open.';
+    }
+    return (typeof d === 'string' && d) || d.message || 'This vouch could not be confirmed. Please try again.';
 }
 
 function buildAuthLink() {

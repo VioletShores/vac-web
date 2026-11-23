@@ -8818,13 +8818,13 @@ function stopAudioMonitor() {
 
 // ===================== ceremony UI (DOM + CSS, extracted verbatim from auth.html) =====================
 // FACE-DATA-TRUTH (S206): what we KEEP about a person's face, in one place. Every sentence the
-// ceremony shows about stored face data is built from these three strings, so if the backend
-// stops storing the written description (a decision pending as of 23 Nov 2026), this object is
-// the only thing to change. Plain text only: it is placed into markup and into text nodes.
+// ceremony shows about stored face data is built from these three strings. Template only: Rob's
+// decision of 23 Nov 2026. This wording is TRUE ONLY ONCE the backend stops storing the written
+// description, so this file must not be released before that backend update. Plain text only: it is placed into markup and into text nodes.
 const VAC_FACE_KEPT = {
-    line: 'We keep a written description of your appearance and a set of numbers that describes your face, so we can recognise you next time.',
-    detail: 'A short written description of your appearance, and a face template: a set of 128 numbers that describes your face. It is numbers, not a picture.',
-    saved: 'a short written description of your appearance and a face template, a set of 128 numbers that describes your face',
+    line: 'The only thing we keep is a face template: a set of numbers that describes your face, so we can recognise you next time.',
+    detail: 'Only a face template: a set of 128 numbers that describes your face. It is numbers, not a picture. No photo, no video and no written description is kept.',
+    saved: 'a face template, a set of 128 numbers that describes your face',
 };
 
 const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
@@ -8906,7 +8906,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
              recording, this copy must change with it. The quick (single photo) tier swaps
              #vacPrivacyLine and the fold rows in the pre-flight setup. -->
         <div style="min-width:0;">
-            <span id="vacPrivacyLine"><strong style="color:var(--text-secondary);">We don&rsquo;t keep your video or photo.</strong> Your short recording is sent to our verification partners to check it&rsquo;s really you. ${VAC_FACE_KEPT.line}</span>
+            <span id="vacPrivacyLine"><strong style="color:var(--text-secondary);">We never store your photo or your recording.</strong> Your short recording is sent to our verification partners to check it&rsquo;s really you. ${VAC_FACE_KEPT.line}</span>
             <details class="vac-face-data" id="vacFaceData">
                 <summary>How is my face data handled?</summary>
                 <dl>

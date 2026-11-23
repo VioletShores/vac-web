@@ -2,7 +2,8 @@
 // face and voice data must match what the backend does. These pin the wording to the facts
 // established by a read-only trace of the backend on 23 Nov 2026:
 //   - our code keeps no video, photo or voice recording from the ceremony;
-//   - it DOES keep a written description of appearance AND a 128-number face template;
+//   - it keeps ONLY a 128-number face template (Rob chose template-only, 23 Nov 2026; the backend
+//     update that stops storing the written description must be live before this copy is released);
 //   - the recording is sent to outside companies to be checked;
 //   - the quick (single photo) tier sends no video and writes nothing new.
 // If the backend changes any of these, change the copy and these tests together.
@@ -43,11 +44,10 @@ test('the statement is shown before the camera is turned on', () => {
   preflightBlock();
 });
 
-test('the line names both things that are kept: the description and the face numbers', () => {
+test('the line says we never store the photo or recording, and names the one thing kept', () => {
   const t = text(preflightBlock());
-  assert.match(t, /We don’t keep your video or photo\./);
-  assert.match(t, /written description of your appearance/);
-  assert.match(t, /set of numbers that describes your face/);
+  assert.match(t, /We never store your photo or your recording\./);
+  assert.match(t, /The only thing we keep is a face template: a set of numbers that describes your face/);
 });
 
 test('the line says the recording goes to verification partners', () => {
@@ -136,11 +136,12 @@ test('the guest-page block no longer says biometrics are not stored or enrolled'
 
 test('what we keep is worded in exactly one place', () => {
   const kept = keptStrings();
-  assert.match(kept.line, /written description of your appearance and a set of numbers/);
+  assert.match(kept.line, /^The only thing we keep is a face template/);
+  assert.match(kept.detail, /No photo, no video and no written description is kept/);
   // outside the object, the ceremony source never spells the stored items out again
   const start = ceremony.indexOf('const VAC_FACE_KEPT = {');
   const rest = ceremony.slice(0, start) + ceremony.slice(ceremony.indexOf('};', start));
-  assert.ok(!/written description of your appearance/.test(rest.replace(/\/\/[^\n]*/g, '')));
+  assert.ok(!/face template: a set of/.test(rest.replace(/\/\/[^\n]*/g, '')));
   assert.strictEqual((ceremony.match(/\$\{VAC_FACE_KEPT\.line\}/g) || []).length, 1);
   assert.strictEqual((ceremony.match(/\$\{VAC_FACE_KEPT\.detail\}/g) || []).length, 1);
 });
@@ -148,4 +149,49 @@ test('what we keep is worded in exactly one place', () => {
 test('nothing is said about system logs', () => {
   // The logging of spoken words is being removed in the backend, which ships first.
   for (const src of [ceremony, registry, privacy]) assert.doesNotMatch(src, /system log/i);
+});
+
+test('no page says a written description is kept', () => {
+  const guest = read('p/matteo-9be78161d6a7.html');
+  for (const src of [keptStrings().line, keptStrings().saved, registry, privacy, guest, ladder]) {
+    assert.doesNotMatch(src, /written description[^.]*\b(are|is|ARE) kept/);
+    assert.doesNotMatch(src, /(We keep|we then keep)[^.]*written description/i);
+    assert.doesNotMatch(src, /brown hair and glasses/);
+  }
+  assert.match(privacy, /We never store your photo or your recording\./);
+  assert.match(privacy, /We do not keep a written description of you\./);
+});
+
+// vouch_template_required (409): the backend refuses a vouch when a face template is missing.
+function refusal(file) {
+  const src = read(file);
+  const m = src.match(/function vouchRefusalMessage\(status, data\) \{[\s\S]*?\n\}/);
+  assert.ok(m, file + ' has the refusal helper');
+  return { src, fn: new Function(m[0] + '; return vouchRefusalMessage;')() };
+}
+
+for (const file of ['vouch.html', 'verify.html', 'athena-onboard.html']) {
+  test(file + ': a missing face template is explained, in every shape the code can arrive in', () => {
+    const { fn } = refusal(file);
+    for (const body of [{ detail: 'vouch_template_required' }, { detail: { code: 'vouch_template_required' } },
+                        { detail: { error: 'vouch_template_required', message: 'x' } }, { code: 'vouch_template_required' }]) {
+      const msg = fn(409, body);
+      assert.match(msg, /Ask them to verify with their face again/);
+      assert.match(msg, /still open/);
+      assert.doesNotMatch(msg, /vouch_template_required/);
+    }
+  });
+  test(file + ': any other refusal keeps the server message or a plain fallback', () => {
+    const { fn } = refusal(file);
+    assert.strictEqual(fn(400, { detail: 'Already confirmed' }), 'Already confirmed');
+    assert.strictEqual(fn(500, {}), 'This vouch could not be confirmed. Please try again.');
+    assert.strictEqual(fn(500, null), 'This vouch could not be confirmed. Please try again.');
+  });
+}
+
+test('vouch.html never shows "confirmed" for a refused vouch', () => {
+  const src = read('vouch.html');
+  const refused = src.indexOf('if (!resp.ok) {');
+  assert.ok(refused > 0 && refused < src.indexOf('Vouch confirmed. Thank you'));
+  assert.ok(src.slice(refused, src.indexOf('Vouch confirmed. Thank you')).includes('return;'));
 });
