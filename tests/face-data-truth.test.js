@@ -176,7 +176,8 @@ for (const file of ['vouch.html', 'verify.html', 'athena-onboard.html']) {
     for (const body of [{ detail: 'vouch_template_required' }, { detail: { code: 'vouch_template_required' } },
                         { detail: { error: 'vouch_template_required', message: 'x' } }, { code: 'vouch_template_required' }]) {
       const msg = fn(409, body);
-      assert.match(msg, /Ask them to verify with their face again/);
+      assert.match(msg, /Both people need to complete full verification \(face sign-in\) once, then try again/);
+      assert.doesNotMatch(msg, /ask them|they need|the other person|you need/i, 'never says which person is missing a template');
       assert.match(msg, /still open/);
       assert.doesNotMatch(msg, /vouch_template_required/);
     }

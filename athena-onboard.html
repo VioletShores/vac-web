@@ -371,11 +371,13 @@ async function submitVouch() {
 
 // A vouch can be refused because one of the two people has no face template on record yet
 // (409 vouch_template_required). Say what to do; never show it as confirmed.
+// The server does not say WHICH person is missing a template, so neither do we.
+// Wire shape: {detail: {error: 'vouch_template_required', message: '...'}}.
 function vouchRefusalMessage(status, data) {
     var d = (data && data.detail) || data || {};
     var code = typeof d === 'string' ? d : (d.code || d.error || '');
     if (status === 409 && String(code).indexOf('vouch_template_required') !== -1) {
-        return 'This vouch can\u2019t be confirmed yet. Both of you need to have verified with your face once. Ask them to verify with their face again, then try once more. The request is still open.';
+        return 'This vouch can\u2019t be confirmed yet. Both people need to complete full verification (face sign-in) once, then try again. The request is still open.';
     }
     return (typeof d === 'string' && d) || d.message || 'This vouch could not be confirmed. Please try again.';
 }
