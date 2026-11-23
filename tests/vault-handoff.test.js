@@ -1582,11 +1582,13 @@ const OPERATION_FIELD_LIST = ['size', 'keys', 'strings', 'version', 'purpose', '
     'constraints', 'resource_envelope', 'readback', 'evidence_requirements', 'result_contract',
     'async_credit_risk', 'payer_binding', 'cost_bounds', 'read_argument_binding',
     'readback.arguments_sha256'];
-const SHAPE_FIELDS = {vac_preview_shape_invalid: PREVIEW_FIELD_LIST, vac_operation_shape_invalid: OPERATION_FIELD_LIST};
+const SHAPE_FIELDS = {vac_preview_shape_invalid: PREVIEW_FIELD_LIST, vac_operation_shape_invalid: OPERATION_FIELD_LIST,
+  vac_observation_server_time_invalid: ['server_now', 'server_now_age_ms', 'monotonic_clock']};
 const REFUSAL_ENUM = [
   ...WIRE_CODES.filter(c => !SHAPE_FIELDS[c]),
   ...PREVIEW_FIELD_LIST.map(f => 'vac_preview_shape_invalid:' + f),
-  ...OPERATION_FIELD_LIST.map(f => 'vac_operation_shape_invalid:' + f)
+  ...OPERATION_FIELD_LIST.map(f => 'vac_operation_shape_invalid:' + f),
+  ...SHAPE_FIELDS.vac_observation_server_time_invalid.map(f => 'vac_observation_server_time_invalid:' + f)
 ];
 const SEEN_REFUSALS = new Set();
 const refusals = h => h.posted.filter(x => x.m && x.m.type === 'vac-operation-refused');
@@ -2205,15 +2207,15 @@ test('D4 elapsed review time counts on the monotonic clock: max_age expiring bef
 
 test('typed refusal: vac_observation_server_time_invalid (missing, malformed, zone-less or no monotonic clock)', async () => {
   for (const serverNow of [undefined, null, 5, '', 'not-a-time', '2026-11-23T02:00:00', 'x'.repeat(65)]) {
-    assertRefused((await d4(() => {}, {serverNow})).h, 'vac_observation_server_time_invalid');
+    assertRefused((await d4(() => {}, {serverNow})).h, 'vac_observation_server_time_invalid:server_now');
   }
-  assertRefused((await d4(() => {}, {perf: () => NaN})).h, 'vac_observation_server_time_invalid');
+  assertRefused((await d4(() => {}, {perf: () => NaN})).h, 'vac_observation_server_time_invalid:monotonic_clock');
   // A monotonic clock that runs backwards between receipt and confirm fails closed too.
   let mono = 5000;
   const f = await d4(() => {}, {perf: () => mono});
   const button = f.h.byId.vacServiceOperationConfirm; assert.ok(button);
   mono = 1000; button.listeners.click(); await flush();
-  assertRefused(f.h, 'vac_observation_server_time_invalid');
+  assertRefused(f.h, 'vac_observation_server_time_invalid:monotonic_clock');
   assert.equal(f.h.fetches.length, 0);
 });
 
@@ -2332,7 +2334,7 @@ test('D4 server_now_age_ms: time held on the Athena page counts toward observati
 
 test('D4 server_now_age_ms must be a safe integer in 0..3600000, never ignored', async () => {
   for (const serverNowAgeMs of [undefined, null, -1, 1.5, '0', 3600001, Number.MAX_SAFE_INTEGER + 1, NaN]) {
-    assertRefused((await d4(() => {}, {serverNowAgeMs})).h, 'vac_observation_server_time_invalid');
+    assertRefused((await d4(() => {}, {serverNowAgeMs})).h, 'vac_observation_server_time_invalid:server_now_age_ms');
   }
   for (const serverNowAgeMs of [0, 1, 3600000]) {
     const f = await d4(aged(3700000), {observationPolicy: HISTORICAL, serverNowAgeMs});

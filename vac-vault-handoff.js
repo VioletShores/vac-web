@@ -197,7 +197,10 @@
     'cost_bounds', 'read_argument_binding', 'readback.arguments_sha256'];
   var REFUSAL_FIELDS = {
     vac_preview_shape_invalid: PREVIEW_FIELDS,
-    vac_operation_shape_invalid: OPERATION_FIELDS
+    vac_operation_shape_invalid: OPERATION_FIELDS,
+    // Which time source failed, so the governor can route it: Athena supplies
+    // server_now / server_now_age_ms; the owner's browser supplies the clock.
+    vac_observation_server_time_invalid: ['server_now', 'server_now_age_ms', 'monotonic_clock']
   };
   var REFUSAL_CODES = ['actor_subject_mismatch', 'vac_operation_expired', 'vac_intent_missing',
     'vac_intent_too_large', 'vac_intent_not_ascii', 'vac_intent_parse_failed', 'vac_intent_replaced',
@@ -249,6 +252,8 @@
     } else if (code === 'vac_observation_window_exceeds_ceiling') {
       text = 'Your observation policy allows Flux readings older than VAC accepts (' + OBSERVATION_MAX_AGE_CEILING_S / 60 +
         ' minutes at most). Shorten the maximum age in your Athena policy, or choose to accept historical readings, then start the request again.';
+    } else if (code === 'vac_observation_server_time_invalid' && r.field === 'monotonic_clock') {
+      text = 'This browser could not measure elapsed time reliably, so VAC cannot check how old the Flux readings are. Open the request again in an up-to-date browser.';
     } else if (code === 'vac_observation_server_time_invalid') {
       text = 'Athena did not send its current time with this request, so VAC cannot check how old the Flux readings are. Return to Athena and start the request again; if this repeats, Athena or VAC needs updating.';
     } else if (code === 'vac_observation_context_missing' || code === 'vac_observation_context_invalid' ||
@@ -383,7 +388,7 @@
   }
   function observationWindowFault(observedAt, rule, staleCode) {
     var now = serverNowMs(rule.clock);
-    if (!Number.isFinite(now)) return 'vac_observation_server_time_invalid';
+    if (!Number.isFinite(now)) return 'vac_observation_server_time_invalid:monotonic_clock';
     var ageMs = now - Date.parse(observedAt);
     if (!(ageMs >= -OBSERVATION_FUTURE_SKEW_MS)) return staleCode;
     if (rule.mode === 'max_age' && ageMs > rule.max_age_seconds * 1000) return staleCode;
@@ -737,11 +742,10 @@
       // preview before posting it here (server_now_age_ms, measured there on
       // its own monotonic clock), anchored to this tab's monotonic clock.
       var serverNow = message.server_now, heldMs = message.server_now_age_ms, anchor = monotonicMs();
-      if (typeof serverNow !== 'string' || serverNow.length > 64 || !awareTime(serverNow) ||
-          !Number.isSafeInteger(heldMs) || heldMs < 0 || heldMs > OBSERVATION_MAX_AGE_CEILING_S * 1000 ||
-          !Number.isFinite(anchor)) {
-        operationRefused('vac_observation_server_time_invalid'); return;
-      }
+      var clockFault = typeof serverNow !== 'string' || serverNow.length > 64 || !awareTime(serverNow) ? 'server_now' :
+        !Number.isSafeInteger(heldMs) || heldMs < 0 || heldMs > OBSERVATION_MAX_AGE_CEILING_S * 1000 ? 'server_now_age_ms' :
+        !Number.isFinite(anchor) ? 'monotonic_clock' : null;
+      if (clockFault) { operationRefused('vac_observation_server_time_invalid:' + clockFault); return; }
       observed.rule.clock = { serverMs: Date.parse(serverNow) + heldMs, monotonicMs: anchor };
     } else if (contextText !== undefined && contextText !== null) {
       // A context on an operation that takes none is never silently ignored.
@@ -1512,7 +1516,8 @@
     refusalCodes: Object.freeze(REFUSAL_CODES.slice()),
     refusalFields: Object.freeze({
       vac_preview_shape_invalid: Object.freeze(PREVIEW_FIELDS.slice()),
-      vac_operation_shape_invalid: Object.freeze(OPERATION_FIELDS.slice())
+      vac_operation_shape_invalid: Object.freeze(OPERATION_FIELDS.slice()),
+      vac_observation_server_time_invalid: Object.freeze(REFUSAL_FIELDS.vac_observation_server_time_invalid.slice())
     }),
     assertChallengeActive: function (id) {
       if (!continuationFresh() || !challengeConsumed || id !== continuation.challenge.challenge_id) {
