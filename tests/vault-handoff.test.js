@@ -28,7 +28,7 @@ function el() {
     addEventListener(t, f) { this.listeners[t] = f; } };
 }
 
-function load(search, { opener = 'present', authFetch, now } = {}) {
+function load(search, { opener = 'present', authFetch, now, perf } = {}) {
   const posted = [];
   const fetches = [];
   const listeners = {};
@@ -58,6 +58,8 @@ function load(search, { opener = 'present', authFetch, now } = {}) {
   const window = {
     location, opener: op, closed: false,
     crypto: crypto.webcrypto,
+    // Monotonic clock (S206 D4): controllable, independent of the wall clock.
+    performance: { now: perf || (() => require('node:perf_hooks').performance.now()) },
     addEventListener(t, f) { (listeners[t] = listeners[t] || []).push(f); },
     close() { closed = true; },
   };
@@ -186,6 +188,9 @@ function serviceFixture(patch = {}, options = {}) {
   const h = load('?handoff=service-operation&state=' + state, options);
   const message = {type: 'vac-service-operation-intent', state, intent_json: raw};
   if (contextText !== undefined) message.observation_context_json = contextText;
+  // Athena's server clock at preview time (athena #1776 follow-up).
+  const serverNow = Object.prototype.hasOwnProperty.call(options, 'serverNow') ? options.serverNow : new Date().toISOString();
+  if (needsContext && serverNow !== undefined) message.server_now = serverNow;
   const receive = (overrides = {}) => h.listeners.message[0](Object.assign({origin: VAULT, source: h.op, data: message}, overrides));
   return {h, op, raw, state, receive, message};
 }
@@ -1555,7 +1560,8 @@ const WIRE_CODES = [
   'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
   'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
   'vac_payer_observation_stale', 'vac_observation_context_missing', 'vac_observation_context_invalid',
-  'vac_observation_context_binding_mismatch', 'vac_observation_window_exceeds_ceiling', 'vac_unspecified'];
+  'vac_observation_context_binding_mismatch', 'vac_observation_window_exceeds_ceiling',
+  'vac_observation_server_time_invalid', 'vac_unspecified'];
 const PREVIEW_FIELD_LIST = ['keys', 'strings', 'recovery', 'review_binding', 'renewal', 'packet_id', 'kind', 'audience',
     'state', 'operation_digest', 'policy_sha256', 'tenant_id', 'principal', 'actor', 'project_url',
     'source_sha256', 'source_bytes', 'canonical_plan_rows', 'source_confidential',
@@ -2038,13 +2044,18 @@ test('D4 historical mode accepts a days-old sealed reading, discloses it plainly
   assert.equal(refusals(h).length, 0);
 });
 
-test('D4 historical mode still enforces the 30 s future-skew ceiling', async () => {
-  const ok = await d4(o => { o.async_credit_risk.observed_at = new Date(Date.now() + 20000).toISOString(); }, {observationPolicy: HISTORICAL});
-  assert.ok(ok.h.byId.vacServiceOperationConfirm, 'within 30 s skew');
-  for (const [change, code] of [
-      [o => { o.async_credit_risk.observed_at = new Date(Date.now() + 31000).toISOString(); }, 'vac_account_observation_stale'],
-      [o => { o.async_credit_risk.payer_binding.observed_at = new Date(Date.now() + 31000).toISOString(); }, 'vac_payer_observation_stale']]) {
-    assertRefused((await d4(change, {observationPolicy: HISTORICAL})).h, code);
+test('D4 no future reading in any mode (0 s skew, matching Athena), measured on the server clock', async () => {
+  const serverNow = new Date(Date.now() - 5000).toISOString();
+  for (const policy of [HISTORICAL, maxAge(900)]) {
+    // Equal to server_now is fine; 1 ms after it is a future reading.
+    const at = o => { o.async_credit_risk.observed_at = serverNow; o.async_credit_risk.payer_binding.observed_at = serverNow; };
+    assert.ok((await d4(at, {observationPolicy: policy, serverNow})).h.byId.vacServiceOperationConfirm);
+    const future = new Date(Date.parse(serverNow) + 1000).toISOString();
+    for (const [change, code] of [
+        [o => { at(o); o.async_credit_risk.observed_at = future; }, 'vac_account_observation_stale'],
+        [o => { at(o); o.async_credit_risk.payer_binding.observed_at = future; }, 'vac_payer_observation_stale']]) {
+      assertRefused((await d4(change, {observationPolicy: policy, serverNow})).h, code);
+    }
   }
 });
 
@@ -2151,6 +2162,63 @@ test('D4 matches the Athena keyvault.html nonce construction byte for byte', asy
   const ctxSha = crypto.createHash('sha256').update(ctx).digest('hex');
   const athena = crypto.createHash('sha256').update('athena:l0:service-operation:observation-context:1\n' + hash + '\n' + ctxSha).digest('hex');
   assert.equal(boundNonce(hash, ctx), athena);
+});
+
+
+// Codex finding on #1776 + #68: observation age must use Athena's clock.
+test('D4 the browser wall clock is never used for observation age: skewed browser, true server_now', async () => {
+  for (const skew of [3600000, -3600000, 86400000]) {
+    // Browser clock wrong by an hour or a day; readings 2 min old by the server; max_age 600 s.
+    const serverNow = new Date().toISOString();
+    const f = await d4(aged(120000), {observationPolicy: maxAge(600), serverNow, now: () => Date.now() + skew});
+    if (skew > 0) {
+      // Operation expiry is still checked on the browser clock (unchanged): only assert age handling.
+      assert.ok(!refusals(f.h).some(x => /observation/.test(x.m.code)), 'no observation refusal from browser skew ' + skew);
+    } else {
+      assert.ok(f.h.byId.vacServiceOperationConfirm, 'browser clock behind by ' + skew + ' ms does not make readings future');
+    }
+  }
+  // Conversely, a server_now far ahead of the readings is stale even if the browser clock agrees with them.
+  const late = new Date(Date.now() + 3600000).toISOString();
+  assertRefused((await d4(aged(0), {observationPolicy: maxAge(600), serverNow: late})).h, 'vac_account_observation_stale');
+});
+
+test('D4 elapsed review time counts on the monotonic clock: max_age expiring before confirm refuses with no VAT', async () => {
+  let mono = 1000;
+  const f = await d4(aged(500000), {observationPolicy: maxAge(600), perf: () => mono});
+  assert.ok(f.h.byId.vacServiceOperationConfirm, 'fresh at receipt (500 s of 600 s)');
+  const button = f.h.byId.vacServiceOperationConfirm;
+  mono += 101000; // the owner reads for 101 s; wall clock untouched
+  button.listeners.click(); await flush(); await flush();
+  assertRefused(f.h, 'vac_account_observation_stale');
+  assert.equal(f.h.fetches.length, 0, 'no VAT minted');
+  // Within the window, confirmation still mints.
+  let mono2 = 0;
+  const g = await d4(aged(500000), {observationPolicy: maxAge(600), perf: () => mono2});
+  mono2 += 50000;
+  g.h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(g.h.fetches.length, 1); assert.equal(refusals(g.h).length, 0);
+});
+
+test('typed refusal: vac_observation_server_time_invalid (missing, malformed, zone-less or no monotonic clock)', async () => {
+  for (const serverNow of [undefined, null, 5, '', 'not-a-time', '2026-11-23T02:00:00', 'x'.repeat(65)]) {
+    assertRefused((await d4(() => {}, {serverNow})).h, 'vac_observation_server_time_invalid');
+  }
+  assertRefused((await d4(() => {}, {perf: () => NaN})).h, 'vac_observation_server_time_invalid');
+  // A monotonic clock that runs backwards between receipt and confirm fails closed too.
+  let mono = 5000;
+  const f = await d4(() => {}, {perf: () => mono});
+  const button = f.h.byId.vacServiceOperationConfirm; assert.ok(button);
+  mono = 1000; button.listeners.click(); await flush();
+  assertRefused(f.h, 'vac_observation_server_time_invalid');
+  assert.equal(f.h.fetches.length, 0);
+});
+
+test('D4 server_now is transport only: it does not change the context bytes or the bound nonce', async () => {
+  const a = await d4(() => {}, {serverNow: new Date().toISOString()});
+  const b = await d4(() => {}, {serverNow: new Date(Date.now() + 1000).toISOString()});
+  assert.ok(a.h.byId.vacServiceOperationConfirm && b.h.byId.vacServiceOperationConfirm);
+  assert.ok(!('server_now' in JSON.parse(a.message.observation_context_json)));
 });
 
 test('every refusal code except the unspecified collapse value is exercised above', () => {

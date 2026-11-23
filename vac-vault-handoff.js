@@ -206,7 +206,8 @@
     'vac_operation_shape_invalid', 'vac_handoff_prepare_failed', 'vac_link_invalid',
     'vac_verification_not_full', 'vac_confirmation_stale', 'vac_account_observation_stale',
     'vac_payer_observation_stale', 'vac_observation_context_missing', 'vac_observation_context_invalid',
-    'vac_observation_context_binding_mismatch', 'vac_observation_window_exceeds_ceiling', 'vac_unspecified'];
+    'vac_observation_context_binding_mismatch', 'vac_observation_window_exceeds_ceiling',
+    'vac_observation_server_time_invalid', 'vac_unspecified'];
   // Internal reasons are 'code' or 'shape_code:field'; returns the closed pair.
   function refusalCode(reason) {
     var parts = typeof reason === 'string' ? reason.split(':') : [];
@@ -248,6 +249,8 @@
     } else if (code === 'vac_observation_window_exceeds_ceiling') {
       text = 'Your observation policy allows Flux readings older than VAC accepts (' + OBSERVATION_MAX_AGE_CEILING_S / 60 +
         ' minutes at most). Shorten the maximum age in your Athena policy, or choose to accept historical readings, then start the request again.';
+    } else if (code === 'vac_observation_server_time_invalid') {
+      text = 'Athena did not send its current time with this request, so VAC cannot check how old the Flux readings are. Return to Athena and start the request again; if this repeats, Athena or VAC needs updating.';
     } else if (code === 'vac_observation_context_missing' || code === 'vac_observation_context_invalid' ||
         code === 'vac_observation_context_binding_mismatch') {
       text = 'Athena did not send a valid observation policy for this request, so VAC cannot tell how old a Flux reading it may accept. Return to Athena and start the request again; if this repeats, Athena or VAC needs updating.';
@@ -302,7 +305,7 @@
     if (!operation) return 'vac_operation_missing';
     if (!actorMatchesSubject(operation.actor)) return 'actor_subject_mismatch';
     if (Date.parse(operation.expiry) <= Date.now()) return 'vac_operation_expired';
-    return null;
+    return observationRecheckFault();
   }
   function refuseLive(code) { operationRefused(code, operation && operation.actor); }
   function firstFault(checks) {
@@ -351,13 +354,40 @@
   }
   // S206 D4: the freshness window comes from the sealed tenant observation
   // policy (see observationContextFault), never from a VAC default. VAC keeps
-  // its own hard ceilings: OBSERVATION_FUTURE_SKEW_MS in every mode, and
-  // max_age only up to OBSERVATION_MAX_AGE_CEILING_S.
+  // its own hard ceilings: no future reading in any mode (matching Athena's
+  // evaluate_observation_policy exactly), and max_age only up to
+  // OBSERVATION_MAX_AGE_CEILING_S.
+  //
+  // Ages are measured on the SERVER's clock, never the browser wall clock:
+  // now = server_now (stamped by Athena on the preview) + monotonic time
+  // elapsed in this tab since the intent arrived (performance.now()).
+  function monotonicMs() {
+    try {
+      var perf = window.performance;
+      var t = perf && typeof perf.now === 'function' ? perf.now() : NaN;
+      return typeof t === 'number' && Number.isFinite(t) ? t : NaN;
+    } catch (_e) { return NaN; }
+  }
+  function serverNowMs(clock) {
+    if (!clock) return NaN;
+    var elapsed = monotonicMs() - clock.monotonicMs;
+    return Number.isFinite(elapsed) && elapsed >= 0 ? clock.serverMs + elapsed : NaN;
+  }
   function observationWindowFault(observedAt, rule, staleCode) {
-    var ageMs = Date.now() - Date.parse(observedAt);
+    var now = serverNowMs(rule.clock);
+    if (!Number.isFinite(now)) return 'vac_observation_server_time_invalid';
+    var ageMs = now - Date.parse(observedAt);
     if (!(ageMs >= -OBSERVATION_FUTURE_SKEW_MS)) return staleCode;
     if (rule.mode === 'max_age' && ageMs > rule.max_age_seconds * 1000) return staleCode;
     return null;
+  }
+  // Re-evaluated at confirmation too: a max_age window that elapses while the
+  // owner reads the card refuses before any VAT is minted.
+  function observationRecheckFault() {
+    if (!observationRule || !operation || !operation.async_credit_risk) return null;
+    var risk = operation.async_credit_risk;
+    return observationWindowFault(risk.observed_at, observationRule, 'vac_account_observation_stale') ||
+      observationWindowFault(risk.payer_binding.observed_at, observationRule, 'vac_payer_observation_stale');
   }
   function asyncCreditRiskFault(op, rule) {
     var bad = 'vac_operation_shape_invalid:async_credit_risk';
@@ -631,7 +661,7 @@
   var OBSERVATION_CONTEXT_VERSION = 'athena.flux.observation-context/1';
   var OBSERVATION_NONCE_DOMAIN = 'athena:l0:service-operation:observation-context:1';
   var OBSERVATION_MAX_AGE_CEILING_S = 3600;
-  var OBSERVATION_FUTURE_SKEW_MS = 30000;
+  var OBSERVATION_FUTURE_SKEW_MS = 0;
   var observationContextJson = null;
   var observationRule = null;
   function requiresObservationContext(op) {
@@ -695,6 +725,12 @@
     if (needsContext) {
       observed = observationContextFault(contextText);
       if (observed.fault) { operationRefused(observed.fault); return; }
+      // Athena's clock at preview time, anchored to this tab's monotonic clock.
+      var serverNow = message.server_now, anchor = monotonicMs();
+      if (typeof serverNow !== 'string' || serverNow.length > 64 || !awareTime(serverNow) || !Number.isFinite(anchor)) {
+        operationRefused('vac_observation_server_time_invalid'); return;
+      }
+      observed.rule.clock = { serverMs: Date.parse(serverNow), monotonicMs: anchor };
     } else if (contextText !== undefined && contextText !== null) {
       // A context on an operation that takes none is never silently ignored.
       operationRefused('vac_observation_context_invalid'); return;
