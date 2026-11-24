@@ -28,7 +28,8 @@ function harness() {
     var speechWindowStart=200, _vadEnergyDetected=false, _lastVbRatio=0, VOICE_BAND_MIN_RATIO=.45;
     var _voiceFiredAt=0, _acceptArmed=false, _contentReadyDigit=-1, _contentGateGeneration=0;
     var _digitVoiceEvidence=null, _digitGestureEvidence=null, _provisionalSpeech=[false,false,false];
-    var _voiceOnsetAt=0, DIGIT_VOICE_MIN_MS=200;`, c);
+    var _voiceOnsetAt=0, DIGIT_VOICE_MIN_MS=200;
+    var DIGIT_ONSET_GRACE_MS=${(src.match(/const DIGIT_ONSET_GRACE_MS = _vacTune\('digitOnsetGraceMs', (\d+),/) || [])[1]}, _noTranscriptPendingFor=null;`, c);
   vm.runInContext(section('function _startDigitContentGate(', '// Starts a content gate for the greeting phrase.'), c);
   vm.runInContext(section('    function _refreshContentGate()', '    function _startSpeechGate()'), c);
   vm.runInContext('var CaptureFeedback = {' + section('    coachHintMsg: function(', '    // Render finger-phase UI') + '};', c);
@@ -227,11 +228,40 @@ test('empty final rejects stale voice, closed window, stale generation and absen
     if(scenario==='hand_down')h.gesture(2490,false);
     if(scenario==='stale_gesture')h.gesture(1700);
     if(scenario==='pre_window_onset'){
-      h.run('_digitVoiceEvidence=null');h.gesture(1100);h.voice(1110,236);h.time(1500);h.gesture(1490);
+      // S207: an onset up to DIGIT_ONSET_GRACE_MS (300) before the window may count; this one
+      // starts 390 ms before it (1110-500=610 vs window 1000), so it is still refused.
+      h.run('_digitVoiceEvidence=null');h.gesture(1100);h.voice(1110,500);h.time(1500);h.gesture(1490);
     }
     rec.result('');assert.equal(h.c.speechReady[0],false,scenario);
     assert.equal(rec.aborted,false,scenario);
   }
+});
+
+test('S207: an onset inside the 300 ms grace before the window counts; just outside it does not',()=>{
+  for(const [dur,expect] of [[236,true],[400,true],[420,false],[700,false]]) {
+    // window opens at 1000; the voice fires at 1110, so the onset is 1110-dur.
+    const h=harness();h.time(1000);h.run('speechWindowStart=1000;_refreshContentGate()');
+    const rec=h.instances[0];rec.ready();h.gesture(1100);h.voice(1110,dur);h.time(1500);h.gesture(1490);
+    rec.result('');
+    assert.equal(h.c.speechReady[0],expect,`onset ${1110-dur} (window 1000, grace 300)`);
+  }
+});
+
+test('S207: voice-led-then-fingers: proof kept without a gesture at fire, accepted only once the live gesture is there',()=>{
+  const h=harness();h.time(1000);h.run('speechWindowStart=1000;_refreshContentGate()');
+  const rec=h.instances[0];rec.ready();
+  h.voice(2010);                      // no gesture yet at the voice fire
+  h.time(2100);rec.result('');        // empty final arrives before the fingers: refused for now
+  assert.equal(h.c.speechReady[0],false,'no live gesture yet');
+  assert.notEqual(h.c._digitVoiceEvidence,null,'the qualified voice proof is kept');
+  h.time(2400);h.gesture(2390);       // fingers up within the co-occurrence window
+  assert.equal(h.run('_acceptDigitNoTranscript(_contentGateGeneration,currentDigitIndex)'),true);
+  assert.equal(h.c.speechReady[0],true);
+  // ...but never after the voice is too old (DIGIT_COOCCUR_MAX_MS = 2000)
+  const h2=harness();h2.time(1000);h2.run('speechWindowStart=1000;_refreshContentGate()');
+  const r2=h2.instances[0];r2.ready();h2.voice(2010);h2.time(2100);r2.result('');
+  h2.time(4100);h2.gesture(4090);
+  assert.equal(h2.run('_acceptDigitNoTranscript(_contentGateGeneration,currentDigitIndex)'),false,'voice older than 2 s');
 });
 
 test('old proof cannot satisfy a repeated next digit and provisional confirmation stays honest',()=>{

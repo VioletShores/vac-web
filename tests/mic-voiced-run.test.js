@@ -52,10 +52,15 @@ test('mic-qualify frame classifier matches source verbatim (primary branch; s182
     // branch that is only reachable when _micOnFallback (2s confirmed starvation) — mirrored and
     // fixture-tested in tests/mic-starved-fallback.test.js. With _micOnFallback false the source
     // classifier reduces exactly to the expressions this file mirrors.
+    // S207: the near-field gate is _micNearFieldGate(seeded ambient): max(0.035, 2x ambient) capped
+    // at VOICED_RUN_SPEECH_RMS_FLOOR (never stricter than this file's mirror). The voiced-TIME
+    // rule and its 60 Hz fixtures live in tests/biometric_harness (mic_qualify stage + manifest).
     assert.ok(
-        src.includes('const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR));'),
+        src.includes('const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > _micNearFieldGate(_micSeededAmbientRms)));'),
         '_micVoicedFrame classifier expression not found or changed — mirror is stale'
     );
+    assert.ok(src.includes('return Math.min(VOICED_RUN_SPEECH_RMS_FLOOR, Math.max(MIC_RMS_FLOOR, MIC_AMBIENT_MULT * amb));'),
+        'the mic near-field gate must stay capped at VOICED_RUN_SPEECH_RMS_FLOOR');
     assert.ok(
         src.includes('const _micSilenceFrame = _micOnFallback ? (_avMrLevelSynth === 0 && !_mrVoicedFrame) : (_ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR);'),
         '_micSilenceFrame classifier expression not found or changed — mirror is stale'
@@ -82,9 +87,11 @@ test('D-MICTEST-GREENS-ON-NOISE regression guard: avChecks.mic is set ONLY from 
     const idx = src.indexOf('avChecks.mic = true');
     const windowBefore = src.slice(Math.max(0, idx - 2200), idx);   // s182 added the path-record line + comment inside the block
     assert.ok(
-        windowBefore.includes('_voicedRunPass(_micVoicedState'),
-        'avChecks.mic = true is not gated by _voicedRunPass(_micVoicedState, ...) — the mic gate may have regressed to the ambient-rise path'
+        windowBefore.includes('_micPreflightPass(_micVoicedState'),
+        'avChecks.mic = true is not gated by _micPreflightPass(_micVoicedState, ...) — the mic gate may have regressed to the ambient-rise path'
     );
+    // S207: _micPreflightPass keeps the modulation rule of _voicedRunPass (only the count became time).
+    assert.ok(src.includes('return (state.ms || 0) >= MIC_VOICED_MS_NEEDED && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);'));
     assert.ok(
         !src.includes('_avVbSustain >= 25 && !avChecks.mic) {\n                avChecks.mic = true'),
         'ambient-rise sustain block appears to directly set avChecks.mic again — D-MICTEST-GREENS-ON-NOISE regression'

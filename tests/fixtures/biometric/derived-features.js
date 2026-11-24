@@ -168,7 +168,58 @@ function flickerNoiseFrames() {
     return Array.from({ length: 30 }, (_, k) => ((k % 6 === 5) ? flicker : steady));
 }
 
+// ── S207 mic-test fixtures: replayed at 60 Hz (frameMs 1000/60) on the voiced-time gate ──
+// One frame per animation frame, as runAVFrame really runs. Values in ceremony-RMS units.
+const MIC_60HZ = 1000 / 60;
+const RMS_QUIET_SYLLABLE = 0.040;   // a normal syllable on a quiet desktop mic: below the old 0.055 floor
+const RMS_QUIET_PEAK = 0.090;       // its louder syllables
+function alternatingFrames(n, lo, hi, freqA = FREQ_VOICE_A, freqB = FREQ_VOICE_B) {
+    return Array.from({ length: n }, (_, k) => ({
+        tdBuf: makeTdBufRms(k % 2 === 0 ? hi : lo), freqBuf: k % 2 === 0 ? freqA : freqB,
+    }));
+}
+// mic_quiet_desktop_speech: "Testing one, two, three" on a quiet mic, ~1.25 s. Under the old
+// fixed 0.055 floor only the 0.09 peaks counted (no modulation within them) -> never passed.
+function quietDesktopSpeechFrames() { return alternatingFrames(75, RMS_QUIET_SYLLABLE, RMS_QUIET_PEAK); }
+// mic_quiet_short_burst: the same speech but only ~0.67 s: below MIC_VOICED_MS_NEEDED (1000).
+function quietShortBurstFrames() {
+    return [...alternatingFrames(40, RMS_QUIET_SYLLABLE, RMS_QUIET_PEAK), ...silenceFrames(30)];
+}
+// mic_speech_with_pauses: ~1.3 s of speech split by two 100 ms "neither" dips (held, not lost).
+function speechWithPausesFrames() {
+    const dip = n => Array.from({ length: n }, () => ({ tdBuf: makeTdBufRms(0.032), freqBuf: FREQ_VOICE_A }));
+    return [...alternatingFrames(26, RMS_QUIET_SYLLABLE, RMS_QUIET_PEAK), ...dip(6),
+            ...alternatingFrames(26, RMS_QUIET_SYLLABLE, RMS_QUIET_PEAK), ...dip(6),
+            ...alternatingFrames(26, RMS_QUIET_SYLLABLE, RMS_QUIET_PEAK)];
+}
+// mic_far_tv_modulated: a TV across the room, voice-shaped and MODULATED but far-field
+// (0.036-0.054): voiced frames under the new floor, yet the range (0.018) never reaches
+// VOICED_RUN_MOD_DELTA (0.045). 5 s of it must never pass.
+function farTvModulatedFrames() { return alternatingFrames(300, 0.036, 0.054); }
+// mic_loud_room_quiet_speech: a noisy room (seeded ambient 0.03 -> gate min(0.055, 2x0.03))
+// with quiet speech (0.045/0.09): the ambient multiplier raises the gate back to 0.055, so the
+// 0.045 syllables do not count and the run has no modulation -> FAIL (noise-relative bar).
+function loudRoomQuietSpeechFrames() { return alternatingFrames(120, 0.045, 0.090); }
+// mic_loud_room_clear_speech: same room, clear near-field speech (0.07/0.12) -> PASS.
+function loudRoomClearSpeechFrames() { return alternatingFrames(75, 0.070, 0.120); }
+// mic_door_slam: one loud transient then silence.
+function doorSlamFrames() {
+    return [...Array.from({ length: 6 }, () => ({ tdBuf: makeTdBufRms(18 / 128), freqBuf: FREQ_VOICE_A })), ...silenceFrames(120)];
+}
+// mic_broadband_hum: loud but NOT voice-band shaped (energy outside 85 Hz-3 kHz).
+function broadbandHumFrames() {
+    return alternatingFrames(200, 0.05, 0.12, makeFreqBufVbr(10, 80), makeFreqBufVbr(10, 80));
+}
+
 const DERIVED_FEATURES = {
+    mic_quiet_desktop_speech: { mic_qualify: { frames: quietDesktopSpeechFrames(), options: { frameMs: MIC_60HZ } } },
+    mic_quiet_short_burst: { mic_qualify: { frames: quietShortBurstFrames(), options: { frameMs: MIC_60HZ } } },
+    mic_speech_with_pauses: { mic_qualify: { frames: speechWithPausesFrames(), options: { frameMs: MIC_60HZ } } },
+    mic_far_tv_modulated: { mic_qualify: { frames: farTvModulatedFrames(), options: { frameMs: MIC_60HZ } } },
+    mic_loud_room_quiet_speech: { mic_qualify: { frames: loudRoomQuietSpeechFrames(), options: { frameMs: MIC_60HZ, ambientRms: 0.03 } } },
+    mic_loud_room_clear_speech: { mic_qualify: { frames: loudRoomClearSpeechFrames(), options: { frameMs: MIC_60HZ, ambientRms: 0.03 } } },
+    mic_door_slam: { mic_qualify: { frames: doorSlamFrames(), options: { frameMs: MIC_60HZ } } },
+    mic_broadband_hum: { mic_qualify: { frames: broadbandHumFrames(), options: { frameMs: MIC_60HZ } } },
     crisp_267ms_digit: { digit_voice: { frames: crispDigitFrames() } },
     silence: {
         mic_qualify: { frames: silenceFrames(120) },

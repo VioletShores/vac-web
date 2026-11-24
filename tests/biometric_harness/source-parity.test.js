@@ -9,12 +9,35 @@ const frame = (rms, recorderLevel = 0, voice = 80, other = 2) => ({ tdBuf: makeT
 const speech = n => Array.from({ length: n }, (_, i) => frame(i % 2 ? 9 / 128 : 15 / 128));
 const silence = n => Array.from({ length: n }, () => frame(0, 0, 0, 0));
 
-test('shipped preflight needs four modulated ticks, phrase needs seven; unseeded mic holds', () => {
-    assert.equal(mic.run(speech(3)).pass, false);
-    assert.equal(mic.run(speech(4)).pass, true);
-    assert.equal(mic.run(speech(8), { seeded: false }).pass, false);
+test('S207: shipped preflight needs 1000 ms of modulated voiced time at 60 Hz, phrase needs seven ticks; unseeded mic holds', () => {
+    // 60 frames at 60 Hz: the first frame has no elapsed time, so 59 x 16.7 ms < 1000 ms.
+    assert.equal(mic.run(speech(60)).pass, false);
+    const r = mic.run(speech(62));
+    assert.equal(r.pass, true);
+    assert.ok(r.detail.voicedMs >= 1000 && r.detail.passedAtMs <= 1050, JSON.stringify(r.detail));
+    // cadence-independent: at 30 Hz the same voiced TIME passes with half the frames
+    assert.equal(mic.run(speech(31), { frameMs: 1000 / 30 }).pass, false);
+    assert.equal(mic.run(speech(32), { frameMs: 1000 / 30 }).pass, true);
+    assert.equal(mic.run(speech(200), { seeded: false }).pass, false);
     assert.equal(phrase.run(speech(6)).pass, false);
     assert.equal(phrase.run(speech(7)).pass, true);
+});
+test('S207: a frame gap is capped at 100 ms, so a stalled tab cannot credit a long gap as voice', () => {
+    assert.equal(mic.run(speech(6), { frameMs: 1000 }).pass, false);
+    assert.equal(mic.run(speech(12), { frameMs: 1000 }).pass, true);   // 11 x 100 ms capped
+});
+test('S207: tuning is read from the shipped _vacTune defaults and their clamps', () => {
+    const c = mic.constants;
+    assert.equal(c.MIC_VOICED_MS_NEEDED, 1000);
+    assert.equal(c.MIC_RMS_FLOOR, 0.035);
+    assert.equal(c.MIC_AMBIENT_MULT, 2);
+    const src = readSrc(CEREMONY_SRC_PATH);
+    assert.deepEqual(mic.tunedDefault(src, 'MIC_RMS_FLOOR'), { value: 0.035, min: 0.031, max: 0.055 },
+        'the floor can never be tuned below the silence floor or above the old fixed floor');
+    const gate = mic.compile();
+    assert.equal(gate.nearFieldGate(0), 0.035);
+    assert.equal(gate.nearFieldGate(0.02), 0.04);
+    assert.equal(gate.nearFieldGate(0.05), 0.055, 'capped: never stricter than the old fixed floor');
 });
 test('actual shared tracker holds neutral frames and decays/reset genuine silence', () => {
     const state = mic.newVoicedRunState(4);
@@ -26,7 +49,7 @@ test('actual shared tracker holds neutral frames and decays/reset genuine silenc
     assert.equal(mic.voicedRunPass(state, true), false);
 });
 test('recorder fallback requires explicit fallback, level eight and spectrum agreement/abstention', () => {
-    const samples = (level, voice = 0, other = 0) => Array.from({ length: 4 }, () => frame(0, level, voice, other));
+    const samples = (level, voice = 0, other = 0) => Array.from({ length: 70 }, () => frame(0, level, voice, other));
     assert.equal(mic.run(samples(8)).pass, false);
     assert.equal(mic.run(samples(7), { fallback: true }).pass, false);
     assert.equal(mic.run(samples(8), { fallback: true }).pass, true);
@@ -53,12 +76,14 @@ test('phrase freezes the accepted tracker and completes only after two silent ti
 });
 test('changing shipped preflight threshold changes extracted execution, not a handwritten mirror', () => {
     const source = readSrc(CEREMONY_SRC_PATH);
-    const changed = source.replace('const MIC_PREFLIGHT_TICKS_NEEDED = 4;', 'const MIC_PREFLIGHT_TICKS_NEEDED = 5;');
+    const changed = source.replace("const MIC_VOICED_MS_NEEDED = _vacTune('micVoicedMs', 1000, 600, 2000);",
+                                   "const MIC_VOICED_MS_NEEDED = _vacTune('micVoicedMs', 1500, 600, 2000);");
     assert.notEqual(changed, source);
-    const gate = mic.compile(changed), state = gate.preflightState();
-    for (let i = 0; i < 4; i++) assert.equal(gate.frame(state, makeTdBufRms(i % 2 ? .07 : .12), makeFreqBufVbr(80, 2), false, 0, true), false);
-    assert.equal(gate.frame(state, makeTdBufRms(.12), makeFreqBufVbr(80, 2), false, 0, true), true);
-    assert.throws(() => mic.compile(source.replace('if (_micSeeded && _voicedRunPass(_micVoicedState, _micOnFallback))', 'if (true)')), /expected source/);
+    assert.equal(mic.run(speech(80), { source }).pass, true, 'shipped 1000 ms');
+    assert.equal(mic.run(speech(80), { source: changed }).pass, false, 'the extracted code follows the edited source');
+    assert.equal(mic.run(speech(95), { source: changed }).pass, true);
+    assert.throws(() => mic.compile(source.replace('if (_micSeeded && _micPreflightPass(_micVoicedState, _micOnFallback))', 'if (true)')), /expected source/);
+    assert.throws(() => mic.compile(source.replace('_micVoicedMsTick(_micVoicedState, _nowT, _micVoicedFrame, _micSilenceFrame);', '')), /expected source/);
 });
 test('source extraction refuses missing, ambiguous and truncated functions', () => {
     assert.throws(() => functionFromSource('', '_missing'), /expected one/);

@@ -191,12 +191,16 @@ test('TC-MIC-C10: textContent "say the number" step2Title assignment appears AFT
 // MediaRecorder proxy engaged — never a bare `_vadStarved`, never `true`, never spectral-only.
 // See tests/mic-starved-fallback.test.js for the fixture-driven proof.
 test('TC-MIC-C11 (superseded x2): preflight mic-qualify escape exists ONLY under confirmed starvation (_micOnFallback), never bare', () => {
+    // S207: the mic tile's pass is _micPreflightPass (voiced TIME + the same modulation rule);
+    // the gated fallback override is unchanged.
     assert.ok(
-        src.includes('_voicedRunPass(_micVoicedState, _micOnFallback)'),
-        'expected the mic-qualify call site to read _voicedRunPass(_micVoicedState, _micOnFallback) (s182 gated fallback parity)'
+        src.includes('_micPreflightPass(_micVoicedState, _micOnFallback)'),
+        'expected the mic-qualify call site to read _micPreflightPass(_micVoicedState, _micOnFallback) (s182 gated fallback parity)'
     );
-    assert.ok(!src.includes('_voicedRunPass(_micVoicedState, true)'), 'modOverride must never be hardcoded true at the mic tile');
-    assert.ok(!src.includes('_voicedRunPass(_micVoicedState, _vadStarved)'), 'the phrase gate\'s bare _vadStarved escape must not leak into the mic tile');
+    for (const fn of ['_micPreflightPass', '_voicedRunPass']) {
+        assert.ok(!src.includes(fn + '(_micVoicedState, true)'), 'modOverride must never be hardcoded true at the mic tile');
+        assert.ok(!src.includes(fn + '(_micVoicedState, _vadStarved)'), 'the phrase gate\'s bare _vadStarved escape must not leak into the mic tile');
+    }
     assert.ok(
         !/_runVoiced|_runMedian|_qualifyFloor/.test(src),
         'the old _runVoiced/_runMedian/_qualifyFloor spectral-only pattern must not reappear'
@@ -209,8 +213,8 @@ test('TC-MIC-C11 (superseded x2): preflight mic-qualify escape exists ONLY under
 // required _ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR — so a starved run can no longer reach the
 // seed assignment at all (stronger guarantee than the old nested-if it replaced).
 test('TC-MIC-C12 (superseded): _micSeededSpeechLevel/_micSeededSpeechRms are set only inside a _voicedRunPass-qualified block', () => {
-    const condIdx = src.indexOf('if (_micSeeded && _voicedRunPass(_micVoicedState, _micOnFallback))');
-    assert.ok(condIdx >= 0, '_micSeeded && _voicedRunPass(...) qualify condition not found — mic-qualify block may have changed shape');
+    const condIdx = src.indexOf('if (_micSeeded && _micPreflightPass(_micVoicedState, _micOnFallback))');
+    assert.ok(condIdx >= 0, '_micSeeded && _micPreflightPass(...) qualify condition not found — mic-qualify block may have changed shape');
     const seedIdx = src.indexOf('_micSeededSpeechLevel = _runLevelsSorted', condIdx);
     assert.ok(seedIdx >= 0, '_micSeededSpeechLevel assignment not found inside the qualify block');
     assert.ok(seedIdx - condIdx < 1200, '_micSeededSpeechLevel assignment is unexpectedly far from the qualify condition — confirm it is still inside the same block');

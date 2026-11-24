@@ -221,6 +221,29 @@ function vacDebug(event, reason, context) {
     } catch(_) {}
 }
 
+// S207 PRIVACY-SAFE TIMING TELEMETRY (specimen B for the VAC harness): the next calibration needs
+// real timings and levels, and Rob's 13:08 ceremony left none in readable form. This sends ONLY
+// finite numbers from an ALLOW-LIST of field names (rounded): never a string, a transcript, a
+// challenge digit value, audio, an image or anything biometric. Unknown fields are dropped.
+const VAC_TIMING_FIELDS = {
+    mic_timing: ['ms_since_mic_open', 'voiced_ms', 'need_ms', 'gate_rms', 'ambient_rms', 'mod', 'vb_ratio', 'fallback', 'frame_ms_avg'],
+    digit_timing: ['digit_index', 'digit_count', 'ms_window_to_voice', 'ms_window_to_accept', 'ms_gesture_to_accept',
+                   'retry_cues', 'voice_led', 'cant_hear_shown', 'onset_grace_used', 'content_gate_wait_ms'],
+};
+function vacTimingEvent(event, fields) {
+    try {
+        var allow = VAC_TIMING_FIELDS[event];
+        if (!allow) return;
+        var out = {};
+        for (var i = 0; i < allow.length; i++) {
+            var k = allow[i], v = fields ? fields[k] : undefined;
+            if (typeof v === 'boolean') v = v ? 1 : 0;
+            if (typeof v === 'number' && Number.isFinite(v)) out[k] = Math.round(v * 1000) / 1000;
+        }
+        vacDebug(event, null, out);
+    } catch (_) {}
+}
+
 // S166 sensors: several bare catch(_) {} blocks inside the greeting VAD loop
 // (_phraseVadTick/renderGreeting) swallow errors with zero visibility — see
 // docs/debug/GREETING-REGRESSION-DIFF-S166.md §5/§7. Throttled (one beacon per 3s
@@ -805,8 +828,60 @@ let _preflightPassedAt = 0;
 let _preflightAutoStarted = false;
 const PREFLIGHT_AUTOSTART_MS = 900;
 // The pre-flight mic test only proves the microphone hears speech; the greeting and digit gates
-// keep the full VOICED_RUN_TICKS_NEEDED bar. ~0.8s of voice at TICK_MS=200.
+// keep the full VOICED_RUN_TICKS_NEEDED bar. NOTE (S207): runAVFrame runs per animation frame,
+// so this frame count was ~70 ms at 60 Hz, not the 0.8 s once assumed. The mic test now passes
+// on VOICED TIME (MIC_VOICED_MS_NEEDED below); this count is kept only as the tracker's floor.
 const MIC_PREFLIGHT_TICKS_NEEDED = 4;   // used via _micVoicedState.need (see _newVoicedRunState)
+// S207 CEREMONY TUNING (Rob, 24 Nov 13:08: mic test needs too much talking; numbers must be said
+// twice). Every pacing value below can be overridden WITHOUT a code change by
+// window.VAC_CEREMONY_TUNING (vac-ceremony-tuning.js, loaded before this file), and every
+// override is CLAMPED to a safe range, so a bad config can never let background noise through
+// (the voice-band and modulation checks are not tunable at all).
+function _vacTune(name, dflt, lo, hi) {
+    try {
+        var t = (typeof window !== 'undefined' && window.VAC_CEREMONY_TUNING) || null;
+        var raw = t && Object.prototype.hasOwnProperty.call(t, name) ? t[name] : dflt;
+        if (typeof raw !== 'number') return dflt;   // null, '', true, '0.04': not a tuning value
+        var v = raw;
+        if (!Number.isFinite(v)) return dflt;
+        return Math.min(hi, Math.max(lo, v));
+    } catch (_) { return dflt; }
+}
+// Mic test: pass after this much VOICED TIME (ms) in one modulated, voice-band run.
+const MIC_VOICED_MS_NEEDED = _vacTune('micVoicedMs', 1000, 600, 2000);
+// Mic test near-field gate: a frame is loud enough when its RMS exceeds
+// max(MIC_RMS_FLOOR, MIC_AMBIENT_MULT x the room's seeded ambient), CAPPED at the old fixed floor
+// (VOICED_RUN_SPEECH_RMS_FLOOR = 0.055): never stricter than before, quieter mics now count.
+const MIC_RMS_FLOOR = _vacTune('micRmsFloor', 0.035, 0.031, 0.055);
+const MIC_AMBIENT_MULT = _vacTune('micAmbientMult', 2.0, 1.5, 4.0);
+// Digit step: a voiced onset up to this long BEFORE the number's window opened still counts,
+// if it is still voiced inside the window (no more "wait for the prompt, then say it").
+const DIGIT_ONSET_GRACE_MS = _vacTune('digitOnsetGraceMs', 300, 0, 500);
+// Digit step: once "We can't hear you" shows, keep it at least this long (no flashing).
+const CANT_HEAR_MIN_SHOW_MS = _vacTune('cantHearMinShowMs', 1500, 500, 4000);
+// Digit step: how long "Didn't catch that, say N again" stays after a voiced attempt is dropped.
+const DIGIT_RETRY_CUE_MS = _vacTune('digitRetryCueMs', 2000, 800, 4000);
+// Voiced-time bookkeeping for the mic test (display-cadence independent): voiced frames add the
+// elapsed time, genuine-silence frames take it away, "neither" frames hold. A frame gap is
+// capped at 100 ms so a stalled tab cannot credit a long gap as voice.
+function _micVoicedMsTick(state, nowMs, isVoicedFrame, isSilenceFrame) {
+    var last = state.lastT || 0;
+    var dt = last > 0 ? Math.max(0, Math.min(100, nowMs - last)) : 0;
+    state.lastT = nowMs;
+    if (isVoicedFrame) state.ms = (state.ms || 0) + dt;
+    else if (isSilenceFrame) state.ms = Math.max(0, (state.ms || 0) - dt);
+    if (state.ticks === 0) state.ms = 0;   // the shared tracker fully decayed: the run is over
+    return state;
+}
+function _micNearFieldGate(seededAmbientRms) {
+    var amb = (Number.isFinite(seededAmbientRms) && seededAmbientRms > 0) ? seededAmbientRms : 0;
+    return Math.min(VOICED_RUN_SPEECH_RMS_FLOOR, Math.max(MIC_RMS_FLOOR, MIC_AMBIENT_MULT * amb));
+}
+// Mic test pass: enough voiced TIME, modulated (a flat hum/drone cannot pass); the proven
+// recorder-fallback path keeps its documented modulation override.
+function _micPreflightPass(state, modOverride) {
+    return (state.ms || 0) >= MIC_VOICED_MS_NEEDED && (!!modOverride || (state.max - state.min) >= VOICED_RUN_MOD_DELTA);
+}
 function _preflightLatched() {
     return !!_preflightPassedAt && (performance.now() - _preflightPassedAt) < PREFLIGHT_LATCH_MS;
 }
@@ -1690,7 +1765,7 @@ function startAVChecks() {
                     _micFallbackNarrated = false;
                     setAVStatus('mic', 'checking', 'Mic');
                     const _mpr = document.getElementById('avMicPromptText');
-                    if (_mpr) _mpr.textContent = 'Say your name out loud';
+                    if (_mpr) _mpr.textContent = 'Say: “Testing one, two, three”';
                 }
             }
             // F-941 (BUILD 393): frequency-spectrum data pulled every frame (not just when the
@@ -1845,16 +1920,20 @@ function startAVChecks() {
             // peak/trough ratio), so the pass uses the documented modOverride. Every pass is tagged
             // with its path (telemetry + receipt) so a degraded-path ceremony stays distinguishable.
             const _mrVoicedFrame = _micOnFallback && (_avMrLevelSynth >= MR_FALLBACK_VOICED_LEVEL) && (_speechRatio < 0 || _speechRatio >= VOICE_BAND_MIN_RATIO);
-            const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR));
+            // S207: the near-field gate is relative to this room's seeded ambient (capped at the old
+            // fixed 0.055, so never stricter), and the run is measured in VOICED TIME, not frames.
+            const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > _micNearFieldGate(_micSeededAmbientRms)));
             const _micSilenceFrame = _micOnFallback ? (_avMrLevelSynth === 0 && !_mrVoicedFrame) : (_ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR);
             _voicedRunTick(_micVoicedState, _mrVoicedFrame ? (_avMrLevelSynth / 100) : _ceremonyRms, _micVoicedFrame, _micSilenceFrame);
-            // S194: show progress while the user speaks, so "keep talking" is visible, not a guess.
+            _micVoicedMsTick(_micVoicedState, _nowT, _micVoicedFrame, _micSilenceFrame);
+            // S194/S207: show progress while the user speaks, so "keep going" is visible, not a guess.
             if (!avChecks.mic && !(_micOnFallback && _micFallbackNarrated)) {
                 const _mpp = document.getElementById('avMicPromptText');
                 if (_mpp) {
-                    const _pct = Math.min(99, Math.round((_micVoicedState.ticks / MIC_PREFLIGHT_TICKS_NEEDED) * 100));
-                    const _want = _micVoicedState.ticks > 0 ? ('Listening\u2026 keep talking (' + _pct + '%)') : 'Say your name out loud';
+                    const _pct = Math.min(99, Math.round(((_micVoicedState.ms || 0) / MIC_VOICED_MS_NEEDED) * 100));
+                    const _want = (_micVoicedState.ms || 0) > 0 ? ('Listening\u2026 keep going (' + _pct + '%)') : 'Say: \u201cTesting one, two, three\u201d';
                     if (_mpp.textContent !== _want) _mpp.textContent = _want;
+                    try { _mpp.setAttribute('data-progress', String((_micVoicedState.ms || 0) > 0 ? _pct : 0)); } catch (_) {}
                 }
             }
             if (_micVoicedFrame) {
@@ -1876,7 +1955,7 @@ function startAVChecks() {
                 window.__vacMicPendingT = _nowT;
                 try { vacDebug('mic_qualify_pending', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)), path: _micOnFallback ? 'mr' : 'analyser', mr_level: _avMrLevelSynth, rebuilt: _avGraphRebuilt }); } catch(_) {}
             }
-            if (_micSeeded && _voicedRunPass(_micVoicedState, _micOnFallback)) {
+            if (_micSeeded && _micPreflightPass(_micVoicedState, _micOnFallback)) {
                 // GATE-343 f2: hold qualification until the seed window has closed — a run
                 // completing WHILE seeding is still in progress means _micSeededAmbient is still
                 // 0 (unmeasured), which is exactly the "starting in noise" false-tick this fix
@@ -1897,6 +1976,13 @@ function startAVChecks() {
                     setAVStatus('mic', 'good', _micOnFallback ? 'Mic: working (fallback path)' : 'Mic: working');
                     avChecks.mic = true;
                     try { vacDebug('mic_pass_on_voiced_run', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)), path: window.__vacMicQualifyPath, mr_level: _avMrLevelSynth, rebuilt: _avGraphRebuilt }); } catch(_) {}
+                    // S207 specimen B: how long the mic test took, against which gate, in which room.
+                    vacTimingEvent('mic_timing', {
+                        ms_since_mic_open: _micSeedStartT ? (_nowT - _micSeedStartT) : null,
+                        voiced_ms: _micVoicedState.ms || 0, need_ms: MIC_VOICED_MS_NEEDED,
+                        gate_rms: _micNearFieldGate(_micSeededAmbientRms), ambient_rms: _micSeededAmbientRms,
+                        mod: _micVoicedState.max - _micVoicedState.min, vb_ratio: _speechRatio, fallback: !!_micOnFallback,
+                    });
                 }
             }
             if (avChecks.mic && !_preflightLatched() && _nowT - _micLastQualifyT > 10000) {
@@ -1904,7 +1990,7 @@ function startAVChecks() {
                 _micLastQualifyT = 0;
                 setAVStatus('mic', 'checking', 'Mic');
                 const _mpt = document.getElementById('avMicPromptText');
-                if (_mpt) _mpt.textContent = 'Say your name out loud';
+                if (_mpt) _mpt.textContent = 'Say: “Testing one, two, three”';
                 micWaitStart = 0;
             }
         }
@@ -2982,7 +3068,7 @@ function retryAVSetup() {
     });
     setAVStatus('light', 'checking', 'Light');
     setAVStatus('mic', 'checking', 'Mic');
-    document.getElementById('avMicPromptText').textContent = 'Say your name out loud';
+    document.getElementById('avMicPromptText').textContent = 'Say: “Testing one, two, three”';
     document.getElementById('avAudioLevel').style.width = '0%';
     document.getElementById('avAudioPct').textContent = '0%';
     updateAVReady();
@@ -4169,6 +4255,10 @@ function beginRecording() {
     let _contentGateDigit = -1;      // digit index the active gate covers
     let _vadEnergyDetected = false;  // energy heard this digit window (health only — never triggers progression)
     let _digitVoiceEvidence = null; // qualified VAD fire, tied to this digit and recognition generation
+    let _noTranscriptPendingFor = null; // S207: {generation, digitIndex} of a no-transcript proof that waited for the fingers
+    let _digitRetryCueAt = 0;           // S207: when a voiced attempt for this digit was dropped (drives "say it again")
+    let _cantHearShownAt = 0;           // S207: when "We can't hear you" was first shown for this digit (debounce)
+    let _digitRetryCues = 0, _digitVoiceLed = false, _digitCantHearShown = false, _digitGraceUsed = false;   // S207 telemetry counters (per digit)
     let _digitGestureEvidence = null; // latest actually observed live/held gesture; never a permanent latch
     // Session-local shadow of module-level _contentGateAvail. Runtime permission failures set this
     // to false (energy fallback) without corrupting the module-level var and degrading future sessions.
@@ -4538,7 +4628,12 @@ function beginRecording() {
             _contentReadyDigit = ready ? _gateForIdx : -1;
             try { vacDebug('content_gate_ready', null, Object.assign({ digit_index: _gateForIdx, ready: !!ready }, readiness)); } catch(_) {}
         }, function() {
-            return _acceptDigitNoTranscript(_gateGeneration, _gateForIdx);
+            var _okNt = _acceptDigitNoTranscript(_gateGeneration, _gateForIdx);
+            // S207: the no-transcript proof was refused only because the fingers were not up yet:
+            // remember THIS generation+digit so the frame loop may retry once the gesture is live.
+            // Never set for a transcript that named a different digit (that path never calls here).
+            _noTranscriptPendingFor = _okNt ? null : { generation: _gateGeneration, digitIndex: _gateForIdx };
+            return _okNt;
         });
         if (!_contentGate) {
             // _startDigitContentGate returned null despite _sessionGateAvail being set —
@@ -4582,20 +4677,27 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
 
     // Called ONLY inside the existing VAD FIRE branches, after their unchanged
     // onset/sustain/modulation/voice-band/observed-frame floors have passed.
+    // S207: (1) an onset up to DIGIT_ONSET_GRACE_MS before the window opened still counts (the
+    // user started the number as it appeared); (2) the evidence is kept even if the fingers are
+    // not up yet at the voice fire: _acceptDigitNoTranscript still requires the live gesture at
+    // acceptance, and _markSpeech still bounds the voice age by DIGIT_COOCCUR_MAX_MS, so a
+    // voice-led-then-fingers take no longer has to be repeated. Pacing only; the server checks.
     function _rememberDigitVoiceEvidence(rms, onsetAt, firedAt) {
         if (recordingStopped || _contentGateDigit !== currentDigitIndex ||
             _contentReadyDigit !== currentDigitIndex || !Number.isFinite(onsetAt) ||
-            !Number.isFinite(firedAt) || onsetAt < speechWindowStart ||
-            firedAt - onsetAt < DIGIT_VOICE_MIN_MS || !_recentDigitGesture(firedAt)) return;
+            !Number.isFinite(firedAt) || onsetAt < speechWindowStart - DIGIT_ONSET_GRACE_MS ||
+            firedAt < speechWindowStart || firedAt - onsetAt < DIGIT_VOICE_MIN_MS) return;
         _digitVoiceEvidence = {digitIndex: currentDigitIndex, generation: _contentGateGeneration,
             onsetAt: onsetAt, firedAt: firedAt, rms: rms};
+        if (onsetAt < speechWindowStart) _digitGraceUsed = true;   // S207 telemetry
     }
 
     function _acceptDigitNoTranscript(generation, digitIndex) {
         var proof = _digitVoiceEvidence, now = performance.now();
         if (generation !== _contentGateGeneration || digitIndex !== currentDigitIndex ||
             !proof || proof.digitIndex !== digitIndex || proof.generation !== generation ||
-            proof.onsetAt < speechWindowStart || !_recentDigitGesture(now)) return false;
+            proof.onsetAt < speechWindowStart - DIGIT_ONSET_GRACE_MS || proof.firedAt < speechWindowStart ||
+            !_recentDigitGesture(now)) return false;
         // The ordinary co-occurrence decision still sees the ACTUAL observed voice
         // timestamp. Empty STT results cannot extend its 2s cap or admit stale audio.
         if (!_markSpeech('content_unavailable', proof.rms, proof.onsetAt, proof.firedAt)) return false;
@@ -4687,6 +4789,9 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
                     if (_preOnsetStart) { _rejectedTransients++; _lastRejectReason = 'sust'; _preOnsetStart = 0; _preOnsetMidChecked = false; _preOnsetDipStart = 0; }  // S139: silence aborts pre-onset (S154: dip tracker cleared too)
                     _sawSilence = true;
                     if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (Math.max(0.012, 0.10*voiceMax)*100).toFixed(1)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: Number(Math.max(0.012, 0.10*voiceMax).toFixed(3)), digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
+                    // S207: a real voiced attempt (>=120 ms) in this digit's window that ended without
+                    // counting -> tell the user to say it again (instead of silently waiting).
+                    if (voiced > 0 && _now >= speechWindowStart && !speechReady[currentDigitIndex] && (_now - _voiceOnsetAt) >= 120) { _digitRetryCueAt = _now; _digitRetryCues++; }
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; _voicedAboveThrFrames = 0;   // R1: real silence fully ends the run
                 } else if (vbRatio >= VOICE_BAND_MIN_RATIO && (rms > vadSpeechThreshold || rms > audioNoiseFloor || _vadStarved)) {
                     // S155: count EVERY individual above-threshold+voice-band sample this attempt
@@ -5207,6 +5312,17 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
         var _liveGestureOk = (detected > 0 && stableFrames >= STABLE_FRAMES_NEEDED && digitStartTime > 0 && (performance.now() - digitStartTime) >= MIN_DIGIT_DWELL_MS);
         var _nowCo = performance.now();
         _digitGestureEvidence = {digitIndex: currentDigitIndex, at: _nowCo, live: _liveGestureOk};
+        // S207: voice-led-then-fingers. A no-transcript proof that was refused only because the
+        // fingers were not up yet is retried ONCE the live gesture is here, through the same
+        // _acceptDigitNoTranscript checks (generation, digit, window, voice age, live gesture).
+        if (_liveGestureOk && _noTranscriptPendingFor && !speechReady[currentDigitIndex] &&
+            _noTranscriptPendingFor.digitIndex === currentDigitIndex &&
+            _noTranscriptPendingFor.generation === _contentGateGeneration) {
+            if (_acceptDigitNoTranscript(_noTranscriptPendingFor.generation, currentDigitIndex)) {
+                _noTranscriptPendingFor = null; _digitVoiceLed = true;
+                try { vacDebug('digit_voice_led_accept', null, { digit_index: currentDigitIndex }); } catch(_) {}
+            }
+        }
         // F-662: expiry + advance are now the SHARED _cooccurAdvanceDecision (the FAST tier reuses the
         // identical timing). Semantics UNCHANGED — a stale armed voice expires ONLY while the hand is
         // genuinely DOWN (detected===0) past DIGIT_COOCCUR_MS (a voice-led user whose hand is up and
@@ -5331,8 +5447,22 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
             _acceptArmed = false;
             _lastAcceptedCount = _recordCount;
             stableFrames = 0;
+            // S207 specimen B: per-digit pacing timings (index only, never the digit's value).
+            (function(){
+                var _tNow = performance.now(), _win = Number.isFinite(speechWindowStart) ? speechWindowStart : null;
+                vacTimingEvent('digit_timing', {
+                    digit_index: currentDigitIndex, digit_count: digits.length,
+                    ms_window_to_voice: (_win !== null && _voiceFiredAt > 0) ? (_voiceFiredAt - _win) : null,
+                    ms_window_to_accept: _win !== null ? (_tNow - _win) : null,
+                    ms_gesture_to_accept: _gestureReadyAt > 0 ? (_tNow - _gestureReadyAt) : null,
+                    retry_cues: _digitRetryCues, voice_led: _digitVoiceLed, cant_hear_shown: _digitCantHearShown,
+                    onset_grace_used: _digitGraceUsed,
+                });
+            })();
             currentDigitIndex++;
             _digitVoiceEvidence = null; _digitGestureEvidence = null;
+            _noTranscriptPendingFor = null; _digitRetryCueAt = 0; _cantHearShownAt = 0;   // S207: per-digit pacing state starts fresh
+            _digitRetryCues = 0; _digitVoiceLed = false; _digitCantHearShown = false; _digitGraceUsed = false;
             digitStartTime = _adNow;
             hintShown = false;
             _qaGestureLatched = false;   // RESET — digit N+1's gesture latch starts FRESH (no bleed)
@@ -5415,7 +5545,16 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
                 // SHOW-AS-YOU-SAY: fingers are up \u2014 say the number NOW, together (no separate step).
                 // The voice must CO-OCCUR with the held gesture, so keep BOTH actions prompted.
                 liveEl.style.color = '#fbbf24';
-                liveEl.textContent = (_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
+                // S207 debounce: once "can't hear you" shows it stays at least CANT_HEAR_MIN_SHOW_MS
+                // (a hand jitter resetting _gestureReadyAt no longer makes it flash on and off).
+                var _cantHearNow = !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS);
+                if (_cantHearNow && !_cantHearShownAt) { _cantHearShownAt = _now; _digitCantHearShown = true; }
+                var _cantHearShow = _cantHearNow || (_cantHearShownAt > 0 && (_now - _cantHearShownAt) < CANT_HEAR_MIN_SHOW_MS);
+                if (!_cantHearShow && _cantHearShownAt && (_now - _cantHearShownAt) >= CANT_HEAR_MIN_SHOW_MS) _cantHearShownAt = 0;
+                var _retryCue = _digitRetryCueAt > 0 && (_now - _digitRetryCueAt) < DIGIT_RETRY_CUE_MS;
+                liveEl.textContent = _retryCue
+                    ? ('Didn\u2019t catch that \u2014 say \u201c' + _curDigit + '\u201d again')
+                    : _cantHearShow
                     ? ('We can\u2019t hear you \u2014 say \u201c' + _curDigit + '\u201d, or tap below')
                     : ('Keep showing ' + _curDigit + ' \u2014 say \u201c' + _curDigit + '\u201d');
             } else {
@@ -5424,6 +5563,10 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
                     ? ('Got it \u2713')
                     : ('Hold steady ' + pct + '%  (' + stepNum + '/' + totalSteps + ')');
             }
+        } else if (_digitRetryCueAt > 0 && (_now - _digitRetryCueAt) < DIGIT_RETRY_CUE_MS && !speechReady[currentDigitIndex]) {
+            // S207: a voiced attempt just ended without counting: say so, instead of a silent wait.
+            liveEl.style.color = '#fbbf24';
+            liveEl.textContent = 'Didn\u2019t catch that \u2014 show ' + _curDigit + ' and say \u201c' + _curDigit + '\u201d again';
         } else {
             liveEl.style.color = 'var(--text-secondary)';
             liveEl.textContent = 'Show ' + _curDigit + ' finger' + (_curDigit === 1 ? '' : 's') + ' AND say \u201c' + _curDigit + '\u201d \u2014 at the same time';
@@ -8832,7 +8975,7 @@ const CEREMONY_HTML = `<!-- STEP 1: Camera Access -->
         <div id="avAudioBar" style="display:none; margin-bottom: 8px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;">
             <div id="avMicPrompt" style="display: flex; align-items: center; gap: 8px; font-size: clamp(12px, 1.4vw, 14px); color: var(--text-primary); font-weight: 500; margin-bottom: 8px;">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                <span id="avMicPromptText">Say your name out loud</span>
+                <span id="avMicPromptText">Say: &ldquo;Testing one, two, three&rdquo;</span>
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <div style="flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden;">
