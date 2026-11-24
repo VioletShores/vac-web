@@ -59,6 +59,8 @@ jobs:
       - name: Auto-find greeting audio problems in real sessions
         env:
           VAC_DEBUG_API: ${{ secrets.VAC_DEBUG_API || 'https://vacprotocol.org/v1/auth/debug' }}
+          # S207: reading the debug sink needs the backend's ADMIN_INSPECT_TOKEN (repo secret, set by Rob).
+          VAC_ADMIN_INSPECT_TOKEN: ${{ secrets.VAC_ADMIN_INSPECT_TOKEN }}
           HOURS: '24'
           ALERT_THRESHOLD: '3'
         run: node scripts/ceremony-health-check.js

@@ -25,6 +25,9 @@ const https = require('https');
 const http  = require('http');
 
 const API_BASE  = process.env.VAC_DEBUG_API  || 'https://vacprotocol.org/v1/auth/debug';
+// S207 (Rob approved, 24 Nov): reading /v1/auth/debug needs the backend's ADMIN_INSPECT_TOKEN,
+// sent as X-Admin-Token. Without it there is no data to check: say so plainly (never "healthy").
+const ADMIN_TOKEN = process.env.VAC_ADMIN_INSPECT_TOKEN || '';
 const HOURS     = parseInt(process.env.HOURS || '24', 10);
 const THRESHOLD = parseInt(process.env.ALERT_THRESHOLD || '3', 10);  // flag if ≥N problem sessions
 
@@ -40,12 +43,15 @@ function fetchEvents(apiUrl, cb) {
         hostname: parsed.hostname,
         port: parsed.port || undefined,
         path: parsed.pathname + parsed.search,
-        headers: { 'Accept': 'application/json', 'User-Agent': 'ceremony-health-check/s158a1' },
+        headers: { 'Accept': 'application/json', 'User-Agent': 'ceremony-health-check/s207', 'X-Admin-Token': ADMIN_TOKEN },
         timeout: 10000,
     }, function(res) {
         let body = '';
         res.on('data', function(c) { body += c; });
         res.on('end', function() {
+            if (res.statusCode === 401 || res.statusCode === 403) {
+                const e = new Error('unauthorized (HTTP ' + res.statusCode + ')'); e.unauthorized = true; return cb(e, null);
+            }
             try { cb(null, JSON.parse(body)); } catch(e) { cb(e, null); }
         });
     });
@@ -72,7 +78,15 @@ function analyseEvents(events) {
 }
 
 // Main
-fetchEvents(API_BASE, function(err, data) {
+if (require.main === module && !ADMIN_TOKEN) {
+    console.log('[ceremony-health-check] NOT CHECKED: VAC_ADMIN_INSPECT_TOKEN is not set, and reading /v1/auth/debug needs it. No data was read; this is not a healthy result.');
+    process.exit(0);
+}
+if (require.main === module) fetchEvents(API_BASE, function(err, data) {
+    if (err && err.unauthorized) {
+        console.log('[ceremony-health-check] NOT CHECKED: the backend refused the token (' + err.message + '). No data was read; this is not a healthy result.');
+        process.exit(0);
+    }
     if (err) {
         // Backend unreachable in local/CI environments without credentials — exit 0 (no data is not a failure).
         console.log('[ceremony-health-check] Backend unreachable (' + (err.message || err) + ') — skipping auto-find (no data)');
@@ -110,3 +124,5 @@ fetchEvents(API_BASE, function(err, data) {
         process.exit(0);
     }
 });
+
+module.exports = { fetchEvents, analyseEvents };
