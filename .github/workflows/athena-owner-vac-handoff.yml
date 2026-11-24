@@ -5,6 +5,7 @@ on:
       - vac-vault-handoff.js
       - vac-reauth-ceremony.js
       - tests/vault-handoff.test.js
+      - tests/cross_repo/**
       - tests/digit-readiness.test.js
       - tests/face-stage-gate.test.js
       - tests/mic-cold-start.test.js

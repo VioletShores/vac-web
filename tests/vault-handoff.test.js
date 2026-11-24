@@ -2489,6 +2489,98 @@ for (const [name, [change, field, options]] of Object.entries(V3_FAULTS)) {
   });
 }
 
+// ── S207 cross-repo: the EXACT bytes Athena main 08723185 hands VAC ──
+// tests/cross_repo/athena-service-operation-08723185.json is produced by
+// tests/cross_repo/athena_service_operation_probe.py running Athena's real
+// with_observation_scope, canonical_json_bytes, flux_observation_context.bound
+// and flux_service_runtime._observation_context_preview (self-checks recorded in
+// the fixture). VAC's clock is pinned to the preview's server_now so the
+// committed fixture stays deterministic.
+const ATHENA_FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'cross_repo', 'athena-service-operation-08723185.json'), 'utf8'));
+function athenaCase(name, {intent, contextText, state} = {}) {
+  const c = ATHENA_FIXTURE.cases[name];
+  const s = state || c.state;
+  const h = load('?handoff=service-operation&state=' + s, {now: () => Date.parse(c.server_now) + 1000});
+  const data = {type: 'vac-service-operation-intent', state: s, intent_json: intent || c.intent_json,
+    observation_context_json: contextText || c.observation_context_json, server_now: c.server_now, server_now_age_ms: 0};
+  const receive = () => h.listeners.message[0]({origin: VAULT, source: h.op, data});
+  return {h, c, receive};
+}
+// An attacker who controls Athena's page re-binds a changed intent consistently
+// (new digest, new context bytes, new nonce): only VAC's own shape check remains.
+function rebind(name, mutate) {
+  const c = ATHENA_FIXTURE.cases[name];
+  const op = JSON.parse(c.intent_json);
+  mutate(op);
+  const sorted = v => Array.isArray(v) ? v.map(sorted) : (!v || typeof v !== 'object') ? v :
+    Object.fromEntries(Object.keys(v).sort().map(k => [k, sorted(v[k])]));
+  const intent = JSON.stringify(sorted(op));
+  const digest = crypto.createHash('sha256').update(intent).digest('hex');
+  const context = JSON.parse(c.observation_context_json);
+  context.operation_digest = digest;
+  const contextText = JSON.stringify(sorted(context));
+  return {intent, contextText, state: boundNonce(digest, contextText)};
+}
+
+test('cross-repo fixture: generated from Athena 08723185 with every Athena self-check passing', () => {
+  assert.equal(ATHENA_FIXTURE.athena_commit, '08723185e326032fc8dac3018647b6b3eb9840e0');
+  assert.deepEqual(Object.keys(ATHENA_FIXTURE.cases).sort(), ['v2_fleet_max_age', 'v3_fleet_max_age', 'v3_personal_historical']);
+  for (const c of Object.values(ATHENA_FIXTURE.cases)) {
+    assert.ok(Object.values(c.athena_checks).every(v => v === true));
+    assert.equal(crypto.createHash('sha256').update(c.intent_json).digest('hex'), c.intent_hash);
+    assert.equal(boundNonce(c.intent_hash, c.observation_context_json), c.state, 'Athena nonce = VAC nonce formula');
+  }
+  assert.equal(JSON.parse(ATHENA_FIXTURE.cases.v3_personal_historical.intent_json).version, 3);
+  assert.equal(JSON.parse(ATHENA_FIXTURE.cases.v2_fleet_max_age.intent_json).version, 2);
+});
+
+for (const name of ['v3_personal_historical', 'v3_fleet_max_age', 'v2_fleet_max_age']) {
+  test('cross-repo accept: Athena’s real ' + name + ' reaches review and confirms on Athena’s exact nonce', async () => {
+    const {h, c, receive} = athenaCase(name);
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assert.equal(refusals(h).length, 0, JSON.stringify(refusals(h).map(x => x.m)));
+    assert.ok(h.byId.vacServiceOperationConfirm);
+    const text = allText(h.byId.vacServiceOperationReview);
+    assert.ok(text.includes(c.intent_json), 'the exact received bytes are shown');
+    if (name.startsWith('v3')) assert.match(text, /Read-back cost: Unknown/);
+    else assert.doesNotMatch(text, /Design read-back/);
+    h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+    assert.equal(h.fetches.length, 1);
+    assert.equal(h.fetches[0].body.handoff.nonce, c.state);
+  });
+}
+
+const ATHENA_V3_TAMPER = {
+  // Not re-bound: a shape-valid changed byte breaks Athena's binding / nonce.
+  intent_byte_unbound: [() => {
+    const c = ATHENA_FIXTURE.cases.v3_personal_historical;
+    return {intent: c.intent_json.replace('"packet_id":"PKT-FLUX-B1-', '"packet_id":"PKT-FLUX-B2-')};
+  }, 'vac_observation_context_binding_mismatch'],
+  context_bytes_unbound: [() => {
+    const c = ATHENA_FIXTURE.cases.v3_personal_historical;
+    const ctx = JSON.parse(c.observation_context_json);
+    return {contextText: c.observation_context_json.replace(ctx.policy_sha256, ctx.policy_sha256.replace(/^./, ch => ch === '0' ? '1' : '0'))};
+  }, 'vac_nonce_mismatch'],
+  // Re-bound consistently: VAC's own v3 shape check must still refuse.
+  polls_rebound: [() => rebind('v3_personal_historical', o => { o.artifact_observation.max_polls = 4; }), O + 'artifact_observation'],
+  pin_rebound: [() => rebind('v3_personal_historical', o => { o.artifact_observation.tool_schemas.get_files.output_sha256 = '0'.repeat(64); }), O + 'artifact_observation'],
+  account_rebound: [() => rebind('v3_personal_historical', o => { o.artifact_observation.connection.account_id = 'default'; }), O + 'artifact_observation'],
+  write_tool_rebound: [() => rebind('v3_personal_historical', o => { o.allowed_tools.push('delete_project'); }), O + 'allowed_tools'],
+  // async_credit_risk changed, cost digests left at Athena's value: VAC recomputes and refuses.
+  cost_digest_rebound: [() => rebind('v3_personal_historical', o => { o.async_credit_risk.observed_available_acus = 499; }), O + 'cost_contract_sha256'],
+  downgrade_rebound: [() => rebind('v3_personal_historical', o => { o.version = 2; }), O + 'keys'],
+  // An unknown version takes no context, and a context is never silently ignored.
+  future_version_rebound: [() => rebind('v3_personal_historical', o => { o.version = 4; }), 'vac_observation_context_invalid'],
+};
+for (const [name, [make, code]] of Object.entries(ATHENA_V3_TAMPER)) {
+  test('cross-repo tamper refused: ' + name, async () => {
+    const {h, receive} = athenaCase('v3_personal_historical', make());
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assertRefused(h, code);
+    assert.equal(h.fetches.length, 0);
+  });
+}
+
 test('every refusal code except the unspecified collapse value is exercised above', () => {
   const missing = REFUSAL_ENUM.filter(c => c !== 'vac_unspecified' && !SEEN_REFUSALS.has(c));
   assert.deepEqual(missing, []);
