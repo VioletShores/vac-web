@@ -194,7 +194,9 @@
     'project_url', 'endpoint', 'action', 'capability', 'object_ref', 'revocation_ref', 'expiry',
     'risk', 'allowed_tools', 'constraints', 'resource_envelope', 'readback',
     'evidence_requirements', 'result_contract', 'async_credit_risk', 'payer_binding',
-    'cost_bounds', 'read_argument_binding', 'readback.arguments_sha256'];
+    'cost_bounds', 'read_argument_binding', 'readback.arguments_sha256',
+    // S207: version 3 (native observation) only.
+    'artifact_observation', 'cost_contract_sha256'];
   var REFUSAL_FIELDS = {
     vac_preview_shape_invalid: PREVIEW_FIELDS,
     vac_operation_shape_invalid: OPERATION_FIELDS,
@@ -462,13 +464,71 @@
   // Returns null when the V2 operation is exactly the supported shape, else
   // the closed 'vac_operation_shape_invalid:<field>' code of the FIRST failing
   // predicate. Predicates and their order are unchanged from the boolean form.
+  // S207 / athena #1776 D4: VERSION 3 is Athena's flux_native_observation.with_observation_scope
+  // of a v2 operation, and nothing else: version 3, the eight-tool allow-list (v2's four plus
+  // the bounded read tools), connection_budget 4, a new artifact_observation scope, and
+  // cost_contract_sha256 (op and readback) re-bound to that scope. Every other field and
+  // predicate is the v2 one, unchanged. Anything else fails closed.
+  var V3_TOOLS = ['get_project', 'create_thread', 'get_thread', 'get_messages',
+    'wait_for_thread', 'get_components', 'get_nets', 'get_files'];
+  var V3_SNAPSHOT_TOOLS = ['get_project', 'get_components', 'get_nets', 'get_files'];
+  // Athena flux_native_artifact_acceptance.READ_TOOL_PINS and flux_agent_contract.CATALOG_SHA256.
+  var V3_READ_TOOL_PINS = {
+    wait_for_thread: ['f99451d1b215d90956b40442affaabf495b7185255bbdad98a2491195f8f07c6', '151b96a2c2db9003bc36911b7f54f15137d3bc81059000feaec35d7637e1c811'],
+    get_project: ['deb66da488ce0fd464f21f4538009f246d3b695c8aa6a87cf969483e6ede26b7', '64fa5dba61bc43efd8317ebacc079363503096c289ba0b9bb4a550a35af1cb01'],
+    get_files: ['b89ef2a0a24c41e47dd0f371f12b20876ce473ba05b1434049b0750b2e7e0473', '3d2b0f05a5e2a3774588b956a0e0e45a83c53fea1047dbdd5ced487b45240408'],
+    get_components: ['ac1bfa7484e1f363a10bf6934a9314c15a90c05d5124fa513deff9e5c38cf4a9', 'a150810c6783ad94e2170add047f5c6bcc7f16a75826b9dc27bd830ef7662091'],
+    get_nets: ['ac1bfa7484e1f363a10bf6934a9314c15a90c05d5124fa513deff9e5c38cf4a9', 'a150810c6783ad94e2170add047f5c6bcc7f16a75826b9dc27bd830ef7662091']
+  };
+  var V3_CATALOG_SHA256 = '2ac566ebc5957ca6c5f1dee111e53921f99a1852a7923b08aacb5efcb61dd09b';
+  var V3_OBSERVATION_VERSION = 'athena.flux.native-observation/1';
+  // The exact artifact_observation Athena's observation_scope() builds for this operation.
+  function artifactObservationValid(op) {
+    var s = op.artifact_observation, c, risk = op.async_credit_risk || {};
+    var keys = ['version', 'capability', 'execution_id', 'project_url', 'account', 'connection',
+      'catalog_sha256', 'tool_schemas', 'baseline_tools', 'after_tools', 'max_polls', 'poll_timeout_seconds',
+      'list_limit', 'list_offset', 'additional_tool_call_limit', 'total_mcp_session_limit', 'expiry',
+      'permit_lifetime_seconds', 'read_cost', 'automatic_retries', 'effect_replay_permitted',
+      'provider_task_cap_enforced', 'local_timeout_stops_agent'];
+    if (!exactKeys(s, keys) || s.version !== V3_OBSERVATION_VERSION || s.capability !== 'read_design_artifacts' ||
+        s.execution_id !== op.execution_id || s.project_url !== op.project_url || s.account !== risk.account ||
+        s.catalog_sha256 !== V3_CATALOG_SHA256 || s.expiry !== op.expiry ||
+        !sameList(s.baseline_tools, V3_SNAPSHOT_TOOLS) || !sameList(s.after_tools, V3_SNAPSHOT_TOOLS) ||
+        s.max_polls !== 3 || s.poll_timeout_seconds !== 5 || s.list_limit !== 20 || s.list_offset !== 0 ||
+        s.additional_tool_call_limit !== 11 || s.total_mcp_session_limit !== 4 || s.permit_lifetime_seconds !== 300 ||
+        !exactValues(s.read_cost, {status: 'unknown', unit: 'ACU', basis: 'provider_read_cost_unverified'}) ||
+        s.automatic_retries !== false || s.effect_replay_permitted !== false ||
+        s.provider_task_cap_enforced !== false || s.local_timeout_stops_agent !== false) return false;
+    var pins = Object.keys(V3_READ_TOOL_PINS);
+    if (!exactKeys(s.tool_schemas, pins) || pins.some(function (k) {
+      return !exactKeys(s.tool_schemas[k], ['input_sha256', 'output_sha256']) ||
+        s.tool_schemas[k].input_sha256 !== V3_READ_TOOL_PINS[k][0] ||
+        s.tool_schemas[k].output_sha256 !== V3_READ_TOOL_PINS[k][1];
+    })) return false;
+    // Athena connection_coordinates(): the fleet tenant uses account "default"; a personal
+    // owner tenant uses "person:<principal>". Athena re-derives and re-checks the tenant.
+    c = s.connection;
+    return exactKeys(c, ['tenant_id', 'provider_id', 'account_id', 'scope', 'project_url',
+        'client_generation', 'client_id_sha256']) &&
+      c.tenant_id === op.tenant_id && c.provider_id === 'flux_ai' && c.scope === 'execute' &&
+      c.project_url === op.project_url &&
+      c.account_id === (op.tenant_id === 'athena-fleet' ? 'default' : 'person:' + op.principal) &&
+      Number.isSafeInteger(c.client_generation) && c.client_generation >= 0 &&
+      typeof c.client_id_sha256 === 'string' && /^[a-f0-9]{64}$/.test(c.client_id_sha256);
+  }
+  // Athena flux_native_observation.cost_contract(): the bytes v3's cost_contract_sha256 binds.
+  function v3CostContract(op) {
+    return {version: 1, kind: 'native_submission_and_bounded_design_observation',
+      async_credit_risk: op.async_credit_risk, artifact_observation: op.artifact_observation};
+  }
   function taskOperationFault(op, raw, rule) {
+    var v3 = op && op.version === 3;
     var fields = ['version', 'purpose', 'execution_id', 'packet_id', 'actor', 'principal', 'tenant_id',
       'service_id', 'endpoint', 'capability', 'project_url', 'action', 'executor', 'expiry',
       'revocation_ref', 'risk', 'content_sha256', 'source_manifest_sha256', 'arguments_sha256',
       'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256', 'allowed_tools',
       'constraints', 'resource_envelope', 'evidence_requirements', 'object_ref', 'readback', 'result_contract',
-      'async_credit_risk'];
+      'async_credit_risk'].concat(v3 ? ['artifact_observation'] : []);
     var digests = ['content_sha256', 'source_manifest_sha256', 'arguments_sha256',
       'tool_schema_sha256', 'cost_contract_sha256', 'service_manifest_sha256'];
     var ids = ['execution_id', 'packet_id', 'actor', 'principal', 'tenant_id', 'service_id',
@@ -479,7 +539,7 @@
       ['size', function () { return raw.length > 16384; }],
       ['keys', function () { return !exactKeys(op, fields); }],
       ['strings', function () { return !safeStrings(op); }],
-      ['version', function () { return op.version !== 2; }],
+      ['version', function () { return op.version !== 2 && op.version !== 3; }],
       ['purpose', function () { return op.purpose !== 'service-operation'; }],
       ['ids', function () {
         return ids.some(function (key) { return typeof op[key] !== 'string' || !op[key] || op[key].length > 320; });
@@ -498,13 +558,13 @@
         return typeof op.risk !== 'number' || !Number.isFinite(op.risk) || op.risk < 0 || op.risk > 1;
       }],
       ['allowed_tools', function () {
-        return !sameList(op.allowed_tools, ['get_project', 'create_thread', 'get_thread', 'get_messages']);
+        return !sameList(op.allowed_tools, v3 ? V3_TOOLS : ['get_project', 'create_thread', 'get_thread', 'get_messages']);
       }],
       ['constraints', function () {
         c = op.constraints; e = op.resource_envelope; r = op.readback; proof = op.evidence_requirements;
         return !exactKeys(c, ['network_allowlist', 'write_scope', 'financial_transaction', 'connection_budget']) ||
           !sameList(c.network_allowlist, ['app.flux.ai']) || !sameList(c.write_scope, [project]) ||
-          c.financial_transaction !== false || c.connection_budget !== 3;
+          c.financial_transaction !== false || c.connection_budget !== (v3 ? 4 : 3);
       }],
       ['resource_envelope', function () {
         return !exactKeys(e, ['max_turns', 'max_minutes', 'spend_ceiling', 'cost_upper_bound']) ||
@@ -532,7 +592,11 @@
           !/^https:\/\/github\.com\/VioletShores\/athena\/blob\/[a-f0-9]{40}\/[^?#]+$/.test(result.source_url) ||
           !awareTime(result.retrieved_at) || typeof result.provider_project_id !== 'string' ||
           !/^robzag\/[^\s/?#]+$/.test(result.provider_project_id) || result.provider_project_id.length > 320;
-      }]
+      }],
+      // v3 only: the bounded observation scope, and one cost digest bound in both places
+      // (its value is recomputed from the canonical cost contract before the nonce check).
+      ['artifact_observation', function () { return v3 && !artifactObservationValid(op); }],
+      ['cost_contract_sha256', function () { return v3 && op.readback.cost_contract_sha256 !== op.cost_contract_sha256; }]
     ]);
     if (fault) return 'vac_operation_shape_invalid:' + fault;
     var risk = asyncCreditRiskFault(op, rule);
@@ -593,8 +657,11 @@
     title.textContent = 'Review this one operation';
     box.appendChild(title);
     var summary = document.createElement('p');
-    summary.textContent = operation.version === 2
-      ? 'Confirming allows Athena to start one Flux design task using the exact source below, subject to its current policy and spending checks. The task may consume Flux credits. Readback verifies the submitted instructions; it is not proof that a schematic is finished. No general service access is granted.'
+    var nativeTask = operation.version === 2 || operation.version === 3;
+    summary.textContent = nativeTask
+      ? 'Confirming allows Athena to start one Flux design task using the exact source below, subject to its current policy and spending checks. The task may consume Flux credits. Readback verifies the submitted instructions; it is not proof that a schematic is finished.' +
+        (operation.version === 3 ? ' Athena may also read the design back a bounded number of times, as listed below; those reads may also consume Flux credits.' : '') +
+        ' No general service access is granted.'
       : 'Your identity has been verified. Confirm only the operation below. This does not start design work, grant general service access, or replace Athena’s policy and delivery checks.';
     box.appendChild(summary);
     var fields = [
@@ -603,13 +670,13 @@
       ['Project', operation.project_url], ['Object', operation.object_ref],
       ['Write action', operation.action], ['Write capability', operation.capability],
       ['Readback action', operation.readback.action], ['Readback capability', operation.readback.capability],
-      ['Readback cost upper bound', operation.version === 2 ? 'Unknown; Flux supplies no per-task limit' :
+      ['Readback cost upper bound', nativeTask ? 'Unknown; Flux supplies no per-task limit' :
           operation.readback.cost_upper_bound.amount + ' ' + operation.readback.cost_upper_bound.unit],
       ['Source SHA-256', operation.source_manifest_sha256],
       ['Content SHA-256', operation.content_sha256],
       ['Expiry', operation.expiry], ['Exact intent SHA-256', state]
     ];
-    if (operation.version === 2) {
+    if (nativeTask) {
       var risk = operation.async_credit_risk;
       fields.push(['Billing mode', 'On-demand enabled (owner-observed settings)'],
         ['Owner-observed monthly on-demand limit', risk.observed_monthly_spend_limit_usd + ' USD — account-wide, NOT a cap on this task'],
@@ -631,7 +698,16 @@
       fields.push(['Spend ceiling', operation.resource_envelope.spend_ceiling.amount + ' ' + operation.resource_envelope.spend_ceiling.unit],
         ['Cost upper bound', operation.resource_envelope.cost_upper_bound.amount + ' ' + operation.resource_envelope.cost_upper_bound.unit]);
     }
-    if (operation.version === 2) {
+    if (operation.version === 3) {
+      var obs = operation.artifact_observation;
+      fields.push(['Design read-back', 'Read only: ' + obs.baseline_tools.join(', ') + ' before and after, plus wait_for_thread'],
+        ['Read-back limits', 'At most ' + obs.max_polls + ' polls of ' + obs.poll_timeout_seconds + ' s, ' +
+          obs.additional_tool_call_limit + ' extra read calls, ' + obs.total_mcp_session_limit + ' sessions in total, within ' +
+          obs.permit_lifetime_seconds + ' s of the permit'],
+        ['Read-back cost', 'Unknown; Flux read cost is unverified and has no enforced cap'],
+        ['Read-back retries', 'None; no repeat of the design task']);
+    }
+    if (nativeTask) {
       fields.push(['Source document', operation.result_contract.source_url],
         ['Source retrieved at', operation.result_contract.retrieved_at],
         ['Provider project', operation.result_contract.provider_project_id],
@@ -756,13 +832,19 @@
       operationRefused('vac_observation_context_invalid'); return;
     }
     var shape;
-    try { shape = parsed && parsed.version === 2 ? taskOperationFault(parsed, raw, observed && observed.rule) : legacyOperationFault(parsed); }
+    try { shape = parsed && (parsed.version === 2 || parsed.version === 3) ? taskOperationFault(parsed, raw, observed && observed.rule) : legacyOperationFault(parsed); }
     catch (e) { shape = 'vac_unspecified'; }
     if (shape) { operationRefused(shape); return; }
+    var isV3 = parsed.version === 3;
     Promise.resolve().then(function () {
-      return Promise.all([sha256Hex(raw), needsContext ? sha256Hex(contextText) : null]);
+      return Promise.all([sha256Hex(raw), needsContext ? sha256Hex(contextText) : null,
+        isV3 ? sha256Hex(criticCanonicalText(v3CostContract(parsed))) : null]);
     }).then(function (digests) {
       if (generation !== operationGeneration) return;
+      // v3: the cost digest must be Athena's canonical hash of the cost contract it shows.
+      if (isV3 && digests[2] !== parsed.cost_contract_sha256) {
+        operationRefused('vac_operation_shape_invalid:cost_contract_sha256'); return null;
+      }
       var hex = digests[0];
       if (!needsContext) {
         if (hex !== state) { operationRefused('vac_nonce_mismatch'); return; }
