@@ -2673,7 +2673,9 @@ const CaptureFeedback = {
             // lamp listens and lights when sustained voice fires. BOTH co-occurring → advance → beat ✓.
             // D-VOICE-GATE-SPEAKER-AGNOSTIC: when energy heard but content not matched, honest coaching
             if (promptEl) {
-                if (opts.energyHeard && !opts.voiceDone) {
+                if (opts.voiceListening && !opts.voiceDone) {
+                    promptEl.textContent = 'Listening…';   // DISPLAY ONLY grace: voice heard, number check still answering
+                } else if (opts.energyHeard && !opts.voiceDone) {
                     promptEl.textContent = 'Listening — did not catch “' + N + '” yet — say it clearly';
                 } else {
                     promptEl.textContent = 'Show ' + N + ' and say “' + N + '” clearly';
@@ -2699,7 +2701,7 @@ const CaptureFeedback = {
                 // F-599: the genuinely-silent-mic help ("a bit louder", >12s) still wins; otherwise show the
                 // debounced adaptive coaching for this digit's near-miss state; otherwise the resting sub.
                 var _coachSub = opts.voiceHelp ? '' : CaptureFeedback.coachHintMsg(opts.coachKey, N);   // voiceHelp wins → don't even build the coach string
-                if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (_coachSub || 'together, in one go');
+                if (subEl) subEl.textContent = opts.voiceHelp ? 'We can’t hear you — a bit louder' : (opts.voiceListening ? 'keep showing it' : (_coachSub || 'together, in one go'));
                 setLamp(gLamp, gWrap, 'active', 'G');
             }
         }
@@ -4175,6 +4177,8 @@ function beginRecording() {
     let _coachKeyShown = 'none';   // the coaching key currently DISPLAYED (after debounce): 'none'|'nearmiss'|'voiceonly'|'gestureonly'
     let _coachCandidate = 'none';  // the candidate computed THIS frame, pending the debounce
     let _coachCandidateAt = 0;     // perf.now() when the current candidate first appeared
+    let _voiceCueSinceAt = 0;      // DISPLAY ONLY: perf.now() when voice energy was first seen for _voiceCueDigit (drives the "Listening…" grace; never read by any gate)
+    let _voiceCueDigit = -1;       // DISPLAY ONLY: the digit index _voiceCueSinceAt belongs to
     let speechWindowStart = Infinity;  // speech only counts at/after this; Infinity = CLOSED until a digit's window explicitly opens (fail-closed; codex P2)
     let _speechMode = 'pending';     // 'vad' (on-device gate active) | 'off' (gesture-only + visible note)
     let _vadRAF = null;              // energy-VAD requestAnimationFrame handle
@@ -4390,6 +4394,18 @@ function beginRecording() {
     }
     const COACH_DEBOUNCE_MS = 600;   // F-599: a coaching candidate must persist this long continuously before it shows — so the hint appears AFTER a genuine failed attempt, not mid-gesture. 'none' clears instantly (no lag on advance/correction).
     const VOICE_HELP_TIMEOUT_MS = 12000;  // gesture held ready this long w/o speech → offer the mic escape
+    // DISPLAY ONLY (owner feedback, 24 Nov 2026): voice ENERGY fires the instant the person speaks,
+    // but the number check answers about a second later. In that gap the screen used to flash
+    // "did not catch it" and then ✓, which invited a repeat gesture (and lockouts). For this grace
+    // the cue reads a neutral "Listening…"; only an unmatched voice that outlasts it is coached.
+    // It changes words on screen only: no gate, binding or proof reads it.
+    const VOICE_CUE_GRACE_MS = 2500;
+    function _vacVoiceCue(energyHeard, voiceDone, sinceMs, nowMs, graceMs) {
+        if (voiceDone || !energyHeard) return 'none';
+        var since = Number(sinceMs), now = Number(nowMs);
+        if (!Number.isFinite(since) || !Number.isFinite(now) || since <= 0) return 'listening';
+        return (now - since) < graceMs ? 'listening' : 'missed';
+    }
     // F-561 per-digit cross-modal binding (SUPP-7): speechReady[i] fires ONLY on a FRESH
     // silence→voice ONSET inside digit i's window, so the spoken number genuinely binds to
     // that gesture (no pre-satisfaction). Reusable per-digit unit for F-562 quick re-auth.
@@ -5402,6 +5418,11 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
         var totalSteps = digits.length;
         var _now = performance.now();
         var inConfirmBeat = _now < _confirmUntil;       // S110: the "Got it ✓" hold between digits
+        // DISPLAY ONLY: when voice energy was first seen for THIS digit (reset on a new digit or when
+        // the energy flag clears). Read by the words on screen below, never by a gate.
+        if (!_vadEnergyDetected || _voiceCueDigit !== currentDigitIndex) { _voiceCueSinceAt = 0; _voiceCueDigit = currentDigitIndex; }
+        if (_vadEnergyDetected && !_voiceCueSinceAt) _voiceCueSinceAt = _now;
+        var _voiceCue = _vacVoiceCue(_vadEnergyDetected, !!speechReady[currentDigitIndex], _voiceCueSinceAt, _now, VOICE_CUE_GRACE_MS);
         // When the beat ends, NOW reveal the next number's highlight (delayed from accept).
         if (!inConfirmBeat && _confirmStripPending >= 0) {
             try { CaptureFeedback.renderDigitStrip(ctx, _confirmStripPending); } catch(_) {}
@@ -5434,7 +5455,9 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
                 // SHOW-AS-YOU-SAY: fingers are up \u2014 say the number NOW, together (no separate step).
                 // The voice must CO-OCCUR with the held gesture, so keep BOTH actions prompted.
                 liveEl.style.color = '#fbbf24';
-                liveEl.textContent = (_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
+                liveEl.textContent = (_voiceCue === 'listening')
+                    ? ('Listening\u2026 keep showing ' + _curDigit)   // voice heard, number check still answering \u2014 neutral, no "can't hear"
+                    : (_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS)
                     ? ('We can\u2019t hear you \u2014 say \u201c' + _curDigit + '\u201d, or tap below')
                     : ('Keep showing ' + _curDigit + ' \u2014 say \u201c' + _curDigit + '\u201d');
             } else {
@@ -5468,7 +5491,7 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
         if (_speechMode !== 'off' && currentDigitIndex < totalSteps && !inConfirmBeat) {
             if (_coVoiceFired && !speechReady[currentDigitIndex] && _coGestureSeen)       _coachKey = 'nearmiss';
             else if (_coVoiceFired && !speechReady[currentDigitIndex] && !_coGestureSeen) _coachKey = 'voiceonly';
-            else if (_coGestureSeen && !_coVoiceFired)                                    _coachKey = 'gestureonly';
+            else if (_coGestureSeen && !_coVoiceFired && _voiceCue !== 'listening')       _coachKey = 'gestureonly';   // not while a heard voice is still being checked
         }
         // Debounce: a candidate must persist COACH_DEBOUNCE_MS continuously before it shows (so a fast
         // synced user — gone in <600ms — never sees it); 'none' clears the shown hint INSTANTLY so it
@@ -5497,8 +5520,9 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
                 voiceOn: (_speechMode !== 'off'),
                 voiceDone: !!speechReady[currentDigitIndex],
                 rearmed: _acceptArmed,   // speech-off: a held pose can be gesture-confirmed but NOT re-armed (blocked) — don't show "Got it"
-                voiceHelp: !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS),
-                energyHeard: _vadEnergyDetected  // D-VOICE-GATE-SPEAKER-AGNOSTIC: energy heard but content not matched yet
+                voiceHelp: _voiceCue !== 'listening' && !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS),
+                voiceListening: _voiceCue === 'listening',   // DISPLAY ONLY: voice heard, number check pending (grace) → neutral "Listening…"
+                energyHeard: _voiceCue === 'missed'  // D-VOICE-GATE-SPEAKER-AGNOSTIC: energy heard but content not matched — only coached once the grace has passed
             });
         } catch(_) {}
 
