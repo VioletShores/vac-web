@@ -73,6 +73,10 @@
             reason: 'Deepfake indicators detected in the video.',
             tip: 'Use your device camera directly — screen sharing, virtual cameras, or recorded playback will be rejected.'
         },
+        single_face: {
+            reason: 'More than one face was visible during the recording.',
+            tip: 'Make sure only you are in view: no one behind you, and no mirror, screen or photo showing a face.'
+        },
         identity_continuity: {
             reason: 'This capture did not match the identity already on file for this email.',
             tip: 'If this is you, use account recovery. If not, this account may be compromised — contact support.'
@@ -156,6 +160,12 @@
                     // The browser provided no usable identity vector. This is NOT
                     // evidence of a different person; do not suggest account recovery.
                     reasons.push('Face identification could not be completed — no usable face descriptor was captured.');
+                } else if (signal === 'single_face' && code.indexOf('no_face') !== -1) {
+                    reasons.push('No face was clearly visible during the recording.');
+                } else if (signal === 'single_face' && code.indexOf('face_count_unavailable') !== -1) {
+                    // The server could not confirm exactly one face: an incomplete check,
+                    // not evidence of a second person.
+                    reasons.push('The one-person check could not be completed for this recording.');
                 } else if (isServiceOutage) {
                     reasons.push(signal.replace(/_/g, ' ') + ' — service unavailable (will retry).');
                 } else {
@@ -165,6 +175,10 @@
                 if (!isServiceOutage) {
                     if (signal === 'identity_continuity' && code.indexOf('no_embedding_for_existing_identity') !== -1) {
                         tips.push('Face the camera directly in even light and restart the camera capture. Your enrolled identity has not changed.');
+                    } else if (signal === 'single_face' && code.indexOf('no_face') !== -1) {
+                        tips.push('Face the camera directly in good light, with your face inside the oval.');
+                    } else if (signal === 'single_face' && code.indexOf('face_count_unavailable') !== -1) {
+                        tips.push('Please try again, facing the camera in good light with only you in view.');
                     } else {
                         var tipInfo = FAIL_REASONS[signal];
                         if (tipInfo && tipInfo.tip) tips.push(tipInfo.tip);

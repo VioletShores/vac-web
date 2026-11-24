@@ -7571,6 +7571,7 @@ async function onRecordingComplete() {
     // A single last frame can be blurred/turned away; take up to three distinct
     // fresh frames. This does NOT change identity thresholds or server policy.
     window.__vacEnrollEmbedding = null;
+    window.__vacEnrollIgnoredFaces = 0;   // S207: extra faces compute() ignored for the chosen descriptor
     var _fullEmbedReason = 'no_face';
     var _faceEvidence = [];   // diagnostics only: per-frame counts/score/brightness, no pixels
     // HARD HOLD: an early face may not be used as owner identity until the
@@ -7601,6 +7602,7 @@ async function onRecordingComplete() {
                     return typeof n === 'number' && Number.isFinite(n);
                 })) {
                 window.__vacEnrollEmbedding = _earlyResult.embedding;
+                window.__vacEnrollIgnoredFaces = _earlyResult.ignoredFaces || 0;
             } else {
                 _fullEmbedReason = (_earlyResult && _earlyResult.reason) || 'embedder_error';
             }
@@ -7633,6 +7635,7 @@ async function onRecordingComplete() {
                 if (_result && _result.ok && Array.isArray(_result.embedding) && _result.embedding.length === 128 &&
                     _result.embedding.every(function(n) { return typeof n === 'number' && Number.isFinite(n); })) {
                     window.__vacEnrollEmbedding = _result.embedding;
+                    window.__vacEnrollIgnoredFaces = _result.ignoredFaces || 0;
                     console.log('[VAC] Full face descriptor ready (128-D, capture ' + (_embTry + 1) + '/3)');
                     break;
                 }
@@ -7724,6 +7727,9 @@ async function runRealVerification(videoBlob) {
         // template. Omitted when single-face/embedder failed → legacy description enrollment.
         if (window.__vacEnrollEmbedding) {
             formData.append('face_embedding', JSON.stringify(window.__vacEnrollEmbedding));
+            // S207: tell the server how many extra faces were ignored for that descriptor.
+            // The server uses it only to REMOVE leniency (no continuity band when > 0).
+            formData.append('client_ignored_faces', String(window.__vacEnrollIgnoredFaces || 0));
         }
         // S-116 Track-2: bound-moment still for Didit passive liveness. Captured from
         // the LIVE buffer during the speak phase (see beginRecording) and appended to

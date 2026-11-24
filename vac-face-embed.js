@@ -42,6 +42,25 @@
   // Diagnostics only: the probe that explains a no_face refusal. Never a gate.
   var DIAG_PROBE_CONFIDENCE = 0.05;
   var DIAG_PROBE_BUDGET_MS = 1200;
+  // S207 calibrated multi-face rule (Rob, 24 Nov: a mirror behind him refused a
+  // real approval). The client cannot tell a reflection from a real person, so it
+  // does not try: it picks the primary face and tolerates SMALLER SECONDARY FACES
+  // (REFLECTIONS OR BYSTANDERS) only for choosing the descriptor, and always reports
+  // them (ignoredFaces). All four must hold, else 'multiple_faces':
+  //   - the largest face is confidently a face (score >= PRIMARY_MIN_SCORE);
+  //   - its centre is in the middle of the frame (the oval the user is framed in);
+  //   - every other face is a smaller secondary face: area <= EXTRA_MAX_AREA_RATIO x
+  //     the primary's, or low-confidence (< EXTRA_LOW_SCORE) AND area <= EXTRA_LOW_MAX_AREA_RATIO;
+  //   - at most MAX_EXTRA_FACES secondary faces.
+  // This is NOT a pass: the server counts faces itself and refuses the full ceremony
+  // unless it sees exactly one, and gives no tolerance band when ignoredFaces > 0.
+  // The descriptor is ALWAYS the primary face's.
+  var PRIMARY_MIN_SCORE = 0.8;
+  var PRIMARY_CENTRE_BAND = 0.2;        // centre must be within [0.2, 0.8] of width and height
+  var EXTRA_MAX_AREA_RATIO = 0.25;
+  var EXTRA_LOW_SCORE = 0.6;
+  var EXTRA_LOW_MAX_AREA_RATIO = 0.5;
+  var MAX_EXTRA_FACES = 2;
 
   var _faceapi = null;
   var _ready = false;
@@ -106,9 +125,78 @@
     return _loading;
   }
 
+  // Pure: picks the one face to use from N>1 detections, or null (refuse).
+  // faces: [{score, box:{x,y,width,height}}]; frameW/frameH: input pixel size.
+  // Returns {index, ignored} or null. No I/O, so it is unit-tested directly.
+  function selectPrimaryFace(faces, frameW, frameH) {
+    if (!faces || faces.length < 2) return null;
+    if (!(frameW > 0) || !(frameH > 0)) return null;
+    if (faces.length - 1 > MAX_EXTRA_FACES) return null;
+    var areas = [];
+    for (var i = 0; i < faces.length; i++) {
+      var f = faces[i], b = f && f.box;
+      if (!b || !(b.width > 0) || !(b.height > 0) || typeof f.score !== 'number' || !isFinite(f.score)) return null;
+      areas.push(b.width * b.height);
+    }
+    var p = 0;
+    for (var j = 1; j < faces.length; j++) if (areas[j] > areas[p]) p = j;
+    var pf = faces[p];
+    if (pf.score < PRIMARY_MIN_SCORE) return null;
+    var cx = (pf.box.x + pf.box.width / 2) / frameW;
+    var cy = (pf.box.y + pf.box.height / 2) / frameH;
+    if (cx < PRIMARY_CENTRE_BAND || cx > 1 - PRIMARY_CENTRE_BAND ||
+        cy < PRIMARY_CENTRE_BAND || cy > 1 - PRIMARY_CENTRE_BAND) return null;
+    for (var k = 0; k < faces.length; k++) {
+      if (k === p) continue;
+      var ratio = areas[k] / areas[p];
+      var smallerSecondary = ratio <= EXTRA_MAX_AREA_RATIO ||
+                  (faces[k].score < EXTRA_LOW_SCORE && ratio <= EXTRA_LOW_MAX_AREA_RATIO);
+      if (!smallerSecondary) return null;
+    }
+    return { index: p, ignored: faces.length - 1 };
+  }
+
+  // Pure: everything compute() does AFTER detection (n >= 1), so it is unit-tested
+  // with fake face-api results. results: [{detection:{score, box}, descriptor}].
+  // The descriptor is ALWAYS results[chosen].descriptor, the primary face's.
+  function descriptorFromDetections(results, input) {
+    var n = results ? results.length : 0;
+    if (n === 0) return { ok: false, faceCount: 0, reason: 'no_face' };
+    var chosen = 0, ignored = 0;
+    if (n > 1) {
+      var fw = (input && (input.videoWidth || input.naturalWidth || input.width)) || 0;
+      var fh = (input && (input.videoHeight || input.naturalHeight || input.height)) || 0;
+      var dets = results.map(function (r) {
+        var d = r && r.detection;
+        return (d && d.box) ? { score: d.score, box: { x: d.box.x, y: d.box.y, width: d.box.width, height: d.box.height } } : null;
+      });
+      var sel = selectPrimaryFace(dets, fw, fh);
+      if (!sel) return { ok: false, faceCount: n, reason: 'multiple_faces' };
+      chosen = sel.index; ignored = sel.ignored;
+    }
+    var desc = results[chosen] && results[chosen].descriptor;
+    if (!desc || desc.length !== EXPECTED_DIM) {
+      return { ok: false, faceCount: n, reason: 'embedder_error' };
+    }
+    var arr = new Array(EXPECTED_DIM);
+    for (var i = 0; i < EXPECTED_DIM; i++) {
+      var v = Number(desc[i]);
+      if (!isFinite(v)) return { ok: false, faceCount: n, reason: 'embedder_error' };
+      arr[i] = v;
+    }
+    if (ignored > 0) {
+      console.log('[VACFaceEmbed] ' + ignored + ' smaller secondary face(s) (reflections or bystanders) ignored for the descriptor; using the primary face; reported to the server');
+      return { ok: true, embedding: arr, faceCount: n, ignoredFaces: ignored, warnings: ['extra_faces_ignored'] };
+    }
+    return { ok: true, embedding: arr, faceCount: 1, ignoredFaces: 0 };
+  }
+
   // Compute a single-face 128-D descriptor from input (video/canvas/image).
   // Returns one of:
   //   {ok:true,  embedding:[128 floats], faceCount:1}
+  //   {ok:true,  embedding:[...], faceCount:N, ignoredFaces:N-1, warnings:['extra_faces_ignored']}
+  //       (one dominant, centred face plus smaller secondary faces (reflections or
+  //        bystanders), see selectPrimaryFace)
   //   {ok:false, faceCount:0,  reason:'no_face'}
   //   {ok:false, faceCount:N,  reason:'multiple_faces'}
   //   {ok:false, faceCount:-1, reason:'embedder_error'}  (load/detector failure)
@@ -140,18 +228,7 @@
         return { ok: false, faceCount: 0, reason: 'no_face',
                  diag: { best_score: best, min_confidence: MIN_DETECT_CONFIDENCE } };
       }
-      if (n > 1) return { ok: false, faceCount: n, reason: 'multiple_faces' };
-      var desc = results[0].descriptor;
-      if (!desc || desc.length !== EXPECTED_DIM) {
-        return { ok: false, faceCount: 1, reason: 'embedder_error' };
-      }
-      var arr = new Array(EXPECTED_DIM);
-      for (var i = 0; i < EXPECTED_DIM; i++) {
-        var v = Number(desc[i]);
-        if (!isFinite(v)) return { ok: false, faceCount: 1, reason: 'embedder_error' };
-        arr[i] = v;
-      }
-      return { ok: true, embedding: arr, faceCount: 1 };
+      return descriptorFromDetections(results, input);
     } catch (e) {
       console.warn('[VACFaceEmbed] compute error (fail-closed):', (e && e.message) || e);
       return { ok: false, faceCount: -1, reason: 'embedder_error' };
@@ -176,6 +253,8 @@
   global.VACFaceEmbed = {
     ready: _load,
     compute: compute,
+    selectPrimaryFace: selectPrimaryFace,
+    descriptorFromDetections: descriptorFromDetections,
     euclidean: euclidean,
     reasonMessage: reasonMessage,
     MODEL_ID: MODEL_ID,
