@@ -159,7 +159,58 @@ test('the lead-in paint owns no timer, changes no count, and only toggles classe
 test('the lead-in styles exist in both places the ceremony is styled and respect reduced motion', () => {
   const auth = fs.readFileSync(path.join(__dirname, '..', 'auth.html'), 'utf8');
   for (const text of [src, auth]) {
-    assert.match(text, /\.countdown-ring-wrap\.vac-counting \.countdown-number \{[^}]*font-size: clamp\(64px, 19vw, 96px\)/);
+    // Sized by width AND height (S206 review: a small phone kept the camera off screen).
+    assert.match(text, /\.countdown-ring-wrap\.vac-counting \{ width: clamp\(96px, min\(36vw, 22vh\), 176px\); height: clamp\(96px, min\(36vw, 22vh\), 176px\);/);
+    assert.match(text, /\.countdown-ring-wrap\.vac-counting \.countdown-number \{[^}]*font-size: clamp\(48px, min\(19vw, 12vh\), 96px\)/);
     assert.match(text, /@media \(prefers-reduced-motion: reduce\) \{ \.countdown-number\.vac-tick-a/);
   }
+});
+
+// --- S206 review of #71: one shown number, and small phones -----------------------------------------------
+
+test('the status line and the large numeral always show the same number (no "4 seconds" under a "3")', async () => {
+  const h = runner();
+  const n = await stepsToComplete(h);
+  assert.ok(n > 0);
+  const counting = h.seen.filter(s => s.phase === 'count');
+  assert.ok(counting.length >= 10);
+  for (const s of counting) {
+    const said = (s.hint.match(/hold still — (\d+) seconds?$/) || [])[1];
+    assert.equal(said, s.num, 'hint "' + s.hint + '" vs numeral ' + s.num);
+  }
+  assert.ok(counting.every(s => Number(s.num) <= 3), 'never more than 3');
+  assert.ok(counting.some(s => / 1 second$/.test(s.hint)), 'singular at 1');
+});
+
+test('the shown number is the gate remaining time in whole seconds, capped at 3; it decides nothing', () => {
+  const c = vm.createContext({ Number, Math, String });
+  vm.runInContext(slice('// The ONE shown number for the face hold', '\nfunction _vacFaceStagePaint('), c);
+  const cases = [[3200, 3], [3000, 3], [2999, 3], [2001, 3], [2000, 2], [1001, 2], [1000, 1], [1, 1], [0, 1], [-5, 1], [NaN, 1], [99999, 3]];
+  for (const [ms, want] of cases) assert.equal(c._vacFaceHoldSeconds(ms), want, String(ms));
+  assert.equal(c._vacFaceHoldCopy(3200), 'Keep your hands down and hold still — 3 seconds');
+  assert.equal(c._vacFaceHoldCopy(400), 'Keep your hands down and hold still — 1 second');
+  const helpers = slice('// The ONE shown number for the face hold', '\nfunction _vacFaceStagePaint(')
+    .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');   // code only, not the comment
+  assert.doesNotMatch(helpers, /setTimeout|setInterval|gate\.|resolve\(|reject\(|settle\(|3200/);
+});
+
+test('small phones: the stage sizes by height too, tightens on short screens, and hides the intro while counting', async () => {
+  const show = slice('function _vacFaceStageShow() {', '\nfunction _vacFaceStageHide()');
+  assert.match(show, /width:clamp\(96px,min\(36vw,22vh\),176px\);height:clamp\(96px,min\(36vw,22vh\),176px\)/);
+  assert.match(show, /font:800 clamp\(48px,min\(19vw,12vh\),96px\)/);
+  assert.match(show, /@media \(max-height:700px\)\{#vacFaceStage\{padding:10px 12px!important;gap:6px!important/);
+  assert.match(show, /id="vacFaceStageIntro"/);
+  // Behaviour: the intro is hidden only while the block shows, and comes back when waiting again.
+  const intro = { style: { display: '' } };
+  const block = { style: {}, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, querySelector(sel) {
+    return { '#vacFaceStageNum': num, '#vacFaceStageCue': cue, '#vacFaceStageChip': chip, '#vacFaceStageRing': ring }[sel] || null; } };
+  const num = { textContent: '', className: '' }, cue = { textContent: '' }, chip = { textContent: '' }, ring = { style: {} };
+  const stage = { querySelector(sel) { return sel === '#vacFaceStageCount' ? block : sel === '#vacFaceStageIntro' ? intro : null; } };
+  const c = vm.createContext({ Number, Math, String });
+  vm.runInContext(slice('// The ONE shown number for the face hold', '// DIAGNOSTIC ONLY: mean/max luminance'), c);
+  c._vacFaceStagePaint({ parentNode: stage }, { status: 'hold', remainingMs: 3200 });
+  assert.equal(intro.style.display, 'none');
+  assert.equal(num.textContent, '3');
+  c._vacFaceStagePaint({ parentNode: stage }, { status: 'waiting' });
+  assert.equal(intro.style.display, '');
 });

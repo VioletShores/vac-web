@@ -7363,20 +7363,23 @@ function _vacFaceStageShow() {
         st.setAttribute('aria-labelledby', 'vacFaceStageTitle');
         st.style.cssText = 'position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;padding:18px 14px;margin:12px 0;border:2px solid #2DD4BF;border-radius:12px;background:#101b2b;text-align:center;';
         st.innerHTML = '<h2 id="vacFaceStageTitle" style="margin:0;font-size:24px;color:#2DD4BF;">Face check</h2>'
-            + '<div style="font-size:18px;color:#F0F2F5;">The number checks are finished. Lower your hands and look at the camera.</div>'
+            + '<div id="vacFaceStageIntro" style="font-size:18px;color:#F0F2F5;">The number checks are finished. Lower your hands and look at the camera.</div>'
             // The countdown is its own block: large numerals, one cue, one state word. It is hidden from
             // screen readers because the status line below is the live region and already says each number.
             + '<style>#vacFaceStageNum.a{animation:vfsTickA .9s ease-out}#vacFaceStageNum.b{animation:vfsTickB .9s ease-out}'
             + '@keyframes vfsTickA{0%{transform:scale(1.35);opacity:.35}35%{transform:scale(1);opacity:1}}'
             + '@keyframes vfsTickB{0%{transform:scale(1.35);opacity:.35}35%{transform:scale(1);opacity:1}}'
             + '#vacFaceStageRing{transition:stroke-dashoffset .25s linear}'
-            + '@media (prefers-reduced-motion: reduce){#vacFaceStageNum.a,#vacFaceStageNum.b{animation:none}#vacFaceStageRing{transition:none}}</style>'
+            + '@media (prefers-reduced-motion: reduce){#vacFaceStageNum.a,#vacFaceStageNum.b{animation:none}#vacFaceStageRing{transition:none}}'
+            // Short screens (small phones): keep the camera in view below the block while it counts.
+            + '@media (max-height:700px){#vacFaceStage{padding:10px 12px!important;gap:6px!important;margin:8px 0!important}#vacFaceStageTitle{font-size:20px!important}#vacFaceStageCue{font-size:18px!important;min-height:22px!important}}</style>'
             + '<div id="vacFaceStageCount" aria-hidden="true" data-phase="idle" style="display:none;flex-direction:column;align-items:center;gap:8px;width:100%;padding:6px 0 2px;">'
             + '<div id="vacFaceStageChip" style="font:700 12px/1.4 ui-monospace,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:#2DD4BF;"></div>'
-            + '<div style="position:relative;width:clamp(128px,36vw,176px);height:clamp(128px,36vw,176px);">'
+            // Sized by width AND height, so a small phone keeps the camera on screen below it.
+            + '<div style="position:relative;width:clamp(96px,min(36vw,22vh),176px);height:clamp(96px,min(36vw,22vh),176px);">'
             + '<svg viewBox="0 0 100 100" style="width:100%;height:100%;transform:rotate(-90deg);"><circle cx="50" cy="50" r="44" fill="none" stroke="#1A1E2E" stroke-width="5"/>'
             + '<circle id="vacFaceStageRing" cx="50" cy="50" r="44" fill="none" stroke="#2DD4BF" stroke-width="5" stroke-linecap="round" style="stroke-dasharray:276.46;stroke-dashoffset:276.46;"/></svg>'
-            + '<div id="vacFaceStageNum" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:800 clamp(64px,19vw,96px)/1 -apple-system,system-ui,sans-serif;color:#F0F2F5;"></div></div>'
+            + '<div id="vacFaceStageNum" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:800 clamp(48px,min(19vw,12vh),96px)/1 -apple-system,system-ui,sans-serif;color:#F0F2F5;"></div></div>'
             + '<div id="vacFaceStageCue" style="font:700 20px/1.3 -apple-system,system-ui,sans-serif;color:#F0F2F5;min-height:26px;"></div></div>'
             + '<div id="vacFaceStageHint" role="status" aria-live="polite" style="font-size:17px;color:#F0F2F5;">Your camera is still recording. Select Ready when your hands are down.</div>'
             + '<button type="button" id="vacFaceStageReady" style="padding:12px 20px;min-height:44px;background:#2DD4BF;color:#07111f;border:0;border-radius:8px;font-size:17px;font-weight:700;">Ready — check my face</button>';
@@ -7458,7 +7461,7 @@ function _runVaultFaceStage(video, recorder) {
                 timeout:'Face capture did not finish. Nothing will be submitted.',
                 complete:'Face captured. Checking your identity…'};
             hint.textContent=result.status==='hold'
-                ? 'Keep your hands down and hold still — '+Math.ceil(result.remainingMs/1000)+' seconds'
+                ? _vacFaceHoldCopy(result.remainingMs)
                 : copy[result.status];
             _vacFaceStagePaint(hint, result);   // presentation only; reads the result, decides nothing
             if(result.status==='complete') { settle(true); return; }
@@ -7474,6 +7477,19 @@ function _runVaultFaceStage(video, recorder) {
 // sensor, never resolves or rejects the stage, and swallows its own errors, so the face stage takes
 // exactly as long and decides exactly as before with or without it. Numerals are the gate's own
 // remaining time, shown as at most 3; the ring fills over whatever hold the gate reports.
+// The ONE shown number for the face hold, used by both the status line and the large numeral,
+// so they can never disagree (the 3200 ms hold used to read "4 seconds" under a "3"). It is the
+// gate's own remaining time in whole seconds, capped at 3. Display only: the gate still decides
+// with its own 3200 ms and frame count; nothing here is read back.
+function _vacFaceHoldSeconds(remainingMs) {
+    var ms = Number(remainingMs);
+    if (!Number.isFinite(ms) || ms < 0) ms = 0;
+    return Math.min(3, Math.max(1, Math.ceil(ms / 1000)));
+}
+function _vacFaceHoldCopy(remainingMs) {
+    var n = _vacFaceHoldSeconds(remainingMs);
+    return 'Keep your hands down and hold still — ' + n + (n === 1 ? ' second' : ' seconds');
+}
 function _vacFaceStagePaint(hint, result) {
     try {
         var stage = hint && hint.parentNode;
@@ -7487,6 +7503,10 @@ function _vacFaceStagePaint(hint, result) {
             : status === 'timeout' ? 'stopped' : status === 'sensor_wait' ? 'wait' : 'paused';
         block.setAttribute('data-phase', phase);
         block.style.display = phase === 'idle' ? 'none' : 'flex';
+        // While the block is showing, its cue already says what to do; the intro sentence returns
+        // when the stage goes back to waiting. Saves height so the camera stays in view.
+        var intro = stage.querySelector('#vacFaceStageIntro');
+        if (intro && intro.style) intro.style.display = phase === 'idle' ? '' : 'none';
         // Once Ready has been pressed the button is disabled and does nothing; take it out of view so the
         // countdown is the only thing asking for attention. It returns if the stage goes back to waiting.
         var readyBtn = stage.querySelector('#vacFaceStageReady');
@@ -7494,7 +7514,7 @@ function _vacFaceStagePaint(hint, result) {
         if (phase === 'count') {
             var remaining = Number(result.remainingMs) || 0;
             block._vfsTotal = Math.max(block._vfsTotal || 0, remaining);
-            var n = String(Math.min(3, Math.max(1, Math.ceil(remaining / 1000))));
+            var n = String(_vacFaceHoldSeconds(remaining));
             if (num.textContent !== n) { num.textContent = n; num.className = num.className === 'a' ? 'b' : 'a'; }
             cue.textContent = n === '1' ? 'Hold still' : 'Look at the camera';
             chip.textContent = 'Capturing';
@@ -9316,8 +9336,8 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .countdown-ring-wrap .ring-fill { fill: none; stroke: var(--purple); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 245; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
 .countdown-ring-wrap .ring-fill.recording { stroke: var(--error); }
 /* Lead-in countdown as its own block (owner feedback, 23 Nov 2026). Presentation only. */
-.countdown-ring-wrap.vac-counting { width: clamp(128px, 36vw, 176px); height: clamp(128px, 36vw, 176px); margin: 10px auto; }
-.countdown-ring-wrap.vac-counting .countdown-number { font-family: -apple-system, system-ui, sans-serif; font-size: clamp(64px, 19vw, 96px); font-weight: 800; }
+.countdown-ring-wrap.vac-counting { width: clamp(96px, min(36vw, 22vh), 176px); height: clamp(96px, min(36vw, 22vh), 176px); margin: 10px auto; }
+.countdown-ring-wrap.vac-counting .countdown-number { font-family: -apple-system, system-ui, sans-serif; font-size: clamp(48px, min(19vw, 12vh), 96px); font-weight: 800; }
 .countdown-ring-wrap.vac-counting .ring-fill, .countdown-ring-wrap.vac-counting .ring-bg { stroke-width: 4; }
 .countdown-number.vac-tick-a { animation: vacTickA .9s ease-out; } .countdown-number.vac-tick-b { animation: vacTickB .9s ease-out; }
 @keyframes vacTickA { 0% { transform: scale(1.35); opacity: .35; } 35% { transform: scale(1); opacity: 1; } }
