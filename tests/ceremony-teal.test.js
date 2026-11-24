@@ -8,7 +8,7 @@ const path = require('node:path');
 const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 const files = { 'auth.html': read('auth.html'), 'vac-reauth-ceremony.js': read('vac-reauth-ceremony.js') };
 
-const PURPLE = [/#6c5ce7/i, /#5a4bd1/i, /#7c5cfc/i, /#8b7cf7/i, /rgba\(108,\s*92,\s*231/i, /rgba\(124,\s*92,\s*252/i, /rgba\(139,\s*92,\s*246/i];
+const PURPLE = [/#6c5ce7/i, /#5a4bd1/i, /#7c5cfc/i, /#8b7cf7/i, /rgba\(108,\s*92,\s*231/i, /rgba\(124,\s*92,\s*252/i, /rgba\(139,\s*92,\s*246/i, /rgba\(124,\s*58,\s*237/i, /#7c3aed/i, /#a78bfa/i];
 
 test('no purple value is left in the ceremony page or script', () => {
   for (const [name, src] of Object.entries(files)) for (const p of PURPLE) assert.ok(!p.test(src), `${name} still has ${p}`);

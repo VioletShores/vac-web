@@ -1692,7 +1692,7 @@ function updateTrustStatus(vouchData) {
         _shownVouches.forEach(v => {
             const name = v.person || v.email || 'Voucher';
             const initial = name.charAt(0).toUpperCase();
-            graphNodes.innerHTML += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--purple);border-radius:8px;"><div style="width:28px;height:28px;border-radius:50%;background:rgba(124,58,237,0.15);border:1px solid var(--purple);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--purple);font-weight:700;">' + initial + '</div><div><div style="font-size:12px;color:var(--text-primary);font-weight:600;">' + name + '</div><div style="font-size:10px;font-family:var(--mono);color:var(--purple);">VOUCHED FOR YOU</div></div></div>';
+            graphNodes.innerHTML += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface);border:1px solid var(--purple);border-radius:8px;"><div style="width:28px;height:28px;border-radius:50%;background:rgba(45,212,191,0.15);border:1px solid var(--purple);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--purple);font-weight:700;">' + initial + '</div><div><div style="font-size:12px;color:var(--text-primary);font-weight:600;">' + name + '</div><div style="font-size:10px;font-family:var(--mono);color:var(--purple);">VOUCHED FOR YOU</div></div></div>';
         });
     }
 }
