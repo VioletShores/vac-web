@@ -153,6 +153,41 @@
     return { index: p, ignored: faces.length - 1 };
   }
 
+  // Pure: everything compute() does AFTER detection (n >= 1), so it is unit-tested
+  // with fake face-api results. results: [{detection:{score, box}, descriptor}].
+  // The descriptor is ALWAYS results[chosen].descriptor, the primary face's.
+  function descriptorFromDetections(results, input) {
+    var n = results ? results.length : 0;
+    if (n === 0) return { ok: false, faceCount: 0, reason: 'no_face' };
+    var chosen = 0, ignored = 0;
+    if (n > 1) {
+      var fw = (input && (input.videoWidth || input.naturalWidth || input.width)) || 0;
+      var fh = (input && (input.videoHeight || input.naturalHeight || input.height)) || 0;
+      var dets = results.map(function (r) {
+        var d = r && r.detection;
+        return (d && d.box) ? { score: d.score, box: { x: d.box.x, y: d.box.y, width: d.box.width, height: d.box.height } } : null;
+      });
+      var sel = selectPrimaryFace(dets, fw, fh);
+      if (!sel) return { ok: false, faceCount: n, reason: 'multiple_faces' };
+      chosen = sel.index; ignored = sel.ignored;
+    }
+    var desc = results[chosen] && results[chosen].descriptor;
+    if (!desc || desc.length !== EXPECTED_DIM) {
+      return { ok: false, faceCount: n, reason: 'embedder_error' };
+    }
+    var arr = new Array(EXPECTED_DIM);
+    for (var i = 0; i < EXPECTED_DIM; i++) {
+      var v = Number(desc[i]);
+      if (!isFinite(v)) return { ok: false, faceCount: n, reason: 'embedder_error' };
+      arr[i] = v;
+    }
+    if (ignored > 0) {
+      console.log('[VACFaceEmbed] ' + ignored + ' minor extra face(s) ignored (e.g. a reflection); using the primary face');
+      return { ok: true, embedding: arr, faceCount: n, ignoredFaces: ignored, warnings: ['extra_faces_ignored'] };
+    }
+    return { ok: true, embedding: arr, faceCount: 1, ignoredFaces: 0 };
+  }
+
   // Compute a single-face 128-D descriptor from input (video/canvas/image).
   // Returns one of:
   //   {ok:true,  embedding:[128 floats], faceCount:1}
@@ -189,33 +224,7 @@
         return { ok: false, faceCount: 0, reason: 'no_face',
                  diag: { best_score: best, min_confidence: MIN_DETECT_CONFIDENCE } };
       }
-      var chosen = 0, ignored = 0;
-      if (n > 1) {
-        var fw = (input && (input.videoWidth || input.naturalWidth || input.width)) || 0;
-        var fh = (input && (input.videoHeight || input.naturalHeight || input.height)) || 0;
-        var dets = results.map(function (r) {
-          var d = r && r.detection;
-          return d ? { score: d.score, box: { x: d.box.x, y: d.box.y, width: d.box.width, height: d.box.height } } : null;
-        });
-        var sel = selectPrimaryFace(dets, fw, fh);
-        if (!sel) return { ok: false, faceCount: n, reason: 'multiple_faces' };
-        chosen = sel.index; ignored = sel.ignored;
-      }
-      var desc = results[chosen].descriptor;
-      if (!desc || desc.length !== EXPECTED_DIM) {
-        return { ok: false, faceCount: 1, reason: 'embedder_error' };
-      }
-      var arr = new Array(EXPECTED_DIM);
-      for (var i = 0; i < EXPECTED_DIM; i++) {
-        var v = Number(desc[i]);
-        if (!isFinite(v)) return { ok: false, faceCount: 1, reason: 'embedder_error' };
-        arr[i] = v;
-      }
-      if (ignored > 0) {
-        console.log('[VACFaceEmbed] ' + ignored + ' minor extra face(s) ignored (e.g. a reflection); using the primary face');
-        return { ok: true, embedding: arr, faceCount: n, ignoredFaces: ignored, warnings: ['extra_faces_ignored'] };
-      }
-      return { ok: true, embedding: arr, faceCount: 1 };
+      return descriptorFromDetections(results, input);
     } catch (e) {
       console.warn('[VACFaceEmbed] compute error (fail-closed):', (e && e.message) || e);
       return { ok: false, faceCount: -1, reason: 'embedder_error' };
@@ -241,6 +250,7 @@
     ready: _load,
     compute: compute,
     selectPrimaryFace: selectPrimaryFace,
+    descriptorFromDetections: descriptorFromDetections,
     euclidean: euclidean,
     reasonMessage: reasonMessage,
     MODEL_ID: MODEL_ID,
