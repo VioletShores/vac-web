@@ -134,6 +134,14 @@ body { font-family: var(--font); color: var(--text-secondary); background: var(-
 .countdown-ring-wrap .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
 .countdown-ring-wrap .ring-fill { fill: none; stroke: var(--purple); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 245; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
 .countdown-ring-wrap .ring-fill.recording { stroke: var(--error); }
+/* Lead-in countdown as its own block (owner feedback, 23 Nov 2026). Presentation only. */
+.countdown-ring-wrap.vac-counting { width: clamp(96px, min(36vw, 22vh), 176px); height: clamp(96px, min(36vw, 22vh), 176px); margin: 10px auto; }
+.countdown-ring-wrap.vac-counting .countdown-number { font-family: -apple-system, system-ui, sans-serif; font-size: clamp(48px, min(19vw, 12vh), 96px); font-weight: 800; }
+.countdown-ring-wrap.vac-counting .ring-fill, .countdown-ring-wrap.vac-counting .ring-bg { stroke-width: 4; }
+.countdown-number.vac-tick-a { animation: vacTickA .9s ease-out; } .countdown-number.vac-tick-b { animation: vacTickB .9s ease-out; }
+@keyframes vacTickA { 0% { transform: scale(1.35); opacity: .35; } 35% { transform: scale(1); opacity: 1; } }
+@keyframes vacTickB { 0% { transform: scale(1.35); opacity: .35; } 35% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .countdown-number.vac-tick-a, .countdown-number.vac-tick-b { animation: none; } .countdown-ring-wrap .ring-fill { transition: none; } }
 .countdown-number { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: clamp(24px, 6vw, 32px); font-weight: 700; color: var(--text-primary); }
 
 /* Privacy statement */
