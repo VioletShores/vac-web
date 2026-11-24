@@ -694,14 +694,58 @@ function taskFixture(change = () => {}, options = {}) {
       source_url: 'https://docs.flux.ai/account/copilot-credits', observed_at: new Date().toISOString(),
       oauth_subject_verified: false, fresh_provider_owner_recheck_required: true}
   };
-  change(op);
   function ordered(value) {
     if (Array.isArray(value)) return value.map(ordered);
     if (!value || typeof value !== 'object') return value;
     return Object.fromEntries(Object.keys(value).sort().map(k => [k, ordered(value[k])]));
   }
-  op.cost_contract_sha256 = crypto.createHash('sha256').update(JSON.stringify(ordered(op.async_credit_risk))).digest('hex');
+  if (options.v3) toV3(op);
+  change(op);
+  if (options.v3) {
+    // Athena flux_native_observation.cost_contract(), canonical_json_hash.
+    if (!options.keepCostDigest) {
+      const digest = crypto.createHash('sha256').update(JSON.stringify(ordered({version: 1,
+        kind: 'native_submission_and_bounded_design_observation',
+        async_credit_risk: op.async_credit_risk, artifact_observation: op.artifact_observation}))).digest('hex');
+      op.cost_contract_sha256 = digest; op.readback.cost_contract_sha256 = digest;
+    }
+  } else {
+    op.cost_contract_sha256 = crypto.createHash('sha256').update(JSON.stringify(ordered(op.async_credit_risk))).digest('hex');
+  }
   return serviceFixture(op, options);
+}
+
+// S207: Athena flux_native_observation.with_observation_scope() applied to the v2 fixture,
+// with the pinned constants copied from athena main (flux_native_artifact_acceptance /
+// flux_agent_contract). Independent of vac-vault-handoff.js's own copies.
+function toV3(op) {
+  op.version = 3;
+  op.allowed_tools = ['get_project', 'create_thread', 'get_thread', 'get_messages',
+    'wait_for_thread', 'get_components', 'get_nets', 'get_files'];
+  op.constraints.connection_budget = 4;
+  const pins = {
+    wait_for_thread: ['f99451d1b215d90956b40442affaabf495b7185255bbdad98a2491195f8f07c6', '151b96a2c2db9003bc36911b7f54f15137d3bc81059000feaec35d7637e1c811'],
+    get_project: ['deb66da488ce0fd464f21f4538009f246d3b695c8aa6a87cf969483e6ede26b7', '64fa5dba61bc43efd8317ebacc079363503096c289ba0b9bb4a550a35af1cb01'],
+    get_files: ['b89ef2a0a24c41e47dd0f371f12b20876ce473ba05b1434049b0750b2e7e0473', '3d2b0f05a5e2a3774588b956a0e0e45a83c53fea1047dbdd5ced487b45240408'],
+    get_components: ['ac1bfa7484e1f363a10bf6934a9314c15a90c05d5124fa513deff9e5c38cf4a9', 'a150810c6783ad94e2170add047f5c6bcc7f16a75826b9dc27bd830ef7662091'],
+    get_nets: ['ac1bfa7484e1f363a10bf6934a9314c15a90c05d5124fa513deff9e5c38cf4a9', 'a150810c6783ad94e2170add047f5c6bcc7f16a75826b9dc27bd830ef7662091'],
+  };
+  const snap = ['get_project', 'get_components', 'get_nets', 'get_files'];
+  op.artifact_observation = {
+    version: 'athena.flux.native-observation/1', capability: 'read_design_artifacts',
+    execution_id: op.execution_id, project_url: op.project_url, account: op.async_credit_risk.account,
+    connection: {tenant_id: op.tenant_id, provider_id: 'flux_ai', account_id: 'person:' + op.principal,
+      scope: 'execute', project_url: op.project_url, client_generation: 1, client_id_sha256: '9'.repeat(64)},
+    catalog_sha256: '2ac566ebc5957ca6c5f1dee111e53921f99a1852a7923b08aacb5efcb61dd09b',
+    tool_schemas: Object.fromEntries(Object.entries(pins).map(([k, v]) => [k, {input_sha256: v[0], output_sha256: v[1]}])),
+    baseline_tools: snap.slice(), after_tools: snap.slice(),
+    max_polls: 3, poll_timeout_seconds: 5, list_limit: 20, list_offset: 0,
+    additional_tool_call_limit: 11, total_mcp_session_limit: 4,
+    expiry: op.expiry, permit_lifetime_seconds: 300,
+    read_cost: {status: 'unknown', unit: 'ACU', basis: 'provider_read_cost_unverified'},
+    automatic_retries: false, effect_replay_permitted: false,
+    provider_task_cap_enforced: false, local_timeout_stops_agent: false,
+  };
 }
 
 function asyncTaskFixture(change = () => {}, options = {}) {
@@ -1581,7 +1625,7 @@ const OPERATION_FIELD_LIST = ['size', 'keys', 'strings', 'version', 'purpose', '
     'action', 'capability', 'object_ref', 'revocation_ref', 'expiry', 'risk', 'allowed_tools',
     'constraints', 'resource_envelope', 'readback', 'evidence_requirements', 'result_contract',
     'async_credit_risk', 'payer_binding', 'cost_bounds', 'read_argument_binding',
-    'readback.arguments_sha256'];
+    'readback.arguments_sha256', 'artifact_observation', 'cost_contract_sha256'];
 const SHAPE_FIELDS = {vac_preview_shape_invalid: PREVIEW_FIELD_LIST, vac_operation_shape_invalid: OPERATION_FIELD_LIST,
   vac_observation_server_time_invalid: ['server_now', 'server_now_age_ms', 'monotonic_clock']};
 const REFUSAL_ENUM = [
@@ -1655,6 +1699,11 @@ async function v3Refusal(change) {
 }
 async function taskRefusal(change) {
   const {h, receive} = taskFixture(change);
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  return h;
+}
+async function opV3Refusal(change, options = {}) {
+  const {h, receive} = taskFixture(change, {v3: true, ...options});
   h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
   return h;
 }
@@ -1808,7 +1857,7 @@ const OPERATION_CASES = {
   size: () => taskRefusal(o => o.padding = 'x'.repeat(17000)),
   keys: () => taskRefusal(o => o.unreviewed = true),
   strings: () => taskRefusal(o => o.executor = 'fixture-executor '),
-  version: () => taskRefusal(o => o.version = 3),
+  version: () => taskRefusal(o => o.version = 4),
   purpose: () => taskRefusal(o => o.purpose = 'other'),
   ids: () => taskRefusal(o => o.executor = ''),
   digests: () => taskRefusal(o => o.arguments_sha256 = 'bad'),
@@ -1831,6 +1880,8 @@ const OPERATION_CASES = {
   cost_bounds: () => taskRefusal(o => o.resource_envelope.cost_upper_bound.status = 'enforced'),
   read_argument_binding: () => taskRefusal(o => o.result_contract.read_argument_binding.get_messages.limit = 100),
   'readback.arguments_sha256': () => taskRefusal(o => o.readback.arguments_sha256 = 'a'.repeat(64)),
+  artifact_observation: () => opV3Refusal(o => o.artifact_observation.max_polls = 4),
+  cost_contract_sha256: () => opV3Refusal(o => { o.cost_contract_sha256 = 'e'.repeat(64); o.readback.cost_contract_sha256 = 'e'.repeat(64); }, {keepCostDigest: true}),
 };
 
 // Observation freshness is a time window, not a contract shape: typed separately
@@ -2344,6 +2395,191 @@ test('D4 server_now_age_ms must be a safe integer in 0..3600000, never ignored',
     assert.ok(f.h.byId.vacServiceOperationConfirm, String(serverNowAgeMs));
   }
 });
+
+// ── S207: version 3 service operation (Athena with_observation_scope, athena #1776 D4) ──
+test('v3: Athena’s exact observation-scoped operation reaches review, discloses the reads, and confirms on the same nonce', async () => {
+  const {h, receive, raw, state} = taskFixture(() => {}, {v3: true});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm, 'a valid v3 must reach review (Rob’s Flux card-2 failure)');
+  assert.equal(refusals(h).length, 0);
+  const text = allText(h.byId.vacServiceOperationReview);
+  assert.match(text, /start one Flux design task/);
+  assert.match(text, /read the design back a bounded number of times/);
+  assert.match(text, /Design read-back: Read only: get_project, get_components, get_nets, get_files before and after, plus wait_for_thread/);
+  assert.match(text, /At most 3 polls of 5 s, 11 extra read calls, 4 sessions in total, within 300 s/);
+  assert.match(text, /Read-back cost: Unknown; Flux read cost is unverified and has no enforced cap/);
+  assert.match(text, /500.00 USD — account-wide, NOT a cap on this task/);
+  assert.ok(text.includes(raw));
+  h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.equal(h.fetches[0].body.handoff.nonce, state, 'hash binding unchanged: the same observation-bound nonce');
+});
+
+test('v3: the fleet tenant’s connection account is "default"', async () => {
+  const {h, receive} = taskFixture(o => {
+    o.tenant_id = 'athena-fleet'; o.artifact_observation.connection.tenant_id = 'athena-fleet';
+    o.artifact_observation.connection.account_id = 'default';
+  }, {v3: true});
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm);
+});
+
+test('v2 is unchanged by v3 support', async () => {
+  const {h, receive} = taskFixture();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+  assert.ok(h.byId.vacServiceOperationConfirm);
+  assert.doesNotMatch(allText(h.byId.vacServiceOperationReview), /Design read-back|read the design back/);
+});
+
+const V3_FAULTS = {
+  // the transform must be exact
+  v2_tools: [o => { o.allowed_tools = ['get_project', 'create_thread', 'get_thread', 'get_messages']; }, 'allowed_tools'],
+  extra_tool: [o => { o.allowed_tools.push('delete_project'); }, 'allowed_tools'],
+  tool_order: [o => { o.allowed_tools.reverse(); }, 'allowed_tools'],
+  budget_3: [o => { o.constraints.connection_budget = 3; }, 'constraints'],
+  missing_scope: [o => { delete o.artifact_observation; }, 'keys'],
+  scope_on_v2: [o => { o.version = 2; }, 'keys'],
+  // every artifact_observation field
+  scope_extra_key: [o => { o.artifact_observation.write = true; }, 'artifact_observation'],
+  scope_version: [o => { o.artifact_observation.version = 'athena.flux.native-observation/2'; }, 'artifact_observation'],
+  scope_capability: [o => { o.artifact_observation.capability = 'write_design'; }, 'artifact_observation'],
+  scope_execution: [o => { o.artifact_observation.execution_id = 'other'; }, 'artifact_observation'],
+  scope_project: [o => { o.artifact_observation.project_url = 'https://www.flux.ai/robzag/other/schematic'; }, 'artifact_observation'],
+  scope_account: [o => { o.artifact_observation.account = 'someone-else'; }, 'artifact_observation'],
+  scope_catalog: [o => { o.artifact_observation.catalog_sha256 = '0'.repeat(64); }, 'artifact_observation'],
+  scope_expiry: [o => { o.artifact_observation.expiry = new Date(Date.now() + 999999).toISOString(); }, 'artifact_observation'],
+  scope_baseline: [o => { o.artifact_observation.baseline_tools.push('create_thread'); }, 'artifact_observation'],
+  scope_after: [o => { o.artifact_observation.after_tools = ['get_project']; }, 'artifact_observation'],
+  scope_polls: [o => { o.artifact_observation.max_polls = 4; }, 'artifact_observation'],
+  scope_poll_timeout: [o => { o.artifact_observation.poll_timeout_seconds = 60; }, 'artifact_observation'],
+  scope_list_limit: [o => { o.artifact_observation.list_limit = 1000; }, 'artifact_observation'],
+  scope_list_offset: [o => { o.artifact_observation.list_offset = 1; }, 'artifact_observation'],
+  scope_calls: [o => { o.artifact_observation.additional_tool_call_limit = 12; }, 'artifact_observation'],
+  scope_sessions: [o => { o.artifact_observation.total_mcp_session_limit = 5; }, 'artifact_observation'],
+  scope_lifetime: [o => { o.artifact_observation.permit_lifetime_seconds = 3600; }, 'artifact_observation'],
+  scope_read_cost: [o => { o.artifact_observation.read_cost.status = 'capped'; }, 'artifact_observation'],
+  scope_retries: [o => { o.artifact_observation.automatic_retries = true; }, 'artifact_observation'],
+  scope_replay: [o => { o.artifact_observation.effect_replay_permitted = true; }, 'artifact_observation'],
+  scope_cap_claim: [o => { o.artifact_observation.provider_task_cap_enforced = true; }, 'artifact_observation'],
+  scope_timeout_claim: [o => { o.artifact_observation.local_timeout_stops_agent = true; }, 'artifact_observation'],
+  scope_pin: [o => { o.artifact_observation.tool_schemas.get_files.input_sha256 = '0'.repeat(64); }, 'artifact_observation'],
+  scope_pin_missing: [o => { delete o.artifact_observation.tool_schemas.get_nets; }, 'artifact_observation'],
+  scope_pin_extra: [o => { o.artifact_observation.tool_schemas.create_thread = {input_sha256: '0'.repeat(64), output_sha256: '0'.repeat(64)}; }, 'artifact_observation'],
+  conn_extra_key: [o => { o.artifact_observation.connection.token = 'x'; }, 'artifact_observation'],
+  conn_tenant: [o => { o.artifact_observation.connection.tenant_id = 'other'; }, 'artifact_observation'],
+  conn_provider: [o => { o.artifact_observation.connection.provider_id = 'other'; }, 'artifact_observation'],
+  conn_account: [o => { o.artifact_observation.connection.account_id = 'person:someone-else'; }, 'artifact_observation'],
+  conn_fleet_account_on_person: [o => { o.artifact_observation.connection.account_id = 'default'; }, 'artifact_observation'],
+  conn_scope: [o => { o.artifact_observation.connection.scope = 'admin'; }, 'artifact_observation'],
+  conn_project: [o => { o.artifact_observation.connection.project_url = 'https://www.flux.ai/robzag/other/schematic'; }, 'artifact_observation'],
+  conn_generation: [o => { o.artifact_observation.connection.client_generation = -1; }, 'artifact_observation'],
+  conn_generation_float: [o => { o.artifact_observation.connection.client_generation = 1.5; }, 'artifact_observation'],
+  conn_client_hash: [o => { o.artifact_observation.connection.client_id_sha256 = 'X'.repeat(64); }, 'artifact_observation'],
+  readback_cost_digest: [o => { o.readback.cost_contract_sha256 = 'e'.repeat(64); }, 'cost_contract_sha256', {keepCostDigest: true}],
+  stale_cost_digest: [o => { o.cost_contract_sha256 = 'e'.repeat(64); o.readback.cost_contract_sha256 = 'e'.repeat(64); }, 'cost_contract_sha256', {keepCostDigest: true}],
+  v4: [o => { o.version = 4; }, 'version'],
+  version_string: [o => { o.version = '3'; }, 'version'],
+};
+for (const [name, [change, field, options]] of Object.entries(V3_FAULTS)) {
+  test('v3 fails closed: ' + name, async () => {
+    const h = await opV3Refusal(change, options || {});
+    assertRefused(h, O + field);
+    assert.equal(h.byId.vacServiceOperationConfirm, undefined);
+    assert.equal(h.fetches.length, 0);
+  });
+}
+
+// ── S207 cross-repo: the EXACT bytes Athena main 08723185 hands VAC ──
+// tests/cross_repo/athena-service-operation-08723185.json is produced by
+// tests/cross_repo/athena_service_operation_probe.py running Athena's real
+// with_observation_scope, canonical_json_bytes, flux_observation_context.bound
+// and flux_service_runtime._observation_context_preview (self-checks recorded in
+// the fixture). VAC's clock is pinned to the preview's server_now so the
+// committed fixture stays deterministic.
+const ATHENA_FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'cross_repo', 'athena-service-operation-08723185.json'), 'utf8'));
+function athenaCase(name, {intent, contextText, state} = {}) {
+  const c = ATHENA_FIXTURE.cases[name];
+  const s = state || c.state;
+  const h = load('?handoff=service-operation&state=' + s, {now: () => Date.parse(c.server_now) + 1000});
+  const data = {type: 'vac-service-operation-intent', state: s, intent_json: intent || c.intent_json,
+    observation_context_json: contextText || c.observation_context_json, server_now: c.server_now, server_now_age_ms: 0};
+  const receive = () => h.listeners.message[0]({origin: VAULT, source: h.op, data});
+  return {h, c, receive};
+}
+// An attacker who controls Athena's page re-binds a changed intent consistently
+// (new digest, new context bytes, new nonce): only VAC's own shape check remains.
+function rebind(name, mutate) {
+  const c = ATHENA_FIXTURE.cases[name];
+  const op = JSON.parse(c.intent_json);
+  mutate(op);
+  const sorted = v => Array.isArray(v) ? v.map(sorted) : (!v || typeof v !== 'object') ? v :
+    Object.fromEntries(Object.keys(v).sort().map(k => [k, sorted(v[k])]));
+  const intent = JSON.stringify(sorted(op));
+  const digest = crypto.createHash('sha256').update(intent).digest('hex');
+  const context = JSON.parse(c.observation_context_json);
+  context.operation_digest = digest;
+  const contextText = JSON.stringify(sorted(context));
+  return {intent, contextText, state: boundNonce(digest, contextText)};
+}
+
+test('cross-repo fixture: generated from Athena 08723185 with every Athena self-check passing', () => {
+  assert.equal(ATHENA_FIXTURE.athena_commit, '08723185e326032fc8dac3018647b6b3eb9840e0');
+  assert.deepEqual(Object.keys(ATHENA_FIXTURE.cases).sort(), ['v2_fleet_max_age', 'v3_fleet_max_age', 'v3_personal_historical']);
+  for (const c of Object.values(ATHENA_FIXTURE.cases)) {
+    assert.ok(Object.values(c.athena_checks).every(v => v === true));
+    assert.equal(crypto.createHash('sha256').update(c.intent_json).digest('hex'), c.intent_hash);
+    assert.equal(boundNonce(c.intent_hash, c.observation_context_json), c.state, 'Athena nonce = VAC nonce formula');
+  }
+  assert.equal(JSON.parse(ATHENA_FIXTURE.cases.v3_personal_historical.intent_json).version, 3);
+  assert.equal(JSON.parse(ATHENA_FIXTURE.cases.v2_fleet_max_age.intent_json).version, 2);
+});
+
+for (const name of ['v3_personal_historical', 'v3_fleet_max_age', 'v2_fleet_max_age']) {
+  test('cross-repo accept: Athena’s real ' + name + ' reaches review and confirms on Athena’s exact nonce', async () => {
+    const {h, c, receive} = athenaCase(name);
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assert.equal(refusals(h).length, 0, JSON.stringify(refusals(h).map(x => x.m)));
+    assert.ok(h.byId.vacServiceOperationConfirm);
+    const text = allText(h.byId.vacServiceOperationReview);
+    assert.ok(text.includes(c.intent_json), 'the exact received bytes are shown');
+    if (name.startsWith('v3')) assert.match(text, /Read-back cost: Unknown/);
+    else assert.doesNotMatch(text, /Design read-back/);
+    h.byId.vacServiceOperationConfirm.listeners.click(); await flush(); await flush();
+    assert.equal(h.fetches.length, 1);
+    assert.equal(h.fetches[0].body.handoff.nonce, c.state);
+  });
+}
+
+const ATHENA_V3_TAMPER = {
+  // Not re-bound: a shape-valid changed byte breaks Athena's binding / nonce.
+  intent_byte_unbound: [() => {
+    const c = ATHENA_FIXTURE.cases.v3_personal_historical;
+    return {intent: c.intent_json.replace('"packet_id":"PKT-FLUX-B1-', '"packet_id":"PKT-FLUX-B2-')};
+  }, 'vac_observation_context_binding_mismatch'],
+  context_bytes_unbound: [() => {
+    const c = ATHENA_FIXTURE.cases.v3_personal_historical;
+    const ctx = JSON.parse(c.observation_context_json);
+    return {contextText: c.observation_context_json.replace(ctx.policy_sha256, ctx.policy_sha256.replace(/^./, ch => ch === '0' ? '1' : '0'))};
+  }, 'vac_nonce_mismatch'],
+  // Re-bound consistently: VAC's own v3 shape check must still refuse.
+  polls_rebound: [() => rebind('v3_personal_historical', o => { o.artifact_observation.max_polls = 4; }), O + 'artifact_observation'],
+  pin_rebound: [() => rebind('v3_personal_historical', o => { o.artifact_observation.tool_schemas.get_files.output_sha256 = '0'.repeat(64); }), O + 'artifact_observation'],
+  account_rebound: [() => rebind('v3_personal_historical', o => { o.artifact_observation.connection.account_id = 'default'; }), O + 'artifact_observation'],
+  write_tool_rebound: [() => rebind('v3_personal_historical', o => { o.allowed_tools.push('delete_project'); }), O + 'allowed_tools'],
+  // async_credit_risk changed, cost digests left at Athena's value: VAC recomputes and refuses.
+  cost_digest_rebound: [() => rebind('v3_personal_historical', o => { o.async_credit_risk.observed_available_acus = 499; }), O + 'cost_contract_sha256'],
+  downgrade_rebound: [() => rebind('v3_personal_historical', o => { o.version = 2; }), O + 'keys'],
+  // An unknown version takes no context, and a context is never silently ignored.
+  future_version_rebound: [() => rebind('v3_personal_historical', o => { o.version = 4; }), 'vac_observation_context_invalid'],
+};
+for (const [name, [make, code]] of Object.entries(ATHENA_V3_TAMPER)) {
+  test('cross-repo tamper refused: ' + name, async () => {
+    const {h, receive} = athenaCase('v3_personal_historical', make());
+    h.window.VACVaultHandoff.onVerified(FULL, {}); receive(); await settleReview();
+    assertRefused(h, code);
+    assert.equal(h.fetches.length, 0);
+  });
+}
 
 test('every refusal code except the unspecified collapse value is exercised above', () => {
   const missing = REFUSAL_ENUM.filter(c => c !== 'vac_unspecified' && !SEEN_REFUSALS.has(c));
