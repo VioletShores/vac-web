@@ -124,7 +124,7 @@ test('CLI returns nonzero and writes invalid source evidence instead of clean su
 
 test('CLI records missing extracted mic binding without aborting report construction', () => {
     const child = driftedDigitReport(src => src.replace(
-        'if (_micSeeded && _voicedRunPass(_micVoicedState, _micOnFallback))',
+        'if (_micSeeded && _micPreflightPass(_micVoicedState, _micOnFallback))',
         'if (true)'), true);
     assert.equal(child.status, 1, child.output);
     const rows = child.report.results.filter(r => r.stage === 'mic_qualify');
@@ -136,6 +136,7 @@ test('CLI records missing extracted mic binding without aborting report construc
 test('CLI records missing stage constants as binding errors without import crashes', () => {
     for (const [before, after, stage] of [
         ['const MIC_PREFLIGHT_TICKS_NEEDED = 4;', 'const REMOVED_MIC_TICKS = 4;', 'mic_qualify'],
+        ["const MIC_VOICED_MS_NEEDED = _vacTune('micVoicedMs', 1000, 600, 2000);", 'const REMOVED_MIC_MS = 1000;', 'mic_qualify'],
         ['const PHRASE_SILENCE_TICKS_NEEDED = 2;', 'const REMOVED_PHRASE_TICKS = 2;', 'phrase_gate'],
         ['const DIGIT_VOICE_MIN_MS = 200;', 'const REMOVED_DIGIT_MS = 200;', 'digit_voice'],
     ]) {

@@ -21,6 +21,65 @@ provenance:
     genuine/impostor derived-feature pair for the face-embed stage.
 
 specimens:
+  # ── S207 mic test (voiced time + ambient-relative near-field gate), replayed at 60 Hz ──
+  # Defaults are UNCALIBRATED (micVoicedMs 1000, micRmsFloor 0.035, micAmbientMult 2.0):
+  # to be re-checked against Rob's 13:08 ceremony debug events before release.
+  - id: mic_quiet_desktop_speech
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      Rob's case: "Testing one, two, three" on a quiet desktop mic (0.040 syllables,
+      0.090 peaks) for ~1.25 s. Failed under the old fixed 0.055 floor; passes once
+      1000 ms of modulated voice-band speech has been heard.
+  - id: mic_quiet_short_burst
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      The same quiet speech for only ~0.67 s, then silence: below the 1000 ms voiced
+      time, so the mic test keeps listening (micVoicedMs).
+  - id: mic_speech_with_pauses
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      ~1.3 s of speech split by two 100 ms "neither" dips between words: the dips hold
+      the voiced time, they do not reset it.
+  - id: mic_far_tv_modulated
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      5 s of a far-field TV: voice-band shaped and modulated, 0.036-0.054. It clears the
+      new 0.035 floor but its range never reaches the untunable modulation bar (0.045).
+  - id: mic_loud_room_quiet_speech
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      A noisy room (seeded ambient 0.03) with quiet speech (0.045/0.090): the ambient
+      multiplier raises the gate to the 0.055 cap, the quiet syllables do not count, and
+      the run has no modulation (micAmbientMult).
+  - id: mic_loud_room_clear_speech
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: PASS
+    description: >
+      The same noisy room with clear near-field speech (0.070/0.120) for ~1.25 s.
+  - id: mic_door_slam
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      One loud 100 ms transient then silence: far below 1000 ms of voiced time.
+  - id: mic_broadband_hum
+    stage: mic_qualify
+    kind: synthetic
+    expectedOutcome: FAIL
+    description: >
+      Loud, modulated, but not voice-band shaped (most energy outside 85 Hz-3 kHz).
+
   - id: crisp_267ms_digit
     stage: digit_voice
     kind: synthetic

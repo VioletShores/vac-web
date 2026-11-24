@@ -41,6 +41,11 @@ const STAGE_INPUT_EXTRACTORS = {
     face_embed: (data) => data,
     finger_gesture: (data) => data,
 };
+// S207: per-specimen stage options (e.g. mic_qualify's frameMs / ambientRms for the
+// voiced-time mic test). Absent -> the stage's own defaults, exactly as before.
+const STAGE_OPTION_EXTRACTORS = {
+    mic_qualify: (data) => data.options || {},
+};
 
 const MANIFEST_PATH = path.join(__dirname, '..', 'fixtures', 'biometric', 'manifest.yaml');
 const REPORTS_DIR = path.join(__dirname, 'reports');
@@ -102,7 +107,9 @@ function runHarness(manifest = loadManifest()) {
             }
             try {
                 const input = STAGE_INPUT_EXTRACTORS[stageName](data);
-                const result = stageModule.run(input);
+                const result = STAGE_OPTION_EXTRACTORS[stageName]
+                    ? stageModule.run(input, STAGE_OPTION_EXTRACTORS[stageName](data))
+                    : stageModule.run(input);
                 results.push({
                     id: specimen.id,
                     stage: stageName,

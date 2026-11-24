@@ -217,10 +217,10 @@ test('TC-MSF-10: requestCamera rebuilds proactively when context and track sampl
 
 test('TC-MSF-11: the fallback classifier in source matches the mirror', () => {
     assert.ok(src.includes("const _mrVoicedFrame = _micOnFallback && (_avMrLevelSynth >= MR_FALLBACK_VOICED_LEVEL) && (_speechRatio < 0 || _speechRatio >= VOICE_BAND_MIN_RATIO);"));
-    assert.ok(src.includes("const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > VOICED_RUN_SPEECH_RMS_FLOOR));"));
+    assert.ok(src.includes("const _micVoicedFrame = _mrVoicedFrame || ((_speechRatio >= VOICE_BAND_MIN_RATIO) && (_ceremonyRms > _micNearFieldGate(_micSeededAmbientRms)));"));
     assert.ok(src.includes("const _micSilenceFrame = _micOnFallback ? (_avMrLevelSynth === 0 && !_mrVoicedFrame) : (_ceremonyRms < VOICED_RUN_SILENCE_RMS_FLOOR);"));
     assert.ok(src.includes("_voicedRunTick(_micVoicedState, _mrVoicedFrame ? (_avMrLevelSynth / 100) : _ceremonyRms, _micVoicedFrame, _micSilenceFrame);"));
-    assert.ok(src.includes("_voicedRunPass(_micVoicedState, _micOnFallback)"), 'modOverride on the proven proxy path');
+    assert.ok(src.includes("_micPreflightPass(_micVoicedState, _micOnFallback)"), 'modOverride on the proven proxy path');
     assert.ok(src.includes("const _micOnFallback = !!_avMrFallback && _avAnalyserDeadSince > 0;"));
     assert.ok(!/_avMrLevelSynth >= 8\b/.test(src.replace(/\/\/[^\n]*/g, '')), 'the literal 8 is hoisted into MR_FALLBACK_VOICED_LEVEL (code, not comments)');
     assert.equal(MR_FALLBACK_VOICED_LEVEL, 8, 'hoisted, not tuned');
