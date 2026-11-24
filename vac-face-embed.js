@@ -43,15 +43,18 @@
   var DIAG_PROBE_CONFIDENCE = 0.05;
   var DIAG_PROBE_BUDGET_MS = 1200;
   // S207 calibrated multi-face rule (Rob, 24 Nov: a mirror behind him refused a
-  // real approval). Extra detections no longer refuse outright when ONE face is
-  // clearly the person at the camera. All four must hold, else 'multiple_faces':
+  // real approval). The client cannot tell a reflection from a real person, so it
+  // does not try: it picks the primary face and tolerates SMALLER SECONDARY FACES
+  // (REFLECTIONS OR BYSTANDERS) only for choosing the descriptor, and always reports
+  // them (ignoredFaces). All four must hold, else 'multiple_faces':
   //   - the largest face is confidently a face (score >= PRIMARY_MIN_SCORE);
   //   - its centre is in the middle of the frame (the oval the user is framed in);
-  //   - every other face is minor: area <= EXTRA_MAX_AREA_RATIO x the primary's,
-  //     or low-confidence (< EXTRA_LOW_SCORE) AND area <= EXTRA_LOW_MAX_AREA_RATIO;
-  //   - at most MAX_EXTRA_FACES extras.
-  // The descriptor is ALWAYS the primary face's. Identity is still decided
-  // server-side against the template on file; liveness is still the server's.
+  //   - every other face is a smaller secondary face: area <= EXTRA_MAX_AREA_RATIO x
+  //     the primary's, or low-confidence (< EXTRA_LOW_SCORE) AND area <= EXTRA_LOW_MAX_AREA_RATIO;
+  //   - at most MAX_EXTRA_FACES secondary faces.
+  // This is NOT a pass: the server counts faces itself and refuses the full ceremony
+  // unless it sees exactly one, and gives no tolerance band when ignoredFaces > 0.
+  // The descriptor is ALWAYS the primary face's.
   var PRIMARY_MIN_SCORE = 0.8;
   var PRIMARY_CENTRE_BAND = 0.2;        // centre must be within [0.2, 0.8] of width and height
   var EXTRA_MAX_AREA_RATIO = 0.25;
@@ -146,9 +149,9 @@
     for (var k = 0; k < faces.length; k++) {
       if (k === p) continue;
       var ratio = areas[k] / areas[p];
-      var minor = ratio <= EXTRA_MAX_AREA_RATIO ||
+      var smallerSecondary = ratio <= EXTRA_MAX_AREA_RATIO ||
                   (faces[k].score < EXTRA_LOW_SCORE && ratio <= EXTRA_LOW_MAX_AREA_RATIO);
-      if (!minor) return null;
+      if (!smallerSecondary) return null;
     }
     return { index: p, ignored: faces.length - 1 };
   }
@@ -182,7 +185,7 @@
       arr[i] = v;
     }
     if (ignored > 0) {
-      console.log('[VACFaceEmbed] ' + ignored + ' minor extra face(s) ignored (e.g. a reflection); using the primary face');
+      console.log('[VACFaceEmbed] ' + ignored + ' smaller secondary face(s) (reflections or bystanders) ignored for the descriptor; using the primary face; reported to the server');
       return { ok: true, embedding: arr, faceCount: n, ignoredFaces: ignored, warnings: ['extra_faces_ignored'] };
     }
     return { ok: true, embedding: arr, faceCount: 1, ignoredFaces: 0 };
@@ -192,7 +195,8 @@
   // Returns one of:
   //   {ok:true,  embedding:[128 floats], faceCount:1}
   //   {ok:true,  embedding:[...], faceCount:N, ignoredFaces:N-1, warnings:['extra_faces_ignored']}
-  //       (one dominant, centred face plus minor extras, see selectPrimaryFace)
+  //       (one dominant, centred face plus smaller secondary faces (reflections or
+  //        bystanders), see selectPrimaryFace)
   //   {ok:false, faceCount:0,  reason:'no_face'}
   //   {ok:false, faceCount:N,  reason:'multiple_faces'}
   //   {ok:false, faceCount:-1, reason:'embedder_error'}  (load/detector failure)

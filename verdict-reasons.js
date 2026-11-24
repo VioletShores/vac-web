@@ -162,6 +162,10 @@
                     reasons.push('Face identification could not be completed — no usable face descriptor was captured.');
                 } else if (signal === 'single_face' && code.indexOf('no_face') !== -1) {
                     reasons.push('No face was clearly visible during the recording.');
+                } else if (signal === 'single_face' && code.indexOf('face_count_unavailable') !== -1) {
+                    // The server could not confirm exactly one face: an incomplete check,
+                    // not evidence of a second person.
+                    reasons.push('The one-person check could not be completed for this recording.');
                 } else if (isServiceOutage) {
                     reasons.push(signal.replace(/_/g, ' ') + ' — service unavailable (will retry).');
                 } else {
@@ -173,6 +177,8 @@
                         tips.push('Face the camera directly in even light and restart the camera capture. Your enrolled identity has not changed.');
                     } else if (signal === 'single_face' && code.indexOf('no_face') !== -1) {
                         tips.push('Face the camera directly in good light, with your face inside the oval.');
+                    } else if (signal === 'single_face' && code.indexOf('face_count_unavailable') !== -1) {
+                        tips.push('Please try again, facing the camera in good light with only you in view.');
                     } else {
                         var tipInfo = FAIL_REASONS[signal];
                         if (tipInfo && tipInfo.tip) tips.push(tipInfo.tip);

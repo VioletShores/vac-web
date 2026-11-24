@@ -23,13 +23,13 @@ test('one face is not this function\'s case (compute() handles n === 1)', () => 
     assert.equal(selectPrimaryFace([me()], W, H), null);
 });
 
-test('mirror reflection behind the user: small, any confidence -> accept, primary used', () => {
-    // 120x140 reflection = 16800 px^2 vs 108000 primary: ratio 0.156 <= 0.25
+test('smaller secondary face (reflection or bystander), any confidence -> primary chosen and reported', () => {
+    // 120x140 secondary face = 16800 px^2 vs 108000 primary: ratio 0.156 <= 0.25
     const r = selectPrimaryFace([face(1000, 100, 120, 140, 0.92), me()], W, H);
     assert.deepEqual({ ...r }, { index: 1, ignored: 1 });
 });
 
-test('dim, low-confidence reflection up to half the size -> accept', () => {
+test('low-confidence smaller secondary face (reflection or bystander) up to half the size -> primary chosen and reported', () => {
     // 200x240 = 48000 / 108000 = 0.44 <= 0.5 and score 0.55 < 0.6
     const r = selectPrimaryFace([me(), face(950, 200, 200, 240, 0.55)], W, H);
     assert.deepEqual({ ...r }, { index: 0, ignored: 1 });
@@ -63,7 +63,7 @@ test('more than two extra faces -> refuse', () => {
     assert.equal(selectPrimaryFace([me(), tiny(10), tiny(100), tiny(1150)], W, H), null);
 });
 
-test('two minor extras -> accept', () => {
+test('two smaller secondary faces (reflections or bystanders) -> primary chosen, both reported', () => {
     const tiny = (x) => face(x, 20, 60, 60, 0.7);
     const r = selectPrimaryFace([tiny(10), me(), tiny(1150)], W, H);
     assert.deepEqual({ ...r }, { index: 1, ignored: 2 });
@@ -76,7 +76,7 @@ const frame = { videoWidth: W, videoHeight: H };
 const det = (f, d) => ({ detection: { score: f.score, box: f.box }, descriptor: d });
 
 test('compute() uses results[chosen]: the PRIMARY face\'s descriptor, wherever it sits in the list', () => {
-    // The reflection comes FIRST in detector order; the descriptor must still be the primary's.
+    // The smaller secondary face comes FIRST in detector order; the descriptor must still be the primary's.
     const r = descriptorFromDetections([det(face(1000, 100, 120, 140, 0.92), desc(0.9)), det(me(), desc(0.1))], frame);
     assert.equal(r.ok, true);
     assert.equal(r.embedding.length, 128);
@@ -86,8 +86,8 @@ test('compute() uses results[chosen]: the PRIMARY face\'s descriptor, wherever i
     assert.deepEqual([...r.warnings], ['extra_faces_ignored']);
 });
 
-test('a distant real second face: the client may ignore it but MUST report it (server refuses on its own count)', () => {
-    // A small, confident face far behind the user. The client rule accepts it as minor;
+test('a distant real bystander is a smaller secondary face: chosen around, but ALWAYS reported (server refuses on its own count)', () => {
+    // A small, confident face far behind the user. The client rule treats it as a smaller secondary face;
     // what matters is that ignoredFaces > 0 is reported, so the server gives no band,
     // and the server's own faces_seen gate (vac-protocol) refuses the ceremony.
     const bystander = face(1100, 60, 90, 110, 0.95);
@@ -134,6 +134,9 @@ test('server single_face refusals get honest text (no "more than one" for no_fac
     const none = VR.deriveFailureDisplay({ verdict: { reasons: ['single_face:no_face(faces_seen=0)'] } });
     assert.deepEqual(none.reasons, ['No face was clearly visible during the recording.']);
     assert.doesNotMatch(none.tips.join(' '), /more than one|behind you/i);
+    const unknown = VR.deriveFailureDisplay({ verdict: { reasons: ['single_face:face_count_unavailable(faces_seen=None)'] } });
+    assert.deepEqual(unknown.reasons, ['The one-person check could not be completed for this recording.']);
+    assert.doesNotMatch(unknown.reasons.concat(unknown.tips).join(' '), /more than one|no face was/i);
 });
 
 test('unknown frame size or malformed detection -> refuse (fail closed)', () => {
