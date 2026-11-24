@@ -42,6 +42,22 @@
   // Diagnostics only: the probe that explains a no_face refusal. Never a gate.
   var DIAG_PROBE_CONFIDENCE = 0.05;
   var DIAG_PROBE_BUDGET_MS = 1200;
+  // S207 calibrated multi-face rule (Rob, 24 Nov: a mirror behind him refused a
+  // real approval). Extra detections no longer refuse outright when ONE face is
+  // clearly the person at the camera. All four must hold, else 'multiple_faces':
+  //   - the largest face is confidently a face (score >= PRIMARY_MIN_SCORE);
+  //   - its centre is in the middle of the frame (the oval the user is framed in);
+  //   - every other face is minor: area <= EXTRA_MAX_AREA_RATIO x the primary's,
+  //     or low-confidence (< EXTRA_LOW_SCORE) AND area <= EXTRA_LOW_MAX_AREA_RATIO;
+  //   - at most MAX_EXTRA_FACES extras.
+  // The descriptor is ALWAYS the primary face's. Identity is still decided
+  // server-side against the template on file; liveness is still the server's.
+  var PRIMARY_MIN_SCORE = 0.8;
+  var PRIMARY_CENTRE_BAND = 0.2;        // centre must be within [0.2, 0.8] of width and height
+  var EXTRA_MAX_AREA_RATIO = 0.25;
+  var EXTRA_LOW_SCORE = 0.6;
+  var EXTRA_LOW_MAX_AREA_RATIO = 0.5;
+  var MAX_EXTRA_FACES = 2;
 
   var _faceapi = null;
   var _ready = false;
@@ -106,9 +122,42 @@
     return _loading;
   }
 
+  // Pure: picks the one face to use from N>1 detections, or null (refuse).
+  // faces: [{score, box:{x,y,width,height}}]; frameW/frameH: input pixel size.
+  // Returns {index, ignored} or null. No I/O, so it is unit-tested directly.
+  function selectPrimaryFace(faces, frameW, frameH) {
+    if (!faces || faces.length < 2) return null;
+    if (!(frameW > 0) || !(frameH > 0)) return null;
+    if (faces.length - 1 > MAX_EXTRA_FACES) return null;
+    var areas = [];
+    for (var i = 0; i < faces.length; i++) {
+      var f = faces[i], b = f && f.box;
+      if (!b || !(b.width > 0) || !(b.height > 0) || typeof f.score !== 'number' || !isFinite(f.score)) return null;
+      areas.push(b.width * b.height);
+    }
+    var p = 0;
+    for (var j = 1; j < faces.length; j++) if (areas[j] > areas[p]) p = j;
+    var pf = faces[p];
+    if (pf.score < PRIMARY_MIN_SCORE) return null;
+    var cx = (pf.box.x + pf.box.width / 2) / frameW;
+    var cy = (pf.box.y + pf.box.height / 2) / frameH;
+    if (cx < PRIMARY_CENTRE_BAND || cx > 1 - PRIMARY_CENTRE_BAND ||
+        cy < PRIMARY_CENTRE_BAND || cy > 1 - PRIMARY_CENTRE_BAND) return null;
+    for (var k = 0; k < faces.length; k++) {
+      if (k === p) continue;
+      var ratio = areas[k] / areas[p];
+      var minor = ratio <= EXTRA_MAX_AREA_RATIO ||
+                  (faces[k].score < EXTRA_LOW_SCORE && ratio <= EXTRA_LOW_MAX_AREA_RATIO);
+      if (!minor) return null;
+    }
+    return { index: p, ignored: faces.length - 1 };
+  }
+
   // Compute a single-face 128-D descriptor from input (video/canvas/image).
   // Returns one of:
   //   {ok:true,  embedding:[128 floats], faceCount:1}
+  //   {ok:true,  embedding:[...], faceCount:N, ignoredFaces:N-1, warnings:['extra_faces_ignored']}
+  //       (one dominant, centred face plus minor extras, see selectPrimaryFace)
   //   {ok:false, faceCount:0,  reason:'no_face'}
   //   {ok:false, faceCount:N,  reason:'multiple_faces'}
   //   {ok:false, faceCount:-1, reason:'embedder_error'}  (load/detector failure)
@@ -140,8 +189,19 @@
         return { ok: false, faceCount: 0, reason: 'no_face',
                  diag: { best_score: best, min_confidence: MIN_DETECT_CONFIDENCE } };
       }
-      if (n > 1) return { ok: false, faceCount: n, reason: 'multiple_faces' };
-      var desc = results[0].descriptor;
+      var chosen = 0, ignored = 0;
+      if (n > 1) {
+        var fw = (input && (input.videoWidth || input.naturalWidth || input.width)) || 0;
+        var fh = (input && (input.videoHeight || input.naturalHeight || input.height)) || 0;
+        var dets = results.map(function (r) {
+          var d = r && r.detection;
+          return d ? { score: d.score, box: { x: d.box.x, y: d.box.y, width: d.box.width, height: d.box.height } } : null;
+        });
+        var sel = selectPrimaryFace(dets, fw, fh);
+        if (!sel) return { ok: false, faceCount: n, reason: 'multiple_faces' };
+        chosen = sel.index; ignored = sel.ignored;
+      }
+      var desc = results[chosen].descriptor;
       if (!desc || desc.length !== EXPECTED_DIM) {
         return { ok: false, faceCount: 1, reason: 'embedder_error' };
       }
@@ -150,6 +210,10 @@
         var v = Number(desc[i]);
         if (!isFinite(v)) return { ok: false, faceCount: 1, reason: 'embedder_error' };
         arr[i] = v;
+      }
+      if (ignored > 0) {
+        console.log('[VACFaceEmbed] ' + ignored + ' minor extra face(s) ignored (e.g. a reflection); using the primary face');
+        return { ok: true, embedding: arr, faceCount: n, ignoredFaces: ignored, warnings: ['extra_faces_ignored'] };
       }
       return { ok: true, embedding: arr, faceCount: 1 };
     } catch (e) {
@@ -176,6 +240,7 @@
   global.VACFaceEmbed = {
     ready: _load,
     compute: compute,
+    selectPrimaryFace: selectPrimaryFace,
     euclidean: euclidean,
     reasonMessage: reasonMessage,
     MODEL_ID: MODEL_ID,
