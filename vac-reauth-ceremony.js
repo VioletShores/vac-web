@@ -221,6 +221,29 @@ function vacDebug(event, reason, context) {
     } catch(_) {}
 }
 
+// S207 PRIVACY-SAFE TIMING TELEMETRY (specimen B for the VAC harness): the next calibration needs
+// real timings and levels, and Rob's 13:08 ceremony left none in readable form. This sends ONLY
+// finite numbers from an ALLOW-LIST of field names (rounded): never a string, a transcript, a
+// challenge digit value, audio, an image or anything biometric. Unknown fields are dropped.
+const VAC_TIMING_FIELDS = {
+    mic_timing: ['ms_since_mic_open', 'voiced_ms', 'need_ms', 'gate_rms', 'ambient_rms', 'mod', 'vb_ratio', 'fallback', 'frame_ms_avg'],
+    digit_timing: ['digit_index', 'digit_count', 'ms_window_to_voice', 'ms_window_to_accept', 'ms_gesture_to_accept',
+                   'retry_cues', 'voice_led', 'cant_hear_shown', 'onset_grace_used', 'content_gate_wait_ms'],
+};
+function vacTimingEvent(event, fields) {
+    try {
+        var allow = VAC_TIMING_FIELDS[event];
+        if (!allow) return;
+        var out = {};
+        for (var i = 0; i < allow.length; i++) {
+            var k = allow[i], v = fields ? fields[k] : undefined;
+            if (typeof v === 'boolean') v = v ? 1 : 0;
+            if (typeof v === 'number' && Number.isFinite(v)) out[k] = Math.round(v * 1000) / 1000;
+        }
+        vacDebug(event, null, out);
+    } catch (_) {}
+}
+
 // S166 sensors: several bare catch(_) {} blocks inside the greeting VAD loop
 // (_phraseVadTick/renderGreeting) swallow errors with zero visibility — see
 // docs/debug/GREETING-REGRESSION-DIFF-S166.md §5/§7. Throttled (one beacon per 3s
@@ -1953,6 +1976,13 @@ function startAVChecks() {
                     setAVStatus('mic', 'good', _micOnFallback ? 'Mic: working (fallback path)' : 'Mic: working');
                     avChecks.mic = true;
                     try { vacDebug('mic_pass_on_voiced_run', null, { voiced_ticks: _micVoicedState.ticks, mod: Number((_micVoicedState.max - _micVoicedState.min).toFixed(3)), vb_ratio: Number(_speechRatio.toFixed(3)), near_field_rms: Number(_ceremonyRms.toFixed(3)), path: window.__vacMicQualifyPath, mr_level: _avMrLevelSynth, rebuilt: _avGraphRebuilt }); } catch(_) {}
+                    // S207 specimen B: how long the mic test took, against which gate, in which room.
+                    vacTimingEvent('mic_timing', {
+                        ms_since_mic_open: _micSeedStartT ? (_nowT - _micSeedStartT) : null,
+                        voiced_ms: _micVoicedState.ms || 0, need_ms: MIC_VOICED_MS_NEEDED,
+                        gate_rms: _micNearFieldGate(_micSeededAmbientRms), ambient_rms: _micSeededAmbientRms,
+                        mod: _micVoicedState.max - _micVoicedState.min, vb_ratio: _speechRatio, fallback: !!_micOnFallback,
+                    });
                 }
             }
             if (avChecks.mic && !_preflightLatched() && _nowT - _micLastQualifyT > 10000) {
@@ -4228,6 +4258,7 @@ function beginRecording() {
     let _noTranscriptPendingFor = null; // S207: {generation, digitIndex} of a no-transcript proof that waited for the fingers
     let _digitRetryCueAt = 0;           // S207: when a voiced attempt for this digit was dropped (drives "say it again")
     let _cantHearShownAt = 0;           // S207: when "We can't hear you" was first shown for this digit (debounce)
+    let _digitRetryCues = 0, _digitVoiceLed = false, _digitCantHearShown = false, _digitGraceUsed = false;   // S207 telemetry counters (per digit)
     let _digitGestureEvidence = null; // latest actually observed live/held gesture; never a permanent latch
     // Session-local shadow of module-level _contentGateAvail. Runtime permission failures set this
     // to false (energy fallback) without corrupting the module-level var and degrading future sessions.
@@ -4658,6 +4689,7 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
             firedAt < speechWindowStart || firedAt - onsetAt < DIGIT_VOICE_MIN_MS) return;
         _digitVoiceEvidence = {digitIndex: currentDigitIndex, generation: _contentGateGeneration,
             onsetAt: onsetAt, firedAt: firedAt, rms: rms};
+        if (onsetAt < speechWindowStart) _digitGraceUsed = true;   // S207 telemetry
     }
 
     function _acceptDigitNoTranscript(generation, digitIndex) {
@@ -4759,7 +4791,7 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
                     if (voiced > 0) { _vadDiag('run ended: ' + Math.round(_now - _voiceOnsetAt) + 'ms pk ' + (voiceMax*100).toFixed(0) + '% mod ' + ((voiceMax-voiceMin)*100).toFixed(1) + ' | need ' + DIGIT_VOICE_MIN_MS + 'ms above ' + (vadSpeechThreshold*100).toFixed(0) + '% mod ' + (Math.max(0.012, 0.10*voiceMax)*100).toFixed(1)); try { vacDebug('vad_gate', 'run_ended', { path:'full', dur_ms: Math.round(_now - _voiceOnsetAt), peak: Number((voiceMax).toFixed(3)), mod: Number((voiceMax-voiceMin).toFixed(3)), thr: Number(vadSpeechThreshold.toFixed(3)), need_ms: DIGIT_VOICE_MIN_MS, need_mod: Number(Math.max(0.012, 0.10*voiceMax).toFixed(3)), digit_index: currentDigitIndex }); } catch(_){} }  // S154 diag
                     // S207: a real voiced attempt (>=120 ms) in this digit's window that ended without
                     // counting -> tell the user to say it again (instead of silently waiting).
-                    if (voiced > 0 && _now >= speechWindowStart && !speechReady[currentDigitIndex] && (_now - _voiceOnsetAt) >= 120) _digitRetryCueAt = _now;
+                    if (voiced > 0 && _now >= speechWindowStart && !speechReady[currentDigitIndex] && (_now - _voiceOnsetAt) >= 120) { _digitRetryCueAt = _now; _digitRetryCues++; }
                     voiced = 0; voiceMin = 1; voiceMax = 0; _voiceDipStart = 0; _voicedAboveThrFrames = 0;   // R1: real silence fully ends the run
                 } else if (vbRatio >= VOICE_BAND_MIN_RATIO && (rms > vadSpeechThreshold || rms > audioNoiseFloor || _vadStarved)) {
                     // S155: count EVERY individual above-threshold+voice-band sample this attempt
@@ -5287,7 +5319,7 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
             _noTranscriptPendingFor.digitIndex === currentDigitIndex &&
             _noTranscriptPendingFor.generation === _contentGateGeneration) {
             if (_acceptDigitNoTranscript(_noTranscriptPendingFor.generation, currentDigitIndex)) {
-                _noTranscriptPendingFor = null;
+                _noTranscriptPendingFor = null; _digitVoiceLed = true;
                 try { vacDebug('digit_voice_led_accept', null, { digit_index: currentDigitIndex }); } catch(_) {}
             }
         }
@@ -5415,9 +5447,22 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
             _acceptArmed = false;
             _lastAcceptedCount = _recordCount;
             stableFrames = 0;
+            // S207 specimen B: per-digit pacing timings (index only, never the digit's value).
+            (function(){
+                var _tNow = performance.now(), _win = Number.isFinite(speechWindowStart) ? speechWindowStart : null;
+                vacTimingEvent('digit_timing', {
+                    digit_index: currentDigitIndex, digit_count: digits.length,
+                    ms_window_to_voice: (_win !== null && _voiceFiredAt > 0) ? (_voiceFiredAt - _win) : null,
+                    ms_window_to_accept: _win !== null ? (_tNow - _win) : null,
+                    ms_gesture_to_accept: _gestureReadyAt > 0 ? (_tNow - _gestureReadyAt) : null,
+                    retry_cues: _digitRetryCues, voice_led: _digitVoiceLed, cant_hear_shown: _digitCantHearShown,
+                    onset_grace_used: _digitGraceUsed,
+                });
+            })();
             currentDigitIndex++;
             _digitVoiceEvidence = null; _digitGestureEvidence = null;
             _noTranscriptPendingFor = null; _digitRetryCueAt = 0; _cantHearShownAt = 0;   // S207: per-digit pacing state starts fresh
+            _digitRetryCues = 0; _digitVoiceLed = false; _digitCantHearShown = false; _digitGraceUsed = false;
             digitStartTime = _adNow;
             hintShown = false;
             _qaGestureLatched = false;   // RESET — digit N+1's gesture latch starts FRESH (no bleed)
@@ -5503,7 +5548,7 @@ function _markSpeech(src, rms, onsetAt, observedAt) {
                 // S207 debounce: once "can't hear you" shows it stays at least CANT_HEAR_MIN_SHOW_MS
                 // (a hand jitter resetting _gestureReadyAt no longer makes it flash on and off).
                 var _cantHearNow = !!(_gestureReadyAt && (_now - _gestureReadyAt) > VOICE_HELP_TIMEOUT_MS);
-                if (_cantHearNow && !_cantHearShownAt) _cantHearShownAt = _now;
+                if (_cantHearNow && !_cantHearShownAt) { _cantHearShownAt = _now; _digitCantHearShown = true; }
                 var _cantHearShow = _cantHearNow || (_cantHearShownAt > 0 && (_now - _cantHearShownAt) < CANT_HEAR_MIN_SHOW_MS);
                 if (!_cantHearShow && _cantHearShownAt && (_now - _cantHearShownAt) >= CANT_HEAR_MIN_SHOW_MS) _cantHearShownAt = 0;
                 var _retryCue = _digitRetryCueAt > 0 && (_now - _digitRetryCueAt) < DIGIT_RETRY_CUE_MS;

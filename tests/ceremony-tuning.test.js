@@ -80,8 +80,30 @@ test('the voice-band and modulation bars are NOT tunable', () => {
     assert.doesNotMatch(tuningSrc, /voiceBand|modDelta|silenceFloor/i);
 });
 
+test('S207 specimen B telemetry: only allow-listed finite numbers leave the browser', () => {
+    const sent = [];
+    const ctx = vm.createContext({ vacDebug: (e, r, c) => sent.push({ e, r, c }) });
+    const start = src.indexOf('const VAC_TIMING_FIELDS = {');
+    const end = src.indexOf('// S166 sensors:', start);
+    vm.runInContext(src.slice(start, end), ctx);
+    vm.runInContext(`vacTimingEvent('digit_timing', {
+        digit_index: 1, ms_window_to_voice: 123.45678, voice_led: true, retry_cues: 2,
+        transcript: 'four', digit: 4, expected_digit: 4, email: 'a@b.c', audio: [1,2,3],
+        ms_window_to_accept: NaN, ms_gesture_to_accept: Infinity, content_gate_wait_ms: '12'
+    }); vacTimingEvent('not_allowed', { digit_index: 1 });`, ctx);
+    assert.equal(sent.length, 1, 'unknown event names are dropped');
+    assert.equal(sent[0].e, 'digit_timing');
+    assert.equal(sent[0].r, null);
+    assert.deepEqual({ ...sent[0].c }, { digit_index: 1, ms_window_to_voice: 123.457, retry_cues: 2, voice_led: 1 });
+    const fields = vm.runInContext('VAC_TIMING_FIELDS', ctx);
+    const all = [].concat(fields.mic_timing, fields.digit_timing).join(' ');
+    assert.doesNotMatch(all, /transcript|heard|expected|digit_value|phrase|email|name|audio|image|embedding|frame_b64/i);
+    assert.match(src, /vacTimingEvent\('mic_timing', \{/);
+    assert.match(src, /vacTimingEvent\('digit_timing', \{/);
+});
+
 test('digit pacing: retry cue, can’t-hear debounce and per-digit reset are wired', () => {
-    assert.match(src, /if \(voiced > 0 && _now >= speechWindowStart && !speechReady\[currentDigitIndex\] && \(_now - _voiceOnsetAt\) >= 120\) _digitRetryCueAt = _now;/);
+    assert.match(src, /if \(voiced > 0 && _now >= speechWindowStart && !speechReady\[currentDigitIndex\] && \(_now - _voiceOnsetAt\) >= 120\) \{ _digitRetryCueAt = _now; _digitRetryCues\+\+; \}/);
     assert.match(src, /Didn\\u2019t catch that \\u2014 say \\u201c' \+ _curDigit \+ '\\u201d again/);
     assert.match(src, /var _cantHearShow = _cantHearNow \|\| \(_cantHearShownAt > 0 && \(_now - _cantHearShownAt\) < CANT_HEAR_MIN_SHOW_MS\);/);
     assert.match(src, /_noTranscriptPendingFor = null; _digitRetryCueAt = 0; _cantHearShownAt = 0;/);
