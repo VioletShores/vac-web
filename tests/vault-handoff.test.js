@@ -382,6 +382,49 @@ test('critic-review is separate FULL/L3 VAT for two external models, not Flux wr
   assert.match(h.byId.vacVaultHandoffMsg.textContent, /does NOT approve the Flux design task/);
 });
 
+// Rob, 26 Nov (iPhone): after "Sent to Athena" the green approval button was
+// still on screen, so it was unclear whether approval had happened. The
+// post-send state is presentation only: same mint, same postMessage.
+test('critic-review post-send state hides the approval button and names one next step', async () => {
+  const {h, state, offer} = criticFixture();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  const confirm = h.byId.vacCriticReviewConfirm, sent = h.byId.vacCriticReviewSent;
+  assert.ok(sent, 'sent note is prepared with the review');
+  assert.match(sent.style.cssText, /^display:none;/, 'not shown before approval');
+  assert.equal(sent.style.display, undefined);
+  assert.notEqual(confirm.style.display, 'none');
+  assert.match(h.byId.vacVaultHandoffMsg.textContent, /sends your approval to your Athena tab/);
+  confirm.listeners.click(); await flush(); await flush();
+  assert.equal(h.fetches.length, 1);
+  assert.deepEqual(h.fetches[0].body.handoff, {audience: 'athena:l0:critic-review', nonce: state});
+  assert.deepEqual(JSON.parse(JSON.stringify(h.posted.at(-1))),
+    {m: {type: 'vac-vault-handoff', state, assertion: JWT}, o: VAULT});
+  assert.equal(confirm.disabled, true);
+  assert.equal(confirm.style.display, 'none', 'approval button leaves view once sent');
+  assert.equal(sent.style.display, 'block');
+  assert.match(sent.textContent, /Approval sent\. There is nothing more to approve on this page\./);
+  assert.match(h.byId.vacVaultHandoffMsg.textContent,
+    /^Done here\. Your approval was sent to Athena\. Go back to your Athena tab to see the job receipt\./);
+  assert.equal(h.byId.vacVaultHandoffResend.style.display, 'block', 'Send to Athena again stays as the secondary action');
+  (h.listeners.message || []).forEach(fn => fn({origin: VAULT, source: h.op,
+    data: {type: 'vac-vault-handoff-ack', state}}));
+  const msg = h.byId.vacVaultHandoffMsg.textContent;
+  assert.match(msg, /^Done here\./);
+  assert.match(msg, /This page does not start any paid calls/);
+  assert.match(msg, /your Athena tab starts the TWO paid external reviews/);
+  assert.doesNotMatch(msg, /owner tab may now queue/);
+  assert.equal(confirm.style.display, 'none');
+  assert.equal(h.byId.vacVaultHandoffResend.style.display, 'none');
+});
+
+test('critic-review panel keeps the last action clear of the Safari toolbar', async () => {
+  const {h, offer} = criticFixture();
+  h.window.VACVaultHandoff.onVerified(FULL, {}); offer(); await settleReview();
+  const css = h.byId.vacVaultHandoff.style.cssText;
+  assert.match(css, /calc\(clamp\(32px,8vw,44px\) \+ env\(safe-area-inset-bottom, 0px\)\)/);
+  assert.match(h.byId.vacCriticReview.style.cssText, /max-height:55dvh/);
+});
+
 test('critic-review accepts the exact server policy deadline beyond thirty minutes without early mint', async () => {
   for (const hours of [4, 24]) {
     const expiry = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
