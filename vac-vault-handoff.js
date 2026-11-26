@@ -1228,7 +1228,8 @@
     var box = document.createElement('section');
     box.id = 'vacCriticReview';
     box.setAttribute('aria-label', 'Review the exact external critic disclosure');
-    box.style.cssText = 'max-height:55vh;overflow:auto;max-width:860px;margin:12px auto;text-align:left;overflow-wrap:anywhere;';
+    // dvh follows Safari's toolbar; plain vh is the fallback for older browsers.
+    box.style.cssText = 'max-height:55vh;max-height:55dvh;overflow:auto;-webkit-overflow-scrolling:touch;max-width:860px;margin:12px auto;padding-bottom:4px;text-align:left;overflow-wrap:anywhere;';
     var heading = document.createElement('h2');
     var recovery = operation.recovery;
     heading.textContent = recovery ? 'Authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
@@ -1304,18 +1305,26 @@
     confirm.id = 'vacCriticReviewConfirm'; confirm.type = 'button';
     confirm.textContent = recovery ? 'I authorise ONE replacement attempt — TWO ADDITIONAL paid A2 reviews' :
       'I authorise Athena to START TWO paid external A2 reviews';
-    confirm.style.cssText = 'min-height:44px;margin:12px 0;padding:12px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
+    confirm.style.cssText = 'display:block;width:100%;min-height:48px;margin:16px 0 12px;padding:14px 22px;background:#10B981;color:#07130f;border:0;border-radius:12px;font:700 16px system-ui;';
     confirm.addEventListener('click', function () {
       if (recovery && (operationConfirmed || sending || acked || replacementDeliveryAttempted)) return;
       var why = liveOperationFault();
       if (why) { refuseLive(why); return; }
-      operationConfirmed = true; confirm.disabled = true; send();
+      // Presentation only: a pressed approval must not still look pressable.
+      operationConfirmed = true; confirm.disabled = true; confirm.style.opacity = '.5'; send();
     });
     box.appendChild(confirm);
+    // Shown in place of the approval button once it has been sent (see deliver()).
+    var sentNote = document.createElement('p');
+    sentNote.id = 'vacCriticReviewSent';
+    sentNote.style.cssText = 'display:none;margin:16px 0 12px;padding:12px 14px;border:1px solid #10B981;border-radius:12px;color:#10B981;font:700 15px/1.45 system-ui;';
+    sentNote.textContent = recovery ? '✓ Replacement approval sent. There is nothing more to approve on this page.' :
+      '✓ Approval sent. There is nothing more to approve on this page.';
+    box.appendChild(sentNote);
     panel().appendChild(box);
     show('info', recovery ?
       'This replacement has not started. Fresh FULL/L3 consent authorises TWO ADDITIONAL paid calls for the same source and PLAN. ' + criticPriorCalls(operation) + '; no further retry or Flux design is authorised.' :
-      'No critic or Flux design task has started yet. Deliberately confirming authorises immediate queueing of TWO paid external model calls; Flux design remains separate.', false);
+      'No critic or Flux design task has started yet. The green button sends your approval to your Athena tab, and Athena then starts TWO paid external reviews straight away after its server checks. Flux design remains separate.', false);
   }
 
   function receiveCriticPreview(message) {
@@ -1372,9 +1381,12 @@
     el.id = 'vacVaultHandoff';
     el.setAttribute('role', 'status');
     el.setAttribute('aria-live', 'polite');
+    // Bottom padding: auth.html does not use viewport-fit=cover, so on iPhone
+    // Safari env(safe-area-inset-bottom) is usually 0. The fixed floor keeps
+    // the last action clear of Safari's bottom toolbar, expanded or collapsed.
     el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:10000;background:#0D0F17;' +
       'border-top:1px solid #1E2230;padding:clamp(14px,3.5vw,22px) clamp(16px,4vw,28px) ' +
-      'calc(clamp(14px,3.5vw,22px) + env(safe-area-inset-bottom));color:#E8EDF5;' +
+      'calc(clamp(32px,8vw,44px) + env(safe-area-inset-bottom, 0px));color:#E8EDF5;' +
       'font:600 clamp(15px,3.8vw,17px)/1.45 -apple-system,system-ui,sans-serif;text-align:center;';
     var msg = document.createElement('div');
     msg.id = 'vacVaultHandoffMsg';
@@ -1454,6 +1466,17 @@
     document.getElementById('vacVaultHandoffResend').style.display = withResend ? 'block' : 'none';
   }
 
+  // Presentation only. Once the approval has been posted, the green approval
+  // button is replaced by a plain "sent" line so the page cannot read as still
+  // waiting for approval. The button was already disabled on click; nothing
+  // here changes what is sent, when, or whether "Send to Athena again" exists.
+  function criticSentState() {
+    var confirm = document.getElementById('vacCriticReviewConfirm');
+    if (confirm) confirm.style.display = 'none';
+    var note = document.getElementById('vacCriticReviewSent');
+    if (note) note.style.display = 'block';
+  }
+
   function openerPresent() {
     var op = null;
     try { op = window.opener; } catch (e) { op = null; }
@@ -1507,9 +1530,12 @@
       }
     } else window.opener.postMessage({ type: MSG, state: state, assertion: assertion }, target.origin);
     delivered = true;
+    if (criticReview) criticSentState();
     show('info', replacement ?
       'Replacement authorisation sent to Athena. TWO ADDITIONAL paid calls may start after server checks. Prior timed-out calls may be charged. Do NOT retry; check Athena’s job receipt. This is not proof that reviews completed.' :
-      'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.', !replacement);
+      (criticReview ?
+        'Done here. Your approval was sent to Athena. Go back to your Athena tab to see the job receipt. Athena, not this page, starts the TWO paid reviews.' :
+        'Sent to ' + destination + '. Return to that tab to finish ' + actionName + '.'), !replacement);
     clearTimeout(ackTimer);
     ackTimer = setTimeout(function () {
       if (!acked) {
@@ -1585,7 +1611,8 @@
       } else if (criticReview) {
         show('warn', operation && operation.recovery ?
           'Athena acknowledged the ONE replacement authorisation for TWO ADDITIONAL paid calls. ' + criticPriorCalls(operation) + '. No further retry is authorised. Check Athena for the exact job receipt and outcome; this is not proof of review completion and does NOT approve the Flux design task.' :
-          'Athena received the one-time critic-review verification. The owner tab may now queue TWO paid external model calls immediately after server grant checks. Check Athena for the exact job receipt; this does NOT approve the Flux design task.', false);
+          'Done here. Athena received your one-time approval. This page does not start any paid calls. If Athena’s server accepts this approval, your Athena tab starts the TWO paid external reviews straight away. Go back to your Athena tab to see the job receipt. This does NOT approve the Flux design task.', false);
+        criticSentState();
       } else if (reviewAfterHandoff) {
         show('ok', 'Verification delivered to Athena. Continue to recording, or review your results first. Your results stay available until you leave.', false);
         document.getElementById('vacVaultHandoffActions').style.display = 'flex';
